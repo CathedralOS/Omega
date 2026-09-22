@@ -32,7 +32,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
             .iter()
             .find(|(recorded, _)| *recorded == location)
         {
-            return *extent;
+            return extent.clone();
         }
         let extent = index_expression_extent_with_selectors(
             self.program,
@@ -40,7 +40,7 @@ impl SegmentContainmentEvaluation<'_, '_, '_> {
             location,
             self.selectors,
         );
-        self.extents.push((location, extent));
+        self.extents.push((location, extent.clone()));
         extent
     }
 
@@ -276,8 +276,10 @@ fn index_extent_contains(
             index_window_contains_point(start, end, point, selectors)
         }
         (EvaluatedIndexExtent::Point(container), EvaluatedIndexExtent::Point(contained)) => {
-            matches!((container, contained),
-                (Some(container), Some(contained)) if bound_equal(container, contained, selectors))
+            match (container, contained) {
+                (Some(container), Some(contained)) => bound_equal(container, contained, selectors),
+                _ => false,
+            }
         }
         // A single selected element cannot contain a whole window.
         (EvaluatedIndexExtent::Point(_), EvaluatedIndexExtent::Window { .. }) => false,
@@ -295,7 +297,10 @@ fn index_extents_equal(
 ) -> bool {
     match (left, right) {
         (EvaluatedIndexExtent::Point(left), EvaluatedIndexExtent::Point(right)) => {
-            matches!((left, right), (Some(left), Some(right)) if bound_equal(left, right, selectors))
+            match (left, right) {
+                (Some(left), Some(right)) => bound_equal(left, right, selectors),
+                _ => false,
+            }
         }
         (
             EvaluatedIndexExtent::Window {
@@ -306,12 +311,13 @@ fn index_extents_equal(
                 start: right_start,
                 end: right_end,
             },
-        ) => {
-            matches!((left_start, left_end, right_start, right_end),
-                (Some(left_start), Some(left_end), Some(right_start), Some(right_end))
-                    if bound_equal(left_start, right_start, selectors)
-                        && bound_equal(left_end, right_end, selectors))
-        }
+        ) => match (left_start, left_end, right_start, right_end) {
+            (Some(left_start), Some(left_end), Some(right_start), Some(right_end)) => {
+                bound_equal(left_start, right_start, selectors)
+                    && bound_equal(left_end, right_end, selectors)
+            }
+            _ => false,
+        },
         _ => false,
     }
 }
@@ -324,10 +330,13 @@ fn index_window_contains_point(
     point: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    matches!((container_start, container_end, point),
-        (Some(start), Some(end), Some(point))
-            if bound_is_at_or_before(start, point, selectors)
-                && bound_is_strictly_before(point, end, selectors))
+    match (container_start, container_end, point) {
+        (Some(start), Some(end), Some(point)) => {
+            bound_is_at_or_before(start, point.clone(), selectors)
+                && bound_is_strictly_before(point, end, selectors)
+        }
+        _ => false,
+    }
 }
 
 /// `[container_start, container_end)` contains `[contained_start,
@@ -341,11 +350,24 @@ fn index_window_contains_window(
     contained_end: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    matches!((container_start, container_end, contained_start, contained_end),
-        (Some(container_start), Some(container_end), Some(contained_start), Some(contained_end))
-            if bound_is_strictly_before(contained_start, contained_end, selectors)
+    match (
+        container_start,
+        container_end,
+        contained_start,
+        contained_end,
+    ) {
+        (
+            Some(container_start),
+            Some(container_end),
+            Some(contained_start),
+            Some(contained_end),
+        ) => {
+            bound_is_strictly_before(contained_start.clone(), contained_end.clone(), selectors)
                 && bound_is_at_or_before(container_start, contained_start, selectors)
-                && bound_is_at_or_before(contained_end, container_end, selectors))
+                && bound_is_at_or_before(contained_end, container_end, selectors)
+        }
+        _ => false,
+    }
 }
 
 fn place_segments_containment_evaluated(

@@ -481,33 +481,55 @@ pub fn projected_integer_bound_root(
     Some((symbol, field.symbol, is_mutable))
 }
 
-/// The root and fixed element coordinate of one indexed integer-bound
-/// expression (`items[2]`): the collection's resolved symbol, the constant
-/// element index, and whether the collection is mutable. Runtime index
-/// expressions and member-path collections stay outside the bound
-/// vocabulary.
+/// The root, resolved place path, and mutability of one indexed
+/// integer-bound expression (`items[2]`, `self.pivot[2]`): the root's
+/// resolved symbol, the ordered segments reaching the fixed element, and
+/// whether the root storage is mutable. Runtime index expressions,
+/// case projections, and deeper-than-one member collections stay outside
+/// the bound vocabulary.
 pub fn indexed_integer_bound_root(
     program: &TypedTrees,
     expression: ExpressionHandle,
-) -> Option<(SymbolHandle, usize, bool)> {
+) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>, bool)> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return None;
     };
-    let ExpressionNode::Name(path) = program.expression_table.expression(indexed.collection) else {
-        return None;
-    };
-    let members = program.expression_table.name_path_members(path.members);
-    if members.len() != 1 {
-        return None;
-    }
-    let (symbol, is_mutable, type_reference) =
-        if path.symbol.is_valid() && path.head_symbol == path.symbol {
-            bound_name_receiver(program, path)?
-        } else {
-            match local_by_name(program, members[0].as_str()) {
-                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
-                LocalLookup::Missing | LocalLookup::Invalid => return None,
+    let (symbol, mut segments, is_mutable, type_reference) =
+        match program.expression_table.expression(indexed.collection) {
+            ExpressionNode::Name(path) => {
+                let members = program.expression_table.name_path_members(path.members);
+                if members.len() != 1 {
+                    return None;
+                }
+                let (symbol, is_mutable, type_reference) =
+                    if path.symbol.is_valid() && path.head_symbol == path.symbol {
+                        bound_name_receiver(program, path)?
+                    } else {
+                        match local_by_name(program, members[0].as_str()) {
+                            LocalLookup::Found(local) => {
+                                (local.symbol, local.is_mutable, local.type_reference)
+                            }
+                            LocalLookup::Missing | LocalLookup::Invalid => return None,
+                        }
+                    };
+                (symbol, Vec::new(), is_mutable, type_reference)
             }
+            // A member collection (`self.pivot`, `pair.items`) roots the bound
+            // at the receiver's symbol; the member field is the path's first
+            // resolved segment.
+            ExpressionNode::Member(_) => {
+                let (symbol, field, is_mutable) =
+                    projected_integer_bound_field(program, indexed.collection)?;
+                (
+                    symbol,
+                    vec![facts::PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }],
+                    is_mutable,
+                    field.type_reference,
+                )
+            }
+            _ => return None,
         };
     if !symbol.is_valid() {
         return None;
@@ -516,6 +538,7 @@ pub fn indexed_integer_bound_root(
         .expression_table
         .constant_integer_value(indexed.index)
         .and_then(|value| usize::try_from(value).ok())?;
+    segments.push(facts::PlaceSegment::FixedIndex { index });
     let receiver = crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
     let typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
         program.type_reference_table.type_reference(receiver)
@@ -538,7 +561,7 @@ pub fn indexed_integer_bound_root(
     {
         return None;
     }
-    Some((symbol, index, is_mutable))
+    Some((symbol, segments, is_mutable))
 }
 
 /// The declared type of a projected integer-bound subject: the member field's

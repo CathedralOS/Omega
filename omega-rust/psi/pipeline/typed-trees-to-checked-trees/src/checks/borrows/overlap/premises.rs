@@ -43,7 +43,7 @@ use crate::checks::ranges::requirements::state_requires_facts;
 mod domains;
 mod propositions;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum PremiseScope<'program> {
     State {
         machine: &'program Machine,
@@ -74,7 +74,7 @@ enum PremiseScope<'program> {
 
 impl PremiseScope<'_> {
     fn has_builtin_meaning(
-        self,
+        &self,
         program: &typed_trees::TypedTrees,
         expression: ExpressionHandle,
     ) -> bool {
@@ -103,7 +103,7 @@ impl PremiseScope<'_> {
     }
 
     fn bound(
-        self,
+        &self,
         program: &typed_trees::TypedTrees,
         expression: ExpressionHandle,
     ) -> Option<NormalizedBound> {
@@ -115,31 +115,42 @@ impl PremiseScope<'_> {
             } => {
                 if let Some(segments) = guarantee.result_segments(program, expression) {
                     match segments.as_slice() {
-                        [] => result.is_valid().then_some(if result_mutable {
-                            NormalizedBound::Storage { symbol: result }
+                        [] => result.is_valid().then_some(if *result_mutable {
+                            NormalizedBound::Storage { symbol: *result }
                         } else {
                             NormalizedBound::Symbol {
-                                symbol: result,
+                                symbol: *result,
                                 offset: 0,
                             }
                         }),
-                        // `result.first` binds the pinned binding's projected
-                        // member place; the binding's own pin covers the
+                        // `result.first` — and longer resolved projections
+                        // like `result.items[2]` — binds the pinned binding's
+                        // projected place; the binding's own pin covers the
                         // projection's root.
-                        [facts::PlaceSegment::Field { .. }] => result.is_valid().then(|| {
-                            let segment = segments[0];
-                            if result_mutable {
-                                NormalizedBound::StorageProjected {
-                                    symbol: result,
+                        [_, ..]
+                            if segments.iter().all(|segment| {
+                                matches!(
                                     segment,
+                                    facts::PlaceSegment::Field { .. }
+                                        | facts::PlaceSegment::FixedIndex { .. }
+                                )
+                            }) =>
+                        {
+                            result.is_valid().then(|| {
+                                let segments = segments.to_vec();
+                                if *result_mutable {
+                                    NormalizedBound::StorageProjected {
+                                        symbol: *result,
+                                        segments,
+                                    }
+                                } else {
+                                    NormalizedBound::Projected {
+                                        symbol: *result,
+                                        segments,
+                                    }
                                 }
-                            } else {
-                                NormalizedBound::Projected {
-                                    symbol: result,
-                                    segment,
-                                }
-                            }
-                        }),
+                            })
+                        }
                         _ => None,
                     }
                 } else {
@@ -163,35 +174,47 @@ impl PremiseScope<'_> {
                                 (facts::PlaceRoot::Symbol(symbol), []) => {
                                     Some(NormalizedBound::Storage { symbol })
                                 }
-                                // A member-of-self actual (`&mut self.cut`)
+                                // A projected actual (`&mut self.cut`,
+                                // `&mut items[2]`, `&mut self.pivot[2]`)
                                 // writes the projected coordinate: the bound
-                                // is that coordinate's post-call contents.
-                                // A fixed-element actual (`&mut items[2]`)
-                                // likewise writes one canonical element
-                                // coordinate; a runtime `Index` expression is
-                                // handle identity and stays unbound.
-                                (
-                                    facts::PlaceRoot::Symbol(symbol),
-                                    [
-                                        segment @ (facts::PlaceSegment::Field { .. }
-                                        | facts::PlaceSegment::FixedIndex { .. }),
-                                    ],
-                                ) => Some(NormalizedBound::StorageProjected {
-                                    symbol,
-                                    segment: *segment,
-                                }),
+                                // is that coordinate's post-call contents. A
+                                // runtime `Index` expression or unresolved
+                                // segment is handle identity and stays
+                                // unbound.
+                                (facts::PlaceRoot::Symbol(symbol), segments @ [_, ..])
+                                    if segments.iter().all(|segment| {
+                                        matches!(
+                                            segment,
+                                            facts::PlaceSegment::Field { .. }
+                                                | facts::PlaceSegment::FixedIndex { .. }
+                                        )
+                                    }) =>
+                                {
+                                    Some(NormalizedBound::StorageProjected {
+                                        symbol,
+                                        segments: segments.to_vec(),
+                                    })
+                                }
                                 _ => None,
                             }
                         }),
-                        [facts::PlaceSegment::Field { .. }] => {
+                        [_, ..]
+                            if remaining.iter().all(|segment| {
+                                matches!(
+                                    segment,
+                                    facts::PlaceSegment::Field { .. }
+                                        | facts::PlaceSegment::FixedIndex { .. }
+                                )
+                            }) =>
+                        {
                             match normalized_bound(program, actual)? {
-                                // `value.first` binds the actual's projected
-                                // member place; longer projections and
+                                // `value.first` (and deeper projections)
+                                // bind the actual's projected place;
                                 // non-identity bases stay unboundable.
                                 NormalizedBound::Symbol { symbol, offset: 0 } => {
                                     Some(NormalizedBound::Projected {
                                         symbol,
-                                        segment: remaining[0],
+                                        segments: remaining.to_vec(),
                                     })
                                 }
                                 _ => None,
@@ -208,7 +231,7 @@ impl PremiseScope<'_> {
                 subject,
             } => {
                 if validation::exact_domain_self_type(program, definition, expression).is_some() {
-                    Some(subject)
+                    Some(subject.clone())
                 } else if let ExpressionNode::Integer(literal) =
                     program.expression_table.expression(expression)
                 {
@@ -280,8 +303,8 @@ impl StatedOrderingPremise {
         BorrowCompatibilityPremise {
             source: self.source,
             relation: self.relation,
-            left: selector_value(self.left),
-            right: selector_value(self.right),
+            left: selector_value(self.left.clone()),
+            right: selector_value(self.right.clone()),
         }
     }
 }
@@ -512,7 +535,7 @@ fn decompose_premise_expression(
         (BinaryOperator::And, false) | (BinaryOperator::Or, true) => {
             decompose_premise_expression(
                 program,
-                scope,
+                scope.clone(),
                 binary.left,
                 negated,
                 source,
@@ -582,19 +605,19 @@ pub fn premise_proves(
         return false;
     };
     premise_orientation_proves(
-        premise.left,
+        premise.left.clone(),
         premise.relation,
-        premise.right,
-        left,
+        premise.right.clone(),
+        left.clone(),
         query,
-        right,
+        right.clone(),
     ) || (matches!(
         premise.relation,
         BorrowCompatibilityPremiseRelation::Equal | BorrowCompatibilityPremiseRelation::NotEqual
     ) && premise_orientation_proves(
-        premise.right,
+        premise.right.clone(),
         premise.relation,
-        premise.left,
+        premise.left.clone(),
         left,
         query,
         right,
@@ -622,14 +645,14 @@ fn transport_query_bound(
         NormalizedBound::Storage { symbol } => NormalizedBound::Storage {
             symbol: argument(symbol)?,
         },
-        NormalizedBound::Projected { symbol, segment } => NormalizedBound::Projected {
+        NormalizedBound::Projected { symbol, segments } => NormalizedBound::Projected {
             symbol: argument(symbol)?,
-            segment,
+            segments,
         },
-        NormalizedBound::StorageProjected { symbol, segment } => {
+        NormalizedBound::StorageProjected { symbol, segments } => {
             NormalizedBound::StorageProjected {
                 symbol: argument(symbol)?,
-                segment,
+                segments,
             }
         }
         NormalizedBound::SymbolSum {
@@ -727,14 +750,22 @@ pub fn premise_chain_proves(
 ) -> bool {
     first_legs(first).into_iter().flatten().any(|first_leg| {
         second_legs(second).into_iter().flatten().any(|second_leg| {
-            chained_legs_prove(first_leg, second_leg, first, second, left, query, right)
+            chained_legs_prove(
+                first_leg.clone(),
+                second_leg,
+                first,
+                second,
+                left.clone(),
+                query,
+                right.clone(),
+            )
         })
     })
 }
 
 /// One usable orientation of a premise in a chain. The first leg is
 /// `outer <relation> middle`; the second is `middle <relation> outer`.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct ChainLeg {
     outer: NormalizedBound,
     relation: BorrowCompatibilityPremiseRelation,
@@ -745,15 +776,15 @@ struct ChainLeg {
 /// middle is its right endpoint. `==` contributes both orientations.
 fn first_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
     let stored = Some(ChainLeg {
-        outer: premise.left,
+        outer: premise.left.clone(),
         relation: premise.relation,
-        middle: premise.right,
+        middle: premise.right.clone(),
     });
     let flipped =
         matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
-            outer: premise.right,
+            outer: premise.right.clone(),
             relation: premise.relation,
-            middle: premise.left,
+            middle: premise.left.clone(),
         });
     [stored, flipped]
 }
@@ -762,15 +793,15 @@ fn first_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
 /// middle is its left endpoint. `==` contributes both orientations.
 fn second_legs(premise: &StatedOrderingPremise) -> [Option<ChainLeg>; 2] {
     let stored = Some(ChainLeg {
-        outer: premise.right,
+        outer: premise.right.clone(),
         relation: premise.relation,
-        middle: premise.left,
+        middle: premise.left.clone(),
     });
     let flipped =
         matches!(premise.relation, BorrowCompatibilityPremiseRelation::Equal).then_some(ChainLeg {
-            outer: premise.left,
+            outer: premise.left.clone(),
             relation: premise.relation,
-            middle: premise.right,
+            middle: premise.right.clone(),
         });
     [stored, flipped]
 }
@@ -879,23 +910,23 @@ fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
         (
             NormalizedBound::Projected {
                 symbol: value_symbol,
-                segment: value_segment,
+                segments: value_segments,
             },
             NormalizedBound::Projected {
                 symbol: base_symbol,
-                segment: base_segment,
+                segments: base_segments,
             },
-        ) if value_symbol == base_symbol && value_segment == base_segment => Some(0),
+        ) if value_symbol == base_symbol && value_segments == base_segments => Some(0),
         (
             NormalizedBound::StorageProjected {
                 symbol: value_symbol,
-                segment: value_segment,
+                segments: value_segments,
             },
             NormalizedBound::StorageProjected {
                 symbol: base_symbol,
-                segment: base_segment,
+                segments: base_segments,
             },
-        ) if value_symbol == base_symbol && value_segment == base_segment => Some(0),
+        ) if value_symbol == base_symbol && value_segments == base_segments => Some(0),
         (
             NormalizedBound::SymbolSum {
                 first: value_first,

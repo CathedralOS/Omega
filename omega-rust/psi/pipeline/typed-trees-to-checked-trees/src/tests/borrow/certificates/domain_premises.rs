@@ -297,7 +297,7 @@ fn replay_rejects_retargeted_or_missing_domain_tokens() {
                 1 => *membership = arena::Handle::invalid(),
                 2 => *domain = symbols::SymbolHandle::invalid(),
                 3 => *predicate = arena::Handle::invalid(),
-                4 => premise.right = premise.left,
+                4 => premise.right = premise.left.clone(),
                 _ => unreachable!(),
             }
         }
