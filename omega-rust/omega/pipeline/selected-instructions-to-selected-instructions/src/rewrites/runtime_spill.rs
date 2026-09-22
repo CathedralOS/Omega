@@ -42,10 +42,16 @@
 //! instruction reads the emitted operand's register rather than the victim it
 //! no longer defines. Either form must be the instruction's only victim write
 //! — a second one leaves the slot without a defined last writer — and a
-//! use-side tie onto a write to another register, an early-clobber write, or
-//! a `UseDef` carrying its own tie all stay rejected. The origin definition
-//! still dominates every use, so on each path the last executed store is the
-//! register's reaching write.
+//! use-side tie onto a write to another register or a `UseDef` carrying its
+//! own tie stay rejected. An early-clobber flag on the tied `Def` is itself
+//! no hazard — the write can land only in the reload home its tie names — but
+//! it may complete before an unrelated operand's read, so it stays rejected
+//! only where an unpinned co-operand would read the same register: the use
+//! unpinned, an unpinned victim-reading co-operand present, and the block
+//! sharing one open reload. A pinned use or a private-pair block already
+//! leaves the write's register unshared and admits the pair. The origin
+//! definition still dominates every use, so on each path the last executed
+//! store is the register's reaching write.
 //! Original parameter bindings remain exact. Replacing the destination's uses
 //! makes that parameter dead, so fresh liveness no longer requires its edge
 //! home tie. Their destination must likewise dominate every use.

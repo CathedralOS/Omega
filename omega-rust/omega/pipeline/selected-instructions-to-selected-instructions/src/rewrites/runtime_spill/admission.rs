@@ -341,6 +341,12 @@ pub(super) fn admit<'source>(
         .iter()
         .map(|_| std::collections::BTreeSet::new())
         .collect();
+    // Blocks holding a victim use whose tied `Def` is early-clobber while an
+    // unpinned co-operand could read the same reload register. The flag alone
+    // is no hazard — the write can land only in the home its tie names — so
+    // the decision waits on the block's sharing answer below.
+    let mut early_clobber_ties: std::collections::BTreeSet<usize> =
+        std::collections::BTreeSet::new();
     let mut defined = definition.is_none();
     let mut uses = 0usize;
     let mut use_blocks = Vec::new();
@@ -654,20 +660,39 @@ pub(super) fn admit<'source>(
                         // store after the instruction reads that register
                         // through the victim operand the write kept. A tie
                         // from any other write would clobber the still-open
-                        // reload with no store to mirror it, and an
-                        // early-clobber write could land before a co-operand's
-                        // read of the same reload register.
+                        // reload with no store to mirror it. An early-clobber
+                        // flag on the tied write is itself no hazard — the
+                        // write lands only in the reload home its tie names —
+                        // but it may complete before an unrelated operand's
+                        // read, so an unpinned use sharing its register with
+                        // an unpinned victim-reading co-operand records the
+                        // block for the `shared_reload` check below.
                         let mut tied_writes = instruction
                             .operands
                             .iter()
                             .filter(|other| other.tied_to == Some(operand.operand));
-                        if let Some(other) = tied_writes.next()
+                        let tied = tied_writes.next();
+                        if let Some(other) = tied
                             && (other.access != RegisterOperandAccess::Def
                                 || other.virtual_register != register
-                                || other.early_clobber
                                 || tied_writes.next().is_some())
                         {
                             return Err(RuntimeSpillError::UnsupportedUse);
+                        }
+                        if let Some(other) = tied
+                            && other.early_clobber
+                            && operand.fixed_view.is_none()
+                            && instruction.operands.iter().any(|co| {
+                                co.operand != operand.operand
+                                    && co.virtual_register == register
+                                    && matches!(
+                                        co.access,
+                                        RegisterOperandAccess::Use | RegisterOperandAccess::UseDef
+                                    )
+                                    && co.fixed_view.is_none()
+                            })
+                        {
+                            early_clobber_ties.insert(current_block_index);
                         }
                         if operand.fixed_view.is_none() {
                             flexible_uses[current_block_index] = true;
@@ -983,6 +1008,14 @@ pub(super) fn admit<'source>(
                 )
         })
         .collect();
+    // The deferred half of the early-clobber admission: the recorded hazard
+    // is real only where the block actually keeps one reload register open
+    // across unpinned uses — the write may then land in that shared register
+    // ahead of the co-operand's read. Under a private-pair block the tied
+    // write's register is unshared, so the flag alone never rejects.
+    if early_clobber_ties.iter().any(|block| shared_reload[*block]) {
+        return Err(RuntimeSpillError::UnsupportedUse);
+    }
     // Under `UnitWriteCrossing` a unit-writing instruction instead keeps the
     // open pair while an allocatable view of the victim's class avoids every
     // unit written inside the span so far — the clobber-set-reduced, most

@@ -9,7 +9,11 @@
 //! Either way the write closes the still-open shared reload exactly like a
 //! plain `Def` redefinition, so the next use reads the new value through a
 //! fresh pair — under either span policy, including across a unit writer the
-//! crossing policy had kept open.
+//! crossing policy had kept open. An early-clobber flag on the tied `Def` is
+//! admitted while nothing else can read the register its tie names — the use
+//! pinned, or no unpinned co-operand sharing the block's open pair — since the
+//! flag only lets the write land before an unrelated operand's read of that
+//! same register completes.
 
 use super::{
     Arc, MachineId, NativeTarget, SelectedInstructionId, SelectedInstructionKind,
@@ -319,6 +323,189 @@ fn read_modify_writes_store_the_post_write_value_and_close_the_span() {
     }
 }
 
+/// An early-clobber flag on the tied `Def` is no hazard by itself — the write
+/// can land only in the home its tie names — so the pair stays admitted while
+/// nothing else can read that register: a sole-reading instruction, a pinned
+/// use's private pair beside an unpinned co-reader on the open pair, or an
+/// unpinned use beside a pinned co-reader's own private pair. The write still
+/// reads through the victim operand the `Def` kept, flag included.
+#[test]
+fn early_clobber_tied_writes_spill_while_the_reload_register_goes_unshared() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let victim_class = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .operands[0]
+            .class;
+        let view = environment
+            .physical()
+            .model()
+            .classes
+            .iter()
+            .find(|row| row.id == victim_class)
+            .and_then(|row| row.views.first())
+            .copied()
+            .expect("the scalar class always declares a view");
+        // `pin_use` pins the tied use; `pin_co` instead pins a co-reading
+        // operand. Both leave the early-clobber write's register unshared.
+        for pin_use in [false, true] {
+            for pin_co in [false, true] {
+                if pin_use && pin_co {
+                    continue;
+                }
+                let mut source = read_modify_write_fixture(target, false, false);
+                {
+                    let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+                    let rewriting = function.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|instruction| instruction.id == SelectedInstructionId(6))
+                        .unwrap();
+                    if pin_use || pin_co {
+                        // A co-reading operand beside the tied use: pinned, it
+                        // takes a private pair of its own; unpinned, it reads
+                        // the block's open pair — never the pinned use's.
+                        rewriting.operands.insert(
+                            1,
+                            operand(
+                                1,
+                                VirtualRegisterId(1),
+                                RegisterOperandAccess::Use,
+                                victim_class,
+                            ),
+                        );
+                        rewriting.operands[2].operand = 2;
+                    }
+                    if pin_use {
+                        rewriting.operands[0].fixed_view = Some(view);
+                    }
+                    if pin_co {
+                        rewriting.operands[1].fixed_view = Some(view);
+                    }
+                    rewriting
+                        .operands
+                        .iter_mut()
+                        .find(|operand| operand.access == RegisterOperandAccess::Def)
+                        .unwrap()
+                        .early_clobber = true;
+                }
+                let identity = selected_instruction_plan_identity(source.transformed());
+                source.receipt.source_selected = identity;
+                source.receipt.transformed_selected = identity;
+                for (label, result) in [
+                    (
+                        "bounded",
+                        spill_selected_runtime_value(
+                            &source,
+                            0,
+                            VirtualRegisterId(1),
+                            &environment,
+                            budget(),
+                        ),
+                    ),
+                    (
+                        "crossing",
+                        crate::spill_selected_runtime_value_with_span_policy(
+                            &source,
+                            0,
+                            VirtualRegisterId(1),
+                            &environment,
+                            budget(),
+                            crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                        ),
+                    ),
+                ] {
+                    let result = result.unwrap_or_else(|error| {
+                        panic!("{target:?} pin_use={pin_use} pin_co={pin_co} {label}: {error}")
+                    });
+                    let block = &result.transformed().functions[0].blocks[0];
+                    let rewritten = block
+                        .instructions
+                        .iter()
+                        .position(|instruction| instruction.id == SelectedInstructionId(6))
+                        .unwrap();
+                    let rewriting = &block.instructions[rewritten];
+                    // The write keeps the victim register, its tie, and the
+                    // early-clobber flag; the following store reads it.
+                    let def = rewriting
+                        .operands
+                        .iter()
+                        .find(|operand| operand.access == RegisterOperandAccess::Def)
+                        .unwrap();
+                    assert_eq!(def.virtual_register, VirtualRegisterId(1));
+                    assert_eq!(def.tied_to, Some(0));
+                    assert!(def.early_clobber);
+                    assert!(matches!(
+                        block.instructions[rewritten + 1].kind,
+                        SelectedInstructionKind::Store64 { .. }
+                    ));
+                    assert_eq!(
+                        block.instructions[rewritten + 1].operands[0].virtual_register,
+                        VirtualRegisterId(1)
+                    );
+                    if pin_use {
+                        // The pinned use took a private pair; the unpinned
+                        // co-reader still names the block's open register.
+                        assert_eq!(rewriting.operands[0].fixed_view, Some(view));
+                        assert_ne!(
+                            rewriting.operands[0].virtual_register,
+                            rewriting.operands[1].virtual_register
+                        );
+                        assert_eq!(
+                            rewriting.operands[1].virtual_register,
+                            reload_named_by(block, 3)
+                        );
+                    }
+                    assert!(
+                        validate_runtime_spill(
+                            &source,
+                            0,
+                            VirtualRegisterId(1),
+                            &environment,
+                            budget(),
+                            result.transformed().clone()
+                        )
+                        .is_ok(),
+                        "{target:?} pin_use={pin_use} pin_co={pin_co} {label} replay"
+                    );
+                    // Dropping the flag off the emitted `Def` forges a
+                    // different operand than the source carried.
+                    let mut proposed = result.transformed().clone();
+                    proposed.functions[0].blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|instruction| instruction.id == SelectedInstructionId(6))
+                        .unwrap()
+                        .operands
+                        .iter_mut()
+                        .find(|operand| operand.access == RegisterOperandAccess::Def)
+                        .unwrap()
+                        .early_clobber = false;
+                    assert_eq!(
+                        validate_runtime_spill(
+                            &source,
+                            0,
+                            VirtualRegisterId(1),
+                            &environment,
+                            budget(),
+                            proposed
+                        )
+                        .unwrap_err(),
+                        RuntimeSpillError::ReplayMismatch,
+                        "{target:?} pin_use={pin_use} pin_co={pin_co} {label} flag drop"
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn a_parameter_victims_read_modify_write_stores_after_the_instruction() {
     for target in [
@@ -460,7 +647,9 @@ fn read_modify_write_forms_still_rejected() {
                     ],
                 ),
                 // An early-clobber write tied to the use could land before a
-                // co-operand's read of the same reload register.
+                // co-operand's read of the same reload register — real only
+                // while the block's open pair is shared, so a second unpinned
+                // use on the same instruction is what keeps this rejected.
                 1 => rewriting(
                     function,
                     vec![
@@ -470,9 +659,15 @@ fn read_modify_write_forms_still_rejected() {
                             RegisterOperandAccess::Use,
                             victim_class,
                         ),
+                        operand(
+                            1,
+                            VirtualRegisterId(1),
+                            RegisterOperandAccess::Use,
+                            victim_class,
+                        ),
                         {
                             let mut def = operand(
-                                1,
+                                2,
                                 VirtualRegisterId(1),
                                 RegisterOperandAccess::Def,
                                 victim_class,
