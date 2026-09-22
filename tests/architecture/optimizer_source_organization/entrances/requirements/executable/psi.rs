@@ -18,11 +18,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_scalar_evaluation_candidate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/optimization-core/src/manifest/mod.rs",
+        path: "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/mod.rs",
         coordination_marker: "DECISION_WIRE_FORMAT",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/representations/optimization-core/src/decisions/external_schema/mod.rs",
+        path: "omega-rust/omega/representations/optimization-core/src/optimization_core/decisions/external_schema/mod.rs",
         coordination_marker: "impl ExternalDecisionPoint",
     },
     RequiredCoordinationEntrance {

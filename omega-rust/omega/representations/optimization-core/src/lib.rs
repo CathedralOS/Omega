@@ -1,35 +1,29 @@
 //! Optimizer module role: crate map. Stable, target-independent vocabulary for Omega optimization inputs.
 //!
-//! `selection` is the authoritative exact-name registry and canonical selection
-//! codec. `contracts` defines rule and budget contracts. `identities` owns the
-//! domain-separated identities carried between stages, while `manifest` owns
-//! their common publication records. `decisions` owns baseline logs and the
-//! external decision wire schema, not candidate selection. This crate has no
-//! executable optimizer.
+//! Start at `optimization_core.rs`: the authoritative exact-name registry and
+//! canonical selection codec, leading into `contracts` (rule and budget
+//! contracts), `identities` (the domain-separated identities carried between
+//! stages), `manifest` (their common publication records) and `decisions`
+//! (baseline logs and the external decision wire schema, not candidate
+//! selection). This crate has no executable optimizer.
 
-mod contracts;
-mod decisions;
-#[cfg(any(test, feature = "test-support"))]
-mod mutation_matrix;
-pub use decisions::*;
-mod report_request;
-pub use report_request::OptimizationReportRequest;
-mod identities;
-mod manifest;
-mod selection;
+mod optimization_core;
 
-#[cfg(any(test, feature = "test-support"))]
-pub use crate::mutation_matrix::{
-    MutationOutcome, OneFieldSubstitutionMatrix, custody_field_inventory,
-    run_one_field_substitution_matrix,
-};
-pub use contracts::{
+pub use optimization_core::contracts::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, CoreContractDecodeError,
     InvalidOptimizationRuleContract, InvalidOptimizationWorkBudget, OptimizationCandidateVerdict,
     OptimizationReasonCode, OptimizationRuleContract, OptimizationSafetyClass,
     OptimizationWorkBudget,
 };
-pub use identities::{
+pub use optimization_core::decisions::{
+    BaselineDecisionLog, BaselineDecisionLogBuilder, BaselineDecisionLogDecodeError,
+    BaselineDecisionOutcome, BaselineDecisionRecord, BaselineDecisionRecordError,
+    ExternalCandidateFeatures, ExternalDecisionAction, ExternalDecisionContext,
+    ExternalDecisionLog, ExternalDecisionPoint, ExternalDecisionSchemaError,
+    ValidatedCandidateSummary, external_psi_decision_schema_v2_identity,
+    psi_target_neutral_decision_target_v2_identity,
+};
+pub use optimization_core::identities::{
     AcceptedObligationFactIdentity, CanonicalIdentityEncoder, DuplicateOptimizationRuleIdentity,
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
@@ -53,12 +47,18 @@ pub use identities::{
     TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
     TransformationLedgerIdentity, ValueRangeFactIdentity,
 };
-pub use manifest::{
+pub use optimization_core::manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
     OptimizationFactReferenceDecodeError, OptimizationManifestDecodeError,
     OptimizationPassManifestRecord, OptimizationWorkUsage,
 };
-pub use selection::{
+#[cfg(any(test, feature = "test-support"))]
+pub use optimization_core::mutation_matrix::{
+    MutationOutcome, OneFieldSubstitutionMatrix, custody_field_inventory,
+    run_one_field_substitution_matrix,
+};
+pub use optimization_core::report_request::OptimizationReportRequest;
+pub use optimization_core::{
     DuplicateOptimization, Optimization, OptimizationCatalogDescriptor, OptimizationExecutionPhase,
     OptimizationPhaseMismatch, OptimizationPhaseSelections, OptimizationSelectionIdentity,
     OptimizationSelections, PostTerminalOptimizationSelectionProjection,

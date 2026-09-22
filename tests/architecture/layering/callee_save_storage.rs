@@ -34,8 +34,9 @@ fn is_target_owned_independent_and_non_authoritative() {
         "callee-save storage production must not consume replay mechanics",
     );
 
-    let register_catalog =
-        root.join("omega-rust/omega/representations/register-model/src/preservation_storage");
+    let register_catalog = root.join(
+        "omega-rust/omega/representations/register-model/src/register_model/preservation_storage",
+    );
     let x86_catalog = root.join(
         "omega-rust/omega/backend/instruction_set_architectures/isa-x86_64/src/preservation_storage.rs",
     );

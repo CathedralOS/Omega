@@ -8,55 +8,32 @@
 //! admitted evidence; this crate deliberately does not publish a generalized
 //! runtime behavior record.
 //!
-//! Start at `activation_plans.rs`: the plan, its exact marshalling argument
-//! layout, its validators, its diagnostic and the facts a provider publishes
-//! about a plan.
-//! `executor_selection` binds an executor to a plan's preservation axes,
-//! `runtime_invocation` receipts one activation, `stack_leases` issues the
-//! nonmoving stack authority, `lifecycle_ledger` runs the transactional
-//! start over the marshalled argument image, tracks park/resume at canonical
-//! suspension crossings and the safe-point cancellation observation, and
-//! accounts for claims until outcome-bound settlement, `provider_admission`
-//! is the provider-side gate consuming those carriers for one admitted
-//! runtime instance, `stack_composition` projects WCSU stack plans,
-//! `composition_model` extracts the sealed whole-composition record proof
-//! machines consume at composition/deployment, `identities` holds every
-//! coordinate, `report_fingerprints` the compact report values and
-//! `diagnostic` the failure type.
+//! Start at `task_plans.rs`: the activation plan, its exact marshalling
+//! argument layout and its validators, leading into the provider facts,
+//! executor selection, invocation receipts, stack leases, lifecycle ledger,
+//! provider admission, stack composition, composition model, identities and
+//! report fingerprints beneath it.
 
-mod activation_plans;
-mod composition_model;
-mod executor_selection;
-mod identities;
-mod lifecycle_ledger;
-mod provider_admission;
-mod report_fingerprints;
-mod runtime_invocation;
-mod stack_composition;
-mod stack_leases;
+mod task_plans;
 #[cfg(test)]
 mod tests;
 
-pub use activation_plans::activation_plan_facts::{
+pub use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
+pub use task_plans::activation_plan_facts::{
     SelectedTaskRuntimeProviderFact, TaskActivationPlanFact, TaskActivationPlanSet,
     TaskSpecializationCommitment, TaskStartOperation,
 };
-pub use activation_plans::diagnostic::TaskPlanDiagnostic;
-pub use activation_plans::{
-    ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
-    LiveCarryDemand, LiveCarryStorage, StackPlan, TaskArgumentExtent, TaskArgumentLayout,
-    ValidatedActivationPlan, validate_activation_plan, validate_wcsu_activation_plan,
-};
-pub use composition_model::{
+pub use task_plans::composition_model::{
     CompositionActivation, CompositionActivationCreation, CompositionCrossActivationEdges,
     CompositionPriorities, CompositionResourceIdentities, CompositionWaitWakeEdge,
     SealedCompositionModel, compose_composition_model, replay_composition_model,
 };
-pub use executor_selection::{
+pub use task_plans::diagnostic::TaskPlanDiagnostic;
+pub use task_plans::executor_selection::{
     ExecutorPreservationAxis, ExecutorPreservationEvidence, ExecutorSelectionCandidate,
     ValidatedExecutorSelection, validate_executor_selection,
 };
-pub use identities::{
+pub use task_plans::identities::{
     ActivationInstanceId, ActivationPlanId, AdmittedStackContributionReportId, CallingPlanId,
     CompositionModelId, ExecutorPreservationEvidenceId, ExecutorSelectionId, LiveCarryPlaceId,
     LiveCarryTypeId, MachineContractId, MachineEntryId, SameStackContributionAdmissionReceiptId,
@@ -65,21 +42,20 @@ pub use identities::{
     TaskRuntimeInvocationReceiptId, TaskStackCompositionId, TaskStackFrameId,
     TaskStackFrameValidationId, TaskStorageLeaseId, TaskStorageOwnerId, ValueLayoutId,
 };
-pub use lifecycle_ledger::{
+pub use task_plans::lifecycle_ledger::{
     ClosedTaskRuntime, MovedTaskArguments, SettledTaskLifecycle, TaskClaimRoute,
     TaskDependencyRecord, TaskLifecycleClaim, TaskLifecycleLedger, TaskRouteSettlementError,
     TaskRuntimeCloseError, TaskSettlementError, TaskSettlementOutcome, TaskStartRejection,
     TaskStartStorage, TaskStorageBinding,
 };
-pub use provider_admission::{
+pub use task_plans::provider_admission::{
     TaskAdmissionCloseError, TaskAdmissionRejection, TaskRuntimeAdmission,
 };
-pub use runtime_invocation::{
+pub use task_plans::runtime_invocation::{
     TaskRuntimeActivationBinding, TaskRuntimeInvocationReceiptCandidate,
     ValidatedTaskRuntimeInvocationReceipt, validate_task_runtime_invocation_receipt,
 };
-pub use semantic_vocabulary::{ClaimId, SuspensionCrossingId};
-pub use stack_composition::{
+pub use task_plans::stack_composition::{
     AdmittedSameStackContribution, CallTargetBinding, ComposedTaskStackDemand,
     SameStackContributionAdmissionCandidate, SameStackContributionCommitment,
     SameStackProviderPlanCommitment, StackCallContribution, TaskStackFrameSummary,
@@ -88,6 +64,11 @@ pub use stack_composition::{
     cover_unresolved_call_sites, project_wcsu_stack_plan, task_stack_frame_validation_identity,
     validate_task_stack_frame_summary,
 };
-pub use stack_leases::{
+pub use task_plans::stack_leases::{
     StackLease, StackLeaseBacking, TaskStorageProvenance, establish_stack_lease,
+};
+pub use task_plans::{
+    ActivationCarryObligations, ActivationPlanCandidate, CanonicalSuspensionCrossing,
+    LiveCarryDemand, LiveCarryStorage, StackPlan, TaskArgumentExtent, TaskArgumentLayout,
+    ValidatedActivationPlan, validate_activation_plan, validate_wcsu_activation_plan,
 };

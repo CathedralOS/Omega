@@ -446,13 +446,13 @@ fn effect_records_do_not_derive_typed_body_or_provider_summaries() {
     ] {
         assert_eq!(inference.matches(&format!("pub fn {function}(")).count(), 1);
     }
-    let provider_records = std::fs::read_to_string(
-        root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan.rs"),
-    )
+    let provider_records = std::fs::read_to_string(root.join(
+        "omega-rust/omega/representations/effects/src/effects/capabilities/provider_plan.rs",
+    ))
     .unwrap()
-        + &rust_source(
-            &root.join("omega-rust/omega/representations/effects/src/capabilities/provider_plan"),
-        );
+        + &rust_source(&root.join(
+            "omega-rust/omega/representations/effects/src/effects/capabilities/provider_plan",
+        ));
     let provider_derivation = std::fs::read_to_string(
         root.join("omega-rust/omega/build/provider-planning/src/service_schema/mod.rs"),
     )
@@ -508,8 +508,9 @@ fn rust_source(directory: &Path) -> String {
 #[test]
 fn optimization_decision_records_do_not_own_candidate_selection() {
     let root = repository();
-    let records =
-        rust_source(&root.join("omega-rust/omega/representations/optimization-core/src/decisions"));
+    let records = rust_source(&root.join(
+        "omega-rust/omega/representations/optimization-core/src/optimization_core/decisions",
+    ));
     assert!(records.contains("pub struct BaselineDecisionLogBuilder"));
     assert!(!records.contains("fn choose("));
     assert!(!records.contains("fn choose_baseline("));
@@ -850,56 +851,22 @@ fn shared_vocabulary_representations_need_no_program_root() {
         // report, plus the test-support substitution-matrix vocabulary that
         // custody families reuse; the crate runs no optimizer and holds no
         // optimized program.
-        (
-            "optimization-core",
-            &[
-                "decisions.rs",
-                "mutation_matrix.rs",
-                "report_request.rs",
-                "selection.rs",
-            ][..],
-        ),
+        ("optimization-core", &["optimization_core.rs"][..]),
         // Declarative per-architecture register facts — units, views, classes,
         // the operand constraint catalog, reservation profiles and
         // preservation storage — declared by ISA owners. The sealed catalogs
         // are independent artifacts, not areas of one current program.
-        (
-            "register-model",
-            &[
-                "constraint_catalog.rs",
-                "identities.rs",
-                "physical_register_model.rs",
-                "register_vocabulary.rs",
-                "reservation_profiles.rs",
-                "tests.rs",
-            ][..],
-        ),
+        ("register-model", &["register_model.rs", "tests.rs"][..]),
         // Task activation plans are a checked-compilation sidecar, and the
         // stack leases, provider admission gate, lifecycle ledger and
         // invocation receipts beside them are runtime authority and evidence
         // carriers, not a program representation.
-        (
-            "task-plans",
-            &[
-                "activation_plans.rs",
-                "provider_admission.rs",
-                "stack_leases.rs",
-            ][..],
-        ),
+        ("task-plans", &["task_plans.rs"][..]),
         // Retained evidence carriers — terminal authority dispositions,
         // provider plans, executable scopes and component eras — each with a
         // canonical encoding downstream hashing depends on. Evidence, not a
         // program.
-        (
-            "effects",
-            &[
-                "authority.rs",
-                "capabilities.rs",
-                "component_eras.rs",
-                "executable_scopes.rs",
-                "selected_provider_plans.rs",
-            ][..],
-        ),
+        ("effects", &["effects.rs"][..]),
         // Value-passing vocabulary: call/state plan schemas, aggregate and
         // stack realization records, callback materialization identities, the
         // host operation catalog and per-host ABI facts. The evaluate_*/validate_*
@@ -921,7 +888,7 @@ fn shared_vocabulary_representations_need_no_program_root() {
         // UEFI/ELF loader, foreign-locator and x86 feature structures.
         // Selection, realization and emission stages all read this vocabulary;
         // no current program lives here.
-        ("target", &["target_semantics.rs"][..]),
+        ("target", &["target_profile.rs"][..]),
     ] {
         let directory = repository()
             .join("omega-rust/omega/representations")

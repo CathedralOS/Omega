@@ -9,7 +9,7 @@ use std::fs;
 use crate::Audit;
 
 const SELECTION_SOURCE: &str =
-    "omega-rust/omega/representations/optimization-core/src/selection.rs";
+    "omega-rust/omega/representations/optimization-core/src/optimization_core.rs";
 const SELECTED_LOWERING_CATALOG: &str = "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs";
 const ALLOCATION_RECOVERY_CATALOG: &str = "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/catalog.rs";
 const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs";
