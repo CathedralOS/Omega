@@ -59,20 +59,46 @@ pub(super) fn write(
             ..Default::default()
         },
     )?;
-    memory(
-        builder,
-        row,
+    // A block-parameter view destination reaches the roots every incoming
+    // edge binds; an un-sliced view place is its own root and keeps the
+    // sequence row.
+    match crate::selection::byte_view_homes::view_backing_roots(
+        function,
+        &builder.transport.views,
         destination,
-        0,
-        1,
-        SelectedMemoryAccessRole::WriteByteSequence {
-            index,
-            value,
-            length,
-            obligation,
-            accepted_fact,
-        },
-    )?;
+        length,
+    )? {
+        Some(roots) => {
+            for (root, extent) in roots {
+                memory(
+                    builder,
+                    row,
+                    root,
+                    0,
+                    0,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: extent,
+                        obligation,
+                        accepted_fact,
+                    },
+                )?;
+            }
+        }
+        None => memory(
+            builder,
+            row,
+            destination,
+            0,
+            1,
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index,
+                value,
+                length,
+                obligation,
+                accepted_fact,
+            },
+        )?,
+    }
     builder.emit(
         SelectedInstructionKind::Store {
             byte_offset: 0,
@@ -105,7 +131,9 @@ pub(in crate::selection) fn byte_observation(
         return Err(invalid());
     }
     match row.kind {
-        LegalizedScalarInstructionKind::ByteSequenceRead { .. } => byte_sequence_read(builder, row),
+        LegalizedScalarInstructionKind::ByteSequenceRead { .. } => {
+            byte_sequence_read(function, builder, row)
+        }
         LegalizedScalarInstructionKind::ByteSequenceLength {
             source,
             length_byte_offset,
@@ -115,6 +143,7 @@ pub(in crate::selection) fn byte_observation(
 }
 
 fn byte_sequence_read(
+    function: &LegalizedScalarFunction,
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -173,19 +202,47 @@ fn byte_sequence_read(
         definition.definition_site,
         definition.scalar_type,
     )?;
-    memory(
-        builder,
-        row,
+    // The payload byte lives in the view's storage root, not the view's own
+    // identity. Charge each retained backing root the bound the read reaches
+    // so the roster never compares `Place(view)` with `Place(root)` as
+    // disjoint storage; an un-sliced view source is its own root and keeps
+    // the sequence row.
+    match crate::selection::byte_view_homes::view_backing_roots(
+        function,
+        &builder.transport.views,
         source,
-        0,
-        1,
-        SelectedMemoryAccessRole::ReadByteSequence {
-            index,
-            length,
-            obligation,
-            accepted_fact,
-        },
-    )?;
+        length,
+    )? {
+        Some(roots) => {
+            for (root, extent) in roots {
+                memory(
+                    builder,
+                    row,
+                    root,
+                    0,
+                    0,
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length: extent,
+                        obligation,
+                        accepted_fact,
+                    },
+                )?;
+            }
+        }
+        None => memory(
+            builder,
+            row,
+            source,
+            0,
+            1,
+            SelectedMemoryAccessRole::ReadByteSequence {
+                index,
+                length,
+                obligation,
+                accepted_fact,
+            },
+        )?,
+    }
     builder.emit(
         SelectedInstructionKind::Load8Indexed,
         builder.constraints.keys.load8_indexed.ok_or_else(invalid)?,

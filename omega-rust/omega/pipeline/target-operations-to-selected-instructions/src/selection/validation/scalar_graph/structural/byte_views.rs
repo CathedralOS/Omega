@@ -61,20 +61,46 @@ pub(super) fn write(
             ..Default::default()
         },
     )?;
-    memory(
-        replay,
-        row,
+    // A block-parameter view destination reaches the roots every incoming
+    // edge binds; an un-sliced view place is its own root and keeps the
+    // sequence row.
+    match crate::selection::byte_view_homes::view_backing_roots(
+        function,
+        &replay.transport.views,
         destination,
-        0,
-        1,
-        SelectedMemoryAccessRole::WriteByteSequence {
-            index,
-            value,
-            length,
-            obligation,
-            accepted_fact,
-        },
-    )?;
+        length,
+    )? {
+        Some(roots) => {
+            for (root, extent) in roots {
+                memory(
+                    replay,
+                    row,
+                    root,
+                    0,
+                    0,
+                    SelectedMemoryAccessRole::WriteByteSpan {
+                        length: extent,
+                        obligation,
+                        accepted_fact,
+                    },
+                )?;
+            }
+        }
+        None => memory(
+            replay,
+            row,
+            destination,
+            0,
+            1,
+            SelectedMemoryAccessRole::WriteByteSequence {
+                index,
+                value,
+                length,
+                obligation,
+                accepted_fact,
+            },
+        )?,
+    }
     replay.check_instruction(
         SelectedInstructionKind::Store {
             byte_offset: 0,
@@ -111,7 +137,9 @@ pub(in crate::selection) fn byte_observation(
         return Err(replay.invalid());
     }
     match row.kind {
-        LegalizedScalarInstructionKind::ByteSequenceRead { .. } => byte_sequence_read(replay, row),
+        LegalizedScalarInstructionKind::ByteSequenceRead { .. } => {
+            byte_sequence_read(function, replay, row)
+        }
         LegalizedScalarInstructionKind::ByteSequenceLength {
             source,
             length_byte_offset,
@@ -121,6 +149,7 @@ pub(in crate::selection) fn byte_observation(
 }
 
 fn byte_sequence_read(
+    function: &LegalizedScalarFunction,
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -183,19 +212,46 @@ fn byte_sequence_read(
         definition.definition_site,
         definition.scalar_type,
     )?;
-    memory(
-        replay,
-        row,
+    // The payload byte lives in the view's storage root, not the view's own
+    // identity. Reconstruct each retained backing root the bound reaches so
+    // the proposed roster never compares `Place(view)` with `Place(root)` as
+    // disjoint storage; an un-sliced view source keeps the sequence row.
+    match crate::selection::byte_view_homes::view_backing_roots(
+        function,
+        &replay.transport.views,
         source,
-        0,
-        1,
-        SelectedMemoryAccessRole::ReadByteSequence {
-            index,
-            length,
-            obligation,
-            accepted_fact,
-        },
-    )?;
+        length,
+    )? {
+        Some(roots) => {
+            for (root, extent) in roots {
+                memory(
+                    replay,
+                    row,
+                    root,
+                    0,
+                    0,
+                    SelectedMemoryAccessRole::ReadByteSpan {
+                        length: extent,
+                        obligation,
+                        accepted_fact,
+                    },
+                )?;
+            }
+        }
+        None => memory(
+            replay,
+            row,
+            source,
+            0,
+            1,
+            SelectedMemoryAccessRole::ReadByteSequence {
+                index,
+                length,
+                obligation,
+                accepted_fact,
+            },
+        )?,
+    }
     replay.check_instruction(
         SelectedInstructionKind::Load8Indexed,
         replay
