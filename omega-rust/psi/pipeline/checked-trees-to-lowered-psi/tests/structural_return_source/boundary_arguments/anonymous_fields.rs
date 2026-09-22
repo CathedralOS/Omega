@@ -3,6 +3,7 @@ use super::{
     decode_module, record_field_computation, unit_wrapper_artifact,
 };
 use checked_trees::CheckedScalarComputationKind;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::IntegerValue;
 
 const EXACT_FIELDS: [&str; 4] = [
@@ -146,7 +147,11 @@ fn constructed_anonymous_field_plans_cannot_change_the_authored_value() {
             },
         );
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "{source}"
         );
     }

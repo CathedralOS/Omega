@@ -3,6 +3,7 @@ use super::{
     encode_module, encode_proof_section, interpret_terminal_artifact_measured,
     lower_symbol_resolved_trees, parse_syntax_trees, resolve,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: i32) reaches Output; }
@@ -73,9 +74,11 @@ fn loop_source() -> String {
 fn cyclic_tail_operations_resume_once_per_iteration_from_serialized_proofs() {
     use terminal_fuel::TerminalFuelMeter;
     use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked(&loop_source()), "Root::enter")
-            .unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(&loop_source()),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let profile = AdmissionProfile::default();
@@ -148,9 +151,11 @@ fn unguarded_cyclic_byte_operations_reject_at_source_checking() {
 #[test]
 fn replacing_the_loop_guard_cannot_reuse_the_original_bounds_certificate() {
     use terminal_psi::OperationKind;
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked(&loop_source()), "Root::enter")
-            .unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(&loop_source()),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let mut changed = lowered.semantic_module;
     let guard = changed
         .machines
@@ -178,14 +183,20 @@ fn a_ranked_writer_cannot_silently_become_an_unranked_loop() {
         "machine relay(bytes: &[u8]) reaches Output {",
         "machine relay(bytes: &[u8]) terminates by bytes -> Slice::Length; reaches Output {",
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(&source), "Root::enter")
-        .expect("free ranking evidence survives shared lowering");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(&source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("free ranking evidence survives shared lowering");
     assert_eq!(lowered.proof_bundle.control_cycles.len(), 1);
     let attached = source
         .replace("machine relay(", "data Writer {} machine Writer::relay(")
         .replace("        relay(\"", "        Writer::relay(\"");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(&attached), "Root::enter")
-        .expect("attached ranking evidence survives shared lowering");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(&attached),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("attached ranking evidence survives shared lowering");
     assert_eq!(lowered.proof_bundle.control_cycles.len(), 1);
 }
 
@@ -223,8 +234,11 @@ fn reentered_entry_binds_the_current_view_without_changing_invocation_parameters
 
 fn effects(source: &str) -> Vec<(Vec<u8>, i128)> {
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("selected tail descriptors reach later states");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("selected tail descriptors reach later states");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -284,8 +298,11 @@ fn head_before_tail_and_reverse_authored_state_order_preserve_execution() {
         (source.as_str(), ["head", "tail"]),
         (reversed.as_str(), ["head", "tail"]),
     ] {
-        let lowered =
-            checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter").unwrap();
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked(source),
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .unwrap();
         let mut selected_edges = 0;
         for block in lowered
             .semantic_module
@@ -362,8 +379,11 @@ fn endpoint_bindings_cannot_move_between_state_edges() {
         .source_bindings
         .get_mut(handles[0].0)
         .expression = handles[1].1;
-    checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter")
-        .expect_err("equal endpoint values from different source edges are not interchangeable");
+    checked_trees_to_lowered_psi::lower_machine(
+        &changed,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("equal endpoint values from different source edges are not interchangeable");
 }
 
 #[test]
@@ -399,8 +419,11 @@ fn tail_transfer_cannot_be_replaced_with_an_unchanged_parameter() {
     };
     when_true.transfers[0].source =
         checked_trees::CheckedStructuralControlTransferSourcePlan::Parameter { index: 0 };
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect_err("source subslice cannot be replaced by the original whole view");
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("source subslice cannot be replaced by the original whole view");
 }
 
 #[test]

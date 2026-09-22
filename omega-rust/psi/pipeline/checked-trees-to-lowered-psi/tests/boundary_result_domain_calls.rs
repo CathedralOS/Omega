@@ -5,6 +5,7 @@
 //! verification; a clause naming a domain that does not authorize this
 //! requirement is still refused.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -48,7 +49,7 @@ fn program(domain_declaration: &str) -> String {
 fn lowered(domain_declaration: &str) -> lowered_psi::LoweredPsi {
     checked_trees_to_lowered_psi::lower_machine(
         &checked(&program(domain_declaration)),
-        "Main::main",
+        TerminalMachineSelection::Name("Main::main"),
     )
     .expect("lower_machine")
 }
@@ -104,7 +105,10 @@ fn authorized_result_domain_qualifies_the_boundary_result() {
 fn unauthorized_result_domain_still_rejects_the_call() {
     let checked = checked(&program("domain Token::Held;"));
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::main")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { .. })
     ));
 }

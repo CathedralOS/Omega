@@ -1,5 +1,6 @@
 use super::{artifact, execute, integer, source};
 use crate::unit_scalar_result_source::{CheckedUnitEffectOperationPlan, checked_from_source};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
@@ -93,11 +94,19 @@ fn scalar_wrapper_signature_and_parameter_range_custody_reject_mutations() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Scalar::measure").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Scalar::measure")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -162,7 +171,11 @@ fn scalar_wrapper_registration_and_result_drift_reject() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -231,7 +244,13 @@ fn selected_wrapper_type_duplicates_and_cross_owner_conflicts_reject() {
                 .structural_types
                 .push(conflicting);
         }
-        assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err()
+        );
     }
 }
 

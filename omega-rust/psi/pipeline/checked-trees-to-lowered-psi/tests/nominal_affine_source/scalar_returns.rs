@@ -8,6 +8,7 @@ use super::{
     interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
     parse_syntax_trees, resolve, validate_fixed_entry_fuel,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 use typed_trees_to_checked_trees::CheckingRequest;
 const SCALAR_RETURN_EXECUTABLE_SOURCE: &str = r#"
@@ -204,8 +205,11 @@ fn scalar_return_materializes_value_before_nominal_cleanup_across_source_and_cod
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("scalar return with executable nominal cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("scalar return with executable nominal cleanup lowers");
 
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let entry = lowered
@@ -261,8 +265,11 @@ fn ordered_scalar_return_retains_distinct_cleanup_targets_and_helpers() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("ordered scalar return with distinct executable cleanups lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("ordered scalar return with distinct executable cleanups lowers");
 
     assert_eq!(lowered.semantic_module.machines.len(), 5);
     let entry = lowered
@@ -332,8 +339,11 @@ fn ordered_scalar_return_reuses_one_shared_cleanup_target_and_helper() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("ordered scalar return with one shared executable cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("ordered scalar return with one shared executable cleanup lowers");
 
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let entry = lowered
@@ -384,8 +394,11 @@ fn mixed_scalar_return_invokes_nominal_then_discards_trivial_root() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("mixed scalar cleanup lowers in exact reverse-root order");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("mixed scalar cleanup lowers in exact reverse-root order");
 
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let entry = lowered
@@ -430,8 +443,11 @@ fn mixed_scalar_return_discards_trivial_then_invokes_nominal_root() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("mixed scalar cleanup lowers in exact reverse-root order");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("mixed scalar cleanup lowers in exact reverse-root order");
 
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let entry = lowered
@@ -479,8 +495,11 @@ fn contextual_scalar_return_preserves_proof_context_after_result_materialization
         lower_symbol_resolved_trees(&resolved).expect("type contextual scalar cleanup source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check contextual scalar cleanup source");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("contextual scalar cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("contextual scalar cleanup lowers");
 
     let entry = lowered
         .semantic_module
@@ -580,8 +599,11 @@ fn mixed_contextual_scalar_return_rebases_compact_nominal_proofs_to_full_roots()
         .expect("type mixed contextual scalar cleanup source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check mixed contextual scalar cleanup source");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("mixed contextual scalar cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("mixed contextual scalar cleanup lowers");
 
     let entry = lowered
         .semantic_module
@@ -705,8 +727,11 @@ fn mixed_contextual_scalar_return_materializes_branch_free_bindings_before_clean
         .expect("type mixed contextual scalar bindings source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check mixed contextual scalar bindings source");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("mixed contextual scalar bindings lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("mixed contextual scalar bindings lower");
 
     let entry = lowered
         .semantic_module
@@ -840,8 +865,11 @@ fn mixed_contextual_scalar_return_preserves_interleaved_primitive_inputs() {
             .collect::<Vec<_>>(),
         [1, 3]
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("mixed contextual scalar inputs lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("mixed contextual scalar inputs lower");
 
     let entry = lowered
         .semantic_module
@@ -962,8 +990,11 @@ fn mixed_nominal_scalar_return_cleans_every_short_circuit_leaf() {
         .expect("type mixed nominal short-circuit scalar return");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check mixed nominal short-circuit scalar return");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("mixed nominal short-circuit scalar return lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("mixed nominal short-circuit scalar return lowers");
 
     let entry = lowered
         .semantic_module
@@ -1135,8 +1166,11 @@ fn mixed_nominal_scalar_return_cleans_every_nested_short_circuit_leaf() {
         .expect("type nested nominal short-circuit scalar return");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check nested nominal short-circuit scalar return");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("nested nominal short-circuit scalar return lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("nested nominal short-circuit scalar return lowers");
 
     let entry = lowered
         .semantic_module
@@ -1234,8 +1268,11 @@ fn mixed_nominal_boolean_value_converges_before_one_shared_cleanup_return() {
         lower_symbol_resolved_trees(&resolved).expect("type shared nominal Boolean convergence");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("check shared nominal Boolean convergence");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::measure")
-        .expect("shared nominal Boolean convergence lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::measure"),
+    )
+    .expect("shared nominal Boolean convergence lowers");
     let entry = lowered
         .semantic_module
         .machines

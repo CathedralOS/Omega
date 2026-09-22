@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{IntegerValue, Proposition};
 use source_files_to_tokens::Lexer;
@@ -26,8 +27,11 @@ fn landed_negative_one_and_nonminimum_dividend_use_closed_exact_certificates() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter")
-        .expect("closed signed exact divide/remainder source lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .expect("closed signed exact divide/remainder source lowers");
 
     let entry = lowered
         .semantic_module

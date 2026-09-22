@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source::{SourceId, SourceMap};
@@ -57,8 +58,11 @@ fn module_constants_publish_exact_values_without_producer_state() {
         ("imported", 7u128),
         ("qualified", 9u128),
     ] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, qualified)
-            .expect("lower constant consumer");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(qualified),
+        )
+        .expect("lower constant consumer");
         artifacts.push((
             encode_module(&lowered.semantic_module).expect("encode semantics"),
             encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

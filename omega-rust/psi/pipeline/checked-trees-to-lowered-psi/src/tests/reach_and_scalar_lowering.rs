@@ -1,4 +1,5 @@
 use super::{assert_source_direct_float_result, checked_float_projection_source, checked_source};
+use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
 use crate::lower_machine;
@@ -102,7 +103,8 @@ fn actual_float_meaning_calls_emit_deduplicated_source_free_module_rows() {
         { value }
     "#;
     let checked = checked_float_projection_source(source);
-    let lowered = lower_machine(&checked, "terminal_root").expect("lower");
+    let lowered =
+        lower_machine(&checked, TerminalMachineSelection::Name("terminal_root")).expect("lower");
     let projections = &lowered.semantic_module.float_meaning_projections;
     assert_eq!(projections.len(), 2);
     assert_eq!(projections[0].result.id, terminal_psi::ProofValueId(0));
@@ -166,7 +168,8 @@ fn emitted_direct_float_parameter_rejoins_terminal_owner_and_dense_scalar_parame
         }
     "#;
     let checked = checked_float_projection_source(source);
-    let lowered = lower_machine(&checked, "Root::forward").expect("lower direct float owner");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
+        .expect("lower direct float owner");
     let machine = lowered
         .semantic_module
         .machines
@@ -213,8 +216,11 @@ fn emitted_direct_structural_float_leaf_rejoins_owner_root_and_member_path() {
         }
     "#;
     let checked = checked_float_projection_source(source);
-    let lowered = lower_machine(&checked, "Root::structural_source")
-        .expect("lower direct structural float owner");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::structural_source"),
+    )
+    .expect("lower direct structural float owner");
     let machine = lowered
         .semantic_module
         .machines
@@ -250,7 +256,13 @@ fn emitted_direct_structural_float_leaf_rejoins_owner_root_and_member_path() {
     };
     leaf.field.path[0] =
         checked_trees::CheckedStructuralPredicatePathSegment::Field("missing".to_owned());
-    assert!(lower_machine(&path_drift, "Root::structural_source").is_err());
+    assert!(
+        lower_machine(
+            &path_drift,
+            TerminalMachineSelection::Name("Root::structural_source")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -275,7 +287,7 @@ fn direct_float_result_proof_only_contract_rejects_additional_value_clauses() {
     // an explicit `None` requires row, which `covered_requires` rejects before
     // the closed-literal contract shape is ever selected.
     assert!(matches!(
-        lower_machine(&checked, "result"),
+        lower_machine(&checked, TerminalMachineSelection::Name("result")),
         Err(LoweringError::Unsupported(
             "scalar contract contains an unsupported clause"
         ))
@@ -297,7 +309,7 @@ fn direct_float_result_proof_only_contract_replays_expression_and_owner() {
     let mut expression_drift = checked.clone();
     expression_drift.facts.proof.float_meaning_equalities[0].source_expression =
         typed_trees::expression::ExpressionHandle::invalid();
-    assert!(lower_machine(&expression_drift, "result").is_err());
+    assert!(lower_machine(&expression_drift, TerminalMachineSelection::Name("result")).is_err());
 
     let mut owner_drift = checked;
     let other = owner_drift
@@ -316,7 +328,8 @@ fn direct_float_result_proof_only_contract_replays_expression_and_owner() {
     // source: emission re-derives the direct-result source from the machine
     // context, the mismatch demotes the row to `TransitionalInput`, and the
     // downgraded module still verifies.
-    let drifted = lower_machine(&owner_drift, "result").expect("lower drifted owner");
+    let drifted = lower_machine(&owner_drift, TerminalMachineSelection::Name("result"))
+        .expect("lower drifted owner");
     assert!(
         drifted
             .semantic_module
@@ -350,7 +363,7 @@ fn authored_float_meaning_equality_ensures_clause_cites_its_checked_row() {
         { 7 }
     "#;
     let checked = checked_float_projection_source(source);
-    let lowered = lower_machine(&checked, "read").expect("lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("read")).expect("lower");
     // The authored `==` clause keeps its claim as a vocabulary `Atom` citing
     // the dense checked equality row — never erased toward `Truth`/`Empty` —
     // and the verifier discharges it as a semantic axiom of the module.
@@ -421,7 +434,8 @@ fn exact_float_literals_cross_checked_terminal_codec_and_verifier_as_raw_bits() 
         { value }
     "#;
     let checked = checked_float_projection_source(source);
-    let lowered = lower_machine(&checked, "terminal_root").expect("lower");
+    let lowered =
+        lower_machine(&checked, TerminalMachineSelection::Name("terminal_root")).expect("lower");
     assert_eq!(
         lowered
             .semantic_module
@@ -593,7 +607,11 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let terminal_checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let mut lowered = lower_machine(&terminal_checked, "terminal_root").expect("lower terminal");
+    let mut lowered = lower_machine(
+        &terminal_checked,
+        TerminalMachineSelection::Name("terminal_root"),
+    )
+    .expect("lower terminal");
     lower_closed_conformance_applications(&checked, &[owner], &mut lowered.semantic_module)
         .expect("lower closed application");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -705,7 +723,8 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower terminal");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower terminal");
     let cases = lowered
         .semantic_module
         .structural_types
@@ -751,7 +770,8 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
     );
-    let different = lower_machine(&checked, "Root::different").expect("lower inequality");
+    let different = lower_machine(&checked, TerminalMachineSelection::Name("Root::different"))
+        .expect("lower inequality");
     let [terminal_psi::CrashRouteGuard::Predicate(predicate)] =
         different.semantic_module.machines[0].contract.crash_routes[0]
             .alternatives
@@ -787,7 +807,8 @@ fn structural_boundary_result_lowers_and_round_trips() {
         }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower terminal");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower terminal");
     let module = &lowered.semantic_module;
     let [boundary] = module.boundary_machines.as_slice() else {
         panic!("one structural-result boundary")
@@ -837,7 +858,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("payload-bearing equality has exact case-payload paths");
     let cases = lowered
         .semantic_module
@@ -889,7 +910,8 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         Err(terminal_verifier::ModuleError::InvalidIntegerFieldTerm { .. })
     ));
 
-    let different = lower_machine(&checked, "Root::different").expect("lower inequality");
+    let different = lower_machine(&checked, TerminalMachineSelection::Name("Root::different"))
+        .expect("lower inequality");
     let [terminal_psi::CrashRouteGuard::Predicate(predicate)] =
         different.semantic_module.machines[0].contract.crash_routes[0]
             .alternatives

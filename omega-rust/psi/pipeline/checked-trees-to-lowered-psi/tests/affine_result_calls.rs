@@ -1,4 +1,5 @@
 use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, StructuralPlaceKind};
@@ -57,7 +58,8 @@ fn typed(source: &str) -> typed_trees::TypedTrees {
 
 fn assert_call_execution(source: &str, name: &str, scalar_arguments: &[TerminalScalarValue]) {
     let checked = checked(source);
-    let lowered = lower_machine(&checked, name).expect("caller lowers");
+    let lowered =
+        lower_machine(&checked, TerminalMachineSelection::Name(name)).expect("caller lowers");
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode proof");
@@ -296,7 +298,7 @@ fn ordinary_result_calls_reject_checked_custody_drift() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&checked, "Main::caller").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("Main::caller")).is_err(),
             "corruption {corruption}"
         );
     }
@@ -312,7 +314,8 @@ fn a_transitive_unit_caller_retains_the_structural_producer_in_one_catalog() {
         machine Main::receive(value: Value) { let result: Value = forward(value); }
         machine Main::caller(value: Value) { Main::receive(value); }",
     );
-    let lowered = lower_machine(&checked, "Main::caller").expect("transitive Unit closure");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+        .expect("transitive Unit closure");
     let module = &lowered.semantic_module;
     assert_eq!(module.machines.len(), 3);
     assert_eq!(lowered.source_call_occurrences.len(), 2);
@@ -356,7 +359,8 @@ fn a_result_is_disposed_before_an_unused_entry_parameter() {
         machine forward(value: Value) -> Value { value }
         machine caller(value: Value, unused: Value) { let result: Value = forward(value); }",
     );
-    let lowered = lower_machine(&checked, "caller").expect("caller with an unused owned input");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("caller"))
+        .expect("caller with an unused owned input");
     let caller = &lowered.semantic_module.machines[0];
     let operation = &caller.blocks[0].operations[0];
     let OperationResult::Structural(result) = &operation.result else {
@@ -392,7 +396,8 @@ fn root_and_transitive_calls_share_one_structural_producer() {
             Main::receive(second);
         }",
     );
-    let lowered = lower_machine(&checked, "caller").expect("shared ordinary result producer");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("caller"))
+        .expect("shared ordinary result producer");
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let targets = lowered
         .semantic_module
@@ -440,7 +445,7 @@ fn constructed_result_calls_lower_through_their_executable_structural_producer()
     // Nested initializer operands retain exact result storage, so the
     // constructed result lowers through its authored producer.
     assert!(
-        lower_machine(&checked, "value").is_ok(),
+        lower_machine(&checked, TerminalMachineSelection::Name("value")).is_ok(),
         "the authored structural producer lowers its constructed result"
     );
 }

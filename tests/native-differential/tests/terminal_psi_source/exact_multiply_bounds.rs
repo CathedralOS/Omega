@@ -5,6 +5,7 @@ use super::{
     encode_module, encode_proof_section, interpret_terminal_artifact_measured, lower_artifact,
     lower_machine, lower_to_target_operations, source_canary, verify_module,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
@@ -12,8 +13,11 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn checked_source_exact_multiply_uses_known_factor_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-factor exact-multiply source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_multiply_known_right")
-        .expect("known-factor exact multiplication should use its path bound");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_multiply_known_right"),
+    )
+    .expect("known-factor exact multiplication should use its path bound");
     let multiply_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -126,8 +130,11 @@ fn checked_source_exact_multiply_uses_known_factor_bound() {
 fn checked_source_exact_multiply_uses_joint_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("joint-bound exact-multiply source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_multiply_joint_bound")
-        .expect("joint-bound exact multiplication should use both path propositions");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_multiply_joint_bound"),
+    )
+    .expect("joint-bound exact multiplication should use both path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -193,8 +200,11 @@ fn checked_source_exact_multiply_uses_joint_runtime_bound() {
 fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed joint-bound exact-multiply source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_positive_bound")
-        .expect("signed joint-bound exact multiplication should use all path propositions");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_multiply_signed_positive_bound"),
+    )
+    .expect("signed joint-bound exact multiplication should use all path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -264,9 +274,11 @@ fn checked_source_exact_multiply_uses_signed_positive_runtime_bound() {
 fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("negative signed joint-bound exact-multiply source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_negative_bound").expect(
-        "negative signed joint-bound exact multiplication should use all path propositions",
-    );
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_multiply_signed_negative_bound"),
+    )
+    .expect("negative signed joint-bound exact multiplication should use all path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -344,8 +356,11 @@ fn checked_source_exact_multiply_uses_signed_negative_runtime_bound() {
 fn checked_source_exact_multiply_uses_signed_runtime_negation_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("runtime-negation exact-multiply source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_multiply_signed_negation_bound")
-        .expect("runtime-negation exact multiplication should use all path propositions");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_multiply_signed_negation_bound"),
+    )
+    .expect("runtime-negation exact multiplication should use all path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -417,7 +432,7 @@ fn checked_source_exact_multiply_uses_all_signed_i64_runtime_bounds() {
         .expect("signed i64 runtime-bound exact-multiply source canary should compile");
     let lowered = lower_machine(
         &checked,
-        "terminal_exact_multiply_signed_i64_runtime_bounds",
+        TerminalMachineSelection::Name("terminal_exact_multiply_signed_i64_runtime_bounds"),
     )
     .expect("signed i64 exact multiplication should use every runtime-factor proof form");
     assert_eq!(

@@ -2,6 +2,7 @@ use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarExpression, CheckedScalarExpressionBindings,
     CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -90,8 +91,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 }
 
 fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("supported source lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("supported source lowers");
     let artifact = (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -473,8 +477,11 @@ fn assert_operation_custody(checked: &checked_trees::CheckedTrees) {
                 if mutate_operation_custody(operation, mutation) {
                     let operation = operation.clone();
                     assert!(
-                        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main")
-                            .is_err(),
+                        checked_trees_to_lowered_psi::lower_machine(
+                            &changed,
+                            TerminalMachineSelection::Name("Main::main")
+                        )
+                        .is_err(),
                         "operation={operation_index}, outer custody mutation={mutation}: {operation:?}"
                     );
                 }
@@ -499,7 +506,11 @@ fn assert_operation_custody(checked: &checked_trees::CheckedTrees) {
                 .boundary_call;
             assert!(mutate_operation_custody(operation, mutation));
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "boundary return outer custody mutation={mutation}"
             );
         }
@@ -557,7 +568,11 @@ fn call_scalar_binding_stamps_reject_missing_duplicate_stale_and_reordered_sourc
                     _ => unreachable!(),
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "mutation={mutation}, role={:?}",
                     row.role
                 );
@@ -576,7 +591,11 @@ fn call_scalar_binding_stamps_reject_missing_duplicate_stale_and_reordered_sourc
                 let replacement = plans.binding_symbols.insert_many(reordered);
                 plans.source_bindings.get_mut(*handle).symbols = replacement;
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "caller namespace order is source custody"
                 );
             }
@@ -606,7 +625,11 @@ fn same_carrier_call_operands_cannot_swap_source_handles_or_coordinate_copies() 
             let mut changed = checked.clone();
             replace_source_argument(&mut changed, row, other.expression);
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "authored argument handle swapped, role={:?}",
                 row.role
             );
@@ -640,7 +663,11 @@ fn same_carrier_call_operands_cannot_swap_source_handles_or_coordinate_copies() 
             facts.source_bindings.get_mut(*handle).expression = other.expression;
             replace_operation_argument(&mut changed, row, replacement);
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "coordinated checked copies do not change the authored operand"
             );
         }
@@ -703,7 +730,11 @@ fn mixed_callee_parameters_keep_dense_scalar_roles_at_authored_argument_position
             let mut changed = checked.clone();
             replace_source_argument(&mut changed, row, other.expression);
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "same-carrier source argument swap across structural slot, boundary={boundary}"
             );
         }
@@ -773,7 +804,11 @@ fn zero_scalar_call_roots_reject_same_signature_authored_target_substitution() {
             _ => panic!("zero-argument call operation"),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "same-signature operation target state substitution, boundary={boundary}"
         );
         let StatementNode::Call(call) =
@@ -783,7 +818,11 @@ fn zero_scalar_call_roots_reject_same_signature_authored_target_substitution() {
         };
         call.target_symbol = alternative;
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "zero-operand outer target custody, boundary={boundary}"
         );
     }
@@ -828,7 +867,11 @@ fn structural_boundary_results_retain_exact_scalar_operand_source_custody() {
         let mut changed = checked.clone();
         replace_source_argument(&mut changed, row, other.expression);
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "structural result call source operand swapped"
         );
         let mut changed = checked.clone();
@@ -840,7 +883,11 @@ fn structural_boundary_results_retain_exact_scalar_operand_source_custody() {
             .get_mut(*handle)
             .expression = arena::Handle::invalid();
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "structural result call binding lost"
         );
         let mut changed = checked.clone();
@@ -851,7 +898,11 @@ fn structural_boundary_results_retain_exact_scalar_operand_source_custody() {
             .source_bindings
             .append(row.clone());
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "structural result duplicate source binding"
         );
     }
@@ -927,7 +978,11 @@ fn composed_unit_boundary_leaves_verify_and_reject_changed_operand_custody() {
         let mut changed = checked.clone();
         replace_source_argument(&mut changed, row, other.expression);
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "composed leaf source operand swapped"
         );
         let mut changed = checked.clone();
@@ -939,7 +994,11 @@ fn composed_unit_boundary_leaves_verify_and_reject_changed_operand_custody() {
             .get_mut(*handle)
             .expression = arena::Handle::invalid();
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "composed leaf binding lost"
         );
         let mut changed = checked.clone();
@@ -950,7 +1009,11 @@ fn composed_unit_boundary_leaves_verify_and_reject_changed_operand_custody() {
             .source_bindings
             .append(row.clone());
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "composed leaf duplicate binding"
         );
     }

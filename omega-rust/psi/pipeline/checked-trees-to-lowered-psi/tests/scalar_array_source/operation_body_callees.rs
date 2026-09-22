@@ -5,6 +5,7 @@ use super::{
     TerminalExecutionResult, TerminalScalarValue, WRITE, assert_array, byte, checked_source,
     execute, reject,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[test]
 fn scalar_array_local_control_keeps_prefix_effects_and_call_result_storage() {
     let source =
@@ -27,7 +28,11 @@ fn scalar_array_control_rejects_substituted_tail_and_local_custody() {
              transition enabled { true -> (answer(row, value)) false -> 0u8 }
          }",
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap();
     for mutation in [
         "missing control",
         "guard coordinate",
@@ -321,8 +326,11 @@ fn transitive_ordered_scalar_body_rejects_source_contract_and_result_corruption(
             .for_machine(helper)
             .is_none()
     );
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("real transitive operation body lowers before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("real transitive operation body lowers before corruption");
     for mutation in [
         "missing body",
         "duplicate body",

@@ -1,5 +1,6 @@
 use super::checked;
 use checked_trees::{CheckedComposedUnitControlMachinePlan, CheckedUnitEffectOperationPlan};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerValue, StructuralPlaceKind};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -46,8 +47,11 @@ const SOURCE: &str = r#"
 
 #[test]
 fn cyclic_provider_fields_reload_with_exact_roots_and_ordered_stores() {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(SOURCE), "Counter::run")
-        .expect("general cyclic receiver graph retains provider-field calls");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(SOURCE),
+        TerminalMachineSelection::Name("Counter::run"),
+    )
+    .expect("general cyclic receiver graph retains provider-field calls");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -216,8 +220,11 @@ fn graph_plan_mut(
 
 fn baseline() -> checked_trees::CheckedTrees {
     let checked = checked(SOURCE);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Counter::run")
-        .expect("untampered provider graph must lower before negative controls");
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Counter::run"),
+    )
+    .expect("untampered provider graph must lower before negative controls");
     checked
 }
 
@@ -283,7 +290,11 @@ fn reject_authored_provider_receiver_mutation(mutation: &str) {
         changed.facts, original.facts,
         "only authored receiver custody changes; all captured flow and plans remain untouched"
     );
-    checked_trees_to_lowered_psi::lower_machine(&changed, "Counter::run").expect_err(mutation);
+    checked_trees_to_lowered_psi::lower_machine(
+        &changed,
+        TerminalMachineSelection::Name("Counter::run"),
+    )
+    .expect_err(mutation);
 }
 
 #[test]
@@ -368,8 +379,11 @@ fn checked_attachment_requirements_reject_omitted_extra_stale_and_wrong_fields()
             "missing attachment" => plan.attachment_type_identity = None,
             _ => unreachable!(),
         }
-        let error = checked_trees_to_lowered_psi::lower_machine(&changed, "Counter::run")
-            .expect_err(mutation);
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Counter::run"),
+        )
+        .expect_err(mutation);
         assert!(
             matches!(
                 error,
@@ -457,8 +471,11 @@ fn checked_graph_replays_boundary_call_identity_and_effect_coordinates() {
             }
             _ => unreachable!(),
         }
-        let error = checked_trees_to_lowered_psi::lower_machine(&changed, "Counter::run")
-            .expect_err(mutation);
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Counter::run"),
+        )
+        .expect_err(mutation);
         assert!(
             matches!(
                 error,
@@ -471,7 +488,11 @@ fn checked_graph_replays_boundary_call_identity_and_effect_coordinates() {
 
 #[test]
 fn canonical_cyclic_attachment_roots_reject_missing_extra_and_substituted_identity() {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&baseline(), "Counter::run").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &baseline(),
+        TerminalMachineSelection::Name("Counter::run"),
+    )
+    .unwrap();
     let module = terminal_codec::decode_module(
         &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
     )
@@ -596,8 +617,11 @@ fn a_store_path_never_crosses_a_borrowed_carrier_field() {
     let checked = checked(REFERENCE_CARRIER_SOURCE);
     let error = format!(
         "{:?}",
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Outer::run")
-            .expect_err("a carrier hop through `&mut Inner` is not an inline field offset")
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Outer::run")
+        )
+        .expect_err("a carrier hop through `&mut Inner` is not an inline field offset")
     );
     assert!(
         error.contains("missing a checked transitive machine plan"),

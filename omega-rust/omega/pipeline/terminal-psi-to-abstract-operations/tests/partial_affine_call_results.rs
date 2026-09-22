@@ -4,6 +4,7 @@
 mod continuations;
 
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit_semantics::validate_psi_optimization_unit;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
@@ -61,8 +62,11 @@ fn omega_retains_verified_partial_result_continuation_cleanup() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
     let typed = lower_symbol_resolved_trees(&resolved).unwrap();
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
-    let mut terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("existing anonymous partial-return source lowers");
+    let mut terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("existing anonymous partial-return source lowers");
     let module = &mut terminal.semantic_module;
     let next_block = semantic_vocabulary::BlockId::new(
         module
@@ -246,13 +250,19 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
             Some("invented".into())
         };
         assert!(matches!(
-            checked_trees_to_lowered_psi::lower_machine(&malformed, entry_name),
+            checked_trees_to_lowered_psi::lower_machine(
+                &malformed,
+                TerminalMachineSelection::Name(entry_name)
+            ),
             Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
                 "partial affine Unit cleanup attachment disagrees with its signature"
             ))
         ));
-        let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, entry_name)
-            .expect("lower authored cleanup");
+        let terminal = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(entry_name),
+        )
+        .expect("lower authored cleanup");
         let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
         let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
             .expect("encode proof");

@@ -1,5 +1,6 @@
 //! Mixed Unit crash arithmetic uses exact runtime requirement evidence.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -33,8 +34,11 @@ const SOURCE: &str = r#"
 "#;
 
 fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("mixed crash arithmetic retains its scalar runtime requirements");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("mixed crash arithmetic retains its scalar runtime requirements");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let evidence =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -264,8 +268,11 @@ fn reflexive_call_requirement_cannot_prove_unbounded_argument_addition_safe() {
         "#
         );
         let checked = checked(&source);
-        let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-            .expect_err("a reflexive call requirement cannot establish Exact addition safety");
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .expect_err("a reflexive call requirement cannot establish Exact addition safety");
         assert!(
             matches!(
                 error,
@@ -641,7 +648,7 @@ fn structural_divisor_keeps_whole_root_requirements_and_rejects_partial_cleanup(
             // consumer, whose current source shape excludes mixed scalar
             // inputs and an effectful callee. Do not erase the live spare.
             assert!(matches!(
-                checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
+                checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Main::main")),
                 Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
                     machine, reason, ..
                 }) if machine == "Main::main"

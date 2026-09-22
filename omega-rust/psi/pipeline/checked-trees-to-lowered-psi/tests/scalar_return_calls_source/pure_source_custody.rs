@@ -3,6 +3,7 @@ use super::{
     TerminalScalarValue, checked_arms, encode_module, encode_proof_section, execute,
 };
 use checked_trees::{CheckedScalarExpressionBindings, CheckedScalarExpressionRole};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 const SOURCE: &str = r#"
@@ -63,7 +64,11 @@ fn binding_rows(
 }
 
 fn encoded_checked(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "value").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap();
     (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -185,7 +190,11 @@ fn missing_duplicate_or_rebound_pure_source_rows_reject_for_every_consumed_role(
                     _ => unreachable!(),
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("value")
+                    )
+                    .is_err(),
                     "source-row mutation={mutation}, role={:?}, statement={}, combined={combined}",
                     row.role,
                     row.statement_ordinal
@@ -219,7 +228,11 @@ fn reordered_pure_operand_namespaces_cannot_rebind_equal_carrier_values() {
             let replacement = plans.binding_symbols.insert_many(reordered);
             plans.source_bindings.get_mut(*handle).symbols = replacement;
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "reordered namespace role={:?}, statement={}, combined={combined}",
                 row.role,
                 row.statement_ordinal
@@ -342,7 +355,11 @@ fn pure_plans_reject_changed_authored_expression_handles() {
             let mut changed = checked.clone();
             replace_authored_expression(&mut changed, &row);
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "changed authored expression role={:?}, statement={}, combined={combined}",
                 row.role,
                 row.statement_ordinal
@@ -403,7 +420,11 @@ fn pure_local_rows_reject_changed_authored_destinations_and_mutability() {
                 _ => panic!("authored local operation"),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "typed destination mutation role={:?}, mutability={change_mutability}",
                 row.role
             );
@@ -476,13 +497,21 @@ fn pure_return_and_continuation_rows_rejoin_the_selected_source_arm() {
                 .get_mut(*handle)
                 .expression = opposite.1.expression;
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "swapped pure arm binding"
             );
             let mut changed = checked.clone();
             replace_authored_expression(&mut changed, row);
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "changed pure arm expression"
             );
         }
@@ -527,10 +556,22 @@ fn pure_guard_custody_is_required_before_selecting_a_crash_fallback() {
         .source_bindings
         .get_mut(*handle)
         .expression = arena::Handle::invalid();
-    assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("value")
+        )
+        .is_err()
+    );
     let mut changed = checked.clone();
     replace_authored_expression(&mut changed, guard);
-    assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("value")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -666,7 +707,11 @@ fn direct_call_outer_custody_rejects_changed_targets_and_local_declarations() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "direct-call outer mutation={mutation}, zero_arguments={zero_arguments}"
             );
         }
@@ -804,7 +849,11 @@ fn pure_named_successors_rejoin_source_and_graph_targets_even_without_arguments(
                 }
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "named successor graph_target={graph_target}, zero_arguments={zero_arguments}"
             );
         }

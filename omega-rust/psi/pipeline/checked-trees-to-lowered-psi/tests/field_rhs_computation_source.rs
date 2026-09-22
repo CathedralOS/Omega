@@ -1,5 +1,6 @@
 //! Call-bearing receiver assignments through source-produced Terminal artifacts.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -385,8 +386,11 @@ fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution(
         }
     "#,
     );
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("unmodified source computation custody is valid");
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("unmodified source computation custody is valid");
     for mutation in 0..4 {
         let mut changed = checked.clone();
         let stores: Vec<_> = changed
@@ -446,8 +450,11 @@ fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution(
             }
             _ => unreachable!(),
         }
-        let result =
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").map(|_| ());
+        let result = checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .map(|_| ());
         assert!(
             result.is_err(),
             "field RHS custody mutation {mutation} must reject: {result:?}"

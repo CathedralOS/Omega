@@ -1,5 +1,6 @@
 //! Source-produced fixed-array loans retain initialized backing and exact extent.
 use super::{byte_sequence_write, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -309,7 +310,7 @@ fn fixed_byte_windows_replay_authored_endpoints() {
             *structural_arguments[0].path.last_mut().unwrap() =
                 CheckedUnitStructuralPathSegment::FixedByteRange { start, end };
             assert!(
-                lower_machine(&changed, "Record::run").is_err(),
+                lower_machine(&changed, TerminalMachineSelection::Name("Record::run")).is_err(),
                 "a valid but unauthored byte window must reject"
             );
         }
@@ -351,7 +352,7 @@ fn fixed_byte_array_views_replay_authored_field_and_access() {
                 vec![CheckedUnitStructuralPathSegment::Field("other".into())];
         }
         assert!(
-            lower_machine(&changed, "Record::run").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Record::run")).is_err(),
             "same-typed field/access substitution rejects"
         );
     }

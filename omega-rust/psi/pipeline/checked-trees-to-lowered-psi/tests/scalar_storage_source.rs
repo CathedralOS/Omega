@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -22,8 +23,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 
 fn execute(source: &str) -> TerminalExecutionResult {
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     let semantics = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode proof");
@@ -225,7 +229,7 @@ fn changed_scalar_storage_destination_custody_rejects() {
     use checked_trees::CheckedScalarBindingDestination;
     let source = "machine value() -> u8\nrequires 3u8 == 3u8\nensures 3u8 == 3u8\n{ let mut first: u8 = 1; let mut second: u8 = 2; first = 3; first }";
     let original = checked(source);
-    checked_trees_to_lowered_psi::lower_machine(&original, "value")
+    checked_trees_to_lowered_psi::lower_machine(&original, TerminalMachineSelection::Name("value"))
         .expect("unmodified storage graph lowers");
     for mutation in 0..4 {
         let mut changed = original.clone();
@@ -246,7 +250,11 @@ fn changed_scalar_storage_destination_custody_rejects() {
             _ => bindings[2].primitive_type = typed_trees::types::PrimitiveType::Bool,
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -257,7 +265,7 @@ fn scalar_storage_reads_reject_stale_symbols_and_duplicate_computations() {
     use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole};
     let source = "machine value() -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ let mut current: u8 = 7; current }";
     let original = checked(source);
-    checked_trees_to_lowered_psi::lower_machine(&original, "value")
+    checked_trees_to_lowered_psi::lower_machine(&original, TerminalMachineSelection::Name("value"))
         .expect("unmodified storage read lowers");
     for mutation in 0..3 {
         let mut changed = original.clone();
@@ -281,7 +289,11 @@ fn scalar_storage_reads_reject_stale_symbols_and_duplicate_computations() {
             };
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("value")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }

@@ -5,6 +5,7 @@ use super::{
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
     checked, decode_module, decode_proof_bundle, invoking, main_machine, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::collections::BTreeSet;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -324,7 +325,11 @@ fn crash_after_boundary_temporary_preserves_production_without_cleanup() {
     );
     let checked = checked(&source);
     let artifact = encoded_locals(&checked, &["prefix", "first", "spare"]);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .unwrap();
     let state = checked.machine_states(main_machine(&checked))[0].symbol;
     let operand = lowered
         .source_call_occurrences
@@ -451,7 +456,11 @@ fn boundary_temporary_custody_rejects_substitution_reordering_and_duplicate_clea
             *source_site = different_site;
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -505,7 +514,7 @@ fn open_nominal_boundary_temporaries_require_a_closed_selection() {
         )
         .replace("Factory::create(", "Create(");
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked(&open), "Main::main"),
+        checked_trees_to_lowered_psi::lower_machine(&checked(&open), TerminalMachineSelection::Name("Main::main")),
         Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
             if machine == "Main::main"
     ));
@@ -536,7 +545,11 @@ fn open_nominal_boundary_temporaries_require_a_closed_selection() {
         .get_mut(handle)
         .target_symbol = machine.symbol;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main")
+        )
+        .is_err(),
         "the checked call occurrence keeps its authored boundary target {requirement:?}"
     );
 }

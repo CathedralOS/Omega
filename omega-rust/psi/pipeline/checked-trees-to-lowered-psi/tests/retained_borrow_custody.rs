@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -45,8 +46,11 @@ fn checked() -> checked_trees::CheckedTrees {
 }
 
 fn lowered() -> lowered_psi::LoweredPsi {
-    checked_trees_to_lowered_psi::lower_machine(&checked(), "Main::main")
-        .expect("retained shared-borrow custody should lower")
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked(),
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("retained shared-borrow custody should lower")
 }
 
 fn retained_mut(
@@ -181,7 +185,10 @@ fn lowering_replays_checked_source_and_projection_identity() {
         .carrier_identity
         .push_str("-drift");
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::main")
+        ),
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(_))
     ));
 }

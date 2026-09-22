@@ -46,6 +46,7 @@
 //! or same-width sign reinterpretation has a runtime realization; widening
 //! conversions are already value-preserving and need no such operator.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -65,14 +66,20 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 
 fn lowering_error(source: &str) -> checked_trees_to_lowered_psi::LoweringError {
     let checked = checked(source);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect_err("this policy conversion has no native realization yet")
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect_err("this policy conversion has no native realization yet")
 }
 
 fn lowers(source: &str) {
     let checked = checked(source);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("this conversion composes from admitted operations");
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("this conversion composes from admitted operations");
 }
 
 /// Whether any retained scalar expression or computation node contains a
@@ -305,8 +312,11 @@ fn a_boolean_integer_conversion_lands_through_its_own_computation() {
         plans.nodes.get(operand).primitive_type,
         typed_trees::types::PrimitiveType::Bool
     );
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("the conversion lowers through an ordinary conditional landing");
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("the conversion lowers through an ordinary conditional landing");
 }
 
 /// The operand keeps its authored Boolean computation: a selected comparison
@@ -341,8 +351,11 @@ fn a_boolean_integer_conversion_keeps_its_operands_evaluation() {
                 )),
             "{operand} as {target}: the conversion is a computation root"
         );
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-            .unwrap_or_else(|error| panic!("{operand} as {target}: {error:?}"));
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .unwrap_or_else(|error| panic!("{operand} as {target}: {error:?}"));
     }
 }
 

@@ -2,6 +2,7 @@
 use super::{
     ScalarType, TerminalMachineResult, checked_source, hard_root_checked_fixture, lower_machine,
 };
+use crate::TerminalMachineSelection;
 use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
@@ -15,8 +16,11 @@ use terminal_psi::{
 
 #[test]
 fn empty_selection_executes_validated_identity_before_publication() {
-    let lowered =
-        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
+    let lowered = lower_machine(
+        &hard_root_checked_fixture(),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("fixture lowers");
     let expected = lowered.clone();
     let selections = PsiOptimizationSelections::default();
     let selection_identity = selections.identity();
@@ -56,8 +60,11 @@ fn empty_selection_executes_validated_identity_before_publication() {
 fn every_nonempty_selection_executes_before_publication() {
     // The selection catalog is fully ported: every named rule executes over a
     // real lowered module and records itself in the execution it returns.
-    let lowered =
-        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
+    let lowered = lower_machine(
+        &hard_root_checked_fixture(),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("fixture lowers");
 
     for optimization in PsiOptimization::ALL {
         let selections = PsiOptimizationSelections::new([optimization]).unwrap();
@@ -73,7 +80,8 @@ fn every_nonempty_selection_executes_before_publication() {
 
 fn dead_scalar_fixture() -> LoweredPsi {
     let checked = checked_source("data Main {} machine Main::answer() {}");
-    let mut lowered = lower_machine(&checked, "Main::answer").expect("Unit source lowers");
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::answer"))
+        .expect("Unit source lowers");
     let first = ValueId::new(2001).unwrap();
     let second = ValueId::new(2002).unwrap();
     lowered.semantic_module.machines[0].blocks[0]
@@ -296,8 +304,11 @@ fn dead_scalar_selection_rewrites_where_the_reconstructed_question_does_not_reac
     // presence: an obligation owned by the callee keeps that machine's exit
     // axioms, so a dead chain in the caller still leaves while the clause and
     // the bundle survive verbatim.
-    let mut lowered =
-        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
+    let mut lowered = lower_machine(
+        &hard_root_checked_fixture(),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("fixture lowers");
     lowered.semantic_module.machines[1]
         .contract
         .ensures
@@ -350,8 +361,11 @@ fn dead_scalar_selection_rewrites_where_the_reconstructed_question_does_not_reac
 
 #[test]
 fn invalid_input_fails_before_selected_rule_dispatch() {
-    let mut lowered =
-        lower_machine(&hard_root_checked_fixture(), "Root::enter").expect("fixture lowers");
+    let mut lowered = lower_machine(
+        &hard_root_checked_fixture(),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("fixture lowers");
     lowered.semantic_module.machines.clear();
     let selections = PsiOptimizationSelections::new([PsiOptimization::ControlFlowCleanup]).unwrap();
 
@@ -365,7 +379,11 @@ fn invalid_input_fails_before_selected_rule_dispatch() {
 
 #[test]
 fn dead_scalar_check_keeps_effects_and_rejects_their_removal_or_reordering() {
-    let lowered = lower_machine(&hard_root_checked_fixture(), "Root::enter").unwrap();
+    let lowered = lower_machine(
+        &hard_root_checked_fixture(),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let optimized = run_psi_optimization(
         lowered.clone(),
         PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap(),
@@ -441,7 +459,8 @@ fn dead_block_parameter_fixture() -> LoweredPsi {
              self.value = Main::compute(1, 2);\n\
          }\n",
     );
-    lower_machine(&checked, "Main::compute").expect("transition source lowers")
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::compute"))
+        .expect("transition source lowers")
 }
 
 #[test]
@@ -910,7 +929,8 @@ fn dead_scalar_check_rejects_mismatched_parameter_and_edge_argument_removal() {
 
 fn global_value_numbering_fixture() -> LoweredPsi {
     let checked = checked_source("data Main {} machine Main::answer() {}");
-    let mut lowered = lower_machine(&checked, "Main::answer").expect("Unit source lowers");
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::answer"))
+        .expect("Unit source lowers");
     let operand = ValueId::new(2001).unwrap();
     let first = ValueId::new(2002).unwrap();
     let duplicate = ValueId::new(2003).unwrap();

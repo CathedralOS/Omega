@@ -2,6 +2,7 @@ use checked_trees::{
     CheckedCallScalarArgument, CheckedScalarExpression, CheckedUnitEffectOperationPlan,
     CheckedUnitScalarResultBindingPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -142,7 +143,10 @@ fn main_operations_mut(
 }
 
 fn rejection_message(checked: &checked_trees::CheckedTrees) -> &'static str {
-    match checked_trees_to_lowered_psi::lower_machine(checked, "Main::main") {
+    match checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    ) {
         Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(message)) => message,
         result => panic!("tampered scalar result flow should reject, got {result:?}"),
     }
@@ -150,8 +154,11 @@ fn rejection_message(checked: &checked_trees::CheckedTrees) -> &'static str {
 
 #[test]
 fn attached_unit_scalar_boundary_result_reaches_later_call_in_terminal_psi() {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(), "Main::main")
-        .expect("complete scalar result flow should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(),
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("complete scalar result flow should lower");
     let entry = lowered
         .semantic_module
         .machines
@@ -202,10 +209,16 @@ fn unit_call_closure_retains_scalar_boundary_wrapper() {
         "#,
         );
     let checked = checked_from_source(&source);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Scalar::measure")
-        .expect("the scalar boundary wrapper already lowers as a named root");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("the same wrapper belongs to the ordinary Unit call closure");
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Scalar::measure"),
+    )
+    .expect("the scalar boundary wrapper already lowers as a named root");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("the same wrapper belongs to the ordinary Unit call closure");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -250,8 +263,11 @@ fn attached_unit_ordinary_scalar_result_reaches_later_call_in_terminal_psi() {
             )
     ));
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("ordinary scalar result flow should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("ordinary scalar result flow should lower");
     let entry = lowered
         .semantic_module
         .machines
@@ -384,8 +400,11 @@ fn attached_unit_ordinary_scalar_result_reaches_a_direct_write_only_store() {
         ] if result.binding_ordinal == 0
     ));
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("direct scalar-result store should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("direct scalar-result store should lower");
     let entry = lowered
         .semantic_module
         .machines
@@ -454,8 +473,11 @@ fn attached_unit_scalar_expression_local_reaches_later_call_in_terminal_psi() {
             )
     ));
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("dependent scalar-local flow should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("dependent scalar-local flow should lower");
     let entry = lowered
         .semantic_module
         .machines
@@ -662,8 +684,11 @@ fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
 #[test]
 fn attached_unit_scalar_result_reaches_the_machine_return_in_terminal_psi() {
     let checked = checked_from_source(RETURN_RESULT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("call-produced scalar result returned directly should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("call-produced scalar result returned directly should lower");
     let entry = lowered
         .semantic_module
         .machines

@@ -2,6 +2,7 @@ use checked_trees::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -96,8 +97,11 @@ fn anonymous_projected_operands_share_one_dying_continuation() {
             "#
         };
         let checked = checked(source);
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-            .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .unwrap_or_else(|error| panic!("{source}\n{error:?}"));
         let module = &lowered.semantic_module;
         let semantic = encode_module(module).unwrap();
         assert_eq!(decode_module(&semantic).unwrap(), *module);
@@ -354,8 +358,11 @@ fn assert_source(
             "anonymous results never synthesize a source local"
         );
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("source result residuals lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("source result residuals lower");
     let module = &lowered.semantic_module;
     let semantic = encode_module(module).unwrap();
     assert_eq!(decode_module(&semantic).unwrap(), *module);
@@ -656,8 +663,11 @@ fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
     for (boundary, anonymous) in [(false, false), (true, false), (false, true), (true, true)] {
         let source = if anonymous { anonymous_source } else { source };
         let original = checked(&source(boundary, false, "Sink::take(result.right);"));
-        checked_trees_to_lowered_psi::lower_machine(&original, "Root::enter")
-            .expect("valid control before mutations");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .expect("valid control before mutations");
         let machine = original
             .machines()
             .iter()
@@ -753,13 +763,20 @@ fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Root::enter")
+                )
+                .is_err(),
                 "boundary={boundary} anonymous={anonymous} mutation={mutation}"
             );
         }
         let mut changed = checked(&source(boundary, true, "Sink::take(result.grid[1][1]);"));
-        checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter")
-            .expect("valid multi-residual control");
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .expect("valid multi-residual control");
         let plan = changed
             .facts
             .flow
@@ -769,7 +786,13 @@ fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
             .find(|plan| !plan.residual_affine_discards.is_empty())
             .unwrap();
         plan.residual_affine_discards.reverse();
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err()
+        );
     }
 }
 

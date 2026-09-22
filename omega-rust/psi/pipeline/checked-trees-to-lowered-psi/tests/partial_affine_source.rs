@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -285,8 +286,11 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     for (machine, moved, residual) in [("Root::first", 0, 1), ("Root::second", 1, 0)] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine)
-            .expect("one literal array move and its exact sibling cleanup lower");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(machine),
+        )
+        .expect("one literal array move and its exact sibling cleanup lower");
         let entry = lowered
             .semantic_module
             .machines
@@ -456,8 +460,11 @@ fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
     for (machine, expected_paths) in [("Root::forward", [0, 1]), ("Root::reverse", [1, 0])] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine)
-            .expect("both affine array elements lower in authored order");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(machine),
+        )
+        .expect("both affine array elements lower in authored order");
         let entry = lowered
             .semantic_module
             .machines
@@ -631,8 +638,11 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
-    let all = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::all")
-        .expect("three moves completely consume the triple");
+    let all = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::all"),
+    )
+    .expect("three moves completely consume the triple");
     let all_entry = all
         .semantic_module
         .machines
@@ -649,8 +659,11 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
     )
     .expect("complete triple transfer verifies without cleanup");
 
-    let one = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::one")
-        .expect("one triple move and two ordered residuals lower");
+    let one = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::one"),
+    )
+    .expect("one triple move and two ordered residuals lower");
     let entry = one
         .semantic_module
         .machines
@@ -764,8 +777,11 @@ fn affine_triple_residuals_follow_the_exact_decreasing_live_index_order() {
         ("Root::last", [0, 1], 2),
         ("Root::first", [1, 2], 0),
     ] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, machine)
-            .expect("two triple elements and the sole residual lower");
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(machine),
+        )
+        .expect("two triple elements and the sole residual lower");
         let entry = lowered
             .semantic_module
             .machines
@@ -1053,8 +1069,11 @@ fn affine_quartet_two_moves_retain_authored_calls_and_decreasing_residuals() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("two quartet moves and their decreasing complement lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("two quartet moves and their decreasing complement lower");
     let entry = lowered
         .semantic_module
         .machines
@@ -1189,8 +1208,11 @@ fn assert_nested_affine_array_cleanup_crosses_source_codec_verifier_and_interpre
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("nested leaf moves and their decreasing complements lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("nested leaf moves and their decreasing complements lower");
     let entry = lowered
         .semantic_module
         .machines
@@ -1699,8 +1721,11 @@ fn direct_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpr
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("direct field transfer plus residual affine cleanup lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("direct field transfer plus residual affine cleanup lowers");
 
     let entry = lowered
         .semantic_module
@@ -2043,8 +2068,11 @@ fn mixed_field_partial_affine_cleanup_crosses_source_codec_verifier_and_interpre
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("mixed field transfers plus recursive residual cleanup lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("mixed field transfers plus recursive residual cleanup lower");
     let entry = lowered
         .semantic_module
         .machines

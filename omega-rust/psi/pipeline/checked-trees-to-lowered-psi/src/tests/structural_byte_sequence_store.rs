@@ -4,6 +4,7 @@ use super::{
     Lexer, ResolutionRequest, ScalarType, checked_source, lower_machine,
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
 };
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::{block_id, edge_id, value_id};
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
@@ -123,7 +124,8 @@ fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
         }
         "#,
     );
-    lower_machine(&checked, "measure").expect("untampered field length lowers");
+    lower_machine(&checked, TerminalMachineSelection::Name("measure"))
+        .expect("untampered field length lowers");
     for mutation in 0..5 {
         let mut changed = checked.clone();
         let mutate = |value: &mut CheckedScalarExpression| {
@@ -174,7 +176,7 @@ fn byte_field_length_receiving_rejects_changed_root_and_field_paths() {
         }
         assert_eq!(changed_arguments, 1, "exact boundary length operand");
         assert!(
-            lower_machine(&changed, "measure").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("measure")).is_err(),
             "length mutation {mutation}"
         );
     }
@@ -256,7 +258,8 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
         machine Record::replace(&mut self) { self.out = "XXX"; }
     "#;
     let checked = checked_source(source);
-    lower_machine(&checked, "Record::replace").expect("untampered byte replacement lowers");
+    lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
+        .expect("untampered byte replacement lowers");
     for mutation in 0..5 {
         let mut changed = checked.clone();
         let plan = changed
@@ -295,7 +298,7 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
             }
         }
         assert!(
-            lower_machine(&changed, "Record::replace").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Record::replace")).is_err(),
             "mutation {mutation}"
         );
     }
@@ -518,7 +521,8 @@ fn literal_reestablishment_in_a_cycle_consumes_fuel_without_losing_field_bytes()
         machine Record::replace(&mut self) { self.out = "XXX"; }
     "#,
     );
-    let mut lowered = lower_machine(&checked, "Record::replace").unwrap();
+    let mut lowered =
+        lower_machine(&checked, TerminalMachineSelection::Name("Record::replace")).unwrap();
     // The store is source-produced. This control-flow rewrite tests repeated
     // Terminal execution, not source correspondence for a fabricated loop.
     let machine = &mut lowered.semantic_module.machines[0];

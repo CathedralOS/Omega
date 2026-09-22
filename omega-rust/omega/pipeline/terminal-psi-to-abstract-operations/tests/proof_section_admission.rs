@@ -2,6 +2,7 @@
 //! proof section sealed to the exact admitted module; unsealed bundles are
 //! rejected at all three boundaries.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{ProofCodecError, encode_module, encode_proof_bundle, encode_proof_section};
 use terminal_psi_to_abstract_operations::{
@@ -49,8 +50,11 @@ fn artifact_sections<'artifact>(
 #[test]
 fn every_admission_rejects_an_unsealed_proof_bundle() {
     let checked = checked_source();
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "enter").expect("Terminal producer");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .expect("Terminal producer");
     let semantic_bytes = encode_module(&lowered.semantic_module).expect("canonical semantics");
     // A bare proof bundle still verifies in process but carries no subject
     // seal, so every admission boundary must refuse it outright.
@@ -87,10 +91,16 @@ fn every_admission_rejects_an_unsealed_proof_bundle() {
 #[test]
 fn every_admission_rejects_a_proof_section_sealed_for_another_subject() {
     let checked = checked_source();
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "enter").expect("Terminal producer");
-    let foreign = checked_trees_to_lowered_psi::lower_machine(&checked, "reset")
-        .expect("foreign Terminal producer");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .expect("Terminal producer");
+    let foreign = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("reset"),
+    )
+    .expect("foreign Terminal producer");
     let semantic_bytes = encode_module(&lowered.semantic_module).expect("canonical semantics");
     // The bundle verifies for both modules (compact obligation coordinates
     // coincide), but the seal names the foreign module's identity.

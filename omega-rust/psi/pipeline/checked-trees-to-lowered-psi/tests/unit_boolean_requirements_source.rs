@@ -1,5 +1,6 @@
 //! Boolean preconditions retain their actual scalar identity across Unit calls.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -20,8 +21,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 
 fn roundtrip(source: &str) -> lowered_psi::LoweredPsi {
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("Boolean requirements survive mixed Unit lowering");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("Boolean requirements survive mixed Unit lowering");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let evidence =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

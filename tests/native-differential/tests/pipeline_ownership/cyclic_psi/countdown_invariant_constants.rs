@@ -10,6 +10,7 @@ use abstract_operations_to_abstract_operations::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantAnalysisSnapshot,
     CountdownInvariantConstantRole,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{ValueDefinitionSite, recompute_psi_optimization_unit_identity};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId};
 use typed_trees_to_checked_trees::CheckingRequest;
@@ -233,8 +234,11 @@ pub(super) fn acyclic_unit() -> terminal_psi_to_abstract_operations::VerifiedPsi
     let typed = lower_symbol_resolved_trees(&resolved).expect("type acyclic unit");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("check acyclic unit");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::once")
-        .expect("lower acyclic unit");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::once"),
+    )
+    .expect("lower acyclic unit");
     let semantic =
         terminal_codec::encode_module(&lowered.semantic_module).expect("encode acyclic semantics");
     let proof =

@@ -1,4 +1,5 @@
 use abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
 };
@@ -39,8 +40,11 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
-        .expect("stored dynamic source lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("stored dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");
@@ -162,8 +166,11 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
-        .expect("rebound dynamic source lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("rebound dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");
@@ -301,8 +308,11 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
-        .expect("changed-conformance rebound lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("changed-conformance rebound lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");
@@ -421,8 +431,11 @@ fn verified_forwarded_dynamic_parameter_retains_call_argument_and_helper_dispatc
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
-        .expect("forwarded dynamic source lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("forwarded dynamic source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");
@@ -629,8 +642,11 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
-        .expect("direct scalar forwarding lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("direct scalar forwarding lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");

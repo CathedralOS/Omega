@@ -7,6 +7,7 @@ use super::{
     MULTI_HOP_DYNAMIC_UNIT_SOURCE, REBOUND_DYNAMIC_UNIT_SOURCE,
     assert_dynamic_unit_artifact_executes, unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::value_id;
 use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -35,7 +36,7 @@ fn lowers_transparent_forwarding_chain_after_a_two_predecessor_join() {
     assert!(joined_transfer.has_complete_source_custody(&checked_catalog.transfers));
     assert!(forwarded_transfer.has_complete_source_custody(&checked_catalog.transfers));
 
-    let lowered = lower_machine(&checked, "Main::run")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("the transparent forwarding chain after the join should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the forwarded joined Terminal module should verify");
@@ -132,8 +133,8 @@ fn lowers_result_less_dynamic_join_through_the_shared_helper_chain() {
         joined.when_false.call.forwarding_transfers,
     );
 
-    let lowered =
-        lower_machine(&checked, "Main::run").expect("the result-less descriptor join should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("the result-less descriptor join should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the result-less joined Terminal module should verify");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -237,7 +238,7 @@ fn lowers_parameter_sourced_dynamic_forwarding_as_two_explicit_helpers() {
     };
     assert_eq!(plan.forwarding_transfers.len(), 1);
 
-    let lowered = lower_machine(&checked, "Main::run")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("the exact parameter-sourced forwarding path should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the multi-hop dynamic module should verify");
@@ -300,7 +301,7 @@ fn retains_multi_hop_forwarded_scalar_result_control() {
     assert_eq!(plan.forwarding_transfers.len(), 1);
     assert!(plan.unit_continuation.is_some());
 
-    let lowered = lower_machine(&checked, "Main::run")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("the multi-hop scalar result continuation should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the multi-hop scalar result continuation should verify");
@@ -367,7 +368,7 @@ fn forwarded_descriptor_helper_preserves_scalar_computation_and_branch() {
     );
     assert_ne!(source, MULTI_HOP_DYNAMIC_INTEGER_SOURCE);
     let checked = checked_source(&source);
-    let lowered = lower_machine(&checked, "Main::run")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("descriptor forwarding retains the helper's actual scalar body");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("composed forwarding independently verifies");
@@ -539,7 +540,7 @@ fn forwarded_descriptor_helper_rejects_substituted_body_custody() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "Main::run").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::run")).is_err(),
             "mutation {mutation}"
         );
     }
@@ -555,7 +556,7 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
     };
     assert_eq!(plan.forwarding_transfers.len(), 1);
 
-    let lowered = lower_machine(&checked, "Main::run")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("the exact parameter-sourced Unit forwarding path should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("the multi-hop dynamic Unit module should verify");
@@ -615,7 +616,8 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
 #[test]
 fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
     let checked = checked_source(DIRECT_DYNAMIC_UNIT_SOURCE);
-    let lowered = lower_machine(&checked, "Main::run").expect("direct dynamic Unit call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("direct dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("direct dynamic Unit module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -660,8 +662,8 @@ fn lowers_direct_dynamic_unit_without_allocating_a_scalar_result() {
 #[test]
 fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
     let checked = checked_source(REBOUND_DYNAMIC_UNIT_SOURCE);
-    let mut lowered =
-        lower_machine(&checked, "Main::run").expect("rebound dynamic Unit call lowers");
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("rebound dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("rebound dynamic Unit module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -701,7 +703,7 @@ fn lowers_rebound_dynamic_unit_to_a_resultless_indirect_dispatch() {
 fn retains_changed_conformance_unit_applications_without_a_scalar_result() {
     let lowered = lower_machine(
         &checked_source(CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
-        "Main::run",
+        TerminalMachineSelection::Name("Main::run"),
     )
     .expect("changed-conformance dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -733,7 +735,7 @@ fn retains_changed_conformance_unit_applications_without_a_scalar_result() {
 fn forwards_changed_conformance_unit_custody_without_a_scalar_result() {
     let lowered = lower_machine(
         &checked_source(FORWARDED_CHANGED_CONFORMANCE_DYNAMIC_UNIT_SOURCE),
-        "Main::run",
+        TerminalMachineSelection::Name("Main::run"),
     )
     .expect("forwarded changed-conformance dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
@@ -762,7 +764,8 @@ fn forwards_changed_conformance_unit_custody_without_a_scalar_result() {
 #[test]
 fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
     let checked = checked_source(FORWARDED_REBOUND_DYNAMIC_UNIT_SOURCE);
-    let lowered = lower_machine(&checked, "Main::run").expect("forwarded dynamic Unit call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("forwarded dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("forwarded dynamic Unit module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -832,8 +835,8 @@ fn preserves_forwarded_dynamic_unit_parameter_abi_without_a_result_value() {
 #[test]
 fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descriptor() {
     let checked = checked_source(FORWARDED_DIRECT_DYNAMIC_UNIT_SOURCE);
-    let mut lowered =
-        lower_machine(&checked, "Main::run").expect("direct forwarded dynamic Unit call lowers");
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("direct forwarded dynamic Unit call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("direct forwarded dynamic Unit module verifies");
     let catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -878,8 +881,8 @@ fn forwards_a_direct_dynamic_unit_selection_without_fabricating_a_rebound_descri
 #[test]
 fn preserves_forwarded_dynamic_parameter_abi_from_checked_source() {
     let checked = checked_source(FORWARDED_REBOUND_DYNAMIC_INTEGER_SOURCE);
-    let lowered =
-        lower_machine(&checked, "Main::run").expect("forwarded dynamic parameter source lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("forwarded dynamic parameter source lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("forwarded dynamic parameter module verifies");
 

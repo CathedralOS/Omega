@@ -1,5 +1,6 @@
 //! Local literal backing survives repeated native reader calls.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, MachineId, OperationId, PlaceId, StructuralPlaceKind, ValueId,
 };
@@ -179,7 +180,11 @@ fn lower_result_call_source(source: &str) -> lowered_psi::LoweredPsi {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap()
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap()
 }
 
 #[test]

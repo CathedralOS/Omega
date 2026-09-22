@@ -1,5 +1,6 @@
 //! Operand helpers coexist with dynamic realizations and closed-sum payloads.
 use super::{CheckedTrees, checked_source_with_core_service, lower_machine};
+use crate::TerminalMachineSelection;
 use lowered_psi::LoweredPsi;
 use terminal_psi::{OperationKind, Terminator};
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
@@ -8,7 +9,8 @@ mod closed_sum_cleanup;
 mod dynamic_unit;
 
 fn roundtrip(checked: &CheckedTrees) -> LoweredPsi {
-    let lowered = lower_machine(checked, "Main::main").expect("computed leaves lower");
+    let lowered = lower_machine(checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("computed leaves lower");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("encode module");
     let evidence =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -153,7 +155,7 @@ fn assert_trailing_provider_field_custody(checked: &CheckedTrees) {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "Main::main").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
             "provider-field source/capture mutation={mutation} must reject"
         );
     }
@@ -492,7 +494,7 @@ fn closed_sum_graph_keeps_shared_and_mutable_receiver_custody() {
                 };
             }
             assert!(
-                lower_machine(&changed, "Main::main").is_err(),
+                lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
                 "receiver custody mutation {mutation} must reject"
             );
         }
@@ -600,7 +602,7 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
             event.provenance = language_semantics::PermissionProvenance::Unknown;
         }
         assert!(
-            lower_machine(&changed, "Main::main").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
             "missing or substituted return disposal must reject"
         );
     }
@@ -677,7 +679,7 @@ fn closed_sum_returning_arms_discard_their_own_boundary_results() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "Main::main").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
             "result source/return custody mutation {mutation} must reject"
         );
     }
@@ -724,7 +726,7 @@ fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
         .get_mut(event_handle)
         .obligation_live = true;
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "unused payloads cannot erase a live disposal obligation"
     );
     let machine = checked
@@ -755,7 +757,7 @@ fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
         .as_str()
         .into();
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "even an unused binding must name its declared payload"
     );
 
@@ -778,7 +780,7 @@ fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
         case.payloads.clear();
     }
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "a source-used payload cannot be omitted from its actual transfer"
     );
 }
@@ -891,7 +893,7 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
         .provider_attachment_requirements
         .retain(|requirement| requirement.boundary != entry_boundary);
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "ordinary callee ownership cannot erase the root's entry-boundary requirement"
     );
     let mut changed = checked.clone();
@@ -903,7 +905,7 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
             type_identity: "Empty".to_owned(),
         };
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "a fabricated non-call leaf operation is not authored evidence"
     );
     for (handle, root) in checked.facts.values.scalar_computations.roots.iter() {
@@ -922,7 +924,7 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
             .get_mut(handle)
             .statement_ordinal += 1;
         assert!(
-            lower_machine(&changed, "Main::main").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
             "operand coordinate drift rejects"
         );
     }
@@ -948,7 +950,7 @@ fn assert_closed_sum_unit_source_custody(checked: &CheckedTrees) {
         .get_mut(handle)
         .target_symbol = symbols::SymbolHandle::invalid();
     assert!(
-        lower_machine(&changed, "Main::main").is_err(),
+        lower_machine(&changed, TerminalMachineSelection::Name("Main::main")).is_err(),
         "captured leaf target drift rejects"
     );
 }

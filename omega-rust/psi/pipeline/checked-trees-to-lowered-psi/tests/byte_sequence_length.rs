@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -41,8 +42,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 
 fn lower(source: &str) -> lowered_psi::LoweredPsi {
     let checked = checked(source);
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("byte length has an executable Unit helper closure")
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("byte length has an executable Unit helper closure")
 }
 
 #[derive(Default)]

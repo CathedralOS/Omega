@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
@@ -68,7 +69,8 @@ fn lowered() -> lowered_psi::LoweredPsi {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    lower_machine(&checked, "Customer::run").expect("lower registration program")
+    lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
+        .expect("lower registration program")
 }
 
 fn unregister_boundary(
@@ -359,7 +361,8 @@ fn interpreted_register_unregister_round_trip_drives_the_ledger() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
+        .expect("lower registration program");
     let module = &lowered.semantic_module;
     let register_boundary = module
         .boundary_machines
@@ -501,8 +504,8 @@ fn installed_registered_provider_mints_and_settles_the_live_claim() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let mut lowered =
-        lower_machine(&checked, "Customer::run").expect("installed registration program lowers");
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
+        .expect("installed registration program lowers");
     let module = &mut lowered.semantic_module;
     let unregister = module
         .boundary_machines

@@ -1,4 +1,5 @@
 use super::{LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
@@ -216,7 +217,8 @@ fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
                  self.value = value;
              }}"
         ));
-        lower_machine(&checked, "Record::replace").expect("untampered IEEE field store lowers");
+        lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
+            .expect("untampered IEEE field store lowers");
         for corruption in 0..4 {
             let mut changed = checked.clone();
             let plan = changed
@@ -265,7 +267,7 @@ fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
                 }
             }
             assert!(
-                lower_machine(&changed, "Record::replace").is_err(),
+                lower_machine(&changed, TerminalMachineSelection::Name("Record::replace")).is_err(),
                 "IEEE store corruption {corruption} must reject for {primitive}"
             );
         }
@@ -380,7 +382,8 @@ fn lowers_direct_and_nested_write_only_record_field_stores() {
         ("Sink::nested", 1, 9),
         ("Sink::indexed", 2, 13),
     ] {
-        let lowered = lower_machine(&checked, machine_name).expect("field store lowers");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine_name))
+            .expect("field store lowers");
         terminal_verifier::validate_module(&lowered.semantic_module)
             .expect("field store module verifies");
         let entry = lowered
@@ -422,7 +425,7 @@ fn lowers_borrowed_fixed_array_element_field_stores() {
          machine store_mut(records: &mut [Cell; 3]) {{ records[1].value = 13; }}
          machine store_write(records: &write [Cell; 3]) {{ records[1].value = 13; }}"
     ));
-    let lowered = lower_machine(&checked, "Sink::indexed").unwrap();
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Sink::indexed")).unwrap();
     let module = &lowered.semantic_module;
     let array_type = module
         .structural_types
@@ -478,7 +481,7 @@ fn lowers_borrowed_fixed_array_element_field_stores() {
         assert_eq!(lowered.path, [StructuralPathSegment::FixedIndex(1)]);
         // The finished module validates with the leading literal index, so the
         // store reaches terminal publication through the ordinary route.
-        let module = lower_machine(&checked, machine_name)
+        let module = lower_machine(&checked, TerminalMachineSelection::Name(machine_name))
             .unwrap_or_else(|error| panic!("{machine_name} element store verifies: {error:?}"))
             .semantic_module;
         assert!(
@@ -520,7 +523,7 @@ fn rejects_checked_record_field_store_path_corruption() {
     };
     store.carrier_path.clear();
     assert!(matches!(
-        lower_machine(&checked, "Sink::nested"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Sink::nested")),
         Err(LoweringError::Unsupported(
             "structural scalar store destination drifted from its authored place"
         ))
@@ -553,7 +556,7 @@ fn rejects_checked_literal_indexed_store_bound_corruption() {
     };
     *index = 3;
     assert!(matches!(
-        lower_machine(&checked, "Sink::indexed"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Sink::indexed")),
         Err(LoweringError::Unsupported(
             "structural scalar store destination drifted from its authored place"
         ))
@@ -584,7 +587,7 @@ fn rejects_checked_indexed_store_without_its_record_owner() {
     // A referent hop is not a structural field carrier; only authored `Field`
     // and in-bounds `FixedIndex` segments may lead into the stored element.
     changed.carrier_path = vec![CheckedUnitStructuralPathSegment::Referent];
-    let lowered = lower_machine(&checked, "Sink::indexed").unwrap();
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Sink::indexed")).unwrap();
     let module = &lowered.semantic_module;
     let mut parameter = module
         .machines
@@ -627,8 +630,11 @@ fn stored_scalar_field_values_discharge_later_field_state_obligations() {
         }
     "#,
     );
-    let lowered = lower_machine(&checked, "Registers::divide")
-        .expect("the stored field value discharges the nonzero-divisor obligation");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Registers::divide"),
+    )
+    .expect("the stored field value discharges the nonzero-divisor obligation");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("field-store module verifies");
     let obligations =
@@ -672,7 +678,10 @@ fn overwritten_scalar_fields_do_not_discharge_later_field_state_obligations() {
     "#,
     );
     assert!(matches!(
-        lower_machine(&checked, "Registers::divide"),
+        lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Registers::divide")
+        ),
         Err(LoweringError::OperationProofUnavailable(_))
     ));
 }
@@ -680,7 +689,7 @@ fn overwritten_scalar_fields_do_not_discharge_later_field_state_obligations() {
 #[test]
 fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     let checked = checked_source(RESULT_SOURCE);
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("scalar result reaches one projected field store");
     let entry = lowered
         .semantic_module
@@ -728,7 +737,7 @@ fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
     };
     *position = 1;
     assert!(matches!(
-        lower_machine(&drifted, "Root::enter"),
+        lower_machine(&drifted, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural scalar store RHS drifted from its selected expression"
         ))

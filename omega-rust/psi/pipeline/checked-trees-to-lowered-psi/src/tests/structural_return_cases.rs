@@ -3,6 +3,7 @@
 use super::{
     CheckedTrees, LoweringError, ScalarType, TerminalMachineResult, checked_source, lower_machine,
 };
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::{block_id, place_id, value_id};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{CheckedScalarExpression, CheckedStructuralScalarReturnCleanupAction};
@@ -25,7 +26,7 @@ fn structural_scalar_return_lowers_value_before_exact_affine_cleanup() {
         "7i32",
     );
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("closed scalar return and exact affine cleanup should lower");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("structural scalar return lowers one attached machine")
@@ -81,7 +82,7 @@ fn structural_scalar_return_fails_closed_on_stale_cleanup() {
     ];
 
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural scalar return cleanup does not consume its exact frontier"
         ))
@@ -96,7 +97,7 @@ fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
         "3i32 + 4i32",
     );
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("closed exact expression should lower with reconstructed proof");
     let operations = &lowered.semantic_module.machines[0].blocks[0].operations;
     assert!(matches!(
@@ -147,7 +148,7 @@ fn structural_scalar_return_reconstructs_closed_exact_expression_proof() {
             primitive_type: PrimitiveType::I32,
         };
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "scalar read differs from its authored binding or mutable place"
         ))
@@ -162,7 +163,7 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
         "let sum: i32 = 3i32 + 4i32; sum",
     );
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("checked local prefix should lower before exact affine cleanup");
     let block = &lowered.semantic_module.machines[0].blocks[0];
     assert!(matches!(
@@ -208,7 +209,7 @@ fn structural_scalar_return_materializes_branch_free_local_prefix_before_cleanup
             primitive_type: PrimitiveType::I32,
         };
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "scalar read differs from its authored binding or mutable place"
         ))
@@ -230,7 +231,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         &format!("{prefix} seventh"),
     );
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("repeated short-circuit locals should compose through carried continuations");
     let machine = &lowered.semantic_module.machines[0];
     assert_eq!(machine.blocks.len(), 16);
@@ -351,7 +352,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         "bool",
         &format!("{prefix} seventh && false"),
     );
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("repeated local decisions should feed a final short-circuit return");
     let machine = &lowered.semantic_module.machines[0];
     assert_eq!(machine.blocks.len(), 20);
@@ -411,7 +412,7 @@ fn structural_scalar_return_supports_repeated_carried_short_circuit_local_contin
         .bindings[5]
         .primitive_type = PrimitiveType::I32;
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural scalar short-circuit binding has a non-Boolean carrier"
         ))
@@ -426,7 +427,7 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
         "!flag",
     );
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("exact mixed parameter map should lower before affine cleanup");
     let machine = &lowered.semantic_module.machines[0];
     assert!(matches!(
@@ -486,7 +487,7 @@ fn structural_scalar_return_maps_interleaved_scalar_parameters_before_cleanup() 
         .scalar_parameters[0]
         .source_position = 0;
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "structural scalar return parameter maps overlap or repeat a source position"
         ))
@@ -501,7 +502,7 @@ fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
         "!(true == false)",
     );
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("closed branch-free Boolean should lower before structural cleanup");
     let machine = &lowered.semantic_module.machines[0];
     assert!(matches!(
@@ -562,7 +563,7 @@ fn structural_scalar_return_emits_boolean_paths_before_cleanup() {
         "bool",
         "let selected: bool = true; selected && false",
     );
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("short-circuit Boolean leaves should each perform exact affine cleanup");
     let blocks = &lowered.semantic_module.machines[0].blocks;
     assert_eq!(blocks.len(), 5);

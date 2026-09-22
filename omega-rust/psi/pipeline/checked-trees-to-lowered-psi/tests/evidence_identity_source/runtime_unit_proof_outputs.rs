@@ -4,6 +4,7 @@ use super::{
     STATIC_REQUIREMENT_I32_RUNTIME_BASELINE_SOURCE, STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE,
     STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE, check,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerValue, OperationId, ValueId};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
@@ -18,8 +19,11 @@ use terminal_psi::OperationKind;
 #[test]
 fn runtime_unit_proof_output_links_and_executes_its_ordinary_call() {
     let checked = check(RUNTIME_UNIT_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("runtime Unit proof output should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("runtime Unit proof output should cross terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one runtime Unit proof-output invocation expected")
     };
@@ -114,8 +118,11 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
                 .then_some(selection.name.clone())
         })
         .expect("the specialized requirement caller is terminal-selected");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &machine_name)
-        .expect("static requirement proof output should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(&machine_name),
+    )
+    .expect("static requirement proof output should cross terminal Psi");
     let baseline_checked = check(STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE);
     let baseline_machine_name = baseline_checked
         .facts
@@ -134,9 +141,11 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
                 .map(|_| selection.name.clone())
         })
         .expect("the baseline specialized requirement caller is terminal-selected");
-    let baseline =
-        checked_trees_to_lowered_psi::lower_machine(&baseline_checked, &baseline_machine_name)
-            .expect("matching runtime-only static requirement call should lower");
+    let baseline = checked_trees_to_lowered_psi::lower_machine(
+        &baseline_checked,
+        TerminalMachineSelection::Name(&baseline_machine_name),
+    )
+    .expect("matching runtime-only static requirement call should lower");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one static requirement proof-output invocation expected")
     };
@@ -803,8 +812,11 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
                 .then_some(selection.name.clone())
         })
         .expect("the free specialized i32 caller is terminal-selected");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &machine_name)
-        .expect("the exact i32 static requirement call crosses Terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(&machine_name),
+    )
+    .expect("the exact i32 static requirement call crosses Terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one terminal i32 static requirement proof-output call")
     };
@@ -917,8 +929,11 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
         .iter()
         .find_map(|selection| (selection.name == "caller").then(|| selection.name.clone()))
         .expect("the scalar runtime baseline is terminal-selected");
-    let baseline = checked_trees_to_lowered_psi::lower_machine(&baseline_checked, &baseline_name)
-        .expect("the scalar runtime baseline lowers");
+    let baseline = checked_trees_to_lowered_psi::lower_machine(
+        &baseline_checked,
+        TerminalMachineSelection::Name(&baseline_name),
+    )
+    .expect("the scalar runtime baseline lowers");
     let baseline_verified = terminal_verifier::verify_module(
         &baseline.semantic_module,
         &baseline.proof_bundle,
@@ -1108,8 +1123,11 @@ fn static_requirement_bool_result_uses_one_ordinary_scalar_call_without_runtime_
                 .then_some(selection.name.clone())
         })
         .expect("the free specialized bool caller is terminal-selected");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &machine_name)
-        .expect("the exact bool static requirement call crosses Terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(&machine_name),
+    )
+    .expect("the exact bool static requirement call crosses Terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one terminal bool static requirement proof-output call")
     };
@@ -1231,8 +1249,11 @@ fn static_requirement_bool_result_uses_one_ordinary_scalar_call_without_runtime_
         .iter()
         .find_map(|selection| (selection.name == "caller").then(|| selection.name.clone()))
         .expect("the bool runtime baseline is terminal-selected");
-    let baseline = checked_trees_to_lowered_psi::lower_machine(&baseline_checked, &baseline_name)
-        .expect("the bool runtime baseline lowers");
+    let baseline = checked_trees_to_lowered_psi::lower_machine(
+        &baseline_checked,
+        TerminalMachineSelection::Name(&baseline_name),
+    )
+    .expect("the bool runtime baseline lowers");
     let baseline_verified = terminal_verifier::verify_module(
         &baseline.semantic_module,
         &baseline.proof_bundle,

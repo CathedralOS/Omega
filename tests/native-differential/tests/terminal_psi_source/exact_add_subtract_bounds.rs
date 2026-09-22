@@ -5,6 +5,7 @@ use super::{
     encode_module, encode_proof_section, interpret_terminal_artifact_measured, lower_artifact,
     lower_machine, lower_to_target_operations, source_canary, verify_module,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
@@ -12,8 +13,11 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn checked_source_exact_add_uses_known_addend_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-addend exact-add source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_add_known_right")
-        .expect("known-addend exact addition should use its path bound");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_add_known_right"),
+    )
+    .expect("known-addend exact addition should use its path bound");
     let add_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -117,8 +121,11 @@ fn checked_source_exact_add_uses_known_addend_bound() {
 fn checked_source_exact_add_uses_joint_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("joint-bound exact-add source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_add_runtime_bound")
-        .expect("joint-bound exact addition should use its path proposition");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_add_runtime_bound"),
+    )
+    .expect("joint-bound exact addition should use its path proposition");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -217,8 +224,11 @@ fn checked_source_exact_add_uses_joint_runtime_bound() {
 fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed joint-bound exact-add source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_add_signed_nonnegative_bound")
-        .expect("signed joint-bound exact addition should use both path propositions");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_add_signed_nonnegative_bound"),
+    )
+    .expect("signed joint-bound exact addition should use both path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -284,8 +294,11 @@ fn checked_source_exact_add_uses_signed_nonnegative_runtime_bound() {
 fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed lower joint-bound exact-add source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_add_signed_nonpositive_bound")
-        .expect("signed lower joint-bound exact addition should use both path propositions");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_add_signed_nonpositive_bound"),
+    )
+    .expect("signed lower joint-bound exact addition should use both path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -351,8 +364,11 @@ fn checked_source_exact_add_uses_signed_nonpositive_runtime_bound() {
 fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-subtrahend exact-subtract source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_subtract_known_right")
-        .expect("known-subtrahend exact subtraction should use its path bound");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_subtract_known_right"),
+    )
+    .expect("known-subtrahend exact subtraction should use its path bound");
     let subtract_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -465,8 +481,11 @@ fn checked_source_exact_subtract_uses_known_subtrahend_bound() {
 fn checked_source_exact_subtract_uses_joint_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("joint-bound exact-subtract source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_subtract_joint_bound")
-        .expect("joint-bound exact subtraction should use its path proposition");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_subtract_joint_bound"),
+    )
+    .expect("joint-bound exact subtraction should use its path proposition");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -528,8 +547,11 @@ fn checked_source_exact_subtract_uses_joint_runtime_bound() {
 fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed joint-bound exact-subtract source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_subtract_signed_nonnegative_bound")
-        .expect("signed joint-bound exact subtraction should use both path propositions");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_subtract_signed_nonnegative_bound"),
+    )
+    .expect("signed joint-bound exact subtraction should use both path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -595,8 +617,11 @@ fn checked_source_exact_subtract_uses_signed_nonnegative_runtime_bound() {
 fn checked_source_exact_subtract_uses_signed_nonpositive_runtime_bound() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("signed upper joint-bound exact-subtract source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_subtract_signed_nonpositive_bound")
-        .expect("signed upper joint-bound exact subtraction should use both path propositions");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_subtract_signed_nonpositive_bound"),
+    )
+    .expect("signed upper joint-bound exact subtraction should use both path propositions");
     assert_eq!(
         lowered.semantic_module.vocabulary_marker,
         VocabularyMarker::CURRENT
@@ -695,7 +720,7 @@ fn checked_source_exact_add_and_subtract_use_signed_i64_runtime_bounds() {
     };
 
     for (machine, machine_cases) in cases {
-        let lowered = lower_machine(&checked, machine)
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
             .expect("signed i64 add/subtract should use its runtime-bound propositions");
         assert_eq!(
             lowered.semantic_module.vocabulary_marker,
@@ -781,7 +806,7 @@ fn checked_source_exact_arithmetic_uses_unsigned_u64_runtime_bounds() {
     };
 
     for (machine, passes_maximum, machine_cases) in cases {
-        let lowered = lower_machine(&checked, machine)
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
             .expect("unsigned u64 arithmetic should use its runtime-bound propositions");
         assert_eq!(
             lowered.semantic_module.vocabulary_marker,

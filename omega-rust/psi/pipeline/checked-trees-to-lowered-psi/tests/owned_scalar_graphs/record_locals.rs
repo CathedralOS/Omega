@@ -2,6 +2,7 @@
 
 use super::support;
 use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
@@ -166,7 +167,11 @@ fn record_copy_replay_rejects_same_carrier_source_and_access_substitution() {
             _ => argument.type_identity.push_str("substituted"),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&forged, "selected").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &forged,
+                TerminalMachineSelection::Name("selected")
+            )
+            .is_err(),
             "corruption {corruption}"
         );
     }
@@ -239,7 +244,11 @@ fn record_local_graph_replay_rejects_missing_moved_and_substituted_producers() {
             }
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&forged, "selected").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &forged,
+                TerminalMachineSelection::Name("selected")
+            )
+            .is_err(),
             "corruption {corruption}"
         );
     }
@@ -262,7 +271,13 @@ fn record_local_graph_replay_rejects_missing_affine_drop() {
         })
         .unwrap();
     checked.facts.flow.ownership.permissions.get_mut(drop).kind = PermissionEventKind::Transfer;
-    assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "selected").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("selected")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -353,7 +368,10 @@ fn record_locals_separate_owned_parameters_and_retain_the_cycle_boundary() {
     let checked = support::check(source);
     assert!(
         matches!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "walk"),
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("walk")
+            ),
             Err(
                 checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
                     terminal_verifier::ModuleError::ControlCycle(_)

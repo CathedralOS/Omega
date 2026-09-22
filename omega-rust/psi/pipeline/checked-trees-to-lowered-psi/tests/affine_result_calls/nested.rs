@@ -2,6 +2,7 @@ use super::{
     CheckedUnitEffectOperationPlan, IntegerSign, IntegerType, IntegerValue, OperationKind,
     OperationResult, TerminalScalarValue, Terminator, checked, lower_machine, typed,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 const DECLARATIONS: &str = "data Value { number: u64; }
     machine forward(value: Value) -> Value { value }
     machine Main::consume(value: Value) {}
@@ -21,7 +22,7 @@ fn nested_structural_call_has_a_real_temporary_result() {
 
 fn assert_nested(source: &str, name: &str, coordinates: &[(usize, usize)], fuel: usize) {
     let checked = checked(source);
-    let lowered = lower_machine(&checked, name)
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
         .unwrap_or_else(|error| panic!("nested result lowers: {error:?}\n{source}"));
     assert_eq!(
         lowered
@@ -151,7 +152,7 @@ fn named_scalar_arguments_do_not_need_reordered_computations() {
         machine Main::consume(count: u32, value: Value) {}
         machine Main::caller(count: u32, value: Value) { Main::consume(count, forward(value)); }",
     );
-    let lowered = lower_machine(&checked, "Main::caller")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
         .expect("existing scalar value supplies the enclosing call");
     super::chains::assert_execution(
         &lowered.semantic_module,
@@ -272,7 +273,7 @@ fn nested_structural_calls_reject_temporary_and_occurrence_drift() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&checked, "Main::caller").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("Main::caller")).is_err(),
             "mutation {mutation}"
         );
     }
@@ -285,7 +286,7 @@ fn nested_argument_evaluation_does_not_hoist_scalar_computation() {
         machine Main::consume(count: u32, value: Value) {}
         machine Main::caller(count: u32, value: Value) { Main::consume(count ^ 1u32, forward(value)); }";
     let checked = checked(source);
-    lower_machine(&checked, "Main::caller")
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
         .expect("scalar operands evaluate before the following structural call");
 }
 

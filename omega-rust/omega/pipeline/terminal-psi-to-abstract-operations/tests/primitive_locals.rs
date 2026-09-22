@@ -1,5 +1,6 @@
 //! Canonical primitive storage retains its real local and observation identities.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
@@ -30,8 +31,11 @@ fn borrowed_primitive_local_survives_every_abstract_entrance() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "enter")
-        .expect("primitive local Terminal producer");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .expect("primitive local Terminal producer");
     let establishment = lowered
         .semantic_module
         .machines

@@ -4,6 +4,7 @@ use super::{
     LoweringError, PermissionClaimIdentity, checked_source, checked_source_with_core_service,
     hard_root_checked_fixture, lower_machine, unit_claim_at,
 };
+use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::terminal_identities::{
@@ -55,7 +56,7 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
         .attachment_type_identity
         .as_ref()
         .expect("root attachment");
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("complete attached Unit closure should lower");
     let module = &lowered.semantic_module;
 
@@ -161,7 +162,7 @@ fn attached_unit_hard_root_lowers_exact_checked_closure_with_dense_identities() 
     ));
     assert!(lowered.proof_bundle.evidence.is_empty());
     assert_eq!(
-        lower_machine(&checked, "Root::enter")
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
             .expect("repeat lowering")
             .semantic_module,
         *module,
@@ -200,7 +201,7 @@ fn attached_unit_record_field_custody_crosses_call_and_boundary_settlement() {
             vec![CheckedUnitStructuralPathSegment::Field("#7".to_owned())];
     }
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("record-field custody should cross the complete Unit closure");
     assert_eq!(
         lowered.semantic_module.machines[0].entry_claims[0].path,
@@ -267,7 +268,7 @@ fn attached_unit_nested_record_claim_lowers_through_complete_closure() {
         ];
     }
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("nested record custody should cross the complete Unit closure");
     for machine in &lowered.semantic_module.machines {
         assert_eq!(
@@ -376,7 +377,7 @@ fn attached_unit_disjoint_sibling_claims_lower_as_one_aggregate_transfer() {
         argument_index: 0,
     });
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("both sibling resources should cross the complete Unit closure");
     for machine in &lowered.semantic_module.machines {
         assert_eq!(
@@ -433,7 +434,7 @@ fn attached_unit_affine_argument_lowers_as_an_owned_transfer_without_a_claim_row
     };
     *trivial_affine_discards = vec![0];
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("the checked affine Unit transfer should lower and verify");
     assert_eq!(
         lowered.semantic_module.machines[0].structural_parameters[0].multiplicity,
@@ -458,7 +459,7 @@ fn attached_unit_affine_return_lowers_exact_no_code_discard() {
         "#,
     );
 
-    let lowered = lower_machine(&checked, "Root::enter")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("checked affine discard should lower as explicit return-edge cleanup");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("the no-call closure should contain only its root")
@@ -501,7 +502,7 @@ fn attached_unit_hard_root_fails_closed_on_missing_transitive_member() {
         .machines
         .retain(|machine| machine.machine != helper);
 
-    let result = lower_machine(&checked, "Root::enter");
+    let result = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"));
     assert!(format!("{result:?}").contains("Helper::run"), "{result:?}");
     assert!(matches!(
         result,
@@ -534,7 +535,7 @@ fn attached_unit_duplicate_plan_names_the_ambiguous_helper() {
         .machines
         .push(duplicate);
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::InvalidUnitMachinePlan { machine, reason, .. })
             if machine == "Helper::run"
                 && reason == "attached Unit closure contains duplicate checked machine plans"
@@ -557,7 +558,7 @@ fn attached_unit_boundary_rejects_missing_canonical_contract_custody() {
         .retain(|capsule| capsule.target_machine() != boundary);
 
     assert_eq!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "Unit boundary target is missing its canonical checked contract identity",
         )),
@@ -574,7 +575,7 @@ fn attached_unit_boundary_rejects_compact_equal_commitment_substitution() {
     assert_eq!(boundary.contract_report_fingerprint, retained_report);
 
     assert_eq!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "Unit boundary target contract compatibility coordinate or strong commitment drifted",
         )),
@@ -606,7 +607,7 @@ fn attached_unit_port_write_requires_exact_direct_checked_port_service() {
     service_reach.direct = empty;
 
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(
             "port output does not carry the unique exact checked PortIo service"
         ))
@@ -646,8 +647,11 @@ fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_
         }
         "#,
     );
-    let selection = machine_dispatch::select_terminal_machine(&checked, "Main::main")
-        .expect("Main::main is the unique terminal selection");
+    let selection = machine_dispatch::select_terminal_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("Main::main is the unique terminal selection");
     let lowered = machine_dispatch::lower_selected_machine(&checked, selection)
         .expect("borrowed self with an ordinary field argument should lower")
         .terminal;
@@ -708,7 +712,7 @@ fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_
                     [StructuralPathSegment::Field(field)] if field == "pause"
                 )
     ));
-    lower_machine(&checked, "Main::main")
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("the boundary presentation retains the exact bounded buffer field");
     let bytes = terminal_codec::encode_module(&lowered.semantic_module)
         .expect("the buffer presentation has a canonical encoding");

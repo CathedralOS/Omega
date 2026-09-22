@@ -13,6 +13,7 @@ use super::{
     lower_artifact, lower_machine, source_canary, terminal_psi_identity,
     validate_artifact_manifest, validate_fixed_entry_fuel, verify_module,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
@@ -29,8 +30,11 @@ fn checked_source_survives_frontend_drop_as_verified_psi() {
                     .join("\n")
             )
         });
-    let lowered = lower_machine(&checked, "terminal_constant")
-        .expect("accepted source slice should lower to terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("accepted source slice should lower to terminal Psi");
 
     assert_eq!(lowered.semantic_module.proposition_declarations.len(), 2);
     assert_eq!(lowered.semantic_module.proposition_applications.len(), 1);
@@ -290,8 +294,11 @@ fn terminal_scalar_contract_consumes_normalized_checked_payloads() {
                     .join("\n")
             )
         });
-    let expected = lower_machine(&checked, "terminal_constant")
-        .expect("the checked scalar contract should lower");
+    let expected = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("the checked scalar contract should lower");
 
     let mut without_contract_expressions = checked.clone().into_program();
     let contract_expressions = {
@@ -321,8 +328,11 @@ fn terminal_scalar_contract_consumes_normalized_checked_payloads() {
             .expression_mut(expression) = checked_trees::expression::ExpressionNode::Boolean(false);
     }
 
-    let actual = lower_machine(&without_contract_expressions, "terminal_constant")
-        .expect("terminal production must not reopen checked contract expressions");
+    let actual = lower_machine(
+        &without_contract_expressions,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("terminal production must not reopen checked contract expressions");
     assert_eq!(actual.semantic_module, expected.semantic_module);
     assert_eq!(actual.proof_bundle, expected.proof_bundle);
 
@@ -345,8 +355,11 @@ fn terminal_scalar_contract_consumes_normalized_checked_payloads() {
     // the closed plan before the scalar contract lowering sees the emptied
     // plan, so the erased clauses are refused at that earlier gate.
     assert_eq!(
-        lower_machine(&without_checked_contract, "terminal_constant")
-            .expect_err("terminal production must fail without checked scalar contract values"),
+        lower_machine(
+            &without_checked_contract,
+            TerminalMachineSelection::Name("terminal_constant")
+        )
+        .expect_err("terminal production must fail without checked scalar contract values"),
         LoweringError::Unsupported("scalar contract lost authored requirements")
     );
 }
@@ -364,8 +377,11 @@ fn terminal_scalar_body_consumes_normalized_payloads_with_checked_source_binding
                     .join("\n")
             )
         });
-    let expected =
-        lower_machine(&checked, "terminal_constant").expect("the checked scalar body should lower");
+    let expected = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("the checked scalar body should lower");
 
     let return_expression = {
         let machine = checked
@@ -397,17 +413,22 @@ fn terminal_scalar_body_consumes_normalized_payloads_with_checked_source_binding
         .expression_mut(return_expression) =
         checked_trees::expression::ExpressionNode::Boolean(false);
 
-    let actual = lower_machine(&without_typed_return, "terminal_constant").expect(
-        "lowering must consume the checked literal payload with retained occurrence custody",
-    );
+    let actual = lower_machine(
+        &without_typed_return,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("lowering must consume the checked literal payload with retained occurrence custody");
     assert_eq!(actual.semantic_module, expected.semantic_module);
     assert_eq!(actual.proof_bundle, expected.proof_bundle);
 
     let mut without_checked_scalar_body = checked.into_program();
     without_checked_scalar_body.facts.values.scalar_expressions = Default::default();
     assert_eq!(
-        lower_machine(&without_checked_scalar_body, "terminal_constant")
-            .expect_err("terminal production must fail without the checked scalar body"),
+        lower_machine(
+            &without_checked_scalar_body,
+            TerminalMachineSelection::Name("terminal_constant")
+        )
+        .expect_err("terminal production must fail without the checked scalar body"),
         LoweringError::Unsupported(
             "scalar computation needs one checked expression and one source binding"
         )
@@ -427,8 +448,11 @@ fn terminal_scalar_control_rejoins_the_checked_plan_to_authored_statements() {
                     .join("\n")
             )
         });
-    let expected = lower_machine(&checked, "terminal_constant")
-        .expect("the checked scalar control plan should lower");
+    let expected = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("the checked scalar control plan should lower");
     verify_module(
         &expected.semantic_module,
         &expected.proof_bundle,
@@ -483,9 +507,11 @@ fn terminal_scalar_control_rejoins_the_checked_plan_to_authored_statements() {
     *statement = replacement_transition;
 
     assert_eq!(
-        lower_machine(&substituted_control, "terminal_constant").expect_err(
-            "another machine's transition cannot replace this machine's authored control"
-        ),
+        lower_machine(
+            &substituted_control,
+            TerminalMachineSelection::Name("terminal_constant")
+        )
+        .expect_err("another machine's transition cannot replace this machine's authored control"),
         LoweringError::Unsupported(
             "scalar successor has no exact machine/state target normalization"
         )
@@ -494,8 +520,11 @@ fn terminal_scalar_control_rejoins_the_checked_plan_to_authored_statements() {
     let mut without_checked_control = checked.into_program();
     without_checked_control.facts.flow.terminal_scalar_graphs = Default::default();
     assert_eq!(
-        lower_machine(&without_checked_control, "terminal_constant")
-            .expect_err("terminal production must fail without checked scalar control"),
+        lower_machine(
+            &without_checked_control,
+            TerminalMachineSelection::Name("terminal_constant")
+        )
+        .expect_err("terminal production must fail without checked scalar control"),
         LoweringError::Unsupported("machine has no source-independent checked scalar control plan")
     );
 }
@@ -513,8 +542,11 @@ fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
                     .join("\n")
             )
         });
-    let expected = lower_machine(&checked, "terminal_constant")
-        .expect("the checked machine selection should lower");
+    let expected = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("the checked machine selection should lower");
     let replacement_name = checked
         .machines()
         .iter()
@@ -533,16 +565,22 @@ fn terminal_machine_selection_consumes_the_source_independent_checked_plan() {
     source_machine.name = replacement_name;
     source_machine.supply_mode = language_semantics::MachineSupplyMode::Boundary;
 
-    let actual = lower_machine(&without_typed_selection, "terminal_constant")
-        .expect("terminal production must not reopen typed machine selection or eligibility");
+    let actual = lower_machine(
+        &without_typed_selection,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("terminal production must not reopen typed machine selection or eligibility");
     assert_eq!(actual.semantic_module, expected.semantic_module);
     assert_eq!(actual.proof_bundle, expected.proof_bundle);
 
     let mut without_checked_selection = checked.into_program();
     without_checked_selection.facts.flow.terminal_machines = Default::default();
     assert_eq!(
-        lower_machine(&without_checked_selection, "terminal_constant")
-            .expect_err("terminal production must fail without checked machine selection"),
+        lower_machine(
+            &without_checked_selection,
+            TerminalMachineSelection::Name("terminal_constant")
+        )
+        .expect_err("terminal production must fail without checked machine selection"),
         LoweringError::MachineNotFound("terminal_constant".to_owned())
     );
 }
@@ -560,21 +598,30 @@ fn terminal_production_requires_typed_custody_but_not_debug_presentation() {
                     .join("\n")
             )
         });
-    let expected = lower_machine(&checked, "terminal_constant")
-        .expect("the complete checked terminal plan should lower");
+    let expected = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("the complete checked terminal plan should lower");
 
     let mut without_typed_frontend = checked.clone().into_program();
     without_typed_frontend.typed = Default::default();
     assert_eq!(
-        lower_machine(&without_typed_frontend, "terminal_constant")
-            .expect_err("checked facts alone cannot supply authored occurrence custody"),
+        lower_machine(
+            &without_typed_frontend,
+            TerminalMachineSelection::Name("terminal_constant")
+        )
+        .expect_err("checked facts alone cannot supply authored occurrence custody"),
         LoweringError::Unsupported("direct Unit parameter plan has no exact typed machine")
     );
 
     let mut without_debug_presentation = checked.into_program();
     without_debug_presentation.facts.flow.terminal_debug = Default::default();
-    let without_debug = lower_machine(&without_debug_presentation, "terminal_constant")
-        .expect("debug presentation must be optional at the terminal boundary");
+    let without_debug = lower_machine(
+        &without_debug_presentation,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("debug presentation must be optional at the terminal boundary");
     assert_eq!(without_debug.semantic_module, expected.semantic_module);
     assert_eq!(without_debug.proof_bundle, expected.proof_bundle);
     assert_eq!(without_debug.debug_map, None);
@@ -604,7 +651,7 @@ fn source_statement_custody_gate_runs_after_the_parameter_custody_gate() {
     assert_eq!(
         lower_machine(
             &without_authored_statements,
-            "terminal_direct_integer_constant"
+            TerminalMachineSelection::Name("terminal_direct_integer_constant")
         )
         .expect_err("parameter custody resolves while authored statement custody is absent"),
         LoweringError::Unsupported("scalar source custody has no authored statement")
@@ -624,15 +671,21 @@ fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
                     .join("\n")
             )
         });
-    let expected = lower_machine(&checked, "terminal_constant")
-        .expect("the checked proposition vocabulary should lower");
+    let expected = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("the checked proposition vocabulary should lower");
     assert!(!expected.semantic_module.proposition_declarations.is_empty());
     assert!(!expected.semantic_module.proposition_applications.is_empty());
 
     let mut without_typed_declarations = checked.clone().into_program();
     without_typed_declarations.typed.roots.propositions = Default::default();
-    let actual = lower_machine(&without_typed_declarations, "terminal_constant")
-        .expect("terminal production must not reopen typed proposition declarations");
+    let actual = lower_machine(
+        &without_typed_declarations,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("terminal production must not reopen typed proposition declarations");
     assert_eq!(actual.semantic_module, expected.semantic_module);
     assert_eq!(actual.proof_bundle, expected.proof_bundle);
 
@@ -641,8 +694,11 @@ fn terminal_proposition_vocabulary_consumes_checked_proof_facts() {
         .facts
         .proof
         .proposition_vocabulary = Default::default();
-    let absent = lower_machine(&without_checked_vocabulary, "terminal_constant")
-        .expect("an intentionally empty checked proposition vocabulary remains valid");
+    let absent = lower_machine(
+        &without_checked_vocabulary,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("an intentionally empty checked proposition vocabulary remains valid");
     assert!(absent.semantic_module.proposition_declarations.is_empty());
     assert!(absent.semantic_module.proposition_applications.is_empty());
 }

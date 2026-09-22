@@ -8,6 +8,7 @@ use super::{
 use abstract_operations_to_abstract_operations::{
     AnalysisProduct, compute_analysis, run_psi_pipeline,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use optimization_core::{
     AcceptedObligationFactIdentity, AnalysisKind, Optimization, OptimizationFactReference,
@@ -26,8 +27,11 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidence() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("guarded exact-narrowing source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_guarded_exact_narrow")
-        .expect("guarded exact narrowing should lower with path evidence");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_guarded_exact_narrow"),
+    )
+    .expect("guarded exact narrowing should lower with path evidence");
     let cast_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -145,8 +149,11 @@ fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidenc
 fn checked_source_exact_right_shift_carries_independently_verified_count_evidence() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("exact right-shift source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_shift_right_runtime")
-        .expect("exact right shift should lower with path evidence");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_shift_right_runtime"),
+    )
+    .expect("exact right shift should lower with path evidence");
     let shift_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -467,8 +474,11 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
 fn checked_source_range_proof_folds_a_later_integer_comparison() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("range-consuming exact-shift source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_shift_range_fold")
-        .expect("guarded exact shift and later comparison should lower");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_shift_range_fold"),
+    )
+    .expect("guarded exact shift and later comparison should lower");
     let comparison = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -548,7 +558,8 @@ fn checked_source_range_comparison_proves_false_and_declines_overlap() {
         ("terminal_exact_shift_range_false_fold", Some(false)),
         ("terminal_exact_shift_range_overlap", None),
     ] {
-        let lowered = lower_machine(&checked, machine).expect("range boundary machine lowers");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
+            .expect("range boundary machine lowers");
         let comparison_operation = lowered.semantic_module.machines[0]
             .blocks
             .iter()
@@ -672,7 +683,8 @@ fn checked_source_range_comparisons_cover_both_operand_orders_and_inclusive_orde
         ),
     ];
     for (machine, less_or_equal, expected) in cases {
-        let lowered = lower_machine(&checked, machine).expect("range comparison machine lowers");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
+            .expect("range comparison machine lowers");
         let comparison_operation = lowered.semantic_module.machines[0]
             .blocks
             .iter()
@@ -786,7 +798,8 @@ fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap
         ("terminal_exact_shift_range_equal_constant_overlap", None),
         ("terminal_exact_shift_constant_equal_range_overlap", None),
     ] {
-        let lowered = lower_machine(&checked, machine).expect("range equality machine lowers");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine))
+            .expect("range equality machine lowers");
         let comparison_operation = lowered.semantic_module.machines[0]
             .blocks
             .iter()
@@ -877,8 +890,11 @@ fn checked_source_range_equality_covers_both_operand_orders_and_declines_overlap
 fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("exact left-shift source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_shift_left_runtime")
-        .expect("exact left shift should lower with path evidence");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_shift_left_runtime"),
+    )
+    .expect("exact left shift should lower with path evidence");
     let shift_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -995,8 +1011,11 @@ fn checked_source_exact_left_shift_carries_count_and_value_evidence() {
 fn checked_source_exact_left_shift_uses_known_count_bounds() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("known-count exact left-shift source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_shift_left_known_count")
-        .expect("known-count exact left shift should use the precise value bound");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_shift_left_known_count"),
+    )
+    .expect("known-count exact left shift should use the precise value bound");
     let shift_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -1064,8 +1083,11 @@ fn checked_source_exact_left_shift_uses_known_count_bounds() {
 fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("bounded-count exact left-shift source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_shift_left_bounded_count")
-        .expect("bounded-count exact left shift should use its proved maximum count");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_shift_left_bounded_count"),
+    )
+    .expect("bounded-count exact left shift should use its proved maximum count");
     let shift_operation = lowered.semantic_module.machines[0]
         .blocks
         .iter()
@@ -1141,8 +1163,11 @@ fn checked_source_exact_left_shift_uses_bounded_count_maximum() {
 fn checked_source_exact_left_shift_uses_u64_bounded_count_maximum() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("u64 bounded-count exact left-shift source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_exact_shift_left_u64_bounded_count")
-        .expect("u64 bounded-count exact left shift should use its value and count bounds");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_exact_shift_left_u64_bounded_count"),
+    )
+    .expect("u64 bounded-count exact left shift should use its value and count bounds");
     let semantic =
         encode_module(&lowered.semantic_module).expect("u64 bounded-count shift semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

@@ -1,5 +1,6 @@
 //! Verified byte-field writes must not disappear at the native boundary.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -55,8 +56,11 @@ fn verified_mutable_byte_view_write_retains_exact_native_projection() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
         let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-        let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-            .expect("guarded write lowers to Terminal");
+        let terminal = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(entry),
+        )
+        .expect("guarded write lowers to Terminal");
         let writer = terminal
             .semantic_module
             .machines
@@ -186,8 +190,11 @@ fn verified_bounded_byte_field_replacement_retains_exact_native_projection() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
         let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-        let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")
-            .expect("bounded byte-field replacement lowers to Terminal");
+        let terminal = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Record::replace"),
+        )
+        .expect("bounded byte-field replacement lowers to Terminal");
         let semantic_bytes = encode_module(&terminal.semantic_module).expect("encode semantics");
         let proof_bytes = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
             .expect("encode proof");

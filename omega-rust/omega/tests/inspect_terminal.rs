@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -75,7 +76,8 @@ fn remove_fixture(path: PathBuf) {
 fn lower_source(machine: &str, source: &Path) -> lowered_psi::LoweredPsi {
     let checked = compiler::compile_to_checked(CheckedCompileRequest::new(source, None))
         .expect("check inspection source");
-    checked_trees_to_lowered_psi::lower_machine(&checked, machine).expect("lower inspection source")
+    checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(machine))
+        .expect("lower inspection source")
 }
 
 fn unknown_fuel_reason(stdout: &str) -> &str {

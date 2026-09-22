@@ -5,6 +5,7 @@ use super::{
     NESTED_RECORD_PAYLOAD_SUM_EQUALITY_SOURCE, NESTED_SOURCE,
     NESTED_SUM_PAYLOAD_SUM_EQUALITY_SOURCE,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IeeeFloatFormat, Proposition, ScalarTerm, StructuralFieldId,
@@ -47,7 +48,10 @@ fn unsupported_mixed_aggregate_equality_shapes_remain_fenced() {
                 continue;
             }
         };
-        let result = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter");
+        let result = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        );
         assert!(matches!(
             result,
             Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
@@ -190,10 +194,16 @@ fn payload_sum_nested_record_equality_rebases_and_replays_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("payload-sum equality expands the nested record and lowers");
-    let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
-        .expect("payload-sum inequality expands the nested record and lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("payload-sum equality expands the nested record and lowers");
+    let different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Different::enter"),
+    )
+    .expect("payload-sum inequality expands the nested record and lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -489,8 +499,11 @@ fn payload_sum_nested_sum_equality_replays_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("payload-sum equality expands the nested sum and lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("payload-sum equality expands the nested sum and lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let [CrashRouteGuard::Predicate(route)] = root.contract.crash_routes[0].alternatives.as_slice()
@@ -543,8 +556,11 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("IEEE aggregate equality lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("IEEE aggregate equality lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -629,8 +645,11 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
         Ok(lowered.proof_bundle.clone())
     );
 
-    let reversed = checked_trees_to_lowered_psi::lower_machine(&checked, "Reverse::enter")
-        .expect("reversed IEEE operands lower canonically");
+    let reversed = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Reverse::enter"),
+    )
+    .expect("reversed IEEE operands lower canonically");
     let [CrashRouteGuard::Predicate(reversed_route)] =
         reversed.semantic_module.machines[0].contract.crash_routes[0]
             .alternatives
@@ -647,8 +666,11 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
     )));
     encode_module(&reversed.semantic_module).expect("canonical reversed semantic encode");
 
-    let different = checked_trees_to_lowered_psi::lower_machine(&checked, "Different::enter")
-        .expect("direct IEEE inequality lowers atomically");
+    let different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Different::enter"),
+    )
+    .expect("direct IEEE inequality lowers atomically");
     let [CrashRouteGuard::Predicate(different_route)] =
         different.semantic_module.machines[0].contract.crash_routes[0]
             .alternatives
@@ -676,9 +698,11 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
         Ok(different.semantic_module)
     );
 
-    let aggregate_different =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "AggregateDifferent::enter")
-            .expect("aggregate IEEE inequality lowers as canonical negation");
+    let aggregate_different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("AggregateDifferent::enter"),
+    )
+    .expect("aggregate IEEE inequality lowers as canonical negation");
     let aggregate_root = &aggregate_different.semantic_module.machines[0];
     let [CrashRouteGuard::Predicate(aggregate_route)] = aggregate_root.contract.crash_routes[0]
         .alternatives
@@ -767,9 +791,11 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
         Ok(aggregate_different.semantic_module)
     );
 
-    let projected_different =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "ProjectedDifferent::enter")
-            .expect("projected aggregate IEEE inequality lowers");
+    let projected_different = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("ProjectedDifferent::enter"),
+    )
+    .expect("projected aggregate IEEE inequality lowers");
     let projected_root = &projected_different.semantic_module.machines[0];
     let [CrashRouteGuard::Predicate(projected_route)] = projected_root.contract.crash_routes[0]
         .alternatives
@@ -850,8 +876,11 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("borrowed byte-sequence aggregate equality lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("borrowed byte-sequence aggregate equality lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -943,8 +972,11 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
         Ok(lowered.proof_bundle.clone())
     );
 
-    let bounded = checked_trees_to_lowered_psi::lower_machine(&checked, "BoundedRoot::enter")
-        .expect("bounded byte-sequence aggregate equality lowers");
+    let bounded = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("BoundedRoot::enter"),
+    )
+    .expect("bounded byte-sequence aggregate equality lowers");
     assert!(
         bounded
             .semantic_module
@@ -1009,8 +1041,11 @@ fn empty_record_equality_reuses_boolean_constants_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("empty-record equality lowers through the existing Boolean constant carrier");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("empty-record equality lowers through the existing Boolean constant carrier");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -1121,7 +1156,10 @@ fn address_record_equality_remains_fenced_before_terminal_lowering() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
 
-    let result = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter");
+    let result = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    );
     assert!(
         matches!(
             &result,
@@ -1147,8 +1185,11 @@ fn fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("fixed-index structural member crash route lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("fixed-index structural member crash route lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -1280,8 +1321,11 @@ fn verifier_rejects_empty_truncated_and_mistyped_boolean_field_paths() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("nested Boolean member crash route lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("nested Boolean member crash route lowers");
     let CrashRouteGuard::Predicate(predicate) =
         &lowered.semantic_module.machines[0].contract.crash_routes[0].alternatives[0]
     else {

@@ -9,6 +9,7 @@ use crate::structural_return_source::{
 use checked_trees::{
     CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -367,7 +368,11 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "outer returned-boundary mutation={mutation}"
         );
     }
@@ -393,7 +398,13 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
             .roots
             .get_mut(handle)
             .statement_ordinal += 1;
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err()
+        );
         let mut changed = checked.clone();
         changed
             .facts
@@ -402,7 +413,13 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
             .nodes
             .get_mut(plan.root)
             .authored_root = local.initial_value;
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err()
+        );
     }
     for (_, node) in computations.nodes.iter() {
         let CheckedScalarComputationKind::Call { source_call, .. } = node.kind else {
@@ -423,7 +440,13 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
             .calls
             .get_mut(source_call)
             .authored_expression = arena::Handle::invalid();
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err()
+        );
         let ExpressionNode::Call(call) = checked.typed.expression_table.expression(authored) else {
             unreachable!();
         };
@@ -435,7 +458,13 @@ fn returned_boundary_computations_reject_outer_and_nested_source_custody_drift()
                 unreachable!();
             };
             path.symbol = symbols::SymbolHandle::invalid();
-            assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+            assert!(
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Root::enter")
+                )
+                .is_err()
+            );
         }
     }
 }

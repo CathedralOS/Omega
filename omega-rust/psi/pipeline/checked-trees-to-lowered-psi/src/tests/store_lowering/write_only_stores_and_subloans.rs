@@ -1,3 +1,4 @@
+use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::terminal_identities::service_id;
 use crate::tests::{checked_source, checked_write_line_literal};
@@ -17,7 +18,8 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 #[test]
 fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
     let checked = checked_write_line_literal();
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower write_line literal");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower write_line literal");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("one source machine")
     };
@@ -83,7 +85,8 @@ fn affine_i64_record_literal_crosses_source_codec_and_verification() {
         }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower affine scalar record");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower affine scalar record");
     let module = &lowered.semantic_module;
     let caller = module
         .machines
@@ -244,7 +247,8 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower write-only forwarding");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower write-only forwarding");
     let module = &lowered.semantic_module;
 
     assert_eq!(
@@ -286,7 +290,8 @@ fn direct_write_only_primitive_store_crosses_source_codec_and_verification() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower primitive store closure");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower primitive store closure");
     let module = &lowered.semantic_module;
     let [caller, callee] = module.machines.as_slice() else {
         panic!("caller and write-only callee are retained")
@@ -359,7 +364,8 @@ fn direct_write_only_boolean_store_crosses_source_codec_and_verification() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower Boolean store closure");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower Boolean store closure");
     let module = &lowered.semantic_module;
     let [_, callee] = module.machines.as_slice() else {
         panic!("caller and write-only callee are retained")
@@ -414,8 +420,8 @@ fn primitive_literal_store_retains_unused_scalar_parameters_and_signed_literal()
         let checked = checked_source(&format!(
             "data Sink {{}} machine Sink::fill(destination: &write i8, unused: i8) {{ destination = {literal}; }}"
         ));
-        let lowered =
-            lower_machine(&checked, "Sink::fill").expect("literal store with unused scalar input");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Sink::fill"))
+            .expect("literal store with unused scalar input");
         let module = &lowered.semantic_module;
         let [machine] = module.machines.as_slice() else {
             panic!("one source machine");
@@ -465,7 +471,8 @@ fn direct_write_only_ieee_float_store_crosses_source_codec_and_verification() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("lower IEEE float store closure");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("lower IEEE float store closure");
     let module = &lowered.semantic_module;
     let [_, callee] = module.machines.as_slice() else {
         panic!("caller and write-only callee are retained")
@@ -515,8 +522,8 @@ fn direct_write_only_fixed_integer_parameter_store_crosses_source_codec_and_veri
             }
         "#,
     );
-    let lowered =
-        lower_machine(&checked, "Sink::fill").expect("lower fixed-integer parameter store closure");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Sink::fill"))
+        .expect("lower fixed-integer parameter store closure");
     let module = &lowered.semantic_module;
     let [callee] = module.machines.as_slice() else {
         panic!("one write-only callee is retained")
@@ -576,7 +583,8 @@ fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Root::forward").expect("lower projected forwarding");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
+        .expect("lower projected forwarding");
     let module = &lowered.semantic_module;
 
     assert_eq!(
@@ -660,8 +668,8 @@ fn direct_root_literal_indexed_write_only_subloan_crosses_codec_and_verification
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered =
-        lower_machine(&checked, "Root::forward").expect("lower direct indexed forwarding");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
+        .expect("lower direct indexed forwarding");
     let module = &lowered.semantic_module;
 
     let [call] = module.machines[0].blocks[0].operations.as_slice() else {
@@ -751,8 +759,8 @@ fn finite_literal_index_suffix_crosses_source_codec_and_verification() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered =
-        lower_machine(&checked, "Root::forward").expect("lower finite literal-index forwarding");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
+        .expect("lower finite literal-index forwarding");
     let module = &lowered.semantic_module;
 
     let [call] = module.machines[0].blocks[0].operations.as_slice() else {
@@ -866,7 +874,7 @@ fn field_prefixed_finite_literal_index_suffix_crosses_terminal() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Root::forward")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
         .expect("lower field-prefixed finite literal-index forwarding");
     let module = &lowered.semantic_module;
 
@@ -927,8 +935,8 @@ fn literal_indexed_write_only_subloan_crosses_source_codec_and_verification() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered =
-        lower_machine(&checked, "Root::forward").expect("lower literal-indexed forwarding");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
+        .expect("lower literal-indexed forwarding");
     let module = &lowered.semantic_module;
 
     let [call] = module.machines[0].blocks[0].operations.as_slice() else {
@@ -1039,7 +1047,7 @@ fn rejects_tampered_owned_carrier_for_source_literal() {
     literal_type.shape = checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
         checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity: 2 },
     );
-    let error = lower_machine(&checked, "Root::enter")
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect_err("an owned carrier must not establish a borrowed source literal");
     assert!(
         error.to_string().contains("requires a borrowed-view type"),

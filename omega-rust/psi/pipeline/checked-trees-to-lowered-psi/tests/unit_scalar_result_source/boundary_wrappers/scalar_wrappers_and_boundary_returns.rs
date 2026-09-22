@@ -1,5 +1,6 @@
 use super::{artifact, execute, integer, source};
 use crate::unit_scalar_result_source::{CheckedUnitEffectOperationPlan, checked_from_source};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
@@ -112,7 +113,11 @@ fn direct_boundary_return_rejects_result_and_occurrence_substitution() {
             }
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation} must not substitute another same-typed result"
         );
     }
@@ -125,8 +130,11 @@ fn scalar_wrapper_parameters_forward_through_named_and_unit_entries() {
         .replace("Host::measure(70)", "Host::measure(value)")
         .replace("Scalar::measure();", "Scalar::measure(70);");
     let checked = checked_from_source(&source);
-    let named = checked_trees_to_lowered_psi::lower_machine(&checked, "Scalar::measure")
-        .expect("a boundary-returning body retains its scalar entry parameter");
+    let named = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Scalar::measure"),
+    )
+    .expect("a boundary-returning body retains its scalar entry parameter");
     assert_eq!(named.semantic_module.machines[0].parameters.len(), 1);
     let artifact = artifact(&checked);
     let (status, observed) = execute(&artifact);

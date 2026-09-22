@@ -6,6 +6,7 @@ use super::{
     TerminalInterpretError, TerminalStructuralValue, checked, decode_module,
     lower_symbol_resolved_trees, main_machine, parse_syntax_trees, resolve, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
@@ -691,7 +692,11 @@ fn shared_result_operands_keep_exact_authored_identity_and_final_cleanup() {
             }
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "forged borrowed result mutation {mutation}"
         );
     }
@@ -708,7 +713,13 @@ fn a_named_result_cannot_be_borrowed_after_its_owned_move() {
         typed,
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     ) {
-        assert!(checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err()
+        );
     }
 }
 

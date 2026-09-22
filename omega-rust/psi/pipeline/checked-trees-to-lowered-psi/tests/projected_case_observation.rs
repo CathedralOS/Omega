@@ -1,5 +1,6 @@
 //! Case tests observe the selected sum below its original borrowed owner.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -29,8 +30,11 @@ fn fixed_index_case_observation_retains_the_selected_element() {
         }
     "#,
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Palette::is_blue")
-        .expect("observe the indexed sum rather than the array or its first element");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Palette::is_blue"),
+    )
+    .expect("observe the indexed sum rather than the array or its first element");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -70,8 +74,11 @@ fn nested_record_case_observation_retains_every_carrier() {
         }
     "#,
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Canvas::is_blue")
-        .expect("record and fixed-index projections compose");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Canvas::is_blue"),
+    )
+    .expect("record and fixed-index projections compose");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

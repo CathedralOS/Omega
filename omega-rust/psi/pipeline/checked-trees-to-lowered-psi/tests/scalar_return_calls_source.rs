@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -37,8 +38,11 @@ fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
 
 fn encoded_arms(source: &str, combined: bool) -> (Vec<u8>, Vec<u8>) {
     let checked = checked_arms(source, combined);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}, combined={combined}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}, combined={combined}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("encode semantics"),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -615,7 +619,11 @@ fn scalar_computation_custody_mutations_reject_before_publication() {
     "#;
     for combined in [false, true] {
         let checked = checked_arms(source, combined);
-        checked_trees_to_lowered_psi::lower_machine(&checked, "value").unwrap();
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .unwrap();
         let plans = &checked.facts.values.scalar_computations;
         let (root_handle, root) = plans.roots.iter().next().expect("computation root");
         let root = root.clone();
@@ -689,7 +697,11 @@ fn scalar_computation_custody_mutations_reject_before_publication() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&mutated, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &mutated,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "mutation={mutation}, combined={combined}"
             );
         }

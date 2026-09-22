@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::collections::BTreeSet;
 
 use semantic_vocabulary::{BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, ValueId};
@@ -101,8 +102,11 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
         checked_trees::CheckedScalarBranchDestination::Return { .. }
     ));
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "walk")
-        .unwrap_or_else(|error| panic!("lower owned scalar cycle: {error:?}\n{source}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("walk"),
+    )
+    .unwrap_or_else(|error| panic!("lower owned scalar cycle: {error:?}\n{source}"));
     let debug = lowered.debug_map.expect("source-backed cycle debug map");
     assert!(!debug.sites.is_empty());
     let debug_bytes = terminal_codec::encode_debug_map(&lowered.semantic_module, &debug).unwrap();

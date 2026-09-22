@@ -9,6 +9,7 @@
 //! admission, exactly one emitted call per authored call site, the store's
 //! canonical field path, exact source receipts, and a verified artifact.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -37,8 +38,9 @@ fn lowered_verified(
     name: &str,
 ) -> (terminal_psi::TerminalModule, lowered_psi::LoweredPsi) {
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, name)
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered =
+        checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(name))
+            .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     let semantics = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode proof");

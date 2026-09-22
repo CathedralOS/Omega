@@ -3,6 +3,7 @@ use super::{
     normal_guarantee_source, ordered_contract_source, source,
 };
 use crate::unit_scalar_result_source::{CheckedScalarExpression, checked_from_source};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue};
@@ -84,7 +85,11 @@ fn ordered_boolean_guarantees_keep_mixed_scalar_slots_and_source_identity() {
                 contract.closed_scalar_values.has_outcome_specific_clauses(),
             );
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err(),
                 "mutation {mutation}"
             );
         }
@@ -149,7 +154,11 @@ fn ordered_scalar_guarantees_reject_changed_source_predicates() {
             contract.closed_scalar_values.has_outcome_specific_clauses(),
         );
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -359,7 +368,11 @@ fn ordered_boundary_requirements_reject_source_predicate_substitution() {
             .clone()
             .with_structural_runtime_requirements((mutation != 9).then_some(requirements));
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }

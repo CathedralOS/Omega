@@ -1,6 +1,7 @@
 //! Fixtures shared by the boundary argument tests: checked sources,
 //! artifacts, wrapper sources and the observing handlers.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 #[path = "boundary_arguments/anonymous_fields.rs"]
 mod anonymous_fields;
@@ -51,8 +52,11 @@ fn artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
     };
     assert_eq!(local.name.as_str(), "accepted");
     assert!(!local.is_mutable);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
-        .expect("returned boundary scalar with computed operand lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("returned boundary scalar with computed operand lowers");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
@@ -111,8 +115,11 @@ fn unit_wrapper_source() -> String {
 }
 
 fn unit_wrapper_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
-        .expect("Unit closure transfers structural arguments and claims to its scalar wrapper");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("Unit closure transfers structural arguments and claims to its scalar wrapper");
     let artifact = (
         encode_module(&lowered.semantic_module).unwrap(),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -379,7 +386,13 @@ fn assert_constructed_wrapper_execution(source: &str) {
         } => *binding_ordinal += 1,
         _ => panic!("constructed local source"),
     }
-    assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Root::enter")
+        )
+        .is_err()
+    );
 }
 
 fn constructed_wrapper_source(fields: &str, values: &str) -> String {

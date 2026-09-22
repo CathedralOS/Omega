@@ -1,5 +1,6 @@
 //! Explicit result discard belongs to the boundary's immediate normal continuation.
 use super::{CheckedTrees, SymbolHandle, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -74,7 +75,8 @@ fn discarded_boundary_result_replays_immediate_cleanup_and_canonical_artifact() 
         }
     );
 
-    let lowered = lower_machine(&checked, "run").expect("explicit discard lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("explicit discard lowers");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "run")
         .produce_artifact()
         .expect("publish checked discard");
@@ -146,7 +148,7 @@ fn discarded_boundary_result_rejects_missing_authored_discard_marker() {
     };
     assert!(call.discards_result);
     call.discards_result = false;
-    assert!(lower_machine(&checked, "run").is_err());
+    assert!(lower_machine(&checked, TerminalMachineSelection::Name("run")).is_err());
     assert!(
         terminal_production::TerminalProductionRequest::new(&checked, "run")
             .produce_artifact()
@@ -259,7 +261,7 @@ fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&checked, "run").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("run")).is_err(),
             "source drift: {mutation}"
         );
         assert!(

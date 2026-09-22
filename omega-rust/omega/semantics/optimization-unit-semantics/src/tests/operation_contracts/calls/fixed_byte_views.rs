@@ -3,6 +3,7 @@
 use crate::tests::{refresh_identity, refresh_node_derivatives};
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::PsiOptimizationUnit;
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
@@ -46,7 +47,11 @@ fn source_unit(source: &str) -> PsiOptimizationUnit {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "enter").unwrap();
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("enter"),
+    )
+    .unwrap();
     let semantic = terminal_codec::encode_module(&terminal.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)

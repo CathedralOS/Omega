@@ -13,6 +13,7 @@
 
 pub mod evidence;
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::{CheckedCompileRequest, CompileOptions};
 use diagnostics::Diagnostic;
 use package_manager::operations as packages;
@@ -78,12 +79,14 @@ pub fn inspect_terminal(
     request: &InspectTerminalRequest,
 ) -> Result<TerminalInspection, InspectTerminalError> {
     let checked = check_inspection_sources(request)?;
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &request.machine).map_err(
-        |error| InspectTerminalError::Lowering {
-            machine: request.machine.clone(),
-            error,
-        },
-    )?;
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(&request.machine),
+    )
+    .map_err(|error| InspectTerminalError::Lowering {
+        machine: request.machine.clone(),
+        error,
+    })?;
     compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
         .map_err(InspectTerminalError::Diagnostics)?;
     compiler::validate_lowered_integer_comparison_custody(&checked, &lowered)

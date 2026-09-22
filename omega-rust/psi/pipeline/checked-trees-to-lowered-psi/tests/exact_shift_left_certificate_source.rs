@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AcceptedFactRoute, AcceptedProofRule, AdmissionProfile, EvidenceRoute};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm};
 use source_files_to_tokens::Lexer;
@@ -32,8 +33,11 @@ fn bounded_exact_left_shift_uses_only_its_canonical_certificate() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("type exact left shift");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("check exact left shift");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("bounded exact left shift lowers with a producer certificate");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("bounded exact left shift lowers with a producer certificate");
 
     let entry = lowered
         .semantic_module

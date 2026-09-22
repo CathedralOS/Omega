@@ -5,6 +5,7 @@ use super::{
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
     checked, decode_module, decode_proof_bundle, invoking, main_machine,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
@@ -341,7 +342,11 @@ fn direct_boundary_result_custody_rejects_substitution_and_cleanup_after_transfe
         }
     }
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main")
+        )
+        .is_err(),
         "same-typed spare cannot replace the authored first result"
     );
     let mut module = decode_module(&artifact.0).unwrap();

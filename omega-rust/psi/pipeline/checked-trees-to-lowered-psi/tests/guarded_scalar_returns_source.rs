@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -422,8 +423,11 @@ fn checked_source(source: &str, form: BranchForm) -> checked_trees::CheckedTrees
 
 fn encoded(source: &str, form: BranchForm) -> (Vec<u8>, Vec<u8>) {
     let checked = checked_source(source, form);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     (
         encode_module(&lowered.semantic_module).expect("encode semantics"),
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -632,7 +636,10 @@ fn a_nonzero_guard_does_not_license_signed_division_overflow() {
     let source = "machine value(denominator: i8) -> i8\nrequires 0i8 == 0i8\nensures 0i8 == 0i8\n{ transition (denominator == 0) { true -> 0 false -> (-128i8 / denominator) } }";
     for form in [BranchForm::Separate, BranchForm::Combined] {
         let checked = checked_source(source, form);
-        let result = checked_trees_to_lowered_psi::lower_machine(&checked, "value");
+        let result = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        );
         assert!(
             matches!(
                 result,
@@ -649,8 +656,11 @@ fn branch_return_coordinates_cannot_select_a_siblings_valid_value() {
     let source = "machine value(flag: bool) -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ transition flag { true -> 7 false -> 7 } }";
     for form in [BranchForm::Separate, BranchForm::Combined] {
         let checked = checked_source(source, form);
-        checked_trees_to_lowered_psi::lower_machine(&checked, "value")
-            .expect("original branch lowers");
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .expect("original branch lowers");
         for mutation in 0..3 {
             let mut changed = checked.clone();
             let CheckedScalarStateTerminator::Conditional {
@@ -674,7 +684,11 @@ fn branch_return_coordinates_cannot_select_a_siblings_valid_value() {
                 _ => *statement_ordinal += 1,
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "mutation {mutation}"
             );
         }
@@ -694,8 +708,11 @@ fn ordered_guard_roster_rejects_tampering_and_reconstructs_result_range() {
             }
         }";
     let checked = checked_source(source, BranchForm::Separate);
-    let original = checked_trees_to_lowered_psi::lower_machine(&checked, "Alignment::get_stride")
-        .expect("original four guarded returns");
+    let original = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Alignment::get_stride"),
+    )
+    .expect("original four guarded returns");
     let guarantees = &original
         .semantic_module
         .machines
@@ -793,9 +810,11 @@ fn ordered_guard_roster_rejects_tampering_and_reconstructs_result_range() {
                 // Incoming lowering reconstructs result refinements from the
                 // authored return type, not this optional retained predicate
                 // roster. Clearing it must not erase the Terminal guarantee.
-                let reconstructed =
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Alignment::get_stride")
-                        .expect("result range is independently reconstructed");
+                let reconstructed = checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Alignment::get_stride"),
+                )
+                .expect("result range is independently reconstructed");
                 let retained = &reconstructed
                     .semantic_module
                     .machines
@@ -810,7 +829,11 @@ fn ordered_guard_roster_rejects_tampering_and_reconstructs_result_range() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Alignment::get_stride").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Alignment::get_stride")
+            )
+            .is_err(),
             "{mutation}"
         );
     }

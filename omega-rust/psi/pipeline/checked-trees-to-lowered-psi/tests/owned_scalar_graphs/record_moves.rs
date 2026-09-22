@@ -1,6 +1,7 @@
 //! Local moves preserve value provenance and declaration-ordered final disposal.
 
 use super::support;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -131,7 +132,11 @@ fn local_move_replay_rejects_changed_receipts_and_source_witnesses() {
             _ => event.obligation_live = true,
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "selected").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("selected")
+            )
+            .is_err(),
             "receipt corruption {corruption}"
         );
     }
@@ -174,7 +179,11 @@ fn local_move_replay_rejects_changed_receipts_and_source_witnesses() {
     argument.source =
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: keep };
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&changed, "selected").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("selected")
+        )
+        .is_err(),
         "same-carrier source substitution"
     );
     let mut stale = checked.clone();
@@ -186,7 +195,11 @@ fn local_move_replay_rejects_changed_receipts_and_source_witnesses() {
         .get_mut(handle)
         .expression = arena::Handle::invalid();
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&stale, "selected").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &stale,
+            TerminalMachineSelection::Name("selected")
+        )
+        .is_err(),
         "stale move expression"
     );
 }

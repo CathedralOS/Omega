@@ -1,6 +1,7 @@
 //! Computed boundary operands belong to the selected authored control leaf.
 
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -107,8 +108,11 @@ fn encoded(checked: &checked_trees::CheckedTrees, state_count: usize) -> (Vec<u8
         };
         assert!(arguments.contains(&computations.nodes.get(root.root).authored_root));
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("composed operand evaluation lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("composed operand evaluation lowers");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
@@ -452,7 +456,7 @@ fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
 where machine SinkParam satisfies Sink::finish;",
     );
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), "Main::main"),
+        checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), TerminalMachineSelection::Name("Main::main")),
         Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
             if machine == "Main::main"
     ));
@@ -491,7 +495,11 @@ fn composed_operand_roots_and_nested_occurrences_rejoin_their_source_leaf() {
                     _ => unreachable!(),
                 }
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err()
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err()
                 );
             }
         }
@@ -524,7 +532,11 @@ fn composed_operand_roots_and_nested_occurrences_rejoin_their_source_leaf() {
                 };
                 call.receiver = argument;
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err(),
                     "computed leaf helper cannot discard a runtime receiver in place of its static qualifier"
                 );
                 let mut changed = checked.clone();
@@ -535,7 +547,11 @@ fn composed_operand_roots_and_nested_occurrences_rejoin_their_source_leaf() {
                 };
                 path.symbol = symbols::SymbolHandle::invalid();
                 assert!(
-                    checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err()
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::main")
+                    )
+                    .is_err()
                 );
             }
             let mut changed = checked.clone();
@@ -546,7 +562,13 @@ fn composed_operand_roots_and_nested_occurrences_rejoin_their_source_leaf() {
                 .calls
                 .get_mut(source_call)
                 .authored_expression = arena::Handle::invalid();
-            assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
+            assert!(
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Main::main")
+                )
+                .is_err()
+            );
         }
     }
 }

@@ -1,6 +1,7 @@
 //! The writer's strict-decrease obligation, exercised as an actual byte read.
 
 use super::{checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::terminal_identities::{obligation_id, operation_id, value_id};
 use checked_trees::types::PrimitiveType;
@@ -29,7 +30,11 @@ const SOURCE: &str = r#"
 /// Use the source-produced acyclic call graph as fixture scaffolding. The
 /// added Terminal read tests a proof obligation, not source correspondence.
 fn fixture() -> LoweredPsi {
-    let mut lowered = lower_machine(&checked_source(SOURCE), "Root::enter").unwrap();
+    let mut lowered = lower_machine(
+        &checked_source(SOURCE),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let machine = lowered
         .semantic_module
         .machines

@@ -1,5 +1,6 @@
 //! Scalar-guarded Unit crash ceilings compose through exact evaluated operands.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -55,8 +56,11 @@ fn composed_unit_call_retains_a_scalar_guarded_crash_ceiling() {
 }
 
 fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("ordinary Unit callee retains its scalar-dependent crash ceiling");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("ordinary Unit callee retains its scalar-dependent crash ceiling");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let evidence =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

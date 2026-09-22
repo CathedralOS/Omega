@@ -1,5 +1,6 @@
 //! Mixed Unit signatures keep authored crash parameters distinct from ABI positions.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -125,8 +126,11 @@ fn ordinary_unit_crash_guard_combines_interleaved_scalar_and_structural_paramete
 }
 
 fn roundtrip(checked: &checked_trees::CheckedTrees) -> lowered_psi::LoweredPsi {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Main::main")
-        .expect("mixed Unit crash predicate lowers through its authored signature");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("mixed Unit crash predicate lowers through its authored signature");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let evidence =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -501,7 +505,7 @@ fn mixed_member_integer_boolean_cleanup_remains_outside_the_supported_source_sha
     );
     assert!(
         matches!(
-            checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main"),
+            checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Main::main")),
             Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
                 machine, reason, ..
             }) if machine == "Main::main"

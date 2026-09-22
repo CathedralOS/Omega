@@ -2,6 +2,7 @@ use super::{
     AdmissionProfile, TerminalEffect, TerminalExecutionResult, checked, encode_module,
     encode_proof_section, interpret_terminal_artifact_measured,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{BlockId, IntegerValue, StructuralPlaceKind, StructuralTypeId};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -37,8 +38,11 @@ const SOURCE: &str = r#"
 "#;
 
 fn lowered(source: &str) -> lowered_psi::LoweredPsi {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter")
-        .expect("source view bindings lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("source view bindings lower");
     validate_module(&lowered.semantic_module).expect("mutation baseline validates");
     lowered
 }

@@ -9,6 +9,7 @@ use super::{
     StructuralTypeShape, ValueId,
 };
 use calling_conventions::{ValueClass, ValueLocation};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 use source_files_to_tokens::Lexer;
@@ -28,8 +29,11 @@ pub(super) fn source_plan(source: &str) -> abstract_operations::AbstractOperatio
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run").expect("lower source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("lower source");
     lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &encode_module(&terminal.semantic_module).expect("encode semantics"),

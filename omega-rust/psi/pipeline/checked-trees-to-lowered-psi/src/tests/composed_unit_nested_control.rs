@@ -4,6 +4,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, checked_source,
     checked_source_with_core_service, lower_machine,
 };
+use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedBooleanExpression, CheckedComposedUnitControlTerminatorPlan, CheckedScalarExpression,
     CheckedUnitEffectOperationPlan,
@@ -182,7 +183,8 @@ fn checked_provider_boundary_prefixed_nested_control() -> CheckedTrees {
 #[test]
 fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
     let checked = checked_nested_control();
-    let lowered = lower_machine(&checked, "Root::enter").expect("nested composed control lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("nested composed control lowers");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("nested boundary graph emits one machine")
     };
@@ -237,7 +239,8 @@ fn lowers_two_conditional_frontiers_with_one_scalar_handoff() {
 #[test]
 fn lowers_the_smallest_two_frontier_convergent_graph() {
     let checked = checked_four_state_nested_control();
-    let lowered = lower_machine(&checked, "Root::enter").expect("four-state graph lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("four-state graph lowers");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("four-state boundary graph emits one machine")
     };
@@ -275,7 +278,8 @@ fn lowers_the_smallest_two_frontier_convergent_graph() {
 #[test]
 fn lowers_an_internal_unit_call_before_a_conditional() {
     let checked = checked_call_prefixed_nested_control();
-    let lowered = lower_machine(&checked, "Root::enter").expect("call-prefixed conditional lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("call-prefixed conditional lowers");
     let [root, quiet] = lowered.semantic_module.machines.as_slice() else {
         panic!("root and one deduplicated internal target form the module")
     };
@@ -322,7 +326,7 @@ fn call_prefixed_control_rejects_coordinate_drift() {
     };
     coordinate.statement_index = 1;
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -330,7 +334,8 @@ fn call_prefixed_control_rejects_coordinate_drift() {
 #[test]
 fn lowers_a_finite_internal_call_prefix_in_source_order() {
     let checked = checked_multi_call_prefixed_nested_control();
-    let lowered = lower_machine(&checked, "Root::enter").expect("multi-call prefix lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("multi-call prefix lowers");
     let [root, first_target, second_target] = lowered.semantic_module.machines.as_slice() else {
         panic!("root and two internal targets form the module")
     };
@@ -363,7 +368,7 @@ fn finite_call_prefix_rejects_operation_reordering() {
         .operations
         .swap(0, 1);
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -373,7 +378,8 @@ fn lowers_a_parameterless_boundary_call_before_a_conditional() {
     let checked = checked_boundary_prefixed_nested_control();
     let source_entry =
         checked.facts.flow.terminal_unit_effects.composed_machines[0].states[0].state;
-    let lowered = lower_machine(&checked, "Root::enter").expect("boundary prefix lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("boundary prefix lowers");
     let [root] = lowered.semantic_module.machines.as_slice() else {
         panic!("boundary-prefixed graph emits one root machine")
     };
@@ -415,7 +421,7 @@ fn boundary_call_prefix_rejects_coordinate_drift() {
     };
     coordinate.statement_index = 1;
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -423,7 +429,8 @@ fn boundary_call_prefix_rejects_coordinate_drift() {
 #[test]
 fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
     let checked = checked_provider_boundary_prefixed_nested_control();
-    let lowered = lower_machine(&checked, "Main::main").expect("provider boundary prefix lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+        .expect("provider boundary prefix lowers");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("provider boundary graph emits one machine")
     };
@@ -500,8 +507,11 @@ fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
         .remove(scalar_fact);
     // Parameter handoffs rejoin the authored binding directly; a duplicated
     // scalar-expression fact is not their authority.
-    lower_machine(&missing_scalar_fact, "Main::main")
-        .expect("parameter handoff checks without a redundant expression fact");
+    lower_machine(
+        &missing_scalar_fact,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("parameter handoff checks without a redundant expression fact");
     let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
         &mut missing_scalar_fact
             .facts
@@ -516,7 +526,10 @@ fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
     when_true.scalar_arguments[0].source =
         checked_trees::CheckedStructuralScalarArgumentSourcePlan::Parameter { index: 0 };
     assert!(matches!(
-        lower_machine(&missing_scalar_fact, "Main::main"),
+        lower_machine(
+            &missing_scalar_fact,
+            TerminalMachineSelection::Name("Main::main")
+        ),
         Err(LoweringError::Unsupported(_))
     ));
 
@@ -529,7 +542,10 @@ fn lowers_and_rejoins_a_provider_boundary_prefix_with_implicit_self_edges() {
         .provider_attachment_requirements
         .clear();
     assert!(matches!(
-        lower_machine(&missing_requirement, "Main::main"),
+        lower_machine(
+            &missing_requirement,
+            TerminalMachineSelection::Name("Main::main")
+        ),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -539,7 +555,7 @@ fn nested_control_rejects_outer_handoff_and_inner_topology_corruption() {
     let baseline = checked_nested_control();
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
-            lower_machine(checked, "Root::enter"),
+            lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
             Err(LoweringError::Unsupported(_))
         ));
     };
@@ -588,7 +604,8 @@ fn nested_control_deduplicates_one_internal_target_with_disjoint_root_blocks() {
             }
         "#,
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("nested internal closure lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("nested internal closure lowers");
     let [root, target] = lowered.semantic_module.machines.as_slice() else {
         panic!("nested root and one deduplicated target form the closure")
     };
@@ -622,7 +639,8 @@ fn nested_control_deduplicates_one_internal_target_with_disjoint_root_blocks() {
 #[test]
 fn lowers_three_frontiers_with_recursive_scalar_suffix_handoffs() {
     let checked = checked_depth_three_nested_control();
-    let lowered = lower_machine(&checked, "Root::enter").expect("depth-three nested control");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("depth-three nested control");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("depth-three boundary graph emits one machine")
     };
@@ -686,7 +704,7 @@ fn depth_three_nested_control_rejects_suffix_reordering() {
     };
     when_true.scalar_arguments.swap(0, 1);
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -694,7 +712,8 @@ fn depth_three_nested_control_rejects_suffix_reordering() {
 #[test]
 fn lowers_balanced_control_and_emits_one_convergent_leaf() {
     let checked = checked_balanced_nested_control();
-    let lowered = lower_machine(&checked, "Root::enter").expect("balanced control graph lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("balanced control graph lowers");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
         panic!("balanced boundary graph emits one machine")
     };
@@ -776,7 +795,7 @@ fn balanced_control_rejects_convergent_edge_drift() {
     };
     when_false.target_state = no;
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 }
@@ -793,7 +812,7 @@ fn balanced_control_rejects_guard_drift() {
         position: 1,
     }));
     assert!(matches!(
-        lower_machine(&checked, "Root::enter"),
+        lower_machine(&checked, TerminalMachineSelection::Name("Root::enter")),
         Err(LoweringError::Unsupported(_))
     ));
 }

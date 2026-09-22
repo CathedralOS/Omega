@@ -5,13 +5,17 @@ use super::{
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlTerminatorPlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::TerminalScalarValue;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 
 fn output(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, u128)> {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
-        .expect("valid source graph lowers before checking exact output");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("valid source graph lowers before checking exact output");
     let execution = interpret_terminal_artifact_measured(
         &encode_module(&lowered.semantic_module).unwrap(),
         &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
@@ -87,8 +91,11 @@ fn graph(checked: &mut checked_trees::CheckedTrees) -> &mut CheckedComposedUnitC
 }
 
 fn rejected(checked: &checked_trees::CheckedTrees, expected: &str) {
-    let error = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
-        .expect_err("tampered or unsupported graph must reject during lowering");
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect_err("tampered or unsupported graph must reject during lowering");
     assert!(
         matches!(
             &error,
@@ -348,7 +355,11 @@ fn dropped_graph_call_cannot_fall_back_to_legacy_three_state_admission() {
         machine Root::enter() reaches Output { Relay::relay(true); }
     "#,
     );
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let relay = checked
         .machines()
         .iter()

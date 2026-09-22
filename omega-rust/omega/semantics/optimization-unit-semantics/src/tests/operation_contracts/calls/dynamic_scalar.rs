@@ -2,6 +2,7 @@ use super::super::super::AbstractOperation;
 use crate::MachineId;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::validate_psi_optimization_unit;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
@@ -45,8 +46,11 @@ fn dynamic_unit() -> optimization_unit::PsiOptimizationUnit {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::run")
-        .expect("lower rebound dynamic source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::run"),
+    )
+    .expect("lower rebound dynamic source");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");

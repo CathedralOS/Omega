@@ -1,5 +1,6 @@
 //! Stored records use exact field identities and current ownership places.
 use super::{SymbolHandle, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::obligation_id;
 use checked_trees::CheckedScalarComputationKind;
 use checked_trees::types::PrimitiveType;
@@ -42,7 +43,7 @@ fn projected_self_borrow_does_not_require_an_interned_owner_type() {
             .is_none(),
         "self-only attachments need no incidental authored Outer type reference"
     );
-    let lowered = lower_machine(&checked, "Outer::read")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Outer::read"))
         .expect("projected self loan uses its declared endpoint");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -92,7 +93,7 @@ fn projected_self_borrow_does_not_require_an_interned_owner_type() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "Outer::read").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Outer::read")).is_err(),
             "accepted {corruption}"
         );
     }
@@ -115,7 +116,7 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
         }
     ",
     );
-    let lowered = lower_machine(&checked, "Outer::equals")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Outer::equals"))
         .expect("receiver and explicit shared actual retain their original projected homes");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -123,8 +124,11 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("independent projected shared custody");
-    lower_machine(&checked, "Outer::self_equals")
-        .expect("explicit self-field captures agree with projected receiver captures");
+    lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Outer::self_equals"),
+    )
+    .expect("explicit self-field captures agree with projected receiver captures");
     let inner_equals = checked
         .machines()
         .iter()
@@ -266,7 +270,7 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
                 .unwrap()[0] = facts::PlaceSegment::Field { symbol: sibling };
         }
         assert!(
-            lower_machine(&changed, "Outer::equals").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Outer::equals")).is_err(),
             "accepted changed {corruption}"
         );
     }

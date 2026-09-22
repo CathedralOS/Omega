@@ -3,6 +3,7 @@
 //! owners bind successor parameters positionally, while the displaced source
 //! dies on the selected edge.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use source_files_to_tokens::Lexer;
@@ -40,15 +41,21 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 
 fn lowered() -> (checked_trees::CheckedTrees, lowered_psi::LoweredPsi) {
     let checked = checked(SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("selection residuals transport across the state edge");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("selection residuals transport across the state edge");
     (checked, lowered)
 }
 
 fn recorded_source(source: &str, selected: bool) -> Vec<u128> {
     let checked = checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("selection residuals transport across the state edge");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("selection residuals transport across the state edge");
     let semantic_bytes = encode_module(&lowered.semantic_module).unwrap();
     let proof_bytes =
         encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();

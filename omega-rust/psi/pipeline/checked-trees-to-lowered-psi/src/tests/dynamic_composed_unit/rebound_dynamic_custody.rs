@@ -5,6 +5,7 @@ use super::{
     STORED_DYNAMIC_SOURCE, assert_dynamic_unit_artifact_executes,
     assert_stored_dynamic_scalar_artifact_executes, unsupported_message,
 };
+use crate::TerminalMachineSelection;
 use crate::tests::{checked_source, checked_source_with_core_service, lower_machine};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, Terminator};
@@ -21,7 +22,8 @@ fn lowers_stored_dynamic_descriptor_as_verified_terminal_storage_and_reload() {
     assert_eq!(plan.storage.statement_index, 1);
     assert_eq!(plan.call.coordinate.statement_index, 2);
 
-    let lowered = lower_machine(&checked, "Main::run").expect("stored dynamic call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("stored dynamic call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("stored dynamic module verifies");
     let terminal = &lowered.semantic_module.dynamic_dispatch;
@@ -102,7 +104,7 @@ fn lowers_stored_dynamic_result_into_console_effect_control() {
     };
     assert!(plan.call.unit_continuation.is_some());
 
-    let lowered = lower_machine(&checked, "Main::run")
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("stored dynamic result control lowers as one module");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("stored dynamic result control verifies");
@@ -282,7 +284,8 @@ fn lowers_rebound_dynamic_custody_as_verified_indirect_terminal_dispatch() {
     assert_eq!(plan.latest.coordinate.statement_index, 2);
     let duplicate = plan.clone();
 
-    let lowered = lower_machine(&checked, "Main::run").expect("rebound dynamic call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("rebound dynamic call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("rebound dynamic module verifies");
     let terminal_catalog = &lowered.semantic_module.dynamic_dispatch;
@@ -342,8 +345,8 @@ fn retains_distinct_applications_when_rebinding_to_another_conformance() {
     );
     assert_ne!(plan.initial.fact.rows, plan.latest.selection.rows);
 
-    let lowered =
-        lower_machine(&checked, "Main::run").expect("changed-conformance rebound should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("changed-conformance rebound should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("changed-conformance rebound should verify");
     let [initial, rebound] = lowered
@@ -399,8 +402,8 @@ fn composes_one_transparent_dynamic_forwarder_without_losing_descriptor_custody(
     assert_eq!(transfer.source_binding, plan.latest.receiver_binding);
     assert_eq!(transfer.sole_selection(), Some(&plan.latest.selection));
 
-    let lowered =
-        lower_machine(&checked, "Main::run").expect("transparent forwarded dynamic call lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("transparent forwarded dynamic call lowers");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("forwarded dynamic module verifies");
     assert_eq!(
@@ -460,7 +463,7 @@ fn composes_one_direct_dynamic_scalar_forwarder_without_fabricating_a_rebound() 
     assert_eq!(catalog.transfers.len(), 1);
     assert_eq!(catalog.direct_scalar_calls.len(), 1);
     assert!(catalog.rebound_scalar_calls.is_empty());
-    let mut lowered = lower_machine(&checked, "Main::run")
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
         .expect("transparent direct scalar forwarding should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("forwarded direct scalar module should verify");
@@ -554,8 +557,8 @@ fn lowers_two_dynamic_predecessors_into_one_terminal_parameter() {
         joined.when_false.call.selection.conformance,
     );
 
-    let lowered =
-        lower_machine(&checked, "Main::run").expect("two exact dynamic predecessors should lower");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("two exact dynamic predecessors should lower");
     terminal_verifier::validate_module(&lowered.semantic_module)
         .expect("joined dynamic Terminal module should verify");
     let catalog = &lowered.semantic_module.dynamic_dispatch;

@@ -4,6 +4,7 @@
 //! children stay consumable.
 
 use crate::value_dispatch::check_source;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use language_semantics::{PermissionClaimIdentity, PermissionProvenance};
 
 /// A whole-carrier arm consumes the joined root's entire linear frontier: one
@@ -135,7 +136,11 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
         assert_eq!(
             format!(
                 "{:?}",
-                checked_trees_to_lowered_psi::lower_machine(&checked, "choose").unwrap_err()
+                checked_trees_to_lowered_psi::lower_machine(
+                    &checked,
+                    TerminalMachineSelection::Name("choose")
+                )
+                .unwrap_err()
             ),
             r#"Unsupported("machine has no source-independent checked scalar control plan")"#,
             "{name}: a claim-bearing local has no scalar control plan yet"

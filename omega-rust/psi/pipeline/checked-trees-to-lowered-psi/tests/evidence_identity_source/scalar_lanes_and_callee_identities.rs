@@ -5,6 +5,7 @@ use super::{
     REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE, REPEATED_PROOF_OUTPUT_SOURCE,
     RUNTIME_VALUE_PROOF_OUTPUT_SOURCE, STATIC_REQUIREMENT_TRAIT_DEFAULT_SOURCE, check,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerValue, OperationId};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
@@ -41,8 +42,11 @@ fn ordinary_attached_scalar_machine_lowers_through_the_unit_closure() {
             .for_machine(selection.machine)
             .is_some()
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &selection.name)
-        .expect("attached scalar machine lowers through the Unit closure");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(&selection.name),
+    )
+    .expect("attached scalar machine lowers through the Unit closure");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -77,8 +81,11 @@ fn plural_static_requirement_proof_outputs_preserve_order_identity_and_freshness
                 .then_some(selection.name.clone())
         })
         .expect("the plural specialized requirement caller is terminal-selected");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &machine_name)
-        .expect("plural static requirement proof outputs should cross Terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(&machine_name),
+    )
+    .expect("plural static requirement proof outputs should cross Terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one plural static requirement proof-output invocation expected")
     };
@@ -220,8 +227,11 @@ fn static_requirement_trait_default_rejoins_exact_application_and_runtime_callee
                 .then_some(selection.name.clone())
         })
         .expect("the specialized default caller is terminal-selected");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, &machine_name)
-        .expect("the exact trait-default dispatch should cross Terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(&machine_name),
+    )
+    .expect("the exact trait-default dispatch should cross Terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one trait-default proof-output invocation")
     };
@@ -293,8 +303,11 @@ fn static_requirement_trait_default_rejoins_exact_application_and_runtime_callee
 #[test]
 fn proof_output_retains_copy_and_explicit_discard() {
     let checked = check(COPY_AND_DISCARD_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("copyable and discarded evidence should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("copyable and discarded evidence should cross terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one proof-output call expected")
     };
@@ -332,8 +345,11 @@ fn proof_output_retains_copy_and_explicit_discard() {
 #[test]
 fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
     let checked = check(RUNTIME_VALUE_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "relay")
-        .expect("runtime value proof output should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("relay"),
+    )
+    .expect("runtime value proof output should cross terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one terminal runtime-value proof output expected")
     };
@@ -404,8 +420,11 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
             { let warmed: bool = warmup(); let local: bool = produce(); local }
         "#,
     );
-    let baseline = checked_trees_to_lowered_psi::lower_machine(&baseline, "relay")
-        .expect("ordinary scalar-call baseline lowers");
+    let baseline = checked_trees_to_lowered_psi::lower_machine(
+        &baseline,
+        TerminalMachineSelection::Name("relay"),
+    )
+    .expect("ordinary scalar-call baseline lowers");
     let baseline_verified = terminal_verifier::verify_module(
         &baseline.semantic_module,
         &baseline.proof_bundle,
@@ -485,9 +504,11 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
         .callee = invocation.caller;
     assert!(invalid_proof_output(&mismatched_callee));
 
-    let proof_only =
-        checked_trees_to_lowered_psi::lower_machine(&check(PROOF_OUTPUT_SOURCE), "Root::relay")
-            .expect("proof-only proof output");
+    let proof_only = checked_trees_to_lowered_psi::lower_machine(
+        &check(PROOF_OUTPUT_SOURCE),
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("proof-only proof output");
     let mut spurious_link = proof_only.semantic_module;
     spurious_link.proof_output_calls[0].runtime_call = Some(runtime_call);
     assert!(invalid_proof_output(&spurious_link));
@@ -496,8 +517,11 @@ fn runtime_value_proof_output_links_one_scalar_call_and_executes_once() {
 #[test]
 fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
     let checked = check(MULTI_FIELD_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("complete multi-field proof output should cross terminal Psi");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("complete multi-field proof output should cross terminal Psi");
     let [invocation] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("one grouped terminal proof-output invocation expected")
     };
@@ -585,8 +609,11 @@ fn multi_field_proof_output_is_complete_canonical_and_runtime_erased() {
 #[test]
 fn repeated_multi_field_proof_outputs_group_calls_and_reuse_callee_producers() {
     let checked = check(REPEATED_MULTI_FIELD_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("repeated multi-field proof outputs should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("repeated multi-field proof outputs should lower");
     let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("two grouped proof-output calls expected")
     };
@@ -622,8 +649,11 @@ fn repeated_multi_field_proof_outputs_group_calls_and_reuse_callee_producers() {
 #[test]
 fn repeated_proof_output_calls_have_dense_fresh_outputs_and_one_callee_producer() {
     let checked = check(REPEATED_PROOF_OUTPUT_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("repeated proof-output calls should retain distinct invocation terms");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("repeated proof-output calls should retain distinct invocation terms");
     let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("two invocation rows expected")
     };
@@ -645,8 +675,11 @@ fn repeated_proof_output_calls_have_dense_fresh_outputs_and_one_callee_producer(
 #[test]
 fn same_shape_proof_outputs_retain_distinct_canonical_callee_identities() {
     let checked = check(DISTINCT_PROOF_OUTPUT_PRODUCERS_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::relay")
-        .expect("same-shape producer proof outputs should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::relay"),
+    )
+    .expect("same-shape producer proof outputs should lower");
     let [first, second] = lowered.semantic_module.proof_output_calls.as_slice() else {
         panic!("two invocation rows expected")
     };
@@ -667,8 +700,11 @@ fn same_shape_proof_outputs_retain_distinct_canonical_callee_identities() {
 #[test]
 fn empty_complete_evidence_conformance_remains_valid_provenance() {
     let checked = check(EMPTY_PRODUCER_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::produce")
-        .expect("an empty closed conformance is still complete");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::produce"),
+    )
+    .expect("an empty closed conformance is still complete");
     assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
     assert!(lowered.proof_bundle.evidence_producers[0].rows.is_empty());
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

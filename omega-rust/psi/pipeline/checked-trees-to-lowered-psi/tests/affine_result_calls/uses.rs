@@ -4,6 +4,7 @@ use super::{
     TerminalFuelMeter, TerminalStructuralValue, Terminator, checked, decode_module,
     decode_proof_bundle, encode_module, encode_proof_section, lower_machine, typed,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 const RESULT_USE: &str = "data Value { number: u64; }
@@ -21,7 +22,7 @@ fn an_ordinary_unit_call_consumes_the_retained_structural_result() {
 
 fn assert_result_use(source: &str, name: &str) {
     let checked = checked(source);
-    let lowered = lower_machine(&checked, name)
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
         .unwrap_or_else(|error| panic!("result consumer lowers: {error:?}\n{source}"));
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let module = &lowered.semantic_module;
@@ -235,7 +236,7 @@ fn result_use_rejects_binding_cleanup_and_source_drift() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&checked, "Main::caller").is_err(),
+            lower_machine(&checked, TerminalMachineSelection::Name("Main::caller")).is_err(),
             "mutation {mutation}"
         );
     }

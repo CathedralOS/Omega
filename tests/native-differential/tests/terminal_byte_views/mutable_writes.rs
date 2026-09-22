@@ -1,5 +1,7 @@
 //! Source-proved fixed-extent writes retain ordinary native descriptor custody.
 
+use super::native_function;
+use super::{AdmissionProfile, NativeTarget, calls};
 #[cfg(any(
     all(
         target_os = "linux",
@@ -7,8 +9,7 @@
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
-use super::native_function;
-use super::{AdmissionProfile, NativeTarget, calls};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[path = "mutable_writes/admission.rs"]
 mod admission;
 
@@ -61,8 +62,11 @@ fn lower_writer(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-        .expect("source-authored mutable loop retains independently checked bounds");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .expect("source-authored mutable loop retains independently checked bounds");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

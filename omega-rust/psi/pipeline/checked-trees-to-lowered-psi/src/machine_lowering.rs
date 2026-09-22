@@ -1,9 +1,9 @@
 //! Machine lowering: the selected checked machine to unsealed, target-neutral Psi.
 //!
-//! [`lower_machine`] and [`lower_machine_by_symbol`] select one checked Terminal
-//! machine, dispatch it through [`crate::machine_lowering::machine_dispatch`] to the plan family
-//! that owns its shape, then sequence the work every selected module still
-//! needs: retained custody, float-meaning projections, evidence and proof
+//! [`lower_machine`] selects one checked Terminal machine by
+//! [`TerminalMachineSelection`], dispatches it through
+//! [`crate::machine_lowering::machine_dispatch`] to the plan family that owns
+//! its shape, then sequences the work every selected module still needs: retained custody, float-meaning projections, evidence and proof
 //! recursion, proof-only quotient correspondence rows, operand proof
 //! completion or module validation, and the debug companion.
 //! [`lower_bounded_callback_identity_machine`] is the callback-body entrance:
@@ -33,7 +33,7 @@ use crate::machine_lowering::guarded_exits::{
     GuardedExitAdmission, reject_unguarded_outcome_guarantees,
 };
 use crate::machine_lowering::machine_dispatch::{
-    lower_selected_machine, select_terminal_machine, select_terminal_machine_by_symbol,
+    TerminalMachineSelection, lower_selected_machine, select_terminal_machine,
 };
 use crate::machine_lowering::reborrow_handoffs::retain_admitted_reborrow_root_handoffs;
 use crate::machine_lowering::specialization_commitments::selected_closure_specializations;
@@ -50,29 +50,14 @@ use crate::retention::{
 };
 use crate::unit::attached_unit;
 
-/// Lower a selected checked machine and its required source closure.
+/// Lower the selected checked machine and its required source closure.
 /// Preserve source custody, install evidence, validate the completed module,
 /// and attach debug companions before returning unsealed Psi.
 pub fn lower_machine(
     checked: &CheckedTrees,
-    machine_name: &str,
+    machine: TerminalMachineSelection<'_>,
 ) -> Result<LoweredPsi, LoweringError> {
-    let selection = select_terminal_machine(checked, machine_name)?;
-    lower_terminal_selection(checked, selection)
-}
-
-/// Lower the machine whose exact checked symbol was selected upstream.
-///
-/// Build product operands resolve their implementation lexically and retain
-/// the exact machine symbol, so production must rejoin that symbol rather than
-/// a qualified name another package could also declare. This entry point
-/// shares every post-selection obligation with [`lower_machine`]; only the
-/// lookup key differs.
-pub fn lower_machine_by_symbol(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-) -> Result<LoweredPsi, LoweringError> {
-    let selection = select_terminal_machine_by_symbol(checked, machine)?;
+    let selection = select_terminal_machine(checked, machine)?;
     lower_terminal_selection(checked, selection)
 }
 

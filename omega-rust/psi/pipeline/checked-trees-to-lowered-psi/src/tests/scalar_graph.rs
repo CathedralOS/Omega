@@ -1,5 +1,6 @@
 //! Scalar-graph module assembly regressions.
 use super::{LoweringError, ScalarType, SymbolHandle, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::proofs::content_conservation::{
@@ -22,7 +23,8 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
     let original = checked_source(include_str!(
         "../../../../../../tests/omega/pass/expressions/qualified_call_result_argument/main.omg"
     ));
-    lower_machine(&original, "choose").expect("qualified argument composition");
+    lower_machine(&original, TerminalMachineSelection::Name("choose"))
+        .expect("qualified argument composition");
     let relay = original
         .machines()
         .iter()
@@ -61,7 +63,8 @@ fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
                     )
             }
         }
-        let error = lower_machine(&changed, "choose").expect_err("source contract changed");
+        let error = lower_machine(&changed, TerminalMachineSelection::Name("choose"))
+            .expect_err("source contract changed");
         assert!(
             matches!(
                 error,

@@ -5,6 +5,7 @@ use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalExecutionResult, checked,
     decode_module, decode_proof_bundle, main_machine, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
@@ -56,7 +57,13 @@ fn nested_boundary_custody_rejects_reordering_substitution_and_duplicate_cleanup
                 *discard_result_on_return = true;
             }
         }
-        assert!(checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err());
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err()
+        );
     }
     let mut module = decode_module(&artifact.0).unwrap();
     let entry = module

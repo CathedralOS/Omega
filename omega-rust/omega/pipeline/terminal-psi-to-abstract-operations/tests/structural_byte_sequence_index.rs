@@ -1,5 +1,6 @@
 //! Native projection retains verified indexed byte-field effects in either block order.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{
     AdmissionProfile, CertificateEnvelope, EvidenceRoute, ProofNode, ProofRule, ProofSystemMarker,
 };
@@ -38,7 +39,11 @@ fn verified_indexed_field_store_survives_every_native_entrance() {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .unwrap();
     let mut module = lowered.semantic_module;
     let machine = &mut module.machines[0];
     let (destination, path, field) = machine

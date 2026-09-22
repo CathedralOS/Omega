@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -41,8 +42,11 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 #[test]
 fn source_subslice_crosses_helpers_and_preserves_original_view_and_continuation() {
     let checked = checked(SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("source subslice has an ordinary helper call plan");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("source subslice has an ordinary helper call plan");
     assert_eq!(
         execute(&lowered),
         [
@@ -113,7 +117,11 @@ fn unavailable_entry_length_contract_does_not_authorize_a_source_tail() {
     // Source checking retains the explicit endpoint, but a byte-length entry
     // contract is not yet represented in Terminal. It cannot become a trusted
     // body assumption just because the source checker accepted it.
-    let error = checked_trees_to_lowered_psi::lower_machine(&checked, "Helper::write").unwrap_err();
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Helper::write"),
+    )
+    .unwrap_err();
     assert!(
         matches!(
             error,
@@ -146,7 +154,11 @@ fn byte_subslice_is_evaluated_between_surrounding_scalar_calls() {
     for callee in ["Relay::write", "Output::write"] {
         let source = source.replace("Relay::write(Scalar", &format!("{callee}(Scalar"));
         let checked = checked(&source);
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .unwrap();
         let machine = lowered
             .semantic_module
             .machines
@@ -274,7 +286,11 @@ fn changed_subslice_source_range_or_custody_rejects() {
             _ => unreachable!(),
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .is_err(),
             "mutation {mutation}"
         );
     }
@@ -297,8 +313,11 @@ fn subslice_arguments_preserve_scalar_and_nested_structural_boundary_results() {
         data Root {}
         machine Root::enter() reaches Output { Helper::write("raw"); }
     "#;
-    let lowered =
-        checked_trees_to_lowered_psi::lower_machine(&checked(source), "Root::enter").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .unwrap();
     let module =
         terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap()).unwrap();
     let proof = terminal_codec::decode_proof_bundle(

@@ -5,6 +5,7 @@
 
 use super::super::VerifiedPsiOptimizationUnit;
 use super::admission::verified_unit;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 /// Two memberships observe one established place: `c in Choice::Some` folds
 /// to `true` and `c in Choice::Empty` folds to `false` inside a single
@@ -72,8 +73,11 @@ fn lowered_module(
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-        .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name(entry),
+    )
+    .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     (lowered.semantic_module, lowered.proof_bundle)
 }
 

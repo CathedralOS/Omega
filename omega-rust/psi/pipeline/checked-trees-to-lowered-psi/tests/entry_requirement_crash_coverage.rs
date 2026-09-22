@@ -3,6 +3,7 @@
 //! Fixtures shared by the entry requirement crash coverage tests: typed
 //! programs, callers and the trap assertions.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 #[path = "entry_requirement_crash_coverage/boolean_and_disjunctive_requirements.rs"]
 mod boolean_and_disjunctive_requirements;
@@ -72,8 +73,11 @@ fn assert_trap_with_entry_arguments(
     let artifact = {
         let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
             .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, entry)
-            .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(entry),
+        )
+        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
         check_module(&lowered.semantic_module);
         (
             encode_module(&lowered.semantic_module).unwrap(),
@@ -243,8 +247,11 @@ fn assert_structural_entry_requirement_artifact(source: &str) {
             }
         }
     }
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::value")
-        .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
     let semantics = encode_module(&lowered.semantic_module).expect("encode shared entry module");
     let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode shared entry proof");

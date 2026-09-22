@@ -1,5 +1,6 @@
 use super::{CheckedUnitEffectOperationPlan, checked, lower_machine};
 use checked_trees::{CheckedCallScalarArgument, CheckedScalarExpressionRole};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[test]
 fn mixed_argument_roots_rejoin_dense_scalar_positions_and_exact_occurrences() {
@@ -12,7 +13,8 @@ fn mixed_argument_roots_rejoin_dense_scalar_positions_and_exact_occurrences() {
             Main::consume(numeric(count), forward(value), numeric(count ^ 2u32));
         }",
     );
-    lower_machine(&checked, "Main::caller").expect("unmodified mixed call lowers");
+    lower_machine(&checked, TerminalMachineSelection::Name("Main::caller"))
+        .expect("unmodified mixed call lowers");
     let caller = checked
         .machines()
         .iter()
@@ -100,7 +102,7 @@ fn mixed_argument_roots_rejoin_dense_scalar_positions_and_exact_occurrences() {
             _ => unreachable!(),
         }
         assert!(
-            lower_machine(&changed, "Main::caller").is_err(),
+            lower_machine(&changed, TerminalMachineSelection::Name("Main::caller")).is_err(),
             "mixed argument mutation {mutation}"
         );
     }

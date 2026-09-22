@@ -7,6 +7,7 @@
 //! cannot resolve them — and `CallUnit` arguments are not an admitted scalar
 //! CallArgument namespace.
 use super::{checked_scalar_suspension_fixture, checked_source};
+use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
 use checked_trees::{
@@ -163,7 +164,8 @@ fn scalar_call_suspension_plan_rejoins_callee_entry_state_target() {
     let (root, state) = machine_and_state(&checked, "root");
     let target = call_target_symbol(&checked, 1, 0);
     push_crossing(&mut checked, root, state, 1, 0, target, Vec::new());
-    let lowered = lower_machine(&checked, "root").expect("entry-state target joins");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("root"))
+        .expect("entry-state target joins");
     let plan = expect_single_verified_plan(&lowered);
     assert!(matches!(
         plan.target,
@@ -179,7 +181,8 @@ fn unit_call_suspension_plan_rejoins_receiver_free_unit_target() {
     let (run, state) = machine_and_state(&checked, "run");
     let target = call_target_symbol(&checked, 0, 0);
     push_crossing(&mut checked, run, state, 0, 0, target, Vec::new());
-    let lowered = lower_machine(&checked, "run").expect("Unit call crossing retains");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("Unit call crossing retains");
     let plan = expect_single_verified_plan(&lowered);
     let operation = lowered
         .semantic_module
@@ -219,7 +222,8 @@ fn structural_scalar_call_suspension_plan_rejoins_argument_frontier() {
             effective: CarryPolicy::PERMISSIVE,
         }],
     );
-    let lowered = lower_machine(&checked, "run").expect("scalar call-argument frontier joins");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("scalar call-argument frontier joins");
     let plan = expect_single_verified_plan(&lowered);
     let [live] = plan.live_values.as_slice() else {
         panic!("one exact suspension live value")
@@ -262,7 +266,7 @@ fn unit_call_scalar_argument_frontier_fails_closed() {
     );
     assert!(
         matches!(
-            lower_machine(&checked, "run"),
+            lower_machine(&checked, TerminalMachineSelection::Name("run")),
             Err(LoweringError::Unsupported(reason))
                 if reason.contains("call argument position is unavailable")
         ),
@@ -298,7 +302,7 @@ fn unit_call_scalar_environment_frontier_fails_closed() {
     );
     assert!(
         matches!(
-            lower_machine(&checked, "run"),
+            lower_machine(&checked, TerminalMachineSelection::Name("run")),
             Err(LoweringError::Unsupported(reason))
                 if reason.contains("scalar environment position is unavailable")
         ),
@@ -318,7 +322,7 @@ fn boundary_call_suspension_frontier_fails_closed_on_target_identity() {
     push_crossing(&mut checked, run, state, 0, 0, target, Vec::new());
     assert!(
         matches!(
-            lower_machine(&checked, "run"),
+            lower_machine(&checked, TerminalMachineSelection::Name("run")),
             Err(LoweringError::Unsupported(reason))
                 if reason.contains("cannot resolve its source symbols")
         ),

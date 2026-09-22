@@ -1,5 +1,6 @@
 //! Fixtures shared by the dynamic composed unit lowering tests.
 
+use crate::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 mod direct_dynamic_units;
 mod finite_family;
@@ -1063,7 +1064,7 @@ fn direct_plan_mut(
 }
 
 fn unsupported_message(checked: &checked_trees::CheckedTrees) -> &'static str {
-    match lower_machine(checked, "Main::run") {
+    match lower_machine(checked, TerminalMachineSelection::Name("Main::run")) {
         Err(LoweringError::Unsupported(message)) => message,
         result => panic!("tampered direct dynamic custody must reject, got {result:?}"),
     }

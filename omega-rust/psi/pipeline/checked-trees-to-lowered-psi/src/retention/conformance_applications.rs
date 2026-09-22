@@ -429,6 +429,7 @@ mod tests {
         CheckedTrees, LoweringError, TerminalModule,
         append_closed_conformance_applications_excluding,
     };
+    use crate::TerminalMachineSelection;
 
     type Owners = Vec<(symbols::SymbolHandle, semantic_vocabulary::MachineId)>;
 
@@ -472,7 +473,7 @@ mod tests {
         .expect("check");
         let selection = crate::machine_lowering::machine_dispatch::select_terminal_machine(
             &checked,
-            "Main::main",
+            TerminalMachineSelection::Name("Main::main"),
         )
         .expect("dynamic root selection");
         let root = selection.machine;

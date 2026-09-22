@@ -12,6 +12,7 @@ use abstract_operations_to_abstract_operations::{
     LoopInvariantScalarMotionError, apply_loop_invariant_scalar_motion,
     propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
     recompute_psi_optimization_unit_identity,
@@ -108,8 +109,11 @@ fn lowered_unit(
         .unwrap_or_else(|error| panic!("type {label}: {error:?}"));
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .unwrap_or_else(|error| panic!("check {label}: {error:?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")
-        .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::scan"),
+    )
+    .unwrap_or_else(|error| panic!("lower {label}: {error:?}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module)
         .unwrap_or_else(|error| panic!("encode {label} semantics: {error:?}"));
     let proof =

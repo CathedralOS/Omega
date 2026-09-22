@@ -446,6 +446,7 @@ mod tests {
     //! so the spelling is the one independent verification reconstructs.
 
     use super::{BorrowedWindowLedger, BorrowedWindowRepairValue};
+    use crate::TerminalMachineSelection;
     use crate::emission::operation_emission::buffer::OperationBuffer;
     use crate::lowering_error::LoweringError;
     use checked_trees::{
@@ -1454,8 +1455,8 @@ mod tests {
                 checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             )
         }));
-        let lowered =
-            crate::lower_machine(&checked, "Main::main").expect("lowers through the ledger");
+        let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+            .expect("lowers through the ledger");
         let emitted_kinds: Vec<&OperationKind> = lowered
             .semantic_module
             .machines
@@ -1535,8 +1536,8 @@ mod tests {
                 checked_trees::CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             )
         }));
-        let lowered =
-            crate::lower_machine(&checked, "Main::main").expect("lowers through the ledger");
+        let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
+            .expect("lowers through the ledger");
         let emitted_kinds: Vec<&OperationKind> = lowered
             .semantic_module
             .machines

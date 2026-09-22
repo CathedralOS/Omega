@@ -1,5 +1,6 @@
 //! Authored bounded replacement retains live length and caller-owned backing.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use native_realization::{compiler_baseline_request_v1, optimize_artifact_sections};
 use optimization_core::OptimizationSelections;
 use proof_admission::AdmissionProfile;
@@ -47,8 +48,11 @@ fn replacement(literal: &str, nested: bool) -> lowered_psi::LoweredPsi {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("replacement must establish the destination Utf8 predicate");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Record::replace")
-        .expect("authored bounded replacement must reach Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Record::replace"),
+    )
+    .expect("authored bounded replacement must reach Terminal");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

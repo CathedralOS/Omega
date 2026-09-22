@@ -7,11 +7,15 @@ use super::{
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectMachinePlan, CheckedUnitStructuralArgumentSourcePlan,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn execute(source: &str, expected: &[u8]) {
     let checked = checked_source(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-        .unwrap_or_else(|error| panic!("source array arguments must lower: {error:?}\n{source}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap_or_else(|error| panic!("source array arguments must lower: {error:?}\n{source}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     assert_eq!(
         terminal_codec::decode_module(&semantic).unwrap(),
@@ -129,8 +133,11 @@ fn source_mixed_array_call_requires_exact_scalar_positions_and_complete_obligati
         }";
     execute(source, &[42, 9]);
     let checked = checked_source(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-        .expect("mixed call requirements prove before corruption");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("mixed call requirements prove before corruption");
     for mutation in ["missing requirement", "swapped scalar arguments"] {
         let mut module = lowered.semantic_module.clone();
         let entry = module
@@ -258,8 +265,11 @@ fn plan<'checked>(
 #[test]
 fn source_array_parameter_return_rejects_slot_symbol_type_and_access_substitution() {
     let original = custody_fixture();
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("parameter return and mixed positions lower before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("parameter return and mixed positions lower before corruption");
     for mutation in [
         "returned slot",
         "unknown slot",
@@ -326,8 +336,11 @@ fn source_array_parameter_return_rejects_slot_symbol_type_and_access_substitutio
 #[test]
 fn source_array_direct_parameter_return_rejects_changed_parameter_flags() {
     let original = checked_source("machine selected(row: [u8; 2]) -> [u8; 2] { row }");
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("direct array parameter return lowers before source flag corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("direct array parameter return lowers before source flag corruption");
     let machine = original
         .typed
         .machines()
@@ -352,8 +365,11 @@ fn source_array_direct_parameter_return_rejects_changed_parameter_flags() {
 fn source_array_local_return_requires_the_exact_whole_name() {
     let original =
         checked_source("machine selected() -> [u8; 2] { let row: [u8; 2] = [7, 9]; row }");
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("whole local array return lowers before source path corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("whole local array return lowers before source path corruption");
     let (_, expressions) = selected_source(&original);
     let expression = *expressions.last().unwrap();
     for mutation in ["changed head symbol", "missing name member"] {
@@ -374,8 +390,11 @@ fn source_array_local_return_requires_the_exact_whole_name() {
 #[test]
 fn source_array_arguments_reject_same_typed_binding_and_authored_operand_substitution() {
     let original = custody_fixture();
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("array actual custody lowers before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("array actual custody lowers before corruption");
     for mutation in [
         "swapped arguments",
         "duplicate binding",

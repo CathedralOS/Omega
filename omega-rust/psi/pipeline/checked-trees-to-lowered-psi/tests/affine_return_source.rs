@@ -1,4 +1,5 @@
 use checked_trees::{CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedStructuralAccess};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use checked_trees_to_lowered_psi::lower_machine;
 use language_semantics::{Multiplicity, SemanticDomainId};
 use proof_admission::AdmissionProfile;
@@ -98,7 +99,8 @@ fn assert_identity_execution(
     assert_eq!(plan.result.multiplicity, Multiplicity::Affine);
     assert!(plan.result.qualifications.is_empty());
 
-    let lowered = lower_machine(&checked, name).expect("owned result producer");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
+        .expect("owned result producer");
     let semantic = encode_module(&lowered.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
         .expect("encode proof");
@@ -260,7 +262,8 @@ fn selected_affine_identity_excludes_unrelated_return_types() {
                 .any(|declaration| declaration.identity == unused_plan.result.type_identity)
         );
 
-        let lowered = lower_machine(&checked, name).expect("selected identity lowers");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(name))
+            .expect("selected identity lowers");
         let module = &lowered.semantic_module;
         let [machine] = module.machines.as_slice() else {
             panic!("unused identity must not enter the selected module")
@@ -335,7 +338,8 @@ fn modified_checked_identity_custody_rejects_before_lowering() {
         (ATTACHED_IDENTITY, "Main::forward"),
     ] {
         let original = checked(source);
-        lower_machine(&original, name).expect("unmodified identity lowers");
+        lower_machine(&original, TerminalMachineSelection::Name(name))
+            .expect("unmodified identity lowers");
         for drift in [
             Drift::ParameterPosition,
             Drift::BorrowedParameter,
@@ -362,7 +366,10 @@ fn modified_checked_identity_custody_rejects_before_lowering() {
                 Drift::ResultQualification => plan.result.qualifications.push(SemanticDomainId(99)),
                 Drift::ReturnStatement => plan.return_statement_ordinal = 1,
             }
-            assert!(lower_machine(&modified, name).is_err(), "{name}: {drift:?}");
+            assert!(
+                lower_machine(&modified, TerminalMachineSelection::Name(name)).is_err(),
+                "{name}: {drift:?}"
+            );
         }
     }
 }
@@ -372,7 +379,8 @@ fn modified_mixed_identity_parameter_partition_rejects() {
     let original = checked(
         "data Value { number: u64; } machine forward(before: u8, value: Value, after: i32) -> Value { value }",
     );
-    lower_machine(&original, "forward").expect("unmodified mixed identity lowers");
+    lower_machine(&original, TerminalMachineSelection::Name("forward"))
+        .expect("unmodified mixed identity lowers");
     for coordinated in [false, true] {
         let mut modified = original.clone();
         let plan = identity_plan_mut(&mut modified);
@@ -381,7 +389,7 @@ fn modified_mixed_identity_parameter_partition_rejects() {
             plan.structural_parameter.position = 0;
         }
         assert!(
-            lower_machine(&modified, "forward").is_err(),
+            lower_machine(&modified, TerminalMachineSelection::Name("forward")).is_err(),
             "authored partition must rejoin even when the positions remain unique: {coordinated}"
         );
     }
@@ -395,7 +403,11 @@ fn altered_terminal_identity_returns_fail_independent_verification() {
         InventedClaim,
         DiscardedReturnedParameter,
     }
-    let lowered = lower_machine(&checked(FREE_IDENTITY), "forward").expect("identity lowers");
+    let lowered = lower_machine(
+        &checked(FREE_IDENTITY),
+        TerminalMachineSelection::Name("forward"),
+    )
+    .expect("identity lowers");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -455,7 +467,10 @@ fn unsupported_reference_cleanup_and_linear_identities_have_no_affine_plan() {
                 .is_empty(),
             "unsupported ownership must not enter the claim-free affine producer: {source}"
         );
-        assert!(lower_machine(&checked, "forward").is_err(), "{source}");
+        assert!(
+            lower_machine(&checked, TerminalMachineSelection::Name("forward")).is_err(),
+            "{source}"
+        );
     }
     // A linear identity return lowers through the Unit closure without a
     // claim-free affine producer: the claim moves with the returned value.
@@ -470,5 +485,6 @@ fn unsupported_reference_cleanup_and_linear_identities_have_no_affine_plan() {
             .claim_free_affine_machines
             .is_empty()
     );
-    lower_machine(&linear, "forward").expect("linear identity return lowers");
+    lower_machine(&linear, TerminalMachineSelection::Name("forward"))
+        .expect("linear identity return lowers");
 }

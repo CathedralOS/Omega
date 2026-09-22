@@ -1,6 +1,7 @@
 //! One-call acyclic target closure beneath composed Unit leaves.
 
 use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_psi::{Operation, OperationKind};
 fn checked_transitive_internal_calls() -> checked_trees::CheckedTrees {
@@ -55,7 +56,8 @@ fn source_machine(checked: &CheckedTrees, name: &str) -> symbols::SymbolHandle {
 #[test]
 fn lowers_and_deduplicates_one_call_internal_target_closure() {
     let checked = checked_transitive_internal_calls();
-    let lowered = lower_machine(&checked, "Root::enter").expect("transitive internal closure");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("transitive internal closure");
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let root = &lowered.semantic_module.machines[0];
     let OperationKind::CallUnit {
@@ -113,7 +115,8 @@ fn lowers_and_deduplicates_one_call_internal_target_closure() {
 #[test]
 fn lowers_a_depth_two_internal_target_chain_once() {
     let checked = checked_depth_two_internal_calls();
-    let lowered = lower_machine(&checked, "Root::enter").expect("depth-two internal closure");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("depth-two internal closure");
     assert_eq!(lowered.semantic_module.machines.len(), 4);
     let root = &lowered.semantic_module.machines[0];
     let mut next = match root.blocks[1].operations[0].kind {
@@ -163,7 +166,7 @@ fn transitive_internal_target_rejects_nested_identity_and_plan_corruption() {
     let baseline = checked_transitive_internal_calls();
     let rejects = |checked: &CheckedTrees| {
         assert!(matches!(
-            lower_machine(checked, "Root::enter"),
+            lower_machine(checked, TerminalMachineSelection::Name("Root::enter")),
             Err(LoweringError::Unsupported(_) | LoweringError::InvalidUnitMachinePlan { .. })
         ));
     };

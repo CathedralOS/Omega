@@ -5,6 +5,7 @@ use super::{
     SIX_SELECTED_WITNESS_TAIL_USES_SOURCE, THREE_SELECTED_WITNESS_TAIL_USES_SOURCE,
     TWO_SELECTED_WITNESS_TAIL_USES_SOURCE, append_rejoined_selected_evidence_row, checked,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
     CodecError, decode_module, decode_proof_bundle, encode_module, encode_proof_section,
@@ -40,8 +41,11 @@ fn two_selected_witness_tail_uses_are_ordered_distinct_and_runtime_free() {
     assert_eq!(first_plan.tail_use.as_ref().unwrap().input_position, 0);
     assert_eq!(second_plan.tail_use.as_ref().unwrap().input_position, 1);
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact two-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact two-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, _callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -185,8 +189,11 @@ fn three_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .all(|rows| { rows[0].selected_term != rows[1].selected_term })
     );
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact three-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact three-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, _callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -304,8 +311,11 @@ fn four_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .all(|rows| rows[0].selected_term != rows[1].selected_term)
     );
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact four-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact four-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, _callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -423,8 +433,11 @@ fn five_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .all(|rows| rows[0].selected_term != rows[1].selected_term)
     );
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact five-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact five-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, _callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -558,8 +571,11 @@ fn six_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .all(|rows| rows[0].selected_term != rows[1].selected_term)
     );
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact six-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact six-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, _callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -693,8 +709,11 @@ fn seven_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .all(|rows| rows[0].selected_term != rows[1].selected_term)
     );
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact seven-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact seven-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, _callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -857,8 +876,11 @@ fn fifteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
             .all(|rows| rows[0].selected_term != rows[1].selected_term)
     );
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact fifteen-witness tail use lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact fifteen-witness tail use lowers");
     let module = &lowered.semantic_module;
     let [caller, callee, target] = module.machines.as_slice() else {
         panic!("caller, producer, and proof-visible tail target remain canonical")
@@ -969,8 +991,11 @@ fn fifteen_selected_witness_tail_uses_are_dense_distinct_and_runtime_free() {
 #[test]
 fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel() {
     let checked = checked(GUARDED_CALL_SOURCE);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the exact guarded source call lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the exact guarded source call lowers");
     let module = &lowered.semantic_module;
     let [caller, callee] = module.machines.as_slice() else {
         panic!("the guarded source call retains caller and callee")
@@ -1101,7 +1126,13 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         .payloadless_guarded_machines[0]
         .selected_evidence
         .clear();
-    assert!(checked_trees_to_lowered_psi::lower_machine(&lost_selection, "Root::caller").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &lost_selection,
+            TerminalMachineSelection::Name("Root::caller")
+        )
+        .is_err()
+    );
 
     let mut wrong_arm = checked.clone();
     wrong_arm
@@ -1111,7 +1142,13 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         .payloadless_guarded_machines[0]
         .selected_evidence[0]
         .arm_statement_index += 1;
-    assert!(checked_trees_to_lowered_psi::lower_machine(&wrong_arm, "Root::caller").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &wrong_arm,
+            TerminalMachineSelection::Name("Root::caller")
+        )
+        .is_err()
+    );
 
     let sibling_guarantee = checked
         .facts
@@ -1130,7 +1167,13 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
         .payloadless_guarded_machines[0]
         .selected_evidence[0]
         .guarantee = sibling_guarantee;
-    assert!(checked_trees_to_lowered_psi::lower_machine(&wrong_guarantee, "Root::caller").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &wrong_guarantee,
+            TerminalMachineSelection::Name("Root::caller")
+        )
+        .is_err()
+    );
 
     let selected_arm = checked
         .facts
@@ -1158,7 +1201,13 @@ fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel(
     row.validity
         .referenced_occurrences
         .push(row.validity.result_occurrence);
-    assert!(checked_trees_to_lowered_psi::lower_machine(&wider_validity, "Root::caller").is_err());
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &wider_validity,
+            TerminalMachineSelection::Name("Root::caller")
+        )
+        .is_err()
+    );
 }
 
 #[test]
@@ -1175,8 +1224,11 @@ fn guarded_payloadless_source_call_retains_a_canonical_selected_subset_without_r
     };
     assert_eq!(checked_plan.selected_evidence.len(), 2);
 
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::caller")
-        .expect("the canonical multi-selection guarded call lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::caller"),
+    )
+    .expect("the canonical multi-selection guarded call lowers");
     let [caller, callee] = lowered.semantic_module.machines.as_slice() else {
         panic!("the guarded source call retains caller and callee")
     };

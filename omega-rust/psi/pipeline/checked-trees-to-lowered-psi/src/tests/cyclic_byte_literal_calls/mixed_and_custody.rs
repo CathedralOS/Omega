@@ -3,6 +3,7 @@ use super::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralValue,
     checked_source,
 };
+use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
@@ -33,7 +34,7 @@ machine Main::main(&mut self, bytes: &[u8]) reaches Output {
 }
 "#,
     );
-    super::super::super::lower_machine(&checked, "Main::main")
+    super::super::super::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("composed calls preserve literal and view positions when helper self is erased");
     let helper = checked
         .facts
@@ -55,7 +56,9 @@ machine Main::main(&mut self, bytes: &[u8]) reaches Output {
         .unwrap();
     assert_eq!(target.structural_parameters[0].position, 1);
     target.structural_parameters[0].position = 0;
-    let result = super::super::super::lower_machine(&changed, "Main::main").map(|_| ());
+    let result =
+        super::super::super::lower_machine(&changed, TerminalMachineSelection::Name("Main::main"))
+            .map(|_| ());
     assert!(
         result.is_err(),
         "retained literal position drift must reject: {result:?}"
@@ -77,7 +80,7 @@ machine Main::main(&mut self, bytes: &[u8]) reaches Output {
 }
 "#,
     );
-    super::super::super::lower_machine(&checked, "Main::main")
+    super::super::super::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("ordinary attached literal and shared-view call is valid");
     for replace_with_parameter in [false, true] {
         let mut changed = checked.clone();
@@ -121,7 +124,11 @@ machine Main::main(&mut self, bytes: &[u8]) reaches Output {
                 bytes: b"LEFT".to_vec(),
             }
         };
-        let result = super::super::super::lower_machine(&changed, "Main::main").map(|_| ());
+        let result = super::super::super::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .map(|_| ());
         assert!(
             matches!(
                 &result,
@@ -274,7 +281,7 @@ impl TerminalEffectHandler for MixedTrace {
 #[test]
 fn composed_literal_plans_reject_payload_access_and_path_substitution() {
     let checked = checked_source(SOURCE);
-    super::super::super::lower_machine(&checked, "Main::main")
+    super::super::super::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("source-derived control is valid");
     for mutation in 0..3 {
         let mut changed = checked.clone();
@@ -315,7 +322,11 @@ fn composed_literal_plans_reject_payload_access_and_path_substitution() {
                 .push(CheckedUnitStructuralPathSegment::FixedIndex(0)),
             _ => unreachable!(),
         }
-        let result = super::super::super::lower_machine(&changed, "Main::main").map(|_| ());
+        let result = super::super::super::lower_machine(
+            &changed,
+            TerminalMachineSelection::Name("Main::main"),
+        )
+        .map(|_| ());
         assert!(
             matches!(
                 &result,
@@ -359,7 +370,10 @@ fn composed_literal_plans_reject_payload_access_and_path_substitution() {
         typed_trees::expression::ExpressionNode::String(std::sync::Arc::from(b"LEFT".as_slice()));
     assert!(
         matches!(
-            super::super::super::lower_machine(&changed_source, "Main::main"),
+            super::super::super::lower_machine(
+                &changed_source,
+                TerminalMachineSelection::Name("Main::main")
+            ),
             Err(super::super::super::LoweringError::Unsupported(_))
         ),
         "typed literal substitution cannot reuse the retained checked payload"

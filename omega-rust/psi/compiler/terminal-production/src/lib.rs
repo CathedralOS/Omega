@@ -8,10 +8,10 @@
 mod checked_ledger;
 mod stage_timings;
 mod terminal_production;
+pub use checked_trees_to_lowered_psi::TerminalMachineSelection;
 pub use stage_timings::{TerminalProductionStage, TerminalProductionTimings};
 pub use terminal_production::{
     CallbackCustodyTerminalArtifactProductionError, ProducedProgramEntryTerminalArtifact,
     ProducedTerminalArtifact, ProducedTerminalArtifactWithCallbackCustody,
-    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalMachineSelection,
-    TerminalProductionRequest,
+    ProgramEntryTerminalReceiptError, TerminalArtifactProductionError, TerminalProductionRequest,
 };

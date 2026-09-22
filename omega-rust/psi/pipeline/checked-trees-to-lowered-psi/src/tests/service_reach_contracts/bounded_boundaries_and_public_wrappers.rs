@@ -1,4 +1,5 @@
 use super::{checked_public_reach_wrapper, reach_fixture, service_names, summary};
+use crate::TerminalMachineSelection;
 use crate::terminal_identities::service_id;
 use crate::tests::{
     Lexer, LoweringError, ResolutionRequest, checked_source, lower_machine,
@@ -272,7 +273,8 @@ fn unresolved_installation_selection_keeps_closed_reach_application() {
         pub machine enter() reaches Installer + Console invokes Installer; { traverse<installing>(); }
     "#,
     );
-    let lowered = lower_machine(&checked, "enter").expect("lower traverse");
+    let lowered =
+        lower_machine(&checked, TerminalMachineSelection::Name("enter")).expect("lower traverse");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
         .produce_artifact()
         .expect("publish installation-bound selection");
@@ -503,7 +505,8 @@ fn public_wrapper_publishes_propagated_reach_and_pinned_boundary_ceiling() {
             .is_none(),
         "the wrapper does not author its callee's reaches clause",
     );
-    let lowered = lower_machine(&checked, "Root::enter").expect("public wrapper lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("public wrapper lowers");
     let artifact = terminal_production::TerminalProductionRequest::new(&checked, "Root::enter")
         .produce_artifact()
         .expect("public propagated contract publishes");
@@ -552,7 +555,8 @@ fn public_wrapper_publishes_propagated_reach_and_pinned_boundary_ceiling() {
 #[test]
 fn public_wrapper_replay_rejects_removed_propagated_service() {
     let checked = checked_public_reach_wrapper();
-    let lowered = lower_machine(&checked, "Root::enter").expect("public wrapper lowers");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("public wrapper lowers");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

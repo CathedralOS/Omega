@@ -3,6 +3,7 @@
 
 use super::array_construction::{assert_decoded_array, integer};
 use super::{Sources, compile, root_inputs};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IntegerValue, MachineId, OperationId, PlaceId,
@@ -24,8 +25,11 @@ fn execute_source(
     let root = tree.package("root");
     Sources::write(root.join("main.omg"), source);
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read")
-        .unwrap_or_else(|error| panic!("{source}: {error:?}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:?}"));
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -204,7 +208,11 @@ fn decoded_source_array_constructor_returns_through_an_ordinary_call() {
         );
     }
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "computed_row").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("computed_row"),
+    )
+    .unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
             .unwrap();

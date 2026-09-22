@@ -1,3 +1,4 @@
+use crate::TerminalMachineSelection;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -302,7 +303,7 @@ fn baseline_module() -> terminal_psi::TerminalModule {
     .expect("resolve baseline");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type baseline");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check baseline");
-    lower_machine(&checked, "baseline")
+    lower_machine(&checked, TerminalMachineSelection::Name("baseline"))
         .expect("lower baseline")
         .semantic_module
 }

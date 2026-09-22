@@ -10,6 +10,7 @@ use super::{
     RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE, UNPROVEN_RUNTIME_INTEGER_MEMBER_DIVISOR_SOURCE,
 };
 use crate::crash_member_source::bounded_inputs;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AdmissionProfile, EvidenceRoute, ProofRule};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerSign, IntegerType, Proposition, ScalarTerm,
@@ -104,8 +105,11 @@ fn projected_argument_prefix_rebases_every_integer_member_path_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected integer member crash route lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected integer member crash route lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -328,8 +332,11 @@ fn exact_member_addition_rebases_every_operand_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected exact member addition lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected exact member addition lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -518,8 +525,11 @@ fn exact_member_subtraction_rebases_every_operand_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected exact member subtraction lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected exact member subtraction lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
@@ -706,8 +716,11 @@ fn exact_member_multiplication_rebases_every_operand_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected exact member multiplication lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected exact member multiplication lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let [CrashRouteGuard::Predicate(root_route)] =
@@ -904,8 +917,11 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected exact member division and remainder lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected exact member division and remainder lower");
 
     let root = &lowered.semantic_module.machines[0];
     let [CrashRouteGuard::Predicate(root_route)] =
@@ -988,10 +1004,12 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
 
-    let mut unsafe_divisor =
-        checked_trees_to_lowered_psi::lower_machine(&checked, "Helper::inspect")
-            .expect("standalone helper division lowers")
-            .semantic_module;
+    let mut unsafe_divisor = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Helper::inspect"),
+    )
+    .expect("standalone helper division lowers")
+    .semantic_module;
     let CrashRouteGuard::Predicate(predicate) =
         &mut unsafe_divisor.machines[0].contract.crash_routes[0].alternatives[0]
     else {
@@ -1032,8 +1050,11 @@ fn exact_member_division_and_remainder_rebase_safe_literals_end_to_end() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor type");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("runtime-divisor check");
-    let runtime_divisor = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("a positive runtime-divisor requirement is explicit terminal safety evidence");
+    let runtime_divisor = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("a positive runtime-divisor requirement is explicit terminal safety evidence");
     let runtime_machine = &runtime_divisor.semantic_module.machines[0];
     assert_eq!(runtime_machine.contract.requires.len(), 1);
     assert!(matches!(
@@ -1182,8 +1203,11 @@ fn bitwise_member_terms_rebase_across_projected_calls_and_codecs() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("bitwise resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("bitwise type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("bitwise check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected bitwise member predicates lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected bitwise member predicates lower");
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
     let [CrashRouteGuard::Predicate(root_route)] =
@@ -1353,8 +1377,11 @@ fn total_policy_arithmetic_rebases_across_projected_calls_and_codecs() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("policy arithmetic type");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("policy arithmetic check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected wrapping and saturating member arithmetic lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected wrapping and saturating member arithmetic lowers");
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
     let [CrashRouteGuard::Predicate(root_route)] =
@@ -1533,8 +1560,11 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("wrapping shifts type");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("wrapping shifts check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected wrapping shifts lower without count requirements");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected wrapping shifts lower without count requirements");
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];
     assert!(root.contract.requires.is_empty());
@@ -1615,9 +1645,12 @@ fn wrapping_shifts_rebase_distinct_count_carriers_across_projected_calls() {
     assert_eq!(measured.value(), TerminalExecutionResult::Unit);
     assert_eq!(measured.usage().total_units(), fixed.ceiling_units());
 
-    let mut forged_exact = checked_trees_to_lowered_psi::lower_machine(&checked, "Helper::inspect")
-        .expect("standalone wrapping shift helper lowers")
-        .semantic_module;
+    let mut forged_exact = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Helper::inspect"),
+    )
+    .expect("standalone wrapping shift helper lowers")
+    .semantic_module;
     let CrashRouteGuard::Predicate(predicate) =
         &mut forged_exact.machines[0].contract.crash_routes[0].alternatives[0]
     else {
@@ -1695,8 +1728,11 @@ fn exact_shifts_rebase_complete_count_and_overflow_requirements() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("Exact shifts type");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("Exact shifts check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected Exact shifts retain complete safety requirements");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected Exact shifts retain complete safety requirements");
     let root = &lowered.semantic_module.machines[0];
     assert_eq!(root.contract.requires.len(), 3);
     let [CrashRouteGuard::Predicate(root_route)] =
@@ -1847,8 +1883,11 @@ fn policy_division_rebases_nonzero_requirements_across_projected_calls() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("policy division type");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("policy division check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("projected policy division retains exact nonzero requirements");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("projected policy division retains exact nonzero requirements");
     let root = &lowered.semantic_module.machines[0];
     assert_eq!(root.contract.requires.len(), 2);
     let [CrashRouteGuard::Predicate(root_route)] =
@@ -1979,8 +2018,11 @@ fn wrapping_negative_one_literal_divisor_is_self_proving() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("negative-one policy division type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("negative-one policy division check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("Wrapping defines signed MIN divided or remaindered by negative one");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("Wrapping defines signed MIN divided or remaindered by negative one");
     assert!(
         lowered.semantic_module.machines[0]
             .contract
@@ -2035,8 +2077,11 @@ fn signed_runtime_member_divisor_requires_an_overflow_safe_bound() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("negative-runtime-divisor type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("negative-runtime-divisor check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("a divisor bounded at or below negative two is total for every dividend");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("a divisor bounded at or below negative two is total for every dividend");
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -2074,8 +2119,11 @@ fn runtime_divisor_call_requirements_rebase_and_verify_exact_obligations() {
     let typed = lower_symbol_resolved_trees(&resolved).expect("runtime-divisor-call type");
     let checked =
         lower_typed_trees(typed, &CheckingRequest::settled()).expect("runtime-divisor-call check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("a whole-root Unit call carries its exact runtime-divisor requirement");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("a whole-root Unit call carries its exact runtime-divisor requirement");
     let root = &lowered.semantic_module.machines[0];
     let OperationKind::CallUnit {
         requirement_obligations,
@@ -2167,8 +2215,11 @@ fn projected_runtime_divisor_call_rebases_requirement_through_canonical_prefix()
         lower_symbol_resolved_trees(&resolved).expect("projected-runtime-divisor-call type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled())
         .expect("projected-runtime-divisor-call check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("a projected Unit call rebases its runtime-divisor requirement");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("a projected Unit call rebases its runtime-divisor requirement");
     let root = &lowered.semantic_module.machines[0];
     let OperationKind::CallUnit {
         structural_arguments,
@@ -2274,8 +2325,11 @@ fn proposition_disjunction_rebases_and_verifies_each_member_path_end_to_end() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("disjunctive projected member crash route lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("disjunctive projected member crash route lowers");
 
     let root = &lowered.semantic_module.machines[0];
     let helper = &lowered.semantic_module.machines[1];

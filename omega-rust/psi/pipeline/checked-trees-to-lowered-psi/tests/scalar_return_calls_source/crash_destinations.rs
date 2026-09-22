@@ -3,6 +3,7 @@ use super::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
     encode_module, encode_proof_section, encoded, execute,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[test]
 fn scalar_dispatch_executes_only_its_selected_crash_fallback() {
     for (cause, expected) in [
@@ -372,7 +373,11 @@ fn direct_crash_fallback_custody_mutations_reject_before_publication() {
 
     for computed in [false, true] {
         let checked = checked_arms(&custody_source(computed), false);
-        checked_trees_to_lowered_psi::lower_machine(&checked, "value").unwrap();
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value"),
+        )
+        .unwrap();
         let machine = checked
             .typed
             .machines()
@@ -468,7 +473,11 @@ fn direct_crash_fallback_custody_mutations_reject_before_publication() {
                 *statement_ordinal = if mutation == 7 { 100 } else { 0 };
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "value").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("value")
+                )
+                .is_err(),
                 "fallback mutation={mutation}, computed={computed}"
             );
         }

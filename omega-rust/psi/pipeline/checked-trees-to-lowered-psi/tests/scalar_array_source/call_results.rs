@@ -2,6 +2,7 @@
 
 use super::{checked_source, reject};
 use checked_trees::{CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn fixture(tail: bool) -> CheckedTrees {
     let completion = if tail { "second_row()" } else { "first" };
@@ -85,8 +86,11 @@ fn boundary_array_results_require_payload_support_even_when_unused_or_empty() {
 fn array_call_result_source_target_and_return_custody_reject_substitution() {
     for tail in [false, true] {
         let original = fixture(tail);
-        checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-            .expect("array calls compose with earlier and later constructors before corruption");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("array calls compose with earlier and later constructors before corruption");
         for mutation in [
             "same typed returned call",
             "source statement",
@@ -170,8 +174,11 @@ fn array_call_result_source_target_and_return_custody_reject_substitution() {
 #[test]
 fn array_call_callee_body_requires_one_exact_result_owner() {
     let original = fixture(false);
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("complete ordinary callee bodies lower before corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("complete ordinary callee bodies lower before corruption");
     for mutation in [
         "missing body",
         "duplicate body",
@@ -217,8 +224,11 @@ fn array_call_results_support_whole_owned_unit_arguments() {
          machine consume(row: [u8; 2]) {}
          machine selected() { let row: [u8; 2] = make(); consume(row); }",
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-        .expect("ordinary Unit calls carry the completed array payload");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("ordinary Unit calls carry the completed array payload");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

@@ -1,4 +1,5 @@
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType, IntegerValue, ScalarType,
@@ -33,8 +34,11 @@ fn verified_source_store_retains_exact_mutable_parameter_and_preceding_value() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Harness::exercise")
-        .expect("mutable source store lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Harness::exercise"),
+    )
+    .expect("mutable source store lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");
@@ -117,8 +121,11 @@ fn verified_boolean_store_retains_exact_write_only_parameter_and_preceding_value
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("write-only Boolean source lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("write-only Boolean source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");
@@ -192,8 +199,11 @@ fn verified_ieee_float_store_retains_exact_write_only_parameter_and_preceding_va
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("write-only IEEE float source lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("write-only IEEE float source lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");
@@ -264,8 +274,11 @@ fn verified_runtime_indexed_store_retains_index_value_and_bounds_obligation() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "forward")
-        .expect("declared-range runtime index store lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("forward"),
+    )
+    .expect("declared-range runtime index store lowers to verified Terminal Psi");
     assert!(
         terminal
             .semantic_module
@@ -351,8 +364,11 @@ fn verified_fixed_integer_parameter_store_retains_exact_runtime_source() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
-    let terminal = checked_trees_to_lowered_psi::lower_machine(&checked, "Sink::fill")
-        .expect("write-only fixed-integer parameter store lowers to verified Terminal Psi");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Sink::fill"),
+    )
+    .expect("write-only fixed-integer parameter store lowers to verified Terminal Psi");
     let semantic = encode_module(&terminal.semantic_module).expect("encode semantics");
     let proof = encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle)
         .expect("encode proof");

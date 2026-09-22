@@ -1,4 +1,5 @@
 use super::{ScalarType, checked_source, lower_machine};
+use crate::TerminalMachineSelection;
 use crate::proofs::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
 };
@@ -19,7 +20,7 @@ fn fixture() -> LoweredPsi {
             }
         }",
     );
-    let mut lowered = lower_machine(&checked, "count").unwrap();
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("count")).unwrap();
     assert_eq!(lowered.semantic_module.scalar_block_invariants.len(), 1);
     lowered.semantic_module.scalar_block_invariants.clear();
     lowered.proof_bundle = ProofBundle::default();
@@ -99,7 +100,7 @@ fn relaxed_arrival_retains_bound_canonical_cannot_close() {
             transition { _ -> m(x + s, s) }
          }",
     );
-    let mut lowered = lower_machine(&checked, "m").unwrap();
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("m")).unwrap();
     lowered.semantic_module.scalar_block_invariants.clear();
     lowered.proof_bundle = ProofBundle::default();
     crate::proofs::scalar_block_invariants::retain_provable(&mut lowered).unwrap();
@@ -186,7 +187,7 @@ fn relaxed_arrival_rejects_when_only_a_guarded_premise_could_close_it() {
             transition { _ -> m(s, x) }
          }",
     );
-    let mut lowered = lower_machine(&checked, "m").unwrap();
+    let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("m")).unwrap();
     lowered.semantic_module.scalar_block_invariants.clear();
     lowered.proof_bundle = ProofBundle::default();
     let machine = &mut lowered.semantic_module.machines[0];

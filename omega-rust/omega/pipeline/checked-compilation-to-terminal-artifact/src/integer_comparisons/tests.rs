@@ -1,5 +1,6 @@
 use super::associate;
 use assembled_syntax_to_checked_compilation::{CheckedCompileRequest, compile_to_checked};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 /// The selected built-in integer comparison lane: the crash_routes fixture's
 /// `left == right` use selects the `== Comparison::equal` boundary operator
@@ -10,8 +11,11 @@ fn integer_comparison_association_rejoins_the_exact_selected_use() {
         .join("../../../../tests/omega/pass/operators/crash_routes/main.omg");
     let checked = compile_to_checked(CheckedCompileRequest::new(&root, Some("linux_x86_64")))
         .unwrap_or_else(|errors| panic!("{errors:#?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "may_crash")
-        .expect("selected integer comparison reaches Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("may_crash"),
+    )
+    .expect("selected integer comparison reaches Terminal");
     let occurrences = &lowered.selected_integer_comparison_occurrences;
     assert_eq!(occurrences.len(), 1);
     let occurrence = occurrences[0];
@@ -61,8 +65,11 @@ fn integer_comparison_association_rejects_incomplete_or_substituted_occurrences(
         .join("../../../../tests/omega/pass/operators/crash_routes/main.omg");
     let checked = compile_to_checked(CheckedCompileRequest::new(&root, Some("linux_x86_64")))
         .unwrap_or_else(|errors| panic!("{errors:#?}"));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "may_crash")
-        .expect("selected integer comparison reaches Terminal");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("may_crash"),
+    )
+    .expect("selected integer comparison reaches Terminal");
     let occurrences = &lowered.selected_integer_comparison_occurrences;
     assert_eq!(occurrences.len(), 1);
     let check = |rows: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence]| {

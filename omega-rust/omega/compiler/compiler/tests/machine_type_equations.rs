@@ -1,5 +1,6 @@
 //! Machine equations select one exact tuple before publishing executable Terminal.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::{CheckedCompilation, CheckedCompileRequest, compile_to_checked};
 use diagnostics::Diagnostic;
 use package_compilation::{PackageCompilationInputs, PackageSourceBinding};
@@ -186,7 +187,11 @@ fn ordinary_static_helpers_compose_with_arguments_and_nested_calls() {
         .expect("retained helper")
         .supply_mode = language_semantics::MachineSupplyMode::Boundary;
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&boundary, "recovered").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &boundary,
+            TerminalMachineSelection::Name("recovered")
+        )
+        .is_err(),
         "a retained scalar graph cannot turn boundary supply into a checked body"
     );
     assert!(
@@ -237,7 +242,11 @@ fn ordinary_static_helpers_compose_with_arguments_and_nested_calls() {
         }
     }
     assert!(
-        checked_trees_to_lowered_psi::lower_machine(&retargeted, "recovered").is_err(),
+        checked_trees_to_lowered_psi::lower_machine(
+            &retargeted,
+            TerminalMachineSelection::Name("recovered")
+        )
+        .is_err(),
         "another receiver-free helper cannot replace the authored declaration"
     );
 }

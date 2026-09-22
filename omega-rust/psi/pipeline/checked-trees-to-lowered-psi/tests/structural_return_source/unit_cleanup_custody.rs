@@ -17,6 +17,7 @@ use super::{
     UNIT_AFFINE_TWENTY_TWO_CONSTRUCTION_PREFIX_SOURCE,
     UNIT_AFFINE_WIDER_CONSTRUCTION_PREFIX_SOURCE, checked_result_boundary_source,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -43,8 +44,11 @@ fn source_unit_retains_ordered_empty_affine_local_cleanup() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::cleanup")
-        .expect("bounded Unit local lowering");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::cleanup"),
+    )
+    .expect("bounded Unit local lowering");
     let machine = lowered.semantic_module.machines.first().expect("machine");
     let locals = machine
         .structural_places
@@ -198,8 +202,11 @@ fn source_unit_construction_prefix_reaches_verified_interpreted_terminal_psi() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::cleanup_prefix")
-        .expect("bounded construction prefix lowering");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::cleanup_prefix"),
+    )
+    .expect("bounded construction prefix lowering");
     let machine = &lowered.semantic_module.machines[0];
     let locals = machine
         .structural_places
@@ -428,10 +435,13 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
         let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
         let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::cleanup_prefix")
-            .unwrap_or_else(|error| {
-                panic!("construction prefix of length {prefix_length} failed to lower: {error:?}")
-            });
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::cleanup_prefix"),
+        )
+        .unwrap_or_else(|error| {
+            panic!("construction prefix of length {prefix_length} failed to lower: {error:?}")
+        });
         let machine = &lowered.semantic_module.machines[0];
         let locals = machine
             .structural_places
@@ -675,8 +685,11 @@ fn wider_construction_prefixes_replay_codec_order_mutations_and_exact_fuel() {
 #[test]
 fn result_bearing_boundary_receipt_verifies_and_commits_only_after_success() {
     let checked = checked_result_boundary_source();
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("result-bearing boundary custody should lower");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("result-bearing boundary custody should lower");
     let module = &lowered.semantic_module;
     assert_eq!(module.boundary_machines.len(), 1);
     assert_eq!(

@@ -1,4 +1,3 @@
-#[cfg(unix)]
 use super::FuelExhaustion;
 use super::{
     AdmissionProfile, CrashCause, EdgeId, IntegerSign, IntegerType, IntegerValue, LoweringError,
@@ -9,6 +8,8 @@ use super::{
     lower_to_target_operations, lower_verified_artifact, source_canary, start_verified_artifact,
     terminal_psi_identity, validate_artifact_manifest, validate_fixed_entry_fuel, verify_module,
 };
+#[cfg(unix)]
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use target_operations::TargetControlTerminator;
 use terminal_fuel::FuelChargeSite;
@@ -18,7 +19,7 @@ use terminal_interpreter::AcceptTerminalEffects;
 fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi source canary should compile");
-    let attached_unit = lower_machine(&checked, "Main::main")
+    let attached_unit = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("empty attached Unit machines are in the structural terminal-Psi slice");
     assert!(
         attached_unit.semantic_module.machines[0]
@@ -32,34 +33,53 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
     )
     .expect("the attached Unit artifact should verify without producer state");
     assert_eq!(
-        lower_machine(&checked, "terminal_closed_integer_chain_wrong_contract")
-            .expect_err("closed chain with an unrelated contract must fail closed"),
+        lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("terminal_closed_integer_chain_wrong_contract")
+        )
+        .expect_err("closed chain with an unrelated contract must fail closed"),
         LoweringError::Unsupported("contract literals must equal the executed literal")
     );
     assert_eq!(
-        lower_machine(&checked, "terminal_known_integer_graph_wrong_contract")
-            .expect_err("compile-known integer graph with an unrelated contract must fail closed"),
+        lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("terminal_known_integer_graph_wrong_contract")
+        )
+        .expect_err("compile-known integer graph with an unrelated contract must fail closed"),
         LoweringError::Unsupported("contract literals must equal the executed literal")
     );
     assert_eq!(
-        lower_machine(&checked, "terminal_known_boolean_binding_wrong_contract").expect_err(
+        lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("terminal_known_boolean_binding_wrong_contract")
+        )
+        .expect_err(
             "compile-known Boolean binding with an unrelated integer contract must fail closed"
         ),
         LoweringError::Unsupported("contract literals must equal the executed literal")
     );
     assert_eq!(
-        lower_machine(&checked, "terminal_boolean_chain_wrong_contract")
-            .expect_err("closed Boolean chain with an unrelated contract must fail closed"),
+        lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("terminal_boolean_chain_wrong_contract")
+        )
+        .expect_err("closed Boolean chain with an unrelated contract must fail closed"),
         LoweringError::Unsupported("Boolean contract literal must match the compile-known result")
     );
     assert_eq!(
-        lower_machine(&checked, "terminal_boolean_tuple_wrong_contract")
-            .expect_err("compile-known general graph with an unrelated contract must fail closed"),
+        lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("terminal_boolean_tuple_wrong_contract")
+        )
+        .expect_err("compile-known general graph with an unrelated contract must fail closed"),
         LoweringError::Unsupported("Boolean contract literal must match the compile-known result")
     );
     assert_eq!(
-        lower_machine(&checked, "terminal_unpublished_abort")
-            .expect_err("an unpublished crash cannot enter the terminal-Psi source slice"),
+        lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("terminal_unpublished_abort")
+        )
+        .expect_err("an unpublished crash cannot enter the terminal-Psi source slice"),
         LoweringError::Unsupported(
             "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket"
         )
@@ -82,8 +102,11 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         .crash;
     *crash = checked_trees::CrashPlan::published_ceiling(crash.published().to_vec());
     assert_eq!(
-        lower_machine(&missing_site, "terminal_abort")
-            .expect_err("terminal production must consume checked crash-site evidence"),
+        lower_machine(
+            &missing_site,
+            TerminalMachineSelection::Name("terminal_abort")
+        )
+        .expect_err("terminal production must consume checked crash-site evidence"),
         LoweringError::Unsupported("explicit crash has no body-derived checked crash-site row")
     );
 
@@ -110,8 +133,11 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         .with_checked_sites(vec![uncovered_site])
         .expect("uncovered site still has a valid checked location");
     assert_eq!(
-        lower_machine(&missing_coverage, "terminal_abort")
-            .expect_err("terminal production must consume checked guard coverage"),
+        lower_machine(
+            &missing_coverage,
+            TerminalMachineSelection::Name("terminal_abort")
+        )
+        .expect_err("terminal production must consume checked guard coverage"),
         LoweringError::Unsupported(
             "an explicit crash in the terminal-Psi source slice requires exactly one prechecked covering route bucket"
         )
@@ -147,8 +173,11 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
         .with_checked_sites(vec![site_with_frontier])
         .expect("known claim identity is valid checked crash evidence");
     assert_eq!(
-        lower_machine(&unmapped_frontier, "terminal_abort")
-            .expect_err("terminal production must map every checked crash-frontier claim"),
+        lower_machine(
+            &unmapped_frontier,
+            TerminalMachineSelection::Name("terminal_abort")
+        )
+        .expect_err("terminal production must map every checked crash-frontier claim"),
         LoweringError::CrashFrontierClaimNotLowered(claim)
     );
 }
@@ -157,8 +186,11 @@ fn psi_terminal_producer_rejects_source_outside_its_declared_slice() {
 fn checked_crash_branches_execute_and_lower_to_native_crash_leaves() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("two-leaf crash source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_two_crash_leaves")
-        .expect("both guarded crash leaves should lower to terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_two_crash_leaves"),
+    )
+    .expect("both guarded crash leaves should lower to terminal Psi");
     let verified = verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,
@@ -235,8 +267,11 @@ fn checked_crash_branches_execute_and_lower_to_native_crash_leaves() {
 fn interpreted_terminal_source_matches_target_lowering() {
     let checked = compile_to_checked(CheckedCompileRequest::new(&source_canary(), None))
         .expect("terminal-Psi source canary should compile");
-    let lowered = lower_machine(&checked, "terminal_constant")
-        .expect("accepted source slice should lower to terminal Psi");
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("terminal_constant"),
+    )
+    .expect("accepted source slice should lower to terminal Psi");
     drop(checked);
 
     let canonical_bytes = encode_module(&lowered.semantic_module)

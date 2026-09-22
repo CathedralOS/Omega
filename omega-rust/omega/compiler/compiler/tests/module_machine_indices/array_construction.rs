@@ -1,4 +1,5 @@
 use super::{Sources, compile, compile_to_checked, root_inputs};
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use terminal_interpreter::{TerminalExecutionResult, TerminalScalarValue};
@@ -122,8 +123,11 @@ fn array_results_retain_module_selection_and_empty_dimensions_after_decode() {
             ScalarType::Boolean,
         ),
     ] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, name)
-            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(name),
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         artifacts.push((
             terminal_codec::encode_module(&lowered.semantic_module).expect("canonical semantics"),
             terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -154,8 +158,11 @@ fn array_construction_composes_with_local_bindings_and_ordinary_calls() {
             &format!("machine touch() {{}} machine read() -> [u8; 2] {{ {body} }}"),
         );
         let checked = compile(&root, root_inputs(&root));
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read")
-            .unwrap_or_else(|error| panic!("{body}: {error:?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("read"),
+        )
+        .unwrap_or_else(|error| panic!("{body}: {error:?}"));
         let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
         let proof =
             terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -199,8 +206,11 @@ fn existing_module_array_customer_returns_real_arrays_from_portable_bytes() {
         ("literal_row", vec![integer(42, 8)], 8, vec![42, 9]),
         ("computation_row", vec![integer(42, 8)], 8, vec![42, 9]),
     ] {
-        let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, name)
-            .unwrap_or_else(|error| panic!("{name}: {error:?}"));
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name(name),
+        )
+        .unwrap_or_else(|error| panic!("{name}: {error:?}"));
         artifacts.push((
             terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
             terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -241,7 +251,11 @@ fn computed_array_leaves_retain_parameters_arithmetic_and_local_snapshots() {
          }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -278,7 +292,11 @@ fn array_leaf_calls_and_storage_reads_execute_in_source_order() {
          }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -309,7 +327,11 @@ fn boolean_array_leaves_preserve_selective_calls_and_effect_order() {
          }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -344,7 +366,11 @@ fn computed_array_leaves_preserve_widening_and_exact_casts() {
          }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -401,7 +427,11 @@ fn computed_array_exact_narrowing_retains_its_proof_obligation() {
         "machine read(input: u16 [0..=255]) -> [u8; 1] { [input as u8] }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .unwrap();
     assert!(
         lowered
             .semantic_module
@@ -457,7 +487,11 @@ fn boolean_array_leaves_compose_nested_selection_and_constant_projection() {
          }",
     );
     let checked = compile(&root, root_inputs(&root));
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "read").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("read"),
+    )
+    .unwrap();
     let semantics = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

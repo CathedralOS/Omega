@@ -4,6 +4,7 @@ use super::{
     AdmissionProfile, ExpressionHandle, ExpressionNode, IntegerSign, IntegerType, IntegerValue,
     TerminalExecutionResult, TerminalScalarValue, checked_source, reject,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 #[path = "operation_body_callees.rs"]
 mod operation_body_callees;
@@ -22,8 +23,11 @@ fn byte(value: u8) -> TerminalScalarValue {
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecutionResult {
     let checked = checked_source(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected")
-        .unwrap_or_else(|error| panic!("computation array source must lower: {error:?}\n{source}"));
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap_or_else(|error| panic!("computation array source must lower: {error:?}\n{source}"));
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -98,7 +102,11 @@ fn abandoned_computation_nodes_do_not_reserve_array_places() {
         "machine answer(row: [u8; 1], value: u8) -> u8 { value }
          machine selected() -> [u8; 1] { [answer([7u8], 42u8)] }",
     );
-    let original = checked_trees_to_lowered_psi::lower_machine(&checked, "selected").unwrap();
+    let original = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap();
     let plans = &mut checked.facts.values.scalar_computations;
     let mut abandoned = plans
         .nodes
@@ -124,7 +132,11 @@ fn abandoned_computation_nodes_do_not_reserve_array_places() {
     // Speculative builder nodes without a retained root cannot require catalog
     // entries or affect emitted place identities, even if they share a flow call.
     plans.nodes.append(abandoned);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "selected").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .unwrap();
     assert_eq!(lowered.semantic_module, original.semantic_module);
     assert_eq!(lowered.proof_bundle, original.proof_bundle);
 }
@@ -297,8 +309,11 @@ fn computation_array_arguments_reject_wrong_call_formal_type_and_leaf_custody() 
                   pick(3u8, {second}, 4u8, {first}, 9u8)]
              }}"
         ));
-        checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-            .expect("computation constructors lower before custody corruption");
+        checked_trees_to_lowered_psi::lower_machine(
+            &original,
+            TerminalMachineSelection::Name("selected"),
+        )
+        .expect("computation constructors lower before custody corruption");
         let plans = &original.facts.values.scalar_computations;
         let calls = plans
             .nodes
@@ -442,8 +457,11 @@ fn computation_array_constant_projection_keeps_builtin_operator_custody() {
                 ..Default::default()
             })
     });
-    checked_trees_to_lowered_psi::lower_machine(&original, "selected")
-        .expect("builtin constant projection lowers before selection corruption");
+    checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("selected"),
+    )
+    .expect("builtin constant projection lowers before selection corruption");
     for mutation in ["operator spelling", "operator candidate count"] {
         let mut changed = original.clone();
         let selected = changed.facts.operators.uses.get_mut(operator);

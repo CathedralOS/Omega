@@ -8,6 +8,7 @@ use crate::{
     compile_reviewed_repository_fixture, compile_rooted_backend_canary_without_output_for_target,
     compile_rooted_canary_for_native_host, fs, interpret, pass_canary,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;
 
 #[test]
@@ -639,8 +640,11 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     );
     selected_dispatch::validate_fused_service_terminal_custody(&baseline, &provenance)
         .expect("exact typed Service, Fused provenance, and selected plan should rejoin");
-    checked_trees_to_lowered_psi::lower_machine(&baseline, "Main::main")
-        .expect("authorized fused Service carrier should erase during Terminal lowering");
+    checked_trees_to_lowered_psi::lower_machine(
+        &baseline,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("authorized fused Service carrier should erase during Terminal lowering");
     let parameter_plan = baseline
         .facts
         .flow
@@ -713,10 +717,11 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         2,
         "both direct Service calls must retain ordered checked operations"
     );
-    let lowered_parameter =
-        checked_trees_to_lowered_psi::lower_machine(&baseline, "ParameterHarness::run").expect(
-            "authorized direct Service and scalar parameters should lower through Terminal",
-        );
+    let lowered_parameter = checked_trees_to_lowered_psi::lower_machine(
+        &baseline,
+        TerminalMachineSelection::Name("ParameterHarness::run"),
+    )
+    .expect("authorized direct Service and scalar parameters should lower through Terminal");
     let terminal_parameter_machine = lowered_parameter
         .semantic_module
         .machines
@@ -762,9 +767,11 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
             .message
             .contains("lost its exact Fused erasure settlement")
     }));
-    let raw_lowering_error =
-        checked_trees_to_lowered_psi::lower_machine(&parameter_downgrade, "ParameterHarness::run")
-            .expect_err("raw Terminal lowering must also reject a removed Service receipt");
+    let raw_lowering_error = checked_trees_to_lowered_psi::lower_machine(
+        &parameter_downgrade,
+        TerminalMachineSelection::Name("ParameterHarness::run"),
+    )
+    .expect_err("raw Terminal lowering must also reject a removed Service receipt");
     assert!(
         raw_lowering_error
             .to_string()
@@ -787,7 +794,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
     }));
     let raw_scalar_parameter_error = checked_trees_to_lowered_psi::lower_machine(
         &scalar_parameter_removal,
-        "ParameterHarness::run",
+        TerminalMachineSelection::Name("ParameterHarness::run"),
     )
     .expect_err("raw Terminal lowering must reject a removed routed Service scalar parameter");
     assert!(

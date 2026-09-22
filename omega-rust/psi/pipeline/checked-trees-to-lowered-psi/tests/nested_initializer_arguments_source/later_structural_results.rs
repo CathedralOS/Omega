@@ -6,6 +6,7 @@ use super::{
     TerminalExecutionResult, TerminalStructuralValue, checked, decode_module, decode_proof_bundle,
     execute, main_machine, structural_source, unsigned,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
@@ -191,7 +192,11 @@ fn later_structural_operand_crash_keeps_earlier_results_without_cleanup() {
         &original,
         &["prefix", "chosen", "first", "between", "second"],
     );
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&original, "Main::main").unwrap();
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &original,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .unwrap();
     let state = original.machine_states(main_machine(&original))[0].symbol;
     let crashing_operand = lowered
         .source_call_occurrences
@@ -338,7 +343,11 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
             }
         }
         assert!(
-            checked_trees_to_lowered_psi::lower_machine(&changed, "Main::main").is_err(),
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::main")
+            )
+            .is_err(),
             "later structural result mutation {mutation}"
         );
     }

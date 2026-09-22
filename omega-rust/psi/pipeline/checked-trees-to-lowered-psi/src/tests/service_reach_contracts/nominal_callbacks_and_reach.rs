@@ -1,4 +1,5 @@
 use super::service_names;
+use crate::TerminalMachineSelection;
 use crate::tests::{
     Lexer, ResolutionRequest, checked_source, lower_machine, lower_symbol_resolved_trees,
     lower_typed_trees, parse_syntax_trees, resolve,
@@ -201,7 +202,7 @@ fn nominal_callback_selected_reach_survives_terminal_publication() {
             "{traversal}\n {helper}\n machine selected(value: u64) -> u64 satisfies StepContract::step {callback_reach} {{ {callback_body} }}\n pub machine enter(value: u64) -> u64 {{ traverse<selected>(value) }}"
         );
         let checked = checked_source(&source);
-        let lowered = lower_machine(&checked, "enter")
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("enter"))
             .unwrap_or_else(|error| panic!("selected callback {callback_reach:?}: {error:?}"));
         let artifact = terminal_production::TerminalProductionRequest::new(&checked, "enter")
             .produce_artifact()

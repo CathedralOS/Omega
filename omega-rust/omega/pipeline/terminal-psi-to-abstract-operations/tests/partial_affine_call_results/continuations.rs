@@ -4,6 +4,7 @@ use super::{
     lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
     validate_psi_optimization_unit,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
@@ -59,8 +60,11 @@ fn source_continuations_retain_distinct_result_owners_and_ordered_residuals() {
             let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
             let typed = lower_symbol_resolved_trees(&resolved).unwrap();
             let checked = lower_typed_trees(typed, &CheckingRequest::settled()).unwrap();
-            let terminal =
-                checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter").unwrap();
+            let terminal = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .unwrap();
             let semantic = encode_module(&terminal.semantic_module).unwrap();
             let proof =
                 encode_proof_section(&terminal.semantic_module, &terminal.proof_bundle).unwrap();

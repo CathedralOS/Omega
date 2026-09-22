@@ -1080,6 +1080,7 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
 mod trait_operator_tests {
     use super::super::CheckedScalarExpression;
     use super::{OperationKind, machine_id};
+    use crate::TerminalMachineSelection;
     use crate::machine_lowering::lower_machine;
     use checked_trees::CheckedBooleanExpression;
     use source_files_to_tokens::Lexer;
@@ -1139,7 +1140,8 @@ mod trait_operator_tests {
             .expect("selected specialized caller")
             .name
             .clone();
-        let lowered = lower_machine(&checked, &name).expect("lower exact operator closure");
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(&name))
+            .expect("lower exact operator closure");
         let mut substituted = checked.clone();
         substituted
             .facts
@@ -1149,7 +1151,7 @@ mod trait_operator_tests {
             .realization_return_expression =
             CheckedScalarExpression::Boolean(Box::new(CheckedBooleanExpression::Constant(false)));
         assert!(
-            lower_machine(&substituted, &name).is_err(),
+            lower_machine(&substituted, TerminalMachineSelection::Name(&name)).is_err(),
             "selected realization cannot substitute its authored return value"
         );
         assert_eq!(lowered.semantic_module.machines.len(), 2);

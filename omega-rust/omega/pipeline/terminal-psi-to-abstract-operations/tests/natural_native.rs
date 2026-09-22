@@ -1,4 +1,5 @@
 use abstract_operations::AbstractOperation;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -53,8 +54,11 @@ fn writer() -> (TerminalModule, ProofBundle) {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve writer");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type writer");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check writer");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::enter")
-        .expect("lower authored writer and its ordinary caller");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("lower authored writer and its ordinary caller");
     (lowered.semantic_module, lowered.proof_bundle)
 }
 

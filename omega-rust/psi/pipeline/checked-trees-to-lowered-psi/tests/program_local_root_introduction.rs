@@ -1,3 +1,4 @@
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentProjectionExpression, ContentProjectionScalar,
@@ -75,8 +76,11 @@ fn lowered_source(source: &str) -> lowered_psi::LoweredPsi {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    checked_trees_to_lowered_psi::lower_machine(&checked, "Root::run")
-        .expect("lower program-local introduction schema")
+    checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::run"),
+    )
+    .expect("lower program-local introduction schema")
 }
 
 fn lowered() -> lowered_psi::LoweredPsi {

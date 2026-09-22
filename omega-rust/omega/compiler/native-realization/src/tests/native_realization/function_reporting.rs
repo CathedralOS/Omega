@@ -1,6 +1,7 @@
 //! Function reports describe current selected spans and frame bytes, not a
 //! second proof or an ISA-instruction count.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::sync::Arc;
 
 use optimization_core::OptimizationSelections;
@@ -14,8 +15,11 @@ fn publish(
     image_emission::ObjectArtifact,
 ) {
     let checked = crate::tests::fixtures::checked_source::checked(source);
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Main::main")
-        .expect("lower checked source");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("lower checked source");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)

@@ -14,6 +14,7 @@ use crate::{
     CountedLoopAnalysisError, apply_loop_invariant_scalar_motion,
     propose_loop_invariant_scalar_motion, validate_loop_invariant_scalar_motion,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{ProvenanceDisposition, PsiProvenance, PsiRealizationSite};
 use semantic_vocabulary::{BlockId, MachineId, OperationId};
 
@@ -55,8 +56,11 @@ fn certified_countdown_session() -> VerifiedPsiOptimizationSession {
         &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check certified countdown");
-    let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, "Root::scan")
-        .expect("lower certified countdown");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::scan"),
+    )
+    .expect("lower certified countdown");
     let input = terminal_psi_to_abstract_operations::lower_artifact(
         terminal_psi_to_abstract_operations::ArtifactSections {
             semantic_bytes: &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),

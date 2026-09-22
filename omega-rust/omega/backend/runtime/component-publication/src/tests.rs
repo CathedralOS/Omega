@@ -6,6 +6,7 @@ use super::{
     RunnableComponentEraLedger, admit_external_stack_domain_lease,
     bind_installed_runnable_component, seal_external_stack_provision,
 };
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::collections::BTreeSet;
 
 use checked_trees_to_lowered_psi::lower_machine;
@@ -2796,7 +2797,8 @@ fn interpreted_unregister_drives_registration_ledger_teardown() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
+        .expect("lower registration program");
     let module = &lowered.semantic_module;
     let unregister_boundary = module
         .boundary_machines
@@ -3155,7 +3157,8 @@ fn interpreted_register_and_unregister_drive_the_registration_ledger() {
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
     let typed = lower_symbol_resolved_trees(&resolved).expect("type");
     let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
-    let lowered = lower_machine(&checked, "Customer::run").expect("lower registration program");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Customer::run"))
+        .expect("lower registration program");
     let module = &lowered.semantic_module;
     let register_boundary = module
         .boundary_machines

@@ -4,6 +4,7 @@
 //! independently replayed artifact rejects an endpoint delivery.
 
 use checked_trees::CheckedTrees;
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue, ScalarType};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -28,8 +29,11 @@ fn check(source: &str) -> CheckedTrees {
 }
 
 fn lower(source: &str, entry: &str) -> lowered_psi::LoweredPsi {
-    checked_trees_to_lowered_psi::lower_machine(&check(source), entry)
-        .unwrap_or_else(|error| panic!("{source}: {error:?}"))
+    checked_trees_to_lowered_psi::lower_machine(
+        &check(source),
+        TerminalMachineSelection::Name(entry),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:?}"))
 }
 
 #[test]
@@ -198,7 +202,10 @@ fn exclusive_endpoint_delivery_is_rejected() {
         );
         assert!(
             matches!(
-                checked_trees_to_lowered_psi::lower_machine(&check(&source), "value"),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &check(&source),
+                    TerminalMachineSelection::Name("value")
+                ),
                 Err(
                     checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
                         terminal_verifier::ModuleError::ScalarFloatRangeDelivery { .. }
@@ -219,7 +226,10 @@ fn unproven_deliveries_into_a_range_are_rejected() {
         machine pass(value: f64) -> f64 { accept(value) }
         machine value() -> f64 { pass(1.0) }
     "#;
-    let outcome = checked_trees_to_lowered_psi::lower_machine(&check(source), "value");
+    let outcome = checked_trees_to_lowered_psi::lower_machine(
+        &check(source),
+        TerminalMachineSelection::Name("value"),
+    );
     assert!(
         matches!(
             outcome,
@@ -299,7 +309,10 @@ fn shared_catalog_unproven_delivery_is_rejected() {
         }
         machine value() -> f64 { caller(0.5) }
     "#;
-    let outcome = checked_trees_to_lowered_psi::lower_machine(&check(source), "value");
+    let outcome = checked_trees_to_lowered_psi::lower_machine(
+        &check(source),
+        TerminalMachineSelection::Name("value"),
+    );
     assert!(
         matches!(
             outcome,
@@ -357,7 +370,10 @@ fn wider_ranged_parameter_cannot_deliver_into_a_narrower_range() {
     "#;
     assert!(
         matches!(
-            checked_trees_to_lowered_psi::lower_machine(&check(source), "value"),
+            checked_trees_to_lowered_psi::lower_machine(
+                &check(source),
+                TerminalMachineSelection::Name("value")
+            ),
             Err(
                 checked_trees_to_lowered_psi::LoweringError::InvalidTerminalModule(
                     terminal_verifier::ModuleError::ScalarFloatRangeDelivery { .. }

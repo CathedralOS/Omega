@@ -1,5 +1,6 @@
 //! A trailing Unit expression call executes normally before Unit cleanup.
 
+use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -73,8 +74,11 @@ fn artifact(
 }
 
 fn verified_artifact(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
-    let lowered = checked_trees_to_lowered_psi::lower_machine(checked, "Root::enter")
-        .expect("Unit expression call lowers");
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        checked,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("Unit expression call lowers");
     let semantic = encode_module(&lowered.semantic_module).unwrap();
     let evidence = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
     let module = decode_module(&semantic).unwrap();
@@ -495,7 +499,11 @@ fn trailing_unit_call_source_and_occurrence_corruption_rejects() {
                 _ => unreachable!(),
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Root::enter")
+                )
+                .is_err(),
                 "trailing call mutation={mutation}"
             );
         }
@@ -573,7 +581,11 @@ fn trailing_unit_call_semantic_modifiers_cannot_be_erased_into_an_ordinary_call(
                 "{modifier} must retain its own semantic route"
             );
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Root::enter")
+                )
+                .is_err(),
                 "{modifier} cannot publish an ordinary Unit call, boundary={boundary}"
             );
         }
@@ -773,7 +785,11 @@ fn multistate_pure_and_zero_operand_tails_retain_exact_source_occurrences() {
                 *expression = expressions[1];
             }
             assert!(
-                checked_trees_to_lowered_psi::lower_machine(&changed, "Root::enter").is_err(),
+                checked_trees_to_lowered_psi::lower_machine(
+                    &changed,
+                    TerminalMachineSelection::Name("Root::enter")
+                )
+                .is_err(),
                 "another state's same-target call cannot replace this occurrence: argument={has_argument}, capture={mutate_capture}"
             );
         }

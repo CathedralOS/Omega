@@ -2,6 +2,7 @@ use super::{
     CheckedScalarDispatchPattern, CheckedStructuralValueKind, CheckedTrees,
     CheckedUnitEffectOperationPlan, SymbolHandle, validate,
 };
+use crate::TerminalMachineSelection;
 fn checked() -> CheckedTrees {
     let source = "data Tag { case First; case Second; }
         machine choose(selector: u64) -> Tag {
@@ -42,7 +43,7 @@ fn moved_record_replay_preserves_value_origin_and_requires_exact_transfer() {
          }",
     );
     let mut moves = Vec::new();
-    crate::lower_machine(&original, "moved")
+    crate::lower_machine(&original, TerminalMachineSelection::Name("moved"))
         .expect("chained moves retain the survivor and dispose only their current owners");
     for (_, root) in original.facts.values.structural_values.roots.iter() {
         let operation = CheckedUnitEffectOperationPlan::EstablishStructuralValue {
