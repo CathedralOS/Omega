@@ -2,9 +2,6 @@
 
 use checked_trees::CheckedUnitEffectOperationPlan;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -18,7 +15,6 @@ use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralPathSegment, StructuralTypeShape, Terminator,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[path = "receiver_scalar_store_source/store_custody.rs"]
 mod store_custody;
@@ -59,11 +55,7 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
             self.left = 9;
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("ordered receiver stores check");
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Pair::replace"),
@@ -172,15 +164,6 @@ fn receiver_store_sequence_retains_each_write_around_an_ordinary_call() {
     }
 }
 
-fn typed_from_source(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize receiver store");
-    let syntax = parse_syntax_trees(&tokens).expect("parse receiver store");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver store");
-    lower_symbol_resolved_trees(&resolved).expect("type receiver store")
-}
-
 #[test]
 fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowed_call() {
     let source = r#"
@@ -194,11 +177,7 @@ fn receiver_field_stores_keep_a_local_snapshot_and_a_fresh_read_across_a_borrowe
             self.current = scratch;
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("local snapshot and current storage field assignments check");
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Pair::replace"),
@@ -407,11 +386,7 @@ fn assert_receiver_store_with_access(
         ),
         _ => panic!("store fixture requires writable borrowed access"),
     };
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(&source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("ordinary writable receiver stores check");
+    let checked = crate::front_end::checked_program(&source);
     let machine = checked
         .machines()
         .iter()
@@ -683,10 +658,7 @@ fn shared_receiver_store_rejects_during_source_checking() {
             self.value = 17;
         }
     "#;
-    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    ) {
+    let diagnostics = match crate::front_end::checked_program_result(source) {
         Ok(_) => panic!("a shared receiver store must fail source checking"),
         Err(diagnostics) => diagnostics,
     };
@@ -700,11 +672,7 @@ fn shared_receiver_store_rejects_during_source_checking() {
 
 #[test]
 fn canonical_verifier_rejects_shared_access_substituted_for_mutable_receiver() {
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(SOURCE),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let checked = crate::front_end::checked_program(SOURCE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Pair::direct"),
@@ -739,11 +707,7 @@ fn ranged_field_store_proves_a_nonnegative_bitwise_and_mask() {
             self.masked = self.current & 15;
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("ranged bitwise-and store checks");
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Cell::mask"),
@@ -771,10 +735,7 @@ fn ranged_field_store_rejects_a_mask_image_wider_than_the_field() {
             self.masked = self.current & 255;
         }
     "#;
-    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    ) {
+    let diagnostics = match crate::front_end::checked_program_result(source) {
         Ok(_) => panic!("a mask image wider than the field cannot prove the store"),
         Err(diagnostics) => diagnostics,
     };
@@ -809,11 +770,7 @@ fn ranged_field_store_proves_a_guard_bounded_binary_operand() {
             state bad(&mut self) {}
         }
     "#;
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("guarded binary operand store checks");
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -848,10 +805,7 @@ fn ranged_field_store_rejects_a_guard_bounded_sum_past_the_field() {
             state bad(&mut self) {}
         }
     "#;
-    let diagnostics = match typed_trees_to_checked_trees::lower_typed_trees(
-        typed_from_source(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    ) {
+    let diagnostics = match crate::front_end::checked_program_result(source) {
         Ok(_) => panic!("a guarded sum wider than the field cannot prove the store"),
         Err(diagnostics) => diagnostics,
     };

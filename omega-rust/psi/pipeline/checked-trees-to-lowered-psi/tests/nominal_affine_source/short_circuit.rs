@@ -1,14 +1,11 @@
 use super::{
-    AcceptTerminalEffects, AdmissionProfile, Lexer, OperationKind, ResolutionRequest,
-    TerminalAffineCleanupAction, TerminalExecutionResult, TerminalScalarValue,
-    TerminalStructuralValue, Terminator, decode_module, decode_proof_bundle,
-    derive_fixed_entry_fuel, encode_module, encode_proof_section,
-    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
-    parse_syntax_trees, resolve, validate_fixed_entry_fuel,
+    AcceptTerminalEffects, AdmissionProfile, OperationKind, TerminalAffineCleanupAction,
+    TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue, Terminator,
+    decode_module, decode_proof_bundle, derive_fixed_entry_fuel, encode_module,
+    encode_proof_section, interpret_terminal_artifact_measured, validate_fixed_entry_fuel,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
-use typed_trees_to_checked_trees::CheckingRequest;
 const MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -74,17 +71,8 @@ const CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE: &str = r#"
 
 #[test]
 fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
-    let tokens = Lexer::new(MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE)
-        .tokenize()
-        .expect("tokenize reused nominal short-circuit scalar return");
-    let syntax =
-        parse_syntax_trees(&tokens).expect("parse reused nominal short-circuit scalar return");
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .expect("resolve reused nominal short-circuit scalar return");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("type reused nominal short-circuit scalar return");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check reused nominal short-circuit scalar return");
+    let checked =
+        crate::front_end::checked_program(MIXED_NOMINAL_REUSED_SHORT_CIRCUIT_SCALAR_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -193,17 +181,7 @@ fn mixed_nominal_scalar_return_source_distributes_reused_short_circuit_value() {
 
 #[test]
 fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
-    let tokens = Lexer::new(MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE)
-        .tokenize()
-        .expect("tokenize mixed contextual short-circuit scalar return");
-    let syntax =
-        parse_syntax_trees(&tokens).expect("parse mixed contextual short-circuit scalar return");
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .expect("resolve mixed contextual short-circuit scalar return");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("type mixed contextual short-circuit scalar return");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check mixed contextual short-circuit scalar return");
+    let checked = crate::front_end::checked_program(MIXED_CONTEXTUAL_SHORT_CIRCUIT_SCALAR_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),
@@ -368,16 +346,7 @@ fn mixed_contextual_scalar_return_proves_cleanup_on_every_short_circuit_leaf() {
 
 #[test]
 fn contextual_scalar_cleanup_and_exact_result_use_disjoint_obligation_identities() {
-    let tokens = Lexer::new(CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE)
-        .tokenize()
-        .expect("tokenize contextual exact scalar cleanup");
-    let syntax = parse_syntax_trees(&tokens).expect("parse contextual exact scalar cleanup");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve contextual exact scalar cleanup");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("type contextual exact scalar cleanup source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check contextual exact scalar cleanup source");
+    let checked = crate::front_end::checked_program(CONTEXTUAL_SCALAR_EXACT_RESULT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),

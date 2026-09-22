@@ -1,14 +1,12 @@
 use super::{
-    AdmissionProfile, Lexer, ResolutionRequest, TerminalExecution, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralResult, TerminalStructuralValue,
-    decode_module, lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+    AdmissionProfile, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
+    TerminalFuelMeter, TerminalStructuralResult, TerminalStructuralValue, decode_module,
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use typed_trees_to_checked_trees::CheckingRequest;
 pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
     // The same customer is also run through the CLI with the bundled library.
     // The stage-local harness supplies only its imported content vocabulary.
@@ -17,11 +15,7 @@ pub(super) fn checked(length: usize) -> checked_trees::CheckedTrees {
         .replace("use omega::language::core::content;", "data CountedQuantity<Unit> { magnitude: u64; } trait Content<A> { machine project(subject: &Self) -> A; }")
         .replace("embed(region.length) as Nat", "region.length")
         .replace("; 2]", &format!("; {length}]"));
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program(&source)
 }
 
 #[test]

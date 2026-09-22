@@ -1,4 +1,4 @@
-use super::{checked_source, lower_machine};
+use super::lower_machine;
 use crate::TerminalMachineSelection;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
 use crate::scalar_graph::scalar_graph_lowering::prepare_scalar_graph_machine;
@@ -11,7 +11,7 @@ use terminal_verifier::reconstruct_operation_obligations;
 #[test]
 fn unconditional_and_expression_getters_retain_the_same_borrowed_field() {
     for completion in ["self.value", "transition { _ -> (self.value) }"] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "data Record [copy] {{ value: i32; }}
              machine Record::read(&self) -> i32 {{ {completion} }}"
         ));
@@ -54,7 +54,7 @@ fn unconditional_and_expression_getters_retain_the_same_borrowed_field() {
 
 #[test]
 fn unconditional_scalar_return_rejects_forged_coordinates_type_and_missing_prefix() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Record [copy] { value: i32; }
          machine Record::read(&self) -> i32 {
              let observed: i32 = self.value;
@@ -95,7 +95,7 @@ fn unconditional_scalar_return_rejects_forged_coordinates_type_and_missing_prefi
 
 #[test]
 fn unconditional_scalar_return_cannot_replace_or_omit_an_authored_guard() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Record [copy] { value: i32; other: i32; }
          machine Record::read(&self, choose: bool) -> i32 {
              transition choose { true -> (self.value) false -> (self.other) }
@@ -141,7 +141,7 @@ fn unconditional_scalar_return_cannot_replace_or_omit_an_authored_guard() {
 
 #[test]
 fn guarded_division_obligation_retains_its_selected_arm_facts() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine value(denominator: u8) -> u8\nrequires 7u8 == 7u8\nensures 7u8 == 7u8\n{ transition (1 <= denominator) { true -> (7u8 / denominator) false -> 7 } }",
     );
     let graph = &checked.facts.flow.terminal_scalar_graphs.machines[0];

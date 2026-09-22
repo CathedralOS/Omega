@@ -11,24 +11,8 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 /// Lower `name`, round-trip the artifact through the Terminal codec, and
 /// verify the decoded module independently. Returns the decoded module and the
@@ -37,7 +21,7 @@ fn lowered_verified(
     source: &str,
     name: &str,
 ) -> (terminal_psi::TerminalModule, lowered_psi::LoweredPsi) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered =
         checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(name))
             .unwrap_or_else(|error| panic!("{source}: {error:#?}"));

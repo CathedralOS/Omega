@@ -2,7 +2,7 @@
 
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, ScalarType, SymbolHandle,
-    checked_source, checked_source_with_core_service, hard_root_checked_fixture, lower_machine,
+    checked_source_with_core_service, hard_root_checked_fixture, lower_machine,
 };
 use crate::TerminalMachineSelection;
 use crate::machine_lowering::machine_dispatch::{lower_selected_machine, select_terminal_machine};
@@ -22,7 +22,7 @@ use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_psi::{Operation, OperationKind, SuccessorEdge, Terminator, ValueDeclaration};
 #[test]
 fn lowers_conditional_unit_control_with_exact_boundary_effect_leaves() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -217,7 +217,7 @@ fn lowers_one_compile_known_u64_binding_and_rejects_checked_drift() {
             state no(&mut self) { Host::exit(2); }
         }
     "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("one compile-known local lowers through composed Unit control");
     let [machine] = lowered.semantic_module.machines.as_slice() else {
@@ -1612,7 +1612,7 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
 
 #[test]
 fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Token { value: i32; }
             data Root {}
@@ -2022,7 +2022,7 @@ fn ranked_countdown_lowers_to_verified_resumable_interpreter_execution() {
 
 #[test]
 fn ranked_countdown_lowers_implicit_mutable_receiver_without_discarding_it() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Root { value: i32; }
 
@@ -2097,7 +2097,7 @@ fn ranked_countdown_lowers_implicit_mutable_receiver_without_discarding_it() {
 /// acyclic route keeps the same bound as its ranked sibling.
 #[test]
 fn acyclic_structural_control_lowers_implicit_mutable_receiver_custody() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Root { value: i32; }
             data Token { value: i32; }
@@ -2184,7 +2184,7 @@ fn acyclic_structural_control_lowers_implicit_mutable_receiver_custody() {
 
 #[test]
 fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Token { value: i32; }
             data Root {}
@@ -2259,7 +2259,7 @@ fn ranked_u64_countdown_fails_closed_when_fixed_fuel_exceeds_u64() {
 /// empty and the read has no operand.
 #[test]
 fn nominal_cleanup_hook_body_interprets_against_the_consumed_receiver() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Latch {}
             machine Latch::report(code: i32) {}

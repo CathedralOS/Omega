@@ -20,21 +20,7 @@ fn eliminated_extent_preserves_collection_evaluation_bounds_and_selection() {
         machine make_array(output: &mut u8) -> [i32; 5] { output = 1; [7, 9, 11, 13, 15] }
         machine donor(output: &mut u8) -> [i32; 5] { make_array(output) }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed");
-    let original = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("existing checked extent fixture");
+    let original = crate::front_end::checked_program(source);
     let machine = original
         .machines()
         .iter()
@@ -153,21 +139,7 @@ fn slice_backed_extent_keeps_the_retained_view_bounds_plan() {
         }
         machine Root::enter(&mut self) reaches Host { Host::exit(3); }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed");
-    let original = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("slice-backed extent fixture");
+    let original = crate::front_end::checked_program(source);
     let machine = original
         .machines()
         .iter()
@@ -273,21 +245,7 @@ fn slice_backed_extent_keeps_the_retained_view_bounds_plan() {
         }
         machine Root::enter(&mut self) reaches Host { Host::exit(3); }
     "#;
-    let tokens = source_files_to_tokens::Lexer::new(moved)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed");
-    let moved = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("cross-statement extent fixture");
+    let moved = crate::front_end::checked_program(moved);
     let moved_machine = moved
         .machines()
         .iter()

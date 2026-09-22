@@ -1,7 +1,5 @@
 use super::{INTERLEAVED_SOURCE, PARAMETER_SOURCE, PROJECTED_FIELD_SOURCE};
-use crate::value_dispatch::{
-    TerminalExecutionResult, TerminalScalarValue, check_source, execute, unsigned,
-};
+use crate::value_dispatch::{TerminalExecutionResult, TerminalScalarValue, execute, unsigned};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
 
@@ -121,7 +119,7 @@ fn interleaved_fresh_arm_discards_only_the_displaced_candidate() {
 
 #[test]
 fn interleaved_selection_rejects_reordered_or_incomplete_return_cleanup() {
-    let checked = check_source(INTERLEAVED_SOURCE).unwrap();
+    let checked = crate::front_end::checked_program_result(INTERLEAVED_SOURCE).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -169,7 +167,7 @@ fn interleaved_selection_rejects_reordered_or_incomplete_return_cleanup() {
 
 #[test]
 fn interleaved_selection_rejects_swapped_join_arguments() {
-    let checked = check_source(INTERLEAVED_SOURCE).unwrap();
+    let checked = crate::front_end::checked_program_result(INTERLEAVED_SOURCE).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -305,7 +303,7 @@ fn owned_match_projected_children_execute_and_close_root_residuals() {
 
 #[test]
 fn owned_match_projected_children_reject_mutated_edge_evidence() {
-    let checked = check_source(PROJECTED_FIELD_SOURCE).unwrap();
+    let checked = crate::front_end::checked_program_result(PROJECTED_FIELD_SOURCE).unwrap();
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -360,7 +358,8 @@ fn owned_match_projected_children_reject_mutated_edge_evidence() {
 
 #[test]
 fn owned_match_parameter_source_returns_the_exact_selected_identity() {
-    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    let checked = crate::front_end::checked_program_result(PARAMETER_SOURCE)
+        .expect("parameter selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("pick"),
@@ -428,7 +427,8 @@ fn owned_match_parameter_source_returns_the_exact_selected_identity() {
 
 #[test]
 fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
-    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    let checked = crate::front_end::checked_program_result(PARAMETER_SOURCE)
+        .expect("parameter selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -544,7 +544,8 @@ fn owned_match_parameter_sources_reject_mutated_residual_cleanup() {
 
 #[test]
 fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
-    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    let checked = crate::front_end::checked_program_result(PARAMETER_SOURCE)
+        .expect("parameter selection checks");
     checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("peek"))
         .expect("same-root projected parameter selection lowers");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
@@ -668,7 +669,8 @@ fn projected_parameter_roots_move_the_selected_child_with_exact_identity() {
 
 #[test]
 fn projected_parameter_roots_reject_mutated_residual_cleanup() {
-    let checked = check_source(PARAMETER_SOURCE).expect("parameter selection checks");
+    let checked = crate::front_end::checked_program_result(PARAMETER_SOURCE)
+        .expect("parameter selection checks");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("select_field"),
@@ -751,8 +753,8 @@ fn heterogeneous_residual_sources_reject_the_custody_join() {
         }
     "#;
     for source in [local, parameter] {
-        let checked =
-            check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
+        let checked = crate::front_end::checked_program_result(source)
+            .unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
         let error = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name("choose"),

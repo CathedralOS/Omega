@@ -1,9 +1,7 @@
 use super::{
     assert_structural_entry_requirement_artifact, assert_unconditional_call_trap,
-    integer_field_entry_source, typed, with_caller,
+    integer_field_entry_source, with_caller,
 };
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn numeric_entry_requirement_covers_an_unconditional_call() {
@@ -150,8 +148,8 @@ fn numeric_requirements_do_not_authorize_wrong_routes_or_new_body_values() {
              crashes Trap {route}\n\
              {{ {body} }}",
         );
-        let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
-            .expect_err("unproved entry guard");
+        let diagnostics =
+            crate::front_end::checked_program_result(&source).expect_err("unproved entry guard");
         assert!(
             diagnostics
                 .iter()
@@ -168,8 +166,8 @@ fn trapping_arithmetic_cannot_become_numeric_entry_crash_evidence() {
                   requires input + 1 > input\n\
                   crashes Trap input > 0\n\
                   { trigger() }";
-    let diagnostics = lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .expect_err("partial specification term");
+    let diagnostics =
+        crate::front_end::checked_program_result(source).expect_err("partial specification term");
     assert!(
         diagnostics
             .iter()
@@ -300,7 +298,7 @@ fn integer_field_requirements_do_not_authorize_other_fields_or_body_values() {
             route,
             body_prefix,
         );
-        let diagnostics = match lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
+        let diagnostics = match crate::front_end::checked_program_result(&source) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("different entry field/value was accepted: {source}"),
         };

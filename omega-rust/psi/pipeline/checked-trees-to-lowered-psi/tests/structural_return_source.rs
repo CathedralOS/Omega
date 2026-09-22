@@ -15,9 +15,6 @@ mod unit_cleanup_custody;
 
 use language_semantics::{Multiplicity, PermissionClaimIdentity};
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
@@ -26,9 +23,6 @@ use terminal_interpreter::{
     TerminalStructuralResult, TerminalStructuralValue,
 };
 use terminal_psi::Terminator;
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     data ByteUnit {}
@@ -832,20 +826,9 @@ impl TerminalEffectHandler for ResultBoundaryHandler {
 }
 
 fn checked_source() -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program(SOURCE)
 }
 
 fn checked_result_boundary_source() -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(RESULT_BOUNDARY_CUSTODY_SOURCE)
-        .tokenize()
-        .expect("tokenize result boundary custody");
-    let syntax = parse_syntax_trees(&tokens).expect("parse result boundary custody");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve result boundary custody");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type result boundary custody");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check result boundary custody")
+    crate::front_end::checked_program(RESULT_BOUNDARY_CUSTODY_SOURCE)
 }

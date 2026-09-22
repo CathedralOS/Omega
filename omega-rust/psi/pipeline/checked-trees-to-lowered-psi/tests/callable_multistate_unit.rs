@@ -1,15 +1,11 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
     boundary trait Output { machine byte(value: u8) reaches Output; }
@@ -31,21 +27,9 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 #[test]
 fn ordinary_calls_retain_multistate_branches_and_return_to_caller() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.composed_machines[0]
             .attachment_type_identity
@@ -128,7 +112,7 @@ fn nested_composed_and_ordinary_calls_share_bodies_and_continue_in_order() {
             "Writer::newline(true);\n        Writer::newline(false);",
             "Writer::relay(true);\n        Writer::relay(false);",
         );
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     for (root, arguments, expected) in [
         ("Root::enter", None, vec![10, 99]),
         ("Writer::choose", Some(true), vec![10]),
@@ -203,7 +187,7 @@ fn composed_leaf_scalar_calls_share_ids_and_proof_obligations_with_caller() {
             "Writer::newline(false); Writer::other(true);",
         )
         .replace("Output::byte(99)", "Output::byte(Scalar::identity(99))");
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -217,7 +201,7 @@ fn composed_leaf_scalar_calls_share_ids_and_proof_obligations_with_caller() {
 #[test]
 fn missing_or_duplicate_composed_callee_is_rejected() {
     for mutation in 0..3 {
-        let mut checked = checked(SOURCE);
+        let mut checked = crate::front_end::checked_program(SOURCE);
         let plans = &mut checked.facts.flow.terminal_unit_effects;
         let callee = plans.composed_machines[0].clone();
         if mutation == 1 {
@@ -248,7 +232,7 @@ fn missing_or_duplicate_composed_callee_is_rejected() {
 #[test]
 fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_source() {
     for mutation in 0..7 {
-        let mut checked = checked(SOURCE);
+        let mut checked = crate::front_end::checked_program(SOURCE);
         let callee = &mut checked.facts.flow.terminal_unit_effects.composed_machines[0];
         match mutation {
             0 => callee.contract_report_fingerprint ^= 1,
@@ -311,7 +295,7 @@ fn callable_composed_guard_edges_contract_and_call_operands_rejoin_checked_sourc
 #[test]
 fn ordinary_call_to_composed_body_retains_target_state_contract_and_reach() {
     for mutation in 0..3 {
-        let mut checked = checked(SOURCE);
+        let mut checked = crate::front_end::checked_program(SOURCE);
         let plans = &mut checked.facts.flow.terminal_unit_effects;
         let leaf_state = plans.composed_machines[0].states[1].state;
         let caller = plans
@@ -368,7 +352,7 @@ fn ordinary_caller_transfers_linear_claim_into_composed_callee() {
             Helper::choose(enabled, receipt);
         }
     "#;
-    let baseline = checked(source);
+    let baseline = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &baseline,
         TerminalMachineSelection::Name("Root::enter"),

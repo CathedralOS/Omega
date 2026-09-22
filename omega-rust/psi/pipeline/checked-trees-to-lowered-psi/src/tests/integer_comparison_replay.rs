@@ -3,7 +3,6 @@
 //! occurrence rejoins its checked use, its checked application and its
 //! emitted operation, and a stale, duplicated or foreign row rejects.
 
-use super::checked_source;
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use lowered_psi::{
@@ -15,7 +14,7 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 /// Omega separately rejoins these opaque commitments to actual selected
 /// ProviderPlans; this unit boundary tests only source-to-Terminal custody.
 fn checked_with_provider_commitments(source: &str) -> checked_trees::CheckedTrees {
-    let mut checked = checked_source(source);
+    let mut checked = crate::front_end::checked_program(source);
     let handles = checked
         .facts
         .operators

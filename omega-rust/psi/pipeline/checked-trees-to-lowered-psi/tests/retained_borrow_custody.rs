@@ -1,8 +1,4 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
 data ByteUnit {}
@@ -34,15 +30,7 @@ machine Main::main(&mut self) {}
 "#;
 
 fn checked() -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
+    crate::front_end::checked_program(SOURCE)
 }
 
 fn lowered() -> lowered_psi::LoweredPsi {

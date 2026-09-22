@@ -2,9 +2,6 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -12,23 +9,10 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue,
     interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 #[path = "unit_tail_calls_source/statements.rs"]
 mod statements;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn artifact(
     checked: &checked_trees::CheckedTrees,
@@ -104,7 +88,7 @@ impl TerminalEffectHandler for Observe {
 
 #[test]
 fn trailing_boundary_unit_call_executes_computed_operand_without_semicolon() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         machine identity(value: bool) -> bool { value }
         boundary trait Sink { machine record(value: bool) reaches Sink; }
@@ -208,7 +192,7 @@ fn trailing_and_semicolon_unit_calls_agree_for_explicit_and_omitted_unit_signatu
             for caller_unit in ["", "-> ()"] {
                 for callee_unit in ["", "-> ()"] {
                     for semicolon in [false, true] {
-                        let checked = checked(&pair_source(
+                        let checked = crate::front_end::checked_program(&pair_source(
                             boundary,
                             qualified,
                             semicolon,
@@ -256,7 +240,7 @@ fn trailing_self_unit_call_uses_existing_receiver_custody() {
             machine Root::enter(&mut self) reaches Sink {{ self.record(identity(true)){punctuation} }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = artifact(&checked, semicolon, &[]);
         let mut observer = Observe::default();
         assert_eq!(
@@ -270,7 +254,8 @@ fn trailing_self_unit_call_uses_existing_receiver_custody() {
 #[test]
 fn trailing_unit_call_preserves_prior_effects_and_normal_reverse_local_cleanup() {
     for semicolon in [false, true] {
-        let checked = checked(&pair_source(false, true, semicolon, "", "", true));
+        let checked =
+            crate::front_end::checked_program(&pair_source(false, true, semicolon, "", "", true));
         let artifact = artifact(&checked, semicolon, &["one", "two"]);
         let module = decode_module(&artifact.0).unwrap();
         let root = module
@@ -358,7 +343,8 @@ fn trailing_unit_call_short_circuit_and_first_crash_do_not_enter_the_outer_calle
                     }}
                 "#
                 );
-                let artifact = artifact(&checked(&source), semicolon, &[]);
+                let artifact =
+                    artifact(&crate::front_end::checked_program(&source), semicolon, &[]);
                 let mut observer = Observe::default();
                 let result = execute(&artifact, &mut observer);
                 let mut expected = vec![vec![
@@ -394,16 +380,8 @@ fn unit_callers_do_not_implicitly_discard_value_returning_trailing_calls() {
                 machine Root::enter() {caller_unit} {{ {target}() }}
             "#
             );
-            let tokens = Lexer::new(&source).tokenize().unwrap();
-            let syntax = parse_syntax_trees(&tokens).unwrap();
-            let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-            let typed = lower_symbol_resolved_trees(&resolved).unwrap();
             assert!(
-                typed_trees_to_checked_trees::lower_typed_trees(
-                    typed,
-                    &typed_trees_to_checked_trees::CheckingRequest::settled()
-                )
-                .is_err(),
+                crate::front_end::checked_program_result(&source).is_err(),
                 "Unit caller cannot silently discard the trailing bool result"
             );
         }
@@ -413,7 +391,8 @@ fn unit_callers_do_not_implicitly_discard_value_returning_trailing_calls() {
 #[test]
 fn trailing_unit_call_source_and_occurrence_corruption_rejects() {
     for boundary in [false, true] {
-        let checked = checked(&pair_source(boundary, true, false, "", "", false));
+        let checked =
+            crate::front_end::checked_program(&pair_source(boundary, true, false, "", "", false));
         artifact(&checked, false, &[]);
         let root = checked
             .typed
@@ -513,7 +492,8 @@ fn trailing_unit_call_source_and_occurrence_corruption_rejects() {
 #[test]
 fn trailing_unit_call_semantic_modifiers_cannot_be_erased_into_an_ordinary_call() {
     for boundary in [false, true] {
-        let checked = checked(&pair_source(boundary, true, false, "", "", false));
+        let checked =
+            crate::front_end::checked_program(&pair_source(boundary, true, false, "", "", false));
         artifact(&checked, false, &[]);
         let root = checked
             .typed
@@ -605,10 +585,7 @@ fn unit_tail_exemption_does_not_admit_unit_calls_in_scalar_value_positions() {
             machine Root::enter() reaches Sink {{ {body} }}
         "#
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+        let typed = crate::front_end::typed_program(&source);
         let root = typed
             .machines()
             .iter()
@@ -643,7 +620,7 @@ fn unit_tail_exemption_does_not_admit_unit_calls_in_scalar_value_positions() {
 
 #[test]
 fn integer_unit_tail_preserves_nested_exact_casts_and_arithmetic_obligations() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         machine identity(value: u8) -> u8 { value }
         boundary trait Sink { machine record(first: u16, second: u16) reaches Sink; }
@@ -686,7 +663,7 @@ fn multistate_pure_and_zero_operand_tails_retain_exact_source_occurrences() {
         let signature = if has_argument { "value: bool" } else { "" };
         let yes_argument = if has_argument { "true" } else { "" };
         let no_argument = if has_argument { "false" } else { "" };
-        let checked = checked(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             r#"
             boundary trait Sink {{ machine record({signature}); }}
             data Root {{}}

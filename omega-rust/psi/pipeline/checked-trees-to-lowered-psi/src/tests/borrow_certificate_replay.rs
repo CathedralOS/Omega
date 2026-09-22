@@ -3,8 +3,6 @@
 //! the producing pass's public replay entry checks every published family
 //! here, so post-publication evidence is checkable rather than trusted.
 
-use super::checked_source;
-
 const PREMISED_WRITE: &str = r#"
     data Main { items: [i32; 4]; }
 
@@ -139,7 +137,7 @@ fn published_borrow_certificates_replay_at_the_lowering_boundary() {
         STATEMENT_CALL_INDEXED_PREMISED_WRITE,
         STATEMENT_CALL_MEMBER_INDEXED_PREMISED_WRITE,
     ] {
-        let checked = checked_source(source);
+        let checked = crate::front_end::checked_program(source);
         assert!(
             checked
                 .facts

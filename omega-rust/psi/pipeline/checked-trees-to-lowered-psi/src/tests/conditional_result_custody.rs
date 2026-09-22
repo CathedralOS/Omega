@@ -1,4 +1,4 @@
-use super::{LoweringError, checked_source, lower_machine};
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 
 const SOURCE: &str = r#"
@@ -33,7 +33,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn conditional_result_custody_requires_terminal_correspondence_only_when_demanded() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     assert!(!checked.facts.flow.ownership.claim_join_receipts.is_empty());
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("consume"))
@@ -48,7 +48,7 @@ fn conditional_result_custody_requires_terminal_correspondence_only_when_demande
 
 #[test]
 fn removing_the_join_receipt_does_not_make_joined_provenance_executable() {
-    let mut checked = checked_source(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     checked.facts.flow.ownership.claim_join_receipts = arena::Arena::default();
     assert_eq!(
         lower_machine(&checked, TerminalMachineSelection::Name("consume"))

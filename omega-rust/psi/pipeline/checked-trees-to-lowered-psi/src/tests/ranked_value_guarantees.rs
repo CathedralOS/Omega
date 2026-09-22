@@ -3,7 +3,7 @@
 //! every arrival, and the replayed bundle refuses a wrong accumulator arrival
 //! while the unchanged `Natural` certificate still answers the cycle question.
 
-use super::{LoweringError, checked_source, lower_machine};
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::proofs::operation_proofs::finalize_operation_proofs;
 use crate::proofs::scalar_block_invariants::retain_provable;
@@ -40,7 +40,7 @@ fn term(value: &ValueDeclaration) -> ScalarTerm {
 fn guaranteed_countdown(
     guarantee: impl FnOnce(&ValueDeclaration, &[ValueDeclaration]) -> Proposition,
 ) -> LoweredPsi {
-    let checked = checked_source(COUNTDOWN);
+    let checked = crate::front_end::checked_program(COUNTDOWN);
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("descend")).unwrap();
     assert!(lowered.semantic_module.scalar_block_invariants.is_empty());
     assert!(matches!(
@@ -311,7 +311,7 @@ fn conserves_a_sum(predicate: &Proposition) -> bool {
 
 #[test]
 fn arithmetic_accumulator_guarantee_retains_the_conserved_sum_invariant() {
-    let checked = checked_source(CLIMB);
+    let checked = crate::front_end::checked_program(CLIMB);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("climb"))
         .expect("the conserved sum makes the guarantee provable");
     let module = &lowered.semantic_module;

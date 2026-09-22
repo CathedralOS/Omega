@@ -1,6 +1,5 @@
 //! Published cyclic Unit calls preserve literal contents through resumable execution.
 
-use super::checked_source;
 use crate::TerminalMachineSelection;
 use crate::{LoweringError, lower_machine};
 use terminal_interpreter::TerminalStructuralInputs;
@@ -14,7 +13,7 @@ use terminal_interpreter::{
 
 #[test]
 fn cyclic_literal_calls_preserve_selected_bytes_at_every_fuel_pause() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
 machine forward(first: &[u8], second: &[u8]) reaches Trace {
@@ -166,7 +165,7 @@ impl TerminalEffectHandler for ByteTrace {
 /// predicate at every actual arrival; the producer only proposed it.
 #[test]
 fn cyclic_field_divisor_retains_storage_observation_invariant() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
 data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
@@ -259,7 +258,7 @@ machine Main::main(&mut self) reaches Trace {
 /// executes to `done` (TASKS.md GENERAL-CYCLIC-EXECUTION).
 #[test]
 fn cyclic_field_divisor_retains_lockstep_invariant() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
 data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
@@ -358,7 +357,7 @@ machine Main::main(&mut self) reaches Trace {
 /// backedge arrivals before the artifact publishes and runs to `done`.
 #[test]
 fn cyclic_field_divisor_lockstep_accepts_exact_counter_and_split_updates() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
 data Main { p: u64; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
@@ -457,7 +456,7 @@ machine Main::main(&mut self) reaches Trace {
 /// divide keeps its checked nonzero obligation.
 #[test]
 fn cyclic_field_divisor_rejects_reachable_zero_divisor() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
 data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
@@ -491,7 +490,7 @@ machine Main::main(&mut self) reaches Trace {
 /// still lowers structurally.
 #[test]
 fn cyclic_field_divisor_lockstep_evidence_rejects_a_widened_guard() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Trace { machine write(bytes: &[u8]) reaches Trace; }
 data Main { counter: u64 in Wrapping; place: u32 in Wrapping; sq: u32 in Wrapping; d: u32 in Wrapping; }
@@ -586,7 +585,7 @@ machine Main::main(&mut self) reaches Trace {
     state done(&mut self) { Trace::write("done"); }
 }
 "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("Main::main"),
@@ -644,7 +643,9 @@ machine Main::main(&mut self) reaches Trace {
             b"done".to_vec()
         ]
     );
-    let live = checked_source(&source.replace("self.counter = 9;", "self.counter = 2;"));
+    let live = crate::front_end::checked_program(
+        &source.replace("self.counter = 9;", "self.counter = 2;"),
+    );
     assert!(
         terminal_production::TerminalProductionRequest::new(
             &live,
@@ -715,7 +716,7 @@ machine Main::main(&mut self) reaches Trace {
     state done(&mut self) { Trace::write("done"); }
 }
 "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("Main::main"),
@@ -788,7 +789,9 @@ machine Main::main(&mut self) reaches Trace {
             b"done".to_vec()
         ]
     );
-    let invalid = checked_source(&source.replace("self.ready = false;", "self.ready = true;"));
+    let invalid = crate::front_end::checked_program(
+        &source.replace("self.ready = false;", "self.ready = true;"),
+    );
     assert!(
         terminal_production::TerminalProductionRequest::new(
             &invalid,
@@ -857,7 +860,7 @@ machine Main::clear(&mut self) { self.divisor = 0; }
         } else {
             source.to_owned()
         };
-        let checked = checked_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             terminal_production::TerminalMachineSelection::Name("Main::main"),
@@ -961,14 +964,7 @@ machine Main::clear(&mut self) { self.divisor = 0; }
         );
     }
     let reread = source.replace("100 / saved", "100 / self.divisor");
-    let tokens = super::Lexer::new(&reread).tokenize().unwrap();
-    let syntax = super::parse_syntax_trees(&tokens).unwrap();
-    let resolved = super::resolve(super::ResolutionRequest::new(&syntax)).unwrap();
-    let typed = super::lower_symbol_resolved_trees(&resolved).unwrap();
-    let Err(diagnostics) = super::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    ) else {
+    let Err(diagnostics) = crate::front_end::checked_program_result(&reread) else {
         panic!("a new read cannot inherit the saved value's bound");
     };
     assert!(
@@ -997,7 +993,7 @@ machine Main::main(&mut self) reaches Trace {
     state done(&mut self) { Trace::write("done"); }
 }
 "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("Main::main"),
@@ -1051,7 +1047,9 @@ machine Main::main(&mut self) reaches Trace {
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
     assert_eq!(trace.0, [b"done".to_vec()]);
-    let possible = checked_source(&source.replace("self.counter >= 3", "self.counter >= 1"));
+    let possible = crate::front_end::checked_program(
+        &source.replace("self.counter >= 3", "self.counter >= 1"),
+    );
     assert!(
         terminal_production::TerminalProductionRequest::new(
             &possible,

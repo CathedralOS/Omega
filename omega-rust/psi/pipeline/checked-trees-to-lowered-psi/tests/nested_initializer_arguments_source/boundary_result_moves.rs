@@ -2,7 +2,7 @@ use super::later_results::{SCALAR_HELPERS, encoded_locals};
 use super::{
     AdmissionProfile, ObserveResults, StructuralResponse, TerminalEffect, TerminalEffectHandler,
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
-    checked, decode_module, decode_proof_bundle, main_machine, unsigned,
+    decode_module, decode_proof_bundle, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
@@ -119,7 +119,7 @@ fn ordinary_and_direct_boundary_consumers_transfer_the_exact_result_once() {
             ],
         ),
     ] {
-        let checked = checked(&source(completion));
+        let checked = crate::front_end::checked_program(&source(completion));
         let artifact = encoded_locals(&checked, &names);
         let published = terminal_production::TerminalProductionRequest::new(
             &checked,
@@ -223,7 +223,7 @@ fn ordinary_and_direct_boundary_consumers_transfer_the_exact_result_once() {
 #[test]
 fn rejected_boundary_results_do_not_establish_or_transfer_before_retry() {
     let artifact = encoded_locals(
-        &checked(&source("Main::consume(first, identity16(prefix));")),
+        &crate::front_end::checked_program(&source("Main::consume(first, identity16(prefix));")),
         &["prefix", "first", "spare"],
     );
     let mut execution = TerminalExecution::start_artifact(
@@ -282,7 +282,7 @@ fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
                 "reaches Factory + Sink crashes Abort {"
             )
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded_locals(&checked, &["prefix", "first", "spare"]);
         let lowered = checked_trees_to_lowered_psi::lower_machine(
             &checked,
@@ -357,7 +357,7 @@ fn a_crashing_consumer_operand_never_transfers_or_cleans_boundary_results() {
 #[test]
 fn independent_verification_rejects_boundary_result_transfer_and_cleanup_forgery() {
     let artifact = encoded_locals(
-        &checked(&source("Main::consume(first, identity16(prefix));")),
+        &crate::front_end::checked_program(&source("Main::consume(first, identity16(prefix));")),
         &["prefix", "first", "spare"],
     );
     let original = decode_module(&artifact.0).unwrap();

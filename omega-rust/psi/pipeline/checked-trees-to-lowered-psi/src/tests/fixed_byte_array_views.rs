@@ -1,5 +1,5 @@
 //! Source-produced fixed-array loans retain initialized backing and exact extent.
-use super::{byte_sequence_write, checked_source, lower_machine};
+use super::{byte_sequence_write, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment};
 use terminal_interpreter::AcceptTerminalEffects;
@@ -32,7 +32,8 @@ fn array_fixture(
             "machine run(out: &mut [u8; {length}]) {{ put({argument}, 65); put({argument}, 0); }}"
         )
     };
-    let checked = checked_source(&format!("{}\n{caller}", byte_sequence_write::PUT));
+    let checked =
+        crate::front_end::checked_program(&format!("{}\n{caller}", byte_sequence_write::PUT));
     terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name(if field {
@@ -284,7 +285,7 @@ fn fixed_byte_windows_publish_and_execute_repeated_call_loans() {
 #[test]
 fn fixed_byte_windows_replay_authored_endpoints() {
     for invocation in ["put(&mut self.out[1..3],65)", "observe(&self.out[1..3])"] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "{}\n machine observe(bytes: &[u8]) {{}}\n data Record {{ out: [u8;3]; }}\n\
          machine Record::run(&mut self) {{ {invocation}; }}",
             byte_sequence_write::PUT
@@ -332,7 +333,7 @@ fn fixed_byte_windows_replay_authored_endpoints() {
 
 #[test]
 fn fixed_byte_array_views_replay_authored_field_and_access() {
-    let checked = checked_source(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{}\n data Record {{ out: [u8;3]; other: [u8;3]; }}\n\
          machine Record::run(&mut self) {{ put(&mut self.out,65); }}",
         byte_sequence_write::PUT

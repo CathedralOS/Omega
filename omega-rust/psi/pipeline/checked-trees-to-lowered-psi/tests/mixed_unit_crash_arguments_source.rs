@@ -1,9 +1,6 @@
 //! Mixed Unit signatures keep authored crash parameters distinct from ABI positions.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -11,19 +8,6 @@ use terminal_interpreter::{
     TerminalStructuralBooleanFieldValue, TerminalStructuralValue,
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 const SOURCE: &str = r#"
     data Flag { enabled: bool; }
@@ -55,7 +39,7 @@ fn compound_member_boolean_equality_keeps_mixed_unit_crash_namespaces() {
         "false == ((flag.left && before) != (flag.right || after))",
     ] {
         let source = compound_member_source(predicate);
-        let lowered = roundtrip(&checked(&source));
+        let lowered = roundtrip(&crate::front_end::checked_program(&source));
         let module = &lowered.semantic_module;
         let root = module
             .machines
@@ -116,13 +100,13 @@ fn proposition_only_float_comparisons_compose_as_boolean_crash_operands() {
                 "data Flag { left: f64; right: f64; }",
             )
             .replace("flag.enabled && after", predicate);
-        roundtrip(&checked(&source));
+        roundtrip(&crate::front_end::checked_program(&source));
     }
 }
 
 #[test]
 fn ordinary_unit_crash_guard_combines_interleaved_scalar_and_structural_parameters() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     roundtrip(&checked);
 }
 
@@ -226,7 +210,7 @@ fn mixed_unit_calls_preserve_authored_positions_and_reordered_actuals() {
         for reverse in [false, true] {
             for free in [false, true] {
                 let source = reordered_source(layout, reverse, free);
-                let lowered = roundtrip(&checked(&source));
+                let lowered = roundtrip(&crate::front_end::checked_program(&source));
                 let module = &lowered.semantic_module;
                 let root = module
                     .machines
@@ -311,7 +295,7 @@ fn compound_member_routes_reject_wrong_roots_and_foreign_formal_bindings() {
             "right.enabled && first && (left.enabled == second)",
             "(right.enabled && first) == (left.enabled || second)",
         );
-    let lowered = roundtrip(&checked(&source));
+    let lowered = roundtrip(&crate::front_end::checked_program(&source));
     for first in [false, true] {
         for second in [false, true] {
             for fields in [[false, true], [true, false]] {
@@ -325,7 +309,7 @@ fn compound_member_routes_reject_wrong_roots_and_foreign_formal_bindings() {
 #[test]
 fn compound_member_route_field_identity_survives_artifact_encoding() {
     let source = compound_member_source("(flag.left && before) == (flag.right || after)");
-    let lowered = roundtrip(&checked(&source));
+    let lowered = roundtrip(&crate::front_end::checked_program(&source));
     let mut module = lowered.semantic_module.clone();
     let root = module
         .machines
@@ -355,7 +339,7 @@ fn compound_member_route_field_identity_survives_artifact_encoding() {
 }
 
 fn assert_mixed_unit_route_bindings_reject_tampering(source: &str) {
-    let lowered = roundtrip(&checked(source));
+    let lowered = roundtrip(&crate::front_end::checked_program(source));
     let module = &lowered.semantic_module;
     let owner = module
         .machines
@@ -460,7 +444,7 @@ fn mixed_integer_comparisons_rebase_fields_and_reversed_scalar_parameters() {
             {{ {target}(last, meter, first); }}
         "#
         );
-        roundtrip(&checked(&source));
+        roundtrip(&crate::front_end::checked_program(&source));
     }
 }
 
@@ -479,15 +463,8 @@ fn mixed_structural_scalar_crash_divisors_still_require_totality() {
             {{}}
         "#
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("a mixed signature does not make an unproven divisor total");
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("a mixed signature does not make an unproven divisor total");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -499,7 +476,7 @@ fn mixed_structural_scalar_crash_divisors_still_require_totality() {
 
 #[test]
 fn mixed_member_integer_boolean_cleanup_remains_outside_the_supported_source_shape() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Token { observed: bool; other: bool; }
         machine Token::drop(&mut self) {}

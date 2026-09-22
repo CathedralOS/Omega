@@ -1,24 +1,17 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source::{SourceId, SourceMap};
-use source_files_to_tokens::Lexer;
-use std::{path::PathBuf, sync::Arc};
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees::SyntaxTrees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use source::SourceMap;
+use std::path::PathBuf;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn qualified_same_leaf_machines_publish_independently_executable_artifacts() {
     let mut sources = SourceMap::default();
-    let mut syntax = SyntaxTrees::new(SourceId::default());
+    let mut texts = Vec::new();
     for (path, source) in [
         (
             "combat.omg",
@@ -32,17 +25,9 @@ fn qualified_same_leaf_machines_publish_independently_executable_artifacts() {
         let source_id = sources
             .add(PathBuf::from(path), source.to_owned())
             .source_id;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize module");
-        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens).expect("parse module");
+        texts.push((source_id, source));
     }
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve modules");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type modules");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check modules");
+    let checked = crate::front_end::checked_program_from_source_map(sources, &texts);
     let mut artifacts = Vec::new();
     for (qualified, expected) in [
         ("dungeon::combat::value", 7u128),
@@ -61,8 +46,6 @@ fn qualified_same_leaf_machines_publish_independently_executable_artifacts() {
         ));
     }
     drop(checked);
-    drop(resolved);
-    drop(syntax);
     for (semantics, proof, expected) in artifacts {
         // Independent decoding and verification precede execution; no source
         // or checked producer state crosses the artifact boundary.

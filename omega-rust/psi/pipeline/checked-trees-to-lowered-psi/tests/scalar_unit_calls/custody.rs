@@ -9,7 +9,7 @@ use terminal_production::{
 };
 
 fn original() -> (checked_trees::CheckedTrees, symbols::SymbolHandle) {
-    let checked = super::checked(super::BOOLEAN_BRANCH);
+    let checked = crate::front_end::checked_program(super::BOOLEAN_BRANCH);
     let _ = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("observe"),
@@ -150,7 +150,7 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
         "    replace(&mut scratch, replacement);",
         "    let mut spare: bool = replacement;\n    replace(&mut spare, initial);\n    replace(&mut scratch, replacement);",
     );
-    let mut changed = super::checked(&source);
+    let mut changed = crate::front_end::checked_program(&source);
     let _ = terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("observe"),
@@ -234,7 +234,7 @@ machine observe(initial: bool, replacement: bool) -> u64 {
     transition scratch { true -> 1 false -> 0 }
 }
 "#;
-    let mut changed = super::checked(source);
+    let mut changed = crate::front_end::checked_program(source);
     let _ = terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("observe"),

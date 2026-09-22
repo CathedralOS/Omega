@@ -26,24 +26,6 @@ machine observe(initial: bool, replacement: bool) -> u64 {
 }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{errors:#?}\n{source}"))
-}
-
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -52,7 +34,7 @@ fn unsigned(value: u128) -> TerminalScalarValue {
 }
 
 fn execute(source: &str, arguments: &[TerminalScalarValue], expected: TerminalScalarValue) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("observe"),

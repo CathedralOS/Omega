@@ -33,7 +33,7 @@ fn caller(checked: &checked_trees::CheckedTrees) -> usize {
 #[test]
 fn local_unit_borrow_rejects_missing_duplicate_and_changed_call_evidence() {
     let source = source();
-    let original = super::checked(&source);
+    let original = crate::front_end::checked_program(&source);
     let _ = super::artifact(&source);
     let plan = &original.facts.flow.terminal_unit_effects.machines[caller(&original)];
     let (state_handle, state) = original
@@ -104,7 +104,7 @@ fn local_unit_borrow_rejects_missing_duplicate_and_changed_call_evidence() {
 #[test]
 fn coherent_local_and_borrow_substitution_still_rejects_the_wrong_authored_actual() {
     let source = source();
-    let mut changed = super::checked(&source);
+    let mut changed = crate::front_end::checked_program(&source);
     let _ = super::artifact(&source);
     let caller = caller(&changed);
     let plan = &mut changed.facts.flow.terminal_unit_effects.machines[caller];
@@ -157,7 +157,7 @@ fn coherent_local_and_borrow_substitution_still_rejects_the_wrong_authored_actua
 #[test]
 fn local_unit_call_rejects_changed_access_and_missing_ordered_effects() {
     let source = super::source("u64");
-    let original = super::checked(&source);
+    let original = crate::front_end::checked_program(&source);
     let _ = super::artifact(&source);
     let caller = caller(&original);
     for mutation in 0..7 {
@@ -243,7 +243,7 @@ fn write_only_local_unit_actual_retains_its_attenuated_access() {
 #[test]
 fn local_unit_actual_cannot_change_its_retained_owner_kind_to_a_parameter() {
     let source = super::source("u64");
-    let mut changed = super::checked(&source);
+    let mut changed = crate::front_end::checked_program(&source);
     let _ = super::artifact(&source);
     let caller = caller(&changed);
     let plan = &mut changed.facts.flow.terminal_unit_effects.machines[caller];

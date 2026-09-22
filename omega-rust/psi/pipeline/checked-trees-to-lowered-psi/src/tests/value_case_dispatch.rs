@@ -1,6 +1,6 @@
 //! `match` on a scalar-payload sum subject executes as ordered membership
 //! selections end to end: lowered, verified, and interpreted.
-use super::checked_source;
+
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
 
@@ -47,7 +47,7 @@ fn interpret_integer(checked: &checked_trees::CheckedTrees, name: &str, expected
 
 #[test]
 fn local_sum_match_executes_membership_selections() {
-    let checked = checked_source(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{CHOICE}
          data Tag {{ case First; case Second; }}
          machine empty() -> i64 {{
@@ -70,7 +70,7 @@ fn local_sum_match_executes_membership_selections() {
 
 #[test]
 fn self_field_sum_match_verifies_as_parameter_membership() {
-    let checked = checked_source(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{CHOICE}
          data Holder {{ res: Choice }}
          machine Holder::classify(&mut self) -> i64 {{

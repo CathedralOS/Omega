@@ -4,9 +4,6 @@ use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -15,7 +12,6 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInterpretError, TerminalScalarValue,
     TerminalStructuralValue,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
@@ -30,18 +26,6 @@ const HELPERS: &str = r#"
     ensures 0u8 == 0u8
     { input }
 "#;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn encoded(checked: &checked_trees::CheckedTrees, state_count: usize) -> (Vec<u8>, Vec<u8>) {
     let machine = checked
@@ -240,7 +224,7 @@ fn selected_leaves_evaluate_nested_operands_across_three_control_shapes() {
     for topology in 0..3 {
         for trailing in [false, true] {
             let (source, state_count) = arithmetic_source_spelling(topology, trailing);
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let artifact = encoded(&checked, state_count);
             for (first, second) in [(false, false), (true, false), (true, true)] {
                 let mut arguments = vec![TerminalScalarValue::Boolean(first)];
@@ -292,7 +276,7 @@ fn unselected_leaves_and_short_circuit_operands_do_not_crash() {
         }}
     "#
             );
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let artifact = encoded(&checked, 3);
             for selected in [false, true] {
                 let cause = if !selected {
@@ -352,7 +336,7 @@ fn first_leaf_argument_crash_precedes_later_call_even_under_exact_casts() {
             }}
         "#
             );
-            let artifact = encoded(&checked(&source), 3);
+            let artifact = encoded(&crate::front_end::checked_program(&source), 3);
             for selected in [true, false] {
                 let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
                 let mut observer = ObserveCalls::default();
@@ -389,7 +373,7 @@ fn linear_claim_stays_live_until_selected_computed_boundary_call_succeeds() {
         }}
     "#
     );
-    let artifact = encoded(&checked(&source), 3);
+    let artifact = encoded(&crate::front_end::checked_program(&source), 3);
     for selected in [false, true] {
         let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
         let initial_claims = execution.live_claim_frontier().collect::<Vec<_>>();
@@ -430,7 +414,7 @@ fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
         "machine Main::main(first: bool) reaches Sink {",
         "machine Main::main(first: bool) reaches Sink invokes Sink; {",
     );
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = encoded(&checked, state_count);
     for selected in [false, true] {
         let mut execution = start(&artifact, &[TerminalScalarValue::Boolean(selected)]);
@@ -456,7 +440,7 @@ fn nominal_boundary_leaf_calls_keep_authored_callable_identity() {
 where machine SinkParam satisfies Sink::finish;",
     );
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&self::checked(&open), TerminalMachineSelection::Name("Main::main")),
+        checked_trees_to_lowered_psi::lower_machine(&crate::front_end::checked_program(&open), TerminalMachineSelection::Name("Main::main")),
         Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
             if machine == "Main::main"
     ));
@@ -466,7 +450,7 @@ where machine SinkParam satisfies Sink::finish;",
 fn composed_operand_roots_and_nested_occurrences_rejoin_their_source_leaf() {
     for trailing in [false, true] {
         let (source, state_count) = arithmetic_source_spelling(2, trailing);
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         encoded(&checked, state_count);
         let plans = &checked.facts.values.scalar_computations;
         let roots = plans

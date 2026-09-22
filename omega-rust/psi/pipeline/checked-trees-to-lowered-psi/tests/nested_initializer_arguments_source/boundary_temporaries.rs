@@ -3,7 +3,7 @@ use super::later_results::encoded_locals;
 use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalEffect, TerminalEffectHandler,
     TerminalEffectRejection, TerminalEffectResult, TerminalExecutionResult, TerminalInterpretError,
-    checked, decode_module, decode_proof_bundle, invoking, main_machine, unsigned,
+    decode_module, decode_proof_bundle, invoking, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use std::collections::BTreeSet;
@@ -139,7 +139,7 @@ fn boundary_temporaries_supply_existing_ordinary_and_boundary_result_carriers() 
         ),
     ] {
         let source = source(completion).replace("boundary trait Sink {", "boundary trait Sink { machine replace(token: Token, first: u16, second: u16) -> Token reaches Sink;");
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded_locals(&checked, &names);
         let published = terminal_production::TerminalProductionRequest::new(
             &checked,
@@ -173,7 +173,7 @@ fn boundary_temporary_schedule_preserves_prefix_result_slots_ids_and_residual_cl
         } else if producer == "nominal" {
             source = invoking(&source, "Factory");
         }
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded_locals(&checked, &["prefix", "first", "spare", "measured"]);
         let published = terminal_production::TerminalProductionRequest::new(
             &checked,
@@ -258,7 +258,10 @@ fn refused_temporary_production_retries_without_replaying_paid_scalar_operands()
     let source = observed_source(
         "Sink::consume(Factory::create(Main::probe(19u16), Main::probe(23u16)), Main::probe(29u16));",
     );
-    let artifact = encoded_locals(&checked(&source), &["prefix", "first", "spare"]);
+    let artifact = encoded_locals(
+        &crate::front_end::checked_program(&source),
+        &["prefix", "first", "spare"],
+    );
     struct RefuseTemporary {
         observer: ObserveMoves,
         refuse: bool,
@@ -336,7 +339,7 @@ fn crash_after_boundary_temporary_preserves_production_without_cleanup() {
             "reaches Factory + Sink crashes Abort {"
         )
     );
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = encoded_locals(&checked, &["prefix", "first", "spare"]);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
@@ -398,7 +401,7 @@ fn crash_after_boundary_temporary_preserves_production_without_cleanup() {
 
 #[test]
 fn boundary_temporary_custody_rejects_substitution_reordering_and_duplicate_cleanup() {
-    let original = checked(&source(
+    let original = crate::front_end::checked_program(&source(
         "Sink::consume(forward(Factory::create(prefix, 19u16), prefix), prefix);",
     ));
     let artifact = encoded_locals(&original, &["prefix", "first", "spare"]);
@@ -527,11 +530,11 @@ fn open_nominal_boundary_temporaries_require_a_closed_selection() {
         )
         .replace("Factory::create(", "Create(");
     assert!(matches!(
-        checked_trees_to_lowered_psi::lower_machine(&checked(&open), TerminalMachineSelection::Name("Main::main")),
+        checked_trees_to_lowered_psi::lower_machine(&crate::front_end::checked_program(&open), TerminalMachineSelection::Name("Main::main")),
         Err(checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan { machine, .. })
             if machine == "Main::main"
     ));
-    let explicit = checked(&invoking(&source(completion), "Factory"));
+    let explicit = crate::front_end::checked_program(&invoking(&source(completion), "Factory"));
     let artifact = encoded_locals(&explicit, &["prefix", "first", "spare"]);
     assert_completion(
         &artifact,

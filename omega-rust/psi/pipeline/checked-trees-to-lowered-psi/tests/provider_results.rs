@@ -1,7 +1,4 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
@@ -10,9 +7,6 @@ use terminal_interpreter::{
     ProviderInstallationSelection, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalStructuralValue, admit_provider_installation_from_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     pub data Token { value: u64; }
@@ -55,7 +49,7 @@ fn authored_affine_provider_returns_into_partial_result_cleanup() {
             if !attached {
                 source = source.replace("Root::enter", "enter");
             }
-            let checked = checked_source(&source);
+            let checked = crate::front_end::checked_program(&source);
             let entry = if attached { "Root::enter" } else { "enter" };
             assert_eq!(
                 checked
@@ -107,14 +101,6 @@ fn authored_affine_provider_returns_into_partial_result_cleanup() {
             execute_candidates(&checked, &lowered.semantic_module, &lowered.proof_bundle);
         }
     }
-}
-
-fn checked_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn execute_candidates(
@@ -216,7 +202,7 @@ fn execute_candidates(
 
 #[test]
 fn authored_affine_provider_requires_one_exact_checked_return_plan() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let plans = &checked
         .facts
         .flow
@@ -255,7 +241,7 @@ fn authored_affine_provider_requires_one_exact_checked_return_plan() {
 
 #[test]
 fn boundary_result_cleanup_does_not_forget_an_untransferred_input() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         pub data Token { value: u64; }
         pub data Pair { left: Token; right: Token; }
@@ -290,7 +276,7 @@ fn boundary_result_cleanup_does_not_forget_an_untransferred_input() {
 
 #[test]
 fn retained_affine_provider_rejoins_its_authored_return_source() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let plan = &checked
         .facts
         .flow

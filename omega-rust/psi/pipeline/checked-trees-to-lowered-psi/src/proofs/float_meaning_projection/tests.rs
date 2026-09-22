@@ -21,12 +21,7 @@ use checked_trees::{
 };
 use numerics::float_projection::FloatProjectionOperation;
 use source::{SourceMap, SourceOrigin};
-use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
-use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 
 fn checked_projection() -> CheckedFloatMeaningProjection {
     CheckedFloatMeaningProjection {
@@ -1024,36 +1019,15 @@ fn checked_semantic_fixture(source: &str) -> checked_trees::CheckedTrees {
             source.to_owned(),
         )
         .source_id;
-    let meaning_tokens = Lexer::new(CORE_SEMANTIC_MEANING)
-        .tokenize()
-        .expect("tokenize float meaning");
-    let mut syntax = parse_syntax_trees_with_id(meaning_source_id, &meaning_tokens)
-        .expect("parse float meaning");
-    let format_tokens = Lexer::new(CORE_FLOAT_FORMAT)
-        .tokenize()
-        .expect("tokenize float format");
-    parse_syntax_trees_into_with_id(&mut syntax, format_source_id, &format_tokens)
-        .expect("parse float format");
-    let projection_tokens = Lexer::new(CORE_SEMANTIC_PROJECTIONS)
-        .tokenize()
-        .expect("tokenize semantic projections");
-    parse_syntax_trees_into_with_id(&mut syntax, projection_source_id, &projection_tokens)
-        .expect("parse semantic projections");
-    let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
-    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
-        .expect("parse fixture");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve semantic fixture");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type semantic fixture");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    crate::front_end::checked_program_from_source_map(
+        sources,
+        &[
+            (meaning_source_id, CORE_SEMANTIC_MEANING),
+            (format_source_id, CORE_FLOAT_FORMAT),
+            (projection_source_id, CORE_SEMANTIC_PROJECTIONS),
+            (user_source_id, source),
+        ],
     )
-    .expect("check semantic fixture")
 }
 
 #[test]
@@ -1144,29 +1118,12 @@ fn checked_float_fixture(source: &str) -> checked_trees::CheckedTrees {
             source.to_owned(),
         )
         .source_id;
-    let meaning_tokens = Lexer::new(CORE_FLOAT_MEANING)
-        .tokenize()
-        .expect("tokenize float meaning");
-    let mut syntax = parse_syntax_trees_with_id(meaning_source_id, &meaning_tokens)
-        .expect("parse float meaning");
-    let projection_tokens = Lexer::new(CORE_PROJECTIONS)
-        .tokenize()
-        .expect("tokenize projections");
-    parse_syntax_trees_into_with_id(&mut syntax, projection_source_id, &projection_tokens)
-        .expect("parse core projections");
-    let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
-    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
-        .expect("parse fixture");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve projection fixture");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type projection fixture");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    crate::front_end::checked_program_from_source_map(
+        sources,
+        &[
+            (meaning_source_id, CORE_FLOAT_MEANING),
+            (projection_source_id, CORE_PROJECTIONS),
+            (user_source_id, source),
+        ],
     )
-    .expect("check projection fixture")
 }

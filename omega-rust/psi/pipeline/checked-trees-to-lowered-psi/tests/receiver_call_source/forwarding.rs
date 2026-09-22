@@ -4,8 +4,7 @@ use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentSourcePlan, IntegerValue, OperationKind, OperationResult,
     StructuralAccess, StructuralMultiplicity, TerminalExecution, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalMachineResult, TerminalStructuralValue, Terminator,
-    checked_from_source, unit_plan,
+    TerminalExecutionStatus, TerminalMachineResult, TerminalStructuralValue, Terminator, unit_plan,
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -31,7 +30,7 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
             "data Record {{ value: u16; }}\n{}\n{}\n{}",
             declarations[order[0]], declarations[order[1]], declarations[order[2]],
         );
-        let checked = checked_from_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let plans = [
             unit_plan(&checked, "Record::outer"),
             unit_plan(&checked, "Record::forward"),
@@ -232,7 +231,7 @@ fn empty_shared_receiver_callee_keeps_provisional_self_erased() {
         } else {
             format!("data Record {{ value: u16; }}\n{callee_source}\n{caller_source}")
         };
-        let checked = checked_from_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let caller = unit_plan(&checked, "invoke");
         let callee = unit_plan(&checked, "Record::noop");
         assert!(callee.structural_parameters.is_empty());

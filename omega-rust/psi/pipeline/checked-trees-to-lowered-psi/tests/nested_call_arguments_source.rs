@@ -5,9 +5,6 @@ use checked_trees::{
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -15,7 +12,6 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::statement::StatementNode;
 
 const IDENTITY: &str = r#"
@@ -24,18 +20,6 @@ const IDENTITY: &str = r#"
     ensures 0u8 == 0u8
     { input }
 "#;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn encoded(checked: &checked_trees::CheckedTrees, locals: &[&str]) -> (Vec<u8>, Vec<u8>) {
     let machine = checked
@@ -206,7 +190,7 @@ fn arithmetic_source(boundary: bool) -> String {
 #[test]
 fn nested_scalar_statement_arguments_complete_before_boundary_or_unit_outer_calls() {
     for boundary in [false, true] {
-        let checked = checked(&arithmetic_source(boundary));
+        let checked = crate::front_end::checked_program(&arithmetic_source(boundary));
         let artifact = encoded(&checked, &[]);
         for (left, right) in [(0, 7), (255, 3)] {
             let mut observer = ObserveCalls::default();
@@ -252,7 +236,7 @@ fn nested_arguments_keep_saved_immutable_values_in_the_caller_namespace() {
             }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked, &["saved"]);
         let mut observer = ObserveCalls::default();
         assert_eq!(
@@ -298,7 +282,7 @@ fn successive_computed_outer_calls_reset_arguments_and_admit_no_self_attached_he
             }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked, &[]);
         let mut observer = ObserveCalls::default();
         assert_eq!(
@@ -352,7 +336,7 @@ fn embedded_static_scalar_helpers_retain_transitive_computation_targets() {
             }}
             "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked, &[]);
         let mut observer = ObserveCalls::default();
         assert_eq!(
@@ -619,7 +603,7 @@ fn boolean_arguments_skip_unselected_crashes_and_stop_before_the_outer_effect() 
             {{ Sink::finish(first && abort(), second || trap()); }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked, &[]);
         for (first, second, cause) in [
             (false, true, None),
@@ -679,7 +663,7 @@ fn earlier_argument_crashes_precede_cast_wrapped_later_calls() {
                 {{ Sink::finish(first(), second() as u16); }}
             "#
             );
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let artifact = encoded(&checked, &[]);
             let mut observer = ObserveCalls::default();
             assert!(matches!(execute(&artifact, &[], &mut observer),
@@ -712,7 +696,7 @@ fn nested_scalar_arguments_preserve_interleaved_structural_formals() {
             {{ Sink::finish(identity(left), first_token, identity(identity(right)), second_token); }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked, &[]);
         assert_affine_entry_parameters(&artifact, 2);
         let mut observer = ObserveCalls::default();
@@ -786,7 +770,7 @@ fn crashing_argument_keeps_affine_resources_live_and_normal_return_discards_only
                 {{ Sink::finish(checked_flag(flag), token, true); }}
             "#
             );
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let artifact = encoded(&checked, &[]);
             assert_affine_entry_parameters(&artifact, 2);
             let module = decode_module(&artifact.0).unwrap();
@@ -877,7 +861,7 @@ fn pure_boolean_short_circuit_arguments_remain_selective_beside_a_computation() 
             {{ Sink::finish(identity_bool(left), left && right, left || right); }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = encoded(&checked, &[]);
         for left in [false, true] {
             for right in [false, true] {
@@ -910,7 +894,7 @@ fn pure_boolean_short_circuit_arguments_remain_selective_beside_a_computation() 
 #[test]
 fn nested_argument_roots_and_call_occurrences_rejoin_authored_source() {
     for boundary in [false, true] {
-        let checked = checked(&arithmetic_source(boundary));
+        let checked = crate::front_end::checked_program(&arithmetic_source(boundary));
         encoded(&checked, &[]);
         let main = checked
             .typed

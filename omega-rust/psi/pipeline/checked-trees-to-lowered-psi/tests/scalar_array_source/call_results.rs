@@ -1,12 +1,12 @@
 //! Call results retain source identity independently of their shared array type.
 
-use super::{checked_source, reject};
+use super::reject;
 use checked_trees::{CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn fixture(tail: bool) -> CheckedTrees {
     let completion = if tail { "second_row()" } else { "first" };
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         "machine first_row() -> [u8; 2] {{ [7, 9] }}
          machine second_row() -> [u8; 2] {{ [11, 13] }}
          machine selected() -> [u8; 2] {{
@@ -67,7 +67,7 @@ fn boundary_array_results_require_payload_support_even_when_unused_or_empty() {
                 } else {
                     format!("let row: [u8; {length}] = {call};")
                 };
-                let checked = checked_source(&format!(
+                let checked = crate::front_end::checked_program(&format!(
                     "{declarations}
                      machine selected() reaches Factory {{ {statement} }}"
                 ));
@@ -219,7 +219,7 @@ fn array_call_callee_body_requires_one_exact_result_owner() {
 
 #[test]
 fn array_call_results_support_whole_owned_unit_arguments() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine make() -> [u8; 2] { [7, 9] }
          machine consume(row: [u8; 2]) {}
          machine selected() { let row: [u8; 2] = make(); consume(row); }",

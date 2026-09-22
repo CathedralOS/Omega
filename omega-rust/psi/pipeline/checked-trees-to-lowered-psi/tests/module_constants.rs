@@ -1,24 +1,17 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source::{SourceId, SourceMap};
-use source_files_to_tokens::Lexer;
-use std::{path::PathBuf, sync::Arc};
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees::SyntaxTrees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+use source::SourceMap;
+use std::path::PathBuf;
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees_into_with_id;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn module_constants_publish_exact_values_without_producer_state() {
     let mut sources = SourceMap::default();
-    let mut syntax = SyntaxTrees::new(SourceId::default());
+    let mut texts = Vec::new();
     for (path, source) in [
         (
             "combat.omg",
@@ -36,21 +29,9 @@ fn module_constants_publish_exact_values_without_producer_state() {
         let source_id = sources
             .add(PathBuf::from(path), source.to_owned())
             .source_id;
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize module constant");
-        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-            .expect("parse module constant");
+        texts.push((source_id, source));
     }
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve module constants");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type substituted module values");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check substituted module values");
+    let checked = crate::front_end::checked_program_from_source_map(sources, &texts);
     let mut artifacts = Vec::new();
     for (qualified, expected) in [
         ("combat::value", 7u128),
@@ -71,8 +52,6 @@ fn module_constants_publish_exact_values_without_producer_state() {
         ));
     }
     drop(checked);
-    drop(resolved);
-    drop(syntax);
     for (semantics, proof, expected) in artifacts {
         let result =
             interpret_terminal_artifact(&semantics, &proof, &AdmissionProfile::default(), &[])

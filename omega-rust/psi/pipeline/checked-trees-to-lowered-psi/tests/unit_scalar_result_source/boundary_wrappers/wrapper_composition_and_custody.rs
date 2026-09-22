@@ -1,5 +1,5 @@
 use super::{artifact, execute, integer, source};
-use crate::unit_scalar_result_source::{CheckedUnitEffectOperationPlan, checked_from_source};
+use crate::unit_scalar_result_source::CheckedUnitEffectOperationPlan;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
@@ -15,7 +15,7 @@ fn scalar_wrapper_explicit_entry_predicate_survives_call_proofs() {
         )
         .replace("Host::measure(70)", "Host::measure(value)")
         .replace("Scalar::measure();", "Scalar::measure(70);");
-    let checked = checked_from_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = artifact(&checked);
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(
@@ -46,7 +46,7 @@ fn parameterized_wrappers_nested_as_actuals_keep_one_body_and_ordered_effects() 
             "Scalar::measure();",
             "Scalar::measure(Scalar::measure(70));",
         );
-    let artifact = artifact(&checked_from_source(&source));
+    let artifact = artifact(&crate::front_end::checked_program(&source));
     assert_eq!(decode_module(&artifact.0).unwrap().machines.len(), 2);
     let (status, observed) = execute(&artifact);
     assert_eq!(
@@ -68,7 +68,7 @@ fn scalar_wrapper_signature_and_parameter_range_custody_reject_mutations() {
         )
         .replace("Host::measure(70)", "Host::measure(value)")
         .replace("Scalar::measure();", "Scalar::measure(70);");
-    let original = checked_from_source(&source);
+    let original = crate::front_end::checked_program(&source);
     for mutation in 0..4 {
         let mut checked = original.clone();
         let plan = &mut checked.facts.flow.terminal_boundary_scalar_returns.machines[0];
@@ -120,7 +120,7 @@ fn repeated_wrappers_share_boundaries_and_nested_helper_identities() {
         source().replace("Host::measure(70)", "Host::measure(identity(identity(70)))")
             .replace("Host::finish(result);", "let second: i32 = Scalar::measure();\n Host::finish(result);\n Host::finish(second);")
     );
-    let artifact = artifact(&checked_from_source(&source));
+    let artifact = artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(
         module.machines.len(),
@@ -142,7 +142,7 @@ fn wrapper_boundary_and_direct_boundary_share_one_exact_declaration() {
         "Host::finish(result);",
         "let direct: i32 = Host::measure(21);\n Host::finish(result);\n Host::finish(direct);",
     );
-    let artifact = artifact(&checked_from_source(&source));
+    let artifact = artifact(&crate::front_end::checked_program(&source));
     assert_eq!(
         decode_module(&artifact.0).unwrap().boundary_machines.len(),
         2
@@ -162,7 +162,7 @@ fn wrapper_boundary_and_direct_boundary_share_one_exact_declaration() {
 #[test]
 fn scalar_wrapper_registration_and_result_drift_reject() {
     for mutation in 0..4 {
-        let mut checked = checked_from_source(&source());
+        let mut checked = crate::front_end::checked_program(&source());
         let plans = &mut checked.facts.flow.terminal_boundary_scalar_returns;
         match mutation {
             0 => plans.machines.push(plans.machines[0].clone()),
@@ -201,7 +201,7 @@ fn wrappers_nested_as_operands_share_the_complete_unit_catalog() {
             "let result: i32 = Scalar::measure();\n    Host::finish(result);",
             "Host::finish(Scalar::measure());",
         );
-    let artifact = artifact(&checked_from_source(&source));
+    let artifact = artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&artifact.0).unwrap();
     assert_eq!(module.machines.len(), 3);
     assert_eq!(module.boundary_machines.len(), 2);
@@ -216,7 +216,7 @@ fn wrappers_nested_as_operands_share_the_complete_unit_catalog() {
 #[test]
 fn selected_wrapper_type_duplicates_and_cross_owner_conflicts_reject() {
     for duplicate in [false, true] {
-        let mut checked = checked_from_source(&source());
+        let mut checked = crate::front_end::checked_program(&source());
         let declaration = checked
             .facts
             .flow
@@ -257,7 +257,7 @@ fn selected_wrapper_type_duplicates_and_cross_owner_conflicts_reject() {
 
 #[test]
 fn equal_selected_type_declarations_coalesce_without_changing_module_bytes() {
-    let mut checked = checked_from_source(&source());
+    let mut checked = crate::front_end::checked_program(&source());
     let original = artifact(&checked);
     let declaration = checked
         .facts
@@ -292,7 +292,7 @@ fn equal_selected_type_declarations_coalesce_without_changing_module_bytes() {
 
 #[test]
 fn removing_wrapper_service_authority_rejects_independently() {
-    let artifact = artifact(&checked_from_source(&source()));
+    let artifact = artifact(&crate::front_end::checked_program(&source()));
     let proof = decode_proof_bundle(&artifact.1).unwrap();
     for root in [false, true] {
         let mut module = decode_module(&artifact.0).unwrap();
@@ -330,7 +330,7 @@ fn wrapper_operand_crash_preserves_call_ceiling_and_prevents_boundary_effects() 
             "Host::measure(abort())",
         ),
     ] {
-        let artifact = artifact(&checked_from_source(&source));
+        let artifact = artifact(&crate::front_end::checked_program(&source));
         let (status, observed) = execute(&artifact);
         let TerminalExecutionStatus::Crashed(crash) = status else {
             panic!("the nested helper must crash before invoking the boundary")
@@ -379,7 +379,7 @@ fn ordinary_boundary_wrapper_replays_actual_body_and_call_custody() {
     let source = format!(
         "{source}\nmachine alternate_helper() -> i32 reaches Host {{ let value: i32 = Host::alternate(70); value }}"
     );
-    let mut original = checked_from_source(&source);
+    let mut original = crate::front_end::checked_program(&source);
     let target = original
         .machines()
         .iter()

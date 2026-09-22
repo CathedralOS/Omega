@@ -2,7 +2,7 @@
 
 use super::{
     AdmissionProfile, ExpressionHandle, ExpressionNode, IntegerSign, IntegerType, IntegerValue,
-    TerminalExecutionResult, TerminalScalarValue, checked_source, reject,
+    TerminalExecutionResult, TerminalScalarValue, reject,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -22,7 +22,7 @@ fn byte(value: u8) -> TerminalScalarValue {
 }
 
 fn execute(source: &str, arguments: &[TerminalScalarValue]) -> TerminalExecutionResult {
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("selected"),
@@ -98,7 +98,7 @@ const WRITE: &str =
 
 #[test]
 fn abandoned_computation_nodes_do_not_reserve_array_places() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         "machine answer(row: [u8; 1], value: u8) -> u8 { value }
          machine selected() -> [u8; 1] { [answer([7u8], 42u8)] }",
     );
@@ -302,7 +302,7 @@ fn computation_array_arguments_reject_wrong_call_formal_type_and_leaf_custody() 
         } else {
             ("[u8; 2]", "[7u8, 9u8]", "[11u8, 13u8]")
         };
-        let original = checked_source(&format!(
+        let original = crate::front_end::checked_program(&format!(
             "machine pick(prefix: u8, first: {array_type}, middle: u8, second: {array_type}, suffix: u8) -> u8 {{ suffix }}
              machine selected() -> [u8; 2] {{
                  [pick(3u8, {first}, 4u8, {second}, 42u8),
@@ -415,7 +415,7 @@ fn computation_array_arguments_reject_wrong_call_formal_type_and_leaf_custody() 
 
 #[test]
 fn computation_array_constant_projection_keeps_builtin_operator_custody() {
-    let mut original = checked_source(
+    let mut original = crate::front_end::checked_program(
         "data Sizes {}
          const Sizes::ROWS: [[u8; 2]; 1] = [[7, 9]];
          machine answer(row: [u8; 2], value: u8) -> u8 { value }

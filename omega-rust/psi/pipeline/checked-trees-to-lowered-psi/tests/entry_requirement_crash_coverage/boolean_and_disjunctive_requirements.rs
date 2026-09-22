@@ -1,9 +1,7 @@
 use super::{
-    assert_trap, assert_unconditional_call_trap, assert_unconditional_call_trap_at_entry, typed,
+    assert_trap, assert_unconditional_call_trap, assert_unconditional_call_trap_at_entry,
     with_caller,
 };
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn compound_boolean_equality_entry_requirement_covers_unconditional_unit_call() {
@@ -163,7 +161,7 @@ fn compound_boolean_entry_requirements_do_not_authorize_opposite_or_missing_rout
                  machine forward({parameters}) -> bool\nrequires {requirement}\ncrashes Trap {route}\n{{ {body} }}",
             );
             let source = with_caller(&declarations, &format!("forward({arguments})"));
-            let diagnostics = match lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
+            let diagnostics = match crate::front_end::checked_program_result(&source) {
                 Err(diagnostics) => diagnostics,
                 Ok(_) => panic!("an unproved compound crash route must reject: {source}"),
             };
@@ -268,7 +266,7 @@ fn a_missing_disjunctive_entry_consequence_cannot_be_repaired_by_body_writes() {
                  machine forward({parameters}) -> bool\nrequires {requirement}\ncrashes Trap {route}\n{{ {body} }}",
             );
             let source = with_caller(&declarations, &format!("forward({arguments})"));
-            let diagnostics = match lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
+            let diagnostics = match crate::front_end::checked_program_result(&source) {
                 Err(diagnostics) => diagnostics,
                 Ok(_) => panic!("a missing entry consequence must reject: {source}"),
             };
@@ -452,7 +450,7 @@ fn changing_a_false_entry_parameter_cannot_authorize_its_entry_guarded_crash() {
         "#,
         "trigger(false)",
     );
-    let diagnostics = lower_typed_trees(typed(&source), &CheckingRequest::settled())
+    let diagnostics = crate::front_end::checked_program_result(&source)
         .expect_err("the final true value cannot stand in for the false entry crash guard");
     assert!(
         diagnostics

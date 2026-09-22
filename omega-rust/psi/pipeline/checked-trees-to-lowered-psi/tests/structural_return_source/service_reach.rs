@@ -1,15 +1,13 @@
 use super::{
-    AdmissionProfile, Lexer, Multiplicity, PermissionClaimIdentity, ResolutionRequest, SOURCE,
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
-    TerminalStructuralResult, TerminalStructuralValue, decode_module, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve,
+    AdmissionProfile, Multiplicity, PermissionClaimIdentity, SOURCE, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralResult,
+    TerminalStructuralValue, decode_module,
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use typed_trees_to_checked_trees::CheckingRequest;
 const NOMINAL_CALLBACK: &str = r#"
     data ByteUnit {}
     data CountedQuantity<Unit> { magnitude: u64; }
@@ -43,7 +41,7 @@ fn nominal_linear_callback_result_accepts_mixed_scalar_arguments() {
         "let forwarded: Region in Owned = Main::with_markers(7, region, 9); let returned: Region in Owned = Main::with_markers(11, forwarded, 13); Main::forward(returned)",
     ] {
         let source = mixed_callback_source(body);
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("Main::demand"),
@@ -137,7 +135,7 @@ fn mixed_linear_call_rejects_changed_source_operand_positions() {
         "let forwarded: Region in Owned = Selected(region); Main::with_markers(7, forwarded, 9)",
         "let forwarded: Region in Owned = Selected(region); Main::with_markers(Main::marker(7), forwarded, Main::marker(9))",
     ] {
-        let checked = checked(&mixed_callback_source(body));
+        let checked = crate::front_end::checked_program(&mixed_callback_source(body));
         let _artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("Main::demand"),
@@ -190,7 +188,7 @@ fn mixed_linear_call_rejects_changed_source_operand_positions() {
 
 #[test]
 fn mixed_linear_call_replay_rejects_stale_values_and_claims() {
-    let checked = checked(&mixed_callback_source(
+    let checked = crate::front_end::checked_program(&mixed_callback_source(
         "let first: Region in Owned = Main::with_markers(7, region, 9); Main::with_markers(11, first, 13)",
     ));
     let artifact = terminal_production::TerminalProductionRequest::new(
@@ -309,7 +307,7 @@ fn nominal_linear_callback_result_feeds_an_ordinary_call() {
         "let marker: u64 = 7; let forwarded: Region in Owned = Selected(region); let returned: Region in Owned = Main::forward(forwarded); returned",
     ] {
         let source = NOMINAL_CALLBACK.replace("{ Selected(region) }", &format!("{{ {body} }}"));
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("Main::demand"),
@@ -385,12 +383,8 @@ fn nominal_linear_callback_result_cannot_be_moved_twice() {
             "{ Selected(region) }",
             &format!("{{ let forwarded: Region in Owned = Selected(region); let returned: Region in Owned = Main::forward(forwarded); Main::forward({consumed}) }}"),
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
         assert!(
-            lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
+            crate::front_end::checked_program_result(&source).is_err(),
             "moving {consumed} twice must reject"
         );
     }
@@ -402,7 +396,7 @@ fn nominal_linear_callback_result_frontier_rejects_stale_and_future_places() {
         "{ Selected(region) }",
         "{ let first: Region in Owned = Selected(region); let second: Region in Owned = Main::forward(first); Main::forward(second) }",
     );
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::demand"),
@@ -518,7 +512,7 @@ fn nominal_linear_callback_result_rejects_stale_consumer_custody() {
         "{ Selected(region) }",
         "{ let forwarded: Region in Owned = Selected(region); Main::forward(forwarded) }",
     );
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::demand"),
@@ -590,7 +584,7 @@ fn nominal_linear_callback_publishes_and_executes_with_exact_reach() {
             "{ Selected(region) }",
             &format!("{{ {prefix} Selected(region) }}"),
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let [specialization] = checked.machine_specializations.as_slice() else {
             panic!("one exact nominal callback application");
         };
@@ -662,17 +656,9 @@ fn nominal_linear_callback_publishes_and_executes_with_exact_reach() {
     }
 }
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-}
-
 #[test]
 fn nominal_linear_callback_rejects_stale_checked_call_custody() {
-    let checked = checked(NOMINAL_CALLBACK);
+    let checked = crate::front_end::checked_program(NOMINAL_CALLBACK);
     let root = checked
         .machines()
         .iter()
@@ -741,7 +727,7 @@ fn nominal_linear_callback_rejects_stale_checked_call_custody() {
 
 #[test]
 fn nominal_linear_callback_rejects_changed_source_claim_lineage() {
-    let checked = checked(NOMINAL_CALLBACK);
+    let checked = crate::front_end::checked_program(NOMINAL_CALLBACK);
     let root = checked
         .machines()
         .iter()
@@ -838,7 +824,7 @@ fn structural_call_retains_generic_callee_reach_after_publication() {
                 "Main::forward(region)",
                 &format!("Main::forward<{count}>(region)"),
             );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let [specialization] = checked.machine_specializations.as_slice() else {
             panic!("one exact generic callee application");
         };
@@ -912,7 +898,7 @@ fn structural_call_retains_generic_callee_reach_after_publication() {
 
 #[test]
 fn structural_call_rejects_stale_source_coordinates_and_same_shaped_targets() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         &(SOURCE.to_owned()
             + "\nmachine Main::alternative(region: Region in Owned) -> Region in Owned { region }"),
     );

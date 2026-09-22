@@ -1,5 +1,7 @@
-//! Fixtures shared by the lowering tests: checked sources, reborrow
-//! sources, write-line literals and float result assertions.
+//! Fixtures shared by the lowering tests: reborrow sources, write-line
+//! literals and float result assertions. The front-end stages they run first
+//! live in `crate::front_end` (`tests/support/front_end.rs`), which the
+//! integration `suite` target includes from the same file.
 
 mod attached_unit_cases;
 mod borrow_certificate_replay;
@@ -68,26 +70,11 @@ use language_semantics::content::{
 use language_semantics::{PermissionClaimIdentity, PermissionEventSource, SemanticDomainId};
 use semantic_vocabulary::{IeeeFloatFormat, ScalarType};
 use source::{SourceMap, SourceOrigin};
-use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
-use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi::{TerminalMachineResult, TerminalModule};
-use tokens_to_syntax_trees::{
-    parse_syntax_trees, parse_syntax_trees_into_with_id, parse_syntax_trees_with_id,
-};
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn checked_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
-}
 
 /// The toolchain core service declaration, resident so raw-pipeline fixtures
 /// can spell `Service<R>` against the real core declaration. These unit
@@ -121,20 +108,13 @@ fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees
     let user_source_id = sources
         .add(PathBuf::from("tests/main.omg"), source.to_owned())
         .source_id;
-    let service_tokens = Lexer::new(CORE_SERVICE_OMG)
-        .tokenize()
-        .expect("tokenize service.omg");
-    let mut syntax =
-        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse service.omg");
-    let user_tokens = Lexer::new(source).tokenize().expect("tokenize");
-    parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = crate::front_end::typed_program_from_source_map(
+        sources,
+        &[
+            (service_source_id, CORE_SERVICE_OMG),
+            (user_source_id, source),
+        ],
+    );
     let authorizations = typed
         .traits()
         .iter()
@@ -153,7 +133,7 @@ fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees
 }
 
 fn checked_scalar_suspension_fixture() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             machine wait(value: bool) -> bool
             requires true == true
@@ -330,35 +310,19 @@ fn checked_float_projection_source(source: &str) -> checked_trees::CheckedTrees 
             source.to_owned(),
         )
         .source_id;
-    let meaning_tokens = Lexer::new(FLOAT_MEANING)
-        .tokenize()
-        .expect("tokenize meaning");
-    let mut syntax =
-        parse_syntax_trees_with_id(meaning_source, &meaning_tokens).expect("parse meaning");
-    let format_tokens = Lexer::new(FLOAT_FORMAT)
-        .tokenize()
-        .expect("tokenize format");
-    parse_syntax_trees_into_with_id(&mut syntax, format_source, &format_tokens)
-        .expect("parse format");
-    let projection_tokens = Lexer::new(FLOAT_PROJECTIONS)
-        .tokenize()
-        .expect("tokenize projections");
-    parse_syntax_trees_into_with_id(&mut syntax, projection_source, &projection_tokens)
-        .expect("parse projections");
-    let user_tokens = Lexer::new(source).tokenize().expect("tokenize fixture");
-    parse_syntax_trees_into_with_id(&mut syntax, user_source, &user_tokens).expect("parse fixture");
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(sources)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve source-aware fixture");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program_from_source_map(
+        sources,
+        &[
+            (meaning_source, FLOAT_MEANING),
+            (format_source, FLOAT_FORMAT),
+            (projection_source, FLOAT_PROJECTIONS),
+            (user_source, source),
+        ],
+    )
 }
 
 fn reborrow_source(child_access: &str) -> checked_trees::CheckedTrees {
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         r#"
             data Cell {{ value: i32; }}
             data Main {{ cell: Cell; }}
@@ -371,7 +335,7 @@ fn reborrow_source(child_access: &str) -> checked_trees::CheckedTrees {
 }
 
 fn reborrow_restored_call_source(child_access: &str) -> checked_trees::CheckedTrees {
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         r#"
             data Harness {{}}
             data Sink {{}}
@@ -386,7 +350,7 @@ fn reborrow_restored_call_source(child_access: &str) -> checked_trees::CheckedTr
 }
 
 fn shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             data Harness {}
             data Sink {}
@@ -407,7 +371,7 @@ fn two_shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
 fn two_shared_reborrow_restored_call_source_with_observations(
     observations: &str,
 ) -> checked_trees::CheckedTrees {
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         r#"
             data Harness {{}}
             data Sink {{}}
@@ -425,7 +389,7 @@ fn two_shared_reborrow_restored_call_source_with_observations(
 }
 
 fn three_shared_reborrow_restored_call_source() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             data Harness {}
             data Sink {}
@@ -449,7 +413,7 @@ fn multihop_reborrow_source(middle_access: &str, leaf_access: &str) -> checked_t
     } else {
         "leaf.value = 1;"
     };
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         r#"
             data Cell {{ value: i32; }}
             data Main {{ cell: Cell; }}
@@ -489,7 +453,7 @@ fn lower_reborrow_rows(
 fn terminal_module_with_reborrow(
     checked: &checked_trees::CheckedTrees,
 ) -> terminal_psi::TerminalModule {
-    let empty = checked_source(
+    let empty = crate::front_end::checked_program(
         r#"
             data Empty {}
             machine Empty::run() {}
@@ -520,11 +484,7 @@ fn checked_write_line_literal() -> checked_trees::CheckedTrees {
             Console::write_line("\x80A");
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    crate::front_end::checked_program(source)
 }
 
 fn assert_source_direct_float_result(primitive: &str, projection: &str, format: IeeeFloatFormat) {
@@ -606,7 +566,7 @@ fn unit_claim_at(
 }
 
 fn hard_root_checked_fixture() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
         boundary trait PortIo {}
         pub data Evidence { case Only; }
@@ -644,7 +604,7 @@ fn mathematical_declarations_refuse_at_terminal_lowering() {
     // `ProofFacts::mathematical_declarations`; no Terminal evidence encoding
     // carries them yet, so production refuses loudly rather than emit a
     // module that silently omits them (PROOF-CONTRACT-MIGRATION).
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             let double(x: u64): u64 = x;
 

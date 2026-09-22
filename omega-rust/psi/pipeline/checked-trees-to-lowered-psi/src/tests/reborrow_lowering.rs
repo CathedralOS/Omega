@@ -1,9 +1,8 @@
 use super::{
-    checked_scalar_suspension_fixture, checked_source, lower_reborrow_rows,
-    multihop_reborrow_source, reborrow_restored_call_source, reborrow_source,
-    scalar_fixture_call_coordinate, shared_reborrow_restored_call_source,
-    terminal_module_with_reborrow, three_shared_reborrow_restored_call_source,
-    two_shared_reborrow_restored_call_source,
+    checked_scalar_suspension_fixture, lower_reborrow_rows, multihop_reborrow_source,
+    reborrow_restored_call_source, reborrow_source, scalar_fixture_call_coordinate,
+    shared_reborrow_restored_call_source, terminal_module_with_reborrow,
+    three_shared_reborrow_restored_call_source, two_shared_reborrow_restored_call_source,
     two_shared_reborrow_restored_call_source_with_observations,
 };
 use crate::TerminalMachineSelection;
@@ -165,7 +164,7 @@ fn unsupported_receiver_suspension_frontier_fails_closed() {
 
 #[test]
 fn unsupported_staged_local_suspension_frontier_fails_closed() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         r#"
             machine wait(value: bool) -> bool
             requires true == true
@@ -241,7 +240,7 @@ fn unsupported_staged_local_suspension_frontier_fails_closed() {
 
 #[test]
 fn ordinary_scalar_lowering_keeps_suspension_catalogs_empty() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             machine identity(value: bool) -> bool
             requires true == true
@@ -258,7 +257,7 @@ fn ordinary_scalar_lowering_keeps_suspension_catalogs_empty() {
 
 #[test]
 fn terminal_write_only_root_handoff_preserves_exclusive_access() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Cell { value: i32; }
         machine exercise(value: &write Cell) {
@@ -863,7 +862,7 @@ fn terminal_reborrow_root_handoff_fences_shared_and_branched_lineages() {
     let shared = reborrow_source("&");
     assert!(lower_reborrow_rows(&shared).is_err());
 
-    let branched = checked_source(
+    let branched = crate::front_end::checked_program(
         r#"
             data Cell { value: i32; }
             data Main { cell: Cell; }

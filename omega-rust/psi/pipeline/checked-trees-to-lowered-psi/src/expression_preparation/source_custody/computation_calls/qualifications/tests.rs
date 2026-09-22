@@ -7,24 +7,6 @@ use super::{
 use crate::TerminalMachineSelection;
 use language_semantics::SemanticDomainId;
 
-fn checked(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typing");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("checking")
-}
-
 fn root(checked: &CheckedTrees) -> checked_trees::CheckedScalarComputationRoot {
     let machine = checked
         .machines()
@@ -99,7 +81,7 @@ const ERASURE_SOURCE: &str = include_str!(concat!(
 #[test]
 fn explicit_erasure_replay_requires_its_authored_cast_and_bare_result() {
     for mutation in 0..3 {
-        let mut checked = checked(ERASURE_SOURCE);
+        let mut checked = crate::front_end::checked_program(ERASURE_SOURCE);
         replay(&checked).expect("explicit erasure");
         let handle = qualifications(&checked)[0];
         let CheckedScalarComputationKind::Qualification {
@@ -163,7 +145,7 @@ fn explicit_erasure_replay_requires_its_authored_cast_and_bare_result() {
 
 #[test]
 fn qualification_match_replays_checked_custody_and_publishes_exact_terminal_membership() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     assert_eq!(qualifications(&checked).len(), 2);
     replay(&checked).expect("exact source, membership, and operand custody");
     let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
@@ -192,7 +174,7 @@ fn qualification_replay_preserves_alias_and_closed_instance_identity() {
             machine choose(select_left: bool, left: i64, right: i64) -> i64 in {domain} {{
                 match select_left {{ true -> left as i64 in {domain}, false -> right as i64 in {domain} }}
             }}");
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         replay(&checked).expect("normalized alias or indexed instance");
     }
 }
@@ -200,7 +182,7 @@ fn qualification_replay_preserves_alias_and_closed_instance_identity() {
 #[test]
 fn qualification_replay_rejects_missing_duplicate_or_redirected_evidence() {
     for mutation in 0..5 {
-        let mut checked = checked(SOURCE);
+        let mut checked = crate::front_end::checked_program(SOURCE);
         let first = checked.facts.qualifications.vacuous_uses[0];
         match mutation {
             0 => {
@@ -225,7 +207,7 @@ fn qualification_replay_rejects_missing_duplicate_or_redirected_evidence() {
 #[test]
 fn qualification_replay_rejects_relabelled_cast_operand_and_result() {
     for mutation in 0..4 {
-        let mut checked = checked(SOURCE);
+        let mut checked = crate::front_end::checked_program(SOURCE);
         let handles = qualifications(&checked);
         let CheckedScalarComputationKind::Qualification {
             source_expression: other_source,
@@ -269,7 +251,7 @@ fn qualification_replay_rejects_relabelled_cast_operand_and_result() {
 #[test]
 fn qualification_replay_rejects_erasing_node_even_with_cast_source_on_pure_value() {
     for retain_cast_source in [false, true] {
-        let mut checked = checked(SOURCE);
+        let mut checked = crate::front_end::checked_program(SOURCE);
         let handle = qualifications(&checked)[0];
         let CheckedScalarComputationKind::Qualification {
             source_expression,
@@ -313,7 +295,7 @@ fn qualification_replay_rejects_changed_instance() {
     let source = "domain<const Axis: u64> i64::Coordinate<Axis>;
         machine choose(value: i64) -> i64 in Coordinate<7> { value as i64 in Coordinate<7> }
         machine other(value: i64) -> i64 in Coordinate<8> { value as i64 in Coordinate<8> }";
-    let mut checked = checked(source);
+    let mut checked = crate::front_end::checked_program(source);
     replay(&checked).expect("original instance");
     let other = checked
         .facts
@@ -336,7 +318,7 @@ fn qualification_replay_reconstructs_indices_when_retained_records_agree_on_a_su
         machine choose(value: i64) -> i64 in Coordinate<7> { value as i64 in Coordinate<7> }
         machine other(value: i64) -> i64 in Coordinate<8> { value as i64 in Coordinate<8> }";
     for change_result in [false, true] {
-        let mut checked = checked(source);
+        let mut checked = crate::front_end::checked_program(source);
         let uses = &checked.facts.qualifications.vacuous_uses;
         let first_source = uses[0].expression;
         let ExpressionNode::Cast(other) = checked.expression_table.expression(uses[1].expression)
@@ -381,7 +363,8 @@ fn qualification_replay_uses_the_same_custody_for_boolean_and_float_carriers() {
     for carrier in ["bool", "f32", "f64"] {
         let source = format!("domain {carrier}::Tagged;
             machine choose(value: {carrier}) -> {carrier} in Tagged {{ value as {carrier} in Tagged }}");
-        replay(&checked(&source)).expect("noninteger scalar qualification");
+        replay(&crate::front_end::checked_program(&source))
+            .expect("noninteger scalar qualification");
     }
 }
 
@@ -396,7 +379,7 @@ fn qualification_keeps_nested_selection_and_call_operands_in_their_source_scopes
             machine identity(value: i64) -> i64 {{ value }}
             machine choose(select_left: bool, left: i64, right: i64) -> i64 in Km {{ {body} }}"
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         replay(&checked).expect("selection and call scopes beneath qualification");
         let targets = crate::expression_preparation::computation_graph::call_targets(
             &checked,
@@ -409,7 +392,7 @@ fn qualification_keeps_nested_selection_and_call_operands_in_their_source_scopes
 
 #[test]
 fn qualification_replay_rechecks_declaration_instead_of_trusting_vacuous_use() {
-    let mut checked = checked(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     let definitions = checked.typed.roots.domain_definitions;
     checked
         .typed
@@ -431,7 +414,7 @@ fn indexed_call_replay_rechecks_parameter_contract_instance() {
         "/../../../../tests/omega/pass/expressions/indexed_qualified_call_argument/main.omg"
     ));
     for erase_arguments in [false, true] {
-        let mut checked = checked(source);
+        let mut checked = crate::front_end::checked_program(source);
         crate::lower_machine(&checked, TerminalMachineSelection::Name("choose"))
             .expect("original exact call contract");
         let membership = checked

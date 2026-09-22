@@ -13,7 +13,7 @@ mod scalar_wrappers_and_boundary_returns;
 #[path = "boundary_wrappers/wrapper_composition_and_custody.rs"]
 mod wrapper_composition_and_custody;
 
-use crate::unit_scalar_result_source::{SOURCE, checked_from_source};
+use crate::unit_scalar_result_source::SOURCE;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
@@ -181,7 +181,7 @@ fn nested_boolean_guarantee_source(expression: &str, before: &str, inputs: [bool
 }
 
 fn assert_exact_normal_return_evidence(source: &str) {
-    let artifact = artifact(&checked_from_source(source));
+    let artifact = artifact(&crate::front_end::checked_program(source));
     let module = decode_module(&artifact.0).unwrap();
     let proof = decode_proof_bundle(&artifact.1).unwrap();
     let wrapper = module

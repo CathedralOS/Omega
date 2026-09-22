@@ -6,7 +6,7 @@
 //! symbols are not machine members, so `canonical_suspension_crossing_id`
 //! cannot resolve them — and `CallUnit` arguments are not an admitted scalar
 //! CallArgument namespace.
-use super::{checked_scalar_suspension_fixture, checked_source};
+use super::checked_scalar_suspension_fixture;
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
@@ -177,7 +177,7 @@ fn scalar_call_suspension_plan_rejoins_callee_entry_state_target() {
 /// Terminal `CallUnit` operation and names its machine target.
 #[test]
 fn unit_call_suspension_plan_rejoins_receiver_free_unit_target() {
-    let mut checked = checked_source(FREE_UNIT_CALL);
+    let mut checked = crate::front_end::checked_program(FREE_UNIT_CALL);
     let (run, state) = machine_and_state(&checked, "run");
     let target = call_target_symbol(&checked, 0, 0);
     push_crossing(&mut checked, run, state, 0, 0, target, Vec::new());
@@ -203,7 +203,7 @@ fn unit_call_suspension_plan_rejoins_receiver_free_unit_target() {
 /// beside its machine target.
 #[test]
 fn structural_scalar_call_suspension_plan_rejoins_argument_frontier() {
-    let mut checked = checked_source(STRUCTURAL_SCALAR_CALL);
+    let mut checked = crate::front_end::checked_program(STRUCTURAL_SCALAR_CALL);
     let (run, state) = machine_and_state(&checked, "run");
     let (_, base_type) = state_parameter(&checked, state, "base");
     let target = call_target_symbol(&checked, 0, 0);
@@ -245,7 +245,7 @@ fn structural_scalar_call_suspension_plan_rejoins_argument_frontier() {
 /// plan that cannot verify.
 #[test]
 fn unit_call_scalar_argument_frontier_fails_closed() {
-    let mut checked = checked_source(FREE_UNIT_CALL);
+    let mut checked = crate::front_end::checked_program(FREE_UNIT_CALL);
     let (run, state) = machine_and_state(&checked, "run");
     let (_, flag_type) = state_parameter(&checked, state, "flag");
     let target = call_target_symbol(&checked, 0, 0);
@@ -278,7 +278,7 @@ fn unit_call_scalar_argument_frontier_fails_closed() {
 /// Parameter live value still lacks an exact frontier mapping.
 #[test]
 fn unit_call_scalar_environment_frontier_fails_closed() {
-    let mut checked = checked_source(FREE_UNIT_CALL);
+    let mut checked = crate::front_end::checked_program(FREE_UNIT_CALL);
     let (run, state) = machine_and_state(&checked, "run");
     let (flag_symbol, flag_type) = state_parameter(&checked, state, "flag");
     let target = call_target_symbol(&checked, 0, 0);
@@ -316,7 +316,7 @@ fn unit_call_scalar_environment_frontier_fails_closed() {
 /// declaration symbols.
 #[test]
 fn boundary_call_suspension_frontier_fails_closed_on_target_identity() {
-    let mut checked = checked_source(BOUNDARY_SCALAR_CALL);
+    let mut checked = crate::front_end::checked_program(BOUNDARY_SCALAR_CALL);
     let (run, state) = machine_and_state(&checked, "run");
     let target = call_target_symbol(&checked, 0, 0);
     push_crossing(&mut checked, run, state, 0, 0, target, Vec::new());

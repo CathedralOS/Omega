@@ -1,6 +1,6 @@
 use super::{
     ARGUMENTED_PROOF_OUTPUT_SOURCE, DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE, FORWARDED_SOURCE,
-    PRODUCED_SOURCE, PROJECTED_SOURCE, PROOF_OUTPUT_SOURCE, check,
+    PRODUCED_SOURCE, PROJECTED_SOURCE, PROOF_OUTPUT_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -18,7 +18,7 @@ use terminal_psi::{EvidenceContractLaneKind, EvidenceTermDeclaration};
 
 #[test]
 fn source_projection_uses_canonical_term_and_exact_requirement_identity() {
-    let checked = check(PROJECTED_SOURCE);
+    let checked = crate::front_end::checked_program(PROJECTED_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::project"),
@@ -83,7 +83,7 @@ fn source_projection_uses_canonical_term_and_exact_requirement_identity() {
 
 #[test]
 fn forwarded_projection_uses_the_shared_terminal_term_identity() {
-    let checked = check(PROJECTED_SOURCE);
+    let checked = crate::front_end::checked_program(PROJECTED_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::forward"),
@@ -114,7 +114,7 @@ fn forwarded_projection_uses_the_shared_terminal_term_identity() {
 
 #[test]
 fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
-    let checked = check(FORWARDED_SOURCE);
+    let checked = crate::front_end::checked_program(FORWARDED_SOURCE);
     assert_eq!(checked.facts.proof.evidence_terms.len(), 4);
     let expected_argument = checked
         .facts
@@ -417,7 +417,7 @@ fn source_forwarding_preserves_exact_positional_terminal_evidence_identities() {
 
 #[test]
 fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
-    let checked = check(PRODUCED_SOURCE);
+    let checked = crate::front_end::checked_program(PRODUCED_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::produce"),
@@ -629,7 +629,7 @@ fn source_producer_provenance_is_separate_canonical_verified_proof_data() {
 
 #[test]
 fn argumented_proof_output_retains_substitution_and_erased_input_identity() {
-    let checked = check(ARGUMENTED_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(ARGUMENTED_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -745,8 +745,8 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
         rendered
     }
 
-    let first = check(&source("FirstMarker"));
-    let second = check(&source("SecondMarker"));
+    let first = crate::front_end::checked_program(&source("FirstMarker"));
+    let second = crate::front_end::checked_program(&source("SecondMarker"));
     let first_specialization = selected_specialization(&first);
     let second_specialization = selected_specialization(&second);
     assert_ne!(
@@ -868,7 +868,7 @@ fn generic_proof_output_target_identity_binds_the_closed_conformance_application
 
 #[test]
 fn forwarded_proof_output_retains_the_exact_duplicate_input_lane() {
-    let checked = check(DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(DUPLICATE_ARGUMENTED_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -892,7 +892,7 @@ fn forwarded_proof_output_retains_the_exact_duplicate_input_lane() {
 
 #[test]
 fn proof_output_is_canonical_verified_and_runtime_erased() {
-    let checked = check(PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),

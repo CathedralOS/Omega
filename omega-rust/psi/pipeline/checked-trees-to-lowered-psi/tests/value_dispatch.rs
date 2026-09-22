@@ -334,23 +334,6 @@ fn qualified_boolean_and_float_selection_keeps_exact_payloads() {
     }
 }
 
-fn check_source(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::Diagnostic>> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("dispatch tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("dispatch syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("dispatch resolution");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("dispatch typing");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-}
-
 fn execute(
     source: &str,
     arguments: &[TerminalScalarValue],
@@ -383,8 +366,7 @@ fn execute_machine_with_structural_inputs(
         Vec<TerminalStructuralPrimitiveValue>,
     ),
 ) -> (TerminalModule, MeasuredTerminalExecution) {
-    let checked =
-        check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
+    let checked = crate::front_end::checked_program(source);
     for machine in checked.machines() {
         assert_eq!(
             checked.machine_states(machine).len(),
@@ -623,21 +605,8 @@ fn float_match_results_reject_mixed_formats_before_lowering() {
         let source = format!(
             "machine choose(flag: bool, left: f32, right: f64) -> {result} {{ match flag {{ true -> left, false -> right }} }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolution");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typing");
-        let errors = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("mixed result formats must reject");
+        let errors = crate::front_end::checked_program_result(&source)
+            .expect_err("mixed result formats must reject");
         assert!(
             errors
                 .iter()

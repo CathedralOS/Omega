@@ -1,13 +1,9 @@
 //! Primitive referent publication independently checks exact source borrow facts.
 
 use checked_trees::{BorrowAccessKind, CheckedUnitEffectOperationPlan};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
     machine reset(value: &mut u64) -> u64 { value = 0; 7 }
@@ -19,22 +15,10 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 #[test]
 fn primitive_local_mutable_and_write_only_borrows_publish_with_exact_custody() {
     for source in [SOURCE.to_owned(), SOURCE.replace("&mut", "&write")] {
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let _ = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("enter"),
@@ -49,7 +33,7 @@ fn primitive_local_mutable_and_write_only_borrows_publish_with_exact_custody() {
 
 #[test]
 fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_facts() {
-    let original = checked(SOURCE);
+    let original = crate::front_end::checked_program(SOURCE);
     let _ = terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("enter"),
@@ -161,7 +145,7 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
 
 #[test]
 fn primitive_local_coherent_plan_and_borrow_substitution_cannot_replace_authored_actual() {
-    let mut changed = checked(SOURCE);
+    let mut changed = crate::front_end::checked_program(SOURCE);
     let _ = terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("enter"),

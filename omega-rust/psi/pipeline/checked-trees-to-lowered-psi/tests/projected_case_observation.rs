@@ -1,27 +1,10 @@
 //! Case tests observe the selected sum below its original borrowed owner.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
 
 #[test]
 fn fixed_index_case_observation_retains_the_selected_element() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Color [copy] { case Red; case Blue; }
         data Palette { colors: [Color; 3]; }
@@ -63,7 +46,7 @@ fn fixed_index_case_observation_retains_the_selected_element() {
 
 #[test]
 fn nested_record_case_observation_retains_every_carrier() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Color [copy] { case Red; case Blue; }
         data Swatch { color: Color; }
@@ -120,22 +103,8 @@ fn projected_case_observation_rejects_foreign_cases_and_write_only_access() {
             }}
         "#
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type");
         assert!(
-            typed_trees_to_checked_trees::lower_typed_trees(
-                typed,
-                &typed_trees_to_checked_trees::CheckingRequest::settled()
-            )
-            .is_err(),
+            crate::front_end::checked_program_result(&source).is_err(),
             "{receiver}: {selected_case} cannot authorize reading the selected discriminator"
         );
     }

@@ -1,7 +1,7 @@
 //! Attached Unit closure and transfer regression families.
 
 use super::{
-    LoweringError, PermissionClaimIdentity, checked_source, checked_source_with_core_service,
+    LoweringError, PermissionClaimIdentity, checked_source_with_core_service,
     hard_root_checked_fixture, lower_machine, unit_claim_at,
 };
 use crate::TerminalMachineSelection;
@@ -22,7 +22,7 @@ use terminal_psi::{
 };
 #[test]
 fn array_call_numeric_requirements_use_completed_argument_facts() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine read() -> [u8; 1] { bounded(7u8 + 2u8) }
          machine bounded(value: u8 [0..=9]) -> [u8; 1] { [value + 1u8] }",
     );
@@ -451,7 +451,7 @@ fn attached_unit_affine_argument_lowers_as_an_owned_transfer_without_a_claim_row
 
 #[test]
 fn attached_unit_affine_return_lowers_exact_no_code_discard() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Acknowledgement { sequence: u64; }
         data Root {}

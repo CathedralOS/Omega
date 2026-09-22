@@ -14,7 +14,7 @@ use super::{
     unsupported_message,
 };
 use crate::TerminalMachineSelection;
-use crate::tests::{checked_source, lower_machine};
+use crate::tests::lower_machine;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, OperationResult};
@@ -109,7 +109,7 @@ fn assert_family_integer_artifact_executes(
 
 #[test]
 fn lowers_a_direct_family_call_to_the_selected_tuple_row() {
-    let checked = checked_source(FAMILY_DYNAMIC_INTEGER_SOURCE);
+    let checked = crate::front_end::checked_program(FAMILY_DYNAMIC_INTEGER_SOURCE);
     let [plan] = checked
         .facts
         .flow
@@ -195,7 +195,7 @@ fn lowers_a_direct_family_call_to_the_selected_tuple_row() {
 
 #[test]
 fn rebound_family_call_retains_every_tuple_row_callable() {
-    let checked = checked_source(REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE);
+    let checked = crate::front_end::checked_program(REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE);
     let [plan] = checked
         .facts
         .flow
@@ -269,7 +269,7 @@ fn rebound_family_call_retains_every_tuple_row_callable() {
 
 #[test]
 fn forwarded_family_call_exposes_every_tuple_row_on_the_parameter_interface() {
-    let checked = checked_source(FORWARDED_FAMILY_DYNAMIC_INTEGER_SOURCE);
+    let checked = crate::front_end::checked_program(FORWARDED_FAMILY_DYNAMIC_INTEGER_SOURCE);
     let [plan] = checked
         .facts
         .flow
@@ -347,7 +347,7 @@ fn forwarded_family_call_exposes_every_tuple_row_on_the_parameter_interface() {
 
 #[test]
 fn joined_family_call_materializes_the_tuple_roster_once() {
-    let checked = checked_source(JOINED_FAMILY_DYNAMIC_BOOLEAN_SOURCE);
+    let checked = crate::front_end::checked_program(JOINED_FAMILY_DYNAMIC_BOOLEAN_SOURCE);
     let [joined] = checked
         .facts
         .flow
@@ -410,7 +410,7 @@ fn joined_family_call_materializes_the_tuple_roster_once() {
 
 #[test]
 fn lowers_a_family_unit_call_without_a_scalar_result() {
-    let checked = checked_source(FAMILY_DYNAMIC_UNIT_SOURCE);
+    let checked = crate::front_end::checked_program(FAMILY_DYNAMIC_UNIT_SOURCE);
     let [plan] = checked
         .facts
         .flow
@@ -490,7 +490,7 @@ fn lowers_a_family_unit_call_without_a_scalar_result() {
 
 #[test]
 fn rejects_a_family_plan_whose_tuple_drifted_from_its_realization() {
-    let mut checked = checked_source(FAMILY_DYNAMIC_INTEGER_SOURCE);
+    let mut checked = crate::front_end::checked_program(FAMILY_DYNAMIC_INTEGER_SOURCE);
     let [plan] = checked
         .facts
         .flow

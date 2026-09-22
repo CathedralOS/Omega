@@ -4,9 +4,6 @@ use checked_trees::{CheckedScalarComputationKind, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -14,7 +11,6 @@ use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::{expression::ExpressionNode, statement::StatementNode};
 
 const HELPERS: &str = r#"
@@ -32,18 +28,6 @@ const HELPERS: &str = r#"
     ensures 0u16 == 0u16
     { input }
 "#;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 fn artifact(checked: &checked_trees::CheckedTrees, state_count: usize) -> (Vec<u8>, Vec<u8>) {
     let root = checked
@@ -271,7 +255,7 @@ fn ordinary_unit_leaf_bodies_preserve_parameters_statement_order_and_transitive_
     for qualified in [false, true] {
         for trailing in [false, true] {
             let (source, states) = ordinary_source_spelling(qualified, false, trailing);
-            let artifact = artifact(&checked(&source), states);
+            let artifact = artifact(&crate::front_end::checked_program(&source), states);
             for selected in [false, true] {
                 let (status, effects) = execute(&artifact, &[selected]);
                 assert_eq!(
@@ -297,7 +281,7 @@ fn computed_unit_prefix_keeps_original_boolean_namespace_for_nested_control() {
     for qualified in [false, true] {
         for trailing in [false, true] {
             let (source, states) = ordinary_source_spelling(qualified, true, trailing);
-            let artifact = artifact(&checked(&source), states);
+            let artifact = artifact(&crate::front_end::checked_program(&source), states);
             for (first, second) in [(false, false), (false, true), (true, false), (true, true)] {
                 let (status, effects) = execute(&artifact, &[first, second]);
                 assert_eq!(
@@ -341,7 +325,7 @@ fn internal_unit_body_establishes_affine_locals_and_discards_them_in_reverse_ord
         }}
     "#
     );
-    let artifact = artifact(&checked(&source), 3);
+    let artifact = artifact(&crate::front_end::checked_program(&source), 3);
     let module = decode_module(&artifact.0).unwrap();
     let bodies = module
         .machines
@@ -418,7 +402,7 @@ fn selected_unit_call_arguments_short_circuit_before_entering_the_observable_cal
             }}
         "#
         );
-        let artifact = artifact(&checked(&source), 3);
+        let artifact = artifact(&crate::front_end::checked_program(&source), 3);
         for selected in [false, true] {
             let (status, effects) = execute(&artifact, &[selected]);
             let cause = if !selected {
@@ -475,7 +459,7 @@ fn selected_unit_first_argument_crash_wins_over_later_call_and_callee_effects() 
             }}
         "#
         );
-        let artifact = artifact(&checked(&source), 3);
+        let artifact = artifact(&crate::front_end::checked_program(&source), 3);
         for selected in [false, true] {
             let expected = if selected {
                 cause
@@ -496,7 +480,7 @@ fn selected_unit_first_argument_crash_wins_over_later_call_and_callee_effects() 
 #[test]
 fn transitive_unit_callee_suspension_metadata_is_retained_and_validated() {
     let (source, states) = ordinary_source(true, false);
-    let mut checked = checked(&source);
+    let mut checked = crate::front_end::checked_program(&source);
     artifact(&checked, states);
     let owner = checked
         .typed
@@ -595,7 +579,7 @@ fn transitive_unit_callee_suspension_metadata_is_retained_and_validated() {
 #[test]
 fn outer_and_transitive_unit_calls_reject_target_arity_and_operand_source_drift() {
     let (source, states) = ordinary_source(true, true);
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     artifact(&checked, states);
     let replacement = checked
         .typed

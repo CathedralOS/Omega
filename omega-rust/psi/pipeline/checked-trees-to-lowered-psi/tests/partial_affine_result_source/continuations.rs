@@ -2,8 +2,8 @@ use super::{
     AdmissionProfile, CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralPathSegment, Factory, FuelChargeSite, OperationResult,
     StructuralPathSegment, TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus,
-    TerminalFuelMeter, TerminalStructuralValue, Terminator, anonymous_source, checked,
-    decode_module, decode_proof_bundle, encode_module, encode_proof_section, path,
+    TerminalFuelMeter, TerminalStructuralValue, Terminator, anonymous_source, decode_module,
+    decode_proof_bundle, encode_module, encode_proof_section, path,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -39,7 +39,7 @@ fn assert_source_with_scalars(
     scalar_arguments: &[terminal_interpreter::TerminalScalarValue],
     expected_ticks: &[terminal_interpreter::TerminalScalarValue],
 ) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -262,7 +262,7 @@ fn scalar_result_continuations_reject_binding_and_cleanup_drift() {
     );
     let source = format!("{source} machine Sink::number(value: u16) {{}}");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(&source),
+        &crate::front_end::checked_program(&source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .expect("valid scalar result continuation before mutations");
@@ -346,7 +346,7 @@ fn scalar_projection_admission_keeps_parameter_and_final_return_limits() {
         );
         assert!(
             terminal_production::TerminalProductionRequest::new(
-                &checked(&source),
+                &crate::front_end::checked_program(&source),
                 TerminalMachineSelection::Name("Root::enter")
             )
             .produce(TerminalProductionCustody::artifact_only(
@@ -440,7 +440,8 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     "Sink::take(result.grid[1][1]); Sink::done();",
                 )
             };
-            let original = checked(&format!("{source} machine Sink::done() {{}}"));
+            let original =
+                crate::front_end::checked_program(&format!("{source} machine Sink::done() {{}}"));
             let _artifact = terminal_production::TerminalProductionRequest::new(
                 &original,
                 TerminalMachineSelection::Name("Root::enter"),

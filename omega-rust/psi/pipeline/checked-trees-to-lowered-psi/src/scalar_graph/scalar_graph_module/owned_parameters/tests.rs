@@ -519,21 +519,7 @@ fn actual_affine_limits_artifact_rejects_missing_duplicate_and_transferred_clean
             first.limit
         }
     ";
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("checked");
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("root"),

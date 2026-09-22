@@ -1,5 +1,5 @@
 use super::{
-    AdmissionProfile, SOURCE, TerminalEffect, TerminalExecutionResult, checked, encode_module,
+    AdmissionProfile, SOURCE, TerminalEffect, TerminalExecutionResult, encode_module,
     encode_proof_section, interpret_terminal_artifact_measured,
 };
 use checked_trees::{
@@ -126,7 +126,11 @@ fn authored_state_declarations_need_not_follow_execution_order() {
             declarations[order[2]],
             &SOURCE[end..],
         );
-        assert_eq!(output(&checked(&source)), expected_output(), "{order:?}");
+        assert_eq!(
+            output(&crate::front_end::checked_program(&source)),
+            expected_output(),
+            "{order:?}"
+        );
     }
 }
 
@@ -141,7 +145,7 @@ fn empty_forwarding_state_preserves_joined_view_scalar_and_continuation() {
         }
         state finish(",
         );
-    let mut checked = checked(&source);
+    let mut checked = crate::front_end::checked_program(&source);
     assert_eq!(graph(&mut checked).states.len(), 5);
     assert_eq!(output(&checked), expected_output());
 }
@@ -153,7 +157,10 @@ fn free_graph_retains_a_final_unit_call_expression() {
         "state finish(bytes: &[u8], marker: u8) {\n            Output::write(bytes, marker)",
     );
     assert_ne!(source, SOURCE);
-    assert_eq!(output(&checked(&source)), expected_output());
+    assert_eq!(
+        output(&crate::front_end::checked_program(&source)),
+        expected_output()
+    );
 }
 
 #[test]
@@ -176,7 +183,7 @@ fn view_and_scalar_successor_permutations_preserve_simultaneous_bindings() {
         machine Root::enter() reaches Output { relay("first", "second", 1u8, 2u8); }
     "#;
     assert_eq!(
-        output(&checked(source)),
+        output(&crate::front_end::checked_program(source)),
         vec![
             (b"second".to_vec(), 2),
             (b"first".to_vec(), 1),
@@ -188,7 +195,7 @@ fn view_and_scalar_successor_permutations_preserve_simultaneous_bindings() {
 
 #[test]
 fn checked_state_roster_must_match_authored_states() {
-    let base = checked(SOURCE);
+    let base = crate::front_end::checked_program(SOURCE);
     assert_eq!(output(&base), expected_output());
     for mutation in 0..3 {
         let mut changed = base.clone();
@@ -219,7 +226,7 @@ fn checked_body_calls_cannot_be_dropped_or_reordered() {
         "        Output::write(bytes, marker);\n        Output::write(bytes, 4u8);\n        transition selected",
     );
     assert_ne!(source, SOURCE);
-    let base = checked(&source);
+    let base = crate::front_end::checked_program(&source);
     let mut expected = expected_output();
     expected.insert(1, (b"\x80A".to_vec(), 4));
     expected.insert(5, (Vec::new(), 4));
@@ -257,7 +264,7 @@ fn source_with_alternative_inputs() -> String {
 
 #[test]
 fn checked_scalar_and_view_edges_reject_other_same_typed_source_parameters() {
-    let base = checked(&source_with_alternative_inputs());
+    let base = crate::front_end::checked_program(&source_with_alternative_inputs());
     assert_eq!(output(&base), expected_output());
     for change_view in [false, true] {
         let mut changed = base.clone();
@@ -292,7 +299,7 @@ fn distinct_views_survive_intermediate_states_and_rejoin() {
         "false -> second(other, marker)",
     );
     assert_eq!(
-        output(&checked(&source)),
+        output(&crate::front_end::checked_program(&source)),
         vec![
             (b"\x80A".to_vec(), 7),
             (b"\x80A".to_vec(), 1),
@@ -307,7 +314,7 @@ fn distinct_views_survive_intermediate_states_and_rejoin() {
 
 #[test]
 fn guard_source_binding_cannot_retarget_an_unchanged_checked_guard() {
-    let mut checked = checked(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     assert_eq!(output(&checked), expected_output());
     let state = graph(&mut checked).states[0].state;
     let role = checked_trees::CheckedScalarExpressionRole::Guard;
@@ -342,7 +349,7 @@ fn guard_source_binding_cannot_retarget_an_unchanged_checked_guard() {
 
 #[test]
 fn dropped_graph_call_cannot_fall_back_to_legacy_three_state_admission() {
-    let mut checked = checked(
+    let mut checked = crate::front_end::checked_program(
         r#"
         boundary trait Output { machine write(marker: u8) reaches Output; }
         data Relay {}

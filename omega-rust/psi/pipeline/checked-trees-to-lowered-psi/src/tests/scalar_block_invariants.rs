@@ -1,4 +1,4 @@
-use super::{ScalarType, checked_source, lower_machine};
+use super::{ScalarType, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::proofs::nonzero_divisor_certificate::{
     produce_checked_canonical_integer_proof, produce_relaxed_integer_proof,
@@ -12,7 +12,7 @@ use terminal_psi::OperationKind;
 use terminal_verifier::{ProofBundle, ReconstructedTerminalObligationOwner};
 
 fn fixture() -> LoweredPsi {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine count(current: u64 [0..=5]) -> u64 {
             transition current < 5 {
                 true -> count(current + 1)
@@ -95,7 +95,7 @@ fn exhausted_optional_obligation_ids_do_not_reject_an_existing_program() {
 /// the kernel must still verify the finalized module.
 #[test]
 fn relaxed_arrival_retains_bound_canonical_cannot_close() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine m(x: u64 [0..=4], s: u64 [0..=0]) -> u64 {
             transition { _ -> m(x + s, s) }
          }",
@@ -182,7 +182,7 @@ fn relaxed_arrival_retains_bound_canonical_cannot_close() {
 /// module must still stand without it.
 #[test]
 fn relaxed_arrival_rejects_when_only_a_guarded_premise_could_close_it() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine m(x: u64 [0..=8], s: u64 [0..=8]) -> u64 {
             transition { _ -> m(s, x) }
          }",

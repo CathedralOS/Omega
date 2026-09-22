@@ -1,11 +1,11 @@
 //! One-call acyclic target closure beneath composed Unit leaves.
 
-use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_psi::{Operation, OperationKind};
 fn checked_transitive_internal_calls() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet() {}
@@ -23,7 +23,7 @@ fn checked_transitive_internal_calls() -> checked_trees::CheckedTrees {
 }
 
 fn checked_depth_two_internal_calls() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet() {}

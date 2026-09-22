@@ -16,22 +16,7 @@
 
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 /// The carrier path of the one field store that reads the one emitted call's
 /// scalar result. Stores of other values, such as the preceding literal
@@ -119,7 +104,7 @@ const BOUNDED_DESTINATION: &str = r#"
 
 #[test]
 fn same_statement_field_store_reads_its_own_boundary_call_result() {
-    let checked = checked(DIRECT_FIELD);
+    let checked = crate::front_end::checked_program(DIRECT_FIELD);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .unwrap_or_else(|error| panic!("{DIRECT_FIELD}: {error:#?}"));
     assert!(
@@ -130,7 +115,7 @@ fn same_statement_field_store_reads_its_own_boundary_call_result() {
 
 #[test]
 fn same_statement_field_store_composes_with_a_carrier_path() {
-    let checked = checked(CARRIER_PATH_FIELD);
+    let checked = crate::front_end::checked_program(CARRIER_PATH_FIELD);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .unwrap_or_else(|error| panic!("{CARRIER_PATH_FIELD}: {error:#?}"));
     assert_eq!(
@@ -142,13 +127,7 @@ fn same_statement_field_store_composes_with_a_carrier_path() {
 
 #[test]
 fn same_statement_field_store_still_refuses_an_unproved_bounded_destination() {
-    let tokens = Lexer::new(BOUNDED_DESTINATION)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let Err(diagnostics) = lower_typed_trees(typed, &CheckingRequest::settled()) else {
+    let Err(diagnostics) = crate::front_end::checked_program_result(BOUNDED_DESTINATION) else {
         panic!("a call result with no range evidence cannot land in a bounded field");
     };
     assert!(

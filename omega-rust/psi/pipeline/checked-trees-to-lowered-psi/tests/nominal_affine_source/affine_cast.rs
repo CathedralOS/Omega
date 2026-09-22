@@ -1,14 +1,12 @@
 use super::{
     AcceptTerminalEffects, AdmissionProfile, EvidenceRoute, IntegerSign, IntegerType, IntegerValue,
-    Lexer, OperationKind, Proposition, ResolutionRequest, ScalarType, TerminalExecutionResult,
-    TerminalFuelSchedule, TerminalScalarValue, TerminalStructuralValue, decode_module,
-    decode_proof_bundle, derive_fixed_entry_fuel, encode_module, encode_proof_section,
-    interpret_terminal_artifact_measured, lower_symbol_resolved_trees, lower_typed_trees,
-    parse_syntax_trees, resolve, validate_fixed_entry_fuel,
+    OperationKind, Proposition, ScalarType, TerminalExecutionResult, TerminalFuelSchedule,
+    TerminalScalarValue, TerminalStructuralValue, decode_module, decode_proof_bundle,
+    derive_fixed_entry_fuel, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured, validate_fixed_entry_fuel,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::TerminalStructuralInputs;
-use typed_trees_to_checked_trees::CheckingRequest;
 const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
     data Helper {}
     machine Helper::touch() {}
@@ -40,15 +38,7 @@ const AFFINE_CAST_AFFINE_SOURCE: &str = r#"
 
 #[test]
 fn affine_cast_affine_sandwich_retains_every_independent_proof_end_to_end() {
-    let tokens = Lexer::new(AFFINE_CAST_AFFINE_SOURCE)
-        .tokenize()
-        .expect("tokenize affine-cast-affine source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse affine-cast-affine source");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve affine-cast-affine source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type affine-cast-affine source");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled())
-        .expect("check affine-cast-affine source");
+    let checked = crate::front_end::checked_program(AFFINE_CAST_AFFINE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::measure"),

@@ -2,7 +2,7 @@ use super::{
     artifact, assert_exact_normal_return_evidence, boolean_guarantee_source, execute, integer,
     normal_guarantee_source, ordered_contract_source, source,
 };
-use crate::unit_scalar_result_source::{CheckedScalarExpression, checked_from_source};
+use crate::unit_scalar_result_source::CheckedScalarExpression;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle};
@@ -32,7 +32,7 @@ fn ordered_boolean_guarantees_keep_mixed_scalar_slots_and_source_identity() {
                 &format!("Scalar::measure({input})"),
                 &format!("Scalar::measure(9u16, {input}, {})", !input),
             );
-        let original = checked_from_source(&source);
+        let original = crate::front_end::checked_program(&source);
         let published = artifact(&original);
         let (status, observed) = execute(&published);
         assert_eq!(
@@ -99,7 +99,8 @@ fn ordered_boolean_guarantees_keep_mixed_scalar_slots_and_source_identity() {
 #[test]
 fn ordered_scalar_guarantees_reject_changed_source_predicates() {
     use checked_trees::{CheckedBooleanExpression as Boolean, ClosedScalarContractValue as Clause};
-    let original = checked_from_source(&normal_guarantee_source("Host::finish(11); value"));
+    let original =
+        crate::front_end::checked_program(&normal_guarantee_source("Host::finish(11); value"));
     artifact(&original);
     let target = original
         .machines()
@@ -176,7 +177,7 @@ fn ordered_boundary_return_preserves_entry_predicates() {
             "Host::finish(11); Host::measure(value)",
         )
         .replace("Scalar::measure();", "Scalar::measure(70);");
-    let artifact = artifact(&checked_from_source(&source));
+    let artifact = artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&artifact.0).unwrap();
     let wrapper = module
         .machines
@@ -201,7 +202,7 @@ fn ordered_boundary_return_preserves_boolean_entry_predicates() {
         .replace("Scalar::measure() -> i32 reaches Host", "Scalar::measure(value: i32, allowed: bool, denied: bool) -> i32\nrequires allowed && !denied\nreaches Host")
         .replace("let result: i32 = Host::measure(70);\n            result", "Host::finish(11); Host::measure(value)")
         .replace("Scalar::measure();", "Scalar::measure(70, true, false);");
-    let artifact = artifact(&checked_from_source(&source));
+    let artifact = artifact(&crate::front_end::checked_program(&source));
     let module = decode_module(&artifact.0).unwrap();
     assert!(
         !module
@@ -233,7 +234,7 @@ fn ordered_boundary_requirements_keep_clause_slots_and_call_proofs() {
     ] {
         let source =
             ordered_contract_source().replace("Host::finish(other); Host::measure(value)", body);
-        let artifact = artifact(&checked_from_source(&source));
+        let artifact = artifact(&crate::front_end::checked_program(&source));
         let module = decode_module(&artifact.0).unwrap();
         let wrapper = module
             .machines
@@ -286,7 +287,7 @@ fn ordered_boundary_requirements_keep_clause_slots_and_call_proofs() {
 #[test]
 fn ordered_boundary_requirements_reject_source_predicate_substitution() {
     use checked_trees::{CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind};
-    let original = checked_from_source(&ordered_contract_source());
+    let original = crate::front_end::checked_program(&ordered_contract_source());
     artifact(&original);
     let target = original
         .machines()

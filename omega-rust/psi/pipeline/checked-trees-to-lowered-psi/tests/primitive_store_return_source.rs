@@ -2,9 +2,6 @@
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -13,23 +10,10 @@ use terminal_interpreter::{
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
 
 #[test]
 fn primitive_reference_reads_under_operators_preserve_pre_store_values() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         "machine change(value: &mut u64, mask: u64) -> u64 { value = value ^ mask; value }",
     );
     let artifact = terminal_production::TerminalProductionRequest::new(
@@ -52,7 +36,9 @@ fn primitive_reference_reads_under_operators_preserve_pre_store_values() {
 
 #[test]
 fn boolean_reference_negation_preserves_pre_store_value() {
-    let checked = checked("machine toggle(value: &mut bool) -> bool { value = !value; value }");
+    let checked = crate::front_end::checked_program(
+        "machine toggle(value: &mut bool) -> bool { value = !value; value }",
+    );
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("toggle"),
@@ -75,7 +61,8 @@ fn boolean_reference_negation_preserves_pre_store_value() {
 
 #[test]
 fn primitive_reference_write_then_scalar_return_reaches_terminal() {
-    let checked = checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
+    let checked =
+        crate::front_end::checked_program("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("reset"),
@@ -191,7 +178,7 @@ fn execute(
 
 #[test]
 fn write_only_parameter_delivery_and_distinct_result_keep_dense_scalar_order() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         "machine replace(destination: &write u64, replacement: u64, result_value: u64) -> u64 { destination = replacement; result_value }",
     );
     let artifact = terminal_production::TerminalProductionRequest::new(
@@ -214,7 +201,7 @@ fn write_only_parameter_delivery_and_distinct_result_keep_dense_scalar_order() {
 
 #[test]
 fn boolean_store_and_return_keep_separate_values() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         "machine replace(destination: &mut bool, replacement: bool) -> bool { destination = replacement; false }",
     );
     let artifact = terminal_production::TerminalProductionRequest::new(
@@ -237,7 +224,7 @@ fn boolean_store_and_return_keep_separate_values() {
 
 #[test]
 fn attached_store_return_retains_its_exact_owner() {
-    let mut checked = checked(
+    let mut checked = crate::front_end::checked_program(
         "data First {} data Second {} machine First::reset(value: &mut u64) -> u64 { value = 0; 0 } machine Second::reset(value: &mut u64) -> u64 { value = 0; 0 }",
     );
     let artifact = terminal_production::TerminalProductionRequest::new(
@@ -269,7 +256,9 @@ fn attached_store_return_retains_its_exact_owner() {
 #[test]
 fn missing_duplicate_redirected_and_changed_store_plans_reject() {
     for mutation in 0..8 {
-        let mut checked = checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
+        let mut checked = crate::front_end::checked_program(
+            "machine reset(value: &mut u64) -> u64 { value = 0; 0 }",
+        );
         let plan = checked
             .facts
             .flow
@@ -337,7 +326,7 @@ fn missing_duplicate_redirected_and_changed_store_plans_reject() {
 #[test]
 fn unsupported_authored_contracts_cannot_disappear_from_store_return_bodies() {
     for contract in ["requires true;", "ensures result == 0;", "crashes Trap"] {
-        let mut checked = checked(&format!(
+        let mut checked = crate::front_end::checked_program(&format!(
             "machine reset(value: &mut u64) -> u64 {contract} {{ value = 0; 0 }}"
         ));
         assert!(
@@ -358,7 +347,9 @@ fn unsupported_authored_contracts_cannot_disappear_from_store_return_bodies() {
         .unwrap_or_else(|error| panic!("{contract}: {error:?}"));
         // Producer evidence may be incomplete or substituted. The consumer must
         // inspect the authored contract even after its proof rows disappear.
-        let plain = self::checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
+        let plain = crate::front_end::checked_program(
+            "machine reset(value: &mut u64) -> u64 { value = 0; 0 }",
+        );
         let mut forged = plain.facts.flow.terminal_structural_scalar_returns.machines[0].clone();
         let machine = &checked.machines()[0];
         forged.machine = machine.symbol;
@@ -389,7 +380,7 @@ fn constrained_referents_scalar_inputs_and_results_cannot_lose_their_ranges() {
         ("u64", "u64 [0..=5]", "u64"),
         ("u64", "u64", "u64 [0..=5]"),
     ] {
-        let mut checked = checked(&format!(
+        let mut checked = crate::front_end::checked_program(&format!(
             "machine reset(value: &mut {referent}, seed: {input}) -> {result} {{ value = 0; 0 }}"
         ));
         assert!(
@@ -400,8 +391,9 @@ fn constrained_referents_scalar_inputs_and_results_cannot_lose_their_ranges() {
                 .machines
                 .is_empty()
         );
-        let plain =
-            self::checked("machine reset(value: &mut u64, seed: u64) -> u64 { value = 0; 0 }");
+        let plain = crate::front_end::checked_program(
+            "machine reset(value: &mut u64, seed: u64) -> u64 { value = 0; 0 }",
+        );
         let mut forged = plain.facts.flow.terminal_structural_scalar_returns.machines[0].clone();
         let machine = &checked.machines()[0];
         forged.machine = machine.symbol;
@@ -428,7 +420,8 @@ fn constrained_referents_scalar_inputs_and_results_cannot_lose_their_ranges() {
 
 #[test]
 fn ordinary_store_completion_replays_retained_effects_without_legacy_return_rows() {
-    let mut original = checked("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
+    let mut original =
+        crate::front_end::checked_program("machine reset(value: &mut u64) -> u64 { value = 0; 0 }");
     let target = original
         .machines()
         .iter()

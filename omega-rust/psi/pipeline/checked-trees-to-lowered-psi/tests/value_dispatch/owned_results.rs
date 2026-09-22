@@ -14,7 +14,6 @@ mod membership_subjects;
 #[path = "owned_results/owned_match_records_and_selections.rs"]
 mod owned_match_records_and_selections;
 
-use crate::value_dispatch::check_source;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 const SOURCE: &str =
@@ -90,8 +89,8 @@ fn membership_case(
 fn verify_membership_source(
     source: &str,
 ) -> (checked_trees::CheckedTrees, lowered_psi::LoweredPsi) {
-    let checked =
-        check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
+    let checked = crate::front_end::checked_program_result(source)
+        .unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
     let machine = checked
         .machines()
         .iter()

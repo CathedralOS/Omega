@@ -1,23 +1,7 @@
 //! Mixed Unit crash arithmetic uses exact runtime requirement evidence.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 const SOURCE: &str = r#"
     data Metrics { current: u64; }
@@ -92,7 +76,7 @@ fn transitive_mixed_signatures_keep_formal_values_and_requirements_together() {
         crashes Abort metrics.current / divisor <= limit
         { Relay::relay(limit, divisor, metrics); }
     "#;
-    let lowered = roundtrip(&checked(source));
+    let lowered = roundtrip(&crate::front_end::checked_program(source));
     assert_eq!(lowered.semantic_module.machines.len(), 3);
     let mut formal_values = Vec::new();
     for machine in &lowered.semantic_module.machines {
@@ -138,11 +122,11 @@ fn transitive_mixed_signatures_keep_formal_values_and_requirements_together() {
 
 #[test]
 fn scalar_divisor_requirement_survives_reordered_mixed_unit_call() {
-    roundtrip(&checked(SOURCE));
+    roundtrip(&crate::front_end::checked_program(SOURCE));
     let free = SOURCE
         .replace("Helper::consume", "consume")
         .replace("{ Sink::record(divisor, limit); }", "{}");
-    roundtrip(&checked(&free));
+    roundtrip(&crate::front_end::checked_program(&free));
 }
 
 #[test]
@@ -165,7 +149,7 @@ fn computed_scalar_divisor_carries_its_requirement_into_the_mixed_unit_call() {
         } else {
             source
         };
-        let lowered = roundtrip(&checked(&source));
+        let lowered = roundtrip(&crate::front_end::checked_program(&source));
         let root = lowered
             .semantic_module
             .machines
@@ -252,7 +236,7 @@ fn computed_argument_keeps_entry_requirements_without_a_crash_ceiling() {
             "Helper::consume(divisor, metrics, limit)",
             "Helper::consume(divisor + 0u64, metrics, limit)",
         );
-    let lowered = roundtrip(&checked(&source));
+    let lowered = roundtrip(&crate::front_end::checked_program(&source));
     assert!(lowered.semantic_module.machines.iter().all(|machine| {
         machine.contract.crash_routes.is_empty() && machine.contract.requires.len() == 1
     }));
@@ -274,7 +258,7 @@ fn reflexive_call_requirement_cannot_prove_unbounded_argument_addition_safe() {
             {{ Helper::consume(input + 1{primitive}, metrics); }}
         "#
         );
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let error = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name("Main::main"),
@@ -307,7 +291,7 @@ fn literal_first_scalar_equality_requirement_keeps_canonical_value_identity() {
         "requires 1u64 <= divisor",
         "requires 1u64 <= divisor, 1u64 == divisor",
     );
-    roundtrip(&checked(&source));
+    roundtrip(&crate::front_end::checked_program(&source));
 }
 
 #[test]
@@ -316,7 +300,7 @@ fn reversed_scalar_actuals_prove_the_symmetric_callee_requirement() {
         "requires 1u64 <= divisor",
         "requires 1u64 <= divisor, divisor == limit",
     );
-    let lowered = roundtrip(&checked(&source));
+    let lowered = roundtrip(&crate::front_end::checked_program(&source));
     let obligation = call_requirement(&lowered, |requirement| {
         matches!(requirement, semantic_vocabulary::Proposition::Equal(_, _))
     });
@@ -444,7 +428,7 @@ fn stronger_caller_scalar_bound_proves_the_weaker_callee_requirement() {
     let source = SOURCE.replace("requires 1u64 <= divisor", "requires 1u64 <= divisor, 1u64 <= limit")
         .replace("requires 1u64 <= divisor, 1u64 <= limit\n    crashes Abort metrics.current / divisor <= limit\n    { Helper",
             "requires 1u64 <= divisor, 2u64 <= limit\n    crashes Abort metrics.current / divisor <= limit\n    { Helper");
-    let lowered = roundtrip(&checked(&source));
+    let lowered = roundtrip(&crate::front_end::checked_program(&source));
     let root = lowered
         .semantic_module
         .machines
@@ -539,15 +523,8 @@ fn scalar_call_requirements_reject_weaker_bounds_and_disjoint_subjects() {
         } else {
             source
         };
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("caller bounds must imply the requirement on the same scalar subject");
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("caller bounds must imply the requirement on the same scalar subject");
         assert!(
             diagnostics
                 .iter()
@@ -574,7 +551,7 @@ fn mixed_call_requirements_keep_callee_order_and_equal_actual_slots() {
         } else {
             source
         };
-        let lowered = roundtrip(&checked(&source));
+        let lowered = roundtrip(&crate::front_end::checked_program(&source));
         let root = lowered
             .semantic_module
             .machines
@@ -654,7 +631,7 @@ fn structural_divisor_keeps_whole_root_requirements_and_rejects_partial_cleanup(
                 .replace("envelope: Envelope", "metrics: Metrics")
                 .replace("envelope.metrics", "metrics")
         };
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         if projected {
             // Projected owned moves need the separate partial-affine cleanup
             // consumer, whose current source shape excludes mixed scalar
@@ -678,7 +655,7 @@ fn retained_call_certificate_cannot_prove_a_changed_scalar_requirement() {
         "requires 1u64 <= divisor",
         "requires 1u64 <= divisor, 1u64 <= limit",
     );
-    let lowered = roundtrip(&checked(&source));
+    let lowered = roundtrip(&crate::front_end::checked_program(&source));
     let root = lowered
         .semantic_module
         .machines
@@ -776,8 +753,10 @@ const SHIFT_SOURCE: &str = r#"
 
 #[test]
 fn exact_shift_and_signed_division_retain_mixed_totality_requirements() {
-    roundtrip(&checked(SHIFT_SOURCE));
-    roundtrip(&checked(&SOURCE.replace("u64", "i64")));
+    roundtrip(&crate::front_end::checked_program(SHIFT_SOURCE));
+    roundtrip(&crate::front_end::checked_program(
+        &SOURCE.replace("u64", "i64"),
+    ));
 }
 
 #[test]
@@ -803,15 +782,8 @@ fn mixed_arithmetic_rejects_missing_nonzero_signed_overflow_and_count_bounds() {
         ),
     ];
     for (source, expected) in sources {
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("mixed specification arithmetic still needs complete totality facts");
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("mixed specification arithmetic still needs complete totality facts");
         assert!(
             diagnostics
                 .iter()
@@ -823,7 +795,7 @@ fn mixed_arithmetic_rejects_missing_nonzero_signed_overflow_and_count_bounds() {
 
 #[test]
 fn verifier_rejects_redirected_scalar_arguments_and_requirement_evidence() {
-    let lowered = roundtrip(&checked(SOURCE));
+    let lowered = roundtrip(&crate::front_end::checked_program(SOURCE));
     let root_index = lowered
         .semantic_module
         .machines

@@ -2,8 +2,7 @@
 
 use super::{
     CheckedUnitEffectOperationPlan, OperationKind, TerminalExecution, TerminalExecutionResult,
-    TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue, checked_from_source,
-    unit_plan,
+    TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue, unit_plan,
 };
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{
@@ -21,7 +20,7 @@ fn source(signature: &str, receiver: &str) -> String {
 
 #[test]
 fn indexed_write_only_receiver_reaches_canonical_terminal() {
-    let checked = checked_from_source(
+    let checked = crate::front_end::checked_program(
         "data Record [copy] { value: u16; }
          machine Record::replace(&write self) { self.value = 17; }
          machine forward(records: &write [Record; 2]) { records[1].replace(); }",
@@ -41,7 +40,7 @@ fn indexed_write_only_receiver_reaches_canonical_terminal() {
 fn indexed_ieee_write_only_receiver_retains_runtime_and_literal_stores() {
     for primitive in ["f32", "f64"] {
         for replacement in ["value", "1.25"] {
-            let checked = checked_from_source(&format!(
+            let checked = crate::front_end::checked_program(&format!(
                 "data Record [copy] {{ value: {primitive}; }}
                  machine Record::replace(&write self, value: {primitive}) {{ self.value = {replacement}; }}
                  machine forward(records: &write [Record; 2], value: {primitive}) {{ records[1].replace(value); }}"
@@ -97,7 +96,7 @@ fn indexed_ieee_write_only_receiver_retains_runtime_and_literal_stores() {
 
 #[test]
 fn retained_write_only_alias_preserves_the_indexed_receiver() {
-    let checked = checked_from_source(
+    let checked = crate::front_end::checked_program(
         "data Record [copy] { value: u16; }
          machine Record::replace(&write self) { self.value = 17; }
          machine forward(records: &write [Record; 2]) {
@@ -156,7 +155,7 @@ fn fixed_indexed_receiver_paths_keep_fields_and_nested_arrays() {
         ),
     ] {
         let source = source(signature, receiver);
-        let checked = checked_from_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let _artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name(caller),
@@ -171,7 +170,7 @@ fn fixed_indexed_receiver_paths_keep_fields_and_nested_arrays() {
 
 #[test]
 fn indexed_receiver_plan_cannot_substitute_another_in_bounds_element() {
-    let mut checked = checked_from_source(&source(
+    let mut checked = crate::front_end::checked_program(&source(
         "forward(records: &write [Record; 2])",
         "records[1]",
     ));
@@ -208,7 +207,7 @@ fn indexed_receiver_plan_cannot_substitute_another_in_bounds_element() {
 
 #[test]
 fn indexed_receiver_executes_once_across_every_fuel_boundary() {
-    let checked = checked_from_source(&source(
+    let checked = crate::front_end::checked_program(&source(
         "forward(records: &write [[Record; 2]; 2])",
         "records[1][0]",
     ));
@@ -217,7 +216,7 @@ fn indexed_receiver_executes_once_across_every_fuel_boundary() {
 
 #[test]
 fn erased_indexed_alias_executes_once_across_every_fuel_boundary() {
-    let checked = checked_from_source(
+    let checked = crate::front_end::checked_program(
         "data Record [copy] { value: u16; }
          machine Record::replace(&write self) { self.value = 17; }
          machine forward(records: &mut [[Record; 2]; 2]) {
@@ -230,7 +229,7 @@ fn erased_indexed_alias_executes_once_across_every_fuel_boundary() {
 
 #[test]
 fn nested_indexed_alias_executes_once_across_every_fuel_boundary() {
-    let checked = checked_from_source(
+    let checked = crate::front_end::checked_program(
         "data Record [copy] { value: u16; }
          machine Record::replace(&write self) { self.value = 17; }
          machine forward(records: &write [[Record; 2]; 2]) {
@@ -251,7 +250,7 @@ fn projected_alias_capture_executes_once_across_every_fuel_boundary() {
          let child: &write Record = &write held[0];
          child.replace();",
     ] {
-        let checked = checked_from_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "data Record [copy] {{ value: u16; }}
              machine Record::replace(&write self) {{ self.value = 17; }}
              machine forward(records: &write [[Record; 2]; 2]) {{ {body} }}"
@@ -360,7 +359,7 @@ fn assert_indexed_receiver_fuel(checked: &checked_trees::CheckedTrees) {
 
 #[test]
 fn indexed_receiver_keeps_a_scalar_parameter_separate_from_its_loan() {
-    let checked = checked_from_source(
+    let checked = crate::front_end::checked_program(
         "data Record [copy] { value: u16; }
          machine Record::replace(&write self, replacement: u16) { self.value = replacement; }
          machine forward(replacement: u16, records: &mut [Record; 2]) { records[1].replace(replacement); }",
@@ -378,7 +377,7 @@ fn indexed_receiver_keeps_a_scalar_parameter_separate_from_its_loan() {
 
 #[test]
 fn dynamic_indexed_receiver_remains_checked_without_static_terminal_geometry() {
-    let checked = checked_from_source(&source(
+    let checked = crate::front_end::checked_program(&source(
         "forward(records: &write [Record; 2], index: u64 [0..=1])",
         "records[index]",
     ));
@@ -399,7 +398,7 @@ fn unused_projected_receiver_keeps_existing_self_erasure() {
     for receiver in ["records[1]", "entries[1].record"] {
         let source =
             source("Container::forward(&write self)", receiver).replace("self.value = 17;", "");
-        let checked = checked_from_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let _artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             TerminalMachineSelection::Name("Container::forward"),

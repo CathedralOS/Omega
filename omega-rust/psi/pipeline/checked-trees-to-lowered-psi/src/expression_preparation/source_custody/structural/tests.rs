@@ -8,31 +8,13 @@ fn checked() -> CheckedTrees {
         machine choose(selector: u64) -> Tag {
             match selector { 0 -> Tag::First, _ -> Tag::Second }
         }";
-    checked_source(source)
-}
-
-fn checked_source(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
+    crate::front_end::checked_program(source)
 }
 
 #[test]
 fn moved_record_replay_preserves_value_origin_and_requires_exact_transfer() {
     use language_semantics::{PermissionEventKind, PermissionEventSource, PermissionProvenance};
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "data Owned { value: u64; }
          machine moved() -> u64 {
              let keep: Owned = Owned { value: 17 };
@@ -113,7 +95,7 @@ fn moved_record_replay_preserves_value_origin_and_requires_exact_transfer() {
 
 #[test]
 fn record_replay_rejects_swapped_same_carrier_fields_and_operands() {
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         "data Pair[copy] { first: u64; second: u64; }
         machine make(first: u64, second: u64) -> Pair {
             Pair { second: second, first: first }
@@ -368,7 +350,7 @@ fn structural_replay_rejects_case_identity_and_root_owner_substitution() {
 
 #[test]
 fn nested_call_replay_rejects_an_equal_row_outside_the_owning_state() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         "data Inner { value: u64; } data Outer { child: Inner; }
         machine make_child(value: u64) -> Inner { Inner { value: value } }
         machine make() -> Outer { Outer { child: make_child(7) } }",
@@ -436,7 +418,7 @@ fn nested_call_replay_rejects_an_equal_row_outside_the_owning_state() {
 
 #[test]
 fn owned_record_child_replay_rejects_same_carrier_parameter_substitution() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         "data Inner { value: u64; } data Outer { child: Inner; }
         machine wrap(first: Inner, second: Inner) -> Outer { Outer { child: first } }",
     );
@@ -474,7 +456,7 @@ fn owned_record_child_replay_rejects_same_carrier_parameter_substitution() {
 
 #[test]
 fn whole_record_root_replay_rejects_same_carrier_source_substitution() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         "data Value [copy] { value: u64; } machine copy(first: Value, second: Value) -> Value { first }",
     );
     let (machine, state, operation) = operation(&checked);
@@ -513,7 +495,7 @@ fn whole_record_root_replay_rejects_same_carrier_source_substitution() {
 #[test]
 fn carrier_selection_receipt_replay_rejects_mutated_claim_sets() {
     use language_semantics::PermissionProvenance;
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Token [linear] { code: u64; }
          data Holder { left: Token; right: Token; }
          machine Token::settle(self) {}

@@ -2,7 +2,7 @@
 use super::{
     AdmissionProfile, CheckedTrees, CheckedUnitEffectOperationPlan, ExpressionNode, IntegerSign,
     IntegerType, IntegerValue, StatementNode, TerminalExecutionResult, TerminalScalarValue,
-    checked_source, interpret_terminal_artifact, reject, selected_source,
+    interpret_terminal_artifact, reject, selected_source,
 };
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitEffectMachinePlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -10,7 +10,7 @@ use checked_trees::{
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 fn execute(source: &str, expected: &[u8]) {
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("selected"),
@@ -63,7 +63,7 @@ fn source_array_forwarding_without_scalar_parameters_uses_the_ordinary_signature
             forward(first, copied)
         }";
     execute(source, &[255]);
-    let original = checked_source(source);
+    let original = crate::front_end::checked_program(source);
     for mutation in [
         "same typed parameter",
         "borrowed parameter",
@@ -132,7 +132,7 @@ fn source_mixed_array_call_requires_exact_scalar_positions_and_complete_obligati
             pick(first, 0u8, second, 3u8)
         }";
     execute(source, &[42, 9]);
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("selected"),
@@ -232,7 +232,7 @@ fn source_array_arguments_preserve_nested_and_zero_dimensions() {
 }
 
 fn custody_fixture() -> CheckedTrees {
-    checked_source(&format!(
+    crate::front_end::checked_program(&format!(
         "{HELPERS} machine selected() -> [u8; 2] {{
              let first: [u8; 2] = make(7u8);
              let second: [u8; 2] = make(42u8);
@@ -335,7 +335,8 @@ fn source_array_parameter_return_rejects_slot_symbol_type_and_access_substitutio
 
 #[test]
 fn source_array_direct_parameter_return_rejects_changed_parameter_flags() {
-    let original = checked_source("machine selected(row: [u8; 2]) -> [u8; 2] { row }");
+    let original =
+        crate::front_end::checked_program("machine selected(row: [u8; 2]) -> [u8; 2] { row }");
     checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("selected"),
@@ -363,8 +364,9 @@ fn source_array_direct_parameter_return_rejects_changed_parameter_flags() {
 
 #[test]
 fn source_array_local_return_requires_the_exact_whole_name() {
-    let original =
-        checked_source("machine selected() -> [u8; 2] { let row: [u8; 2] = [7, 9]; row }");
+    let original = crate::front_end::checked_program(
+        "machine selected() -> [u8; 2] { let row: [u8; 2] = [7, 9]; row }",
+    );
     checked_trees_to_lowered_psi::lower_machine(
         &original,
         TerminalMachineSelection::Name("selected"),

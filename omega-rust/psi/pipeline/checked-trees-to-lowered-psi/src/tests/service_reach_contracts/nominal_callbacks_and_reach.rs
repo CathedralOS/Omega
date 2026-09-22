@@ -1,18 +1,14 @@
 use super::service_names;
 use crate::TerminalMachineSelection;
-use crate::tests::{
-    Lexer, ResolutionRequest, checked_source, lower_machine, lower_symbol_resolved_trees,
-    lower_typed_trees, parse_syntax_trees, resolve,
-};
+use crate::tests::lower_machine;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
-use typed_trees_to_checked_trees::CheckingRequest;
 
 #[test]
 fn direct_boundary_calls_transfer_both_owned_claims() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         pub data Extent [linear] { value: u64; }
         pub boundary trait Sink { machine take(first: Extent, second: Extent); }
@@ -86,7 +82,7 @@ fn nominal_unit_callbacks_require_a_closed_executable_selection() {
         machine quiet(first: i32, second: i32) satisfies Sink::emit {}
         pub machine Root::selected() { Root::unselected<quiet>(3, 7); }
     "#;
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     assert!(
         terminal_production::TerminalProductionRequest::new(
             &checked,
@@ -127,7 +123,7 @@ fn nominal_unit_callbacks_require_a_closed_executable_selection() {
 
 #[test]
 fn closed_nominal_callback_transfers_both_claims_to_its_selected_body() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         pub data Extent [linear] { value: u64; }
         pub boundary trait Sink { machine take(first: Extent, second: Extent); }
@@ -227,7 +223,7 @@ fn nominal_callback_selected_reach_survives_terminal_publication() {
         let source = format!(
             "{traversal}\n {helper}\n machine selected(value: u64) -> u64 satisfies StepContract::step {callback_reach} {{ {callback_body} }}\n pub machine enter(value: u64) -> u64 {{ traverse<selected>(value) }}"
         );
-        let checked = checked_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("enter"))
             .unwrap_or_else(|error| panic!("selected callback {callback_reach:?}: {error:?}"));
         let artifact = terminal_production::TerminalProductionRequest::new(
@@ -321,7 +317,7 @@ fn nominal_callback_selected_reach_survives_terminal_publication() {
 
 #[test]
 fn authored_unit_reach_survives_ordinary_helper_publication() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         pub boundary trait Console {}
         machine note() reaches Console {}
@@ -365,11 +361,7 @@ fn direct_installation_boundary_keeps_its_required_declaration() {
             pub machine Root::enter() reaches Installer {additional_reach} invokes Installer; {{ Installer::step(); }}
         "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        let result = lower_typed_trees(typed, &CheckingRequest::settled());
+        let result = crate::front_end::checked_program_result(&source);
         if additional_reach.is_empty() {
             let diagnostics =
                 result.expect_err("installation bounds do not waive direct declarations");

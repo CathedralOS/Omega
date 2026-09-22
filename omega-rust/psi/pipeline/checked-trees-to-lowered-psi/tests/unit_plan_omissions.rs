@@ -3,22 +3,6 @@
 //! the machine whose own body failed local construction.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 const UNSUPPORTED_BODY: &str = r#"
     data Token { observed: bool; other: bool; }
@@ -32,7 +16,7 @@ const UNSUPPORTED_BODY: &str = r#"
 
 #[test]
 fn a_root_without_an_admitted_body_names_its_own_local_construction() {
-    let checked = checked(UNSUPPORTED_BODY);
+    let checked = crate::front_end::checked_program(UNSUPPORTED_BODY);
     let error = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -59,7 +43,7 @@ fn a_root_without_an_admitted_body_names_its_own_local_construction() {
 
 #[test]
 fn a_root_whose_callee_lacks_a_body_names_the_callee_chain() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Token { observed: bool; other: bool; }
         machine Token::drop(&mut self) {}
@@ -208,7 +192,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
 
 #[test]
 fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
-    let checked = checked(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main<'s> {{
              runtime: &'s mut TaskRuntime;
@@ -463,7 +447,7 @@ fn a_routed_task_start_call_plans_and_owned_settle_reaches_module_production() {
 // routed `start`/`settle` fixture the pinning test above establishes.
 #[test]
 fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
-    let baseline = checked(&format!(
+    let baseline = crate::front_end::checked_program(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main<'s> {{
              runtime: &'s mut TaskRuntime;
@@ -771,7 +755,7 @@ fn a_provider_carrying_argument_still_stops_at_provider_attachment_requirements(
     // receivers only, so `carrier` cannot cross as an unspecialized
     // argument and the receiver still stops at provider attachment
     // requirements.
-    let checked = checked(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Carrier<'s> {{
              runtime: &'s mut TaskRuntime;
@@ -810,7 +794,7 @@ fn a_shared_task_runtime_place_stops_at_signature_construction() {
     // selected provider capability. Checked structural signatures admit an
     // owned boundary-trait field but not a borrowed one, so construction
     // stops one stage earlier, before any call planning is reached.
-    let checked = checked(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main {{
              runtime: &TaskRuntime;
@@ -869,7 +853,7 @@ fn an_inline_case_argument_on_an_attached_call_plans() {
     // The construction is established as a state-local operand before the
     // call; unrestricted (copy) case types only — an affine literal still has
     // no permission events to carry it and stays omitted.
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         data Code [copy] { case Exceeded; case Other; }
         data AffineCode { case Exceeded; case Other; }

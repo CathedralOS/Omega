@@ -16,24 +16,6 @@ use terminal_production::{
 };
 use terminal_psi::{OperationKind, StructuralAccess, TerminalMachineResult};
 
-fn checked(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
-}
-
 const SOURCE: &str = r#"
 machine stamp(value: &mut u64, number: u64) -> u64 { value = number; number }
 machine first(left: u64, right: u64) -> u64 { left }
@@ -353,7 +335,7 @@ fn execute(
     arguments: &[TerminalScalarValue],
     expected: ExecutionExpectations<'_>,
 ) -> terminal_psi::TerminalModule {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("enter"),
@@ -533,7 +515,7 @@ fn execute(
 }
 
 fn publish_original(source: &str) -> CheckedTrees {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("enter"),

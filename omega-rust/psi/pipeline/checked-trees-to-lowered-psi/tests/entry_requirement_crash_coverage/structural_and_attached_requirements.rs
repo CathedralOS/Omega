@@ -1,6 +1,6 @@
 use super::{
     assert_structural_entry_requirement_artifact, assert_unconditional_call_trap_at_entry,
-    assert_unconditional_call_trap_with_structural_arguments, typed,
+    assert_unconditional_call_trap_with_structural_arguments,
 };
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -110,7 +110,7 @@ fn structural_requires_cannot_recover_corrupted_field_identity_from_spelling() {
         { Helper::forward(record); }
     "#;
     for corruption in ["foreign symbol", "missing symbol", "wrong spelling"] {
-        let mut program = typed(source);
+        let mut program = crate::front_end::typed_program(source);
         let owner = program
             .data_definitions()
             .iter()
@@ -240,7 +240,7 @@ fn structural_entry_requirement_does_not_authorize_a_different_field_or_root() {
              machine Main::value(record: &Flag, other: &Flag)\n\
              requires record.enabled\ncrashes Trap\n{{ Helper::forward(record, other); }}",
         );
-        let diagnostics = match lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
+        let diagnostics = match crate::front_end::checked_program_result(&source) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("a different structural entry identity must reject: {source}"),
         };
@@ -311,7 +311,7 @@ fn attached_entry_requirements_cannot_substitute_another_boolean_formal() {
              {{ Sink::record(trigger()); }}\n\
              machine Main::value()\ncrashes Trap\n{{ Helper::forward({arguments}); }}",
         );
-        let diagnostics = match lower_typed_trees(typed(&source), &CheckingRequest::settled()) {
+        let diagnostics = match crate::front_end::checked_program_result(&source) {
             Err(diagnostics) => diagnostics,
             Ok(_) => panic!("distinct attached formals cannot authorize each other: {source}"),
         };
@@ -343,8 +343,7 @@ fn mixed_attached_entry_requirement_uses_the_original_nonfirst_boolean() {
         crashes Trap
         { Helper::forward(false, record, true); }
     "#;
-    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let checked = crate::front_end::checked_program(source);
     let missing = ["Helper::forward", "Main::value"]
         .into_iter()
         .filter(|name| {

@@ -1,9 +1,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -11,7 +8,6 @@ use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::statement::{StatementNode, TransitionTargetNode};
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
@@ -409,10 +405,7 @@ fn guarded_case_replay_rejects_changed_order_guards_and_final_destination() {
 }
 
 fn checked_source(source: &str, form: BranchForm) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let mut typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let mut typed = crate::front_end::typed_program(source);
     if !matches!(form, BranchForm::Separate) {
         let machine = typed.machines()[0].clone();
         let nodes = typed.machine_states(&machine)[0].statement_nodes;

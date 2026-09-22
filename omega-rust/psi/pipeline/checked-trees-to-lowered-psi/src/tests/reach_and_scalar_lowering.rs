@@ -1,4 +1,4 @@
-use super::{assert_source_direct_float_result, checked_float_projection_source, checked_source};
+use super::{assert_source_direct_float_result, checked_float_projection_source};
 use crate::TerminalMachineSelection;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerBinaryKind;
@@ -13,14 +13,10 @@ use checked_trees::CheckedBooleanExpression;
 use numerics::arithmetic::ArithmeticDomain;
 use numerics::integer_policy::IntegerPolicyPrimitive;
 use semantic_vocabulary::{IeeeFloatFormat, Proposition, PropositionContext, ScalarType};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi::{
     BoundaryMachineResult, OperationKind, OperationResult, StructuralMultiplicity,
     StructuralTypeShape, ValueDeclaration,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -33,10 +29,7 @@ fn top_level_bounded_reach_lowers_normalized_machine_identity() {
         boundary machine InterruptAcknowledgement::complete()
         reaches <= MachineControl + PortIo;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let requirement = typed
         .machines()
         .iter()
@@ -584,11 +577,7 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
             choose<Card, FieldOrder<Card>>(left, right)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let owner = checked
         .machine_specializations
         .iter()
@@ -602,11 +591,7 @@ fn generic_conformance_application_crosses_terminal_scalar_closure() {
         ensures true == true
         { value }
     "#;
-    let tokens = Lexer::new(terminal_source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let terminal_checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let terminal_checked = crate::front_end::checked_program(terminal_source);
     let mut lowered = lower_machine(
         &terminal_checked,
         TerminalMachineSelection::Name("terminal_root"),
@@ -718,11 +703,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
             left != right
         {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("lower terminal");
     let cases = lowered
@@ -789,7 +770,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
 
 #[test]
 fn structural_boundary_result_lowers_and_round_trips() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data ByteRead {
             case Eof;
@@ -853,11 +834,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
             left != right
         {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("payload-bearing equality has exact case-payload paths");
     let cases = lowered

@@ -21,7 +21,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalModule,
 };
 
-use super::{check_source, execute, execute_machine_with_structural_inputs, unsigned};
+use super::{execute, execute_machine_with_structural_inputs, unsigned};
 
 /// `a` is itself a prior selection's join result: the second match borrows
 /// `a.first` through block-parameter custody on one arm and a plain local's
@@ -234,8 +234,7 @@ const DIRECT_FORWARD_SOURCE: &str = "data Payload { left: u64; right: u64; }
 /// when it lowers, otherwise the exact rejection. A whole-place borrow such as
 /// `&a` carries no segments and reports an empty path.
 fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) {
-    let checked =
-        check_source(source).unwrap_or_else(|errors| panic!("source checks: {errors:#?}"));
+    let checked = crate::front_end::checked_program(source);
     let mut arms: Vec<(String, String)> = borrowed_arms(&checked)
         .iter()
         .map(|arm| {
@@ -271,8 +270,7 @@ fn planned_borrow_arms(source: &str) -> (Vec<(String, String)>, Option<String>) 
 /// verifies the decoded copy — the produced-module evidence for a shape the
 /// interpreter has no executable lane for yet.
 fn verify_lowered(source: &str) -> TerminalModule {
-    let checked =
-        check_source(source).unwrap_or_else(|errors| panic!("checking {source}: {errors:#?}"));
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("choose"),
@@ -427,7 +425,7 @@ fn borrowed_selection_call_consumer_forwards_the_established_view() {
     // is an admitted source-independent `PrimitiveScalarRead` callee. The
     // established `&u64` join is now admitted too, so the lowered module is
     // asserted directly below.
-    let checked = check_source(PRIMITIVE_CALL_SOURCE).expect("primitive borrowed call checks");
+    let checked = crate::front_end::checked_program(PRIMITIVE_CALL_SOURCE);
     let (_, view_symbol) = local(&checked, "view");
     let machine = checked
         .machines()
@@ -659,7 +657,7 @@ fn borrowed_primitive_parameter_call_forwards_the_view() {
 /// unit-effect lane covers `choose`.
 #[test]
 fn established_reference_local_call_forwards_the_direct_borrow() {
-    let checked = check_source(DIRECT_FORWARD_SOURCE).expect("direct borrowed local checks");
+    let checked = crate::front_end::checked_program(DIRECT_FORWARD_SOURCE);
     let (view_statement, view_symbol) = local(&checked, "view");
     let machine = checked
         .machines()
@@ -815,7 +813,7 @@ fn established_reference_local_call_forwards_the_direct_borrow() {
 
 #[test]
 fn borrowed_selection_rejoins_each_arms_exact_source() {
-    let checked = check_source(CHAINED_SOURCE).expect("borrowed chained selection checks");
+    let checked = crate::front_end::checked_program(CHAINED_SOURCE);
     let (lent, planned) = checked_borrowed_selection(&checked);
     assert_eq!(
         lent.keys().collect::<Vec<_>>(),
@@ -861,7 +859,7 @@ fn borrowed_selection_rejoins_each_arms_exact_source() {
 
 #[test]
 fn borrowed_selection_rejoins_direct_local_sources() {
-    let checked = check_source(UNCHAINED_SOURCE).expect("borrowed selection checks");
+    let checked = crate::front_end::checked_program(UNCHAINED_SOURCE);
     let (lent, planned) = checked_borrowed_selection(&checked);
     assert_eq!(lent.keys().collect::<Vec<_>>(), ["b", "x"]);
     assert_eq!(lent["x"], "first");
@@ -912,7 +910,7 @@ fn borrowed_selection_loans_constrain_sources_while_the_view_is_live() {
         ("b.first = Payload { left: 0, right: 0 };", true),
     ] {
         let source = source.replace("MUTATION", mutation);
-        match check_source(&source) {
+        match crate::front_end::checked_program_result(&source) {
             Ok(_) => assert!(allowed, "{mutation} cannot observe through the live view"),
             Err(errors) => {
                 assert!(!allowed, "{mutation} must stay free: {errors:#?}");
@@ -944,7 +942,7 @@ fn borrowed_selection_rejects_exclusive_and_aggregate_referents() {
         };",
         );
     assert!(
-        check_source(&mutable).is_err(),
+        crate::front_end::checked_program_result(&mutable).is_err(),
         "exclusive match arms cannot join a shared-borrow result"
     );
     // A whole sum borrow is outside the record-only admission.
@@ -955,7 +953,8 @@ fn borrowed_selection_rejects_exclusive_and_aggregate_referents() {
             let view: &Choice = match selected { true -> &left, false -> &right };
             view in Choice::Some
         }";
-    let errors = check_source(sum).expect_err("a whole sum borrow keeps rejecting");
+    let errors = crate::front_end::checked_program_result(sum)
+        .expect_err("a whole sum borrow keeps rejecting");
     assert!(
         errors.iter().any(|error| error
             .message
@@ -965,7 +964,7 @@ fn borrowed_selection_rejects_exclusive_and_aggregate_referents() {
     // Mixing a borrow arm with an owned carrier stays type-incompatible.
     let mixed = UNCHAINED_SOURCE.replace("false -> &b.second", "false -> b.second");
     assert!(
-        check_source(&mixed).is_err(),
+        crate::front_end::checked_program_result(&mixed).is_err(),
         "a `&Payload` result cannot join an owned `Payload` arm"
     );
 }
@@ -1165,7 +1164,7 @@ fn execute_indexed_parameters(selected: bool) -> (TerminalModule, MeasuredTermin
 
 #[test]
 fn borrowed_selection_keeps_indexed_local_provenance() {
-    let checked = check_source(INDEXED_SOURCE).expect("indexed borrowed selection checks");
+    let checked = crate::front_end::checked_program(INDEXED_SOURCE);
     let lent = indexed_loans(&checked);
     assert_eq!(lent.keys().collect::<Vec<_>>(), ["x", "y"]);
     assert_eq!(lent["x"], 0, "the true arm lends `x.items[0]`");
@@ -1186,8 +1185,7 @@ fn borrowed_selection_keeps_indexed_local_provenance() {
 
 #[test]
 fn borrowed_selection_rejoins_parameter_rooted_indexed_places() {
-    let checked = check_source(INDEXED_PARAMETERS_SOURCE)
-        .expect("parameter-rooted indexed borrowed selection checks");
+    let checked = crate::front_end::checked_program(INDEXED_PARAMETERS_SOURCE);
     let lent = indexed_loans(&checked);
     assert_eq!(lent.keys().collect::<Vec<_>>(), ["x", "y"]);
     assert_eq!(lent["x"], 0, "the true arm lends `x.items[0]`");
@@ -1244,7 +1242,7 @@ fn borrowed_selection_indexed_loans_constrain_their_exact_elements() {
                 "MUTATION\n            view.left ^ view.right",
             )
             .replace("MUTATION", mutation);
-        match check_source(&source) {
+        match crate::front_end::checked_program_result(&source) {
             Ok(_) => assert!(allowed, "{mutation} cannot observe through the live view"),
             Err(errors) => {
                 assert!(!allowed, "{mutation} must stay free: {errors:#?}");
@@ -1261,8 +1259,7 @@ fn borrowed_selection_indexed_loans_constrain_their_exact_elements() {
 
 #[test]
 fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
-    let checked = check_source(INDEXED_PARAMETERS_SOURCE)
-        .expect("parameter-rooted indexed borrowed selection checks");
+    let checked = crate::front_end::checked_program(INDEXED_PARAMETERS_SOURCE);
     let arm_handles: Vec<_> = checked
         .facts
         .values
@@ -1343,7 +1340,7 @@ fn borrowed_selection_indexed_replay_rejects_mutated_provenance() {
 
 #[test]
 fn borrowed_selection_replay_rejects_mutated_arm_provenance() {
-    let checked = check_source(CHAINED_SOURCE).expect("borrowed chained selection checks");
+    let checked = crate::front_end::checked_program(CHAINED_SOURCE);
     // Every SharedBorrow arm mutates through the same plan site: swap each
     // arm's root symbol for the other arm's root, then its field path.
     let arm_roots: Vec<symbols::SymbolHandle> = borrowed_arms(&checked)

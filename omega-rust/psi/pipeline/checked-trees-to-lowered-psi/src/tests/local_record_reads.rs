@@ -1,5 +1,5 @@
 //! Stored records use exact field identities and current ownership places.
-use super::{SymbolHandle, checked_source, lower_machine};
+use super::{SymbolHandle, lower_machine};
 use crate::TerminalMachineSelection;
 use crate::terminal_identities::obligation_id;
 use checked_trees::CheckedScalarComputationKind;
@@ -26,7 +26,7 @@ const SOURCE: &str = "
 
 #[test]
 fn projected_self_borrow_does_not_require_an_interned_owner_type() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Inner { value: u64; }
          data Outer { inner: Inner; sibling: Inner; }
          machine Inner::read(&self) -> u64 { self.value }
@@ -102,7 +102,7 @@ fn projected_self_borrow_does_not_require_an_interned_owner_type() {
 
 #[test]
 fn projected_shared_actual_preserves_root_path_and_observation_custody() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "
         data Inner { left: u64; right: u64; }
         data Outer { prefix: u64; inner: Inner; sibling: Inner; }
@@ -279,7 +279,7 @@ fn projected_shared_actual_preserves_root_path_and_observation_custody() {
 
 #[test]
 fn local_record_reads_publish_direct_and_transported_places() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     for name in ["observe", "joined"] {
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
@@ -323,7 +323,7 @@ fn local_record_reads_publish_direct_and_transported_places() {
 
 #[test]
 fn nested_record_reads_reject_same_typed_path_substitution() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Child [copy] { value: u64; }
          data Record [copy] { left: Child; right: Child; }
          machine observe() -> u64 {
@@ -388,7 +388,7 @@ fn nested_record_reads_reject_same_typed_path_substitution() {
 
 #[test]
 fn local_record_reads_reject_changed_field_source_and_carrier() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let _artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("observe"),
@@ -456,7 +456,7 @@ fn local_record_reads_reject_changed_field_source_and_carrier() {
 
 #[test]
 fn bounded_record_reads_require_exact_construction_and_observation_evidence() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Record { payload: u64[0..=256]; other: u64; }
         machine accept(value: u64[0..=256]) -> u64 {value}
         machine observe() -> u64 {
@@ -530,7 +530,7 @@ fn bounded_record_reads_require_exact_construction_and_observation_evidence() {
 
 #[test]
 fn shared_record_getter_keeps_receiver_custody_separate_from_arguments() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "
         data Record { payload: u64; }
         machine Record::get_payload(&self) -> u64 { self.payload }
@@ -629,7 +629,7 @@ fn local_record_reads_compose_with_calls_and_selective_booleans() {
              record.selected && identity(other)
          }",
     ] {
-        let checked = checked_source(source);
+        let checked = crate::front_end::checked_program(source);
         let artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             terminal_production::TerminalMachineSelection::Name("observe"),
@@ -651,7 +651,7 @@ fn local_record_reads_compose_with_calls_and_selective_booleans() {
 
 #[test]
 fn local_record_reads_cannot_swap_same_typed_operand_occurrences() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "
         data Record { first: u64; second: u64; }
         machine observe(value: u64) -> u64 {

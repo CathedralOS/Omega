@@ -1,7 +1,4 @@
-use super::{
-    Lexer, ResolutionRequest, checked_source_with_core_service, lower_machine,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
-};
+use super::{checked_source_with_core_service, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
@@ -9,7 +6,6 @@ use checked_trees::{
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::{OperationKind, StructuralPathSegment};
-use typed_trees_to_checked_trees::CheckingRequest;
 #[test]
 fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
     let source = r#"
@@ -46,12 +42,8 @@ fn indexed_primitive_source_rejects_out_of_bounds_and_shared_writes() {
         source("u8", "65").replace("[255]", "[256]"),
         source("u8", "65").replace("&mut self", "&self"),
     ] {
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = parse_syntax_trees(&tokens).unwrap();
-        let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-        let typed = lower_symbol_resolved_trees(&resolved).unwrap();
         assert!(
-            lower_typed_trees(typed, &CheckingRequest::settled()).is_err(),
+            crate::front_end::checked_program_result(&source).is_err(),
             "invalid primitive access: {source}"
         );
     }

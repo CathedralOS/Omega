@@ -726,21 +726,7 @@ mod tests {
             machine first() -> bool { !identity(true) }
             machine second() -> bool { !identity(false) }
         "#;
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let mut checked = crate::front_end::checked_program(source);
         let roots = checked
             .facts
             .values
@@ -810,21 +796,7 @@ mod tests {
             machine identity(value: bool) -> bool { value }
             machine choose() -> bool { identity(false) && (false && identity(true)) }
         "#;
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let checked = crate::front_end::checked_program(source);
         let root = checked
             .facts
             .values
@@ -870,21 +842,7 @@ mod tests {
             data Record { flag: bool; }
             machine Record::replace(&mut self) { self.flag = identity(true); }
         "#;
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let mut checked = crate::front_end::checked_program(source);
         let root = checked
             .facts
             .values

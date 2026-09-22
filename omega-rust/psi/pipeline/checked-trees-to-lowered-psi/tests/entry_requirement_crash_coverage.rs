@@ -13,24 +13,10 @@ mod numeric_and_field_entry_requirements;
 mod structural_and_attached_requirements;
 
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalInterpretError, interpret_terminal_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved)
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 fn with_caller(declarations: &str, call: &str) -> String {
     format!(
@@ -71,8 +57,7 @@ fn assert_trap_with_entry_arguments(
     check_module: impl Fn(&terminal_psi::TerminalModule),
 ) {
     let artifact = {
-        let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        let checked = crate::front_end::checked_program(source);
         let lowered = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name(entry),
@@ -232,8 +217,7 @@ fn integer_field_entry_source(
 }
 
 fn assert_structural_entry_requirement_artifact(source: &str) {
-    let checked = lower_typed_trees(typed(source), &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let checked = crate::front_end::checked_program(source);
     for contract in &checked.facts.contract_plans.machines {
         for bucket in contract.crash.published() {
             for guard in bucket.alternative_guards() {

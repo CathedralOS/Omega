@@ -1,6 +1,6 @@
 use super::{
-    Terminator, assert_constructed_wrapper_execution, checked, constructed_wrapper_source,
-    decode_module, record_field_computation, unit_wrapper_artifact,
+    Terminator, assert_constructed_wrapper_execution, constructed_wrapper_source, decode_module,
+    record_field_computation, unit_wrapper_artifact,
 };
 use checked_trees::CheckedScalarComputationKind;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
@@ -17,7 +17,7 @@ const EXACT_FIELDS: [&str; 4] = [
 fn constructed_anonymous_fields_publish_exact_integer_values() {
     for expression in EXACT_FIELDS {
         let source = constructed_wrapper_source("value: i64;", &format!("value: {expression}"));
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let artifact = unit_wrapper_artifact(&checked);
         let module = decode_module(&artifact.0).expect("canonical Terminal module");
         let machine = module
@@ -127,7 +127,7 @@ fn constructed_anonymous_fields_publish_exact_integer_values() {
 fn constructed_anonymous_field_plans_cannot_change_the_authored_value() {
     for expression in EXACT_FIELDS {
         let source = constructed_wrapper_source("value: i64;", &format!("value: {expression}"));
-        let mut changed = checked(&source);
+        let mut changed = crate::front_end::checked_program(&source);
         let handle = record_field_computation(&changed);
         let retained = &mut changed
             .facts

@@ -1,7 +1,6 @@
 use super::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter, TerminalStructuralValue,
-    checked_source,
 };
 use crate::TerminalMachineSelection;
 use checked_trees::{
@@ -15,7 +14,7 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn composed_attached_literal_calls_preserve_positions_after_unused_self_erasure() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Output { machine write(bytes: &[u8]) reaches Output; }
 data Main { counter: u64 in Wrapping; }
@@ -68,7 +67,7 @@ machine Main::main(&mut self, bytes: &[u8]) reaches Output {
 
 #[test]
 fn attached_literal_calls_bind_full_formal_positions_to_authored_sources() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
 boundary trait Output { machine write(bytes: &[u8]) reaches Output; }
 data Main { counter: u64 in Wrapping; }
@@ -168,7 +167,7 @@ machine Main::main(&mut self, selected: bool, fail: bool) reaches Trace crashes 
 
 #[test]
 fn mixed_literal_positions_keep_scalars_across_selective_operand_control() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("Main::main"),
@@ -287,7 +286,7 @@ impl TerminalEffectHandler for MixedTrace {
 
 #[test]
 fn composed_literal_plans_reject_payload_access_and_path_substitution() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     super::super::super::lower_machine(&checked, TerminalMachineSelection::Name("Main::main"))
         .expect("source-derived control is valid");
     for mutation in 0..3 {

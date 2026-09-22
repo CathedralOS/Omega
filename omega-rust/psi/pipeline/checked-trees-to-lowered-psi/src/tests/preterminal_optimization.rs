@@ -1,7 +1,5 @@
 //! Pre-Terminal Psi optimization entrance regressions.
-use super::{
-    ScalarType, TerminalMachineResult, checked_source, hard_root_checked_fixture, lower_machine,
-};
+use super::{ScalarType, TerminalMachineResult, hard_root_checked_fixture, lower_machine};
 use crate::TerminalMachineSelection;
 use lowered_psi::LoweredPsi;
 use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
@@ -79,7 +77,7 @@ fn every_nonempty_selection_executes_before_publication() {
 }
 
 fn dead_scalar_fixture() -> LoweredPsi {
-    let checked = checked_source("data Main {} machine Main::answer() {}");
+    let checked = crate::front_end::checked_program("data Main {} machine Main::answer() {}");
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::answer"))
         .expect("Unit source lowers");
     let first = ValueId::new(2001).unwrap();
@@ -445,7 +443,7 @@ fn dead_scalar_elimination_keeps_the_transitive_returned_value_chain() {
 /// own coverage in `dead_scalar_selection_preserves_proof_questions_and_rejects_unchecked_context_changes`
 /// and `copy_propagation_preserves_proof_questions_and_keeps_proof_bearing_identities`.
 fn dead_block_parameter_fixture() -> LoweredPsi {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Main { value: i32; }\n\
          machine Main::compute(a: i32, b: i32) -> i32 {\n\
              let unused: bool = a < b;\n\
@@ -928,7 +926,7 @@ fn dead_scalar_check_rejects_mismatched_parameter_and_edge_argument_removal() {
 }
 
 fn global_value_numbering_fixture() -> LoweredPsi {
-    let checked = checked_source("data Main {} machine Main::answer() {}");
+    let checked = crate::front_end::checked_program("data Main {} machine Main::answer() {}");
     let mut lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::answer"))
         .expect("Unit source lowers");
     let operand = ValueId::new(2001).unwrap();

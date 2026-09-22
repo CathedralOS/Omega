@@ -1,17 +1,11 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
     TerminalScalarValue, interpret_terminal_artifact,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[path = "scalar_return_calls_source/call_result_bounds.rs"]
 mod call_result_bounds;
@@ -51,15 +45,11 @@ fn encoded_arms(source: &str, combined: bool) -> (Vec<u8>, Vec<u8>) {
 }
 
 fn checked_arms(source: &str, combined: bool) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let mut syntax = parse_syntax_trees(&tokens).expect("parse");
-    if combined {
-        combine_value_machine_arms(&mut syntax);
-    }
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
+    crate::front_end::checked_program_with_syntax_edit(source, |syntax| {
+        if combined {
+            combine_value_machine_arms(syntax);
+        }
+    })
 }
 
 fn combine_value_machine_arms(syntax: &mut syntax_trees::SyntaxTrees) {

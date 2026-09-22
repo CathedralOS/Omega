@@ -34,27 +34,9 @@ fn source(scalar: &str) -> String {
     )
 }
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 fn artifact(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
     let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("observe"),
     )
     .produce(TerminalProductionCustody::artifact_only(

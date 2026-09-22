@@ -6,9 +6,6 @@ use checked_trees::{
     CheckedUnitStructuralArgumentSourcePlan,
 };
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -22,7 +19,6 @@ use terminal_psi::{
     OperationKind, OperationResult, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape, TerminalMachineResult, Terminator,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[path = "receiver_call_source/forwarding.rs"]
 mod forwarding;
@@ -37,20 +33,6 @@ mod aliases;
 
 #[path = "receiver_call_source/cyclic.rs"]
 mod cyclic;
-
-fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize receiver call");
-    let syntax = parse_syntax_trees(&tokens).expect("parse receiver call");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve receiver call");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type receiver call");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check receiver call")
-}
 
 fn unit_plan<'a>(
     checked: &'a checked_trees::CheckedTrees,
@@ -115,7 +97,7 @@ fn assert_receiver_call(access: StructuralAccess, from_parameter: bool, self_cal
             format!("{callee_source}\n{caller_source}")
         };
         let source = format!("data Record {{ value: u16; }}\n{declarations}");
-        let checked = checked_from_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let caller = unit_plan(&checked, caller_name);
         let callee = unit_plan(&checked, "Record::replace");
         let [caller_receiver] = caller.structural_parameters.as_slice() else {

@@ -1,7 +1,6 @@
 use super::{
-    AdmissionProfile, Lexer, ResolutionRequest, TerminalEffect, TerminalExecutionResult, checked,
-    encode_module, encode_proof_section, interpret_terminal_artifact_measured,
-    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+    AdmissionProfile, TerminalEffect, TerminalExecutionResult, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
@@ -75,7 +74,7 @@ fn cyclic_tail_operations_resume_once_per_iteration_from_serialized_proofs() {
     use terminal_fuel::TerminalFuelMeter;
     use terminal_interpreter::{TerminalExecution, TerminalExecutionStatus};
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(&loop_source()),
+        &crate::front_end::checked_program(&loop_source()),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap();
@@ -132,15 +131,8 @@ fn cyclic_tail_operations_resume_once_per_iteration_from_serialized_proofs() {
 #[test]
 fn unguarded_cyclic_byte_operations_reject_at_source_checking() {
     let source = loop_source().replace("transition bytes.len > 0 {", "transition true {");
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let errors = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect_err("bounds remain required");
+    let errors =
+        crate::front_end::checked_program_result(&source).expect_err("bounds remain required");
     assert!(
         errors
             .iter()
@@ -152,7 +144,7 @@ fn unguarded_cyclic_byte_operations_reject_at_source_checking() {
 fn replacing_the_loop_guard_cannot_reuse_the_original_bounds_certificate() {
     use terminal_psi::OperationKind;
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(&loop_source()),
+        &crate::front_end::checked_program(&loop_source()),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap();
@@ -184,7 +176,7 @@ fn a_ranked_writer_cannot_silently_become_an_unranked_loop() {
         "machine relay(bytes: &[u8]) terminates by bytes -> Slice::Length; reaches Output {",
     );
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(&source),
+        &crate::front_end::checked_program(&source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .expect("free ranking evidence survives shared lowering");
@@ -193,7 +185,7 @@ fn a_ranked_writer_cannot_silently_become_an_unranked_loop() {
         .replace("machine relay(", "data Writer {} machine Writer::relay(")
         .replace("        relay(\"", "        Writer::relay(\"");
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(&attached),
+        &crate::front_end::checked_program(&attached),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .expect("attached ranking evidence survives shared lowering");
@@ -233,7 +225,7 @@ fn reentered_entry_binds_the_current_view_without_changing_invocation_parameters
 }
 
 fn effects(source: &str) -> Vec<(Vec<u8>, i128)> {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -299,7 +291,7 @@ fn head_before_tail_and_reverse_authored_state_order_preserve_execution() {
         (reversed.as_str(), ["head", "tail"]),
     ] {
         let lowered = checked_trees_to_lowered_psi::lower_machine(
-            &checked(source),
+            &crate::front_end::checked_program(source),
             TerminalMachineSelection::Name("Root::enter"),
         )
         .unwrap();
@@ -357,7 +349,7 @@ fn unconditional_windows_preserve_omitted_endpoints_and_empty_views() {
 
 #[test]
 fn endpoint_bindings_cannot_move_between_state_edges() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let role = checked_trees::CheckedScalarExpressionRole::TransitionSubsliceStart {
         argument_ordinal: 0,
     };
@@ -389,21 +381,14 @@ fn endpoint_bindings_cannot_move_between_state_edges() {
 #[test]
 fn unguarded_tail_cannot_gain_a_bounds_proof_from_edge_selection() {
     let source = SOURCE.replace("bytes.len > 0", "bytes.len >= 0");
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect_err("selected edges still need actual tail bounds");
+    let diagnostics = crate::front_end::checked_program_result(&source)
+        .expect_err("selected edges still need actual tail bounds");
     assert!(format!("{diagnostics:?}").contains("cannot prove subslice range"));
 }
 
 #[test]
 fn tail_transfer_cannot_be_replaced_with_an_unchanged_parameter() {
-    let mut checked = checked(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     let plan = checked
         .facts
         .flow

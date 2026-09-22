@@ -1,7 +1,7 @@
 //! Exact mutable and write-only receiver subloans from plain record fields.
 use super::{
     IntegerSign, IntegerType, OperationKind, ScalarType, StructuralAccess, StructuralFieldType,
-    StructuralTypeShape, checked_from_source,
+    StructuralTypeShape,
 };
 use checked_trees::CheckedUnitStructuralPathSegment;
 use terminal_production::{
@@ -133,7 +133,7 @@ fn assert_corrupted_projected_receiver(callee_borrow: &str) {
     // the earlier mixed-signature gate after the exclusive operand is corrupted.
     let (source, caller_name, _) =
         projected_source("mut", callee_borrow, true, false, false, false, false);
-    let checked = checked_from_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name(caller_name),

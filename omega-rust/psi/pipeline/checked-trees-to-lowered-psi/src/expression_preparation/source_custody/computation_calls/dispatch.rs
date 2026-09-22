@@ -185,21 +185,7 @@ mod tests {
             machine choose(value: i64 in Km) -> i64 in Km {
                 (identity(value) as i64) as i64 in Km
             }";
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let mut checked = crate::front_end::checked_program(source);
         let root = checked
             .facts
             .values
@@ -266,22 +252,7 @@ mod tests {
                 "machine identity(value: {carrier}) -> {carrier} {{ value }}
                  machine choose() -> {carrier} {{ match 1 {{ 1 -> {selected}, _ -> {skipped} }} }}"
             );
-            let tokens = source_files_to_tokens::Lexer::new(&source)
-                .tokenize()
-                .unwrap();
-            let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-                syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-            )
-            .unwrap();
-            let typed =
-                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                    .unwrap();
-            let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-                typed,
-                &typed_trees_to_checked_trees::CheckingRequest::settled(),
-            )
-            .unwrap();
+            let mut checked = crate::front_end::checked_program(&source);
             let root = checked
                 .facts
                 .values
@@ -360,21 +331,7 @@ mod tests {
                     1 -> identity(7), _ -> identity(9)
                 }
             }";
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let mut checked = crate::front_end::checked_program(source);
         let root = checked
             .facts
             .values
@@ -497,21 +454,7 @@ mod tests {
         let source = "machine choose(subject: bool) -> bool {
             match subject { true -> false, false -> true }
         }";
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let typed =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-        let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap();
+        let mut checked = crate::front_end::checked_program(source);
         let root = checked
             .facts
             .values

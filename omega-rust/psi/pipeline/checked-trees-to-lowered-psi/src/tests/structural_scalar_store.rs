@@ -1,4 +1,4 @@
-use super::{LoweringError, checked_source, lower_machine};
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
@@ -14,7 +14,7 @@ use terminal_psi::{
 };
 #[test]
 fn guarded_bounded_integer_field_increment_publishes_checked_terminal() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Counter [copy] { value: i32 [0..=16]; signed: i8 [-5..=5]; }
          machine Counter::advance(&mut self) {
              transition self.value < 16 && self.signed > -5 {
@@ -92,7 +92,7 @@ fn bounded_integer_field_store_retains_the_destination_range() {
         ("i8 [-5..=5]", "-3"),
         ("u64 [0..=18446744073709551615]", "18446744073709551615"),
     ] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "data Counter [copy] {{ value: {field_type}; }}
                  machine Counter::replace(&mut self) {{ self.value = {replacement}; }}",
         ));
@@ -167,7 +167,7 @@ fn ieee_field_stores_retain_exact_parameters_and_literal_bits() {
     for primitive in ["f32", "f64"] {
         for access in ["write", "mut"] {
             for replacement in ["value", "1.25"] {
-                let checked = checked_source(&format!(
+                let checked = crate::front_end::checked_program(&format!(
                     "data Record [copy] {{ value: {primitive}; }}
                      machine Record::replace(&{access} self, value: {primitive}) {{
                          self.value = {replacement};
@@ -223,7 +223,7 @@ fn ieee_field_stores_retain_exact_parameters_and_literal_bits() {
 #[test]
 fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
     for primitive in ["f32", "f64"] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "data Record [copy] {{ value: {primitive}; other: {primitive}; }}
              machine Record::replace(&write self, value: {primitive}, other: {primitive}) {{
                  self.value = value;
@@ -326,7 +326,7 @@ const RESULT_SOURCE: &str = r#"
 
 #[test]
 fn source_indexed_shared_call_reaches_serialized_interpretation() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Cell [copy] { value: u16; }
         data Matrix [copy] { cells: [Cell; 3]; }
@@ -394,7 +394,7 @@ fn source_indexed_shared_call_reaches_serialized_interpretation() {
 
 #[test]
 fn lowers_direct_and_nested_write_only_record_field_stores() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     for (machine_name, expected_path_len, expected_value) in [
         ("Sink::direct", 0_usize, 7_u128),
         ("Sink::nested", 1, 9),
@@ -438,7 +438,7 @@ fn lowers_borrowed_fixed_array_element_field_stores() {
     // literal element index. The shared path resolver admits that hop against
     // the declared array shape, and the bounded store-path grammar carries the
     // leading index through module validation.
-    let checked = checked_source(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{SOURCE}
          machine store_mut(records: &mut [Cell; 3]) {{ records[1].value = 13; }}
          machine store_write(records: &write [Cell; 3]) {{ records[1].value = 13; }}"
@@ -520,7 +520,7 @@ fn lowers_borrowed_fixed_array_element_field_stores() {
 
 #[test]
 fn rejects_checked_record_field_store_path_corruption() {
-    let mut checked = checked_source(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     let machine = checked
         .machines()
         .iter()
@@ -550,7 +550,7 @@ fn rejects_checked_record_field_store_path_corruption() {
 
 #[test]
 fn rejects_checked_literal_indexed_store_bound_corruption() {
-    let mut checked = checked_source(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     let machine = checked
         .machines()
         .iter()
@@ -583,7 +583,7 @@ fn rejects_checked_literal_indexed_store_bound_corruption() {
 
 #[test]
 fn rejects_checked_indexed_store_without_its_record_owner() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let machine = checked
         .machines()
         .iter()
@@ -638,7 +638,7 @@ fn rejects_checked_indexed_store_without_its_record_owner() {
 
 #[test]
 fn stored_scalar_field_values_discharge_later_field_state_obligations() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Registers { sq: u32 in Wrapping; place: u32 in Wrapping; d: u32 in Wrapping; }
         machine Registers::divide(&mut self) {
@@ -684,7 +684,7 @@ fn overwritten_scalar_fields_do_not_discharge_later_field_state_obligations() {
     // The covering write expires the earlier `place == 100` equation, so the
     // only surviving storage fact is `place == replacement`; the divisor
     // obligation must still fail rather than transport the stale literal.
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Registers { sq: u32 in Wrapping; place: u32 in Wrapping; d: u32 in Wrapping; }
         machine Registers::divide(&mut self, replacement: u32 in Wrapping) {
@@ -706,7 +706,7 @@ fn overwritten_scalar_fields_do_not_discharge_later_field_state_obligations() {
 
 #[test]
 fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
-    let checked = checked_source(RESULT_SOURCE);
+    let checked = crate::front_end::checked_program(RESULT_SOURCE);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("scalar result reaches one projected field store");
     let entry = lowered

@@ -1,5 +1,5 @@
 //! A case actual retains its constructor and each authored payload occurrence.
-use super::{LoweringError, checked_source, lower_machine};
+use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -81,7 +81,7 @@ fn ordered_plan_index(checked: &checked_trees::CheckedTrees, name: &str) -> usiz
 #[test]
 fn ordered_structural_constructor_replays_guards_fallback_and_exact_values() {
     use checked_trees::{CheckedComposedUnitControlTerminatorPlan, CheckedUnitEffectOperationPlan};
-    let checked = checked_source(ORDERED_CONSTRUCTOR);
+    let checked = crate::front_end::checked_program(ORDERED_CONSTRUCTOR);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("MemoryAlignment::from"),
@@ -274,7 +274,7 @@ fn ordered_constructor_local_sum_lends_original_result_to_scalar_getter() {
             alignment.get_size_in_bytes()
         }}"
     );
-    let checked = checked_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("evaluate"))
         .expect("ordinary scalar completion borrows the original copy sum result");
     terminal_verifier::verify_module(
@@ -354,7 +354,7 @@ fn ordered_constructor_local_sum_lends_original_result_to_scalar_getter() {
 
 #[test]
 fn ordered_structural_payload_effects_preserve_selected_mutation_and_reject_substitution() {
-    let checked = checked_source(ORDERED_PAYLOAD_EFFECTS);
+    let checked = crate::front_end::checked_program(ORDERED_PAYLOAD_EFFECTS);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("choose"),
@@ -472,7 +472,7 @@ fn ordered_structural_payload_effects_preserve_selected_mutation_and_reject_subs
 
 #[test]
 fn case_call_operands_reject_substituted_payload_and_constructor_occurrences() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Payload [copy] { case Empty; case Item(value: u64); }
         machine replace(value: &mut u64, replacement: u64) -> u64 {

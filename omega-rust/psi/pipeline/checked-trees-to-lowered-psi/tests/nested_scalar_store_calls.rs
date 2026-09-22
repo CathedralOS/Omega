@@ -10,27 +10,11 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalScalarValue, interpret_terminal_artifact,
 };
 use terminal_psi::OperationKind;
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 fn signed(value: i32) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
@@ -46,7 +30,7 @@ fn lowered_verified(
     source: &str,
     name: &str,
 ) -> (terminal_psi::TerminalModule, lowered_psi::LoweredPsi) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered =
         checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(name))
             .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
@@ -236,7 +220,7 @@ fn nested_call_assignment_executes_after_artifact_verification() {
             x = choose(inner(source), source);
         }
     "#;
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("exercise"),

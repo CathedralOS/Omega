@@ -3,10 +3,6 @@ use checked_trees::{
     CheckedUnitScalarResultBindingPlan,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[path = "unit_scalar_result_source/boundary_wrappers.rs"]
 mod boundary_wrappers;
@@ -87,32 +83,20 @@ machine Main::main(&mut self) -> i32 {
 }
 "#;
 
-fn checked_from_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 fn checked() -> checked_trees::CheckedTrees {
-    checked_from_source(SOURCE)
+    crate::front_end::checked_program(SOURCE)
 }
 
 fn ordinary_checked() -> checked_trees::CheckedTrees {
-    checked_from_source(ORDINARY_SOURCE)
+    crate::front_end::checked_program(ORDINARY_SOURCE)
 }
 
 fn direct_store_checked() -> checked_trees::CheckedTrees {
-    checked_from_source(DIRECT_STORE_SOURCE)
+    crate::front_end::checked_program(DIRECT_STORE_SOURCE)
 }
 
 fn checked_with_dependent_scalar_local() -> checked_trees::CheckedTrees {
-    checked_from_source(&SOURCE.replace(
+    crate::front_end::checked_program(&SOURCE.replace(
         "let result: i32 = Host::measure(70);\n    Host::finish(result);",
         "let measured: i32 = Host::measure(70);\n    let result: i32 = measured + 0i32;\n    Host::finish(result);",
     ))
@@ -208,7 +192,7 @@ fn unit_call_closure_retains_scalar_boundary_wrapper() {
             data Main {}
         "#,
         );
-    let checked = checked_from_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Scalar::measure"),
@@ -637,7 +621,7 @@ fn attached_unit_scalar_result_rejects_coordinated_drift_from_original_flow_row(
 
     // Removing the call's ownership claim entirely still reaches the source
     // roster's missing-owner fence.
-    let mut omitted = checked_from_source(SOURCE);
+    let mut omitted = crate::front_end::checked_program(SOURCE);
     main_operations_mut(&mut omitted).remove(0);
     assert_eq!(
         rejection_message(&omitted),
@@ -683,7 +667,7 @@ fn attached_unit_scalar_result_type_and_later_local_use_reject_drift() {
 
 #[test]
 fn attached_unit_scalar_result_reaches_the_machine_return_in_terminal_psi() {
-    let checked = checked_from_source(RETURN_RESULT_SOURCE);
+    let checked = crate::front_end::checked_program(RETURN_RESULT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Main::main"),
@@ -740,7 +724,7 @@ fn attached_unit_scalar_result_reaches_the_machine_return_in_terminal_psi() {
 
 #[test]
 fn attached_unit_scalar_result_return_rejects_lost_argument_custody() {
-    let mut checked = checked_from_source(RETURN_RESULT_SOURCE);
+    let mut checked = crate::front_end::checked_program(RETURN_RESULT_SOURCE);
     // The call's retained actual is the one UnitCallArgument row beside its
     // computation root: relabel it and the custody rejoin must refuse.
     let main = main_symbol(&checked);

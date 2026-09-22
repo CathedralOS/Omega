@@ -1,13 +1,11 @@
 use super::{
-    IntegerSign, IntegerType, IntegerValue, Lexer, ResolutionRequest,
-    TerminalArtifactInterpretError, TerminalExecutionResult, TerminalInterpretError,
-    TerminalScalarValue, checked_arms, encode_module, encode_proof_section, execute,
-    lower_symbol_resolved_trees, lower_typed_trees, parse_syntax_trees, resolve,
+    IntegerSign, IntegerType, IntegerValue, TerminalArtifactInterpretError,
+    TerminalExecutionResult, TerminalInterpretError, TerminalScalarValue, checked_arms,
+    encode_module, encode_proof_section, execute,
 };
 use checked_trees::{CheckedScalarBindingDestination, CheckedScalarExpressionRole};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use typed_trees::statement::StatementNode;
-use typed_trees_to_checked_trees::CheckingRequest;
 
 fn assert_assignment_roots(
     checked: &checked_trees::CheckedTrees,
@@ -323,11 +321,7 @@ fn assignment_destination_carrier_does_not_prove_unbounded_call_result_narrowing
             current
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    match lower_typed_trees(typed, &CheckingRequest::settled()) {
+    match crate::front_end::checked_program_result(source) {
         Err(diagnostics) => assert!(!diagnostics.is_empty()),
         Ok(checked) => assert!(
             checked_trees_to_lowered_psi::lower_machine(

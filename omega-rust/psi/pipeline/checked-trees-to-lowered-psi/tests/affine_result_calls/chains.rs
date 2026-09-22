@@ -3,7 +3,7 @@ use super::{
     IntegerValue, OperationKind, OperationResult, TerminalExecution, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalFuelMeter, TerminalScalarValue, TerminalStructuralValue,
     Terminator, checked, decode_module, decode_proof_bundle, encode_module, encode_proof_section,
-    lower_machine, typed,
+    lower_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_interpreter::AcceptTerminalEffects;
@@ -450,10 +450,6 @@ fn a_structural_consumer_moves_its_input_in_the_source_timeline() {
         "Main::consume(second);",
         "Main::consume(first); Main::consume(second);",
     );
-    let error = typed_trees_to_checked_trees::lower_typed_trees(
-        typed(&source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect_err("first already moved into second");
+    let error = super::checked_result(&source).expect_err("first already moved into second");
     assert!(format!("{error:?}").contains("already transferred or consumed"));
 }

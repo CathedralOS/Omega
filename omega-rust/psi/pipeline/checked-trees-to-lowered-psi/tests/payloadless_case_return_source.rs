@@ -13,18 +13,12 @@ mod ordered_case_returns;
 mod selected_witness_tail_uses;
 
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarCaseValue,
 };
 use terminal_psi::{OperationKind, StructuralTypeShape};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     data Outcome [copy] {
@@ -39,11 +33,11 @@ const SOURCE: &str = r#"
 "#;
 
 fn checked_source() -> checked_trees::CheckedTrees {
-    checked(SOURCE)
+    crate::front_end::checked_program(SOURCE)
 }
 
 fn checked_ordered_case_returns() -> checked_trees::CheckedTrees {
-    checked(
+    crate::front_end::checked_program(
         r#"
         data MemoryAlignment [copy] {
             case Alignment1; case Alignment2; case Alignment4; case Alignment8;
@@ -156,14 +150,6 @@ fn assert_guarded_case_results(
             "input {input:?} completes with bounded one-unit fuel resumptions"
         );
     }
-}
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
 }
 
 fn append_rejoined_selected_evidence_row(

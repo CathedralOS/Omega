@@ -267,9 +267,7 @@ mod tests {
         BlockId, BoundaryMachineId, ClaimId, ContractId, EdgeId, MachineId, OperationId, PlaceId,
         StructuralDomainId, StructuralPlaceKind, StructuralTypeId,
     };
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+
     use terminal_psi::{
         Block, BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
         BoundaryStructuralResultDeclaration, CompletionReceipt, EntryClaim, MachineContract,
@@ -282,18 +280,6 @@ mod tests {
     };
 
     use super::{lower_custody, retain_foreign_borrow_custodies};
-
-    fn checked(source: &str) -> checked_trees::CheckedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-        typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect("check")
-    }
 
     const RETAINED_BORROW_PROGRAM: &str = r#"
         data ByteUnit {}
@@ -328,7 +314,7 @@ mod tests {
     /// The declared but never-invoked `Reader::submit` custody row, lowered
     /// exactly as a checked module would carry it.
     fn retained_custody() -> terminal_psi::RetainedBorrowCustody {
-        let checked = checked(RETAINED_BORROW_PROGRAM);
+        let checked = crate::front_end::checked_program(RETAINED_BORROW_PROGRAM);
         let [fact] = checked
             .facts
             .qualifications
@@ -638,8 +624,11 @@ mod tests {
     fn invoked_retained_borrow_boundary_carries_and_verifies() {
         let custody = retained_custody();
         let mut module = invoked_module(&custody);
-        retain_foreign_borrow_custodies(&checked(RETAINED_BORROW_PROGRAM), &mut module)
-            .expect("the invoked callable's authored declaration carries the custody row");
+        retain_foreign_borrow_custodies(
+            &crate::front_end::checked_program(RETAINED_BORROW_PROGRAM),
+            &mut module,
+        )
+        .expect("the invoked callable's authored declaration carries the custody row");
         let [terminal_psi::BoundaryContentGuarantee::RetainedBorrow(carried)] =
             module.boundary_machines[0].content_guarantees.as_slice()
         else {

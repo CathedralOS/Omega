@@ -5,7 +5,6 @@
 use crate::TerminalMachineSelection;
 use std::collections::BTreeMap;
 
-use super::checked_source;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
 use crate::proofs::crash_routes::lower_formal_crash_routes;
@@ -20,7 +19,7 @@ use terminal_psi::{
 /// Omega separately rejoins these opaque commitments to actual selected
 /// ProviderPlans; this unit boundary tests only source-to-Terminal custody.
 fn checked_with_provider_commitments(source: &str) -> checked_trees::CheckedTrees {
-    let mut checked = checked_source(source);
+    let mut checked = crate::front_end::checked_program(source);
     let handles = checked
         .facts
         .operators
@@ -237,7 +236,7 @@ fn a_guarded_operator_route_lowers_to_the_guard_proposition_the_verifier_accepts
     // independently lowered builtin integer comparison to show the verifier
     // accepts its recomputed continuation. The sibling below goes through
     // `lower_machine` end to end.
-    let checked = checked_source(GUARDED_INTEGER_OPERATOR_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_INTEGER_OPERATOR_SOURCE);
     let compare = checked
         .machines()
         .iter()
@@ -258,7 +257,7 @@ fn a_guarded_operator_route_lowers_to_the_guard_proposition_the_verifier_accepts
     let formal = |raw| ScalarTerm::value(ValueId::new(raw).expect("formal"), integer);
     assert_eq!(published, vec![guarded_trap_route(formal(2))]);
 
-    let host = checked_source(
+    let host = crate::front_end::checked_program(
         "pub machine compare(left: i32, right: i32) -> bool crashes Trap { left == right }",
     );
     let lowered = lower_machine(&host, TerminalMachineSelection::Name("compare"))
@@ -539,7 +538,7 @@ fn a_crash_qualified_use_without_lowerable_crash_evidence_fails_closed() {
         format!("{error:?}").contains("operator crash site publishes no lowerable crash route"),
         "{error:?}"
     );
-    let checked = checked_source(GUARDED_INTEGER_OPERATOR_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_INTEGER_OPERATOR_SOURCE);
     let error = lower_machine(&checked, TerminalMachineSelection::Name("compare"))
         .expect_err("a use without complete provider plan evidence must not lower");
     assert!(

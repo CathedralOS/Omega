@@ -1,13 +1,9 @@
 //! Computed field assignments retain their authored scalar call operands.
 
 use checked_trees::CheckedScalarComputationKind;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
@@ -19,15 +15,7 @@ fn computed_field_rhs_rejects_same_typed_call_operand_substitution() {
             self.second = identity(second);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let mut checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    let mut checked = crate::front_end::checked_program(source);
     let _ = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Main::main"),

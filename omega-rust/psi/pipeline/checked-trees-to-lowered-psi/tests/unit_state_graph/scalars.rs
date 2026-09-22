@@ -1,7 +1,6 @@
 use super::{
-    AdmissionProfile, Lexer, ResolutionRequest, TerminalEffect, TerminalExecutionResult, checked,
-    encode_module, encode_proof_section, interpret_terminal_artifact_measured,
-    lower_symbol_resolved_trees, parse_syntax_trees, resolve,
+    AdmissionProfile, TerminalEffect, TerminalExecutionResult, encode_module, encode_proof_section,
+    interpret_terminal_artifact_measured,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use semantic_vocabulary::IntegerValue;
@@ -52,7 +51,7 @@ fn an_initial_nonzero_argument_is_not_an_invariant_after_rebinding_to_zero() {
         machine Root::enter() reaches Output { relay(1u64); }
     "#;
     checked_trees_to_lowered_psi::lower_machine(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .expect("the acyclic first arrival preserves its selected nonzero fact");
@@ -62,7 +61,7 @@ fn an_initial_nonzero_argument_is_not_an_invariant_after_rebinding_to_zero() {
     );
     assert!(matches!(
         checked_trees_to_lowered_psi::lower_machine(
-            &checked(&cyclic),
+            &crate::front_end::checked_program(&cyclic),
             TerminalMachineSelection::Name("Root::enter")
         ),
         Err(checked_trees_to_lowered_psi::LoweringError::OperationProofUnavailable(_))
@@ -114,7 +113,7 @@ fn effects(checked: &checked_trees::CheckedTrees) -> Vec<(Vec<u8>, i128)> {
 #[test]
 fn local_storage_and_immutable_values_survive_calls_and_selected_edges() {
     assert_eq!(
-        effects(&checked(PREFIX)),
+        effects(&crate::front_end::checked_program(PREFIX)),
         vec![
             (b"\x80A".to_vec(), 42),
             (b"\x80A".to_vec(), 42),
@@ -143,7 +142,7 @@ fn only_the_selected_successor_evaluates_its_scalar_operands() {
         }
     "#;
     assert_eq!(
-        effects(&checked(source)),
+        effects(&crate::front_end::checked_program(source)),
         vec![(b"empty-divisor".to_vec(), 9), (b"quotient".to_vec(), 4),]
     );
 }
@@ -162,7 +161,7 @@ fn scalar_storage_survives_nested_operand_calls_and_drives_the_guard() {
         );
     let source = format!("machine identity(value: i32) -> i32 {{ value }}\n{source}");
     assert_eq!(
-        effects(&checked(&source)),
+        effects(&crate::front_end::checked_program(&source)),
         vec![
             (b"\x80A".to_vec(), 42),
             (b"\x80A".to_vec(), 10),
@@ -191,19 +190,12 @@ fn selected_head_read_uses_the_actual_view_length_and_skips_empty_bytes() {
         }
     "#;
     assert_eq!(
-        effects(&checked(source)),
+        effects(&crate::front_end::checked_program(source)),
         vec![(b"\x80A".to_vec(), 128), (Vec::new(), 9),]
     );
     let unguarded = source.replace("bytes.len > 0", "bytes.len >= 0");
-    let tokens = Lexer::new(&unguarded).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    let error = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect_err("a selected edge alone does not prove the head is in bounds");
+    let error = crate::front_end::checked_program_result(&unguarded)
+        .expect_err("a selected edge alone does not prove the head is in bounds");
     assert!(
         format!("{error:?}").contains("cannot prove index"),
         "{error:?}"
@@ -212,7 +204,7 @@ fn selected_head_read_uses_the_actual_view_length_and_skips_empty_bytes() {
 
 #[test]
 fn scalar_prefix_cannot_drop_reorder_or_retarget_authored_writes() {
-    let baseline = checked(PREFIX);
+    let baseline = crate::front_end::checked_program(PREFIX);
     for mutation in 0..3 {
         let mut changed = baseline.clone();
         let relay = changed
@@ -263,7 +255,7 @@ fn scalar_prefix_cannot_drop_reorder_or_retarget_authored_writes() {
 
 #[test]
 fn expression_successors_rejoin_the_exact_selected_source_operand() {
-    let mut changed = checked(PREFIX);
+    let mut changed = crate::front_end::checked_program(PREFIX);
     let relay = changed
         .machines()
         .iter()

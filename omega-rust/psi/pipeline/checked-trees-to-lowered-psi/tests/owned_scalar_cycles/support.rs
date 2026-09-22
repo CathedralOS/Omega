@@ -13,27 +13,8 @@ pub fn publish(source: &str) -> (TerminalModule, ProofBundle, Vec<u8>, Vec<u8>) 
     let source_id = sources
         .add(std::path::PathBuf::from("main.omg"), source.to_owned())
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize walk");
-    let mut syntax = syntax_trees::SyntaxTrees::new(source_id);
-    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-        .expect("parse unchanged walk syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve with source/debug custody");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type walk");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|error| panic!("check unhoisted walk: {error:#?}\n{source}"));
+    let checked =
+        crate::front_end::checked_program_from_source_map(sources, &[(source_id, source)]);
     let machine = checked
         .machines()
         .iter()

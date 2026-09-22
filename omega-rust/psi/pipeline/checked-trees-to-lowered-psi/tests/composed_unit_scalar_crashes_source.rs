@@ -1,28 +1,12 @@
 //! Scalar-guarded Unit crash ceilings compose through exact evaluated operands.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|errors| panic!("{source}: {errors:#?}"))
-}
 
 const SOURCE: &str = r#"
     machine identity(value: u16) -> u16 { value }
@@ -40,7 +24,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn composed_unit_call_retains_a_scalar_guarded_crash_ceiling() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = roundtrip(&checked);
     for selected in [false, true] {
         let (status, effects) = execute(&lowered, selected);
@@ -154,7 +138,7 @@ fn guarded_unit_calls_preserve_argument_order_transitive_effects_and_actual_cras
             for qualified in [false, true] {
                 for (left, right) in [(0, 7), (7, 0), (7, 7)] {
                     let source = runtime_source(equal, transitive, qualified, left, right);
-                    let lowered = roundtrip(&checked(&source));
+                    let lowered = roundtrip(&crate::front_end::checked_program(&source));
                     for selected in [false, true] {
                         let (left, right) = if selected != transitive {
                             (left, right)
@@ -191,7 +175,7 @@ fn guarded_unit_calls_preserve_argument_order_transitive_effects_and_actual_cras
 
 #[test]
 fn guarded_unit_calls_reject_missing_foreign_and_narrowed_terminal_routes() {
-    let lowered = roundtrip(&checked(SOURCE));
+    let lowered = roundtrip(&crate::front_end::checked_program(SOURCE));
     let module = &lowered.semantic_module;
     let (owner, block, operation, target) = module
         .machines
@@ -302,7 +286,7 @@ fn empty_attachment_receiver_keeps_both_boolean_crash_parameters_distinct() {
             {{ Sink::record(first, second); }}
         "#
         );
-        let lowered = roundtrip(&checked(&source));
+        let lowered = roundtrip(&crate::front_end::checked_program(&source));
         let root = lowered
             .semantic_module
             .machines
@@ -352,7 +336,7 @@ fn repeated_unit_arguments_collapse_equivalent_crash_connective_leaves() {
             {{ consume(value, value); }}
             "#
         );
-        let lowered = roundtrip(&checked(&source));
+        let lowered = roundtrip(&crate::front_end::checked_program(&source));
         let arguments = lowered
             .semantic_module
             .machines

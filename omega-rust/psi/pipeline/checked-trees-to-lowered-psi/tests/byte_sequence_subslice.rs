@@ -1,14 +1,10 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8]) reaches Output; }
@@ -27,21 +23,9 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 #[test]
 fn source_subslice_crosses_helpers_and_preserves_original_view_and_continuation() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -113,7 +97,7 @@ fn unavailable_entry_length_contract_does_not_authorize_a_source_tail() {
         reaches Output
         { Output::write(bytes[1..]); }
     "#;
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     // Source checking retains the explicit endpoint, but a byte-length entry
     // contract is not yet represented in Terminal. It cannot become a trusted
     // body assumption just because the source checker accepted it.
@@ -153,7 +137,7 @@ fn byte_subslice_is_evaluated_between_surrounding_scalar_calls() {
     "#;
     for callee in ["Relay::write", "Output::write"] {
         let source = source.replace("Relay::write(Scalar", &format!("{callee}(Scalar"));
-        let checked = checked(&source);
+        let checked = crate::front_end::checked_program(&source);
         let lowered = checked_trees_to_lowered_psi::lower_machine(
             &checked,
             TerminalMachineSelection::Name("Root::enter"),
@@ -213,7 +197,7 @@ fn byte_subslice_is_evaluated_between_surrounding_scalar_calls() {
 #[test]
 fn changed_subslice_source_range_or_custody_rejects() {
     use checked_trees::{CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan};
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let plan_index = checked
         .facts
         .flow
@@ -314,7 +298,7 @@ fn subslice_arguments_preserve_scalar_and_nested_structural_boundary_results() {
         machine Root::enter() reaches Output { Helper::write("raw"); }
     "#;
     let lowered = checked_trees_to_lowered_psi::lower_machine(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         TerminalMachineSelection::Name("Root::enter"),
     )
     .unwrap();

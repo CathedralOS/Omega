@@ -1,9 +1,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AdmissionProfile, EvidenceRoute};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_fixed_fuel::{derive_fixed_entry_fuel, validate_fixed_entry_fuel};
 use terminal_interpreter::TerminalStructuralInputs;
@@ -12,9 +9,6 @@ use terminal_interpreter::{
     interpret_terminal_artifact_measured,
 };
 use terminal_psi::OperationKind;
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const COMPOSITION_SOURCE: &str = r#"
     data Helper {}
@@ -34,14 +28,7 @@ fn check_composition_source(expression: &str, requirements: &str) -> checked_tre
     let source = COMPOSITION_SOURCE
         .replace("$EXPRESSION", expression)
         .replace("$REQUIRES", requirements);
-    let tokens = Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize arithmetic composition");
-    let syntax = parse_syntax_trees(&tokens).expect("parse arithmetic composition");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax)).expect("resolve arithmetic composition");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type arithmetic composition");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("check arithmetic composition")
+    crate::front_end::checked_program(&source)
 }
 
 #[test]
@@ -185,13 +172,7 @@ fn erased_arithmetic_prefix_without_a_bound_is_rejected() {
     let source = COMPOSITION_SOURCE
         .replace("$EXPRESSION", "(value + 1u8) * 0u8")
         .replace("$REQUIRES", "");
-    let tokens = Lexer::new(&source)
-        .tokenize()
-        .expect("tokenize unsafe prefix");
-    let syntax = parse_syntax_trees(&tokens).expect("parse unsafe prefix");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve unsafe prefix");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type unsafe prefix");
-    if let Ok(checked) = lower_typed_trees(typed, &CheckingRequest::settled()) {
+    if let Ok(checked) = crate::front_end::checked_program_result(&source) {
         assert!(
             matches!(
                 checked_trees_to_lowered_psi::lower_machine(
@@ -610,13 +591,7 @@ const SOURCE: &str = r#"
 #[test]
 #[rustfmt::skip]
 fn arbitrary_exact_mixed_shift_chains_retain_independent_prefix_proofs() {
-    let tokens = Lexer::new(SOURCE)
-        .tokenize()
-        .expect("tokenize mixed shifts");
-    let syntax = parse_syntax_trees(&tokens).expect("parse mixed shifts");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve mixed shifts");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type mixed shifts");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check mixed shifts");
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name("Root::measure"))
         .expect("mixed shifts lower to Terminal Psi");
     let entry = lowered

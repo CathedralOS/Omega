@@ -6,13 +6,13 @@ mod generic_callback_schemas;
 mod nominal_callbacks_and_reach;
 
 use crate::terminal_identities::service_id;
-use crate::tests::{SymbolHandle, TerminalModule, checked_source};
+use crate::tests::{SymbolHandle, TerminalModule};
 use language_semantics::{ServiceReachId, ServiceReachRowId, ServiceReachSummary};
 use semantic_vocabulary::ServiceId;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn nominal_schema_forwarding_module() -> terminal_psi::TerminalModule {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         boundary trait Console { machine ping(); }
         boundary trait Family { machine call<const Number: u64>(value: u64) -> u64 reaches Console; }
@@ -86,7 +86,7 @@ fn summary(row: ServiceReachRowId) -> ServiceReachSummary {
 }
 
 fn checked_public_reach_wrapper() -> checked_trees::CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             pub boundary trait Audit { machine record() reaches Audit; }
             pub boundary trait Host { machine ping() reaches Host + Audit; }

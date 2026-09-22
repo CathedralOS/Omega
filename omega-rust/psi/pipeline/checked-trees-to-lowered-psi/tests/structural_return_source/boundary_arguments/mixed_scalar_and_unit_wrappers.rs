@@ -1,6 +1,6 @@
 use super::{
     NESTED_WRAPPER_SOURCE, ObserveNestedWrapper, ObserveSettlement, artifact,
-    assert_constructed_wrapper_execution, checked, constructed_wrapper_source, source, start,
+    assert_constructed_wrapper_execution, constructed_wrapper_source, source, start,
     start_with_scalars, unit_wrapper_artifact, unit_wrapper_source, unsigned,
 };
 use crate::structural_return_source::{
@@ -21,7 +21,7 @@ fn mixed_scalar_formals_retain_ranges_and_linear_boundary_settlement() {
             "reaches PortIo\n        \n",
             "reaches PortIo\n        requires first >= second\n",
         );
-    let checked = checked(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = artifact(&checked);
     let module = decode_module(&artifact.0).unwrap();
     let root = module
@@ -61,7 +61,7 @@ fn mixed_scalar_wrapper_cannot_erase_or_substitute_structural_membership() {
             "Root::enter(receipt: Receipt)",
             "Root::enter(receipt: Receipt in Ready, value: u16 [1..=100])",
         );
-    let original = checked(&source);
+    let original = crate::front_end::checked_program(&source);
     artifact(&original);
     for mutation in 0..2 {
         let mut checked = original.clone();
@@ -107,7 +107,8 @@ fn mixed_scalar_wrapper_cannot_erase_or_substitute_structural_membership() {
 
 #[test]
 fn unit_caller_transfers_linear_claim_into_scalar_boundary_wrapper() {
-    let artifact = unit_wrapper_artifact(&checked(&unit_wrapper_source()));
+    let artifact =
+        unit_wrapper_artifact(&crate::front_end::checked_program(&unit_wrapper_source()));
     let mut execution = start(&artifact);
     assert_eq!(execution.live_claim_frontier().count(), 1);
     let mut observer = ObserveSettlement::default();
@@ -124,7 +125,7 @@ fn unit_caller_transfers_linear_claim_into_scalar_boundary_wrapper() {
 #[test]
 fn boundary_crash_in_scalar_wrapper_abandons_claim_without_a_result_or_receipt() {
     let source = unit_wrapper_source().replace("reaches PortIo", "reaches PortIo crashes Abort");
-    let artifact = unit_wrapper_artifact(&checked(&source));
+    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(&source));
     let mut execution = start(&artifact);
     let mut observer = ObserveSettlement {
         crash: Some(terminal_psi::CrashCause::Abort),
@@ -174,12 +175,12 @@ fn unit_wrapper_accepts_nested_affine_result_argument() {
             "Wrapper::measure(forward(receipt), 70u16)",
         );
     let source = format!("{source}\nmachine forward(receipt: Receipt) -> Receipt {{ receipt }}");
-    unit_wrapper_artifact(&checked(&source));
+    unit_wrapper_artifact(&crate::front_end::checked_program(&source));
 }
 
 #[test]
 fn nested_wrapper_arguments_keep_effect_order_and_the_published_scalar_result() {
-    let artifact = unit_wrapper_artifact(&checked(NESTED_WRAPPER_SOURCE));
+    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(NESTED_WRAPPER_SOURCE));
     let expected = [
         vec![unsigned(5)],
         vec![unsigned(11)],
@@ -228,7 +229,7 @@ fn nested_wrapper_arguments_keep_effect_order_and_the_published_scalar_result() 
 
 #[test]
 fn nested_wrapper_rejects_reordered_producers_and_scalar_binding_drift() {
-    let original = checked(NESTED_WRAPPER_SOURCE);
+    let original = crate::front_end::checked_program(NESTED_WRAPPER_SOURCE);
     let root = original
         .machines()
         .iter()
@@ -314,7 +315,7 @@ fn nested_wrapper_rejects_reordered_producers_and_scalar_binding_drift() {
 
 #[test]
 fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
-    let mut changed = checked(NESTED_WRAPPER_SOURCE);
+    let mut changed = crate::front_end::checked_program(NESTED_WRAPPER_SOURCE);
     let root = changed
         .machines()
         .iter()
@@ -383,7 +384,7 @@ fn nested_wrapper_operand_crash_preserves_only_the_completed_effect_prefix() {
                 "machine Root::enter(receipt: Receipt) reaches PortIo crashes Abort"
             )
     );
-    let artifact = unit_wrapper_artifact(&checked(&source));
+    let artifact = unit_wrapper_artifact(&crate::front_end::checked_program(&source));
     let mut execution = start(&artifact);
     let mut observer = ObserveNestedWrapper::default();
     let status = execution

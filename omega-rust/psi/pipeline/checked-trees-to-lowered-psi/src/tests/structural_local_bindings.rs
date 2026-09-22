@@ -1,11 +1,11 @@
 //! A structural local bound by its initializer's call lowers as that call's
 //! owned result and verifies independently.
-use super::checked_source;
+
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 #[test]
 fn call_bound_structural_local_lowers_and_verifies_beside_a_store() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Inner { value: u64; }
          data Holder { inner: Inner; count: u64; }
          data Main { total: u64; }

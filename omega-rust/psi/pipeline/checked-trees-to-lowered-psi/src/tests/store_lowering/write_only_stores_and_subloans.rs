@@ -1,19 +1,13 @@
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::terminal_identities::service_id;
-use crate::tests::{checked_source, checked_write_line_literal};
+use crate::tests::checked_write_line_literal;
 use crate::unit::attached_unit::lower_root_service_reach;
 use semantic_vocabulary::{IntegerValue, ScalarType, StructuralPlaceKind, ValueId};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
     StructuralPathSegment, StructuralTypeShape, TerminalModule, Terminator,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
@@ -71,7 +65,7 @@ fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
 
 #[test]
 fn affine_i64_record_literal_crosses_source_codec_and_verification() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         data Packet { value: i64; }
 
@@ -242,11 +236,7 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
             Sink::fill(&write bytes);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
         .expect("lower write-only forwarding");
     let module = &lowered.semantic_module;
@@ -277,7 +267,7 @@ fn mutable_to_write_only_access_crosses_source_codec_and_verification() {
 
 #[test]
 fn direct_write_only_primitive_store_crosses_source_codec_and_verification() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Sink {}
             machine Sink::fill(destination: &write i32) {
@@ -351,7 +341,7 @@ fn direct_write_only_primitive_store_crosses_source_codec_and_verification() {
 
 #[test]
 fn direct_write_only_boolean_store_crosses_source_codec_and_verification() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Sink {}
             machine Sink::fill(destination: &write bool) {
@@ -417,7 +407,7 @@ fn direct_write_only_boolean_store_crosses_source_codec_and_verification() {
 #[test]
 fn primitive_literal_store_retains_unused_scalar_parameters_and_signed_literal() {
     for literal in ["17", "-17"] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "data Sink {{}} machine Sink::fill(destination: &write i8, unused: i8) {{ destination = {literal}; }}"
         ));
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Sink::fill"))
@@ -458,7 +448,7 @@ fn primitive_literal_store_retains_unused_scalar_parameters_and_signed_literal()
 
 #[test]
 fn direct_write_only_ieee_float_store_crosses_source_codec_and_verification() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Sink {}
             machine Sink::fill(destination: &write f32) {
@@ -514,7 +504,7 @@ fn direct_write_only_ieee_float_store_crosses_source_codec_and_verification() {
 
 #[test]
 fn direct_write_only_fixed_integer_parameter_store_crosses_source_codec_and_verification() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             data Sink {}
             machine Sink::fill(destination: &write i32, replacement: i32) {
@@ -578,11 +568,7 @@ fn write_only_common_field_subloan_crosses_source_codec_and_verification() {
             Sink::fill(&write outer.inner.leaf);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
         .expect("lower projected forwarding");
     let module = &lowered.semantic_module;
@@ -663,11 +649,7 @@ fn direct_root_literal_indexed_write_only_subloan_crosses_codec_and_verification
             Sink::fill(&write values[1]);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
         .expect("lower direct indexed forwarding");
     let module = &lowered.semantic_module;
@@ -754,11 +736,7 @@ fn finite_literal_index_suffix_crosses_source_codec_and_verification() {
             Sink::fill(&write values[1][2][3][4][5][6]);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
         .expect("lower finite literal-index forwarding");
     let module = &lowered.semantic_module;
@@ -869,11 +847,7 @@ fn field_prefixed_finite_literal_index_suffix_crosses_terminal() {
             Sink::fill(&write outer.values[1][2][3][4][5][6]);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
         .expect("lower field-prefixed finite literal-index forwarding");
     let module = &lowered.semantic_module;
@@ -930,11 +904,7 @@ fn literal_indexed_write_only_subloan_crosses_source_codec_and_verification() {
             Sink::fill(&write outer.inner.values[1]);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::forward"))
         .expect("lower literal-indexed forwarding");
     let module = &lowered.semantic_module;
@@ -1076,11 +1046,7 @@ fn bounded_installation_reach_lowers_source_free_terminal_dependency() {
         { Completion(); }
 
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(source);
     let root = checked
         .machines()
         .iter()

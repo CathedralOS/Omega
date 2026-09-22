@@ -18,8 +18,6 @@ use terminal_psi::{
     TerminalRankedScc, Terminator,
 };
 
-use super::checked_source;
-
 /// `scan` re-enters its body through the recursive edge, so `first` reads
 /// whichever payload the deepest traversal established: `[0, scale]` at the
 /// base, not the entry iteration's `[3, scale]`. A stale or rejected
@@ -39,7 +37,7 @@ const CYCLE_SOURCE: &str = r#"
 
 #[test]
 fn cyclic_unrestricted_scalar_array_reestablishes_and_feeds_an_owned_argument() {
-    let checked = checked_source(CYCLE_SOURCE);
+    let checked = crate::front_end::checked_program(CYCLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("scan"),
@@ -139,7 +137,7 @@ const AFFINE_CYCLE_SOURCE: &str = r#"
 
 #[test]
 fn cyclic_affine_empty_record_reestablishes_inside_the_component() {
-    let checked = checked_source(AFFINE_CYCLE_SOURCE);
+    let checked = crate::front_end::checked_program(AFFINE_CYCLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("scan"),
@@ -211,7 +209,7 @@ fn cyclic_affine_empty_record_reestablishes_inside_the_component() {
 /// drifted custody instead of trusting the admission.
 #[test]
 fn cyclic_affine_empty_record_rejects_when_an_edge_drops_its_disposal() {
-    let checked = checked_source(AFFINE_CYCLE_SOURCE);
+    let checked = crate::front_end::checked_program(AFFINE_CYCLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("scan"),
@@ -344,7 +342,7 @@ fn respell_member_record_as_trivial_affine_local(
 /// result.
 #[test]
 fn cyclic_trivial_affine_local_reestablishes_inside_the_component() {
-    let checked = checked_source(AFFINE_CYCLE_SOURCE);
+    let checked = crate::front_end::checked_program(AFFINE_CYCLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("scan"),
@@ -414,7 +412,7 @@ fn cyclic_trivial_affine_local_reestablishes_inside_the_component() {
 /// reject the drifted custody instead of trusting the admission.
 #[test]
 fn cyclic_trivial_affine_local_rejects_when_an_edge_drops_its_disposal() {
-    let checked = checked_source(AFFINE_CYCLE_SOURCE);
+    let checked = crate::front_end::checked_program(AFFINE_CYCLE_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("scan"),

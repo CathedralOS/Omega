@@ -1,8 +1,5 @@
 //! Standalone Unit expressions perform work without becoming scalar values.
-use super::{
-    ExpressionNode, Lexer, ResolutionRequest, StatementNode, checked, lower_symbol_resolved_trees,
-    parse_syntax_trees, resolve,
-};
+use super::{ExpressionNode, StatementNode};
 use checked_trees::CheckedScalarExpressionRole;
 
 fn source(result: &str, callee_result: &str, body: &str) -> String {
@@ -16,13 +13,6 @@ fn source(result: &str, callee_result: &str, body: &str) -> String {
     )
 }
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 #[test]
 fn standalone_unit_call_before_later_work_checks_without_return_authority() {
     for callee_result in ["", "-> ()"] {
@@ -32,7 +22,7 @@ fn standalone_unit_call_before_later_work_checks_without_return_authority() {
                 callee_result,
                 &format!("records[0].record(17); {continuation}"),
             );
-            let typed = typed(&source);
+            let typed = crate::front_end::typed_program(&source);
             let root = typed
                 .machines()
                 .iter()
@@ -65,7 +55,7 @@ fn standalone_unit_call_before_later_work_checks_without_return_authority() {
 #[test]
 fn standalone_unit_call_retains_scalar_operands_without_a_scalar_return_root() {
     for argument in ["17u16", "identity(identity(17u16))"] {
-        let checked = checked(&source(
+        let checked = crate::front_end::checked_program(&source(
             "-> u16",
             "",
             &format!("records[0].record({argument}); 23u16"),
@@ -121,11 +111,8 @@ fn standalone_unit_admission_does_not_grant_value_or_scalar_tail_use() {
         ("-> u16", "records[0].record(17)"),
     ] {
         let source = source(result, "-> ()", body);
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-            typed(&source),
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("Unit cannot supply a local, argument, scalar operand, or scalar tail");
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("Unit cannot supply a local, argument, scalar operand, or scalar tail");
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 diagnostic
@@ -139,7 +126,7 @@ fn standalone_unit_admission_does_not_grant_value_or_scalar_tail_use() {
 
 #[test]
 fn standalone_unit_call_requires_its_exact_ordinary_target() {
-    let typed = typed(&source(
+    let typed = crate::front_end::typed_program(&source(
         "",
         "",
         "records[0].record(17); let after: u16 = 23;",
@@ -191,7 +178,8 @@ fn standalone_unit_call_requires_its_exact_ordinary_target() {
 
 #[test]
 fn reused_unit_statement_handle_cannot_authorize_a_scalar_return_tail() {
-    let mut typed = typed(&source("-> u16", "", "records[0].record(17); 23u16"));
+    let mut typed =
+        crate::front_end::typed_program(&source("-> u16", "", "records[0].record(17); 23u16"));
     let root = typed
         .machines()
         .iter()
@@ -233,7 +221,7 @@ fn reused_unit_statement_handle_cannot_authorize_a_nested_value_use() {
             "-> ()",
             &format!("records[0].record(17); {continuation}"),
         );
-        let mut typed = checked(&source).typed;
+        let mut typed = crate::front_end::checked_program(&source).typed;
         let root = typed
             .machines()
             .iter()

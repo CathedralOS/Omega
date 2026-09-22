@@ -1,7 +1,4 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, encode_module, encode_proof_section};
 use terminal_fuel::TerminalFuelMeter;
 use terminal_interpreter::AcceptTerminalEffects;
@@ -12,9 +9,6 @@ use terminal_interpreter::{
 };
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 const SOURCE: &str = r#"
     boundary trait Signal {
@@ -123,11 +117,7 @@ const PROGRAM_STORAGE_PROVIDER_SOURCE: &str = r#"
 
 #[test]
 fn invalid_unit_provider_plan_names_the_exact_candidate() {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let baseline = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let baseline = crate::front_end::checked_program(SOURCE);
     for candidate in ["FirstProvider::emit", "SecondProvider::emit"] {
         let symbol = baseline
             .machines()
@@ -158,11 +148,7 @@ fn invalid_unit_provider_plan_names_the_exact_candidate() {
 
 #[test]
 fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewrite() {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -236,13 +222,7 @@ fn checked_unit_provider_candidates_are_cataloged_without_selection_or_call_rewr
 
 #[test]
 fn checked_unit_provider_candidates_retain_linear_qualified_structural_inputs() {
-    let tokens = Lexer::new(STRUCTURAL_PROVIDER_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(STRUCTURAL_PROVIDER_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -331,13 +311,7 @@ fn checked_unit_provider_candidates_retain_linear_qualified_structural_inputs() 
 
 #[test]
 fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
-    let tokens = Lexer::new(STRUCTURAL_PROVIDER_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(STRUCTURAL_PROVIDER_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -407,13 +381,7 @@ fn installed_structural_provider_receives_and_settles_the_exact_linear_claim() {
 
 #[test]
 fn installed_program_storage_provider_transfers_and_settles_both_owned_extent_claims() {
-    let tokens = Lexer::new(PROGRAM_STORAGE_PROVIDER_SOURCE)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check");
+    let checked = crate::front_end::checked_program(PROGRAM_STORAGE_PROVIDER_SOURCE);
     let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("ProgramLocalProducer::handoff"),

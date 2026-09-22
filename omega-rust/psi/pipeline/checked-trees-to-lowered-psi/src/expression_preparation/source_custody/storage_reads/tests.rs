@@ -16,31 +16,13 @@ fn fixture_with_declarations(body: &str, result: &str, declarations: &str) -> Ch
          {declarations}
          machine read(marker: u64, limits: Limits, alternate: Limits) -> {result} {{ {body} }}"
     );
-    checked_source(&source)
-}
-
-fn checked_source(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("checked")
+    crate::front_end::checked_program(&source)
 }
 
 #[test]
 fn entry_mutable_formals_keep_parameter_identity_while_body_reads_keep_storage() {
     for (spelling, primitive) in [("i32", PrimitiveType::I32), ("bool", PrimitiveType::Bool)] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "machine read(mut input: {spelling}) -> {spelling} {{ input }}"
         ));
         let (state, expression) = source(&checked);
@@ -77,7 +59,7 @@ fn entry_mutable_formals_keep_parameter_identity_while_body_reads_keep_storage()
 #[test]
 fn entry_widest_integer_formals_reject_same_typed_substitution() {
     for (spelling, primitive) in [("i64", PrimitiveType::I64), ("u64", PrimitiveType::U64)] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "machine read(first: {spelling}, second: {spelling}) -> {spelling} {{ first }}"
         ));
         let (state, expression) = source(&checked);
@@ -156,8 +138,9 @@ fn result_parameter(position: usize) -> CheckedScalarExpression {
 
 #[test]
 fn normal_result_reads_keep_reserved_slot_separate_from_parameters_and_locals() {
-    let checked =
-        checked_source("machine read(input: u64) -> u64 ensures result == input { input }");
+    let checked = crate::front_end::checked_program(
+        "machine read(input: u64) -> u64 ensures result == input { input }",
+    );
     let (state, expression) = ensures_left(&checked, "read");
     assert!(
         validate_normal_result_read_expression(&checked, state, expression, &result_parameter(1))
@@ -184,8 +167,9 @@ fn normal_result_reads_keep_reserved_slot_separate_from_parameters_and_locals() 
             "{forged:?}"
         );
     }
-    let local =
-        checked_source("machine read(input: u64) -> u64 { let result: u64 = input; result }");
+    let local = crate::front_end::checked_program(
+        "machine read(input: u64) -> u64 { let result: u64 = input; result }",
+    );
     let (local_state, local_expression) = source(&local);
     assert!(
         validate_normal_result_read_expression(
@@ -197,8 +181,9 @@ fn normal_result_reads_keep_reserved_slot_separate_from_parameters_and_locals() 
         .is_err()
     );
 
-    let shadowed =
-        checked_source("machine read(result: u64) -> u64 ensures result == result { result }");
+    let shadowed = crate::front_end::checked_program(
+        "machine read(result: u64) -> u64 ensures result == result { result }",
+    );
     let (state, expression) = ensures_left(&shadowed, "read");
     assert!(
         validate_normal_result_read_expression(&shadowed, state, expression, &result_parameter(0))
@@ -212,7 +197,7 @@ fn normal_result_reads_keep_reserved_slot_separate_from_parameters_and_locals() 
 
 #[test]
 fn normal_result_reads_reject_foreign_owner_and_forged_resolved_identity() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "machine read(input: u64) -> u64 ensures result == input { input }
          machine other(input: u64) -> u64 ensures result == input { input }",
     );
@@ -256,7 +241,8 @@ fn normal_result_reads_reject_foreign_owner_and_forged_resolved_identity() {
 
 #[test]
 fn normal_result_reads_do_not_reinterpret_mutable_post_state_as_entry() {
-    let checked = checked_source("machine read(mut input: u64) -> u64 { input }");
+    let checked =
+        crate::front_end::checked_program("machine read(mut input: u64) -> u64 { input }");
     let (state, expression) = source(&checked);
     assert!(
         validate_entry_read_expression(&checked, state, expression, &result_parameter(0)).is_ok()
@@ -296,26 +282,12 @@ fn boolean_field(position: u32, identity: &str) -> CheckedBooleanExpression {
 
 #[test]
 fn case_membership_rejects_substituted_case_subject_and_erasure() {
-    let tokens = source_files_to_tokens::Lexer::new(
+    let checked = crate::front_end::checked_program(
         "data Choice { case Empty; case Some(value: u32); }
          machine read(choice: &Choice, alternate: &Choice) -> bool {
              choice in Choice::Empty
          }",
-    )
-    .tokenize()
-    .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap();
+    );
     let membership = |parameter_position, case: &str| {
         CheckedScalarExpression::Boolean(Box::new(
             CheckedBooleanExpression::StructuralCaseMembership {
@@ -363,7 +335,7 @@ fn owned_integer_field_rejects_same_typed_field_parameter_and_erasure() {
 
 #[test]
 fn projected_case_membership_replays_exact_root_field_index_and_case() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Color [copy] { case Red; case Blue; }
          data Palette { colors: [Color; 3]; spare: [Color; 3]; }
          machine read(palette: &Palette, alternate: &Palette) -> bool {
@@ -399,7 +371,7 @@ fn projected_case_membership_replays_exact_root_field_index_and_case() {
 
 #[test]
 fn case_membership_receiver_rejoins_only_its_declaring_machine() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         "data Choice [copy] { case Empty; case Full; }
          machine Choice::read(&self) -> bool { self in Choice::Empty }
          machine Choice::other(&self) -> bool { self in Choice::Empty }",

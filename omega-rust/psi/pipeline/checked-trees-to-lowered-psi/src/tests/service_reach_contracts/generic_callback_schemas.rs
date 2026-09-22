@@ -1,5 +1,5 @@
 use super::{nominal_schema_forwarding_module, service_names};
-use crate::tests::checked_source;
+
 use crate::{TerminalMachineSelection, callback_lowering_receipt, lower_machine};
 use lowered_psi_to_lowered_psi::run_psi_optimization;
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
@@ -9,7 +9,7 @@ use terminal_psi::OperationKind;
 
 #[test]
 fn generic_callback_schema_retains_both_closed_callees_after_reload() {
-    let checked = checked_source(include_str!(
+    let checked = crate::front_end::checked_program(include_str!(
         "../../../../../../../tests/omega/pass/effects/generic_callback_schema_reach/main.omg"
     ));
     let artifact = terminal_production::TerminalProductionRequest::new(
@@ -165,7 +165,7 @@ fn unused_schema_selection_reuses_the_same_retained_application_header() {
         "../../../../../../../tests/omega/pass/effects/generic_callback_schema_reach/main.omg"
     )
     .replace("selected, unused", "selected, selected");
-    let checked = checked_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("enter"),
@@ -222,7 +222,7 @@ fn unused_schema_selection_reuses_the_same_retained_application_header() {
 
 #[test]
 fn generic_callback_schema_keeps_each_nested_selected_reach() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         boundary trait Console { machine ping(); }
         boundary trait Callback { machine call(value: u64) -> u64 reaches Console; }
@@ -420,7 +420,7 @@ fn incomplete_schema_projection_prunes_forwarded_dependencies_to_a_fixed_point()
 
 #[test]
 fn closed_callback_dependency_survives_source_discard() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         boundary trait Console { machine ping(); }
         boundary trait Callback { machine call() reaches Console; }
@@ -477,9 +477,9 @@ fn generic_template_commitment_retains_private_helper_reach_dependency() {
             "#
         )
     };
-    let quiet = checked_source(&source("", "quiet"));
-    let additive = checked_source(&source("reaches Console", "quiet"));
-    let selected = checked_source(&source("", "loud"));
+    let quiet = crate::front_end::checked_program(&source("", "quiet"));
+    let additive = crate::front_end::checked_program(&source("reaches Console", "quiet"));
+    let selected = crate::front_end::checked_program(&source("", "loud"));
     for checked in [&quiet, &additive, &selected] {
         let _artifact = terminal_production::TerminalProductionRequest::new(
             checked,
@@ -537,7 +537,7 @@ fn generic_dependency_identity_ignores_call_order_and_helper_extraction() {
             "pub machine enter() { forward<u64, quiet, 2, loud>(); } machine other() { forward<u64, loud, 2, quiet>(); }",
             "machine other() { forward<u64, loud, 2, quiet>(); } pub machine enter() { forward<u64, quiet, 2, loud>(); }",
         ] {
-            let checked = checked_source(&format!(
+            let checked = crate::front_end::checked_program(&format!(
                 r#"
                 boundary trait Console {{ machine ping(); }}
                 boundary trait Callback {{ machine call() reaches Console; }}
@@ -633,8 +633,8 @@ fn generic_dependency_preserves_the_referenced_telescope_position() {
         "#
         )
     };
-    let first = checked_source(&source("First"));
-    let second = checked_source(&source("Second"));
+    let first = crate::front_end::checked_program(&source("First"));
+    let second = crate::front_end::checked_program(&source("Second"));
     for (checked, binder) in [(&first, 1), (&second, 3)] {
         let artifact = terminal_production::TerminalProductionRequest::new(
             checked,
@@ -675,7 +675,7 @@ fn generic_dependency_preserves_the_referenced_telescope_position() {
 fn type_only_generic_template_retains_concrete_helper_dependency() {
     let mut commitments = Vec::new();
     for reach in ["", "reaches Console"] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             r#"
             boundary trait Console {{ machine ping(); }}
             machine helper(value: u64) -> u64 {reach} {{ value }}
@@ -719,7 +719,7 @@ fn type_only_generic_template_retains_concrete_helper_dependency() {
 
 #[test]
 fn const_only_application_retains_its_fixed_dependency_after_reload() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         boundary trait Console { machine ping(); }
         machine identity<const Count: u64>(value: u64) -> u64 reaches Console { value }
@@ -776,7 +776,7 @@ fn ordinary_callback_publication_replays_its_exact_specialization() {
             pub machine enter(value: u64) -> u64 { forward<selected>(value) }
         "#,
     ] {
-        let checked = checked_source(source);
+        let checked = crate::front_end::checked_program(source);
         let _artifact = terminal_production::TerminalProductionRequest::new(
             &checked,
             terminal_production::TerminalMachineSelection::Name("enter"),
@@ -835,7 +835,7 @@ fn ordinary_callback_publication_replays_its_exact_specialization() {
 
 #[test]
 fn isolated_callback_publication_replays_its_specialization() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         machine identity<T [copy]>(value: u64) -> u64 { value }
         pub machine enter(value: u64) -> u64 { identity<u64>(value) }
@@ -887,7 +887,7 @@ fn isolated_callback_retains_unused_selections_without_emitting_their_bodies() {
                 "machine selected()",
                 &format!("machine selected{family_parameters}()"),
             );
-        let checked = checked_source(&source);
+        let checked = crate::front_end::checked_program(&source);
         let instance = checked.machine_specializations[0].instance;
         let source_machine = checked
             .machines()
@@ -962,7 +962,7 @@ fn isolated_callback_retains_unused_selections_without_emitting_their_bodies() {
 
 #[test]
 fn nested_generic_callbacks_replay_interleaved_telescope_positions() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         boundary trait Callback { machine call(value: u64) -> u64; }
         machine relay<T [copy], machine First, const Count: u64, machine Second>(value: u64) -> u64

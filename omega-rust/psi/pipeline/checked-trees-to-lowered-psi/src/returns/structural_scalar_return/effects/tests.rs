@@ -1,22 +1,5 @@
-use super::{CheckedTrees, StructuralScalarReturnTypes, validate};
+use super::{StructuralScalarReturnTypes, validate};
 use crate::TerminalMachineSelection;
-fn checked(source: &str) -> CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
-}
 
 #[test]
 fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachment() {
@@ -27,7 +10,7 @@ fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachme
         "machine hold(value: &mut u64) -> u64 { 11 }",
         "machine hold(value: &write u64) -> u64 { 11 }",
     ] {
-        let checked = checked(source);
+        let checked = crate::front_end::checked_program(source);
         let plan = &checked
             .facts
             .flow
@@ -65,7 +48,9 @@ fn pure_primitive_reference_returns_lower_without_fabricated_effects_or_attachme
 
 #[test]
 fn pure_primitive_reference_returns_reject_signature_and_return_custody_substitution() {
-    let checked = checked("machine hold(first: &u64, value: u64, second: &u64) -> u64 { value }");
+    let checked = crate::front_end::checked_program(
+        "machine hold(first: &u64, value: u64, second: &u64) -> u64 { value }",
+    );
     let original = &checked
         .facts
         .flow
@@ -104,7 +89,9 @@ fn pure_primitive_reference_returns_reject_signature_and_return_custody_substitu
 
 #[test]
 fn pure_primitive_reference_returns_cannot_erase_an_authored_assignment() {
-    let checked = checked("machine reset(value: &mut u64) -> u64 { value = 7; 11 }");
+    let checked = crate::front_end::checked_program(
+        "machine reset(value: &mut u64) -> u64 { value = 7; 11 }",
+    );
     let mut plan = checked
         .facts
         .flow
@@ -125,7 +112,8 @@ fn pure_primitive_reference_returns_cannot_erase_an_authored_assignment() {
 
 #[test]
 fn pure_primitive_reference_returns_replay_authored_contract_and_range_restrictions() {
-    let plain = checked("machine hold(value: &u64, seed: u64) -> u64 { 0 }");
+    let plain =
+        crate::front_end::checked_program("machine hold(value: &u64, seed: u64) -> u64 { 0 }");
     for source in [
         "machine hold(value: &u64, seed: u64) -> u64 requires true; { 0 }",
         "machine hold(value: &u64, seed: u64) -> u64 ensures result == 0; { 0 }",
@@ -134,7 +122,7 @@ fn pure_primitive_reference_returns_replay_authored_contract_and_range_restricti
         "machine hold(value: &u64, seed: u64 [0..=5]) -> u64 { 0 }",
         "machine hold(value: &u64, seed: u64) -> u64 [0..=5] { 0 }",
     ] {
-        let mut checked = checked(source);
+        let mut checked = crate::front_end::checked_program(source);
         let machine = &checked.machines()[0];
         let mut forged = plain.facts.flow.terminal_structural_scalar_returns.machines[0].clone();
         forged.machine = machine.symbol;

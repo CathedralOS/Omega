@@ -2,8 +2,8 @@ use super::boundary_result_moves::{ObserveMoves, source};
 use super::invoking;
 use super::later_results::encoded_locals;
 use super::{
-    AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalExecutionResult, checked,
-    decode_module, decode_proof_bundle, main_machine, unsigned,
+    AdmissionProfile, CheckedUnitEffectOperationPlan, TerminalExecutionResult, decode_module,
+    decode_proof_bundle, main_machine, unsigned,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_fuel::TerminalFuelMeter;
@@ -14,7 +14,7 @@ use terminal_psi::{OperationKind, OperationResult, Terminator};
 
 #[test]
 fn nested_boundary_custody_rejects_reordering_substitution_and_duplicate_cleanup() {
-    let original = checked(&source(
+    let original = crate::front_end::checked_program(&source(
         "Sink::consume(forward(forward(first, prefix), prefix), identity16(prefix));",
     ));
     let artifact = encoded_locals(&original, &["prefix", "first", "spare"]);
@@ -156,7 +156,7 @@ fn nested_boundary_arguments_preserve_effect_order_result_slots_and_cleanup() {
                     source = invoking(&source, "Sink");
                 }
             }
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let artifact = encoded_locals(&checked, &names);
             let published = terminal_production::TerminalProductionRequest::new(
                 &checked,

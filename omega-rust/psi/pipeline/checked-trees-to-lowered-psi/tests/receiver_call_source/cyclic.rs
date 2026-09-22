@@ -1,10 +1,8 @@
 //! Ordinary projected calls retain a looping callee and the caller continuation.
 
 use super::{
-    IntegerSign, IntegerType, IntegerValue, Lexer, OperationKind, ResolutionRequest,
-    TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
-    TerminalStructuralValue, checked_from_source, lower_symbol_resolved_trees, parse_syntax_trees,
-    resolve,
+    IntegerSign, IntegerType, IntegerValue, OperationKind, TerminalExecution,
+    TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue, TerminalStructuralValue,
 };
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -39,7 +37,7 @@ machine Root::enter(&mut self) reaches Observe {
 "#;
 
 fn produce(source: &str) -> terminal_codec::CanonicalTerminalArtifact {
-    let checked = checked_from_source(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -81,7 +79,7 @@ fn receiver_free_observer_keeps_attachment_erasure() {
     let source = SOURCE
         .replace("RANKING", "")
         .replace("record(self.value)", "record(9)");
-    let checked = checked_from_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let observer = checked
         .machines()
         .iter()
@@ -115,7 +113,7 @@ fn projected_boolean_observer_retains_receiver() {
 
 #[test]
 fn erased_observed_receiver_is_rejected_after_checking() {
-    let mut checked = checked_from_source(&SOURCE.replace("RANKING", ""));
+    let mut checked = crate::front_end::checked_program(&SOURCE.replace("RANKING", ""));
     let observer = checked
         .machines()
         .iter()
@@ -178,7 +176,7 @@ fn natural_ranked_unit_callee_preserves_ordinary_projected_calls() {
 
 #[test]
 fn natural_rank_subject_measure_and_carrier_cannot_be_substituted() {
-    let original = checked_from_source(
+    let original = crate::front_end::checked_program(
         &SOURCE.replace("RANKING", "terminates by remaining -> Nat::Descending;"),
     );
     for corruption in ["missing", "measure", "carrier", "subject", "position"] {
@@ -226,17 +224,7 @@ fn natural_ranked_callee_rejects_missing_descent() {
     let source = SOURCE
         .replace("RANKING", "terminates by remaining -> Nat::Descending;")
         .replace("walk(remaining - 1)", "walk(remaining)");
-    let tokens = Lexer::new(&source).tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
-    assert!(
-        typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled()
-        )
-        .is_err()
-    );
+    assert!(crate::front_end::checked_program_result(&source).is_err());
 }
 
 #[test]

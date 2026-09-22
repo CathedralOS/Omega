@@ -1,6 +1,6 @@
 //! Scalar prefixes compose with ordinary graph edges and effect sequencing.
 
-use super::{CheckedTrees, LoweringError, checked_source, lower_machine};
+use super::{CheckedTrees, LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedComposedUnitControlTerminatorPlan;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
@@ -14,7 +14,7 @@ fn interleaved_states_preserve_mixed_handoffs_and_effect_order() {
         TerminalStructuralInputs,
     };
 
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
             boundary trait Host { machine emit(value: i32); }
             data Root {}
@@ -116,7 +116,7 @@ fn interleaved_states_preserve_mixed_handoffs_and_effect_order() {
 }
 
 fn checked_prefixed_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -133,7 +133,7 @@ fn checked_prefixed_control() -> CheckedTrees {
 }
 
 fn checked_multi_prefixed_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             boundary trait Host { machine exit(code: i32); }
             data Root {}
@@ -151,7 +151,7 @@ fn checked_multi_prefixed_control() -> CheckedTrees {
 }
 
 fn checked_multi_prefixed_internal_control() -> CheckedTrees {
-    checked_source(
+    crate::front_end::checked_program(
         r#"
             data Root {}
             machine Root::quiet() {}

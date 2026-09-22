@@ -1,6 +1,6 @@
 //! Exact indexed mutation of the supplied mutable byte view.
 
-use super::{checked_source, lower_machine};
+use super::lower_machine;
 use crate::TerminalMachineSelection;
 use checked_trees::{
     CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
@@ -22,7 +22,7 @@ pub(super) const PUT: &str = r#"
 
 #[test]
 fn fixed_byte_array_lends_mutable_view() {
-    let checked = checked_source(&format!(
+    let checked = crate::front_end::checked_program(&format!(
         "{PUT}\n machine run(out: &mut [u8; 3]) {{ put(out, 65); put(out, 0); }}"
     ));
     let _artifact = terminal_production::TerminalProductionRequest::new(
@@ -38,7 +38,7 @@ fn fixed_byte_array_lends_mutable_view() {
 
 #[test]
 fn guarded_mutable_byte_view_write_publishes_terminal() {
-    let checked = checked_source(PUT);
+    let checked = crate::front_end::checked_program(PUT);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("put"),
@@ -54,7 +54,7 @@ fn guarded_mutable_byte_view_write_publishes_terminal() {
 
 #[test]
 fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
-    let checked = checked_source(
+    let checked = crate::front_end::checked_program(
         r#"
         machine put(out: &mut [u8], other: &mut [u8], byte: u8) {
             transition out.len > 0 {
@@ -168,7 +168,7 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
     // This fixture uses the existing checked UTF-8 literal initialization route;
     // it does not establish raw fixed-array or complete read_line support.
     for initial in ["old", ""] {
-        let checked = checked_source(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             r#"
         {PUT}
         domain [u8; 3]::Utf8 requires valid_utf8(self);

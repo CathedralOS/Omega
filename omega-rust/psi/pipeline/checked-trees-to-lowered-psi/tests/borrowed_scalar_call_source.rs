@@ -1,9 +1,6 @@
 //! Ordinary callers preserve borrowed primitive effects and scalar results.
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
@@ -14,19 +11,6 @@ use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 use terminal_psi::{OperationKind, StructuralAccess};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
 
 // Catalog order includes scalar callees. Resolve the authored fixture owner once,
 // then join its exact symbol to the retained body being corrupted.
@@ -60,7 +44,7 @@ const SOURCE: &str = r#"
 
 #[test]
 fn borrowed_primitive_local_read_observes_the_callee_write() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         machine reset(value: &mut u64) -> u64 { value = 0; 7 }
         machine enter(value: &mut u64) {
@@ -95,7 +79,7 @@ fn borrowed_primitive_local_read_observes_the_callee_write() {
 
 #[test]
 fn borrowed_scalar_callee_and_returned_value_reach_the_callers_closure() {
-    let checked = checked(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("enter"),
@@ -110,7 +94,7 @@ fn borrowed_scalar_callee_and_returned_value_reach_the_callers_closure() {
 
 #[test]
 fn immutable_snapshot_precedes_the_call_and_fresh_local_read_observes_zero() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         machine reset(value: &mut u64) -> u64 { value = 0; 7 }
         machine enter(value: &mut u64) {
@@ -147,7 +131,7 @@ fn immutable_snapshot_precedes_the_call_and_fresh_local_read_observes_zero() {
 
 #[test]
 fn local_overwrite_commits_the_returned_scalar_before_a_fresh_read() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         machine reset(value: &mut u64) -> u64 { value = 0; 7 }
         machine enter(value: &mut u64) {
@@ -183,7 +167,7 @@ fn local_overwrite_commits_the_returned_scalar_before_a_fresh_read() {
 
 #[test]
 fn repeated_calls_keep_distinct_local_referents_and_charge_each_invocation() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         machine reset(value: &mut u64) -> u64 { value = 0; 7 }
         machine enter(value: &mut u64) {
@@ -230,8 +214,9 @@ fn repeated_calls_keep_distinct_local_referents_and_charge_each_invocation() {
 
 #[test]
 fn unused_primitive_local_still_establishes_once_and_cannot_be_removed_or_duplicated() {
-    let original =
-        checked("machine enter(value: &mut u64) { let mut unused: u64 = 13; value = 7; }");
+    let original = crate::front_end::checked_program(
+        "machine enter(value: &mut u64) { let mut unused: u64 = 13; value = 7; }",
+    );
     let artifact = terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("enter"),
@@ -293,7 +278,7 @@ const TWO_LOCAL_SOURCE: &str = r#"
 
 #[test]
 fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbol() {
-    let original = checked(TWO_LOCAL_SOURCE);
+    let original = crate::front_end::checked_program(TWO_LOCAL_SOURCE);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("enter"),
@@ -383,7 +368,7 @@ fn primitive_local_initializer_cannot_move_after_its_borrow_or_use_another_symbo
 
 #[test]
 fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar_binding() {
-    let original = checked(TWO_LOCAL_SOURCE);
+    let original = crate::front_end::checked_program(TWO_LOCAL_SOURCE);
     let _ = terminal_production::TerminalProductionRequest::new(
         &original,
         TerminalMachineSelection::Name("enter"),
@@ -494,7 +479,7 @@ fn primitive_storage_read_cannot_substitute_another_symbol_initializer_or_scalar
 
 #[test]
 fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding() {
-    let mut changed = checked(TWO_LOCAL_SOURCE);
+    let mut changed = crate::front_end::checked_program(TWO_LOCAL_SOURCE);
     let _ = terminal_production::TerminalProductionRequest::new(
         &changed,
         TerminalMachineSelection::Name("enter"),
@@ -534,7 +519,7 @@ fn primitive_local_plan_cannot_grant_mutability_to_an_immutable_authored_binding
 
 #[test]
 fn pure_call_argument_replays_its_authored_local_even_when_cached_and_plan_reads_agree() {
-    let original = checked(
+    let original = crate::front_end::checked_program(
         r#"
         machine consume(value: u64) -> u64 { value }
         machine enter(value: &mut u64) {
@@ -861,7 +846,7 @@ fn execute_with_expectations(
 
 #[test]
 fn scalar_parameters_and_write_only_reborrows_keep_their_authored_positions() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         "machine reset(value: &write u64, returned: u64) -> u64 { value = 0; returned } machine enter(value: &mut u64, returned: u64) { let replacement: u64 = reset(&write value, returned); value = replacement; }",
     );
     let artifact = terminal_production::TerminalProductionRequest::new(
@@ -882,7 +867,7 @@ fn unrelated_structural_return_bodies_do_not_join_the_selected_call_catalog() {
         "{SOURCE} data Unused {{}} machine Unused::reset(value: &mut bool) -> bool {{ value = false; true }}"
     );
     let artifact = terminal_production::TerminalProductionRequest::new(
-        &checked(&source),
+        &crate::front_end::checked_program(&source),
         TerminalMachineSelection::Name("enter"),
     )
     .produce(TerminalProductionCustody::artifact_only(
@@ -908,7 +893,7 @@ fn attached_callee_uses_the_shared_catalogs_nested_type_and_field_identities() {
             value = returned;
         }
     "#;
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Earlier::enter"),
@@ -923,7 +908,7 @@ fn attached_callee_uses_the_shared_catalogs_nested_type_and_field_identities() {
 
 #[test]
 fn borrowed_scalar_call_rejects_missing_duplicated_or_substituted_callee_custody() {
-    let original = checked(SOURCE);
+    let original = crate::front_end::checked_program(SOURCE);
     // Absence selects the independently complete ordinary body; a present
     // malformed legacy row must never redirect to that fallback.
     for mutation in 1..5 {
@@ -960,7 +945,7 @@ fn borrowed_scalar_call_rejects_missing_duplicated_or_substituted_callee_custody
 
 #[test]
 fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
-    let mut checked = checked(
+    let mut checked = crate::front_end::checked_program(
         "machine reset(value: &mut u64) -> u64 { value = 0; 7 } machine enter(first: &mut u64, second: &mut u64) { let returned: u64 = reset(&mut first); }",
     );
     let _ = terminal_production::TerminalProductionRequest::new(
@@ -1010,7 +995,7 @@ fn same_typed_borrowed_parameter_cannot_replace_the_authored_actual() {
 
 #[test]
 fn caller_store_cannot_substitute_a_literal_for_the_returned_value() {
-    let mut checked = checked(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     let checked_trees::CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         value: zero, ..
     } = &checked
@@ -1045,7 +1030,7 @@ fn caller_store_cannot_substitute_a_literal_for_the_returned_value() {
 
 #[test]
 fn caller_store_roster_rejects_deleted_duplicate_or_stale_assignment_sites() {
-    let original = checked(SOURCE);
+    let original = crate::front_end::checked_program(SOURCE);
     for mutation in 0..4 {
         let mut changed = original.clone();
         let caller_index = ordinary_body_index(&changed, "enter");
@@ -1084,7 +1069,7 @@ fn caller_store_roster_rejects_deleted_duplicate_or_stale_assignment_sites() {
 
 #[test]
 fn an_unused_scalar_result_cannot_erase_its_callees_borrowed_write() {
-    let mut checked = checked(
+    let mut checked = crate::front_end::checked_program(
         "machine reset(value: &mut u64) -> u64 { value = 0; 7 } machine enter(value: &mut u64) { let returned: u64 = reset(&mut value); }",
     );
     let _ = terminal_production::TerminalProductionRequest::new(
@@ -1114,7 +1099,7 @@ fn an_unused_scalar_result_cannot_erase_its_callees_borrowed_write() {
 
 #[test]
 fn ordinary_borrowed_scalar_body_replays_store_result_and_completion_custody() {
-    let mut original = checked(SOURCE);
+    let mut original = crate::front_end::checked_program(SOURCE);
     let callee_index = ordinary_body_index(&original, "reset");
     let callee = original.facts.flow.terminal_unit_effects.machines[callee_index].machine;
     let legacy = &mut original

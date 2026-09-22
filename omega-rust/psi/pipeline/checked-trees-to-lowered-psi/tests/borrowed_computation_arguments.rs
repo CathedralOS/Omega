@@ -11,24 +11,6 @@ use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap()
-}
-
 fn unsigned(value: u128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
@@ -46,7 +28,7 @@ fn execute_with_arguments(
     expected: &[u128],
     expected_borrow_calls: u64,
 ) {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("enter"),
@@ -357,7 +339,7 @@ fn folded_prefix_preserves_a_nested_mutable_condition() {
         1,
     );
 
-    let original = checked(source);
+    let original = crate::front_end::checked_program(source);
     let plans = &original.facts.values.scalar_computations;
     let root = plans
         .roots
@@ -416,7 +398,7 @@ fn folded_prefix_preserves_a_nested_mutable_condition() {
 
 #[test]
 fn comparison_operand_cannot_substitute_a_different_mutable_read() {
-    let original = checked(
+    let original = crate::front_end::checked_program(
         r#"
         machine stamp(value: &mut u64) -> u64 { value = 7; 7 }
         machine consume(value: bool) { }

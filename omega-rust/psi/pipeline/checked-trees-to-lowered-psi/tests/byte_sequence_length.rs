@@ -1,16 +1,12 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecutionResult,
     TerminalScalarValue, interpret_terminal_artifact_measured,
 };
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
     boundary trait Output {
@@ -28,20 +24,8 @@ const SOURCE: &str = r#"
     }
 "#;
 
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 fn lower(source: &str) -> lowered_psi::LoweredPsi {
-    let checked = checked(source);
+    let checked = crate::front_end::checked_program(source);
     checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -153,7 +137,7 @@ fn nested_scalar_call_evaluates_length_before_entering_the_callee() {
 
 #[test]
 fn a_nominal_field_named_len_is_not_a_byte_view_observation() {
-    let checked = checked(
+    let checked = crate::front_end::checked_program(
         r#"
         boundary trait Output { machine size(length: u64) reaches Output; }
         data Counter { len: u64 }

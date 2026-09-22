@@ -101,7 +101,7 @@ fn computed_primitive_store_rejects_replaced_roots_and_literal_meaning() {
     use checked_trees::{
         CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedScalarExpression,
     };
-    let original = checked_source(
+    let original = crate::front_end::checked_program(
         r#"
         data Sink {}
         machine Sink::fill(destination: &write i32, choose: bool) {
@@ -206,26 +206,8 @@ fn computed_primitive_store_rejects_replaced_roots_and_literal_meaning() {
     }
 }
 
-fn checked_source(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve");
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
-    typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .expect("check")
-}
-
 fn execute(source: &str, arguments: &[TerminalScalarValue], expected: &[TerminalScalarValue]) {
-    let checked = checked_source(source);
+    let checked = crate::front_end::checked_program(source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("Sink::fill"),

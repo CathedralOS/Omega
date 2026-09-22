@@ -1,6 +1,6 @@
 use super::{
-    SELECTED_WITNESS_TAIL_USE_SOURCE, assert_guarded_case_results, checked,
-    checked_ordered_case_returns, integer_case_argument,
+    SELECTED_WITNESS_TAIL_USE_SOURCE, assert_guarded_case_results, checked_ordered_case_returns,
+    integer_case_argument,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -127,7 +127,7 @@ fn ordered_case_returns_reuse_single_guard_and_complementary_pair() {
         "transition flag { true -> (Choice::First) _ -> (Choice::Second) }",
         "transition flag { true -> (Choice::First) false -> (Choice::Second) }",
     ] {
-        let program = checked(&format!(
+        let program = crate::front_end::checked_program(&format!(
             "data Choice [copy] {{ case First; case Second; }} machine choose(flag: bool) -> Choice {{ {body} }}"
         ));
         assert_guarded_case_results(
@@ -149,7 +149,7 @@ fn ordered_case_returns_reuse_single_guard_and_complementary_pair() {
 
 #[test]
 fn ordered_case_returns_selectively_evaluate_a_composed_guard() {
-    let program = checked(
+    let program = crate::front_end::checked_program(
         r#"
         data Choice [copy] { case First; case Second; }
         machine choose(flag: bool) -> Choice {
@@ -184,7 +184,7 @@ fn borrowed_case_membership_uses_an_observation_operation() {
         "!(choice in Choice::Some)",
         "let empty: bool = choice in Choice::Empty; empty && !(choice in Choice::Some)",
     ] {
-        let checked = checked(&format!(
+        let checked = crate::front_end::checked_program(&format!(
             "
             data Choice {{ case Empty; case Some(value: u32); }}
             machine observe(choice: &Choice) -> bool {{ {body} }}
@@ -222,7 +222,7 @@ fn borrowed_case_membership_uses_an_observation_operation() {
 
 #[test]
 fn selected_witness_tail_use_is_canonical_and_runtime_free() {
-    let checked = checked(SELECTED_WITNESS_TAIL_USE_SOURCE);
+    let checked = crate::front_end::checked_program(SELECTED_WITNESS_TAIL_USE_SOURCE);
     let caller_symbol = checked
         .machines()
         .iter()

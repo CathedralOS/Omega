@@ -1,6 +1,6 @@
 use super::{
     GUARDED_CALL_SOURCE, GUARDED_SOURCE, OMITTED_GUARDED_CALL_SOURCE,
-    RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE, checked, checked_source,
+    RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE, checked_source,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -16,7 +16,7 @@ use terminal_psi::{OperationKind, OperationResult, StructuralTypeShape, Terminat
 
 #[test]
 fn guarded_payloadless_call_substitutes_the_exact_whole_result_application() {
-    let checked = checked(RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE);
+    let checked = crate::front_end::checked_program(RESULT_SUBSTITUTED_GUARDED_CALL_SOURCE);
     let [plan] = checked
         .facts
         .flow
@@ -153,7 +153,7 @@ fn guarded_payloadless_call_substitutes_the_exact_whole_result_application() {
 #[test]
 fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
     let omitted = checked_trees_to_lowered_psi::lower_machine(
-        &checked(OMITTED_GUARDED_CALL_SOURCE),
+        &crate::front_end::checked_program(OMITTED_GUARDED_CALL_SOURCE),
         TerminalMachineSelection::Name("Root::caller"),
     )
     .expect("the exact omitted-selector guarded call lowers");
@@ -178,7 +178,7 @@ fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
     assert!(omitted.semantic_module.proof_output_calls.is_empty());
 
     let selected = checked_trees_to_lowered_psi::lower_machine(
-        &checked(GUARDED_CALL_SOURCE),
+        &crate::front_end::checked_program(GUARDED_CALL_SOURCE),
         TerminalMachineSelection::Name("Root::caller"),
     )
     .expect("selected comparison lowers");
@@ -387,7 +387,7 @@ fn guarded_payloadless_case_return_retains_active_evidence_and_vacuous_siblings(
         TerminalMachineSelection::Name("Root::choose"),
     )
     .expect("the proof-free payloadless producer lowers");
-    let checked = checked(GUARDED_SOURCE);
+    let checked = crate::front_end::checked_program(GUARDED_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::choose"),

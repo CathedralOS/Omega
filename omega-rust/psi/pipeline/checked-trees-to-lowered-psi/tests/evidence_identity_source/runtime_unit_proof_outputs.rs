@@ -2,7 +2,7 @@ use super::{
     RUNTIME_UNIT_PROOF_OUTPUT_SOURCE, STATIC_REQUIREMENT_BOOL_PROOF_OUTPUT_SOURCE,
     STATIC_REQUIREMENT_BOOL_RUNTIME_BASELINE_SOURCE, STATIC_REQUIREMENT_I32_PROOF_OUTPUT_SOURCE,
     STATIC_REQUIREMENT_I32_RUNTIME_BASELINE_SOURCE, STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE,
-    STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE, check,
+    STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -18,7 +18,7 @@ use terminal_psi::OperationKind;
 
 #[test]
 fn runtime_unit_proof_output_links_and_executes_its_ordinary_call() {
-    let checked = check(RUNTIME_UNIT_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(RUNTIME_UNIT_PROOF_OUTPUT_SOURCE);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::relay"),
@@ -94,7 +94,7 @@ fn runtime_unit_proof_output_links_and_executes_its_ordinary_call() {
 
 #[test]
 fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_separate() {
-    let checked = check(STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(STATIC_REQUIREMENT_PROOF_OUTPUT_SOURCE);
     let invocation = checked
         .facts
         .proof
@@ -123,7 +123,8 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
         TerminalMachineSelection::Name(&machine_name),
     )
     .expect("static requirement proof output should cross terminal Psi");
-    let baseline_checked = check(STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE);
+    let baseline_checked =
+        crate::front_end::checked_program(STATIC_REQUIREMENT_RUNTIME_BASELINE_SOURCE);
     let baseline_machine_name = baseline_checked
         .facts
         .flow
@@ -788,7 +789,7 @@ fn static_requirement_proof_output_keeps_public_identity_and_private_dispatch_se
 
 #[test]
 fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_overhead() {
-    let checked = check(STATIC_REQUIREMENT_I32_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(STATIC_REQUIREMENT_I32_PROOF_OUTPUT_SOURCE);
     let checked_invocation = checked
         .facts
         .proof
@@ -920,7 +921,8 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
         terminal_verifier::verify_module(&decoded, &decoded_proof, &AdmissionProfile::default())
             .expect("the exact static i32 operation and dispatch verify together");
 
-    let baseline_checked = check(STATIC_REQUIREMENT_I32_RUNTIME_BASELINE_SOURCE);
+    let baseline_checked =
+        crate::front_end::checked_program(STATIC_REQUIREMENT_I32_RUNTIME_BASELINE_SOURCE);
     let baseline_name = baseline_checked
         .facts
         .flow
@@ -1099,7 +1101,7 @@ fn static_requirement_i32_result_uses_one_ordinary_scalar_call_without_runtime_o
 
 #[test]
 fn static_requirement_bool_result_uses_one_ordinary_scalar_call_without_runtime_overhead() {
-    let checked = check(STATIC_REQUIREMENT_BOOL_PROOF_OUTPUT_SOURCE);
+    let checked = crate::front_end::checked_program(STATIC_REQUIREMENT_BOOL_PROOF_OUTPUT_SOURCE);
     let checked_invocation = checked
         .facts
         .proof
@@ -1240,7 +1242,8 @@ fn static_requirement_bool_result_uses_one_ordinary_scalar_call_without_runtime_
         terminal_verifier::verify_module(&decoded, &decoded_proof, &AdmissionProfile::default())
             .expect("the exact static bool operation and dispatch verify together");
 
-    let baseline_checked = check(STATIC_REQUIREMENT_BOOL_RUNTIME_BASELINE_SOURCE);
+    let baseline_checked =
+        crate::front_end::checked_program(STATIC_REQUIREMENT_BOOL_RUNTIME_BASELINE_SOURCE);
     let baseline_name = baseline_checked
         .facts
         .flow

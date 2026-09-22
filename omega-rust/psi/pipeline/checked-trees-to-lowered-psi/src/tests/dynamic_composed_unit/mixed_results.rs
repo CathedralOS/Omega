@@ -1,5 +1,5 @@
 use crate::TerminalMachineSelection;
-use crate::tests::{checked_source, lower_machine};
+use crate::tests::lower_machine;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::ClosedConformanceCallableResult;
 
@@ -38,7 +38,7 @@ fn source(call: &str) -> String {
 #[test]
 fn dynamic_table_retains_each_members_result_kind() {
     for call in CALLS {
-        let checked = checked_source(&source(call));
+        let checked = crate::front_end::checked_program(&source(call));
         let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
             .expect("query and command use the same complete mixed-result conformance");
         let artifact = terminal_production::TerminalProductionRequest::new(
@@ -77,7 +77,7 @@ fn dynamic_table_retains_each_members_result_kind() {
 #[test]
 fn mixed_table_rejects_result_kind_drift_in_called_and_uncalled_members() {
     for call in CALLS {
-        let checked = checked_source(&source(call));
+        let checked = crate::front_end::checked_program(&source(call));
         for member in 0..2 {
             let mut changed = checked.clone();
             let catalog = &mut changed.facts.flow.terminal_unit_effects.dynamic_dispatch;
@@ -100,7 +100,7 @@ fn mixed_table_rejects_result_kind_drift_in_called_and_uncalled_members() {
 #[test]
 fn mixed_table_cannot_omit_an_uncalled_member() {
     for call in CALLS {
-        let mut checked = checked_source(&source(call));
+        let mut checked = crate::front_end::checked_program(&source(call));
         let catalog = &mut checked.facts.flow.terminal_unit_effects.dynamic_dispatch;
         if let [plan] = catalog.direct_scalar_calls.as_mut_slice() {
             plan.realization_callables

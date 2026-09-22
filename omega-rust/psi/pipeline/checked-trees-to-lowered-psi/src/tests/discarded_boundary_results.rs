@@ -1,5 +1,5 @@
 //! Explicit result discard belongs to the boundary's immediate normal continuation.
-use super::{CheckedTrees, SymbolHandle, checked_source, lower_machine};
+use super::{CheckedTrees, SymbolHandle, lower_machine};
 use crate::TerminalMachineSelection;
 use checked_trees::CheckedUnitEffectOperationPlan;
 use terminal_interpreter::TerminalStructuralInputs;
@@ -34,7 +34,7 @@ fn run_symbol(checked: &CheckedTrees) -> SymbolHandle {
 
 #[test]
 fn discarded_boundary_result_replays_immediate_cleanup_and_canonical_artifact() {
-    let checked = checked_source(SOURCE);
+    let checked = crate::front_end::checked_program(SOURCE);
     let plan = checked
         .facts
         .flow
@@ -141,7 +141,7 @@ fn discarded_boundary_result_replays_immediate_cleanup_and_canonical_artifact() 
 
 #[test]
 fn discarded_boundary_result_rejects_missing_authored_discard_marker() {
-    let mut checked = checked_source(SOURCE);
+    let mut checked = crate::front_end::checked_program(SOURCE);
     let machine = checked
         .machines()
         .iter()
@@ -170,7 +170,7 @@ fn discarded_boundary_result_rejects_missing_authored_discard_marker() {
 
 #[test]
 fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
-    let original = checked_source(SOURCE);
+    let original = crate::front_end::checked_program(SOURCE);
     for mutation in [
         "result type",
         "result ordinal",
@@ -292,7 +292,7 @@ fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
 
 #[test]
 fn discarded_boundary_result_cannot_replace_a_same_typed_live_operand() {
-    let mut checked = checked_source(
+    let mut checked = crate::front_end::checked_program(
         r#"
         data ReadResult { case Empty; case Bytes(count: u64); }
         boundary trait Host {
@@ -360,7 +360,7 @@ fn discarded_boundary_result_preserves_effect_order_across_every_fuel_pause() {
     let source = SOURCE
         .replace("buffer: &mut [u8]", "")
         .replace("Host::read(buffer)", "Host::read()");
-    let checked = checked_source(&source);
+    let checked = crate::front_end::checked_program(&source);
     let artifact = terminal_production::TerminalProductionRequest::new(
         &checked,
         terminal_production::TerminalMachineSelection::Name("run"),
