@@ -10,7 +10,8 @@ use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, parameter_qualifications,
+    ShapeCollector, base_type_identity, borrowed_slice_view_element,
+    borrowed_slice_view_type_identity, parameter_qualifications,
     structural_access_for_type_reference,
 };
 
@@ -127,6 +128,20 @@ pub(crate) fn structural_computation_argument(
         return owned_parameter_argument(program, state, name.symbol, target).or_else(|| {
             owned_array_local_argument(program, state, call.statement_index, name.symbol, target)
         });
+    }
+    if target_access == CheckedStructuralAccess::SharedBorrow
+        && let Some(argument) = shared_slice_view_argument(
+            program,
+            borrow,
+            machine,
+            state,
+            call,
+            &place,
+            name.symbol,
+            target,
+        )
+    {
+        return Some(argument);
     }
     let target_type = plain_primitive_referent(program, target.type_reference)?;
     if super::super::primitive_store::primitive_local_before(
@@ -525,6 +540,90 @@ fn shared_nominal_argument(
     Some(CheckedUnitStructuralArgumentPlan {
         source,
         path,
+        type_identity: identity,
+        access: CheckedStructuralAccess::SharedBorrow,
+    })
+}
+
+/// A `&[T]` actual loans its whole established view carrier: an authored view
+/// local's slot or a view parameter's own loan. The reference shell is the
+/// loan itself — the same presentation the call-statement lane gives a
+/// borrowed view — while this lane names the view's established home.
+pub(crate) fn shared_slice_view_argument(
+    program: &TypedTrees,
+    borrow: &checked_trees::BorrowFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    call: &checked_trees::FlowCallFact,
+    place: &crate::flow::CanonicalPlace,
+    symbol: SymbolHandle,
+    target: &StateParameter,
+) -> Option<CheckedUnitStructuralArgumentPlan> {
+    borrowed_slice_view_element(program, target.type_reference, &[])?;
+    let identity = borrowed_slice_view_type_identity(program, target.type_reference, &[], &[]);
+    let parameters = program.state_parameters(state);
+    let (source, source_type) = if let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
+    {
+        let parameter = &parameters[position];
+        if parameter.is_const || parameter.is_self {
+            return None;
+        }
+        let parameter_index = parameters[..position]
+            .iter()
+            .filter(|parameter| {
+                program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+            })
+            .count();
+        (
+            CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            parameter.type_reference,
+        )
+    } else {
+        // The view local loans the referent its establishment already carries;
+        // a second declaration or a moved home breaks that loan's exactness.
+        let mut locals = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .get(..call.statement_index)?
+            .iter()
+            .filter_map(|statement| match statement {
+                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+                _ => None,
+            });
+        let local = locals.next()?;
+        if locals.next().is_some() || !local.initial_value.is_valid() {
+            return None;
+        }
+        (
+            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
+            local.type_reference,
+        )
+    };
+    if borrowed_slice_view_type_identity(program, source_type, &[], &[]) != identity {
+        return None;
+    }
+    if exact_structural_borrow_access(
+        program,
+        borrow,
+        machine,
+        state.symbol,
+        call,
+        place,
+        CheckedStructuralAccess::SharedBorrow,
+        &[],
+    )? != CheckedStructuralAccess::SharedBorrow
+    {
+        return None;
+    }
+    Some(CheckedUnitStructuralArgumentPlan {
+        source,
+        path: Vec::new(),
         type_identity: identity,
         access: CheckedStructuralAccess::SharedBorrow,
     })

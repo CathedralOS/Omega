@@ -137,6 +137,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
         graph.ranked_scc = ranked_scc;
         successors::retain(
             program,
+            expressions,
             graph,
             &mut structural_transfers,
             &mut scalar_arguments,
@@ -161,6 +162,7 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
 #[cfg(test)]
 pub(crate) fn finalize_checked_scalar_graph_plans(
     program: &TypedTrees,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
@@ -168,6 +170,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
 ) {
     finalize_checked_scalar_graph_plans_with_call_frames(
         program,
+        expressions,
         ownership,
         computations,
         plans,
@@ -178,6 +181,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans(
 
 pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     program: &TypedTrees,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
     ownership: &checked_trees::FlowOwnershipFacts,
     computations: &checked_trees::CheckedScalarComputationPlans,
     plans: &mut CheckedScalarGraphPlans,
@@ -190,6 +194,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
         }
         if successors::validate(
             program,
+            expressions,
             graph,
             &plans.structural_transfers,
             &plans.scalar_arguments,
@@ -309,7 +314,13 @@ fn build_machine_graph(
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed {
                 // Whole structural forwarding is bounded to the same authored
                 // state; additional state signatures remain a separate slice.
-                if source_states.len() != 1 || machine.attached_data.is_some() {
+                // An attached machine whose receiver is a borrowed `self` keeps
+                // the receiver ambient, so the attachment needs no graph slot;
+                // a selfless attached machine keeps the receiver discipline.
+                if source_states.len() != 1
+                    || (machine.attached_data.is_some()
+                        && !parameters.iter().any(|parameter| parameter.is_self))
+                {
                     return None;
                 }
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?
@@ -1060,6 +1071,12 @@ fn structural_place_reads_position(
         return true;
     }
     if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        parameter_index,
+        start,
+        end,
+        ..
+    }
+    | checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
         parameter_index,
         start,
         end,

@@ -27,6 +27,28 @@ fn validate(
     let StatementNode::LocalData(local) = statements.get(result.statement_index as usize)? else {
         return None;
     };
+    // A borrowed view's result binding carries the viewed `[T]` carrier
+    // identity with the reference and constraint shells peeled, exactly as
+    // structural call arguments spell it: the loan's access mode belongs to
+    // the edge carrying the view, not to the bound value.
+    let expected_identity =
+        if matches!(
+            super::super::types::byte_sequence_carrier(program, local.type_reference, &[]),
+            Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+        ) || super::super::types::borrowed_slice_view_element(program, local.type_reference, &[])
+            .is_some()
+        {
+            super::super::types::borrowed_slice_view_type_identity(
+                program,
+                local.type_reference,
+                &[],
+                &[],
+            )
+        } else {
+            program
+                .normalized_type_identity(local.type_reference)
+                .into_string()
+        };
     if !local.symbol.is_valid()
         || !program
             .expression_table
@@ -43,16 +65,16 @@ fn validate(
             .state_parameters(state)
             .iter()
             .any(|parameter| parameter.symbol == local.symbol)
-        || result.type_identity
-            != program
-                .normalized_type_identity(local.type_reference)
-                .as_str()
+        || result.type_identity != expected_identity
         || result.multiplicity != program.type_multiplicity(local.type_reference)
-        || !validation::has_plain_owned_contents_with_numeric_constraints(
-            program,
-            local.type_reference,
-        )
-        || type_graph_requires_nominal_drop(program, local.type_reference)
+        // Unrestricted results carry no owned custody; the owned-contents and
+        // nominal-drop gates only bound results that hold storage. A borrowed
+        // view's death is the end of the loan, not a disposal.
+        || (result.multiplicity != Multiplicity::Unrestricted
+            && (!validation::has_plain_owned_contents_with_numeric_constraints(
+                program,
+                local.type_reference,
+            ) || type_graph_requires_nominal_drop(program, local.type_reference)))
     {
         return None;
     }

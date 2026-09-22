@@ -2,8 +2,6 @@
 //! exact borrow access and the claim transfers a call performs.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::calls::byte_subslice;
-
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
 };
@@ -11,7 +9,9 @@ use crate::execution::terminal_unit::calls::boundary_admission::{
     boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
     fixed_byte_array_view_is_admitted, is_registered_boundary_scalar_target,
 };
+use crate::execution::terminal_unit::calls::byte_subslice;
 use crate::execution::terminal_unit::calls::computation_arguments;
+use crate::execution::terminal_unit::calls::element_subslice;
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::types::{
@@ -135,6 +135,26 @@ pub(crate) fn structural_call_arguments(
             if target_machine.supply_mode == MachineSupplyMode::CheckedBody
                 && is_unit(program, target_state.return_type)
                 && let Some(subslice) = byte_subslice::argument(
+                    program,
+                    facts,
+                    caller_machine,
+                    caller_state,
+                    caller_parameters,
+                    target.type_reference,
+                    expression,
+                    statement_index,
+                    call.call_ordinal,
+                    argument_ordinal,
+                )
+            {
+                output.push(subslice);
+                continue;
+            }
+            // Borrowed element views take the same exclusive-range lane as
+            // byte views, without the byte lane's unit-result restriction:
+            // scalar-returning callees receive `s[a..b]` too.
+            if target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                && let Some(subslice) = element_subslice::argument(
                     program,
                     facts,
                     caller_machine,
@@ -364,6 +384,25 @@ pub(crate) fn structural_call_arguments(
                 type_identity: target_identity,
                 access: CheckedStructuralAccess::Owned,
             });
+            continue;
+        }
+        // A view local's whole-name argument loans its established carrier
+        // through the same source vocabulary the scalar-computation lane
+        // plans; projected spellings still resolve through the parameter and
+        // alias arms below.
+        if place.segments.is_empty()
+            && let Some(plan) = computation_arguments::shared_slice_view_argument(
+                program,
+                &facts.borrow,
+                caller_machine.symbol,
+                caller_state,
+                call,
+                &place,
+                source_symbol,
+                target,
+            )
+        {
+            output.push(plan);
             continue;
         }
         // An authored `self.field` argument roots at the `self` parameter's own

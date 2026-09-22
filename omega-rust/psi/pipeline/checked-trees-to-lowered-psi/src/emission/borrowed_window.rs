@@ -419,6 +419,9 @@ fn spell_place(
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. } => "literal".to_owned(),
         CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             parameter_index, ..
+        }
+        | CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            parameter_index, ..
         } => format!("parameter#{parameter_index}[..]"),
     };
     for segment in &plan.path {

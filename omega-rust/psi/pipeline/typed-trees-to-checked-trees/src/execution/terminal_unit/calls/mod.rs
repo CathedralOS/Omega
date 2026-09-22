@@ -10,9 +10,10 @@
 mod affine_locals;
 mod argument_paths;
 mod boundary_admission;
-pub(super) mod byte_subslice;
+pub(in crate::execution) mod byte_subslice;
 mod call_operations;
 mod computation_arguments;
+pub(in crate::execution) mod element_subslice;
 mod reference_forwarding;
 mod result_arguments;
 #[cfg(test)]

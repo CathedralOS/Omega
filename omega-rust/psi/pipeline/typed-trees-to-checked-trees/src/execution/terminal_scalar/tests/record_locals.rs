@@ -299,6 +299,7 @@ fn fresh_record_local_and_owned_loop_parameter_keep_separate_custody_ledgers() {
             .obligation_live = true;
         super::super::finalize_checked_scalar_graph_plans(
             &changed.typed,
+            &changed.facts.values.scalar_expressions,
             &changed.facts.flow.ownership,
             &changed.facts.values.scalar_computations,
             &mut changed.facts.flow.terminal_scalar_graphs,

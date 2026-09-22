@@ -1,4 +1,5 @@
-//! Immutable byte ranges retain their source and evaluated endpoint expressions.
+//! Immutable element-view ranges retain their source and evaluated endpoint
+//! expressions.
 use crate::execution::terminal_unit::CheckFacts;
 use crate::execution::terminal_unit::CheckedScalarExpressionRole;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
@@ -12,12 +13,14 @@ use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::{
-    byte_sequence_type_identity, structural_access_for_type_reference,
+    borrowed_slice_view_element, borrowed_slice_view_type_identity,
+    structural_access_for_type_reference,
 };
-
-use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use typed_trees::expression::ExpressionHandle;
 
+/// Exclusive `s[a..b]` call argument over a borrowed element view. The byte
+/// subslice's scalar roles name the same endpoints here: range bounds are
+/// u64 element ordinals on either view kind.
 pub(super) fn argument(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -61,7 +64,7 @@ pub(super) fn argument(
         .then(|| endpoint.clone())
     };
     Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+        source: CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
             parameter_index,
             expression,
             start: if range.start.is_valid() {
@@ -93,7 +96,10 @@ pub(super) fn argument(
     })
 }
 
-/// Shared call and state-edge admission for an exact builtin borrowed-byte range.
+/// Shared call and state-edge admission for an exact builtin borrowed element
+/// range. Mirrors `byte_subslice::source` with the view carrier checks: the
+/// source parameter must be the immutable whole `&[T]` view whose element
+/// identity the target repeats.
 pub(in crate::execution::terminal_unit) fn source(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -132,9 +138,9 @@ pub(in crate::execution::terminal_unit) fn source(
     )
 }
 
-/// Byte-view range admission without the operator-resolution veto. Lanes that
-/// replay emitted subslice endpoint bindings inherit that veto through the
-/// bindings' presence: no builtin range means no endpoints to rebind.
+/// Element-view range admission without the operator-resolution veto. Lanes
+/// that replay emitted subslice endpoint bindings inherit that veto through
+/// the bindings' presence: no builtin range means no endpoints to rebind.
 pub(in crate::execution) fn shape(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -144,7 +150,7 @@ pub(in crate::execution) fn shape(
     expression: ExpressionHandle,
     statement_index: usize,
 ) -> Option<(u32, String)> {
-    if !exact_borrowed_byte_view(program, target) {
+    if borrowed_slice_view_element(program, target, &[]).is_none() {
         return None;
     }
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
@@ -180,12 +186,12 @@ pub(in crate::execution) fn shape(
         .iter()
         .position(|parameter| parameter.position as usize == position)?;
     let parameter = &parameters[parameter_index];
-    let type_identity = byte_sequence_type_identity(program, target, &[], &[])?;
+    let type_identity = borrowed_slice_view_type_identity(program, target, &[], &[]);
     if parameter.access != CheckedStructuralAccess::SharedBorrow
         || parameter.multiplicity != Multiplicity::Unrestricted
         || !parameter.qualifications.is_empty()
         || parameter.type_identity != type_identity
-        || !exact_borrowed_byte_view(program, source_type)
+        || !exact_borrowed_element_view(program, source_type)
     {
         return None;
     }
@@ -195,18 +201,16 @@ pub(in crate::execution) fn shape(
     Some((u32::try_from(parameter_index).ok()?, type_identity))
 }
 
-fn exact_borrowed_byte_view(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+fn exact_borrowed_element_view(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
     let TypeReferenceNode::Reference { referee, .. } =
         program.type_reference_table.type_reference(reference)
     else {
         return false;
     };
-    matches!(program.type_reference_table.type_reference(*referee),
-        TypeReferenceNode::Slice { element_type }
-            if matches!(program.type_reference_table.type_reference(*element_type),
-                TypeReferenceNode::Named { .. }))
-        && structural_access_for_type_reference(program, reference)
-            == Some(CheckedStructuralAccess::SharedBorrow)
-        && byte_sequence_carrier(program, reference, &[])
-            == Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+    matches!(
+        program.type_reference_table.type_reference(*referee),
+        TypeReferenceNode::Slice { .. }
+    ) && structural_access_for_type_reference(program, reference)
+        == Some(CheckedStructuralAccess::SharedBorrow)
+        && borrowed_slice_view_element(program, reference, &[]).is_some()
 }

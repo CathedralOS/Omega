@@ -478,6 +478,11 @@ impl StateGraphEmission<'_, '_> {
                                 )?);
                                 destination
                             }
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice { .. } => {
+                                return unsupported(
+                                    "element view subslice transfer has no Terminal descriptor",
+                                );
+                            }
                         };
                     structural_arguments.push(StructuralArgument {
                         place,
