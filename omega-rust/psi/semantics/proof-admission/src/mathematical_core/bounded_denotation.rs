@@ -172,6 +172,7 @@ mod booleans;
 mod casts;
 mod equality_transport;
 mod integer_operations;
+mod multiplication;
 mod subtraction;
 
 /// One bounded certificate elaborated into the common mathematical core.
@@ -709,6 +710,9 @@ struct Denotation {
     binary_numerals: binary_numerals::BinaryNumerals,
     subtraction: subtraction::Subtraction,
     addition: addition::Addition,
+    /// Shared `mul` and the multiplication/division-residual law roster
+    /// the correlated multiply bounds spend.
+    multiplication: multiplication::Multiplication,
     /// Canonical mathematical term → `Int`-typed declaration position.
     /// Closed terms intern by exact evaluated value — so a decided
     /// `IntegerMathEqual` on closed operands denotes `refl`-provable
@@ -779,6 +783,7 @@ impl Denotation {
             binary_numerals: binary_numerals::BinaryNumerals::default(),
             subtraction: subtraction::Subtraction::default(),
             addition: addition::Addition::default(),
+            multiplication: multiplication::Multiplication::default(),
             math_terms: BTreeMap::new(),
             scalar_integer_terms: BTreeMap::new(),
             integer_operations: BTreeMap::new(),
@@ -1008,8 +1013,10 @@ impl Denotation {
     /// The `Int`-typed declaration a mathematical term denotes —
     /// interned by its exact closed value when the shared evaluator has
     /// one, so `add(1, 1)` and `2` name one constant and a decided
-    /// `IntegerMathEqual` on them is `refl`-provable. Open addition and subtraction
-    /// compose child denotations; other open terms intern by source structure.
+    /// `IntegerMathEqual` on them is `refl`-provable. Open addition,
+    /// subtraction and multiplication compose child denotations through
+    /// their shared `Int` functions; other open terms intern by source
+    /// structure.
     /// Fixed scalar magnitudes are binary definitions;
     /// larger closed values retain opaque assumptions so this focused
     /// discreteness encoding adds no numeric acceptance limit.
@@ -1017,11 +1024,13 @@ impl Denotation {
         let key = match ClosedIntegerEvaluator::default().evaluate_closed(term) {
             Ok(Some(value)) => MathTermKey::Closed(value),
             Ok(None) => {
-                // Open addition and subtraction share their scalar functions.
-                // Retain shallow applications, not cloned source-tree keys
-                // for every nested prefix. Closed values still intern above.
-                if let IntegerMathTerm::Subtract(left, right) | IntegerMathTerm::Add(left, right) =
-                    term
+                // Open addition, subtraction and multiplication share
+                // their scalar functions. Retain shallow applications,
+                // not cloned source-tree keys for every nested prefix.
+                // Closed values still intern above.
+                if let IntegerMathTerm::Subtract(left, right)
+                | IntegerMathTerm::Add(left, right)
+                | IntegerMathTerm::Multiply(left, right) = term
                     && ClosedIntegerEvaluator::default()
                         .evaluate_closed(left)
                         .is_ok()
@@ -1033,8 +1042,10 @@ impl Denotation {
                     let right = self.math_term(right)?;
                     return if matches!(term, IntegerMathTerm::Add(..)) {
                         self.add_terms(left, right)
-                    } else {
+                    } else if matches!(term, IntegerMathTerm::Subtract(..)) {
                         self.subtract_terms(left, right)
+                    } else {
+                        self.multiply_terms(left, right)
                     };
                 }
                 // Evaluation short-circuits on an open left child. If an
@@ -1072,9 +1083,9 @@ impl Denotation {
     /// Keep one carrier for fixed scalar equations and orders, including
     /// mixed symbolic/compound endpoints. Every fixed-integer operation
     /// denotes its uninterpreted function applied to the operand terms —
-    /// exact addition and subtraction additionally carry their fixed
-    /// arithmetic laws — while field projections and unclassified
-    /// constructors stay per-term opaque.
+    /// exact addition, subtraction and multiplication additionally carry
+    /// their fixed arithmetic laws — while field projections and
+    /// unclassified constructors stay per-term opaque.
     pub(super) fn fixed_scalar_term(
         &mut self,
         term: &ScalarTerm,
@@ -1091,13 +1102,16 @@ impl Denotation {
                     value: *id,
                 })?,
                 ScalarTerm::ExactIntegerSubtract { left, right, .. }
-                | ScalarTerm::ExactIntegerAdd { left, right, .. } => {
+                | ScalarTerm::ExactIntegerAdd { left, right, .. }
+                | ScalarTerm::ExactIntegerMultiply { left, right, .. } => {
                     let left = self.fixed_scalar_term(left)?;
                     let right = self.fixed_scalar_term(right)?;
                     if matches!(term, ScalarTerm::ExactIntegerAdd { .. }) {
                         self.add_terms(left, right)?
-                    } else {
+                    } else if matches!(term, ScalarTerm::ExactIntegerSubtract { .. }) {
                         self.subtract_terms(left, right)?
+                    } else {
+                        self.multiply_terms(left, right)?
                     }
                 }
                 _ => {
@@ -2439,6 +2453,16 @@ impl<'a> Elaboration<'a> {
                     return Ok(evidence);
                 }
                 if let Some(evidence) = self.denotation.correlated_add_bound_evidence(
+                    &root_bound.conclusion,
+                    root,
+                    witness,
+                    &proof.conclusion,
+                    &definitions,
+                )? {
+                    self.rules.insert(AcceptedProofRule::IntegerAffineBound);
+                    return Ok(evidence);
+                }
+                if let Some(evidence) = self.denotation.correlated_multiply_bound_evidence(
                     &root_bound.conclusion,
                     root,
                     witness,
