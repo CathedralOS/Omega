@@ -2,57 +2,37 @@
 
 use super::{
     CheckFacts, CheckedScalarExpression, CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan,
-    CheckedUnitScalarResultBindingPlan, PrimitiveType, StatementNode, TypedTrees,
+    CheckedUnitScalarResultBindingPlan, PrimitiveType, TypedTrees,
 };
-pub(super) fn selected_ieee_float_fma_result_locals<'applications>(
-    program: &TypedTrees,
+/// The selected compiler-intrinsic FMA application a `let` initializer
+/// names, when the checker retained one for that statement's local.
+pub(super) fn selected_ieee_float_fma_application<'applications>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    statements: &[StatementNode],
+    statement_index: usize,
+    local: &typed_trees::statement::TableLocalData,
     applications: &'applications [crate::SelectedIeeeFloatFmaUnitApplication],
-) -> Option<
-    Vec<(
-        &'applications crate::SelectedIeeeFloatFmaUnitApplication,
-        CheckedUnitScalarResultBindingPlan,
-    )>,
-> {
-    let mut results = Vec::new();
-    for (statement_index, statement) in statements.iter().enumerate() {
-        let StatementNode::LocalData(local) = statement else {
-            break;
-        };
-        if local.is_mutable || !local.initial_value.is_valid() {
-            break;
-        }
-        let matches = applications
-            .iter()
-            .filter(|application| {
-                application.expression == local.initial_value
-                    && application.origin
-                        == checked_trees::CheckedValueOrigin::StateStatement {
-                            machine_symbol: machine.symbol,
-                            state_symbol: state.symbol,
-                            statement_index,
-                            role: checked_trees::CheckedValueStatementRole::LocalInitializer,
-                        }
-            })
-            .collect::<Vec<_>>();
-        let [application] = matches.as_slice() else {
-            if matches.is_empty() {
-                break;
-            }
-            return None;
-        };
-        results.push((
-            *application,
-            CheckedUnitScalarResultBindingPlan {
-                statement_index: u32::try_from(statement_index).ok()?,
-                binding_ordinal: u32::try_from(results.len()).ok()?,
-                primitive_type: program.primitive_type_reference(local.type_reference)?,
-            },
-        ));
+) -> Option<&'applications crate::SelectedIeeeFloatFmaUnitApplication> {
+    if local.is_mutable || !local.initial_value.is_valid() {
+        return None;
     }
-    (!results.is_empty()).then_some(results)
+    let matches = applications
+        .iter()
+        .filter(|application| {
+            application.expression == local.initial_value
+                && application.origin
+                    == checked_trees::CheckedValueOrigin::StateStatement {
+                        machine_symbol: machine.symbol,
+                        state_symbol: state.symbol,
+                        statement_index,
+                        role: checked_trees::CheckedValueStatementRole::LocalInitializer,
+                    }
+        })
+        .collect::<Vec<_>>();
+    let [application] = matches.as_slice() else {
+        return None;
+    };
+    Some(*application)
 }
 
 pub(super) fn build_selected_ieee_float_fma(

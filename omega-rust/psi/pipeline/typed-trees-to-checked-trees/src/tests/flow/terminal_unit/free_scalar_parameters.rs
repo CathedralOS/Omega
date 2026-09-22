@@ -157,10 +157,18 @@ fn free_mixed_signature_reuses_hosted_parameter_custody_without_attachment() {
         if record.position == 1 && !record.is_self && record.access == checked_trees::CheckedStructuralAccess::Owned
             && record.multiplicity == Multiplicity::Affine && record.qualifications.is_empty()
             && record.fused_service_erasure.is_none()));
+    // A primitive reference the body never observes is an ordinary structural
+    // parameter: the plan carries it and performs nothing with it.
+    let reference_only = plans
+        .for_machine(machine_named(&checked, "reference_input"))
+        .expect("an unobserved primitive reference parameter still has a Unit plan");
+    assert!(reference_only.scalar_parameters.is_empty());
     assert!(
-        plans
-            .for_machine(machine_named(&checked, "reference_input"))
-            .is_none(),
-        "the independent primitive-reference-only lane remains unsupported"
+        matches!(reference_only.structural_parameters.as_slice(), [value]
+        if value.position == 0 && value.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
     );
+    assert!(matches!(
+        reference_only.operations.as_slice(),
+        [CheckedUnitEffectOperationPlan::Complete { .. }]
+    ));
 }

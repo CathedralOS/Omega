@@ -1,8 +1,9 @@
-//! Ordinary move-out/restore statements admitted as borrowed-window
-//! operations. A body of `let local: T = root.field...;` moves followed by
-//! `root.field... = move local` repairs maps onto the checked
-//! MoveStructuralField/StoreStructuralField rows the lowered emitter feeds
-//! through `BorrowedWindowLedger`.
+//! Ordinary move-out/restore statements as borrowed-window operations. A
+//! `let local: T = root.field...;` move opens a window and a later
+//! `root.field... = move local` repair closes it; the statement sequence
+//! emits one MoveStructuralField/StoreStructuralField row per statement, and
+//! the lowered emitter feeds them through `BorrowedWindowLedger`. Any other
+//! statement between the two is the sequence's ordinary business.
 
 use std::collections::BTreeMap;
 
@@ -18,20 +19,6 @@ use crate::flow::CanonicalPlace;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-/// One window body admitted by `borrowed_window_shape`: a leading run of
-/// move-out locals followed by whole-field restore stores.
-pub(super) struct BorrowedWindowShape {
-    /// Leading LocalData statements consumed by move-out rows; the
-    /// call-statement splice starts after them.
-    pub(super) local_count: usize,
-    /// Window operations in authored statement order.
-    pub(super) operations: Vec<CheckedUnitEffectOperationPlan>,
-    /// Reference-typed alias declarations the shape consumed without an
-    /// operation — they rebase onto their referent storage rather than open
-    /// a window of their own.
-    pub(super) reference_locals: usize,
-}
 
 /// The exact field chain beneath an exclusive borrowed structural parameter.
 /// Whole-root moves and index/referent segments open no pinned window.
@@ -232,151 +219,158 @@ fn type_reference_is_reference(program: &TypedTrees, type_reference: TypeReferen
     }
 }
 
-/// Admit the borrowed-window statement shape: move-out locals then restore
-/// stores, each store closing the exact window an earlier move opened. Any
-/// other statement returns None so the ordinary families still adjudicate the
-/// body.
-pub(super) fn borrowed_window_shape(
-    program: &TypedTrees,
-    shapes: &mut ShapeCollector<'_>,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
-    statements: &[StatementNode],
-    binders: &[(SymbolHandle, String)],
-) -> Option<BorrowedWindowShape> {
-    if statements.is_empty() {
-        return None;
-    }
-    let local_count = statements
-        .iter()
-        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
-        .count();
-    if local_count == 0 || local_count == statements.len() {
-        return None;
-    }
-    let mut operations = Vec::new();
-    // Each open window's exact place, so a restore names the same hole the
-    // move opened and every move sees one repair.
-    let mut open: BTreeMap<(u32, Vec<CheckedUnitStructuralPathSegment>), u32> = BTreeMap::new();
-    // Bound move-out locals by symbol until their consuming store retires the
-    // binding exactly once.
-    let mut locals: Vec<(SymbolHandle, (u32, String))> = Vec::new();
-    let mut reference_locals = 0_usize;
-    let mut next_binding = 0_u32;
-    for (index, statement) in statements.iter().enumerate() {
-        let statement_index = u32::try_from(index).ok()?;
-        match statement {
-            StatementNode::LocalData(local) => {
-                // A reference-typed local is an alias declaration, not a
-                // move-out: it carries no window and binds no result.
-                if type_reference_is_reference(program, local.type_reference) {
-                    reference_locals += 1;
-                    continue;
-                }
-                let place = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    index,
-                    local.initial_value,
-                )?;
-                let (position, path) = window_place(
-                    program,
-                    machine,
-                    state,
-                    statements,
-                    index,
-                    structural_parameters,
-                    &place,
-                )?;
-                let multiplicity = program.type_multiplicity(local.type_reference);
-                if multiplicity == Multiplicity::Unrestricted {
-                    return None;
-                }
-                let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
-                let result = CheckedUnitStructuralResultBindingPlan {
-                    statement_index,
-                    binding_ordinal: next_binding,
-                    type_identity: type_identity.clone(),
-                    multiplicity,
-                };
-                open.insert((position, path.clone()), next_binding);
-                locals.push((local.symbol, (next_binding, type_identity.clone())));
-                next_binding = next_binding.checked_add(1)?;
-                operations.push(CheckedUnitEffectOperationPlan::MoveStructuralField {
-                    result,
-                    source: CheckedUnitStructuralArgumentPlan {
-                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index: position,
-                        },
-                        path,
-                        type_identity,
-                        access: CheckedStructuralAccess::Owned,
-                    },
-                });
-            }
-            StatementNode::Assignment(assignment) => {
-                let value_place = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    index,
-                    assignment.value,
-                )?;
-                let PlaceRoot::Symbol(value_root) = value_place.root else {
-                    return None;
-                };
-                if !value_place.segments.is_empty() {
-                    return None;
-                }
-                let (binding_ordinal, value_type) = locals
-                    .iter()
-                    .position(|(symbol, _)| *symbol == value_root)
-                    .map(|bound| locals.remove(bound).1)?;
-                let destination_place = crate::flow::canonical_place_from_expression_in_state(
-                    program,
-                    state.symbol,
-                    index,
-                    assignment.target,
-                )?;
-                let (position, path) = window_place(
-                    program,
-                    machine,
-                    state,
-                    statements,
-                    index,
-                    structural_parameters,
-                    &destination_place,
-                )?;
-                open.remove(&(position, path.clone()))?;
-                operations.push(CheckedUnitEffectOperationPlan::StoreStructuralField {
-                    statement_index,
-                    destination: CheckedUnitStructuralArgumentPlan {
-                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index: position,
-                        },
-                        path,
-                        type_identity: value_type.clone(),
-                        access: CheckedStructuralAccess::Owned,
-                    },
-                    value: CheckedUnitStructuralArgumentPlan {
-                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                            binding_ordinal,
-                        },
-                        path: Vec::new(),
-                        type_identity: value_type,
-                        access: CheckedStructuralAccess::Owned,
-                    },
-                });
-            }
-            _ => return None,
+/// The windows a statement sequence has opened and not yet repaired, with the
+/// move-out locals whose consuming store retires each binding exactly once.
+#[derive(Default)]
+pub(super) struct OpenWindows {
+    open: BTreeMap<(u32, Vec<CheckedUnitStructuralPathSegment>), u32>,
+    locals: Vec<(SymbolHandle, (u32, String))>,
+}
+
+impl OpenWindows {
+    /// `let local: T = root.field...;` moving an affine or linear value out
+    /// of exclusive borrowed storage. The local binds the moved value at
+    /// `binding_ordinal`; a copy value or a place outside a pinned window is
+    /// not a move-out and returns None so the ordinary local-data route
+    /// plans it.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn move_out(
+        &mut self,
+        program: &TypedTrees,
+        shapes: &mut ShapeCollector<'_>,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        binders: &[(SymbolHandle, String)],
+        statement_index: u32,
+        local: &typed_trees::statement::TableLocalData,
+        binding_ordinal: u32,
+    ) -> Option<(
+        CheckedUnitEffectOperationPlan,
+        CheckedUnitStructuralResultBindingPlan,
+    )> {
+        if local.is_mutable || type_reference_is_reference(program, local.type_reference) {
+            return None;
         }
+        let multiplicity = program.type_multiplicity(local.type_reference);
+        if multiplicity == Multiplicity::Unrestricted {
+            return None;
+        }
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let index = usize::try_from(statement_index).ok()?;
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            index,
+            local.initial_value,
+        )?;
+        let (position, path) = window_place(
+            program,
+            machine,
+            state,
+            statements,
+            index,
+            structural_parameters,
+            &place,
+        )?;
+        let type_identity = shapes.add_type(local.type_reference, binders, &[])?;
+        let result = CheckedUnitStructuralResultBindingPlan {
+            statement_index,
+            binding_ordinal,
+            type_identity: type_identity.clone(),
+            multiplicity,
+        };
+        self.open.insert((position, path.clone()), binding_ordinal);
+        self.locals
+            .push((local.symbol, (binding_ordinal, type_identity.clone())));
+        Some((
+            CheckedUnitEffectOperationPlan::MoveStructuralField {
+                result: result.clone(),
+                source: CheckedUnitStructuralArgumentPlan {
+                    source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: position,
+                    },
+                    path,
+                    type_identity,
+                    access: CheckedStructuralAccess::Owned,
+                },
+            },
+            result,
+        ))
     }
-    if !open.is_empty() {
-        return None;
+
+    /// `root.field... = move local` restoring a moved-out value to the exact
+    /// place its move opened. Returns None when the value is not one of this
+    /// sequence's move-out locals or the destination names no open window.
+    pub(super) fn restore(
+        &mut self,
+        program: &TypedTrees,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        statement_index: u32,
+        assignment: &typed_trees::statement::TableAssignment,
+    ) -> Option<CheckedUnitEffectOperationPlan> {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        let index = usize::try_from(statement_index).ok()?;
+        let value_place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            index,
+            assignment.value,
+        )?;
+        let PlaceRoot::Symbol(value_root) = value_place.root else {
+            return None;
+        };
+        if !value_place.segments.is_empty() {
+            return None;
+        }
+        let bound = self
+            .locals
+            .iter()
+            .position(|(symbol, _)| *symbol == value_root)?;
+        let destination_place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            index,
+            assignment.target,
+        )?;
+        let (position, path) = window_place(
+            program,
+            machine,
+            state,
+            statements,
+            index,
+            structural_parameters,
+            &destination_place,
+        )?;
+        self.open.remove(&(position, path.clone()))?;
+        let (binding_ordinal, value_type) = self.locals.remove(bound).1;
+        Some(CheckedUnitEffectOperationPlan::StoreStructuralField {
+            statement_index,
+            destination: CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: position,
+                },
+                path,
+                type_identity: value_type.clone(),
+                access: CheckedStructuralAccess::Owned,
+            },
+            value: CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: value_type,
+                access: CheckedStructuralAccess::Owned,
+            },
+        })
     }
-    Some(BorrowedWindowShape {
-        local_count,
-        operations,
-        reference_locals,
-    })
+
+    /// Every opened window must be repaired before the body completes; the
+    /// checker already rejects an open window at the state's exits, so a
+    /// leftover here is a sequencing fault rather than a language decision.
+    pub(super) fn is_closed(&self) -> bool {
+        self.open.is_empty() && self.locals.is_empty()
+    }
 }

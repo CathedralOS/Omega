@@ -7,30 +7,6 @@ use crate::execution::terminal_unit::{
     parameter_qualifications, type_graph_requires_nominal_drop,
 };
 
-pub(crate) fn checked_unit_scalar_result_local(
-    program: &TypedTrees,
-    statements: &[StatementNode],
-) -> Option<CheckedUnitScalarResultBindingPlan> {
-    let StatementNode::LocalData(local) = statements.first()? else {
-        return None;
-    };
-    if local.is_mutable || !local.initial_value.is_valid() {
-        return None;
-    }
-    let primitive_type = program.primitive_type_reference(local.type_reference)?;
-    if !matches!(
-        program.expression_table.expression(local.initial_value),
-        ExpressionNode::Call(_)
-    ) {
-        return None;
-    }
-    Some(CheckedUnitScalarResultBindingPlan {
-        statement_index: 0,
-        binding_ordinal: 0,
-        primitive_type,
-    })
-}
-
 pub(crate) fn bind_scalar_call_result(
     facts: &CheckFacts,
     operation: CheckedUnitEffectOperationPlan,

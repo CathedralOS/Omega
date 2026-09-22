@@ -191,3 +191,58 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
         | CheckedBooleanExpression::Local { .. } => false,
     }
 }
+
+/// Whether the body uses the borrowed receiver as storage rather than only
+/// as the ambient attachment its receiver calls share: it reads a receiver
+/// scalar, stores through a receiver-rooted place, or lends a receiver field
+/// to a call. Each of those needs the invocation's actual receiver loan, so
+/// the Unit signature retains `self` as a structural parameter.
+pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> bool {
+    if reads_receiver(program, facts, state) {
+        return true;
+    }
+    let receiver_roots = program
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.is_self)
+        .map(|parameter| facts::PlaceRoot::Symbol(parameter.symbol))
+        .chain(std::iter::once(facts::PlaceRoot::Symbol(machine.symbol)))
+        .collect::<Vec<_>>();
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let stores_receiver = statements.iter().enumerate().any(|(index, statement)| {
+        let typed_trees::statement::StatementNode::Assignment(assignment) = statement else {
+            return false;
+        };
+        crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            index,
+            assignment.target,
+        )
+        .is_some_and(|place| receiver_roots.contains(&place.root))
+    });
+    if stores_receiver {
+        return true;
+    }
+    // Argument accesses key a receiver-rooted place by its field symbol, so
+    // a lent receiver field is one whose root declares under the attached
+    // data.
+    facts
+        .borrow
+        .states
+        .iter()
+        .filter(|(_, borrow)| {
+            borrow.machine_symbol == machine.symbol && borrow.state_symbol == state.symbol
+        })
+        .flat_map(|(_, borrow)| facts.borrow.calls.span_or_empty(borrow.calls))
+        .flat_map(|call| facts.borrow.argument_accesses.span_or_empty(call.accesses))
+        .any(|access| {
+            access.root_symbol.is_valid()
+                && program.symbols.get(access.root_symbol).parent == machine.attached_data_symbol
+        })
+}

@@ -405,8 +405,8 @@ fn inferred_slice_selectors_check_but_await_structural_control_plan() {
     // dependency. Checked/interpreter success must not masquerade as native
     // slice support; replace these stops with execution when lowering lands.
     // Each machine stops at its own omission site: the endpoint's `&[u8; N]`
-    // witness signature is not an admitted body, `window`'s `self.endpoint`
-    // call statements have no statement sequence, and `main` has no checked
+    // witness signature is not an admitted body, `window`'s slice-typed local
+    // is a statement kind the sequence cannot bind, and `main` has no checked
     // scalar control plan at all.
     for (machine, stop) in [
         (
@@ -415,7 +415,7 @@ fn inferred_slice_selectors_check_but_await_structural_control_plan() {
         ),
         (
             "Main::window",
-            "`Main::window` has no admitted body (local construction stopped at call statement shape: call statements without a statement sequence, statement 4)",
+            "`Main::window` has no admitted body (local construction stopped at statement sequence: unsupported statement kind, statement 2)",
         ),
         (
             "main",

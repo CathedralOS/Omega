@@ -1,7 +1,11 @@
-//! Authored-order scalar bindings, primitive storage, and structural bindings.
+//! The single-state body producer: authored-order scalar bindings, primitive
+//! and structural field stores, borrowed-window moves and repairs, selected
+//! operator and FMA applications, structural bindings, calls and completion.
 //! Constructors and calls share structural binding ordinals. Completion selects
-//! one existing result or constructs its final expression in this same sequence;
-//! surrounding supported effects do not select a different producer family.
+//! one existing result or constructs its final expression in this same sequence.
+//! Each statement is planned by the emitter its kind and evidence select; no
+//! whole-body shape chooses a different producer, so any statement the
+//! sequence admits composes with any other.
 use super::super::{
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentPlan,
@@ -186,7 +190,6 @@ pub(in crate::execution::terminal_unit) struct StatementSequence {
     pub(in crate::execution::terminal_unit) structural_result:
         Option<CheckedUnitStructuralReturnPlan>,
     pub(in crate::execution::terminal_unit) operations: Vec<CheckedUnitEffectOperationPlan>,
-    pub(in crate::execution::terminal_unit) local_count: usize,
     pub(in crate::execution::terminal_unit) structural_local_symbols: Vec<SymbolHandle>,
 }
 
@@ -231,25 +234,23 @@ pub(super) fn has_structural_result(
                 ExpressionNode::Call(_)
             );
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(local.initial_value)
-    else {
+    if !matches!(
+        program.expression_table.expression(local.initial_value),
+        ExpressionNode::Call(_)
+    ) {
         return false;
-    };
-    // The result signature is available before the producer body is selected.
-    // This sequencing decision must not depend on the caller's result category
-    // or on a legacy affine-return body recognizer; closure pruning still
-    // requires the actual ordinary/composed callee plan.
-    crate::flow::call_target_return_type(program, call.target_symbol).is_some_and(|reference| {
-        program.normalized_type_identity(reference)
-            == program.normalized_type_identity(local.type_reference)
-            && super::checked_structural_result_type(
-                program,
-                &mut ShapeCollector::new(program),
-                local.type_reference,
-                &machine_binders(program, machine),
-            )
-            .is_some()
-    })
+    }
+    // Only the local's own result shape decides sequencing: the call
+    // operation rejoins the callee's actual result (including a routed or
+    // generic callee's specialized one) when it binds this local, and
+    // closure pruning still requires the actual ordinary/composed callee plan.
+    super::checked_structural_result_type(
+        program,
+        &mut ShapeCollector::new(program),
+        local.type_reference,
+        &machine_binders(program, machine),
+    )
+    .is_some()
 }
 
 /// The trace phase for one statement kind in the shared sequence, so an
@@ -266,13 +267,18 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
     }
 }
 
-pub(super) fn has_statement_shape(
+/// The first statement after the prefix whose kind the sequence cannot plan
+/// at all: a transition mid-body, an expression that neither calls nor
+/// completes, a local of a type family with no binding route. Statements the
+/// sequence admits by kind can still decline while planning; this names
+/// only the kind refusal, with its index for the construction trace.
+pub(super) fn first_unsupported_statement(
     program: &TypedTrees,
     facts: &CheckFacts,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     construction_statement_count: usize,
-) -> bool {
+) -> Option<usize> {
     let completion = scalar_control(program, facts, machine, state);
     let prefix_count = completion
         .as_ref()
@@ -281,8 +287,7 @@ pub(super) fn has_statement_shape(
     // An erased borrow carrier is a checked alias, not a storage binding: its
     // declaration composes through the sequence while each use's planner joins
     // the captured referent's evidence.
-    let borrow_aliases =
-        super::super::receiver_aliases::aliases(program, facts, machine, state).unwrap_or_default();
+    let erased_locals = erased_alias_locals(program, facts, machine, state);
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -290,16 +295,16 @@ pub(super) fn has_statement_shape(
         .enumerate()
         .take(prefix_count)
         .skip(construction_statement_count)
-        .all(|(index, statement)| match statement {
+        .find(|(index, statement)| !match statement {
             StatementNode::Call(_) | StatementNode::Assignment(_) => true,
             StatementNode::Expression(expression) => {
-                call_occurrences::ordered_statement_call(program, machine, state, index).is_some()
-                    || (index + 1
+                call_occurrences::ordered_statement_call(program, machine, state, *index).is_some()
+                    || (*index + 1
                         == program
                             .statement_table
                             .statements(state.statement_nodes)
                             .len()
-                        && (u32::try_from(index).ok().is_some_and(|ordinal| {
+                        && (u32::try_from(*index).ok().is_some_and(|ordinal| {
                             facts
                                 .values
                                 .structural_values
@@ -327,19 +332,41 @@ pub(super) fn has_statement_shape(
                     .primitive_type_reference(local.type_reference)
                     .is_some()
                     || has_structural_result(program, facts, machine, statement)
-                    || u32::try_from(index).ok().is_some_and(|ordinal| {
+                    || u32::try_from(*index).ok().is_some_and(|ordinal| {
                         facts
                             .values
                             .structural_values
                             .root_at(state.symbol, ordinal)
                             .is_some()
                     })
-                    || borrow_aliases
-                        .iter()
-                        .any(|alias| alias.owner == local.symbol)
+                    || erased_locals.contains(&local.symbol)
             }
             _ => false,
         })
+        .map(|(index, _)| index)
+}
+
+/// Locals that are checked borrow carriers rather than storage bindings: an
+/// exactly captured exclusive loan alias, or the parent/child roster a
+/// reborrow-restored-call certificate names. Their declarations compose
+/// through the sequence without an operation; each use's planner joins the
+/// captured referent's evidence instead.
+fn erased_alias_locals(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Vec<SymbolHandle> {
+    let mut erased = super::super::receiver_aliases::aliases(program, facts, machine, state)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|alias| alias.owner)
+        .collect::<Vec<_>>();
+    erased.extend(
+        super::super::receiver_aliases::restored_call_alias_locals(program, facts, machine, state)
+            .unwrap_or_default(),
+    );
+    erased
 }
 
 /// The statement position a prebuilt assignment store belongs to.
@@ -376,6 +403,16 @@ fn statement_call_target(
     Some(call.target_symbol)
 }
 
+/// The checker's selected applications a body's locals may bind: boundary
+/// operator realizations and compiler-intrinsic IEEE FMA.
+pub(in crate::execution::terminal_unit) struct SelectedApplications<'applications> {
+    pub(in crate::execution::terminal_unit) operators:
+        &'applications [crate::SelectedOperatorApplication],
+    pub(in crate::execution::terminal_unit) ieee_float_fma:
+        &'applications [crate::SelectedIeeeFloatFmaUnitApplication],
+}
+
+#[allow(clippy::too_many_arguments)]
 pub(in crate::execution::terminal_unit) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -383,12 +420,13 @@ pub(in crate::execution::terminal_unit) fn build(
     shapes: &mut ShapeCollector<'_>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
-    structural_parameters: &[CheckedUnitStructuralParameterPlan],
+    structural_parameters: &mut [CheckedUnitStructuralParameterPlan],
     scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     entry_claims: &[CheckedUnitEntryClaimPlan],
     calls: &[&checked_trees::FlowCallFact],
     trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     construction_statement_count: usize,
+    selected: SelectedApplications<'_>,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<StatementSequence> {
@@ -405,12 +443,10 @@ pub(in crate::execution::terminal_unit) fn build(
         return None;
     }
     let mut operations = Vec::new();
-    let mut local_count = construction_statement_count;
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
     // referent's checked loan evidence.
-    let borrow_aliases =
-        super::super::receiver_aliases::aliases(program, facts, machine, state).unwrap_or_default();
+    let erased_locals = erased_alias_locals(program, facts, machine, state);
     let mut scalar_count = program
         .statement_table
         .statements(state.statement_nodes)
@@ -424,6 +460,7 @@ pub(in crate::execution::terminal_unit) fn build(
         .count();
     let mut structural_count = 0_usize;
     let mut structural_local_symbols = Vec::new();
+    let mut windows = super::super::borrowed_windows::OpenWindows::default();
     let mut array_bindings = Vec::<(SymbolHandle, CheckedUnitStructuralResultBindingPlan)>::new();
     let mut returned_call = None;
     let mut returned_scalar_call = None;
@@ -488,15 +525,29 @@ pub(in crate::execution::terminal_unit) fn build(
                 if consumed {
                     continue;
                 }
-                // The store sequence deliberately left this assignment to the
-                // ordinary call route: its right-hand side is the call this
-                // statement performs, not an authored scalar value. Guard-group
-                // markers beneath the statement phase keep the statement
-                // position that `phase` resets.
+                // Guard-group markers beneath the statement phase keep the
+                // statement position that `phase` resets.
                 let assignment_phase = |phase: &'static str| {
                     trace.phase(phase);
                     trace.statement(Some(statement_index));
                 };
+                // `place = move local` repairs the window that local's move
+                // opened: an ordinary store of the exact moved value.
+                assignment_phase("statement sequence: assignment: borrowed window restore");
+                if let Some(store) = windows.restore(
+                    program,
+                    machine,
+                    state,
+                    structural_parameters,
+                    statement_index,
+                    assignment,
+                ) {
+                    operations.push(store);
+                    continue;
+                }
+                // The store sequence deliberately left this assignment to the
+                // ordinary call route: its right-hand side is the call this
+                // statement performs, not an authored scalar value.
                 assignment_phase("statement sequence: assignment: pending store order");
                 if match stores.peek() {
                     None => false,
@@ -553,13 +604,86 @@ pub(in crate::execution::terminal_unit) fn build(
                 {
                     return None;
                 }
-                if borrow_aliases
-                    .iter()
-                    .any(|alias| alias.owner == local.symbol)
-                {
+                if erased_locals.contains(&local.symbol) {
                     continue;
                 }
-                local_count = local_count.checked_add(1)?;
+                // A local binding a selected boundary-operator application
+                // invokes that operator's realization: scalar results bind in
+                // the scalar namespace, structural results as owned bindings.
+                local_phase("statement sequence: local data: selected operator");
+                if let Some(application) = super::super::selected_operator::selected_operator_application(
+                    machine, state, index, local, selected.operators,
+                ) {
+                    if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
+                        let result = CheckedUnitScalarResultBindingPlan {
+                            statement_index,
+                            binding_ordinal: u32::try_from(scalar_count).ok()?,
+                            primitive_type,
+                        };
+                        let operation = super::super::selected_operator::build_selected_operator_scalar_call(
+                            program, facts, state, application, result,
+                        )
+                        .or_else(|| {
+                            super::super::selected_operator::build_selected_operator_structural_scalar_call(
+                                program, facts, scalar_callees, shapes, machine, state,
+                                structural_parameters, entry_claims, application, result,
+                            )
+                        })?;
+                        scalar_count = scalar_count.checked_add(1)?;
+                        operations.push(operation);
+                        continue;
+                    }
+                    let result = super::super::selected_operator::selected_operator_structural_result(
+                        program, shapes, machine, local, statement_index,
+                        u32::try_from(structural_count).ok()?,
+                    )?;
+                    let operation = super::super::selected_operator::build_selected_operator_structural_call(
+                        program, facts, shapes, machine, state, structural_parameters,
+                        entry_claims, application, result.clone(),
+                    )?;
+                    structural_count = structural_count.checked_add(1)?;
+                    structural_local_symbols.push(local.symbol);
+                    structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
+                    operations.push(operation);
+                    continue;
+                }
+                local_phase("statement sequence: local data: selected IEEE FMA");
+                if let Some(application) = super::super::selected_ieee_float::selected_ieee_float_fma_application(
+                    machine, state, index, local, selected.ieee_float_fma,
+                ) {
+                    let result = CheckedUnitScalarResultBindingPlan {
+                        statement_index,
+                        binding_ordinal: u32::try_from(scalar_count).ok()?,
+                        primitive_type: program.primitive_type_reference(local.type_reference)?,
+                    };
+                    let operation = super::super::selected_ieee_float::build_selected_ieee_float_fma(
+                        program, facts, state, application, result,
+                    )?;
+                    scalar_count = scalar_count.checked_add(1)?;
+                    operations.push(operation);
+                    continue;
+                }
+                // A consuming move out of exclusive borrowed storage opens a
+                // window the body repairs later; the local binds the moved
+                // value like any other structural binding.
+                local_phase("statement sequence: local data: borrowed window move");
+                if let Some((operation, result)) = windows.move_out(
+                    program,
+                    shapes,
+                    machine,
+                    state,
+                    structural_parameters,
+                    &binders,
+                    statement_index,
+                    local,
+                    u32::try_from(structural_count).ok()?,
+                ) {
+                    structural_count = structural_count.checked_add(1)?;
+                    structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
+                    structural_local_symbols.push(local.symbol);
+                    operations.push(operation);
+                    continue;
+                }
                 if let Some(root) = facts.values.structural_values.root_at(state.symbol, statement_index) {
                     local_phase("statement sequence: local data: structural value: reference record loans");
                     if super::super::reference_results::is_reference_record(program, local.type_reference) {
@@ -1083,6 +1207,10 @@ pub(in crate::execution::terminal_unit) fn build(
         }
     }
     trace.statement(None);
+    trace.phase("statement sequence: borrowed windows closed");
+    if !windows.is_closed() {
+        return None;
+    }
     trace.phase("statement sequence: structural return types");
     if operations.iter().any(|operation| {
         matches!(
@@ -1416,7 +1544,6 @@ pub(in crate::execution::terminal_unit) fn build(
         scalar_control,
         structural_result,
         operations,
-        local_count,
         structural_local_symbols,
     })
 }

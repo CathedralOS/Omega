@@ -338,157 +338,6 @@ pub(super) fn aliases(
     Some(aliases)
 }
 
-/// This is source correspondence for direct calls, not restored-use authority.
-/// Every erased local is an exactly captured exclusive loan with no escaping use.
-pub(super) fn prefix(
-    program: &TypedTrees,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-) -> Option<Vec<ReceiverAlias>> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let count = statements
-        .iter()
-        .take_while(|statement| matches!(statement, StatementNode::LocalData(_)))
-        .count();
-    if count == 0 {
-        return None;
-    }
-    let parameters = program.state_parameters(state);
-    let flow = state_flow(facts, machine.symbol, state.symbol)?;
-    let mut borrow_states = facts.borrow.states.iter().filter(|(_, candidate)| {
-        candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
-    });
-    let (_, borrow_state) = borrow_states.next()?;
-    if borrow_states.next().is_some() {
-        return None;
-    }
-    let mut aliases = Vec::new();
-    let mut loans = Vec::new();
-    let mut parents = Vec::new();
-    for (statement_index, statement) in statements[..count].iter().enumerate() {
-        let StatementNode::LocalData(local) = statement else {
-            return None;
-        };
-        let (alias, loan, parent) = formation(
-            program,
-            facts,
-            flow,
-            borrow_state,
-            parameters,
-            machine,
-            state,
-            statement_index,
-            local,
-            statements.len(),
-            &aliases,
-            &loans,
-            &parents,
-        )?;
-        aliases.push(alias);
-        loans.push(loan);
-        parents.push(parent);
-    }
-    let mut last_uses = vec![None; aliases.len()];
-    for (child_position, parent) in parents.iter().enumerate() {
-        if let Some(parent_position) = parent {
-            last_uses[*parent_position] = Some(child_position);
-        }
-    }
-    for (statement_index, statement) in statements.iter().enumerate().skip(count) {
-        if !matches!(
-            statement,
-            StatementNode::Call(_) | StatementNode::Expression(_)
-        ) {
-            return None;
-        }
-        let site = crate::semantic_calls::find_call_site(
-            program,
-            machine.symbol,
-            state.symbol,
-            statement_index,
-            0,
-        )?;
-        for argument in crate::semantic_calls::call_site_argument_expressions(program, &site) {
-            if !without_alias(program, *argument, &aliases) {
-                return None;
-            }
-        }
-        let receiver = crate::flow::canonical_receiver_place_for_call_site(
-            program,
-            machine.symbol,
-            state.symbol,
-            &site,
-            statement_index,
-        );
-        if let Some(receiver) = receiver
-            && let Some(position) = aliases
-                .iter()
-                .position(|alias| receiver.root == facts::PlaceRoot::Symbol(alias.owner))
-        {
-            // Using a suspended ancestor would need separate restored-use
-            // evidence; this prefix only erases leaves and retired parents.
-            if parents.contains(&Some(position)) {
-                return None;
-            }
-            let target = match &site {
-                crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
-                crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
-                crate::semantic_calls::CallSite::TransitionNamed { .. } => return None,
-            };
-            let mut receivers = crate::semantic_calls::call_target_parameters(program, target)?
-                .iter()
-                .filter(|parameter| parameter.is_self);
-            let receiver_parameter = receivers.next()?;
-            if receivers.next().is_some()
-                || structural_access_for_type_reference(program, receiver_parameter.type_reference)?
-                    != CheckedStructuralAccess::WriteOnlyBorrow
-            {
-                return None;
-            }
-            if !receiver.segments.iter().all(|segment| {
-                matches!(
-                    segment,
-                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
-                )
-            }) {
-                return None;
-            }
-            let statement_flow = facts
-                .flow
-                .control
-                .statements
-                .span_or_empty(flow.statements)
-                .iter()
-                .find(|row| row.statement_index == statement_index)?;
-            let available = facts
-                .flow
-                .contexts
-                .constraint_refs
-                .span_or_empty(statement_flow.entry_constraints)
-                .iter()
-                .any(|row| {
-                    matches!(row.kind,
-                        checked_trees::FlowConstraintKind::BorrowLoan { loan }
-                            if loan == loans[position].0)
-                });
-            if !available {
-                return None;
-            }
-            last_uses[position] = Some(statement_index);
-        }
-    }
-    if last_uses
-        .iter()
-        .zip(&loans)
-        .any(|(actual, (_, expected))| *actual != Some(*expected))
-    {
-        return None;
-    }
-    nested::closures(facts, flow, &loans, &parents)?;
-    Some(aliases)
-}
-
 fn exclusive_access(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -519,80 +368,167 @@ pub(super) fn resolve(
     })
 }
 
-// All arguments retain their existing scalar/structural planner. This walk only
-// rules out a second, escaping occurrence of an erased carrier in those trees.
-fn without_alias(
+/// The erased parent alias and its one-, two-, or three-child roster named by
+/// the checked post-reactivation certificate. These source bindings carry
+/// borrow lifetimes, not independent Terminal runtime places, so the statement
+/// sequence advances past their declarations; every other reference local
+/// continues to reject through the ordinary local-data path.
+pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
     program: &TypedTrees,
-    expression: ExpressionHandle,
-    aliases: &[ReceiverAlias],
-) -> bool {
-    let mut pending = vec![expression];
-    let mut visited = Vec::new();
-    while let Some(expression) = pending.pop() {
-        if !program.expression_table.expression_is_valid(expression) {
-            return false;
-        }
-        if visited.contains(&expression) {
-            continue;
-        }
-        visited.push(expression);
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                pending.push(dispatch.subject);
-                for arm in program.expression_table.match_arms(dispatch.arms) {
-                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                        pending.push(pattern);
-                    }
-                    pending.push(arm.value);
-                }
-            }
-            ExpressionNode::Name(name) => {
-                if aliases.iter().any(|alias| {
-                    name.symbol == alias.owner
-                        || name.head_symbol == alias.owner
-                        || program
-                            .expression_table
-                            .name_path_member_symbols(name.member_symbols)
-                            .contains(&alias.owner)
-                }) {
-                    return false;
-                }
-            }
-            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
-            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-            ExpressionNode::Cast(cast) => pending.push(cast.value),
-            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
-            ExpressionNode::Member(member) => pending.push(member.receiver),
-            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
-            ExpressionNode::Range(range) => pending.extend(
-                [range.start, range.end]
-                    .into_iter()
-                    .filter(|value| value.is_valid()),
-            ),
-            ExpressionNode::Call(call) => {
-                if call.receiver.is_valid() {
-                    pending.push(call.receiver);
-                }
-                pending
-                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
-            }
-            ExpressionNode::ArrayLiteral(values) => {
-                pending.extend_from_slice(program.expression_table.expression_handles(*values))
-            }
-            ExpressionNode::StructLiteral(literal) => pending.extend(
-                program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .iter()
-                    .map(|field| field.value),
-            ),
-            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::ZeroValue(_) => {}
-        }
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Option<Vec<SymbolHandle>> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let StatementNode::LocalData(parent_local) = statements.first()? else {
+        return None;
+    };
+    let child_count = facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .filter_map(|(_, certificate)| {
+            (certificate.machine_symbol == machine.symbol
+                && certificate.state_symbol == state.symbol)
+                .then_some(())?;
+            facts
+                .borrow
+                .reborrow_disposition_events
+                .is_valid(certificate.disposition)
+                .then(|| {
+                    facts
+                        .borrow
+                        .reborrow_disposition_events
+                        .get(certificate.disposition)
+                        .shared_cohort
+                        .len()
+                        .max(1)
+                })
+        })
+        .find(|count| matches!(count, 1..=3))?;
+    let child_locals = statements
+        .get(1..=child_count)?
+        .iter()
+        .map(|statement| match statement {
+            StatementNode::LocalData(local) if !local.is_mutable => Some(local),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    if parent_local.is_mutable {
+        return None;
     }
-    true
+    let ExpressionNode::Borrow(parent_borrow) = program
+        .expression_table
+        .expression(parent_local.initial_value)
+    else {
+        return None;
+    };
+    let child_borrows = child_locals
+        .iter()
+        .map(
+            |local| match program.expression_table.expression(local.initial_value) {
+                ExpressionNode::Borrow(borrow) => Some(borrow),
+                _ => None,
+            },
+        )
+        .collect::<Option<Vec<_>>>()?;
+    if parent_borrow.access != language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
+
+    let parent_source = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        0,
+        parent_borrow.target,
+    )?;
+    let child_sources = child_borrows
+        .iter()
+        .enumerate()
+        .map(|(offset, borrow)| {
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                offset + 1,
+                borrow.target,
+            )
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let candidates = facts
+        .borrow
+        .reborrow_restored_call_use_certificates
+        .iter()
+        .filter(|(_, certificate)| {
+            if certificate.machine_symbol != machine.symbol
+                || certificate.state_symbol != state.symbol
+                || certificate.carrier_place.root_symbol != parent_local.symbol
+                || !certificate.carrier_place.segments.is_empty()
+                || parent_source.root
+                    != facts::PlaceRoot::Symbol(certificate.restored_place.root_symbol)
+                || parent_source.segments != certificate.restored_place.segments
+                || child_sources.iter().any(|source| {
+                    source.root != facts::PlaceRoot::Symbol(parent_local.symbol)
+                        || !source.segments.is_empty()
+                })
+                || !facts
+                    .borrow
+                    .reborrow_loan_resources
+                    .is_valid(certificate.child_resource)
+                || !facts.flow.control.calls.is_valid(certificate.call)
+            {
+                return false;
+            }
+            let child = facts
+                .borrow
+                .reborrow_loan_resources
+                .get(certificate.child_resource);
+            let call = facts.flow.control.calls.get(certificate.call);
+            let disposition = facts
+                .borrow
+                .reborrow_disposition_events
+                .get(certificate.disposition);
+            let roster = if disposition.shared_cohort.is_empty() {
+                vec![certificate.child_resource]
+            } else {
+                disposition.shared_cohort.clone()
+            };
+            roster.len() == child_count
+                && child_locals
+                    .iter()
+                    .zip(&child_borrows)
+                    .all(|(local, borrow)| {
+                        roster.iter().any(|resource| {
+                            if !facts.borrow.reborrow_loan_resources.is_valid(*resource) {
+                                return false;
+                            }
+                            let member = facts.borrow.reborrow_loan_resources.get(*resource);
+                            member.owner_symbol == local.symbol
+                                && borrow.access
+                                    == match member.access {
+                                        checked_trees::BorrowAccessKind::Mutable => {
+                                            language_semantics::ReferenceAccess::Mutable
+                                        }
+                                        checked_trees::BorrowAccessKind::WriteOnly => {
+                                            language_semantics::ReferenceAccess::WriteOnly
+                                        }
+                                        checked_trees::BorrowAccessKind::Read => {
+                                            language_semantics::ReferenceAccess::Shared
+                                        }
+                                    }
+                        })
+                    })
+                && roster.contains(&certificate.child_resource)
+                && child_locals
+                    .iter()
+                    .any(|local| local.symbol == child.owner_symbol)
+                && call.statement_index == child_count + usize::from(child_count > 1) + 1
+                && call.call_ordinal == 0
+                && call.target_symbol == certificate.target_symbol
+        })
+        .count();
+    (candidates == 1).then(|| {
+        std::iter::once(parent_local.symbol)
+            .chain(child_locals.iter().map(|local| local.symbol))
+            .collect()
+    })
 }
