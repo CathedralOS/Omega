@@ -212,7 +212,7 @@ impl VerifiedGitRepository {
     pub(crate) fn run_git<I, S>(
         &self,
         executor: &GitExecutor,
-        args: I,
+        arguments: I,
     ) -> Result<(), SourceResolveError>
     where
         I: IntoIterator<Item = S>,
@@ -223,7 +223,7 @@ impl VerifiedGitRepository {
             executor,
             &self.repository_path,
             ResolverExecutionPhase::Fetch,
-            args,
+            arguments,
         );
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }
@@ -231,7 +231,7 @@ impl VerifiedGitRepository {
     pub(crate) fn run_git_stdout<I, S>(
         &self,
         executor: &GitExecutor,
-        args: I,
+        arguments: I,
     ) -> Result<String, SourceResolveError>
     where
         I: IntoIterator<Item = S>,
@@ -242,7 +242,7 @@ impl VerifiedGitRepository {
             executor,
             &self.repository_path,
             ResolverExecutionPhase::RepositoryInspection,
-            args,
+            arguments,
         );
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }
@@ -250,7 +250,7 @@ impl VerifiedGitRepository {
     pub(crate) fn run_git_bytes_stdout<I, S>(
         &self,
         executor: &GitExecutor,
-        args: I,
+        arguments: I,
     ) -> Result<Vec<u8>, SourceResolveError>
     where
         I: IntoIterator<Item = S>,
@@ -261,7 +261,7 @@ impl VerifiedGitRepository {
             executor,
             &self.repository_path,
             ResolverExecutionPhase::RepositoryInspection,
-            args,
+            arguments,
         );
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }

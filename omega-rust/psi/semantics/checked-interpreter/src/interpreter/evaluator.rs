@@ -493,7 +493,7 @@ enum TransitionDecision<'program> {
         state: &'program State,
         machine: &'program Machine,
         instance: Cell,
-        args: Vec<EvaluatedArgument>,
+        arguments: Vec<EvaluatedArgument>,
     },
 }
 

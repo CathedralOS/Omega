@@ -51,12 +51,12 @@ impl<'program> Evaluator<'program> {
         // within the provider after that selection; package-controlled names
         // cannot enter this branch.
         if let Some(filesystem_operation) = filesystem_operation {
-            let args = self
+            let arguments = self
                 .program
                 .statement_table
                 .expression_handles(call.arguments)
                 .to_vec();
-            let value = self.try_filesystem_call(filesystem_operation, &args, frame)?;
+            let value = self.try_filesystem_call(filesystem_operation, &arguments, frame)?;
             return Ok(Some(value));
         }
 
