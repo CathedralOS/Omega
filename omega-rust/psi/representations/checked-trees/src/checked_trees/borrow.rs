@@ -177,11 +177,14 @@ pub enum BorrowCompatibilitySelectorValue {
         segments: Vec<facts::PlaceSegment>,
     },
     /// The value produced by one exact call occurrence, named by its
-    /// expression handle. A call result has no place identity, so a nested
-    /// call's `ensures` binds the occurrence itself — the intra-statement
-    /// fact context for guarantees minted inside the same statement.
+    /// expression handle plus the resolved segment path projected through
+    /// it (`choose(seed).first` carries `[Field{first}]`). A call result
+    /// has no place identity, so a nested call's `ensures` binds the
+    /// occurrence itself — the intra-statement fact context for guarantees
+    /// minted inside the same statement.
     CallResult {
         expression: ExpressionHandle,
+        segments: Vec<facts::PlaceSegment>,
     },
 }
 
