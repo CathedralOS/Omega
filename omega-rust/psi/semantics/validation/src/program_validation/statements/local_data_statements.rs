@@ -27,7 +27,7 @@ pub(super) fn validate(
         symbols,
         ..
     } = *scope;
-    let value_env = &mut *outputs.value_env;
+    let value_environment = &mut *outputs.value_environment;
     let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let diagnostics = &mut *outputs.diagnostics;
     let mut type_parameters = program.machine_type_parameters(machine).to_vec();
@@ -190,7 +190,7 @@ pub(super) fn validate(
             machine,
             current_state,
             local_data.initial_value,
-            value_env,
+            value_environment,
             local_target_primitive,
             program.arithmetic_domain_for_type_reference(local_data.type_reference),
             &owner,
@@ -235,7 +235,7 @@ pub(super) fn validate(
                 current_state,
                 local_data.type_reference,
                 local_data.initial_value,
-                value_env,
+                value_environment,
                 &owner,
                 diagnostics,
             );
@@ -254,11 +254,11 @@ pub(super) fn validate(
             machine,
             current_state,
             local_data.initial_value,
-            value_env,
+            value_environment,
             exact_integer_casts,
         );
         arithmetic_domains::record_assignment(
-            value_env,
+            value_environment,
             Some(local_data.name.as_str().to_owned()),
             interval,
             local_data
@@ -272,14 +272,14 @@ pub(super) fn validate(
         if diagnostics.len() == before {
             arithmetic_domains::record_unsigned_literal_assignment(
                 program,
-                value_env,
+                value_environment,
                 Some(local_data.name.as_str().to_owned()),
                 program.primitive_type_reference(local_data.type_reference),
                 local_data.initial_value,
             );
             arithmetic_domains::record_float_literal_assignment(
                 program,
-                value_env,
+                value_environment,
                 Some(local_data.name.as_str().to_owned()),
                 program.primitive_type_reference(local_data.type_reference),
                 local_data.initial_value,

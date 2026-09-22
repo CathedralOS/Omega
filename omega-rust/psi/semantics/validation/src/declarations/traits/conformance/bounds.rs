@@ -6,7 +6,7 @@ use crate::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, type_references_match_with_trait_bindings,
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
-use crate::declarations::traits::shared::trait_definition_by_symbol;
+use crate::declarations::traits::trait_definition_by_symbol;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

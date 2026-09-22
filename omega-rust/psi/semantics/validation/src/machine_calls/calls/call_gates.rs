@@ -24,7 +24,7 @@ pub(super) fn validate_named_conformance_call(
         current_machine,
         current_state,
         writable_roots,
-        value_env,
+        value_environment,
         ..
     } = *scope;
     match generic_requirement::named_conformance_requirement(
@@ -45,7 +45,7 @@ pub(super) fn validate_named_conformance_call(
                 program,
                 current_machine,
                 current_state,
-                value_env,
+                value_environment,
                 arguments,
                 &requirement,
                 writable_roots,

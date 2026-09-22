@@ -27,7 +27,7 @@ pub(super) fn validate(
         writable_roots,
         ..
     } = *scope;
-    let value_env = &mut *outputs.value_env;
+    let value_environment = &mut *outputs.value_environment;
     let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let diagnostics = &mut *outputs.diagnostics;
     let state = current_state;
@@ -199,7 +199,7 @@ pub(super) fn validate(
                 machine,
                 current_state,
                 assignment.value,
-                value_env,
+                value_environment,
                 assignment_target_primitive,
                 assignment_target_domain,
                 &owner,
@@ -226,7 +226,7 @@ pub(super) fn validate(
                 current_state,
                 handle,
                 assignment.value,
-                value_env,
+                value_environment,
                 &owner,
                 diagnostics,
             );
@@ -248,11 +248,11 @@ pub(super) fn validate(
         machine,
         current_state,
         assignment.value,
-        value_env,
+        value_environment,
         exact_integer_casts,
     );
     if let Some(written) = direct_written {
-        value_env.invalidate_assignment_paths(
+        value_environment.invalidate_assignment_paths(
             program,
             machine,
             current_state,
@@ -260,10 +260,10 @@ pub(super) fn validate(
             &written,
         );
     } else {
-        value_env.clear();
+        value_environment.clear();
     }
     arithmetic_domains::record_assignment(
-        value_env,
+        value_environment,
         arithmetic_domains::place_path(program, assignment.target),
         interval,
         places::declared_place_type_raw(program, machine, current_state, assignment.target)
@@ -272,14 +272,14 @@ pub(super) fn validate(
     if diagnostics.len() == before {
         arithmetic_domains::record_unsigned_literal_assignment(
             program,
-            value_env,
+            value_environment,
             arithmetic_domains::place_path(program, assignment.target),
             assignment_target_primitive,
             assignment.value,
         );
         arithmetic_domains::record_float_literal_assignment(
             program,
-            value_env,
+            value_environment,
             arithmetic_domains::place_path(program, assignment.target),
             assignment_target_primitive,
             assignment.value,

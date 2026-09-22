@@ -1,4 +1,4 @@
-use super::shared::trait_definition_by_symbol;
+use super::trait_definition_by_symbol;
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::type_references::{
     TypeReferenceOwner, validate_type_reference_handle_with_type_parameters,

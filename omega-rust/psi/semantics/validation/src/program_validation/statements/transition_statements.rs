@@ -29,7 +29,7 @@ pub(super) fn validate(
         transition_values,
         ..
     } = *scope;
-    let value_env = &mut *outputs.value_env;
+    let value_environment = &mut *outputs.value_environment;
     let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let diagnostics = &mut *outputs.diagnostics;
     if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
@@ -38,7 +38,7 @@ pub(super) fn validate(
             machine,
             current_state,
             guard,
-            value_env,
+            value_environment,
             exact_integer_casts,
         );
     }
@@ -46,7 +46,7 @@ pub(super) fn validate(
         program,
         machine,
         current_state,
-        value_env,
+        value_environment,
         transition_values.for_target(transition.target),
         transition.target,
         machine_symbols,
@@ -60,7 +60,7 @@ pub(super) fn validate(
             program,
             machine,
             current_state,
-            value_env,
+            value_environment,
             transition_values.for_target(transition.continuation),
             transition.continuation,
             machine_symbols,
@@ -74,12 +74,12 @@ pub(super) fn validate(
     // premises: the primary arm assumes the guard, the continuation
     // assumes its complement, and each crosses only its own effects.
     // Keep the ordinary guard environment for targets without values.
-    let narrowed = arithmetic_domains::guard_narrowed_env(
+    let narrowed = arithmetic_domains::guard_narrowed_environment(
         program,
         machine,
         current_state,
         &transition.guard,
-        value_env,
+        value_environment,
     );
 
     for target in [transition.target, transition.continuation] {
@@ -94,7 +94,7 @@ pub(super) fn validate(
                     .iter()
                     .enumerate()
                 {
-                    let argument_env = transition_values
+                    let argument_environment = transition_values
                         .for_target(target)
                         .get(argument_index)
                         .unwrap_or(&narrowed);
@@ -103,13 +103,13 @@ pub(super) fn validate(
                         machine,
                         current_state,
                         *argument,
-                        argument_env,
+                        argument_environment,
                         exact_integer_casts,
                     );
                 }
             }
             TransitionTargetNode::Value(expression) => {
-                let return_env = transition_values
+                let return_environment = transition_values
                     .for_target(target)
                     .first()
                     .unwrap_or(&narrowed);
@@ -118,7 +118,7 @@ pub(super) fn validate(
                     machine,
                     current_state,
                     *expression,
-                    return_env,
+                    return_environment,
                     exact_integer_casts,
                 );
             }
@@ -131,12 +131,12 @@ pub(super) fn validate(
     // statement in this state -- the MR2 terminal-tail shape's
     // `n - 1` after `transition n == 0 { true -> exit }`.
     if transition.target.is_valid() && !transition.continuation.is_valid() {
-        *value_env = arithmetic_domains::fall_through_narrowed_env(
+        *value_environment = arithmetic_domains::fall_through_narrowed_environment(
             program,
             machine,
             current_state,
             &transition.guard,
-            value_env,
+            value_environment,
         );
     }
 
@@ -163,7 +163,7 @@ pub(super) fn validate(
                     state.return_type,
                     diagnostics,
                 );
-                let return_env = transition_values
+                let return_environment = transition_values
                     .for_target(target)
                     .first()
                     .unwrap_or(&narrowed);
@@ -232,7 +232,7 @@ pub(super) fn validate(
                     machine,
                     state,
                     *return_expression,
-                    return_env,
+                    return_environment,
                     &format!(
                         "machine `{}` state `{state_name}` return value",
                         machine.name
@@ -256,7 +256,7 @@ pub(super) fn validate(
                 .iter()
                 .enumerate()
             {
-                let argument_env = transition_values
+                let argument_environment = transition_values
                     .for_target(target)
                     .get(argument_index)
                     .unwrap_or(&narrowed);
@@ -265,7 +265,7 @@ pub(super) fn validate(
                     machine,
                     current_state,
                     *argument,
-                    argument_env,
+                    argument_environment,
                     None,
                     numerics::arithmetic::ArithmeticDomain::Exact,
                     &format!(

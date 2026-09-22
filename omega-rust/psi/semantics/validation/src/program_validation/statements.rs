@@ -37,7 +37,7 @@ pub(super) struct StatementScope<'a> {
 /// What a statement check writes: the flow-sensitive value environment, the
 /// facts it establishes, and diagnostics.
 pub(super) struct StatementOutputs<'a> {
-    pub(super) value_env: &'a mut arithmetic_domains::ValueEnv,
+    pub(super) value_environment: &'a mut arithmetic_domains::ValueEnvironment,
     pub(super) exact_integer_casts: &'a mut Vec<ExactIntegerCastFact>,
     pub(super) boundary_operator_applications: &'a mut Vec<ValidatedBoundaryOperatorApplication>,
     pub(super) diagnostics: &'a mut Vec<Diagnostic>,
@@ -53,7 +53,7 @@ pub(super) fn validate_state_statement_node(
     writable_roots: &WritableRoots<'_, '_>,
     statement_handle: typed_trees::statement::StatementHandle,
     statement: &StatementNode,
-    value_env: &mut arithmetic_domains::ValueEnv,
+    value_environment: &mut arithmetic_domains::ValueEnvironment,
     transition_values: &transitions::TransitionValueEnvironments,
     direct_written: Option<Vec<String>>,
     exact_integer_casts: &mut Vec<ExactIntegerCastFact>,
@@ -74,7 +74,7 @@ pub(super) fn validate_state_statement_node(
         transition_values,
     };
     let mut outputs = StatementOutputs {
-        value_env,
+        value_environment,
         exact_integer_casts,
         boundary_operator_applications,
         diagnostics,

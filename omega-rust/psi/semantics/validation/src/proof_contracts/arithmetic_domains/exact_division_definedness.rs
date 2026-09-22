@@ -20,7 +20,7 @@ use super::total_specification::{
     AbstractSpecificationBindings, abstract_specification_interval,
     abstract_specification_place_type,
 };
-use super::{Interval, ValueEnv};
+use super::{Interval, ValueEnvironment};
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 
 fn signed_minimum(primitive: PrimitiveType) -> Option<i64> {
@@ -120,7 +120,7 @@ pub(super) fn validate_concrete(
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -129,7 +129,7 @@ pub(super) fn validate_concrete(
         machine: &Machine,
         state: Option<&State>,
         expression: ExpressionHandle,
-        env: &ValueEnv,
+        environment: &ValueEnvironment,
         owner: &str,
         diagnostics: &mut Vec<Diagnostic>,
         visited: &mut Vec<ExpressionHandle>,
@@ -144,7 +144,7 @@ pub(super) fn validate_concrete(
                 machine,
                 state,
                 child,
-                env,
+                environment,
                 owner,
                 diagnostics,
                 visited,
@@ -173,7 +173,7 @@ pub(super) fn validate_concrete(
                     machine,
                     state,
                     expression,
-                    env,
+                    environment,
                     None,
                     ArithmeticDomain::Exact,
                     owner,
@@ -194,7 +194,7 @@ pub(super) fn validate_concrete(
                     machine,
                     state,
                     binary.left,
-                    env,
+                    environment,
                     None,
                     ArithmeticDomain::Exact,
                     owner,
@@ -207,7 +207,7 @@ pub(super) fn validate_concrete(
                     machine,
                     state,
                     binary.right,
-                    env,
+                    environment,
                     None,
                     ArithmeticDomain::Exact,
                     owner,
@@ -270,7 +270,7 @@ pub(super) fn validate_concrete(
         machine,
         state,
         expression,
-        env,
+        environment,
         owner,
         diagnostics,
         &mut Vec::new(),
@@ -303,7 +303,7 @@ pub(super) fn validate_abstract(
     expression: ExpressionHandle,
     owner: &str,
     bindings: AbstractSpecificationBindings<'_>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn walk(
@@ -311,7 +311,7 @@ pub(super) fn validate_abstract(
         expression: ExpressionHandle,
         owner: &str,
         bindings: AbstractSpecificationBindings<'_>,
-        env: &ValueEnv,
+        environment: &ValueEnvironment,
         diagnostics: &mut Vec<Diagnostic>,
         visited: &mut Vec<ExpressionHandle>,
     ) {
@@ -320,7 +320,15 @@ pub(super) fn validate_abstract(
         }
         visited.push(expression);
         let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
-            walk(program, child, owner, bindings, env, diagnostics, visited);
+            walk(
+                program,
+                child,
+                owner,
+                bindings,
+                environment,
+                diagnostics,
+                visited,
+            );
         };
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
@@ -360,8 +368,8 @@ pub(super) fn validate_abstract(
                 report_partial(
                     binary.operator,
                     primitive,
-                    abstract_specification_interval(program, bindings, env, binary.left),
-                    abstract_specification_interval(program, bindings, env, binary.right),
+                    abstract_specification_interval(program, bindings, environment, binary.left),
+                    abstract_specification_interval(program, bindings, environment, binary.right),
                     owner,
                     false,
                     diagnostics,
@@ -413,7 +421,7 @@ pub(super) fn validate_abstract(
         expression,
         owner,
         bindings,
-        env,
+        environment,
         diagnostics,
         &mut Vec::new(),
     );

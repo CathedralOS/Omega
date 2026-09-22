@@ -1,9 +1,12 @@
-use super::super::requires_value_env;
+use super::super::requires_value_environment;
 use super::{
-    Interval, StatementNode, ValueEnv, arrival_program, fall_through_narrowed_env,
-    guard_narrowed_env,
+    Interval, StatementNode, ValueEnvironment, arrival_program, fall_through_narrowed_environment,
+    guard_narrowed_environment,
 };
-fn field_guard_environments(declaration: &str, condition: &str) -> (ValueEnv, ValueEnv) {
+fn field_guard_environments(
+    declaration: &str,
+    condition: &str,
+) -> (ValueEnvironment, ValueEnvironment) {
     let program = arrival_program(&format!(
         "{declaration}
          data Limit {{ zero: u32 [0..=0]; }}
@@ -18,10 +21,10 @@ fn field_guard_environments(declaration: &str, condition: &str) -> (ValueEnv, Va
     else {
         panic!("authored guard");
     };
-    let base = ValueEnv::new();
+    let base = ValueEnvironment::new();
     (
-        guard_narrowed_env(&program, machine, Some(state), &transition.guard, &base),
-        fall_through_narrowed_env(&program, machine, Some(state), &transition.guard, &base),
+        guard_narrowed_environment(&program, machine, Some(state), &transition.guard, &base),
+        fall_through_narrowed_environment(&program, machine, Some(state), &transition.guard, &base),
     )
 }
 
@@ -136,7 +139,7 @@ fn authored_scalar_literal_requires_does_not_seed_builtin_equality() {
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         assert_eq!(
-            requires_value_env(&program, machine, state).get("input"),
+            requires_value_environment(&program, machine, state).get("input"),
             None,
             "{condition}: declaration selection must precede Requires interval seeding"
         );
@@ -152,7 +155,7 @@ fn builtin_scalar_literal_requires_still_seeds_equality() {
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         assert_eq!(
-            requires_value_env(&program, machine, state).get("input"),
+            requires_value_environment(&program, machine, state).get("input"),
             Some(Interval::constant(0)),
             "{condition}"
         );

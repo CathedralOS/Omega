@@ -3,7 +3,7 @@
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_path;
-use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnv;
+use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use crate::value_custody::places::declared_place_type_raw;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
@@ -141,7 +141,7 @@ pub(crate) fn validate_value_range(
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     target_primitive: Option<PrimitiveType>,
     target_domain: ArithmeticDomain,
     owner: &str,
@@ -155,7 +155,7 @@ pub(crate) fn validate_value_range(
         machine,
         state,
         expression,
-        env,
+        environment,
         target_primitive,
         target_domain,
         owner,
@@ -169,13 +169,13 @@ pub(crate) fn validate_value_range(
 /// validator's judgment, not a second range engine: operand intervals are
 /// obtained by `validate_value_range`, and only fully bounded intervals that
 /// fit the target are published. Later checked lowering can therefore discard
-/// `ValueEnv` without turning validation success into ambient trust.
+/// `ValueEnvironment` without turning validation success into ambient trust.
 pub(crate) fn collect_exact_integer_cast_facts(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     facts: &mut Vec<crate::ExactIntegerCastFact>,
 ) {
     if !expression.is_valid() {
@@ -185,7 +185,14 @@ pub(crate) fn collect_exact_integer_cast_facts(
         ExpressionNode::Match(dispatch) => {
             for child in crate::value_custody::expression_types::match_children(program, *dispatch)
             {
-                collect_exact_integer_cast_facts(program, machine, state, child, env, facts);
+                collect_exact_integer_cast_facts(
+                    program,
+                    machine,
+                    state,
+                    child,
+                    environment,
+                    facts,
+                );
             }
         }
         ExpressionNode::Cast(cast) => {
@@ -201,7 +208,7 @@ pub(crate) fn collect_exact_integer_cast_facts(
                     machine,
                     state,
                     cast.value,
-                    env,
+                    environment,
                     None,
                     ArithmeticDomain::Exact,
                     "checked exact integer cast evidence",
@@ -233,24 +240,73 @@ pub(crate) fn collect_exact_integer_cast_facts(
                     }
                 }
             }
-            collect_exact_integer_cast_facts(program, machine, state, cast.value, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                cast.value,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::Atomic(atomic) => {
-            collect_exact_integer_cast_facts(program, machine, state, atomic.value, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                atomic.value,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::ArrayLiteral(values) => {
             for value in program.expression_table.expression_handles(*values) {
-                collect_exact_integer_cast_facts(program, machine, state, *value, env, facts);
+                collect_exact_integer_cast_facts(
+                    program,
+                    machine,
+                    state,
+                    *value,
+                    environment,
+                    facts,
+                );
             }
         }
         ExpressionNode::Binary(binary) => {
-            collect_exact_integer_cast_facts(program, machine, state, binary.left, env, facts);
-            collect_exact_integer_cast_facts(program, machine, state, binary.right, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                binary.left,
+                environment,
+                facts,
+            );
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                binary.right,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::Call(call) => {
-            collect_exact_integer_cast_facts(program, machine, state, call.receiver, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                call.receiver,
+                environment,
+                facts,
+            );
             for argument in program.expression_table.expression_handles(call.arguments) {
-                collect_exact_integer_cast_facts(program, machine, state, *argument, env, facts);
+                collect_exact_integer_cast_facts(
+                    program,
+                    machine,
+                    state,
+                    *argument,
+                    environment,
+                    facts,
+                );
             }
         }
         ExpressionNode::Indexed(indexed) => {
@@ -259,28 +315,77 @@ pub(crate) fn collect_exact_integer_cast_facts(
                 machine,
                 state,
                 indexed.collection,
-                env,
+                environment,
                 facts,
             );
-            collect_exact_integer_cast_facts(program, machine, state, indexed.index, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                indexed.index,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::Member(member) => {
-            collect_exact_integer_cast_facts(program, machine, state, member.receiver, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                member.receiver,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::Borrow(value) => {
-            collect_exact_integer_cast_facts(program, machine, state, value.target, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                value.target,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::Range(range) => {
-            collect_exact_integer_cast_facts(program, machine, state, range.start, env, facts);
-            collect_exact_integer_cast_facts(program, machine, state, range.end, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                range.start,
+                environment,
+                facts,
+            );
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                range.end,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::StructLiteral(literal) => {
             for field in program.expression_table.struct_fields(literal.fields) {
-                collect_exact_integer_cast_facts(program, machine, state, field.value, env, facts);
+                collect_exact_integer_cast_facts(
+                    program,
+                    machine,
+                    state,
+                    field.value,
+                    environment,
+                    facts,
+                );
             }
         }
         ExpressionNode::Unary(unary) => {
-            collect_exact_integer_cast_facts(program, machine, state, unary.operand, env, facts);
+            collect_exact_integer_cast_facts(
+                program,
+                machine,
+                state,
+                unary.operand,
+                environment,
+                facts,
+            );
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
@@ -477,12 +582,12 @@ pub(crate) fn literal_u64(program: &TypedTrees, expression: ExpressionHandle) ->
 
 pub(crate) fn known_u64_value(
     program: &TypedTrees,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     expression: ExpressionHandle,
 ) -> Option<u64> {
     literal_u64(program, expression).or_else(|| {
         let path = place_path(program, expression)?;
-        env.known_u64_values.get(&path).copied()
+        environment.known_u64_values.get(&path).copied()
     })
 }
 

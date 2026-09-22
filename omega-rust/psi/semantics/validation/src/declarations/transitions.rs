@@ -1,6 +1,6 @@
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::machine_calls::calls::validate_call_arguments_handles_with_policy_retention;
-use crate::proof_contracts::arithmetic_domains::ValueEnv;
+use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::locals::WritableRoots;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -66,8 +66,8 @@ pub(crate) fn validate_transition_target_node(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
-    value_env: &ValueEnv,
-    argument_environments: &[ValueEnv],
+    value_environment: &ValueEnvironment,
+    argument_environments: &[ValueEnvironment],
     target: TransitionTargetHandle,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -119,7 +119,7 @@ pub(crate) fn validate_transition_target_node(
         path.symbol,
         &[],
         arguments,
-        Some(value_env),
+        Some(value_environment),
         diagnostics,
     );
 
@@ -132,7 +132,7 @@ pub(crate) fn validate_transition_target_node(
             program,
             current_machine,
             current_state,
-            value_env,
+            value_environment,
             argument_environments,
             arguments,
             state.name.as_str(),
@@ -149,7 +149,7 @@ pub(crate) fn validate_transition_target_node(
             program,
             current_machine,
             current_state,
-            value_env,
+            value_environment,
             arguments,
             signature.name.as_str(),
             program.state_signature_parameters(signature),
@@ -173,7 +173,7 @@ pub(crate) fn validate_transition_target_node(
             program,
             current_machine,
             current_state,
-            value_env,
+            value_environment,
             argument_environments,
             arguments,
             state.name.as_str(),
@@ -195,7 +195,7 @@ pub(crate) fn validate_transition_target_node(
             program,
             current_machine,
             current_state,
-            value_env,
+            value_environment,
             argument_environments,
             arguments,
             state.name.as_str(),
@@ -232,7 +232,7 @@ pub(crate) fn validate_transition_target_node(
             program,
             current_machine,
             current_state,
-            value_env,
+            value_environment,
             argument_environments,
             arguments,
             &state.name,
@@ -249,8 +249,8 @@ fn validate_transition_arguments_handles(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
-    value_env: &ValueEnv,
-    argument_environments: &[ValueEnv],
+    value_environment: &ValueEnvironment,
+    argument_environments: &[ValueEnvironment],
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -262,7 +262,7 @@ fn validate_transition_arguments_handles(
         program,
         current_machine,
         current_state,
-        value_env,
+        value_environment,
         arguments,
         target_name,
         parameters,

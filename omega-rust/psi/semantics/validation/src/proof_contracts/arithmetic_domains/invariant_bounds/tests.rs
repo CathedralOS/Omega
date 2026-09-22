@@ -1,4 +1,4 @@
-use super::super::ValueEnv;
+use super::super::ValueEnvironment;
 use super::{
     ArithmeticDomain, ExpressionNode, Interval, PrimitiveType, SymbolHandle, TypeReferenceNode,
     TypedTrees, bounds, builtin_comparison_intervals, enforced_integer_type_bounds,
@@ -97,7 +97,7 @@ fn closed_record_fields_share_exact_bounds_and_keep_projection_custody() {
             machine,
             Some(state),
             expression,
-            &ValueEnv::default(),
+            &ValueEnvironment::default(),
             Some(PrimitiveType::U64),
             ArithmeticDomain::Exact,
             "projection arithmetic",
@@ -189,7 +189,7 @@ fn projected_integer_landing_keeps_node_overflow_and_full_width_points() {
         machine,
         Some(state),
         expression,
-        &ValueEnv::default(),
+        &ValueEnvironment::default(),
         Some(PrimitiveType::U8),
         ArithmeticDomain::Exact,
         "projection overflow",

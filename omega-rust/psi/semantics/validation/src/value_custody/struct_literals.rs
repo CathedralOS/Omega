@@ -12,7 +12,7 @@
 //! evidence permits skipping its construction checks. Invalid membership must
 //! reject, not be reinterpreted as equality between independently valid values.
 
-use crate::proof_contracts::arithmetic_domains::ValueEnv;
+use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataDefinition, DataMember};
@@ -43,7 +43,7 @@ pub(crate) fn validate_struct_literal_fields(
     program: &TypedTrees,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let empty = ValueEnv::new();
+    let empty = ValueEnvironment::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
@@ -153,7 +153,7 @@ fn scan_transition_target(
     machine: &Machine,
     state: &State,
     target: &TransitionTargetNode,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     match target {
@@ -161,7 +161,7 @@ fn scan_transition_target(
             // Later argument evaluation can write through an earlier alias.
             // Until this adapter consumes write frames, any unsupported operand
             // removes guard facts from the entire target's constructor checks.
-            let empty = ValueEnv::new();
+            let empty = ValueEnvironment::new();
             let environment = if program
                 .statement_table
                 .expression_handles(*arguments)
@@ -178,7 +178,7 @@ fn scan_transition_target(
             }
         }
         TransitionTargetNode::Value(expression) => {
-            let empty = ValueEnv::new();
+            let empty = ValueEnvironment::new();
             let environment =
                 if guard_bounds::has_immutable_inputs(program, machine, state, *expression) {
                     environment
@@ -203,7 +203,7 @@ fn scan_expression(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if !expression.is_valid() {

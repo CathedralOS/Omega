@@ -4,7 +4,7 @@
 //! authored range shell; unsupported bounds must not disappear through an
 //! optional interval query that also represents absence of a range.
 
-use super::{Interval, ValueEnv};
+use super::{Interval, ValueEnvironment};
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     known_u64_value, primitive_range,
 };
@@ -20,7 +20,7 @@ use typed_trees::types::{PrimitiveType, TypeConstraintNode, TypeReferenceNode};
 /// intervening writes and permit forward-reference or cross-state assumptions.
 pub(crate) fn record_float_literal_assignment(
     program: &TypedTrees,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     path: Option<String>,
     destination: Option<PrimitiveType>,
     value: ExpressionHandle,
@@ -43,14 +43,14 @@ pub(crate) fn record_float_literal_assignment(
     }
     let value = literal.with_landing(format).landed_f64();
     if value.is_finite() {
-        env.narrow_float(
+        environment.narrow_float(
             path.clone(),
             crate::proof_contracts::arithmetic_domains::value_environment::FloatInterval {
                 low: Some(value),
                 high: Some(value),
             },
         );
-        env.mark_non_nan(path);
+        environment.mark_non_nan(path);
     }
 }
 
@@ -62,7 +62,7 @@ pub(crate) fn validate_range_cast_at_use(
     machine: &Machine,
     state: &State,
     expression: ExpressionHandle,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
@@ -118,7 +118,7 @@ pub(crate) fn validate_range_cast_at_use(
         machine,
         Some(state),
         expression,
-        env,
+        environment,
         None,
         numerics::arithmetic::ArithmeticDomain::Exact,
         &owner,
@@ -146,13 +146,13 @@ pub(super) fn validate_target_ranges(
     cast: &TableCastExpression,
     source_interval: Interval,
     source_primitive: Option<PrimitiveType>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let source_bounds = source_primitive.and_then(|primitive| {
         let carrier = primitive_range(primitive)?;
-        if let Some(value) = known_u64_value(program, env, cast.value) {
+        if let Some(value) = known_u64_value(program, environment, cast.value) {
             let value = i128::from(value);
             return Some((value, value));
         }
@@ -218,7 +218,7 @@ pub(super) fn validate_target_ranges(
                 machine,
                 state,
                 cast,
-                env,
+                environment,
                 *minimum,
                 *maximum,
                 *end_inclusive,
@@ -245,7 +245,7 @@ fn float_membership(
     machine: &Machine,
     state: Option<&State>,
     cast: &TableCastExpression,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     minimum: ExpressionHandle,
     maximum: ExpressionHandle,
     end_inclusive: bool,
@@ -275,7 +275,7 @@ fn float_membership(
             return value.is_finite().then_some((value, value));
         }
         let path = super::place_path(program, expression)?;
-        let (interval, non_nan) = env.float_fact(&path);
+        let (interval, non_nan) = environment.float_fact(&path);
         let (low, high) = (interval.low?, interval.high?);
         (non_nan && low.is_finite() && high.is_finite() && low <= high).then_some((low, high))
     };

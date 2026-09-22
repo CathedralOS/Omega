@@ -7,7 +7,7 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 use crate::proof_contracts::arithmetic_domains::interval::Interval;
 use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap;
 use crate::proof_contracts::arithmetic_domains::range_constraints::range_constraint_interval;
-use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnv;
+use crate::proof_contracts::arithmetic_domains::value_environment::ValueEnvironment;
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
@@ -19,13 +19,13 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// Record an assignment's proven interval into the environment (decision 17 S4).
 /// A place whose path cannot be formed (a complex lvalue) just is not tracked.
 /// The interval is INTERSECTED with the place's declared `[a..=b]` range before
-/// recording: an env entry SHADOWS the declared-range fallback in the operand
+/// recording: an environment entry SHADOWS the declared-range fallback in the operand
 /// analysis, so recording an UNBOUNDED interval (an unresolvable initializer)
 /// onto a range-declared place would WIDEN its effective range -- the same
 /// landmine as the guard-seeding one (`let __hoist: i32 [0..=9] = cells[k].v`
 /// recorded unbounded and `__hoist + 5` "may overflow").
 pub(crate) fn record_assignment(
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     path: Option<String>,
     interval: Interval,
     declared_range: Option<Interval>,
@@ -34,49 +34,58 @@ pub(crate) fn record_assignment(
         // A new payload retires float range/non-NaN facts as well as integer
         // facts. Literal recording may establish fresh facts after the store
         // has passed its ordinary validation.
-        env.float_intervals
+        environment
+            .float_intervals
             .retain(|known, _| !place_paths_overlap(known, &path));
-        env.non_nan
+        environment
+            .non_nan
             .retain(|known| !place_paths_overlap(known, &path));
-        env.ordered_values
+        environment
+            .ordered_values
             .retain(|relation| relation.survives(std::slice::from_ref(&path)));
-        env.known_u64_values
+        environment
+            .known_u64_values
             .retain(|known, _| !place_paths_overlap(known, &path));
-        env.joint_add_upper_bounds.retain(|(left, right)| {
+        environment.joint_add_upper_bounds.retain(|(left, right)| {
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
-        env.joint_add_lower_bounds.retain(|(left, right)| {
+        environment.joint_add_lower_bounds.retain(|(left, right)| {
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
-        env.joint_subtract_bounds.retain(|(left, right)| {
+        environment.joint_subtract_bounds.retain(|(left, right)| {
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
-        env.signed_joint_subtract_lower_bounds
+        environment
+            .signed_joint_subtract_lower_bounds
             .retain(|(left, right)| {
                 !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
             });
-        env.signed_joint_subtract_upper_bounds
+        environment
+            .signed_joint_subtract_upper_bounds
             .retain(|(left, right)| {
                 !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
             });
-        env.joint_multiply_bounds.retain(|(left, right)| {
+        environment.joint_multiply_bounds.retain(|(left, right)| {
             !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
         });
-        env.signed_joint_multiply_lower_bounds
+        environment
+            .signed_joint_multiply_lower_bounds
             .retain(|(left, right)| {
                 !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
             });
-        env.signed_joint_multiply_upper_bounds
+        environment
+            .signed_joint_multiply_upper_bounds
             .retain(|(left, right)| {
                 !place_paths_overlap(left, &path) && !place_paths_overlap(right, &path)
             });
-        env.signed_joint_multiply_negation_bounds
+        environment
+            .signed_joint_multiply_negation_bounds
             .retain(|value| !place_paths_overlap(value, &path));
         let interval = match declared_range {
             Some(declared) => interval.intersect(declared),
             None => interval,
         };
-        env.set(path, interval);
+        environment.set(path, interval);
     }
 }
 
@@ -85,7 +94,7 @@ pub(crate) fn record_assignment(
 /// the ordinary environment write/arrival rules retire this fact as well.
 pub(crate) fn record_unsigned_literal_assignment(
     program: &TypedTrees,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     path: Option<String>,
     primitive: Option<PrimitiveType>,
     value: ExpressionHandle,
@@ -94,15 +103,15 @@ pub(crate) fn record_unsigned_literal_assignment(
         && let Some(path) = path
         && let Some(value) = literal_u64(program, value)
     {
-        env.mark_known_u64(path, value);
+        environment.mark_known_u64(path, value);
     }
 }
 
 /// The declared `[a..=b]` range of a place's type, ONLY when that range is
 /// store-enforced (EXACT arithmetic domain; atomics wrap by hardware): the
-/// interval an env entry may soundly be intersected with. A `in Wrapping`
+/// interval an environment entry may soundly be intersected with. A `in Wrapping`
 /// place can legitimately hold out-of-range values (its declared range is
-/// deliberately permissive at stores), so clamping its precise env fact
+/// deliberately permissive at stores), so clamping its precise environment fact
 /// against the range would fabricate an in-range claim -- return None there.
 pub(crate) fn enforced_declared_range(
     program: &TypedTrees,
@@ -166,21 +175,21 @@ pub(crate) fn check_narrowing_assignment(
 
 /// Report the decision-17 narrowing-store obligation for a `value` flowing into a
 /// `target` scalar slot: analyze the value's interval (honoring the flow facts in
-/// `env`) and flag it if it may not fit the target's width. The value's OWN
+/// `environment`) and flag it if it may not fit the target's width. The value's OWN
 /// arithmetic obligations are reported by the normal statement walk, so they go to
 /// a THROWAWAY buffer here -- only the narrowing check contributes to `diagnostics`.
 /// SINGLE SOURCE OF TRUTH for the "does this value fit its typed scalar slot?"
 /// obligation, shared by every store position: call/transition arguments,
 /// struct-literal field construction, and array-literal elements. Pass the
-/// statement `value_env` for flow-sensitive positions, or `&ValueEnv::new()` where
-/// no per-statement env is threaded (construction).
+/// statement `value_environment` for flow-sensitive positions, or `&ValueEnvironment::new()` where
+/// no per-statement environment is threaded (construction).
 pub(crate) fn check_value_narrowing(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     value: ExpressionHandle,
     target: PrimitiveType,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -206,7 +215,7 @@ pub(crate) fn check_value_narrowing(
                 state,
                 arm.value,
                 target,
-                env,
+                environment,
                 owner,
                 diagnostics,
             );
@@ -219,7 +228,7 @@ pub(crate) fn check_value_narrowing(
         machine,
         state,
         value,
-        env,
+        environment,
         Some(target),
         ArithmeticDomain::Exact,
         owner,

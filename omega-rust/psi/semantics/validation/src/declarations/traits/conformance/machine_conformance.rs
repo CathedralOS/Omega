@@ -8,7 +8,7 @@ use crate::declarations::traits::conformance::signature_matching::{
     validate_machine_state_satisfies_trait_signature_with_arguments,
 };
 use crate::declarations::traits::conformance::trait_applications::validate_trait_application_obligations;
-use crate::declarations::traits::shared::trait_definition_by_symbol;
+use crate::declarations::traits::trait_definition_by_symbol;
 use crate::value_custody::type_references::type_reference_label;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;

@@ -6,7 +6,7 @@
 
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    PrimitiveType, ProofFact, SignatureContractKind, State, TypedTrees, ValueEnv,
+    PrimitiveType, ProofFact, SignatureContractKind, State, TypedTrees, ValueEnvironment,
     declared_place_type_raw, literal_i64, ordered_values, place_path, range_constraint_interval,
 };
 use std::collections::BTreeMap;
@@ -67,16 +67,16 @@ pub(super) fn has_builtin_bound_arithmetic(
 
 /// S4: build a value environment pre-seeded with the integer bounds a machine's
 /// `requires` clause places on its parameters (`requires amount <= 100`). Used to
-/// seed the ENTRY state's env so param arithmetic with a declared bound stays
+/// seed the ENTRY state's environment so param arithmetic with a declared bound stays
 /// exact instead of being forced into a domain. Simple `param <OP> literal`
 /// comparisons seed intervals; canonical joint addition and subtraction
 /// relations additionally seed their existing proof carriers. Other shapes are
 /// ignored (sound -- a missing bound just falls back to the type width).
-pub(crate) fn requires_value_env(
+pub(crate) fn requires_value_environment(
     program: &TypedTrees,
     machine: &Machine,
     entry_state: &State,
-) -> ValueEnv {
+) -> ValueEnvironment {
     // Both interval and joint-relation projection must consume the selected
     // comparison, not its token. Other fact kinds retain their existing owners.
     let comparison_meaning_is_available = |expression| {
@@ -121,9 +121,9 @@ pub(crate) fn requires_value_env(
             }
         }
     }
-    let mut env = ValueEnv::new();
+    let mut environment = ValueEnvironment::new();
     for (name, (low, high)) in bounds {
-        env.set(name, Interval { low, high });
+        environment.set(name, Interval { low, high });
     }
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Requires {
@@ -141,66 +141,78 @@ pub(crate) fn requires_value_env(
             else {
                 continue;
             };
-            if let Some((left, right)) =
-                joint_add_upper_guard(program, machine, Some(entry_state), &env, comparison)
-            {
-                env.mark_joint_add_upper_bound(left, right);
+            if let Some((left, right)) = joint_add_upper_guard(
+                program,
+                machine,
+                Some(entry_state),
+                &environment,
+                comparison,
+            ) {
+                environment.mark_joint_add_upper_bound(left, right);
             }
-            if let Some((left, right)) =
-                joint_add_lower_guard(program, machine, Some(entry_state), &env, comparison)
-            {
-                env.mark_joint_add_lower_bound(left, right);
+            if let Some((left, right)) = joint_add_lower_guard(
+                program,
+                machine,
+                Some(entry_state),
+                &environment,
+                comparison,
+            ) {
+                environment.mark_joint_add_lower_bound(left, right);
             }
             if let Some((left, right)) =
                 joint_subtract_guard(program, machine, Some(entry_state), comparison)
             {
-                env.mark_joint_subtract_bound(left, right);
+                environment.mark_joint_subtract_bound(left, right);
             }
             if let Some((left, right)) = signed_joint_subtract_lower_guard(
                 program,
                 machine,
                 Some(entry_state),
-                &env,
+                &environment,
                 comparison,
             ) {
-                env.mark_signed_joint_subtract_lower_bound(left, right);
+                environment.mark_signed_joint_subtract_lower_bound(left, right);
             }
             if let Some((left, right)) = signed_joint_subtract_upper_guard(
                 program,
                 machine,
                 Some(entry_state),
-                &env,
+                &environment,
                 comparison,
             ) {
-                env.mark_signed_joint_subtract_upper_bound(left, right);
+                environment.mark_signed_joint_subtract_upper_bound(left, right);
             }
-            if let Some((left, right)) =
-                joint_multiply_guard(program, machine, Some(entry_state), &env, comparison)
-            {
-                env.mark_joint_multiply_bound(left, right);
+            if let Some((left, right)) = joint_multiply_guard(
+                program,
+                machine,
+                Some(entry_state),
+                &environment,
+                comparison,
+            ) {
+                environment.mark_joint_multiply_bound(left, right);
             }
             if let Some((left, right)) = signed_joint_multiply_lower_guard(
                 program,
                 machine,
                 Some(entry_state),
-                &env,
+                &environment,
                 comparison,
             ) {
-                env.mark_signed_joint_multiply_lower_bound(left, right);
+                environment.mark_signed_joint_multiply_lower_bound(left, right);
             }
             if let Some((left, right)) = signed_joint_multiply_upper_guard(
                 program,
                 machine,
                 Some(entry_state),
-                &env,
+                &environment,
                 comparison,
             ) {
-                env.mark_signed_joint_multiply_upper_bound(left, right);
+                environment.mark_signed_joint_multiply_upper_bound(left, right);
             }
         }
     }
-    arrivals::seed_state_requirements(program, machine, entry_state, None, &mut env);
-    env
+    arrivals::seed_state_requirements(program, machine, entry_state, None, &mut environment);
+    environment
 }
 
 /// Read a `requires` comparison as `(param_name, lower, upper)` -- one of the
@@ -296,20 +308,20 @@ fn negate_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
 /// a bare dispatch condition or a Boolean-wrapped subject comparison. The shared
 /// condition analysis retains polarity, selected operator meaning, and the
 /// intersection with existing bounds. Unknown conditions contribute no facts.
-pub(crate) fn guard_narrowed_env(
+pub(crate) fn guard_narrowed_environment(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     guard: &typed_trees::statement::TransitionGuardNode,
-    base: &ValueEnv,
-) -> ValueEnv {
+    base: &ValueEnvironment,
+) -> ValueEnvironment {
     use typed_trees::statement::TransitionGuardNode;
-    let mut env = base.clone();
+    let mut environment = base.clone();
     let TransitionGuardNode::When(condition) = guard else {
-        return env;
+        return environment;
     };
-    narrow_env_by_condition(program, machine, state, &mut env, *condition, true);
-    env
+    narrow_environment_by_condition(program, machine, state, &mut environment, *condition, true);
+    environment
 }
 
 /// S4 fall-through complement (MR2 exact-domain unlock): a guarded
@@ -318,17 +330,17 @@ pub(crate) fn guard_narrowed_env(
 /// guard's NEGATION (`transition n == 0 { true -> 7 }` then
 /// `-> countdown(n - 1)` may assume n >= 1). Returns `base` refined by the
 /// negated guard; same simple-comparison leaves as the arm narrowing.
-pub(crate) fn fall_through_narrowed_env(
+pub(crate) fn fall_through_narrowed_environment(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
     guard: &typed_trees::statement::TransitionGuardNode,
-    base: &ValueEnv,
-) -> ValueEnv {
+    base: &ValueEnvironment,
+) -> ValueEnvironment {
     use typed_trees::statement::TransitionGuardNode;
-    let mut env = base.clone();
+    let mut environment = base.clone();
     let TransitionGuardNode::When(guard_expr) = guard else {
-        return env;
+        return environment;
     };
     // The multi-arm desugar wraps `(cmp) == true|false`; a single-arm guard
     // stores the comparison bare. Unwrap when present, else negate the whole
@@ -339,34 +351,55 @@ pub(crate) fn fall_through_narrowed_env(
             program.expression_table.expression(equality.right)
     {
         if !meaning::builtin_boolean_equality(program, machine, state, *guard_expr, equality) {
-            return env;
+            return environment;
         }
-        narrow_env_by_condition(program, machine, state, &mut env, equality.left, !*arm_true);
-        return env;
+        narrow_environment_by_condition(
+            program,
+            machine,
+            state,
+            &mut environment,
+            equality.left,
+            !*arm_true,
+        );
+        return environment;
     }
-    narrow_env_by_condition(program, machine, state, &mut env, *guard_expr, false);
-    env
+    narrow_environment_by_condition(
+        program,
+        machine,
+        state,
+        &mut environment,
+        *guard_expr,
+        false,
+    );
+    environment
 }
 
-/// Narrow `env` by a guard condition holding with the given polarity,
+/// Narrow `environment` by a guard condition holding with the given polarity,
 /// recursing through the boolean structure: a POSITIVE `a && b` narrows by
 /// both conjuncts (each may bound a DIFFERENT place -- `dir >= 0 && dir <= 1`
 /// or multi-variable conjunctions both narrow); a NEGATIVE `a || b` narrows by
 /// both negated disjuncts (De Morgan). A negative `&&` / positive `||` cannot
-/// attribute which side holds, so it leaves the env unchanged (sound). Leaves
+/// attribute which side holds, so it leaves the environment unchanged (sound). Leaves
 /// are the existing simple `place <OP> literal` comparisons.
-pub(super) fn narrow_env_by_condition(
+pub(super) fn narrow_environment_by_condition(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     condition: ExpressionHandle,
     positive: bool,
 ) {
     if let ExpressionNode::Unary(unary) = program.expression_table.expression(condition)
         && unary.operator == typed_trees::expression::UnaryOperator::LogicalNot
     {
-        narrow_env_by_condition(program, machine, state, env, unary.operand, !positive);
+        narrow_environment_by_condition(
+            program,
+            machine,
+            state,
+            environment,
+            unary.operand,
+            !positive,
+        );
         return;
     }
     let ExpressionNode::Binary(comparison) = program.expression_table.expression(condition) else {
@@ -390,21 +423,28 @@ pub(super) fn narrow_env_by_condition(
             }
             let operand_positive =
                 positive == (value == (comparison.operator == BinaryOperator::Equal));
-            narrow_env_by_condition(program, machine, state, env, operand, operand_positive);
+            narrow_environment_by_condition(
+                program,
+                machine,
+                state,
+                environment,
+                operand,
+                operand_positive,
+            );
             return;
         }
     }
     match comparison.operator {
         BinaryOperator::And if positive => {
             let (left, right) = (comparison.left, comparison.right);
-            narrow_env_by_condition(program, machine, state, env, left, true);
-            narrow_env_by_condition(program, machine, state, env, right, true);
+            narrow_environment_by_condition(program, machine, state, environment, left, true);
+            narrow_environment_by_condition(program, machine, state, environment, right, true);
             return;
         }
         BinaryOperator::Or if !positive => {
             let (left, right) = (comparison.left, comparison.right);
-            narrow_env_by_condition(program, machine, state, env, left, false);
-            narrow_env_by_condition(program, machine, state, env, right, false);
+            narrow_environment_by_condition(program, machine, state, environment, left, false);
+            narrow_environment_by_condition(program, machine, state, environment, right, false);
             return;
         }
         BinaryOperator::And | BinaryOperator::Or => return,
@@ -433,7 +473,7 @@ pub(super) fn narrow_env_by_condition(
             program,
             machine,
             state,
-            env,
+            environment,
             subject,
             comparison.right,
         );
@@ -463,7 +503,7 @@ pub(super) fn narrow_env_by_condition(
     }
     let comparison = *comparison;
     if let Some(state) = state {
-        ordered_values::record(program, machine, state, env, &comparison, positive);
+        ordered_values::record(program, machine, state, environment, &comparison, positive);
     }
     // Float facts are independent from the integer interval lattice. A
     // positive self-equality proves non-NaN; a positive ordered comparison
@@ -472,46 +512,47 @@ pub(super) fn narrow_env_by_condition(
     // directions false.
     if positive {
         if let Some((left, right)) =
-            joint_add_upper_guard(program, machine, state, env, &comparison)
+            joint_add_upper_guard(program, machine, state, environment, &comparison)
         {
-            env.mark_joint_add_upper_bound(left, right);
+            environment.mark_joint_add_upper_bound(left, right);
         }
         if let Some((left, right)) =
-            joint_add_lower_guard(program, machine, state, env, &comparison)
+            joint_add_lower_guard(program, machine, state, environment, &comparison)
         {
-            env.mark_joint_add_lower_bound(left, right);
+            environment.mark_joint_add_lower_bound(left, right);
         }
         if let Some((left, right)) = joint_subtract_guard(program, machine, state, &comparison) {
-            env.mark_joint_subtract_bound(left, right);
+            environment.mark_joint_subtract_bound(left, right);
         }
         if let Some((left, right)) =
-            signed_joint_subtract_lower_guard(program, machine, state, env, &comparison)
+            signed_joint_subtract_lower_guard(program, machine, state, environment, &comparison)
         {
-            env.mark_signed_joint_subtract_lower_bound(left, right);
+            environment.mark_signed_joint_subtract_lower_bound(left, right);
         }
         if let Some((left, right)) =
-            signed_joint_subtract_upper_guard(program, machine, state, env, &comparison)
+            signed_joint_subtract_upper_guard(program, machine, state, environment, &comparison)
         {
-            env.mark_signed_joint_subtract_upper_bound(left, right);
-        }
-        if let Some((left, right)) = joint_multiply_guard(program, machine, state, env, &comparison)
-        {
-            env.mark_joint_multiply_bound(left, right);
+            environment.mark_signed_joint_subtract_upper_bound(left, right);
         }
         if let Some((left, right)) =
-            signed_joint_multiply_lower_guard(program, machine, state, env, &comparison)
+            joint_multiply_guard(program, machine, state, environment, &comparison)
         {
-            env.mark_signed_joint_multiply_lower_bound(left, right);
+            environment.mark_joint_multiply_bound(left, right);
         }
         if let Some((left, right)) =
-            signed_joint_multiply_upper_guard(program, machine, state, env, &comparison)
+            signed_joint_multiply_lower_guard(program, machine, state, environment, &comparison)
         {
-            env.mark_signed_joint_multiply_upper_bound(left, right);
+            environment.mark_signed_joint_multiply_lower_bound(left, right);
+        }
+        if let Some((left, right)) =
+            signed_joint_multiply_upper_guard(program, machine, state, environment, &comparison)
+        {
+            environment.mark_signed_joint_multiply_upper_bound(left, right);
         }
         if let Some(value) =
             signed_joint_multiply_negation_guard(program, machine, state, &comparison)
         {
-            env.mark_signed_joint_multiply_negation_bound(value);
+            environment.mark_signed_joint_multiply_negation_bound(value);
         }
         if comparison.operator == BinaryOperator::Equal {
             for (place, literal) in [
@@ -527,7 +568,7 @@ pub(super) fn narrow_env_by_condition(
                 if declared_place_type_raw(program, machine, state, place).is_some_and(|handle| {
                     program.primitive_type_reference(handle) == Some(PrimitiveType::U64)
                 }) {
-                    env.mark_known_u64(path, value);
+                    environment.mark_known_u64(path, value);
                 }
             }
         }
@@ -546,7 +587,7 @@ pub(super) fn narrow_env_by_condition(
                 },
             )
         {
-            env.mark_non_nan(left);
+            environment.mark_non_nan(left);
             return;
         }
         let float_sides = if let Some(literal) = float_literal_value(program, comparison.right) {
@@ -568,12 +609,12 @@ pub(super) fn narrow_env_by_condition(
             if let Some(declared) = float_range_constraint_interval(program, handle) {
                 interval = interval.intersect(declared);
             }
-            env.narrow_float(name.clone(), interval);
-            env.mark_non_nan(name);
+            environment.narrow_float(name.clone(), interval);
+            environment.mark_non_nan(name);
             return;
         }
     }
-    parameter_bounds::narrow(program, machine, state, env, condition, positive);
+    parameter_bounds::narrow(program, machine, state, environment, condition, positive);
     // An immutable singleton parameter is the same integer at every
     // evaluation, so it supplies the literal-equivalent bound without reading
     // an initializer or borrowing facts from another state's same-spelled name.
@@ -633,7 +674,7 @@ pub(super) fn narrow_env_by_condition(
         if interval.high == Some(literal) {
             interval.high = literal.checked_sub(1);
         }
-        env.narrow(name, interval);
+        environment.narrow(name, interval);
         return;
     }
     let (_, low, high) = bound_from(name.clone(), operator, literal, name_on_left);
@@ -641,8 +682,8 @@ pub(super) fn narrow_env_by_condition(
     // Intersect with the place's type range AND its declared `[a..=b]` range
     // constraint to retain the bounds the guard leaves open. Skipping the
     // DECLARED range here was a live regression: a one-sided `i < 7` on
-    // `i: i32 [0..=7]` seeded [i32::MIN, 6] into the env, which SHADOWS the
-    // declared [0, 7] in the operand analysis (env wins over the constraint
+    // `i: i32 [0..=7]` seeded [i32::MIN, 6] into the environment, which SHADOWS the
+    // declared [0, 7] in the operand analysis (environment wins over the constraint
     // there) -- `7 - i` then "may overflow" even though it provably cannot.
     if let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) {
         if let Some(type_interval) = program
@@ -657,7 +698,7 @@ pub(super) fn narrow_env_by_condition(
     }
     // `narrow` intersects with anything already established, so a prior
     // conjunct on the SAME place composes: `dir >= 0 && dir <= 1` lands [0, 1].
-    env.narrow(name, interval);
+    environment.narrow(name, interval);
 }
 
 /// Recognize the exact guard `left <= MAX - right` (including its `>=`
@@ -671,7 +712,7 @@ fn joint_add_upper_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (left, bound) = match comparison.operator {
@@ -701,17 +742,19 @@ fn joint_add_upper_guard(
         PrimitiveType::U8 => literal_i64(program, subtract.left) == Some(u8::MAX as i64),
         PrimitiveType::U16 => literal_i64(program, subtract.left) == Some(u16::MAX as i64),
         PrimitiveType::U32 => literal_i64(program, subtract.left) == Some(u32::MAX as i64),
-        PrimitiveType::U64 => known_u64_value(program, env, subtract.left) == Some(u64::MAX),
-        PrimitiveType::I8 if env.get(&right_path)?.low? >= 0 => {
+        PrimitiveType::U64 => {
+            known_u64_value(program, environment, subtract.left) == Some(u64::MAX)
+        }
+        PrimitiveType::I8 if environment.get(&right_path)?.low? >= 0 => {
             literal_i64(program, subtract.left) == Some(i8::MAX as i64)
         }
-        PrimitiveType::I16 if env.get(&right_path)?.low? >= 0 => {
+        PrimitiveType::I16 if environment.get(&right_path)?.low? >= 0 => {
             literal_i64(program, subtract.left) == Some(i16::MAX as i64)
         }
-        PrimitiveType::I32 if env.get(&right_path)?.low? >= 0 => {
+        PrimitiveType::I32 if environment.get(&right_path)?.low? >= 0 => {
             literal_i64(program, subtract.left) == Some(i32::MAX as i64)
         }
-        PrimitiveType::I64 if env.get(&right_path)?.low? >= 0 => {
+        PrimitiveType::I64 if environment.get(&right_path)?.low? >= 0 => {
             literal_i64(program, subtract.left) == Some(i64::MAX)
         }
         _ => false,
@@ -733,7 +776,7 @@ fn joint_add_upper_guard(
             program,
             machine,
             state,
-            env,
+            environment,
             subtract.left,
             subtract.right,
         )
@@ -752,7 +795,7 @@ fn joint_add_lower_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (bound, left) = match comparison.operator {
@@ -779,10 +822,10 @@ fn joint_add_lower_guard(
     }
     let right_path = place_path(program, subtract.right)?;
     let minimum = match left_primitive {
-        PrimitiveType::I8 if env.get(&right_path)?.high? <= 0 => i8::MIN as i64,
-        PrimitiveType::I16 if env.get(&right_path)?.high? <= 0 => i16::MIN as i64,
-        PrimitiveType::I32 if env.get(&right_path)?.high? <= 0 => i32::MIN as i64,
-        PrimitiveType::I64 if env.get(&right_path)?.high? <= 0 => i64::MIN,
+        PrimitiveType::I8 if environment.get(&right_path)?.high? <= 0 => i8::MIN as i64,
+        PrimitiveType::I16 if environment.get(&right_path)?.high? <= 0 => i16::MIN as i64,
+        PrimitiveType::I32 if environment.get(&right_path)?.high? <= 0 => i32::MIN as i64,
+        PrimitiveType::I64 if environment.get(&right_path)?.high? <= 0 => i64::MIN,
         _ => return None,
     };
     if literal_i64(program, subtract.left) != Some(minimum) {
@@ -829,7 +872,7 @@ fn signed_joint_subtract_lower_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (bound, left) = match comparison.operator {
@@ -861,10 +904,10 @@ fn signed_joint_subtract_lower_guard(
     }
     let right_path = place_path(program, right)?;
     let minimum_value = match left_primitive {
-        PrimitiveType::I8 if env.get(&right_path)?.low? >= 0 => i8::MIN as i64,
-        PrimitiveType::I16 if env.get(&right_path)?.low? >= 0 => i16::MIN as i64,
-        PrimitiveType::I32 if env.get(&right_path)?.low? >= 0 => i32::MIN as i64,
-        PrimitiveType::I64 if env.get(&right_path)?.low? >= 0 => i64::MIN,
+        PrimitiveType::I8 if environment.get(&right_path)?.low? >= 0 => i8::MIN as i64,
+        PrimitiveType::I16 if environment.get(&right_path)?.low? >= 0 => i16::MIN as i64,
+        PrimitiveType::I32 if environment.get(&right_path)?.low? >= 0 => i32::MIN as i64,
+        PrimitiveType::I64 if environment.get(&right_path)?.low? >= 0 => i64::MIN,
         _ => return None,
     };
     if literal_i64(program, minimum) != Some(minimum_value) {
@@ -881,7 +924,7 @@ fn signed_joint_subtract_upper_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (left, bound) = match comparison.operator {
@@ -913,10 +956,10 @@ fn signed_joint_subtract_upper_guard(
     }
     let right_path = place_path(program, right)?;
     let maximum_value = match left_primitive {
-        PrimitiveType::I8 if env.get(&right_path)?.high? <= 0 => i8::MAX as i64,
-        PrimitiveType::I16 if env.get(&right_path)?.high? <= 0 => i16::MAX as i64,
-        PrimitiveType::I32 if env.get(&right_path)?.high? <= 0 => i32::MAX as i64,
-        PrimitiveType::I64 if env.get(&right_path)?.high? <= 0 => i64::MAX,
+        PrimitiveType::I8 if environment.get(&right_path)?.high? <= 0 => i8::MAX as i64,
+        PrimitiveType::I16 if environment.get(&right_path)?.high? <= 0 => i16::MAX as i64,
+        PrimitiveType::I32 if environment.get(&right_path)?.high? <= 0 => i32::MAX as i64,
+        PrimitiveType::I64 if environment.get(&right_path)?.high? <= 0 => i64::MAX,
         _ => return None,
     };
     if literal_i64(program, maximum) != Some(maximum_value) {
@@ -933,7 +976,7 @@ fn joint_multiply_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (left, bound) = match comparison.operator {
@@ -963,14 +1006,14 @@ fn joint_multiply_guard(
         return None;
     }
     let right_path = place_path(program, divide.right)?;
-    if env.get(&right_path)?.low? < 1 {
+    if environment.get(&right_path)?.low? < 1 {
         return None;
     }
     let maximum_matches = match left_primitive {
         PrimitiveType::U8 => literal_i64(program, divide.left) == Some(u8::MAX as i64),
         PrimitiveType::U16 => literal_i64(program, divide.left) == Some(u16::MAX as i64),
         PrimitiveType::U32 => literal_i64(program, divide.left) == Some(u32::MAX as i64),
-        PrimitiveType::U64 => known_u64_value(program, env, divide.left) == Some(u64::MAX),
+        PrimitiveType::U64 => known_u64_value(program, environment, divide.left) == Some(u64::MAX),
         _ => false,
     };
     if !maximum_matches {
@@ -986,7 +1029,7 @@ fn signed_joint_multiply_lower_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (bound, left) = match comparison.operator {
@@ -994,7 +1037,7 @@ fn signed_joint_multiply_lower_guard(
         BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
         _ => return None,
     };
-    signed_joint_multiply_quotient_guard(program, machine, state, env, left, bound, true)
+    signed_joint_multiply_quotient_guard(program, machine, state, environment, left, bound, true)
 }
 
 /// Recognize the carrier-tight upper quotient bound for signed multiplication.
@@ -1004,7 +1047,7 @@ fn signed_joint_multiply_upper_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> Option<(String, String)> {
     let (left, bound) = match comparison.operator {
@@ -1012,14 +1055,14 @@ fn signed_joint_multiply_upper_guard(
         BinaryOperator::GreaterOrEqual => (comparison.right, comparison.left),
         _ => return None,
     };
-    signed_joint_multiply_quotient_guard(program, machine, state, env, left, bound, false)
+    signed_joint_multiply_quotient_guard(program, machine, state, environment, left, bound, false)
 }
 
 fn signed_joint_multiply_quotient_guard(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     left: ExpressionHandle,
     bound: ExpressionHandle,
     lower_bound: bool,
@@ -1042,7 +1085,7 @@ fn signed_joint_multiply_quotient_guard(
         return None;
     }
     let right_path = place_path(program, divide.right)?;
-    let interval = env.get(&right_path)?;
+    let interval = environment.get(&right_path)?;
     let positive = interval.low.is_some_and(|low| low >= 1);
     let negative = interval.high.is_some_and(|high| high <= -2);
     if !positive && !negative {
@@ -1103,7 +1146,7 @@ fn signed_joint_multiply_negation_guard(
 /// the moment the call returns -- the boundary model's citable fact
 /// (design brief: a boundary machine MINTS facts; ensures are the trusted
 /// tier the way requires are the checked tier). Called after the call
-/// clears the env; each conjunct that names a signature parameter bound by
+/// clears the environment; each conjunct that names a signature parameter bound by
 /// a literal seeds the matching argument place, intersected with the
 /// place's type + declared ranges. Conjunctions split; anything else is
 /// skipped (sound -- fewer facts).
@@ -1113,7 +1156,7 @@ pub(crate) fn seed_out_param_ensures(
     state: Option<&State>,
     call: &typed_trees::statement::TableCall,
     signature: &typed_trees::signature::StateSignature,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
 ) {
     use typed_trees::domain::ProofFact;
     use typed_trees::signature::SignatureContractKind;
@@ -1141,7 +1184,7 @@ pub(crate) fn seed_out_param_ensures(
                 &parameters,
                 arguments,
                 *expression,
-                env,
+                environment,
             );
         }
     }
@@ -1154,15 +1197,31 @@ fn seed_ensures_conjunct(
     parameters: &[&typed_trees::signature::StateParameter],
     arguments: &[ExpressionHandle],
     conjunct: ExpressionHandle,
-    env: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
 ) {
     let ExpressionNode::Binary(comparison) = program.expression_table.expression(conjunct) else {
         return;
     };
     if comparison.operator == BinaryOperator::And {
         let (left, right) = (comparison.left, comparison.right);
-        seed_ensures_conjunct(program, machine, state, parameters, arguments, left, env);
-        seed_ensures_conjunct(program, machine, state, parameters, arguments, right, env);
+        seed_ensures_conjunct(
+            program,
+            machine,
+            state,
+            parameters,
+            arguments,
+            left,
+            environment,
+        );
+        seed_ensures_conjunct(
+            program,
+            machine,
+            state,
+            parameters,
+            arguments,
+            right,
+            environment,
+        );
         return;
     }
     // `param <OP> literal` (param on either side).
@@ -1210,14 +1269,14 @@ fn seed_ensures_conjunct(
             interval = interval.intersect(declared_range);
         }
     }
-    env.narrow(place, interval);
+    environment.narrow(place, interval);
 }
 
 /// Join the evaluated arguments and stable facts of every incoming path.
 pub(crate) fn incoming_guard_environments(
     program: &TypedTrees,
     machine: &Machine,
-) -> Vec<(symbols::SymbolHandle, ValueEnv)> {
+) -> Vec<(symbols::SymbolHandle, ValueEnvironment)> {
     let mut environments = arrivals::incoming_environments(program, machine);
     let frames = crate::CallFrameResolver::new(program);
     for (state, (_, environment)) in program
@@ -1231,11 +1290,11 @@ pub(crate) fn incoming_guard_environments(
 }
 
 /// Query one state without retaining a whole-machine validation batch.
-pub(crate) fn incoming_guard_env(
+pub(crate) fn incoming_guard_environment(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
-) -> ValueEnv {
+) -> ValueEnvironment {
     let mut environment = arrivals::incoming_environments(program, machine)
         .into_iter()
         .find_map(|(symbol, environment)| (symbol == state.symbol).then_some(environment))

@@ -2,7 +2,7 @@
 use crate::declarations::traits::conformance::signature_matching::TraitTypeBinding;
 use crate::declarations::traits::conformance::signature_matching::TraitTypeBindingTarget;
 use crate::declarations::traits::conformance::signature_matching::type_references_match_with_trait_bindings;
-use crate::declarations::traits::shared::trait_definition_by_symbol;
+use crate::declarations::traits::trait_definition_by_symbol;
 use language_core::OperatorSpelling;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;

@@ -12,7 +12,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::PrimitiveType;
 
-use super::ValueEnv;
+use super::ValueEnvironment;
 use super::total_specification::{
     AbstractSpecificationBindings, abstract_specification_interval,
     abstract_specification_place_type,
@@ -47,7 +47,7 @@ pub(super) fn validate(
     expression: ExpressionHandle,
     owner: &str,
     bindings: AbstractSpecificationBindings<'_>,
-    env: &ValueEnv,
+    environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     fn walk(
@@ -55,7 +55,7 @@ pub(super) fn validate(
         expression: ExpressionHandle,
         owner: &str,
         bindings: AbstractSpecificationBindings<'_>,
-        env: &ValueEnv,
+        environment: &ValueEnvironment,
         diagnostics: &mut Vec<Diagnostic>,
         visited: &mut Vec<ExpressionHandle>,
     ) {
@@ -65,7 +65,15 @@ pub(super) fn validate(
         visited.push(expression);
 
         let recurse = |child, diagnostics: &mut Vec<Diagnostic>, visited: &mut Vec<_>| {
-            walk(program, child, owner, bindings, env, diagnostics, visited);
+            walk(
+                program,
+                child,
+                owner,
+                bindings,
+                environment,
+                diagnostics,
+                visited,
+            );
         };
         match program.expression_table.expression(expression) {
             ExpressionNode::Match(dispatch) => {
@@ -111,7 +119,8 @@ pub(super) fn validate(
                 let Some(width) = integer_bit_width(primitive) else {
                     return;
                 };
-                let count = abstract_specification_interval(program, bindings, env, binary.right);
+                let count =
+                    abstract_specification_interval(program, bindings, environment, binary.right);
                 let provably_in_range = count.is_some_and(|count| {
                     matches!(count.low(), Some(low) if low >= 0)
                         && matches!(count.high(), Some(high) if high < width)
@@ -175,7 +184,7 @@ pub(super) fn validate(
         expression,
         owner,
         bindings,
-        env,
+        environment,
         diagnostics,
         &mut Vec::new(),
     );

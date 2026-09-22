@@ -1,6 +1,6 @@
 //! Numeric parameter delivery consumes the caller's evaluated argument bounds.
 
-use crate::proof_contracts::arithmetic_domains::{self, ValueEnv};
+use crate::proof_contracts::arithmetic_domains::{self, ValueEnvironment};
 use diagnostics::Diagnostic;
 use numerics::arithmetic::ArithmeticDomain;
 use typed_trees::TypedTrees;
@@ -16,7 +16,7 @@ pub(super) fn report_argument_bounds(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     argument: ExpressionHandle,
     parameter: &StateParameter,
     target_name: &str,
@@ -55,7 +55,7 @@ pub(super) fn report_argument_bounds(
         current_state,
         argument,
         parameter_primitive,
-        value_env,
+        value_environment,
         &owner,
         diagnostics,
     );
@@ -70,7 +70,7 @@ pub(super) fn report_argument_bounds(
             current_machine,
             current_state,
             argument,
-            value_env,
+            value_environment,
             Some(parameter_primitive),
             ArithmeticDomain::Exact,
             &owner,

@@ -53,7 +53,7 @@ impl FloatInterval {
 }
 
 #[derive(Debug, Default, Clone, PartialEq)]
-pub(crate) struct ValueEnv {
+pub(crate) struct ValueEnvironment {
     pub(super) ordered_values: Vec<ordered_values::Relation>,
     pub(super) intervals: BTreeMap<String, Interval>,
     pub(super) known_u64_values: BTreeMap<String, u64>,
@@ -70,7 +70,7 @@ pub(crate) struct ValueEnv {
     pub(super) signed_joint_multiply_negation_bounds: BTreeSet<String>,
 }
 
-impl ValueEnv {
+impl ValueEnvironment {
     /// Current scalar-place relations, identified by resolved symbols. Fields
     /// and computed operands cannot become a scalar atom merely by sharing a
     /// display path. Existing joins, edge rebinding and writes own fact lifetime.
@@ -251,7 +251,7 @@ impl ValueEnv {
     }
 
     /// Intersect a place's tracked interval with `interval` (tightening it).
-    /// Used by guard narrowing so an arm's guard refines the env without
+    /// Used by guard narrowing so an arm's guard refines the environment without
     /// discarding a value already proven on the linear path.
     pub(super) fn narrow(&mut self, path: String, interval: Interval) {
         let merged = match self.intervals.get(&path) {
@@ -465,8 +465,8 @@ impl ValueEnv {
     /// BOTH survive, each at the UNION of its intervals (the fact that holds
     /// regardless of which path was taken). Used to seed a multi-predecessor
     /// state from its incoming edge guards.
-    pub(crate) fn join(&self, other: &ValueEnv) -> ValueEnv {
-        let mut joined = ValueEnv::new();
+    pub(crate) fn join(&self, other: &ValueEnvironment) -> ValueEnvironment {
+        let mut joined = ValueEnvironment::new();
         joined.ordered_values.extend(
             self.ordered_values
                 .iter()

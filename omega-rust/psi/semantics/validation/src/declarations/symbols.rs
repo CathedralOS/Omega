@@ -1,5 +1,4 @@
 mod machine;
-mod shared;
 mod top_level;
 
 pub use machine::MachineSymbols;

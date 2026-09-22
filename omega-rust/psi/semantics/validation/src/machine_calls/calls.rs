@@ -8,7 +8,7 @@
 //! write frames).
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::proof_contracts::arithmetic_domains::ValueEnv;
+use crate::proof_contracts::arithmetic_domains::ValueEnvironment;
 use crate::value_custody::expression_types::{
     argument_matches_type_reference_handle, expression_type_name_handle, report_cross_class_store,
     report_data_type_conflict,
@@ -85,7 +85,7 @@ pub(super) struct CallScope<'a> {
     pub(super) machine_symbols: &'a MachineSymbols<'a>,
     pub(super) symbols: &'a TopLevelSymbols<'a>,
     pub(super) writable_roots: &'a WritableRoots<'a, 'a>,
-    pub(super) value_env: &'a ValueEnv,
+    pub(super) value_environment: &'a ValueEnvironment,
 }
 
 /// Validates one statement-position call by resolving what it targets, in
@@ -102,7 +102,7 @@ pub(crate) fn validate_call_node(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let scope = CallScope {
@@ -114,7 +114,7 @@ pub(crate) fn validate_call_node(
         machine_symbols,
         symbols,
         writable_roots,
-        value_env,
+        value_environment,
     };
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
@@ -125,7 +125,7 @@ pub(crate) fn validate_call_node(
         call.target_symbol,
         &call.machine_arguments,
         arguments,
-        Some(value_env),
+        Some(value_environment),
         diagnostics,
     );
     if call_gates::validate_named_conformance_call(&scope, arguments, diagnostics) {
@@ -439,7 +439,7 @@ pub(crate) fn validate_call_arguments_handles(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -458,7 +458,7 @@ pub(crate) fn validate_call_arguments_handles(
         program,
         current_machine,
         current_state,
-        value_env,
+        value_environment,
         arguments,
         target_name,
         parameters,
@@ -510,7 +510,7 @@ pub(crate) fn validate_call_arguments_handles_with_self_argument(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -523,7 +523,7 @@ pub(crate) fn validate_call_arguments_handles_with_self_argument(
         program,
         current_machine,
         current_state,
-        value_env,
+        value_environment,
         arguments,
         target_name,
         parameters,
@@ -586,21 +586,21 @@ pub(crate) fn validate_call_arguments_handles_with_policy_retention(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
     callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
     retain_arithmetic_policy: bool,
-    argument_environments: &[ValueEnv],
+    argument_environments: &[ValueEnvironment],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     validate_call_arguments_with_type_correspondence(
         program,
         current_machine,
         current_state,
-        value_env,
+        value_environment,
         arguments,
         target_name,
         parameters,
@@ -621,14 +621,14 @@ fn validate_call_arguments_with_type_correspondence(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
     callee_state: Option<&State>,
     writable_roots: &WritableRoots<'_, '_>,
     retain_arithmetic_policy: bool,
-    argument_environments: &[ValueEnv],
+    argument_environments: &[ValueEnvironment],
     self_is_argument: bool,
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
@@ -671,9 +671,9 @@ fn validate_call_arguments_with_type_correspondence(
         )
         .enumerate()
     {
-        let value_env = argument_environments
+        let value_environment = argument_environments
             .get(argument_index)
-            .unwrap_or(value_env);
+            .unwrap_or(value_environment);
         crate::value_custody::literals::validate_suffix_landing(
             program,
             *argument,
@@ -782,7 +782,7 @@ fn validate_call_arguments_with_type_correspondence(
                 program,
                 current_machine,
                 current_state,
-                value_env,
+                value_environment,
                 *argument,
                 parameter,
                 target_name,
@@ -910,7 +910,7 @@ fn validate_value_call_argument_classes(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: &State,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
     callee_state: &State,
@@ -921,7 +921,7 @@ fn validate_value_call_argument_classes(
         program,
         current_machine,
         current_state,
-        value_env,
+        value_environment,
         false,
         arguments,
         callee_machine,
@@ -936,7 +936,7 @@ fn validate_value_call_argument_classes_with_self_argument(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: &State,
-    value_env: &ValueEnv,
+    value_environment: &ValueEnvironment,
     self_is_argument: bool,
     arguments: &[ExpressionHandle],
     callee_machine: &Machine,
@@ -1052,7 +1052,7 @@ fn validate_value_call_argument_classes_with_self_argument(
                 program,
                 current_machine,
                 Some(current_state),
-                value_env,
+                value_environment,
                 *argument,
                 parameter,
                 callee_state.name.as_str(),

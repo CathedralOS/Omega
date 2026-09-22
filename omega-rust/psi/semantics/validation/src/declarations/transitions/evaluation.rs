@@ -1,7 +1,7 @@
 //! Target-local range premises follow the authored transition schedule.
 use super::{
     ExpressionHandle, Machine, State, TransitionTargetHandle, TransitionTargetNode, TypedTrees,
-    ValueEnv,
+    ValueEnvironment,
 };
 use crate::machine_calls::calls::CallFrameResolver;
 use typed_trees::statement::{StatementNode, TransitionGuardNode};
@@ -11,7 +11,7 @@ mod tests;
 
 #[derive(Default)]
 pub(crate) struct TransitionValueEnvironments {
-    targets: Vec<(TransitionTargetHandle, Vec<ValueEnv>)>,
+    targets: Vec<(TransitionTargetHandle, Vec<ValueEnvironment>)>,
 }
 
 impl TransitionValueEnvironments {
@@ -20,7 +20,7 @@ impl TransitionValueEnvironments {
         machine: &'program Machine,
         state: &State,
         statement: &StatementNode,
-        before: &ValueEnv,
+        before: &ValueEnvironment,
         frames: Option<&CallFrameResolver<'program>>,
     ) -> Self {
         let StatementNode::Transition(transition) = statement else {
@@ -39,7 +39,7 @@ impl TransitionValueEnvironments {
                 TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => continue,
             };
             let mut current = if positive {
-                crate::proof_contracts::arithmetic_domains::guard_narrowed_env(
+                crate::proof_contracts::arithmetic_domains::guard_narrowed_environment(
                     program,
                     machine,
                     Some(state),
@@ -49,7 +49,7 @@ impl TransitionValueEnvironments {
             } else {
                 // The continuation is the false sibling, not execution after
                 // the primary target. Neither sibling inherits the other's calls.
-                crate::proof_contracts::arithmetic_domains::fall_through_narrowed_env(
+                crate::proof_contracts::arithmetic_domains::fall_through_narrowed_environment(
                     program,
                     machine,
                     Some(state),
@@ -74,7 +74,7 @@ impl TransitionValueEnvironments {
         result
     }
 
-    pub(crate) fn for_target(&self, target: TransitionTargetHandle) -> &[ValueEnv] {
+    pub(crate) fn for_target(&self, target: TransitionTargetHandle) -> &[ValueEnvironment] {
         self.targets
             .iter()
             .find(|(candidate, _)| *candidate == target)
@@ -83,7 +83,7 @@ impl TransitionValueEnvironments {
 }
 
 fn cross_expression_effects<'program>(
-    environment: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
     machine: &'program Machine,
     expression: ExpressionHandle,
     frames: Option<&CallFrameResolver<'program>>,

@@ -9,7 +9,7 @@ use crate::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, required_trait_type_parameter,
     type_references_match_with_trait_bindings,
 };
-use crate::declarations::traits::shared::trait_definition_by_symbol;
+use crate::declarations::traits::trait_definition_by_symbol;
 use crate::value_custody::type_references::type_references_match;
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;

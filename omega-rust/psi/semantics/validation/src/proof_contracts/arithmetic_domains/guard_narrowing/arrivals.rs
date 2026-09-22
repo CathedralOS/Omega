@@ -7,8 +7,9 @@ use super::super::{
 };
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine,
-    ProofFact, SignatureContractKind, State, TypedTrees, ValueEnv, declared_place_type_raw,
-    incoming_guard_env, literal_i64, narrow_env_by_condition, ordered_values, place_path,
+    ProofFact, SignatureContractKind, State, TypedTrees, ValueEnvironment, declared_place_type_raw,
+    incoming_guard_environment, literal_i64, narrow_environment_by_condition, ordered_values,
+    place_path,
 };
 use crate::CallFrameResolver;
 use crate::proof_contracts::arithmetic_domains::expression_analysis::analyze;
@@ -47,7 +48,7 @@ pub fn arrival_integer_expression_bounds(
     {
         return None;
     }
-    let mut environment = incoming_guard_env(program, machine, state);
+    let mut environment = incoming_guard_environment(program, machine, state);
     let frames = CallFrameResolver::new(program);
     seed_state_requirements(program, machine, state, frames.as_ref(), &mut environment);
     let mut walk = ArrivalWalk {
@@ -73,13 +74,13 @@ pub(super) fn seed_state_requirements(
     machine: &Machine,
     state: &State,
     frames: Option<&CallFrameResolver>,
-    environment: &mut ValueEnv,
+    environment: &mut ValueEnvironment,
 ) {
     let is_entry = program
         .machine_states(machine)
         .first()
         .is_some_and(|entry| entry.symbol == state.symbol);
-    let mut required = ValueEnv::new();
+    let mut required = ValueEnvironment::new();
     // A machine-level `requires` fact is a precondition on entry. It still
     // holds at a later state's entry exactly when every place the recorded
     // facts name survives the whole machine's write frame; otherwise a
@@ -96,9 +97,18 @@ pub(super) fn seed_state_requirements(
                 .map(|paths| paths.concat())
         })
     });
-    let seed_condition = |environment: &mut ValueEnv, required: &mut ValueEnv, condition| {
-        narrow_env_by_condition(program, machine, Some(state), environment, condition, true);
-        narrow_env_by_condition(program, machine, Some(state), required, condition, true);
+    let seed_condition = |environment: &mut ValueEnvironment,
+                          required: &mut ValueEnvironment,
+                          condition| {
+        narrow_environment_by_condition(
+            program,
+            machine,
+            Some(state),
+            environment,
+            condition,
+            true,
+        );
+        narrow_environment_by_condition(program, machine, Some(state), required, condition, true);
     };
     for contract in program.machine_contracts(machine) {
         if contract.kind != SignatureContractKind::Requires {
@@ -161,8 +171,8 @@ fn machine_requires_survives(
     let Some(written) = machine_written else {
         return false;
     };
-    let mut seeded = ValueEnv::new();
-    narrow_env_by_condition(program, machine, Some(state), &mut seeded, condition, true);
+    let mut seeded = ValueEnvironment::new();
+    narrow_environment_by_condition(program, machine, Some(state), &mut seeded, condition, true);
     let mut retained = seeded.clone();
     retained.invalidate_written_paths(written);
     retained == seeded
@@ -243,11 +253,11 @@ fn condition_belongs_to_state(
 pub(super) fn incoming_environments(
     program: &TypedTrees,
     machine: &Machine,
-) -> Vec<(SymbolHandle, ValueEnv)> {
+) -> Vec<(SymbolHandle, ValueEnvironment)> {
     let states = program.machine_states(machine);
     let mut current = states
         .iter()
-        .map(|state| (state.symbol, ValueEnv::new()))
+        .map(|state| (state.symbol, ValueEnvironment::new()))
         .collect::<Vec<_>>();
     let frames = CallFrameResolver::new(program);
     // One round per state propagates acyclic chains. Cycles also contribute in
@@ -261,7 +271,7 @@ pub(super) fn incoming_environments(
             joined: vec![None; states.len()],
         };
         if let Some(entry) = states.first() {
-            let mut external = ValueEnv::new();
+            let mut external = ValueEnvironment::new();
             seed_state_requirements(program, machine, entry, frames.as_ref(), &mut external);
             walk.joined[0] = Some(external);
         }
@@ -291,11 +301,11 @@ struct ArrivalWalk<'program, 'frames> {
     program: &'program TypedTrees,
     machine: &'program Machine,
     frames: Option<&'frames CallFrameResolver<'program>>,
-    joined: Vec<Option<ValueEnv>>,
+    joined: Vec<Option<ValueEnvironment>>,
 }
 
 impl ArrivalWalk<'_, '_> {
-    fn join(&mut self, symbol: SymbolHandle, environment: ValueEnv) {
+    fn join(&mut self, symbol: SymbolHandle, environment: ValueEnvironment) {
         if !symbol.is_valid() {
             return;
         }
@@ -317,7 +327,7 @@ impl ArrivalWalk<'_, '_> {
         &self,
         source: &State,
         expression: ExpressionHandle,
-        environment: &ValueEnv,
+        environment: &ValueEnvironment,
     ) -> Interval {
         let mut diagnostics = Vec::new();
         let value = analyze(
@@ -338,7 +348,7 @@ impl ArrivalWalk<'_, '_> {
         }
     }
 
-    fn cross_writes(environment: &mut ValueEnv, written: Option<Vec<String>>) {
+    fn cross_writes(environment: &mut ValueEnvironment, written: Option<Vec<String>>) {
         if let Some(written) = written {
             environment.invalidate_written_paths(&written);
         } else {
@@ -346,7 +356,7 @@ impl ArrivalWalk<'_, '_> {
         }
     }
 
-    fn expression_effects(&self, expression: ExpressionHandle, environment: &mut ValueEnv) {
+    fn expression_effects(&self, expression: ExpressionHandle, environment: &mut ValueEnvironment) {
         Self::cross_writes(
             environment,
             self.frames
@@ -358,7 +368,7 @@ impl ArrivalWalk<'_, '_> {
         &mut self,
         source: &State,
         arguments: &[ExpressionHandle],
-        environment: &mut ValueEnv,
+        environment: &mut ValueEnvironment,
     ) -> Vec<Interval> {
         arguments
             .iter()
@@ -375,7 +385,7 @@ impl ArrivalWalk<'_, '_> {
         symbol: SymbolHandle,
         arguments: &[ExpressionHandle],
         intervals: &[Interval],
-        environment: &ValueEnv,
+        environment: &ValueEnvironment,
     ) {
         let Some(target) = self
             .program
@@ -392,7 +402,7 @@ impl ArrivalWalk<'_, '_> {
             .count()
             != arguments.len()
         {
-            self.join(symbol, ValueEnv::new());
+            self.join(symbol, ValueEnvironment::new());
             return;
         }
         let mut bindings = Vec::new();
@@ -501,7 +511,7 @@ impl ArrivalWalk<'_, '_> {
         &mut self,
         source: &State,
         target: typed_trees::statement::TransitionTargetHandle,
-        environment: &mut ValueEnv,
+        environment: &mut ValueEnvironment,
     ) {
         if !target.is_valid() {
             return;
@@ -526,7 +536,7 @@ impl ArrivalWalk<'_, '_> {
         &mut self,
         source: &State,
         statements: &[StatementNode],
-        environment: &mut ValueEnv,
+        environment: &mut ValueEnvironment,
     ) -> bool {
         for statement in statements {
             match statement {
@@ -538,7 +548,7 @@ impl ArrivalWalk<'_, '_> {
                         // premises are then invalidated by the whole guard's
                         // effects, as in transition argument validation.
                         self.expression(source, condition, environment);
-                        narrow_env_by_condition(
+                        narrow_environment_by_condition(
                             self.program,
                             self.machine,
                             Some(source),
@@ -546,7 +556,7 @@ impl ArrivalWalk<'_, '_> {
                             condition,
                             true,
                         );
-                        narrow_env_by_condition(
+                        narrow_environment_by_condition(
                             self.program,
                             self.machine,
                             Some(source),
@@ -666,7 +676,7 @@ impl ArrivalWalk<'_, '_> {
         &mut self,
         source: &State,
         expression: ExpressionHandle,
-        environment: &mut ValueEnv,
+        environment: &mut ValueEnvironment,
     ) {
         if !expression.is_valid() {
             return;
@@ -675,7 +685,7 @@ impl ArrivalWalk<'_, '_> {
             ExpressionNode::Match(dispatch) => {
                 self.expression(source, dispatch.subject, environment);
                 let mut remaining = environment.clone();
-                let mut joined: Option<ValueEnv> = None;
+                let mut joined: Option<ValueEnvironment> = None;
                 let mut boolean_values = [false; 2];
                 for arm in self.program.expression_table.match_arms(dispatch.arms) {
                     if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {

@@ -1,8 +1,8 @@
 //! Modular result bounds from exact, builtin normal-return contract facts.
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Interval, Machine, ProofFact,
-    SignatureContractKind, State, TypeReferenceHandle, TypedTrees, ValueEnv, guard_narrowing,
-    range_constraint_interval,
+    SignatureContractKind, State, TypeReferenceHandle, TypedTrees, ValueEnvironment,
+    guard_narrowing, range_constraint_interval,
 };
 use crate::proof_contracts::arithmetic_domains::integer_ranges::{
     literal_interval, primitive_range,
@@ -17,7 +17,7 @@ pub(super) fn normal_return_interval(
 ) -> Interval {
     // Only gated builtin preconditions may refine a formal used in a result
     // relation. The ordinary source guard environment is not selection evidence.
-    let mut environment = ValueEnv::new();
+    let mut environment = ValueEnvironment::new();
     for parameter in program.state_parameters(entry) {
         if parameter.is_self || parameter.is_mutable || parameter.is_const {
             continue;
@@ -73,7 +73,7 @@ fn project(
     program: &TypedTrees,
     machine: &Machine,
     entry: &State,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     expression: ExpressionHandle,
     formal: Option<&typed_trees::signature::StateParameter>,
 ) -> Interval {
@@ -133,7 +133,7 @@ fn project(
 fn operand_interval(
     program: &TypedTrees,
     entry: &State,
-    environment: &ValueEnv,
+    environment: &ValueEnvironment,
     expression: ExpressionHandle,
     allow_formals: bool,
 ) -> Option<(Interval, Option<TypeReferenceHandle>)> {
