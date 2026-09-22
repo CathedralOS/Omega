@@ -10,7 +10,7 @@ use extents::{
     ProviderExistingContentGrant, ResidentClaimId,
 };
 
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -38,70 +38,31 @@ pub struct EstablishedOwnedAtomicPlacement {
     pub(super) occurrence: PlacedOccurrenceId,
 }
 
+access_plan_rejection! {
 /// Failed Atomic adoption returns both non-Clone inputs unchanged.
-#[derive(Debug)]
-pub struct OwnedAtomicAdoptionError {
-    admission: OwnedPlacementAdmission,
-    content: ProviderExistingContentGrant,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedAtomicAdoptionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        OwnedPlacementAdmission,
-        ProviderExistingContentGrant,
-        AccessPlanDiagnostic,
-    ) {
-        (self.admission, self.content, self.diagnostic)
+    OwnedAtomicAdoptionError {
+        admission: OwnedPlacementAdmission,
+        content: ProviderExistingContentGrant,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
+access_plan_rejection! {
 /// Failed Atomic resident-view establishment returns the dormant resident and
 /// exact requested occurrence for corrected retry.
-#[derive(Debug)]
-pub struct OwnedAtomicResidentViewEstablishmentError {
-    resident: DormantOwnedAtomicResident,
-    occurrence: PlacedOccurrenceId,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedAtomicResidentViewEstablishmentError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        DormantOwnedAtomicResident,
-        PlacedOccurrenceId,
-        AccessPlanDiagnostic,
-    ) {
-        (self.resident, self.occurrence, self.diagnostic)
+    OwnedAtomicResidentViewEstablishmentError {
+        resident: DormantOwnedAtomicResident,
+        occurrence: PlacedOccurrenceId,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
+access_plan_rejection! {
 /// Failed resident-preserving Atomic retirement returns the complete active
 /// carrier without reconstructing custody from copied identities.
-#[derive(Debug)]
-pub struct OwnedAtomicResidentRetirementError {
-    established: EstablishedOwnedAtomicPlacement,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl OwnedAtomicResidentRetirementError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (EstablishedOwnedAtomicPlacement, AccessPlanDiagnostic) {
-        (self.established, self.diagnostic)
+    OwnedAtomicResidentRetirementError {
+        established: EstablishedOwnedAtomicPlacement,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

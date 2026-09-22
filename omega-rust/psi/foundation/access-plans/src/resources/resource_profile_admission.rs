@@ -1,3 +1,4 @@
+use crate::access_plan::diagnostic::access_plan_rejection;
 use extents::{
     AddressSpaceId, Extent, ExtentLineageId, ExtentLoan, ExtentProvenanceId, ExtentRights,
     ExtentRootOrigin, MappingEraId,
@@ -157,20 +158,11 @@ impl ResourceProfileGrant {
     }
 }
 
-#[derive(Debug)]
-pub struct ResourceProfileAdmissionError {
-    grant: Box<ResourceProfileGrant>,
-    profile: ResourceProfile,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl ResourceProfileAdmissionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (ResourceProfileGrant, ResourceProfile, AccessPlanDiagnostic) {
-        (*self.grant, self.profile, self.diagnostic)
+access_plan_rejection! {
+    ResourceProfileAdmissionError {
+        grant: Box<ResourceProfileGrant>,
+        profile: ResourceProfile,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

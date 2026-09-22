@@ -10,7 +10,7 @@
 
 #[cfg(test)]
 use crate::PlacementPlanId;
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::{
     AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, ExternalPrimitiveAccessRequest,
 };
@@ -74,27 +74,13 @@ impl<'view, 'extent> CorrespondedExternalPrimitiveAccessRequest<'view, 'extent> 
     }
 }
 
+access_plan_rejection! {
 /// Failed correspondence-required staging returns the exact already-
 /// specialized External request. No provider/device operation is selected or
 /// attempted.
-#[derive(Debug)]
-pub struct CorrespondedExternalPrimitiveAccessRejection<'view, 'extent> {
-    access: ExternalPrimitiveAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> CorrespondedExternalPrimitiveAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        ExternalPrimitiveAccessRequest<'view, 'extent>,
-        AccessPlanDiagnostic,
-    ) {
-        (self.access, self.diagnostic)
+    CorrespondedExternalPrimitiveAccessRejection<'view, 'extent> {
+        access: ExternalPrimitiveAccessRequest<'view, 'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

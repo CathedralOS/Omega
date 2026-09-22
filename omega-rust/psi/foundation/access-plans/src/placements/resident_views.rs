@@ -4,7 +4,7 @@
 //! occurrence to an exact whole-range `ExtentLoan` and forwards the lender's
 //! claim and provider receipts through placed field access.
 
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::owned_resident_custody::validate_owned_resident_authority;
 use crate::placements::owned_resident_custody::validate_provider_content_binding;
 use crate::placements::owned_resident_custody::validate_resident_observation;
@@ -121,27 +121,13 @@ pub struct EstablishedBorrowedResidentPlacement<'resident> {
     occurrence: PlacedOccurrenceId,
 }
 
+access_plan_rejection! {
 /// Failed borrowed-resident retirement returns the complete active carrier.
 /// No loan is released and no resident identity or provider receipt is
 /// reconstructed from copied fields on rejection.
-#[derive(Debug)]
-pub struct BorrowedResidentRetirementError<'resident> {
-    established: EstablishedBorrowedResidentPlacement<'resident>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'resident> BorrowedResidentRetirementError<'resident> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        EstablishedBorrowedResidentPlacement<'resident>,
-        AccessPlanDiagnostic,
-    ) {
-        (self.established, self.diagnostic)
+    BorrowedResidentRetirementError<'resident> {
+        established: EstablishedBorrowedResidentPlacement<'resident>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

@@ -10,7 +10,7 @@
 
 #[cfg(test)]
 use crate::PlacementPlanId;
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::{
     AccessPlanDiagnostic, AdmittedSchemaDeviceCorrespondence, StableCompoundMutationAccessRequest,
 };
@@ -76,27 +76,13 @@ impl<'view, 'extent> CorrespondedStableCompoundMutationAccessRequest<'view, 'ext
     }
 }
 
+access_plan_rejection! {
 /// Failed correspondence-required staging returns the exact already-
 /// specialized compound request. No provider/device operation is selected or
 /// attempted.
-#[derive(Debug)]
-pub struct CorrespondedStableCompoundMutationAccessRejection<'view, 'extent> {
-    access: StableCompoundMutationAccessRequest<'view, 'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'view, 'extent> CorrespondedStableCompoundMutationAccessRejection<'view, 'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        StableCompoundMutationAccessRequest<'view, 'extent>,
-        AccessPlanDiagnostic,
-    ) {
-        (self.access, self.diagnostic)
+    CorrespondedStableCompoundMutationAccessRejection<'view, 'extent> {
+        access: StableCompoundMutationAccessRequest<'view, 'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 

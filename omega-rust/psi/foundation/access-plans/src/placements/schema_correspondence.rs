@@ -6,7 +6,7 @@
 //! that the placement describes the named device. It performs no device read,
 //! placement admission, content establishment, or field access.
 
-use crate::access_plan::diagnostic::into_validated_access;
+use crate::access_plan::diagnostic::{access_plan_rejection, into_validated_access};
 use crate::placements::placement_admission::validate_placement_admission;
 use crate::placements::placement_authority::PlacementAuthorityRef;
 use crate::primitive_access::field_projection::project_placed_field;
@@ -184,20 +184,11 @@ impl SchemaDeviceCorrespondenceGrant {
     }
 }
 
+access_plan_rejection! {
 /// Failed provider-grant formation returns optional runtime evidence intact.
-#[derive(Debug)]
-pub struct SchemaDeviceCorrespondenceGrantError {
-    revision: Option<RuntimeDeviceRevisionEvidence>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl SchemaDeviceCorrespondenceGrantError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (Option<RuntimeDeviceRevisionEvidence>, AccessPlanDiagnostic) {
-        (self.revision, self.diagnostic)
+    SchemaDeviceCorrespondenceGrantError {
+        revision: Option<RuntimeDeviceRevisionEvidence>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
@@ -344,21 +335,12 @@ impl AdmittedSchemaDeviceCorrespondence {
     }
 }
 
+access_plan_rejection! {
 /// Failed correspondence admission returns the exact provider grant rather
 /// than reducing it to copied provider/device/receipt identities.
-#[derive(Debug)]
-pub struct SchemaDeviceCorrespondenceAdmissionError {
-    grant: SchemaDeviceCorrespondenceGrant,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl SchemaDeviceCorrespondenceAdmissionError {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (SchemaDeviceCorrespondenceGrant, AccessPlanDiagnostic) {
-        (self.grant, self.diagnostic)
+    SchemaDeviceCorrespondenceAdmissionError {
+        grant: SchemaDeviceCorrespondenceGrant,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
@@ -639,69 +621,31 @@ impl<'extent> SchemaCorrespondedPlacedView<'extent> {
     }
 }
 
+access_plan_rejection! {
 /// Failed corresponded-view retirement preserves the complete loan-bearing
 /// view and its non-Clone physical provenance for corrected retry.
-#[derive(Debug)]
-pub struct SchemaCorrespondedPlaceRetirementError<'extent> {
-    view: SchemaCorrespondedPlacedView<'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'extent> SchemaCorrespondedPlaceRetirementError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(self) -> (SchemaCorrespondedPlacedView<'extent>, AccessPlanDiagnostic) {
-        (self.view, self.diagnostic)
+    SchemaCorrespondedPlaceRetirementError<'extent> {
+        view: SchemaCorrespondedPlacedView<'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
+access_plan_rejection! {
 /// Failed corresponded-view establishment returns the complete bound carrier;
 /// its loan and physical provenance remain available for repair or withdrawal.
-#[derive(Debug)]
-pub struct SchemaCorrespondedPlaceEstablishmentError<'extent> {
-    bound: SchemaCorrespondedPlacementAdmission<'extent>,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'extent> SchemaCorrespondedPlaceEstablishmentError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        SchemaCorrespondedPlacementAdmission<'extent>,
-        AccessPlanDiagnostic,
-    ) {
-        (self.bound, self.diagnostic)
+    SchemaCorrespondedPlaceEstablishmentError<'extent> {
+        bound: SchemaCorrespondedPlacementAdmission<'extent>,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
+access_plan_rejection! {
 /// Failed placement/correspondence binding returns both exact non-Clone
 /// inputs. No loan is released and no physical meaning is attached to storage.
-#[derive(Debug)]
-pub struct SchemaCorrespondencePlacementBindingError<'extent> {
-    admission: PlacementAdmission<'extent>,
-    correspondence: AdmittedSchemaDeviceCorrespondence,
-    diagnostic: AccessPlanDiagnostic,
-}
-
-impl<'extent> SchemaCorrespondencePlacementBindingError<'extent> {
-    pub const fn diagnostic(&self) -> &AccessPlanDiagnostic {
-        &self.diagnostic
-    }
-
-    pub fn into_parts(
-        self,
-    ) -> (
-        PlacementAdmission<'extent>,
-        AdmittedSchemaDeviceCorrespondence,
-        AccessPlanDiagnostic,
-    ) {
-        (self.admission, self.correspondence, self.diagnostic)
+    SchemaCorrespondencePlacementBindingError<'extent> {
+        admission: PlacementAdmission<'extent>,
+        correspondence: AdmittedSchemaDeviceCorrespondence,
+        diagnostic: AccessPlanDiagnostic,
     }
 }
 
