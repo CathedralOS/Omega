@@ -21,8 +21,8 @@
 //! image is mutated at all. A statically emitted ELF here is one that needs no
 //! loader.
 //!
-//! Everything else in the crate is the dynamic lane, and it is a linear chain
-//! of 22 stages driven from `image-emission/src/dynamic_elf.rs`:
+//! Everything else in the crate is the dynamic lane: `emit_elf_dynamic_executable`
+//! in `dynamic_executable.rs` drives a linear chain of 22 stages:
 //!
 //! ```text
 //!   plan_elf_dynamic_link_inputs -> plan_elf_dynamic_sections
@@ -65,16 +65,16 @@
 //! produce a file that runs until it reaches the unbound call, which is the
 //! failure mode hardest to attribute back to the compiler.
 
-//! `image-emission/src/dynamic_elf.rs` is the only driver of the dynamic
-//! lane; `image` supplies `FinalImage`, `place_executable_regions` and the
-//! relocation appliers both lanes use.
+//! `image-emission/src/dynamic_elf.rs` is the only caller of the dynamic
+//! lane's entry; `image` supplies `FinalImage`, `place_executable_regions`
+//! and the relocation appliers both lanes use.
 //!
 //! @Note: do not decide what is dead in this crate by grepping for type names.
-//! The driver binds every stage result with an inferred `let` and never spells a
+//! The chain binds every stage result with an inferred `let` and never spells a
 //! carrier type, so 21 of the 22 carriers have zero occurrences of their names
 //! anywhere outside this crate while being entirely load-bearing -
 //! `ValidatedElfDynamicLoadLayout` among them, which is the return type of a
-//! function the driver calls in production. A scouting pass over this crate
+//! stage the chain calls in production. A scouting pass over this crate
 //! called 18 such types dead on exactly that evidence.
 //!
 //! @Incomplete: the static lane's own error message is out of date and says so
@@ -91,8 +91,8 @@
 //! or not at all.
 //!
 //! On disk the crate splits the same way: `static_executable.rs` is the
-//! static lane, `dynamic_executable.rs` opens the 22-stage dynamic lane and
-//! groups its stages by phase, and `bytes.rs`, `constants.rs`,
+//! static lane, `dynamic_executable.rs` owns the 22-stage dynamic lane's
+//! entry and groups its stages by phase, and `bytes.rs`, `constants.rs`,
 //! `entry_symbol.rs` and `imports.rs` hold what both lanes share.
 
 mod bytes;
@@ -102,6 +102,7 @@ mod entry_symbol;
 mod imports;
 mod static_executable;
 
+pub use dynamic_executable::{ElfDynamicExecutableEmissionError, emit_elf_dynamic_executable};
 pub use static_executable::{emit_elf_aarch64_executable, emit_elf_x86_64_executable};
 
 pub use dynamic_executable::dynamic_table::dynamic_table_descriptor::{

@@ -10,7 +10,9 @@ use image::{
     EmittedImageOutput, FinalImageInput, emitted_direct_executable_output,
     final_image_symbol_digest,
 };
-use image_elf::{ValidatedElfDynamicExecutable, *};
+use image_elf::{
+    ElfDynamicExecutableEmissionError, ValidatedElfDynamicExecutable, emit_elf_dynamic_executable,
+};
 use target::{Architecture, NormalizedElfInterpreterPlan, ObjectFormat};
 
 use crate::ObjectArtifact;
@@ -333,99 +335,38 @@ impl std::fmt::Display for DynamicElfImageEmissionError {
 
 impl std::error::Error for DynamicElfImageEmissionError {}
 
-/// Exact failing owner from one stage of complete dynamic ELF orchestration.
+/// Exact failing owner from one step of dynamic ELF orchestration: the
+/// hosted-entry preparation, the ELF owner's chain, or the production bridge.
 ///
-/// Every variant preserves the stage-specific carrier supplied by the ELF
-/// owner. Diagnostics are observations of that custody, never substitutes for
-/// it.
+/// Every variant preserves the carrier the step refused. Diagnostics are
+/// observations of that custody, never substitutes for it.
 #[derive(Debug)]
 #[must_use = "dynamic ELF orchestration failure retains the exact failing owner"]
 pub enum DynamicElfOrchestrationError {
-    LinkInputs(Box<ElfDynamicLinkInputPlanningError>),
-    DynamicSections(Box<ElfDynamicSectionPlanningError>),
-    DynamicSectionBytes(Box<ElfDynamicSectionSerializationError>),
-    DynamicSectionDescriptors(Box<ElfDynamicSectionDescriptorPlanningError>),
-    ProcedureLinkageRelocations(Box<ElfProcedureLinkageRelocationPlanningError>),
-    ProcedureLinkageTemplates(Box<ElfProcedureLinkageTemplatePlanningError>),
-    ProcedureLinkageDescriptors(Box<ElfProcedureLinkageSectionDescriptorPlanningError>),
-    DynamicTags(Box<ElfDynamicTagPlanningError>),
-    DynamicTableBytes(Box<ElfDynamicTableSerializationError>),
-    DynamicTableDescriptor(Box<ElfDynamicTableSectionDescriptorPlanningError>),
-    SectionNames(Box<ElfSectionNameTablePlanningError>),
-    SectionRoster(Box<ElfDynamicSectionRosterPlanningError>),
-    SectionHeaderBytes(Box<ElfSectionHeaderTableSerializationError>),
-    IndexedPayloads(Box<ElfIndexedSectionPayloadPlanningError>),
-    RelativeLayout(Box<ElfRelativeSectionPayloadLayoutError>),
-    LoadLayout(Box<ElfDynamicLoadLayoutError>),
-    PlacedSectionHeaders(Box<ElfSectionHeaderPlacementApplicationError>),
-    ResolvedDynamicTable(Box<ElfDynamicAddressApplicationError>),
-    FileEnvelope(Box<ElfDynamicFileEnvelopeSerializationError>),
-    ProcedureLinkageApplication(Box<ElfProcedureLinkageApplicationError>),
-    FileAssembly(Box<ElfDynamicFileAssemblyError>),
-    FinalByteAdmission(Box<ElfDynamicExecutableAdmissionError>),
     /// The hosted-entry owner rejected the artifact before any ELF stage ran:
     /// an import-bearing object still carries its exact entry custody, so a
     /// receiver bridge cannot be dropped merely because imports selected the
     /// dynamic writer.
     HostedEntryPreparation(Diagnostic),
+    /// One of the ELF owner's 22 stages refused; the exact stage carrier is
+    /// inside.
+    Elf(Box<ElfDynamicExecutableEmissionError>),
     ProductionBridge(Box<DynamicElfImageEmissionError>),
 }
 
 impl DynamicElfOrchestrationError {
     pub const fn stage(&self) -> &'static str {
         match self {
-            Self::LinkInputs(_) => "link-inputs",
-            Self::DynamicSections(_) => "dynamic-sections",
-            Self::DynamicSectionBytes(_) => "dynamic-section-bytes",
-            Self::DynamicSectionDescriptors(_) => "dynamic-section-descriptors",
-            Self::ProcedureLinkageRelocations(_) => "procedure-linkage-relocations",
-            Self::ProcedureLinkageTemplates(_) => "procedure-linkage-templates",
-            Self::ProcedureLinkageDescriptors(_) => "procedure-linkage-descriptors",
-            Self::DynamicTags(_) => "dynamic-tags",
-            Self::DynamicTableBytes(_) => "dynamic-table-bytes",
-            Self::DynamicTableDescriptor(_) => "dynamic-table-descriptor",
-            Self::SectionNames(_) => "section-names",
-            Self::SectionRoster(_) => "section-roster",
-            Self::SectionHeaderBytes(_) => "section-header-bytes",
-            Self::IndexedPayloads(_) => "indexed-payloads",
-            Self::RelativeLayout(_) => "relative-layout",
-            Self::LoadLayout(_) => "load-layout",
-            Self::PlacedSectionHeaders(_) => "placed-section-headers",
-            Self::ResolvedDynamicTable(_) => "resolved-dynamic-table",
-            Self::FileEnvelope(_) => "file-envelope",
-            Self::ProcedureLinkageApplication(_) => "procedure-linkage-application",
-            Self::FileAssembly(_) => "file-assembly",
-            Self::FinalByteAdmission(_) => "final-byte-admission",
             Self::HostedEntryPreparation(_) => "hosted-entry-preparation",
+            Self::Elf(error) => error.stage(),
             Self::ProductionBridge(_) => "production-bridge",
         }
     }
 
     pub const fn diagnostic(&self) -> &Diagnostic {
         match self {
-            Self::LinkInputs(error) => error.diagnostic(),
-            Self::DynamicSections(error) => error.diagnostic(),
-            Self::DynamicSectionBytes(error) => error.diagnostic(),
-            Self::DynamicSectionDescriptors(error) => error.diagnostic(),
-            Self::ProcedureLinkageRelocations(error) => error.diagnostic(),
-            Self::ProcedureLinkageTemplates(error) => error.diagnostic(),
-            Self::ProcedureLinkageDescriptors(error) => error.diagnostic(),
-            Self::DynamicTags(error) => error.diagnostic(),
-            Self::DynamicTableBytes(error) => error.diagnostic(),
-            Self::DynamicTableDescriptor(error) => error.diagnostic(),
-            Self::SectionNames(error) => error.diagnostic(),
-            Self::SectionRoster(error) => error.diagnostic(),
-            Self::SectionHeaderBytes(error) => error.diagnostic(),
-            Self::IndexedPayloads(error) => error.diagnostic(),
-            Self::RelativeLayout(error) => error.diagnostic(),
-            Self::LoadLayout(error) => error.diagnostic(),
-            Self::PlacedSectionHeaders(error) => error.diagnostic(),
-            Self::ResolvedDynamicTable(error) => error.diagnostic(),
-            Self::FileEnvelope(error) => error.diagnostic(),
-            Self::ProcedureLinkageApplication(error) => error.diagnostic(),
-            Self::FileAssembly(error) => error.diagnostic(),
-            Self::FinalByteAdmission(error) => error.diagnostic(),
             Self::HostedEntryPreparation(diagnostic) => diagnostic,
+            Self::Elf(error) => error.diagnostic(),
             Self::ProductionBridge(error) => error.diagnostic(),
         }
     }
@@ -444,9 +385,9 @@ impl std::fmt::Display for DynamicElfOrchestrationError {
 
 impl std::error::Error for DynamicElfOrchestrationError {}
 
-/// Run the complete existing dynamic ELF owner chain from one exact source-free
-/// import-bearing object artifact and one normalized interpreter input through
-/// production emission.
+/// Prepare the hosted entry, build the final image, run the ELF owner's
+/// dynamic lane over it, and rejoin the admitted bytes to the production
+/// image-output surface.
 ///
 /// The artifact is borrowed, the interpreter is consumed into the first ELF
 /// owner, and every rejection returns the exact stage carrier. Success remains
@@ -487,66 +428,8 @@ pub fn emit_dynamic_elf_image(
         text_bytes,
         data_bytes: artifact.data_bytes(),
     });
-    let inputs = plan_elf_dynamic_link_inputs(image, interpreter)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::LinkInputs(error)))?;
-    let sections = plan_elf_dynamic_sections(inputs)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::DynamicSections(error)))?;
-    let payloads = serialize_elf_dynamic_sections(sections)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::DynamicSectionBytes(error)))?;
-    let descriptors = plan_elf_dynamic_section_descriptors(payloads).map_err(|error| {
-        Box::new(DynamicElfOrchestrationError::DynamicSectionDescriptors(
-            error,
-        ))
-    })?;
-    let linkage = plan_elf_procedure_linkage_relocations(descriptors).map_err(|error| {
-        Box::new(DynamicElfOrchestrationError::ProcedureLinkageRelocations(
-            error,
-        ))
-    })?;
-    let templates = plan_elf_procedure_linkage_templates(linkage).map_err(|error| {
-        Box::new(DynamicElfOrchestrationError::ProcedureLinkageTemplates(
-            error,
-        ))
-    })?;
-    let descriptors =
-        plan_elf_procedure_linkage_section_descriptors(templates).map_err(|error| {
-            Box::new(DynamicElfOrchestrationError::ProcedureLinkageDescriptors(
-                error,
-            ))
-        })?;
-    let tags = plan_elf_dynamic_tags(descriptors)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::DynamicTags(error)))?;
-    let dynamic = serialize_elf_dynamic_table(tags)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::DynamicTableBytes(error)))?;
-    let descriptor = plan_elf_dynamic_table_section_descriptor(dynamic)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::DynamicTableDescriptor(error)))?;
-    let names = plan_elf_section_name_table(descriptor)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::SectionNames(error)))?;
-    let roster = plan_elf_dynamic_section_roster(names)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::SectionRoster(error)))?;
-    let headers = serialize_elf_section_header_table(roster)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::SectionHeaderBytes(error)))?;
-    let payloads = plan_elf_indexed_section_payloads(headers)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::IndexedPayloads(error)))?;
-    let relative = plan_elf_relative_section_payload_layout(payloads)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::RelativeLayout(error)))?;
-    let load = plan_elf_dynamic_load_layout(relative)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::LoadLayout(error)))?;
-    let placed = apply_elf_section_header_placements(load)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::PlacedSectionHeaders(error)))?;
-    let resolved = apply_elf_dynamic_address_fixups(placed)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::ResolvedDynamicTable(error)))?;
-    let envelope = serialize_elf_dynamic_file_envelope(resolved)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::FileEnvelope(error)))?;
-    let linkage = apply_elf_procedure_linkage_fixups(envelope).map_err(|error| {
-        Box::new(DynamicElfOrchestrationError::ProcedureLinkageApplication(
-            error,
-        ))
-    })?;
-    let assembled = assemble_elf_dynamic_file(linkage)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::FileAssembly(error)))?;
-    let admitted = admit_elf_dynamic_executable(assembled)
-        .map_err(|error| Box::new(DynamicElfOrchestrationError::FinalByteAdmission(error)))?;
+    let admitted = emit_elf_dynamic_executable(image, interpreter)
+        .map_err(|error| Box::new(DynamicElfOrchestrationError::Elf(error)))?;
     emit_admitted_dynamic_elf_image(artifact, admitted)
         .map_err(|error| Box::new(DynamicElfOrchestrationError::ProductionBridge(error)))
 }
