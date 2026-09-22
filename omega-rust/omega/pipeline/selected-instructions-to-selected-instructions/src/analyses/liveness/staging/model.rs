@@ -1,10 +1,11 @@
-use crate::{LivenessError, LivenessIdentity, ValidatedLiveness};
+use crate::{LivenessError, ValidatedLiveness};
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::LivenessIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;

@@ -26,8 +26,9 @@ use crate::{
     FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, FixedViewCopyPlan,
     FixedViewCopyPolicy, FixedViewCopySourceEvidence, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
-    ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges, VirtualFixedConstraintSite,
+    ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
 };
+use selected_instructions::VirtualFixedConstraintSite;
 
 use preflight::{copy_row, next_instruction_id, next_register_id, validate_roots, work_usage};
 use site::build_site_copies;

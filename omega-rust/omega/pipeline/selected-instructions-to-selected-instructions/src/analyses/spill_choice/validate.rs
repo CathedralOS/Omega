@@ -10,11 +10,14 @@ use register_model::{
 use selected_instructions::VirtualRegisterId;
 
 use crate::{
-    FunctionSpillChoices, LiveRangePoint, PressureContender, PressureResident, SpillChoice,
-    SpillChoiceError, SpillChoicePlan, SpillChoicePolicy, SpillChoiceValidationReceipt,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSpillChoices, VirtualInterference,
-    spill_choice_identity,
+    SpillChoiceError, SpillChoiceValidationReceipt, ValidatedAllocationLegality,
+    ValidatedLiveRanges, ValidatedSpillChoices,
 };
+use register_homes::{
+    FunctionSpillChoices, PressureContender, PressureResident, SpillChoice, SpillChoicePlan,
+    SpillChoicePolicy, spill_choice_identity,
+};
+use selected_instructions::{LiveRangePoint, VirtualInterference};
 
 #[derive(Clone, Copy)]
 struct ReplayResident {
@@ -151,8 +154,8 @@ pub fn validate_spill_choices(
 
 fn replay_function(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &register_homes::FunctionAllocationLegality,
+    ranges: &selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut ReplayWork,
 ) -> Result<FunctionSpillChoices, SpillChoiceError> {
@@ -402,8 +405,8 @@ fn replay_function(
 #[cfg(test)]
 pub(crate) fn replay_function_for_test(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &register_homes::FunctionAllocationLegality,
+    ranges: &selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<(FunctionSpillChoices, OptimizationWorkUsage), SpillChoiceError> {
     let mut work = ReplayWork::default();
@@ -413,7 +416,7 @@ pub(crate) fn replay_function_for_test(
 
 fn replay_common(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, SpillChoiceError> {
     let first = register
         .points
@@ -455,7 +458,7 @@ fn replay_shape(
     start: LiveRangePoint,
     end: LiveRangePoint,
     block: selected_instructions::SelectedBlockId,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
 ) -> Result<(), SpillChoiceError> {
     if !range.edge_connectors.is_empty() || range.fragments.len() != 1 {
         return Err(SpillChoiceError::UnsupportedPressureShape {
@@ -522,7 +525,7 @@ fn replay_early_clobber_conflicts(
     incoming: VirtualRegisterId,
     view: &RegisterView,
     assigned: &[(VirtualRegisterId, RegisterViewId)],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> bool {
     assigned.iter().any(|(seated, seated_view_id)| {

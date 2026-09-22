@@ -9,16 +9,16 @@ use super::{
     VirtualRegisterOrigin,
 };
 
-use crate::{
-    EntryFixedViewTransition, FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
-    FunctionAllocationLegality, LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition,
-    VirtualRegisterAllocationLegality,
-};
 use optimization_unit::ValueDefinitionSite;
+use register_homes::{
+    EntryFixedViewTransition, FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
+    FunctionAllocationLegality, VirtualRegisterAllocationLegality,
+};
 use register_model::{
     RegisterClassId, RegisterConstraintFamily, RegisterConstraintId, RegisterConstraintKey,
     RegisterOperandConstraint, RegisterViewId,
 };
+use selected_instructions::{LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition};
 use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedSuccessor};
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ValueId};
 

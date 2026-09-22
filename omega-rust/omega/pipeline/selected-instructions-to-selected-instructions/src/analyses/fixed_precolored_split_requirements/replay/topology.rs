@@ -3,10 +3,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use crate::{
-    FixedPrecoloredSplitRequirementError, LiveRangeEdgeConnector, LiveRangeFragment,
-    VirtualLiveRange, VirtualPointLegality, VirtualRegisterAllocationLegality,
-};
+use crate::FixedPrecoloredSplitRequirementError;
+use register_homes::{VirtualPointLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::{LiveRangeEdgeConnector, LiveRangeFragment, VirtualLiveRange};
 
 pub(super) struct FragmentInput<'a> {
     pub(super) source: &'a LiveRangeFragment,

@@ -9,14 +9,15 @@ mod function;
 
 use std::collections::BTreeSet;
 
-use crate::{
+use crate::{LiveRangeError, ValidatedLiveness};
+use register_model::{RegisterOperandAccess, RegisterUnitId};
+use selected_instructions::{
     ArchitecturalUnitAction, ArchitecturalUnitActionKind, ArchitecturalUnitLiveRange,
     BlockLiveness, BlockPointDomain, DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse,
-    FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeError, LiveRangeFragment, LiveRangePlan,
-    LiveRangePoint, LivenessPosition, ValidatedLiveness, VirtualFixedConstraint,
-    VirtualFixedConstraintSite, VirtualInterference, VirtualLiveRange, VirtualOccurrence,
+    FunctionLiveRanges, LiveRangeEdgeConnector, LiveRangeFragment, LiveRangePlan, LiveRangePoint,
+    LivenessPosition, VirtualFixedConstraint, VirtualFixedConstraintSite, VirtualInterference,
+    VirtualLiveRange, VirtualOccurrence,
 };
-use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
 use architectural_units::architectural_units;

@@ -9,11 +9,12 @@ use register_model::{
 };
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
-    FunctionSpillChoices, LiveRangePoint, PressureContender, PressureResident, SpillChoice,
-    SpillChoiceError, SpillChoicePlan, SpillChoicePolicy, ValidatedAllocationLegality,
-    ValidatedLiveRanges, VirtualInterference,
+use crate::{SpillChoiceError, ValidatedAllocationLegality, ValidatedLiveRanges};
+use register_homes::{
+    FunctionSpillChoices, PressureContender, PressureResident, SpillChoice, SpillChoicePlan,
+    SpillChoicePolicy,
 };
+use selected_instructions::{LiveRangePoint, VirtualInterference};
 
 #[derive(Debug, Clone, Copy)]
 struct ActiveHome {
@@ -113,7 +114,7 @@ pub(crate) fn compute_terminal_spill_choices(
 
 fn reject_constraint_topologies(
     function: usize,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &selected_instructions::FunctionLiveRanges,
 ) -> Result<(), SpillChoiceError> {
     if !ranges.tied_pairs.is_empty() {
         return Err(SpillChoiceError::UnsupportedTiedOperands { function });
@@ -158,8 +159,8 @@ fn validate_roots(
 
 fn compute_function(
     function_index: usize,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &register_homes::FunctionAllocationLegality,
+    ranges: &selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut WorkCounter,
 ) -> Result<FunctionSpillChoices, SpillChoiceError> {
@@ -392,7 +393,7 @@ fn validate_local_shape(
     start: LiveRangePoint,
     end: LiveRangePoint,
     block: selected_instructions::SelectedBlockId,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
 ) -> Result<(), SpillChoiceError> {
     if !range.edge_connectors.is_empty() || range.fragments.len() != 1 {
         return Err(SpillChoiceError::UnsupportedPressureShape {
@@ -412,7 +413,7 @@ fn validate_local_shape(
 
 fn interval_bounds(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), SpillChoiceError> {
     let first = register
         .points
@@ -433,7 +434,7 @@ fn interval_bounds(
 
 fn common_candidates(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, SpillChoiceError> {
     let first = register
         .points
@@ -469,7 +470,7 @@ fn early_clobber_conflicts(
     incoming: VirtualRegisterId,
     view: &RegisterView,
     assigned: &[(VirtualRegisterId, RegisterViewId)],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &selected_instructions::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> bool {
     assigned.iter().any(|(seated, seated_view_id)| {

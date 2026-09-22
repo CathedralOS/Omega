@@ -7,7 +7,8 @@ use selected_instructions::{
     SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
-use crate::{FixedViewCopy, FixedViewCopyError, VirtualFixedConstraintSite};
+use crate::{FixedViewCopy, FixedViewCopyError};
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub(super) fn replay_apply(
     function_index: usize,

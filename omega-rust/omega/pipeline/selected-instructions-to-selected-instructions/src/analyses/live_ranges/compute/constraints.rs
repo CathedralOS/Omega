@@ -7,7 +7,7 @@ use super::{LiveRangeError, after_point, before_point};
 
 pub(crate) fn derive_early_clobbers(
     function: usize,
-    liveness: &crate::FunctionLiveness,
+    liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<EarlyClobberConstraint>, LiveRangeError> {
     let early_definitions = liveness
         .operand_positions
@@ -189,7 +189,7 @@ fn tied_component(
 
 pub(crate) fn derive_tied_pairs(
     function: usize,
-    liveness: &crate::FunctionLiveness,
+    liveness: &selected_instructions::FunctionLiveness,
 ) -> Result<Vec<DistinctUseDefTie>, LiveRangeError> {
     let mut pairs = Vec::new();
     for definition in liveness

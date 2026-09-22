@@ -2,12 +2,12 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
-    FixedPrecoloredInterval, FixedPrecoloredIntervalError, FixedPrecoloredIntervalPlan,
-    FixedPrecoloredIntervalPolicy, FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
-    FunctionLiveRanges, LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges,
-    VirtualFixedConstraintSite,
+use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
+use register_homes::{
+    FixedPrecoloredInterval, FixedPrecoloredIntervalPlan, FixedPrecoloredIntervalPolicy,
+    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
 };
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualFixedConstraintSite};
 
 pub(super) fn compute(
     ranges: &ValidatedLiveRanges,
@@ -137,7 +137,7 @@ fn derive_function(
 fn reject_early_clobber_fixed(
     function: usize,
     ranges: &FunctionLiveRanges,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
     site: VirtualFixedConstraintSite,
 ) -> Result<(), FixedPrecoloredIntervalError> {
     let VirtualFixedConstraintSite::Operand {
@@ -168,7 +168,7 @@ fn reject_early_clobber_fixed(
 
 fn resolve_point(
     function: usize,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
     site: VirtualFixedConstraintSite,
 ) -> Result<(selected_instructions::SelectedBlockId, LiveRangePoint), FixedPrecoloredIntervalError>
 {
@@ -203,7 +203,7 @@ fn require_view(
     block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
     view: register_model::RegisterViewId,
-    legality: &crate::VirtualRegisterAllocationLegality,
+    legality: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<(), FixedPrecoloredIntervalError> {
     let rows = legality
         .points

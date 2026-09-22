@@ -94,7 +94,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 
-use crate::machine_semantic_kind;
+use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::rewrites::block_edges::{block_instructions, terminator_successors};
 
 /// How a pair rule's rewritten instruction delivers its output.

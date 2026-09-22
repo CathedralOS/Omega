@@ -1,8 +1,8 @@
-use crate::{
+use register_homes::{
     AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityIdentity,
-    LiveRangeIdentity,
 };
 use register_model::TargetRegisterEnvironmentIdentity;
+use selected_instructions::LiveRangeIdentity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AllocationLegalityValidationReceipt {

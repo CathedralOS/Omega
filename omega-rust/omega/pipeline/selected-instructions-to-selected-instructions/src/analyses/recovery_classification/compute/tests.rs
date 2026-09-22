@@ -14,12 +14,15 @@ use semantic_vocabulary::{
 };
 
 use super::function_classification::classify;
-use crate::{
-    BlockPointDomain, FunctionAllocationLegality, FunctionLiveRanges, FunctionSpillChoices,
-    LiveRangeFragment, LiveRangePoint, LivenessPosition, NoAdmittedRecoveryReason,
-    PressureContender, RecoveryClassification, RecoveryClassificationError, RecoveryVictimRole,
-    SpillChoice, VirtualLiveRange, VirtualOccurrence, VirtualPointLegality,
+use crate::RecoveryClassificationError;
+use register_homes::{
+    FunctionAllocationLegality, FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
+    RecoveryClassification, RecoveryVictimRole, SpillChoice, VirtualPointLegality,
     VirtualRegisterAllocationLegality,
+};
+use selected_instructions::{
+    BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangePoint, LivenessPosition,
+    VirtualLiveRange, VirtualOccurrence,
 };
 
 fn operand(register: u32, operand: u16, access: RegisterOperandAccess) -> SelectedOperand {
@@ -171,10 +174,12 @@ fn fixture() -> (
         architectural_units: Vec::new(),
         interference: [(0, 1), (0, 2), (1, 2)]
             .into_iter()
-            .map(|(lower, higher)| crate::VirtualInterference {
-                lower: VirtualRegisterId(lower),
-                higher: VirtualRegisterId(higher),
-            })
+            .map(
+                |(lower, higher)| selected_instructions::VirtualInterference {
+                    lower: VirtualRegisterId(lower),
+                    higher: VirtualRegisterId(higher),
+                },
+            )
             .collect(),
     };
     let legality = FunctionAllocationLegality {
@@ -204,14 +209,14 @@ fn fixture() -> (
             incoming_class: RegisterClassId(0),
             incoming_common_candidates: vec![RegisterViewId(0), RegisterViewId(1)],
             active_residents: vec![
-                crate::PressureResident {
+                register_homes::PressureResident {
                     virtual_register: VirtualRegisterId(0),
                     class: RegisterClassId(0),
                     start: LiveRangePoint(1),
                     exclusive_end: LiveRangePoint(7),
                     view: RegisterViewId(0),
                 },
-                crate::PressureResident {
+                register_homes::PressureResident {
                     virtual_register: VirtualRegisterId(1),
                     class: RegisterClassId(0),
                     start: LiveRangePoint(3),

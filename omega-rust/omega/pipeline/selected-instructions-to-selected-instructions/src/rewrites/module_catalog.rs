@@ -497,6 +497,33 @@ mod tests {
         };
 
         let identifier = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+        /// Drop `use …;` items: a named re-export or import is wiring, not a
+        /// call; a production caller is caught at its call site.
+        fn without_use_items(contents: &str) -> String {
+            let mut out = String::with_capacity(contents.len());
+            let mut rest = contents;
+            while let Some(start) = rest.find("use ") {
+                let at_item_start = rest[..start]
+                    .rsplit('\n')
+                    .next()
+                    .is_some_and(|prefix| {
+                        prefix.trim().is_empty()
+                            || prefix.trim() == "pub"
+                            || prefix.trim().starts_with("pub(")
+                    });
+                let Some(end) = rest[start..].find(';') else {
+                    break;
+                };
+                if at_item_start {
+                    out.push_str(&rest[..start]);
+                } else {
+                    out.push_str(&rest[..start + end + 1]);
+                }
+                rest = &rest[start + end + 1..];
+            }
+            out.push_str(rest);
+            out
+        }
         let mut violations = Vec::new();
         for row in REWRITE_MODULE_CATALOG {
             let RewriteModuleRoute::Orphaned(_) = row.route else {
@@ -512,7 +539,8 @@ mod tests {
                 .iter()
                 .filter(|f| !is_test_file(f) && !own.contains(*f))
             {
-                let contents = std::fs::read_to_string(file).unwrap_or_default();
+                let contents =
+                    without_use_items(&std::fs::read_to_string(file).unwrap_or_default());
                 for entrance in &entrances {
                     let called = contents.match_indices(entrance).any(|(offset, _)| {
                         !identifier(contents[..offset].chars().next_back())

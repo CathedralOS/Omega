@@ -4,11 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
-use crate::{
-    CopyAffinity, FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSourceSegmentHome, FunctionFixedPrecoloredSegmentHomes, FunctionLiveRanges,
-    LiveRangePoint, VirtualLiveRange,
+use crate::FixedPrecoloredSegmentHomeError;
+use register_homes::{
+    FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentHome,
+    FunctionFixedPrecoloredSegmentHomes,
 };
+use selected_instructions::{CopyAffinity, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
 
 use super::{conflicts::Conflicts, domains::Domain, work::Work};
 
@@ -666,16 +667,17 @@ fn clique_bound_violated(
 #[cfg(test)]
 mod tests {
     use crate::FixedPrecoloredSegmentHomeError;
+    use crate::analyses::fixed_precolored_segment_homes::compute::domains::Segment;
     use crate::analyses::fixed_precolored_segment_homes::compute::placement::Conflicts;
     use crate::analyses::fixed_precolored_segment_homes::compute::placement::Domain;
     use crate::analyses::fixed_precolored_segment_homes::compute::placement::assign;
     use crate::analyses::fixed_precolored_segment_homes::compute::work::Work;
-    use crate::{
-        CopyAffinity, FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId,
-        FunctionLiveRanges, LiveRangePoint, LivenessPosition, VirtualLiveRange, VirtualOccurrence,
-        analyses::fixed_precolored_segment_homes::compute::domains::Segment,
-    };
+    use register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};
     use register_model::{RegisterClassId, RegisterOperandAccess, RegisterViewId};
+    use selected_instructions::{
+        CopyAffinity, FunctionLiveRanges, LiveRangePoint, LivenessPosition, VirtualLiveRange,
+        VirtualOccurrence,
+    };
     use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
     #[test]

@@ -7,9 +7,8 @@ use std::collections::BTreeSet;
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{SelectedInstructionId, VirtualRegisterId, VirtualRegisterOrigin};
 
-use crate::{
-    FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError, VirtualFixedConstraintSite,
-};
+use crate::{FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError};
+use selected_instructions::VirtualFixedConstraintSite;
 
 #[cfg(test)]
 mod tests;

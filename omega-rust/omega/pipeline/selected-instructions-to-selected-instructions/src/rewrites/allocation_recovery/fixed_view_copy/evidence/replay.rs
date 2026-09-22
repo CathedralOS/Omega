@@ -7,13 +7,15 @@ use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::MachineId;
 
 use crate::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
-    FixedPrecoloredSourceSegmentHome, FixedPrecoloredSourceSegmentId,
-    FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPolicy, FixedViewCopyError,
-    FunctionFixedPrecoloredSegmentHomes, FunctionFixedPrecoloredSplitRequirements,
-    ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
+    FixedViewCopyError, ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
     ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
     ValidatedLiveRanges,
+};
+use register_homes::{
+    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
+    FixedPrecoloredSourceSegmentHome, FixedPrecoloredSourceSegmentId,
+    FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPolicy,
+    FunctionFixedPrecoloredSegmentHomes, FunctionFixedPrecoloredSplitRequirements,
 };
 
 use super::{AuthenticatedFixedViewBoundary, FixedViewBoundaryEvidence};

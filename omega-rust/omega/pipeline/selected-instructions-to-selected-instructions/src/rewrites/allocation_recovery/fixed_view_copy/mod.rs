@@ -4,7 +4,7 @@ use crate::ValidatedFixedPrecoloredIntervals;
 use crate::ValidatedFixedPrecoloredSegmentHomes;
 use crate::ValidatedFixedPrecoloredSplitRequirements;
 use crate::ValidatedLiveRanges;
-use crate::{
+use register_model::{
     TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile,

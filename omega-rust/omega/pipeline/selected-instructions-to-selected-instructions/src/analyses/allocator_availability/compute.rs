@@ -7,9 +7,9 @@ use register_model::{
 };
 use target::NativeTarget;
 
-use crate::{
-    AllocatorAvailabilityError, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
-    RegisterClassAvailability,
+use crate::AllocatorAvailabilityError;
+use register_homes::{
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, RegisterClassAvailability,
 };
 
 pub(crate) fn compute_terminal_allocator_availability(

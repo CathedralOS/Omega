@@ -15,11 +15,11 @@ use register_model::{
 };
 
 use crate::{
-    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomePlan,
-    FixedPrecoloredSegmentHomePolicy, ValidatedAllocationLegality,
+    FixedPrecoloredSegmentHomeError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSplitRequirements,
     ValidatedLiveRanges,
 };
+use register_homes::{FixedPrecoloredSegmentHomePlan, FixedPrecoloredSegmentHomePolicy};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute(

@@ -5,11 +5,12 @@ use std::collections::BTreeMap;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::RegisterOperandAccess;
 
-use crate::{
-    FixedPrecoloredInterval, FixedPrecoloredIntervalError, FixedPrecoloredIntervalPolicy,
-    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals, FunctionLiveRanges,
-    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, VirtualFixedConstraintSite,
+use crate::{FixedPrecoloredIntervalError, ValidatedAllocationLegality, ValidatedLiveRanges};
+use register_homes::{
+    FixedPrecoloredInterval, FixedPrecoloredIntervalPolicy, FunctionAllocationLegality,
+    FunctionFixedPrecoloredIntervals,
 };
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualFixedConstraintSite};
 
 pub(super) struct ReplayedIntervals {
     pub(super) functions: Vec<FunctionFixedPrecoloredIntervals>,
@@ -158,7 +159,7 @@ fn replay_function(
 fn replay_early_clobber_refusal(
     function: usize,
     ranges: &FunctionLiveRanges,
-    range: &crate::VirtualLiveRange,
+    range: &selected_instructions::VirtualLiveRange,
     site: VirtualFixedConstraintSite,
 ) -> Result<(), FixedPrecoloredIntervalError> {
     let VirtualFixedConstraintSite::Operand {
@@ -191,8 +192,8 @@ fn replay_early_clobber_refusal(
 
 fn point_index(
     function: usize,
-    range: &crate::VirtualLiveRange,
-    legal: &crate::VirtualRegisterAllocationLegality,
+    range: &selected_instructions::VirtualLiveRange,
+    legal: &register_homes::VirtualRegisterAllocationLegality,
 ) -> Result<
     BTreeMap<
         LiveRangePoint,

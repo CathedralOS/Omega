@@ -5,12 +5,15 @@ use std::collections::BTreeMap;
 use optimization_core::OptimizationWorkUsage;
 
 use crate::{
+    FixedViewCopyError, ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals,
+    ValidatedFixedPrecoloredSegmentHomes, ValidatedFixedPrecoloredSplitRequirements,
+    ValidatedLiveRanges,
+};
+use register_homes::{
     FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomePolicy,
     FixedPrecoloredSourceSegmentHome, FixedPrecoloredSourceSegmentOpening,
-    FixedPrecoloredSplitRequirementPolicy, FixedViewCopyError, FunctionFixedPrecoloredSegmentHomes,
-    FunctionFixedPrecoloredSplitRequirements, ValidatedAllocationLegality,
-    ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
-    ValidatedFixedPrecoloredSplitRequirements, ValidatedLiveRanges,
+    FixedPrecoloredSplitRequirementPolicy, FunctionFixedPrecoloredSegmentHomes,
+    FunctionFixedPrecoloredSplitRequirements,
 };
 
 use super::{AuthenticatedFixedViewBoundary, FixedViewBoundaryEvidence};
@@ -175,7 +178,7 @@ fn derive_roster(
 fn validate_assignment(
     register: selected_instructions::VirtualRegisterId,
     class: register_model::RegisterClassId,
-    segment: &crate::FixedPrecoloredSourceSegment,
+    segment: &register_homes::FixedPrecoloredSourceSegment,
     assignment: &FixedPrecoloredSourceSegmentHome,
 ) -> Result<(), FixedViewCopyError> {
     if assignment.virtual_register != register

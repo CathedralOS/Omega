@@ -46,7 +46,7 @@ fn ordinary_call_and_return_retain_exact_unit_liveness() {
     assert_eq!(liveness.blocks[0].instructions.len(), 2);
     assert_eq!(
         liveness.blocks[0].instructions[0].position,
-        crate::LivenessPosition(0)
+        selected_instructions::LivenessPosition(0)
     );
     assert_eq!(
         liveness.blocks[0].instructions[0].unit_live_out,

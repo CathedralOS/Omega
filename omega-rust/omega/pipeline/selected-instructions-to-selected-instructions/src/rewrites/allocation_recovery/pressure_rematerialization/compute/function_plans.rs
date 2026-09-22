@@ -2,9 +2,11 @@ use register_model::RegisterInstructionConstraint;
 use selected_instructions::SelectedInstructionPlan;
 
 use crate::{
-    FunctionPressureRematerialization, LiveRangePlan, PressureRematerializationError,
-    PressureRematerializationPolicy, RecoveryClassificationPlan,
+    FunctionPressureRematerialization, PressureRematerializationError,
+    PressureRematerializationPolicy,
 };
+use register_homes::RecoveryClassificationPlan;
+use selected_instructions::LiveRangePlan;
 
 use super::{application, candidate_action, selected_structure};
 

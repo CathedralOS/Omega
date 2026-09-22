@@ -12,7 +12,7 @@ use selected_instructions::{
     VirtualRegisterId,
 };
 
-pub use crate::pressure_rematerialization::tests::{
+pub use crate::rewrites::allocation_recovery::pressure_rematerialization::tests::{
     multiple_use::exercise_multiple_use_rematerialization,
     sole_use::exercise_single_use_rematerialization,
 };

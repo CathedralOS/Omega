@@ -15,10 +15,8 @@ use register_model::{
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 
-use crate::{
-    AllocationLegalityError, AllocationLegalityPlan, ValidatedAllocatorAvailability,
-    ValidatedLiveRanges,
-};
+use crate::{AllocationLegalityError, ValidatedAllocatorAvailability, ValidatedLiveRanges};
+use register_homes::AllocationLegalityPlan;
 
 pub(crate) fn compute_terminal_allocation_legality(
     ranges: &ValidatedLiveRanges,

@@ -5,11 +5,11 @@ use register_model::{
 };
 
 use crate::{
-    FixedPrecoloredIntervalPolicy, FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSplitRequirementPolicy, ValidatedAllocationLegality,
+    FixedPrecoloredSegmentHomeError, ValidatedAllocationLegality,
     ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSplitRequirements,
     ValidatedLiveRanges,
 };
+use register_homes::{FixedPrecoloredIntervalPolicy, FixedPrecoloredSplitRequirementPolicy};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn validate(

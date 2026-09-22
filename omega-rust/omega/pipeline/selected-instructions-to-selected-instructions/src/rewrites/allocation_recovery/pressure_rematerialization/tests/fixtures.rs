@@ -1,10 +1,11 @@
-use super::super::super::super::super::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, BlockPointDomain,
-    FunctionLiveRanges, FunctionRecoveryClassification, LiveRangeFragment, LiveRangeIdentity,
-    LiveRangePlan, LiveRangePoint, LivenessIdentity, LivenessPosition,
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionRecoveryClassification,
     PressureRecoveryClassification, RecoveryClassification, RecoveryClassificationPlan,
     RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoiceIdentity,
-    VirtualLiveRange, VirtualOccurrence,
+};
+use selected_instructions::{
+    BlockPointDomain, FunctionLiveRanges, LiveRangeFragment, LiveRangeIdentity, LiveRangePlan,
+    LiveRangePoint, LivenessIdentity, LivenessPosition, VirtualLiveRange, VirtualOccurrence,
 };
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};

@@ -4,14 +4,12 @@
 //! selected policy and owns custody-stage dispatch; lower rungs separate
 //! carriers, execution/replay, scheduling receipts, and work accounting.
 
-use crate::{
-    RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedSelectedAnalysis,
-    resolve_selected_lowering_rules,
-};
+use crate::{ValidatedSelectedAnalysis, resolve_selected_lowering_rules};
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
     OptimizationWorkUsage, SelectedLoweringOptimizationCompletionIdentity,
 };
+use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
 use selected_instructions::SelectedInstructionPlanIdentity;
 
 use crate::StagedOptimizedAllocationLegality;

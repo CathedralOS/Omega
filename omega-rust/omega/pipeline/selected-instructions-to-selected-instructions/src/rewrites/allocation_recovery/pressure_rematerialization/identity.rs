@@ -95,17 +95,18 @@ mod tests {
     use crate::PressureRematerializationPolicy;
     use crate::PressureRematerializationRewrite;
     use crate::pressure_rematerialization_identity;
-    use crate::{
-        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity,
-        LiveRangePoint, RecoveryClassificationIdentity, SpillChoiceIdentity,
-    };
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
+    };
+    use register_homes::{
+        AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
+        SpillChoiceIdentity,
     };
     use register_model::{
         RegisterConstraintFamily, RegisterConstraintKey, RegisterViewId,
         TargetRegisterEnvironmentIdentity,
     };
+    use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
     use selected_instructions::{
         SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
     };

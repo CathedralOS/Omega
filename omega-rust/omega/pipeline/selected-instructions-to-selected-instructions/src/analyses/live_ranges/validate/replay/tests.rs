@@ -10,10 +10,11 @@ use super::{
         derive_ties as independently_derive_ties,
     },
 };
-use crate::{
+use crate::LiveRangeError;
+use selected_instructions::{
     ArchitecturalUnitLiveRange, BlockLiveness, CopyAffinity, FunctionLiveRanges, FunctionLiveness,
-    InstructionLiveness, LiveRangeError, LiveRangeFragment, LiveRangePoint, LivenessPosition,
-    OperandPosition, VirtualInterference, VirtualLiveRange,
+    InstructionLiveness, LiveRangeFragment, LiveRangePoint, LivenessPosition, OperandPosition,
+    VirtualInterference, VirtualLiveRange,
 };
 
 #[test]
@@ -293,7 +294,7 @@ fn isolated_tied_early_clobber_replay_rejects_malformed_and_corrupt_rows() {
     let mut tied_source_duplicated_as_hazard = expected.clone();
     tied_source_duplicated_as_hazard[0]
         .uses
-        .push(crate::EarlyClobberUse {
+        .push(selected_instructions::EarlyClobberUse {
             operand: 0,
             virtual_register: VirtualRegisterId(0),
             class: RegisterClassId(0),
@@ -369,7 +370,7 @@ fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member
 
 #[test]
 fn tied_component_receipt_count_uses_transitive_closure() {
-    let edge = |use_register, def_register, instruction| crate::DistinctUseDefTie {
+    let edge = |use_register, def_register, instruction| selected_instructions::DistinctUseDefTie {
         block: SelectedBlockId(0),
         position: LivenessPosition(instruction),
         instruction: selected_instructions::SelectedInstructionId(instruction),

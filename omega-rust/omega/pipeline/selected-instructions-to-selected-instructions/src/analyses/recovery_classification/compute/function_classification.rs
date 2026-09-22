@@ -1,16 +1,16 @@
 //! Per-function spill-choice and victim-role reconstruction.
 
-use crate::{
-    FunctionRecoveryClassification, PressureRecoveryClassification, RecoveryClassificationError,
-    RecoveryVictimRole,
+use crate::RecoveryClassificationError;
+use register_homes::{
+    FunctionRecoveryClassification, PressureRecoveryClassification, RecoveryVictimRole,
 };
 
 pub(super) fn classify(
     function: usize,
     selected: &selected_instructions::SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
-    legality: &crate::FunctionAllocationLegality,
-    choices: &crate::FunctionSpillChoices,
+    ranges: &selected_instructions::FunctionLiveRanges,
+    legality: &register_homes::FunctionAllocationLegality,
+    choices: &register_homes::FunctionSpillChoices,
 ) -> Result<FunctionRecoveryClassification, RecoveryClassificationError> {
     if selected.machine != ranges.machine
         || selected.machine != legality.machine
@@ -73,7 +73,7 @@ pub(super) fn classify(
 
 fn victim_role(
     function: usize,
-    choice: &crate::SpillChoice,
+    choice: &register_homes::SpillChoice,
 ) -> Result<RecoveryVictimRole, RecoveryClassificationError> {
     if choice.selected_victim == choice.incoming {
         let contender = choice

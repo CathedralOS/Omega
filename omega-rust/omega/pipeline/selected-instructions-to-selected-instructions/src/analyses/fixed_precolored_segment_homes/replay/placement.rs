@@ -4,11 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use register_model::{RegisterOperandAccess, RegisterViewId};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
-use crate::{
-    CopyAffinity, FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomeError,
-    FixedPrecoloredSourceSegmentHome, FunctionFixedPrecoloredSegmentHomes, FunctionLiveRanges,
-    LiveRangePoint, VirtualLiveRange,
+use crate::FixedPrecoloredSegmentHomeError;
+use register_homes::{
+    FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentHome,
+    FunctionFixedPrecoloredSegmentHomes,
 };
+use selected_instructions::{CopyAffinity, FunctionLiveRanges, LiveRangePoint, VirtualLiveRange};
 
 use super::{conflicts::ConflictIndex, domains::Domain, work::Work};
 

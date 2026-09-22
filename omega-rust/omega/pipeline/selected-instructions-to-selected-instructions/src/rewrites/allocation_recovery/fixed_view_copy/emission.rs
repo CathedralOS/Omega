@@ -9,7 +9,7 @@
 
 use selected_instructions::LiveRangeEdgeConnector;
 
-use crate::VirtualFixedConstraintSite;
+use selected_instructions::VirtualFixedConstraintSite;
 
 use super::evidence::AuthenticatedFixedViewBoundary;
 

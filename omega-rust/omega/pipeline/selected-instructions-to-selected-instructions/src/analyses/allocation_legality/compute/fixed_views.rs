@@ -5,9 +5,10 @@ use std::collections::BTreeSet;
 use register_model::RegisterViewId;
 use selected_instructions::SelectedBlockId;
 
-use crate::{
-    AllocationLegalityError, EarlyClobberConstraint, EntryFixedViewTransition, LiveRangePoint,
-    VirtualFixedConstraintSite, VirtualLiveRange,
+use crate::AllocationLegalityError;
+use register_homes::EntryFixedViewTransition;
+use selected_instructions::{
+    EarlyClobberConstraint, LiveRangePoint, VirtualFixedConstraintSite, VirtualLiveRange,
 };
 
 pub(super) fn for_early_clobber(

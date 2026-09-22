@@ -1,8 +1,10 @@
-use super::super::super::super::super::{
+use super::super::super::super::super::{analyze_live_ranges, analyze_liveness};
+use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionAllocationLegality,
-    LiveRangeIdentity, LiveRangePoint, RecoveryClassificationIdentity, SpillChoiceIdentity,
-    VirtualPointLegality, VirtualRegisterAllocationLegality, analyze_live_ranges, analyze_liveness,
+    RecoveryClassificationIdentity, SpillChoiceIdentity, VirtualPointLegality,
+    VirtualRegisterAllocationLegality,
 };
+use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
 
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{
@@ -33,7 +35,7 @@ fn active_resident_is_split_before_sole_future_use_and_reanalyzes() {
 pub fn exercise_single_use_rematerialization(
     check_assignment: impl FnOnce(
         &FunctionAllocationLegality,
-        &crate::FunctionLiveRanges,
+        &selected_instructions::FunctionLiveRanges,
         &register_model::ValidatedPhysicalRegisterModel,
     ),
 ) {

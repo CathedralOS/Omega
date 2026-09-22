@@ -76,14 +76,14 @@ pub struct StagedOptimizedFixedViewCopyCustodyReceipt {
     pub(super) optimization_unit: OptimizationUnitIdentity,
     pub(super) fuel_schedule: FuelScheduleIdentity,
     pub(super) register_environment: register_model::TargetRegisterEnvironmentIdentity,
-    pub(super) allocator_availability: crate::AllocatorAvailabilityIdentity,
+    pub(super) allocator_availability: register_homes::AllocatorAvailabilityIdentity,
     pub(super) source_selected: SelectedInstructionPlanIdentity,
-    pub(super) source_liveness: crate::LivenessIdentity,
-    pub(super) source_ranges: crate::LiveRangeIdentity,
-    pub(super) source_legality: crate::AllocationLegalityIdentity,
-    pub(super) fixed_intervals: crate::FixedPrecoloredIntervalPlanIdentity,
-    pub(super) split_requirements: crate::FixedPrecoloredSplitRequirementPlanIdentity,
-    pub(super) segment_homes: crate::FixedPrecoloredSegmentHomePlanIdentity,
+    pub(super) source_liveness: selected_instructions::LivenessIdentity,
+    pub(super) source_ranges: selected_instructions::LiveRangeIdentity,
+    pub(super) source_legality: register_homes::AllocationLegalityIdentity,
+    pub(super) fixed_intervals: register_homes::FixedPrecoloredIntervalPlanIdentity,
+    pub(super) split_requirements: register_homes::FixedPrecoloredSplitRequirementPlanIdentity,
+    pub(super) segment_homes: register_homes::FixedPrecoloredSegmentHomePlanIdentity,
     pub(super) transformation: FixedViewCopyIdentity,
     pub(super) transformed_selected: SelectedInstructionPlanIdentity,
     pub(super) policy: FixedViewCopyPolicy,
@@ -120,28 +120,30 @@ impl StagedOptimizedFixedViewCopyCustodyReceipt {
     pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
-    pub const fn allocator_availability(self) -> crate::AllocatorAvailabilityIdentity {
+    pub const fn allocator_availability(self) -> register_homes::AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
-    pub const fn source_liveness(self) -> crate::LivenessIdentity {
+    pub const fn source_liveness(self) -> selected_instructions::LivenessIdentity {
         self.source_liveness
     }
-    pub const fn source_ranges(self) -> crate::LiveRangeIdentity {
+    pub const fn source_ranges(self) -> selected_instructions::LiveRangeIdentity {
         self.source_ranges
     }
-    pub const fn source_legality(self) -> crate::AllocationLegalityIdentity {
+    pub const fn source_legality(self) -> register_homes::AllocationLegalityIdentity {
         self.source_legality
     }
-    pub const fn fixed_intervals(self) -> crate::FixedPrecoloredIntervalPlanIdentity {
+    pub const fn fixed_intervals(self) -> register_homes::FixedPrecoloredIntervalPlanIdentity {
         self.fixed_intervals
     }
-    pub const fn split_requirements(self) -> crate::FixedPrecoloredSplitRequirementPlanIdentity {
+    pub const fn split_requirements(
+        self,
+    ) -> register_homes::FixedPrecoloredSplitRequirementPlanIdentity {
         self.split_requirements
     }
-    pub const fn segment_homes(self) -> crate::FixedPrecoloredSegmentHomePlanIdentity {
+    pub const fn segment_homes(self) -> register_homes::FixedPrecoloredSegmentHomePlanIdentity {
         self.segment_homes
     }
     pub const fn transformation(self) -> FixedViewCopyIdentity {

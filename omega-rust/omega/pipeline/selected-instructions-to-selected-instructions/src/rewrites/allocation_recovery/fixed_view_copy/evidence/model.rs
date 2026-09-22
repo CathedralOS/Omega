@@ -3,10 +3,8 @@ use register_model::{RegisterClassId, RegisterViewId};
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 use semantic_vocabulary::MachineId;
 
-use crate::{
-    FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId, LiveRangeEdgeConnector,
-    VirtualFixedConstraintSite,
-};
+use register_homes::{FixedPrecoloredHomeDomainId, FixedPrecoloredSourceSegmentId};
+use selected_instructions::{LiveRangeEdgeConnector, VirtualFixedConstraintSite};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AuthenticatedFixedViewBoundary {

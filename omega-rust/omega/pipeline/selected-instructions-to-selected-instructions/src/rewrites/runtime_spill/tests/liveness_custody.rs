@@ -1,7 +1,7 @@
 //! The runtime-spill consumer needs fresh ranges for every cumulative rewrite,
 //! but one range analysis must not replay its immutable prerequisite twice.
 use super::{Arc, NativeTarget, OptimizationUnitIdentity, fixture};
-use crate::LIVENESS_REPLAYS;
+use crate::analyses::live_ranges::LIVENESS_REPLAYS;
 use crate::{
     LiveRangeError, LivenessError, analyze_live_ranges, analyze_liveness, validate_live_ranges,
 };

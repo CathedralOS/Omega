@@ -36,7 +36,7 @@ use selected_instructions::{
 };
 use semantic_vocabulary::IntegerValue;
 
-use crate::machine_semantic_kind;
+use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::peepholes::condition_flow::ConditionOperandResolution;
 
 /// The implicit physical-unit relationship the rewrite asserts between the

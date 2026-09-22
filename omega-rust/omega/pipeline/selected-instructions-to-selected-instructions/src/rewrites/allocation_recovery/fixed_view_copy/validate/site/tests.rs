@@ -1,8 +1,9 @@
 //! Immediate-site replay reconstructs every copy from current facts alone.
 use super::replay_site_copies;
+use crate::FixedViewCopyError;
 use crate::rewrites::allocation_recovery::fixed_view_copy::compute::tests::immediate_fixture;
-use crate::{FixedViewCopyError, VirtualFixedConstraintSite};
 use register_model::RegisterOperandAccess;
+use selected_instructions::VirtualFixedConstraintSite;
 use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedTerminator,
     VirtualRegisterId,

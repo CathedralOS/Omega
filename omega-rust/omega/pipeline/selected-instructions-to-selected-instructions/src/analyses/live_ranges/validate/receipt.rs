@@ -2,7 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use crate::{DistinctUseDefTie, LiveRangePlan, LiveRangeValidationReceipt, live_range_identity};
+use crate::LiveRangeValidationReceipt;
+use selected_instructions::{DistinctUseDefTie, LiveRangePlan, live_range_identity};
 
 pub(super) fn build_receipt(plan: &LiveRangePlan) -> LiveRangeValidationReceipt {
     LiveRangeValidationReceipt {

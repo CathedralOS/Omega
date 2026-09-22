@@ -1,7 +1,6 @@
 use crate::{
-    AllocationLegalityError, AllocationLegalityIdentity, AllocatorAvailabilityError,
-    AllocatorAvailabilityIdentity, ValidatedAllocationLegality, ValidatedAllocatorAvailability,
-    ValidatedLiveRanges, ValidatedLiveness,
+    AllocationLegalityError, AllocatorAvailabilityError, ValidatedAllocationLegality,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
 };
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
@@ -9,6 +8,7 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
@@ -88,8 +88,8 @@ pub struct StagedOptimizedAllocationLegalityCustodyReceipt {
     pub(super) register_environment: register_model::TargetRegisterEnvironmentIdentity,
     pub(super) allocator_availability: AllocatorAvailabilityIdentity,
     pub(super) selected: SelectedInstructionPlanIdentity,
-    pub(super) liveness: crate::LivenessIdentity,
-    pub(super) ranges: crate::LiveRangeIdentity,
+    pub(super) liveness: selected_instructions::LivenessIdentity,
+    pub(super) ranges: selected_instructions::LiveRangeIdentity,
     pub(super) legality: AllocationLegalityIdentity,
     pub(super) function_count: usize,
     pub(super) virtual_register_count: usize,
@@ -132,10 +132,10 @@ impl StagedOptimizedAllocationLegalityCustodyReceipt {
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
-    pub const fn liveness(self) -> crate::LivenessIdentity {
+    pub const fn liveness(self) -> selected_instructions::LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> crate::LiveRangeIdentity {
+    pub const fn ranges(self) -> selected_instructions::LiveRangeIdentity {
         self.ranges
     }
     pub const fn legality(self) -> AllocationLegalityIdentity {

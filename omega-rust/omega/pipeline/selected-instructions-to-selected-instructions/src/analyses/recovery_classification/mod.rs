@@ -1,8 +1,9 @@
 //! Optimizer module role: executable entrance. Exact pressure-recovery eligibility classification entrance.
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedLiveRanges;
+use crate::ValidatedSelectedAnalysis;
 use crate::ValidatedSpillChoices;
-use crate::{RecoveryClassificationPolicy, ValidatedSelectedAnalysis};
+use register_homes::RecoveryClassificationPolicy;
 
 pub(crate) mod compute;
 pub(crate) mod model;

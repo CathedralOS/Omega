@@ -107,7 +107,7 @@ impl StagedOptimizedFixedViewCopies {
             }
             OptimizedFixedViewCopyCustodyFieldForTest::AllocatorAvailability => {
                 self.custody.allocator_availability =
-                    crate::AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
             }
             OptimizedFixedViewCopyCustodyFieldForTest::SourceSelected => {
                 self.custody.source_selected =
@@ -123,19 +123,21 @@ impl StagedOptimizedFixedViewCopies {
             }
             OptimizedFixedViewCopyCustodyFieldForTest::SourceLegality => {
                 self.custody.source_legality =
-                    crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                    register_homes::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             OptimizedFixedViewCopyCustodyFieldForTest::FixedIntervals => {
                 self.custody.fixed_intervals =
-                    crate::FixedPrecoloredIntervalPlanIdentity::from_bytes([0xb7; 32]);
+                    register_homes::FixedPrecoloredIntervalPlanIdentity::from_bytes([0xb7; 32]);
             }
             OptimizedFixedViewCopyCustodyFieldForTest::SplitRequirements => {
                 self.custody.split_requirements =
-                    crate::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([0xb8; 32]);
+                    register_homes::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes(
+                        [0xb8; 32],
+                    );
             }
             OptimizedFixedViewCopyCustodyFieldForTest::SegmentHomes => {
                 self.custody.segment_homes =
-                    crate::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([0xb9; 32]);
+                    register_homes::FixedPrecoloredSegmentHomePlanIdentity::from_bytes([0xb9; 32]);
             }
             OptimizedFixedViewCopyCustodyFieldForTest::Transformation => {
                 self.custody.transformation = crate::FixedViewCopyIdentity::from_bytes([0xba; 32]);

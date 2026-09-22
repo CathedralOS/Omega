@@ -9,11 +9,12 @@ mod work;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
-    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomePolicy,
-    FunctionFixedPrecoloredSegmentHomes, FunctionFixedPrecoloredSplitRequirements,
-    FunctionLiveRanges,
+use crate::FixedPrecoloredSegmentHomeError;
+use register_homes::{
+    FixedPrecoloredSegmentHomePolicy, FunctionFixedPrecoloredSegmentHomes,
+    FunctionFixedPrecoloredSplitRequirements,
 };
+use selected_instructions::FunctionLiveRanges;
 
 pub(super) struct ReplayedHomes {
     pub(super) functions: Vec<FunctionFixedPrecoloredSegmentHomes>,

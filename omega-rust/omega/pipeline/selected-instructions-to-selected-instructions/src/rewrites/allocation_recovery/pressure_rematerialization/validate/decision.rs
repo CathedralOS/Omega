@@ -4,10 +4,11 @@ use selected_instructions::{
 };
 
 use crate::{
-    FunctionLiveRanges, PressureRecoveryClassification, PressureRematerializationAction,
-    PressureRematerializationError, PressureRematerializationPolicy, RecoveryClassification,
-    RecoveryVictimRole,
+    PressureRematerializationAction, PressureRematerializationError,
+    PressureRematerializationPolicy,
 };
+use register_homes::{PressureRecoveryClassification, RecoveryClassification, RecoveryVictimRole};
+use selected_instructions::FunctionLiveRanges;
 
 use super::selected_structure;
 

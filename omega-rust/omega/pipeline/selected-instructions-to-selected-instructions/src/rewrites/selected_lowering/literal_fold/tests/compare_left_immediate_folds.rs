@@ -14,10 +14,11 @@ use super::{
     policy_without, restage_literal, staged_inputs, staged_left_inputs, successor, unsigned,
     validate,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy, RecoveryClassification, RecoveryVictimRole};
+use crate::{LiteralFoldError, LiteralFoldPolicy};
 use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
+use register_homes::{RecoveryClassification, RecoveryVictimRole};
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineEffectCatalogIdentity, SelectedBlock, SelectedBlockId, SelectedBlockOrigin,

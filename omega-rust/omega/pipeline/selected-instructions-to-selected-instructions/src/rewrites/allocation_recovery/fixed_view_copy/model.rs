@@ -7,10 +7,8 @@ use selected_instructions::{
     FixedViewCopyIdentity, LiveRangeIdentity, SelectedInstructionPlanIdentity,
 };
 
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FixedViewCopyPlan,
-    FixedViewCopyPolicy, FixedViewCopySourceEvidence,
-};
+use crate::{FixedViewCopyPlan, FixedViewCopyPolicy, FixedViewCopySourceEvidence};
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FixedViewCopyValidationReceipt {
     pub(crate) identity: FixedViewCopyIdentity,

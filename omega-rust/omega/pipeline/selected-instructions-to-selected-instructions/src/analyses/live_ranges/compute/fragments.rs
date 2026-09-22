@@ -95,7 +95,7 @@ pub(super) fn fragments_overlap(left: &[LiveRangeFragment], right: &[LiveRangeFr
 
 pub(super) fn connector(
     source: SelectedBlockId,
-    edge: &crate::SuccessorLiveness,
+    edge: &selected_instructions::SuccessorLiveness,
 ) -> LiveRangeEdgeConnector {
     LiveRangeEdgeConnector {
         source,

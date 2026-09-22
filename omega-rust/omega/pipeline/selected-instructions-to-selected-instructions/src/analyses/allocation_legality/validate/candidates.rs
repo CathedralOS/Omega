@@ -15,7 +15,7 @@ use register_model::{
 };
 use selected_instructions::SelectedBlockId;
 
-use crate::{FunctionLiveRanges, LiveRangePoint};
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 
 #[derive(Clone)]
 pub(super) struct GeneralCandidates {

@@ -1,6 +1,7 @@
 //! Exact comparisons between retained and independently reconstructed rows.
 
-use crate::{EarlyClobberConstraint, FunctionLiveRanges, LiveRangeError};
+use crate::LiveRangeError;
+use selected_instructions::{EarlyClobberConstraint, FunctionLiveRanges};
 
 pub(super) fn require_function(
     function: usize,

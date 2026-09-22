@@ -3,10 +3,9 @@
 use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterReservationProfile};
 
 use super::{early_clobbers, fixed_views, live_points, view_candidates::CandidateViews};
-use crate::{
-    AllocationLegalityError, FunctionAllocationLegality, FunctionLiveRanges,
-    ValidatedAllocatorAvailability, VirtualRegisterAllocationLegality,
-};
+use crate::{AllocationLegalityError, ValidatedAllocatorAvailability};
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::FunctionLiveRanges;
 
 pub(super) fn compute(
     function_index: usize,

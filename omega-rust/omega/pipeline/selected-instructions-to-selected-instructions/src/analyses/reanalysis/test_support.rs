@@ -43,11 +43,11 @@ impl StagedOptimizedSelectedReanalysis {
             }
             OptimizedSelectedReanalysisCustodyFieldForTest::TransformedLegality => {
                 self.custody.transformed_legality =
-                    crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                    register_homes::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             OptimizedSelectedReanalysisCustodyFieldForTest::AllocatorAvailability => {
                 self.custody.allocator_availability =
-                    crate::AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
+                    register_homes::AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
             }
             OptimizedSelectedReanalysisCustodyFieldForTest::FunctionCount => {
                 self.custody.function_count += 1;

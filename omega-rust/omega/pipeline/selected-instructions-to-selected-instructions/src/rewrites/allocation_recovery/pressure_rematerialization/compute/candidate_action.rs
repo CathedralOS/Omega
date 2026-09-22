@@ -2,10 +2,11 @@ use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{SelectedFunction, SelectedInstructionId, VirtualRegisterId};
 
 use crate::{
-    FunctionLiveRanges, PressureRecoveryClassification, PressureRematerializationAction,
-    PressureRematerializationError, PressureRematerializationPolicy,
-    PressureRematerializationRewrite, RecoveryClassification, RecoveryVictimRole,
+    PressureRematerializationAction, PressureRematerializationError,
+    PressureRematerializationPolicy, PressureRematerializationRewrite,
 };
+use register_homes::{PressureRecoveryClassification, RecoveryClassification, RecoveryVictimRole};
+use selected_instructions::FunctionLiveRanges;
 
 use super::selected_structure;
 

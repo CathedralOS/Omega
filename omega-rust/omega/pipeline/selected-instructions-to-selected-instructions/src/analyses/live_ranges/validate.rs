@@ -12,9 +12,10 @@ mod receipt;
 mod replay;
 
 use crate::{
-    LiveRangeError, LiveRangePlan, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedSelectedAnalysis, validate_liveness,
+    LiveRangeError, ValidatedLiveRanges, ValidatedLiveness, ValidatedSelectedAnalysis,
+    validate_liveness,
 };
+use selected_instructions::LiveRangePlan;
 
 pub fn validate_live_ranges(
     selected: &impl crate::ValidatedSelectedAnalysis,

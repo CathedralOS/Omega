@@ -4,10 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::{RegisterOperandAccess, RegisterViewId};
 
-use crate::{
-    EntryFixedViewTransition, FixedPrecoloredInterval, FixedPrecoloredSplitRequirementError,
-    VirtualFixedConstraintSite, VirtualPointLegality,
-};
+use crate::FixedPrecoloredSplitRequirementError;
+use register_homes::{EntryFixedViewTransition, FixedPrecoloredInterval, VirtualPointLegality};
+use selected_instructions::VirtualFixedConstraintSite;
 
 type SiteKey = (u8, u32, u32, u32, u16, u8);
 

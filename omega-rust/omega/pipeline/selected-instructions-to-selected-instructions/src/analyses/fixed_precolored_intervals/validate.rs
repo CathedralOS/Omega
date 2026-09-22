@@ -1,11 +1,11 @@
 //! Independent replay comparison and fixed/precolored receipt sealing.
 
 use crate::{
-    FixedPrecoloredIntervalError, FixedPrecoloredIntervalPlan,
-    FixedPrecoloredIntervalValidationReceipt, ValidatedAllocationLegality,
-    ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges, VirtualFixedConstraintSite,
-    fixed_precolored_interval_plan_identity,
+    FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
+    ValidatedAllocationLegality, ValidatedFixedPrecoloredIntervals, ValidatedLiveRanges,
 };
+use register_homes::{FixedPrecoloredIntervalPlan, fixed_precolored_interval_plan_identity};
+use selected_instructions::VirtualFixedConstraintSite;
 
 pub fn validate_fixed_precolored_intervals(
     ranges: &ValidatedLiveRanges,

@@ -9,11 +9,14 @@ use semantic_vocabulary::MachineId;
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 use super::function;
-use crate::{
-    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, AllocatorAvailabilityValidationReceipt,
+use crate::{AllocatorAvailabilityValidationReceipt, ValidatedAllocatorAvailability};
+use register_homes::{
+    AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, RegisterClassAvailability,
+    allocator_availability_identity,
+};
+use selected_instructions::{
     DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, FunctionLiveRanges,
-    LiveRangeFragment, LiveRangePoint, LivenessPosition, RegisterClassAvailability,
-    ValidatedAllocatorAvailability, VirtualLiveRange, allocator_availability_identity,
+    LiveRangeFragment, LiveRangePoint, LivenessPosition, VirtualLiveRange,
 };
 
 mod candidate_reuse;
