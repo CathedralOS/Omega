@@ -1,23 +1,23 @@
-//! Literal-dispatch unit-plan stops: the two `runtime_*_literal_dispatch_exit`
-//! pass canaries are registered active in `canary_suite.rs`, but each still
-//! fails ProgramEntry establishment once its target entry binding is admitted:
-//! the selected ProgramEntry rejoins zero Terminal attachment identities
-//! because the machine's unit plan was omitted at local construction. Each
-//! fixture pins its own omission cause:
+//! Literal-dispatch unit-plan stop: the `runtime_string_literal_dispatch_exit`
+//! pass canary is registered active in `canary_suite.rs`, but still fails
+//! ProgramEntry establishment once its target entry binding is admitted: the
+//! selected ProgramEntry rejoins zero Terminal attachment identities because
+//! the machine's unit plan was omitted at local construction. The fixture
+//! pins its omission cause (its integer sibling,
+//! `control_flow/runtime_integer_literal_dispatch_exit`, compiles clean since
+//! the transition-chain tail became an admitted unit-plan terminator, so its
+//! pin retired into the fixture's active-pass claim):
 //!
-//! - `control_flow/runtime_integer_literal_dispatch_exit` stops at
-//!   `state graph: terminator: unsupported tail: transition chain` — the
-//!   integer `transition` chain is not yet an admitted unit-plan tail.
 //! - `control_flow/runtime_string_literal_dispatch_exit` stops at
 //!   `structural field store: record literal field` — establishing the
 //!   `"look"`/`"quit"` input string reaches a record-literal field store the
 //!   unit plan does not admit.
 //!
 //! The refusal surfaces during checked compilation as soon as an entry binding
-//! authorizes ProgramEntry establishment, so the pins compile to checked and
-//! assert the exact diagnostics — the terminal-artifact route reports the
-//! identical refusals. When the unit-plan admissions land, these pins flip
-//! to the fixtures' active-pass claim and this file can be retired.
+//! authorizes ProgramEntry establishment, so the pin compiles to checked and
+//! asserts the exact diagnostic — the terminal-artifact route reports the
+//! identical refusal. When the unit-plan admission lands, this pin flips to
+//! the fixture's active-pass claim and this file can be retired.
 
 use build_declarations::{BuildDeclaration, extract_build_declaration};
 use compiler::{CheckedCompileRequest, compile_to_checked};
@@ -35,11 +35,9 @@ mod macos_entry_acceptance;
 #[path = "support/windows_entry_acceptance.rs"]
 mod windows_entry_acceptance;
 
-const INTEGER_DISPATCH_CANARY: &str = "control_flow/runtime_integer_literal_dispatch_exit";
 const STRING_DISPATCH_CANARY: &str = "control_flow/runtime_string_literal_dispatch_exit";
 const ENTRY_REJOIN_PREFIX: &str =
     "selected ProgramEntry establishment rejoins 0 Terminal attachment identities";
-const INTEGER_OMISSION: &str = "state graph: terminator: unsupported tail: transition chain";
 const STRING_OMISSION: &str = "structural field store: record literal field";
 
 fn repo_root() -> PathBuf {
@@ -162,11 +160,6 @@ fn assert_stops_at_omitted_unit_plan(canary_path: &str, omission: &str) {
         rendered.contains(omission),
         "{canary_path} unit plan should be omitted at `{omission}`, got:\n{rendered}"
     );
-}
-
-#[test]
-fn integer_literal_dispatch_stops_at_transition_chain_tail() {
-    assert_stops_at_omitted_unit_plan(INTEGER_DISPATCH_CANARY, INTEGER_OMISSION);
 }
 
 #[test]
