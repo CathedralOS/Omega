@@ -210,7 +210,7 @@ fn psi_optimization_execution_record_rejects_every_one_field_substitution() {
             record,
             Some(b"installed-section"),
             Some(b"debug-section"),
-            retained_manifest.clone(),
+            retained_manifest,
         )
         .map(|()| record.identity())
     };

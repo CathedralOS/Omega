@@ -599,7 +599,7 @@ fn aggregate_leaf_result_tail_lends_the_leaf_referents() {
     let state = typed.machine_states(machine).first().expect("entry");
     let frame = resolver.inferred_state_write_frame(machine, state);
     assert_eq!(
-        frame.complete_paths().as_deref(),
+        frame.complete_paths(),
         Some(["self.other".to_owned(), "self.value".to_owned()].as_slice()),
         "a &mut return tail projected off a nested aggregate call result must lend the leaf's proven referents"
     );

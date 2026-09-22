@@ -1,7 +1,12 @@
 //! Conditional Unit effects converge before the caller's final output.
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
+use super::super::native_function;
 use super::super::{
-    OptimizationSelections, compiler_baseline_request_v1, native_function,
-    optimize_artifact_sections,
+    OptimizationSelections, compiler_baseline_request_v1, optimize_artifact_sections,
 };
 use super::{
     AdmissionProfile, AdmittedBoundaryExecution, AdmittedBoundarySettlement,

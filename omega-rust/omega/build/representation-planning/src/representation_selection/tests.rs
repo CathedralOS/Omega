@@ -110,8 +110,8 @@ fn retained_roster_rejects_omission_duplication_reorder_and_extension() {
 
     // Omission: the whole roster and a single dropped row.
     expect_rejection(replay(&fixture, &[]), expected);
-    expect_rejection(replay(&fixture, &[first.clone()]), expected);
-    expect_rejection(replay(&fixture, &[second.clone()]), expected);
+    expect_rejection(replay(&fixture, std::slice::from_ref(first)), expected);
+    expect_rejection(replay(&fixture, std::slice::from_ref(second)), expected);
 
     // Duplication: one retained row appearing twice.
     expect_rejection(

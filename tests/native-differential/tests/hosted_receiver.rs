@@ -70,9 +70,11 @@ fn hosted_receiver_bridge_binds_emits_and_replays_on_all_hosted_targets() {
             "{profile:?} emits its hosted container",
         );
 
-        if profile == TargetProfile::LinuxX64
-            && cfg!(all(target_os = "linux", target_arch = "x86_64"))
-        {
+        // `run_emitted_image` is declared only for hosts that can execute an
+        // emitted container, so this arrival check must be compiled out
+        // elsewhere rather than merely skipped: `cfg!` still demands the name.
+        #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+        if profile == TargetProfile::LinuxX64 {
             // The Linux x86-64 bridge is a real process entry: kernel arrival,
             // private stack switch, provisioned receiver in rdi, exit_group
             // status zero on normal completion.

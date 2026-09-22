@@ -398,7 +398,7 @@ fn landing_summaries(
                     }
                     let selected = results.split_off(results.len() - count);
                     let mut joined = Vec::new();
-                    for (arm, mut arm_results) in arms.iter().zip(selected.into_iter()) {
+                    for (arm, mut arm_results) in arms.iter().zip(selected) {
                         for summary in &mut arm_results {
                             summary.selection.push((expression, arm.value));
                         }
