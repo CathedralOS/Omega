@@ -254,6 +254,30 @@ the complete product bar; focused successes below do not establish that baseline
   is covered by `checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`;
   another diagnostic-only change does not close corpus behavior.
 
+  Seventeen `ACTIVE_PASS_CANARIES` members author no hosted `ProgramEntry`
+  root, so host native-artifact production refuses them with `native-artifact
+  production requires one exact selected program entry` before any lowering
+  runs: `selected_program_entry_machine` returns `None` exactly when the
+  evaluated build harvested no `roots.bind` row
+  (`build-evaluation/src/admission/selection.rs`). This is a declared-stage
+  mismatch, not a missing lowering. `a591bc84b9` bound every hosted entry it
+  could and deliberately left value-returning, parameterized and UEFI-shaped
+  mains entry-free, but did not move them off the native roster. Nine have no
+  `build.omg` at all (`calls/runtime_call_enum_field_with_args`,
+  `calls/runtime_call_enum_field_with_mut_arg`, `calls/runtime_call_enum_sequence`,
+  `calls/runtime_transition_subject_call_guard`,
+  `control_flow/runtime_guarded_leaf_ordering_call`,
+  `storage/runtime_alias_field_binary`, `storage/runtime_alias_field_integer`,
+  `storage/runtime_alias_integer_write`, `targets/entry_run_args_bytes`);
+  eight declare a freestanding EFI build with no bound root
+  (`ownership/linear_boundary_entry_handoff` and `targets/efi_*`), whose
+  `-> i32` entries also meet the no-result rule every profile's
+  `required_root_slots` enforces, so their route depends on the entry contract
+  **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns. Decide per fixture between a
+  `uefi_x86_64` cross-target route, an authored entry wrapper, and a declared
+  non-native stage; the acceptance below already forbids blanket-demoting them
+  to checked-only.
+
   Current integration targets:
   - `text/runtime_stdin_command_branch_exit`: owned `Command` result-to-field
     assignment in `parsed_input`; `execution/terminal_unit/control/statement_sequence.rs`
