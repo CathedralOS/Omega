@@ -1,4 +1,11 @@
-pub(super) use crate::legalized_operations::*;
+pub(super) use crate::legalized_operations::{
+    LegalizedBoundarySettlement, LegalizedDynamicParameterCall, LegalizedExactIntegerOperator,
+    LegalizedNormalizedForeignCall, LegalizedOperationPlan, LegalizedOperationPlanIdentity,
+    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarComparison,
+    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarReturnValue,
+    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralContract,
+    NativeCallOrigin,
+};
 pub(super) use abstract_operations::{CompletionClaimSource, ValueBinding};
 pub(super) use calling_conventions::{
     CallPlan, CallbackMaterialization, CallingPolicy, EntryControl, IndirectPointerLocation,
