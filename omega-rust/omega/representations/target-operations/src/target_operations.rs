@@ -28,19 +28,45 @@ pub struct TargetOperationPlan {
 }
 
 pub mod calls;
-pub use calls::*;
+pub use calls::{
+    MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetBoundaryResult,
+    TargetCallResult, TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
+    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
+    TargetNativeCallbackArgument, TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+};
 pub mod control_flow;
-pub use control_flow::*;
+pub use control_flow::{
+    TargetControlBlock, TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
+    TargetControlSuccessor, TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
+    TargetStructuralReturnSource,
+};
 pub mod provenance;
-pub use provenance::*;
+pub use provenance::{CallSiteOwner, TerminalPsiProvenance};
 pub mod boundary;
-pub use boundary::*;
+pub use boundary::{
+    BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
+    BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
+    ClaimCompletionOnlyRealization, CompilerBuiltinExecution, DirectPortReadU8Realization,
+    HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
+    LinuxWriteLineRealization, MetadataOnlyPortRealization, NormalizedForeignCallBinding,
+    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument, ProviderExecutionBinding,
+    ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
+};
 pub mod operations;
-pub use operations::*;
+pub use operations::{NativeCallOrigin, TargetUnitOperation};
 pub mod values;
-pub use values::*;
+pub use values::{
+    TargetBooleanExpression, TargetByteView, TargetIntegerExpression, TargetReferenceResult,
+    TargetScalarBlockValue, TargetScalarExpression, TargetScalarImmediate,
+    TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
+};
 pub mod storage;
-pub use storage::*;
+pub use storage::{
+    ScalarParameterLocation, TargetStructuralHomeLayout, TargetStructuralHomeOrigin,
+    TargetStructuralHomeRequirement, TargetUnitScalarHomeRequirement,
+    TargetUnitWriteOnlyPrimitiveStoreSource,
+};
 
 #[cfg(test)]
 mod tests;
