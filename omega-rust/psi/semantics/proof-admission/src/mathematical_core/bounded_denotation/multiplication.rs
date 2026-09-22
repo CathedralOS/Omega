@@ -337,7 +337,7 @@ impl Denotation {
             IntegerValue::Signed(value) => BigInt::from_i128(value),
             IntegerValue::Unsigned(value) => BigInt::from_u128(value),
         };
-        if super::math_literal_value(*bound_literal).map(|value| as_integer(value))
+        if super::math_literal_value(*bound_literal).map(as_integer)
             != Some(as_integer(endpoint_value))
         {
             return Ok(None);

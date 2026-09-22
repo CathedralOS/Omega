@@ -287,7 +287,7 @@ pub(crate) fn validate_cleanup(
     // Producer position in this unit's operation list is establishment order;
     // the residual groups run latest-established first while each root's own
     // complement keeps its checked path order.
-    residual_runs.sort_by(|left, right| right.0.cmp(&left.0));
+    residual_runs.sort_by_key(|run| std::cmp::Reverse(run.0));
     let expected: Vec<_> = residual_runs
         .into_iter()
         .flat_map(|(_, residuals)| residuals)
