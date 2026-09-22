@@ -56,6 +56,7 @@ pub(super) fn lower_operation(
         | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
         AbstractOperation::PrimitiveLocalStore { destination, .. } => Some(*destination),
         AbstractOperation::WriteOnlyPrimitiveStore { destination, .. }
+        | AbstractOperation::WriteOnlyIndexedPrimitiveStore { destination, .. }
         | AbstractOperation::StructuralScalarFieldStore { destination, .. } => {
             Some(destination.place)
         }
@@ -489,15 +490,16 @@ pub(super) fn lower_operation(
                 provenance,
             )
         }
-        // The verified abstract store retains its runtime index and bounds
-        // obligation, but no target operation realizes a runtime-indexed
-        // write yet: physical address computation, element-width scaling,
-        // and the bounds-check realization stay fenced here.
-        AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. } => {
-            Err(LoweringError::UnsupportedWriteOnlyPrimitiveStore {
-                machine: function.machine,
-                operation: *psi_operation,
-            })
+        AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. } => {
+            crate::lowering::unit::write_only_indexed_primitive_store::lower_write_only_indexed_primitive_store(
+                operation,
+                function,
+                structural_types,
+                parameters_by_place,
+                &super::scalar_sources::ScalarSources::from(&*live),
+                operations,
+                provenance,
+            )
         }
         AbstractOperation::BoundaryCall { boundary, .. }
             if settlements.get(boundary).is_some_and(|binding| {

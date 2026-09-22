@@ -946,7 +946,8 @@ fn interferes(
             access.place == forwarded.place && forwarded.intersects(access)
         }
         SelectedMemoryAccessRole::WriteByteSequence { .. }
-        | SelectedMemoryAccessRole::WriteByteSpan { .. } => {
+        | SelectedMemoryAccessRole::WriteByteSpan { .. }
+        | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. } => {
             access.place == forwarded.place && forwarded.reached_by(access, function)
         }
         SelectedMemoryAccessRole::WriteLocal { slot } => {

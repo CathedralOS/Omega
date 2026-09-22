@@ -789,7 +789,8 @@ fn interferes(
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
+        | SelectedMemoryAccessRole::WriteByteSequence { .. }
+        | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. } => {
             matches!(dead.storage, SubjectStorage::Place)
                 && access.place == dead.place
                 && dead.reached_by(access, function)

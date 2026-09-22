@@ -55,6 +55,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
+    | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
         Ok((*psi_operation, None))
@@ -537,6 +538,30 @@ pub(super) fn validate(
                     terminal_psi::StructuralAccess::MutableBorrow
                         | terminal_psi::StructuralAccess::WriteOnlyBorrow
                 )
+                || value_type(optimized, value.value) != Some(value.scalar_type)
+                || scalar_shape(value.scalar_type).is_none()
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        if let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
+            destination,
+            index,
+            value,
+            ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !optimized.structural_parameters.contains(destination)
+                || !matches!(
+                    destination.access,
+                    terminal_psi::StructuralAccess::MutableBorrow
+                        | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                )
+                || value_type(optimized, index.value) != Some(index.scalar_type)
+                || index.scalar_type != ScalarType::Integer(u64_type())
                 || value_type(optimized, value.value) != Some(value.scalar_type)
                 || scalar_shape(value.scalar_type).is_none()
             {

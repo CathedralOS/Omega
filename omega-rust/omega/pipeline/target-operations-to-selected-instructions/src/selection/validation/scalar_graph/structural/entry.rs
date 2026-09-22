@@ -162,7 +162,8 @@ pub(in crate::selection) fn entry(
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source: argument, .. } => argument.place == place,
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
-            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,
+            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. }
+            | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }

@@ -154,6 +154,22 @@ pub enum TargetUnitOperation {
         destination_placement: ValuePlacement,
         source: TargetUnitWriteOnlyPrimitiveStoreSource,
     },
+    /// One verified runtime-indexed primitive element write through an exact
+    /// mutable or write-only root. `path` resolves from the destination root
+    /// to the fixed array itself; `index` is the exact dominating u64 scalar
+    /// definition and `obligation` certifies `index < extent`, so the write
+    /// always lands inside the declared array. Selection must not realize
+    /// this operation without an exact element-width address model.
+    WriteOnlyIndexedPrimitiveStore {
+        psi_operation: OperationId,
+        destination: StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: TargetUnitScalarArgumentSource,
+        destination_type: StructuralTypeDeclaration,
+        destination_placement: ValuePlacement,
+        source: TargetUnitScalarArgumentSource,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// One verifier-approved fixed-width integer write into an exact field of
     /// a staged attached-Unit structural parameter (receiver or ordinary
     /// parameter). Semantic location and

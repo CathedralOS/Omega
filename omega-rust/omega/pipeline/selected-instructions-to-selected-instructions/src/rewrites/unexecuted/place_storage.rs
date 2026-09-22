@@ -226,13 +226,21 @@ pub(super) fn resolved_sequence_position(
     access: &SelectedMemoryAccess,
     function: &SelectedFunction,
 ) -> Option<u64> {
-    let index = match access.role {
+    match access.role {
         SelectedMemoryAccessRole::ReadByteSequence { index, .. }
-        | SelectedMemoryAccessRole::WriteByteSequence { index, .. } => index,
-        _ => return None,
-    };
-    constant_index(function, index)
-        .and_then(|landed| u64::from(access.byte_offset).checked_add(landed))
+        | SelectedMemoryAccessRole::WriteByteSequence { index, .. } => {
+            return constant_index(function, index)
+                .and_then(|landed| u64::from(access.byte_offset).checked_add(landed));
+        }
+        SelectedMemoryAccessRole::WriteIndexedPrimitive { index, .. } => {
+            return constant_index(function, index).and_then(|landed| {
+                u64::from(access.byte_offset)
+                    .checked_add(landed.checked_mul(u64::from(access.byte_count))?)
+            });
+        }
+        _ => {}
+    }
+    None
 }
 
 /// Whether a row can reach the subject extent at `byte_offset ..`, counting

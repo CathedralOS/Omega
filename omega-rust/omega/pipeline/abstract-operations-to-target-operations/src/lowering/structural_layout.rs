@@ -33,6 +33,45 @@ pub(super) fn primitive_projection_type(
     }
 }
 
+/// Resolve a path that lands on a fixed array of primitive scalars, returning
+/// the element scalar type and declared extent. The runtime index stays out
+/// of the path — it is carried by the indexed store itself.
+pub(super) fn indexed_array_projection(
+    mut carrier: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+) -> Option<(ScalarType, u64)> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment as Segment;
+    for segment in path {
+        carrier = match (segment, &declarations.get(&carrier)?.shape) {
+            (Segment::Field(identity), StructuralTypeShape::Record { fields }) => {
+                let field = fields.iter().find(|field| field.id == *identity)?;
+                if field.relevance.is_erased() {
+                    return None;
+                }
+                match &field.field_type {
+                    StructuralFieldType::Structural(child) => *child,
+                    _ => return None,
+                }
+            }
+            (
+                Segment::FixedIndex(position),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if position < length => *element,
+            _ => return None,
+        };
+    }
+    match declarations.get(&carrier)?.shape {
+        StructuralTypeShape::FixedArray { element, length } => {
+            match declarations.get(&element)?.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, length)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 mod scalar_fields;
 pub(super) use scalar_fields::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,

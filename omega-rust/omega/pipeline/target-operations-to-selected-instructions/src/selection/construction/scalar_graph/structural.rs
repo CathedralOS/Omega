@@ -31,6 +31,7 @@ mod record;
 mod scalar_array;
 mod scalar_case;
 pub(super) use primitive_locals::read;
+mod indexed_store;
 mod scalar_store;
 mod subslice;
 
@@ -235,6 +236,13 @@ pub(super) fn operation(
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
     ) {
         scalar_store::emit(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { .. }
+    ) {
+        indexed_store::emit(source, row, builder)?;
         return Ok(true);
     }
     if matches!(
