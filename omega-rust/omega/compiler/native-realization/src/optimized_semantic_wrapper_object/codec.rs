@@ -1,6 +1,17 @@
-use crate::optimized_semantic_wrapper_object::error::*;
-use crate::optimized_semantic_wrapper_object::model::*;
+use crate::optimized_semantic_wrapper_object::error::{
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
+    OptimizedProgramStorageSemanticWrapperObjectError,
+};
 use crate::optimized_semantic_wrapper_object::model::{CODEC_VERSION, CONTAINER_MAGIC};
+use crate::optimized_semantic_wrapper_object::model::{
+    OptimizedProgramStorageSemanticWrapperCallResolution,
+    OptimizedProgramStorageSemanticWrapperCallResolutionState,
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectSymbol,
+    OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
+};
 use crate::optimized_semantic_wrapper_object::object::{
     validate_object, validate_object_preserving_seal, validate_object_shape_content,
 };

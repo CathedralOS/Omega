@@ -1,5 +1,7 @@
 //! Optimizer module role: executable entrance.
 
+use crate::optimized_semantic_wrapper_object::error::OptimizedProgramStorageSemanticWrapperObjectError;
+use crate::optimized_semantic_wrapper_object::model::OptimizedProgramStorageSemanticWrapperObjectPlan;
 use crate::{
     StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
 };
@@ -13,9 +15,6 @@ pub(crate) use manifest::{construct_manifest, valid_manifest_shape, validate_man
 pub(crate) use validation::{
     validate_object, validate_object_preserving_seal, validate_object_shape_content,
 };
-
-use crate::optimized_semantic_wrapper_object::error::*;
-use crate::optimized_semantic_wrapper_object::model::*;
 
 pub(crate) fn construct_object(
     settlement: &ValidatedNativeProgramEntrySettlement,

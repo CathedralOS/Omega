@@ -1,5 +1,9 @@
 //! Optimizer module role: executable entrance.
 
+use crate::optimized_semantic_wrapper_object::model::{
+    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+    StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
+};
 use crate::validate_optimized_program_storage_semantic_wrapper_encoding;
 use object_file::validate_optimized_object_artifact;
 mod entry_contract;
@@ -18,7 +22,6 @@ use super::codec::{
 };
 use super::custody::custody;
 use super::error::OptimizedProgramStorageSemanticWrapperObjectError;
-use super::model::*;
 use super::object::{construct_object, validate_manifest, validate_object_preserving_seal};
 
 pub fn validate_optimized_program_storage_semantic_wrapper_object(
