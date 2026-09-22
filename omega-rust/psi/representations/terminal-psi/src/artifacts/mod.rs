@@ -6,6 +6,20 @@
 mod checked_program_entry;
 mod debug_map;
 mod proof_bundle;
-pub use checked_program_entry::*;
-pub use debug_map::*;
-pub use proof_bundle::*;
+pub use checked_program_entry::{
+    CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverCleanup,
+    CheckedProgramEntryReceiverEligibility, CheckedProgramEntryReceiverProjection,
+    CheckedProgramEntryTerminalReceipt,
+};
+pub use debug_map::{
+    DebugFileId, DebugSite, DebugSourceDigest, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan,
+    DebugSubject, TerminalDebugMap,
+};
+pub use proof_bundle::{
+    AdmissionEvidence, AdmissionKind, CertificateEnvelope, ControlCycleEvidence,
+    CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness, EvidenceProducerProvenance,
+    EvidenceProducerRealization, EvidenceProducerRowSource, EvidenceRoute, IntegerAffineWitness,
+    IntegerCastChainWitness, IntegerCorrelatedForbiddenRootWitness, ObligationEvidence,
+    PrimitiveJudgment, ProofBundle, ProofNode, ProofRule, ProofSystemMarker,
+    RecursiveComponentCertificate, RecursiveComponentEvidence, RecursiveEdgeCertificate,
+};

@@ -3,5 +3,5 @@
 mod semantic;
 mod vocabulary;
 
-pub use semantic::*;
-pub use vocabulary::*;
+pub use semantic::{SemanticFingerprint, TerminalPsiIdentity};
+pub use vocabulary::VocabularyMarker;
