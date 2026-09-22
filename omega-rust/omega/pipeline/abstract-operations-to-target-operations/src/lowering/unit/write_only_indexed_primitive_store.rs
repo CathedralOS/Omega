@@ -3,9 +3,16 @@
 //! dominating-source maps every other Unit argument uses; the bounds
 //! obligation and declared extent stay on the operation for replay.
 use super::super::scalar_abi::fixed_native_scalar_shape;
-use super::super::shared::*;
+use crate::LoweringError;
 use crate::lowering::control_flow::scalar_sources::ScalarSources;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueShape;
+use semantic_vocabulary::PlaceId;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetStructuralParameter, TargetUnitOperation, TerminalPsiProvenance};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(in crate::lowering) fn lower_write_only_indexed_primitive_store(
     operation: &AbstractOperation,

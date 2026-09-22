@@ -1,11 +1,16 @@
 //! Byte observation and view operations for common graph lowering.
-use super::{
-    AbstractFunction, AbstractOperation, BTreeMap, IntegerSign, KnownInteger, KnownScalar,
-    LoweringError, OperationId, PlaceId, ScalarType, StructuralAccess, StructuralMultiplicity,
-    StructuralTypeId, StructuralTypeLookup, StructuralTypeShape, TargetIntegerExpression,
-    TargetStructuralParameter, ValueId, ValueShape, insert_value,
+use super::{KnownInteger, KnownScalar, insert_value};
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueShape;
+use semantic_vocabulary::{
+    IntegerSign, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
 };
+use std::collections::BTreeMap;
 use target_operations::TargetByteView;
+use target_operations::{TargetIntegerExpression, TargetStructuralParameter};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 pub(in crate::lowering) fn block_source(
     function: &AbstractFunction,

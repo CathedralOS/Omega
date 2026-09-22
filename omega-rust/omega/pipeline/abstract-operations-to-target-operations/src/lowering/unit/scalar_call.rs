@@ -1,5 +1,17 @@
 use super::super::scalar_abi::{fixed_native_integer_shape, fixed_native_scalar_shape};
-use super::super::shared::*;
+use crate::LoweringError;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueLocation;
+use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use semantic_vocabulary::{BlockId, IeeeFloatFormat, IntegerValue, OperationId};
+use semantic_vocabulary::{IntegerType, MachineId, ScalarType, ValueId};
+use std::collections::BTreeMap;
+use target::NativeTarget;
+use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
+use target_operations::{
+    TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::lowering) enum KnownUnitInteger {
@@ -260,11 +272,12 @@ fn require_exact_target_abi(
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CallSignature, CallingPolicy, IntegerSign, IntegerType, LoweringError, MachineId,
-        NativeTarget, ScalarAbiValue, ScalarFunctionAbi, ScalarType, ValueId, ValueShape,
-        evaluate_call_plan, require_exact_target_abi,
-    };
+    use super::require_exact_target_abi;
+    use crate::LoweringError;
+    use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+    use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
+    use target::NativeTarget;
+    use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
 
     fn abi() -> ScalarFunctionAbi {
         let scalar_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();

@@ -3,9 +3,26 @@
 use super::super::boundary_settlements::claim_completion_only_boundary_is_exact;
 use super::super::control_flow::scalar_sources::ScalarSources;
 use super::super::scalar_abi::fixed_native_integer_shape;
-use super::super::shared::*;
 use super::super::structural_layout::structural_sum_layout;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::{
+    CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
+};
+use semantic_vocabulary::{
+    BoundaryMachineId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
+    StructuralTypeId, ValueId,
+};
+use std::collections::{BTreeMap, BTreeSet};
+use target::{Architecture, NativeTarget, ObjectFormat};
+use target_operations::{
+    BoundaryByteSequenceArgument, BoundaryRealization, BoundarySettlementBinding,
+    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarCallArgument,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
+use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 mod normalized_foreign;
 

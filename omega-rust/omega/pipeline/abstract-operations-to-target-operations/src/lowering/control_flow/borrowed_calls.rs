@@ -1,8 +1,19 @@
 //! Borrow primitive referents from incoming pointers or established local storage.
 use super::LiveDefinitions;
+use crate::LoweringError;
 use crate::lowering::function_signature::{PreparedFunctionSignature, prepare_function_signature};
-use crate::lowering::shared::*;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use calling_conventions::ValueShape;
+use semantic_vocabulary::MachineId;
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
 use target_operations::TargetStructuralArgumentSource;
+use target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarCallArgument, TerminalPsiProvenance,
+};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralPathSegment};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn lower(

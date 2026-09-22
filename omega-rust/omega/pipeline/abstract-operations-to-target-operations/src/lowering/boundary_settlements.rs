@@ -1,4 +1,7 @@
-use super::shared::*;
+use abstract_operations::{AbstractFunction, CompletionClaimSource};
+use semantic_vocabulary::{PlaceId, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::TargetStructuralParameter;
 
 pub(super) fn claim_completion_only_boundary_is_exact(
     function: &AbstractFunction,

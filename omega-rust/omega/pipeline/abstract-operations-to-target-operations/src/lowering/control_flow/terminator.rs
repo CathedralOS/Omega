@@ -1,8 +1,18 @@
 //! Result-bearing exits and exact successor telescopes.
 use super::LiveDefinitions;
 use super::{observations, structural_case};
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
+};
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
+use std::collections::BTreeSet;
+use target_operations::{TargetBooleanExpression, TargetScalarExpression, TerminalPsiProvenance};
 use target_operations::{TargetControlSuccessor, TargetControlTerminator};
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, TerminalAffineCleanupAction,
+};
 
 // An unobserved owned arrival has no live storage home, so its discard keys
 // on the arrival declaration — the same owned affine contract a realized home

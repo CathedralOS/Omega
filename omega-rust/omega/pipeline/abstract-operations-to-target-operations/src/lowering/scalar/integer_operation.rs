@@ -1,9 +1,13 @@
 //! Exhaustive selection of integer scalar-operation semantics.
 use super::{
-    AbstractOperation, BTreeMap, IntegerBinaryKind, KnownInteger, KnownScalar, LoweringError,
-    ScalarType, TargetIntegerExpression, ValueId, WrappingShiftKind, insert_value,
+    IntegerBinaryKind, KnownInteger, KnownScalar, WrappingShiftKind, insert_value,
     lower_exact_shift_left, lower_exact_shift_right, lower_integer_binary, lower_wrapping_shift,
 };
+use crate::LoweringError;
+use abstract_operations::AbstractOperation;
+use semantic_vocabulary::{ScalarType, ValueId};
+use std::collections::BTreeMap;
+use target_operations::TargetIntegerExpression;
 pub(in crate::lowering) fn try_lower_integer_operation(
     operation: &AbstractOperation,
     values: &mut BTreeMap<ValueId, KnownScalar>,

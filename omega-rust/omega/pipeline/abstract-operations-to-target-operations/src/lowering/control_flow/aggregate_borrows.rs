@@ -2,7 +2,11 @@
 //! Owned ABI fragments become addressable backing only when a call needs a loan;
 //! they are not a pointer to the caller's value copy or a new shared snapshot.
 use super::LiveDefinitions;
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
 
 pub(super) fn is_reference(
     parameter: &terminal_psi::StructuralParameterDeclaration,

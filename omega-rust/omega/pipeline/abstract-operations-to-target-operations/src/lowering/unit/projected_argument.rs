@@ -1,7 +1,13 @@
 //! Shared lowering for one field-projected structural call argument.
 
-use super::super::shared::*;
 use super::super::structural_layout::{resolve_structural_field_path, structural_parameter_shape};
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use calling_conventions::{ValuePlacement, ValueShape};
+use semantic_vocabulary::{MachineId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
+use terminal_psi::StructuralPathSegment;
 use terminal_psi::{StructuralArgument, StructuralParameterDeclaration};
 
 #[allow(clippy::too_many_arguments)]

@@ -1,4 +1,10 @@
-use super::shared::*;
+use crate::LoweringError;
+use calling_conventions::ValueShape;
+use semantic_vocabulary::IeeeFloatFormat;
+use semantic_vocabulary::{ScalarType, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{StructuralAccess, StructuralPathSegment};
+use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 /// Resolve static primitive storage without replacing its root ABI declaration.
 pub(super) fn primitive_projection_type(
@@ -640,11 +646,11 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        BTreeMap, BTreeSet, ScalarType, StructuralFieldId, StructuralFieldType,
-        StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueShape,
-        structural_shape,
-    };
+    use super::structural_shape;
+    use calling_conventions::ValueShape;
+    use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
+    use std::collections::{BTreeMap, BTreeSet};
+    use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
     fn structural_type(value: u32) -> StructuralTypeId {
         StructuralTypeId::new(value.into()).expect("structural type")

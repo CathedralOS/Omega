@@ -6,7 +6,6 @@ mod integer_binary;
 mod integer_operation;
 mod shift;
 
-use super::shared::*;
 use expressions::*;
 pub(in crate::lowering) use expressions::{
     KnownInteger, KnownScalar, equal_boolean, equal_integer, order_integer,

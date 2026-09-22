@@ -1,6 +1,13 @@
 //! Record construction retains the complete declared field tuple in one home.
 use super::LiveDefinitions;
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use std::collections::BTreeSet;
+use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+};
 
 pub(super) fn establish(
     operation: &AbstractOperation,

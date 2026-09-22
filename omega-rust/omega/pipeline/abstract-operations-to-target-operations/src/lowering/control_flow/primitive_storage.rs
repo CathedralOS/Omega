@@ -1,8 +1,21 @@
 //! Activation-local primitive backing and fresh storage observations.
 use super::{KnownUnitInteger, LiveDefinitions};
+use crate::LoweringError;
 use crate::lowering::function_signature::PreparedFunctionSignature;
-use crate::lowering::shared::*;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::ValueShape;
+use semantic_vocabulary::{
+    IeeeFloatFormat, IntegerSign, IntegerType, OperationId, ScalarType, StructuralTypeId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
+use target_operations::{
+    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeDeclaration,
+    StructuralTypeShape,
+};
 
 pub(super) fn is_primitive_reference(
     parameter: &terminal_psi::StructuralParameterDeclaration,

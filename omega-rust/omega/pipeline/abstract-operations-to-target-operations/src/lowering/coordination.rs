@@ -2,7 +2,13 @@ use super::function::lower_function;
 use super::scalar_abi::{
     derive_fixed_scalar_function_abi, derive_mixed_structural_scalar_function_abi,
 };
-use super::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::AbstractOperationPlan;
+use installation_evidence::ProviderInstallationEvidence;
+use std::collections::BTreeMap;
+use target::NativeTarget;
+use target_operations::{BoundarySettlementBinding, TargetFunction, TargetOperationPlan};
 
 mod ieee_float_fma_settlements;
 mod installed_provider_calls;

@@ -1,9 +1,19 @@
 //! Shared call signature and incoming parameter placement for ordinary graphs.
 
 use super::scalar_abi::fixed_native_integer_shape;
-use super::shared::*;
 use super::structural_signature::StructuralCallSignature;
 use super::unit::scalar_call::KnownUnitInteger;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use calling_conventions::{CallPlan, ValueShape};
+use semantic_vocabulary::{IeeeFloatFormat, MachineId, PlaceId, ScalarType, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
+    ScalarAbiValue, TargetDynamicDescriptorParameterAbi, TargetStructuralParameter,
+};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(super) fn integer_parameters(
     machine: MachineId,

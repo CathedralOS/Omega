@@ -1,6 +1,13 @@
 //! Optimizer module role: executable entrance. Every function lowers through its explicit control graph.
 
-use super::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::AbstractFunction;
+use installation_evidence::InstalledProviderCallEvidence;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId};
+use std::collections::BTreeMap;
+use target::NativeTarget;
+use target_operations::{BoundarySettlementBinding, ScalarFunctionAbi, TargetFunction};
 
 mod native_boundaries;
 

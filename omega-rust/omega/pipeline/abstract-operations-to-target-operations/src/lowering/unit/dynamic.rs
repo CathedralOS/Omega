@@ -1,11 +1,21 @@
 //! Exact target lowering for one rebound dynamic call.
 
 use super::super::scalar::scalar_shape;
-use super::super::shared::*;
 use super::super::structural_signature::StructuralCallSignature;
 use super::projected_argument;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
 use abstract_operations::{AbstractReboundDynamicDispatch, AbstractStoredDynamicDispatch};
+use calling_conventions::{CallPlan, ValueShape};
+use semantic_vocabulary::{MachineId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
+    TargetStructuralArgument, TargetStructuralParameter, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(in crate::lowering) fn lower_stored_descriptor(

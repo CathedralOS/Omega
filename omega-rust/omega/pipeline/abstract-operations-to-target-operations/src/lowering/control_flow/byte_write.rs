@@ -1,7 +1,15 @@
 //! Exact mutable byte descriptors and once-evaluated scalar write operands.
 
 use super::LiveDefinitions;
-use crate::lowering::shared::*;
+use crate::LoweringError;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use semantic_vocabulary::{IntegerSign, IntegerType, PlaceId};
+use std::collections::{BTreeMap, BTreeSet};
+use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
+use terminal_psi::{
+    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+};
 
 /// Keep replacement as one ordered operation. Capacity is a destination bound,
 /// not permission to read that many bytes from a shorter immutable source.

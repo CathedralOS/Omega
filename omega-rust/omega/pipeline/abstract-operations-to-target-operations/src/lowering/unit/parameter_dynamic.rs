@@ -4,9 +4,18 @@
 //! ever selected statically.
 
 use super::super::scalar::scalar_shape;
-use super::super::shared::*;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
+use crate::LoweringError;
 use abstract_operations::AbstractParameterDynamicDispatch;
+use abstract_operations::{AbstractFunction, AbstractOperation};
+use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, ValueId};
+use std::collections::BTreeMap;
+use target::NativeTarget;
+use target_operations::{
+    TargetDynamicDescriptorParameterAbi, TargetUnitOperation, TargetUnitScalarHomeRequirement,
+    TerminalPsiProvenance,
+};
 use terminal_psi::{ClosedConformanceCallableResult, TerminalDynamicRequirement};
 
 struct LoweredParameterDynamicCall {

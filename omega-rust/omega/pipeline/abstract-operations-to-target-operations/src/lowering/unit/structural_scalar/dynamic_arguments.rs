@@ -1,18 +1,24 @@
 //! Structural calls whose ABI arguments are dynamic descriptor pairs.
 
+use abstract_operations::{AbstractDynamicDescriptorSource, AbstractFunctionResult};
+use calling_conventions::{CallPlan, CallSignature, CallingPolicy, evaluate_call_plan};
+use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, BTreeSet};
+use target::NativeTarget;
+use target_operations::{
+    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
+    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
+    TargetUnitScalarHomeRequirement,
+};
+use terminal_psi::StructuralPathSegment;
 
-use crate::lowering::shared::StructuralTypeLookup;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractDynamicDescriptorArgument;
 
 use super::{
-    AbstractDynamicDescriptorSource, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    CallPlan, CallSignature, CallingPolicy, KnownUnitInteger, LoweringError, MachineId,
-    NativeTarget, OperationId, PlaceId, ScalarType, StructuralPathSegment, StructuralTypeId,
-    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
-    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
-    TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarHomeRequirement,
-    TerminalPsiProvenance, ValueId, ValueShape, evaluate_call_plan, insert_known_unit_integer,
+    AbstractFunction, AbstractOperation, KnownUnitInteger, LoweringError, OperationId, PlaceId,
+    ScalarType, StructuralTypeId, TargetStructuralParameter, TargetUnitOperation,
+    TerminalPsiProvenance, ValueId, ValueShape, insert_known_unit_integer,
     resolve_structural_field_path, scalar_shape,
 };
 

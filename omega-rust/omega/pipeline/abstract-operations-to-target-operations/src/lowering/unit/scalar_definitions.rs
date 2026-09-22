@@ -1,7 +1,14 @@
 //! Scalar-definition lowering for attached Unit bodies.
 
-use super::super::shared::*;
 use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
+use crate::LoweringError;
+use abstract_operations::{AbstractOperation, AbstractParameter};
+use semantic_vocabulary::{IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId};
+use std::collections::BTreeMap;
+use target_operations::{
+    ScalarAbiValue, TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+};
 
 pub(in crate::lowering) fn lower_integer_widen(
     operation: &AbstractOperation,
