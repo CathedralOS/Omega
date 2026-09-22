@@ -2,11 +2,11 @@
 //! to the legalized instruction kind that realizes each.
 
 use super::super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarInstructionKind,
-    PsiOptimizationUnit,
+    AbstractOperationPlan, Error, LegalizedScalarInstructionKind, PsiOptimizationUnit,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::ScalarType;
 
 pub(super) fn project_structural_case_membership(

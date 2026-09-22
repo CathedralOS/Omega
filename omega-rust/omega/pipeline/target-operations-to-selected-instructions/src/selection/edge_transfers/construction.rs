@@ -1,14 +1,18 @@
 //! Snapshot edge inputs before writing any destination-associated transfer value.
 use super::{
-    SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSelectionConstraints,
-    SelectedSuccessorRole, SelectedTerminator, SelectedValueTransport,
-    ValidatedRegisterConstraintCatalog, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedBlockOrigin, SelectedFunction, SelectedSuccessorRole, SelectedTerminator,
+    SelectedValueTransport, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::instruction_count;
 use crate::selection::edge_transfers::invalid;
 use crate::selection::edge_transfers::successors_mut;
+use register_model::ValidatedRegisterConstraintCatalog;
+use selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
+    VirtualRegisterOrigin,
+};
 mod structural_case;
 
 pub(in crate::selection) fn prepare(

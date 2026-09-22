@@ -1,18 +1,21 @@
 //! Place-backed ABI transport in the ordinary instruction stream.
 use super::{
-    Builder, IndirectPointerLocation, IntegerSign, LegalizedScalarFunction,
-    LegalizedScalarInstructionKind, RegisterConstraintKey, RegisterOperandAccess, ScalarType,
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    StructuralAccess, ValueLocation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind,
+    RegisterConstraintKey, ScalarType, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation, VirtualRegister,
+    VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::byte_view_homes::ByteViewHomes;
+use calling_conventions::IndirectPointerLocation;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use register_model::RegisterOperandAccess;
 use selected_instructions::{
     OutgoingArgumentSlotId, SelectedBoundarySettlement, SelectedCallContract, SelectedMemoryAccess,
     SelectedMemoryAccessRole, SelectedOutgoingArgumentSlot,
 };
 use semantic_vocabulary::{IntegerType, PlaceId};
+use terminal_psi::StructuralAccess;
 
 mod block_views;
 mod entry;

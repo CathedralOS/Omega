@@ -2,17 +2,19 @@
 use super::{
     IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType,
     SelectedFunction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
-    ValidatedRegisterConstraintCatalog, ValueLocation, VirtualRegisterOrigin,
+    SelectedInstructionProvenance, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::row;
+use calling_conventions::ValueLocation;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison as Comparison, LegalizedScalarReturnValue,
     LegalizedScalarSuccessor, LegalizedScalarTerminator,
 };
+use register_model::ValidatedRegisterConstraintCatalog;
 use selected_instructions::SelectedValueTransport;
+use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,

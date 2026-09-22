@@ -1,10 +1,11 @@
 //! Return exact ABI fragments from an incoming value or established aggregate home.
 use super::{
     Builder, LegalizedScalarFunction, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedTerminator, ValueLocation,
+    ValueLocation,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
+use selected_instructions::SelectedTerminator;
 use selected_instructions::{FrameStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn build(

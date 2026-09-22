@@ -1,5 +1,8 @@
 use super::super::constraints::require_key_rows;
-use super::super::shared::*;
+use crate::selection::model::SelectedInstructionError;
+use legalized_operations::LegalizedOperationPlan;
+use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
+use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 
 pub(super) fn validate_initial_roots(
     target: &LegalizedOperationPlan,

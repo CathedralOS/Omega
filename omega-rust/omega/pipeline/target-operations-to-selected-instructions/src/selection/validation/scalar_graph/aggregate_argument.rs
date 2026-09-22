@@ -2,11 +2,11 @@
 //! Indirection copies the current value into call-owned backing; forwarding the
 //! input pointer would alias a copyable value with the callee's private storage.
 use super::{
-    LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind, ValueLocation,
-    VirtualRegisterId,
+    LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
+use calling_conventions::ValueLocation;
 use selected_instructions::{FrameStorageSlotId, LocalStorageSlotId, SelectedMemoryAccessRole};
 
 pub(super) fn argument(

@@ -1,9 +1,7 @@
 //! Check the claimed expansion in place, then recover the original selected CFG.
 use super::{
-    SelectedBlockOrigin, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedSelectionConstraints, SelectedSuccessorRole,
-    SelectedTerminator, SelectedValueTransport, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedBlockOrigin, SelectedFunction, SelectedSuccessorRole, SelectedTerminator,
+    SelectedValueTransport, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::chunks;
@@ -11,6 +9,10 @@ use crate::selection::edge_transfers::instruction_count;
 use crate::selection::edge_transfers::invalid;
 use crate::selection::edge_transfers::stored_transport;
 use crate::selection::edge_transfers::successors_mut;
+use selected_instructions::{
+    SelectedInstruction, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterOrigin,
+};
 mod structural_case;
 
 pub(in crate::selection) fn project(

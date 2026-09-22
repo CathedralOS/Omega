@@ -1,6 +1,8 @@
 //! Raw edge construction checks, not source-admission or native execution claims.
-use super::super::super::{SelectedInstruction, ValueDefinitionSite};
+
+use optimization_unit::ValueDefinitionSite;
 use optimization_unit::{FuelSettlement, PsiProvenance};
+use selected_instructions::SelectedInstruction;
 
 use super::{
     IntegerSign, IntegerType, ScalarType, SelectedBlockId, SelectedCasePayloadTransport,

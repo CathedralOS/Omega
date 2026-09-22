@@ -2,12 +2,13 @@
 //! call each legalizes.
 
 use super::super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedOperationPlan,
-    LegalizedScalarArgument, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
+    AbstractOperationPlan, Error, LegalizedOperationPlan, LegalizedScalarArgument,
+    LegalizedScalarInstruction, LegalizedScalarInstructionKind, NativeCallOrigin,
+    PsiOptimizationUnit, TargetOperationPlan,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::OperationId;
 
 #[allow(clippy::too_many_arguments)]

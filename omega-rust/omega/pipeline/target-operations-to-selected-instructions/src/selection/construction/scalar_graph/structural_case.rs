@@ -1,8 +1,8 @@
 //! Observe the source sum tag; payload observations belong to selected edges.
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, ScalarType, SelectedBlock, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionKind, SelectedSuccessor, SelectedTerminator,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionId, SelectedInstructionKind, VirtualRegister, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use legalized_operations::{
@@ -13,6 +13,7 @@ use selected_instructions::{
     SelectedCasePayloadTransport, SelectedMemoryAccess, SelectedMemoryAccessOrigin,
     SelectedMemoryAccessRole, SelectedStructuralCaseEdge,
 };
+use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 use semantic_vocabulary::{IntegerType, PlaceId};
 
 fn invalid() -> SelectedInstructionError {

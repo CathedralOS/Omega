@@ -1,6 +1,9 @@
 //! Physical edge preparation retains one semantic edge and explicit implementation control.
-use super::shared::*;
+use crate::selection::model::SelectedInstructionError;
 use selected_instructions::{SelectedBlockOrigin, SelectedSuccessorRole, SelectedValueTransport};
+use selected_instructions::{
+    SelectedFunction, SelectedSuccessor, SelectedTerminator, VirtualRegisterId,
+};
 mod construction;
 #[cfg(test)]
 mod descriptor_tests;

@@ -1,5 +1,9 @@
 use crate::selection::constraints::row;
-use crate::selection::shared::*;
+use crate::selection::model::SelectedInstructionError;
+use register_model::ValidatedRegisterConstraintCatalog;
+use selected_instructions::{
+    SelectedBlock, SelectedFunction, SelectedInstruction, SelectedTerminator,
+};
 
 pub(super) fn validate_block_constraints(
     function_index: usize,

@@ -1,7 +1,10 @@
 //! Optimizer module role: executable entrance. Independently joins all graph rows to source CFG and ABI.
-use super::shared::*;
 use crate::legalization::scalar_graph_input;
+use crate::{LegalizationError, LegalizationError as Error};
 use ::legalized_operations::*;
+use abstract_operations::AbstractOperationPlan;
+use optimization_unit::PsiOptimizationUnit;
+use target_operations::TargetOperationPlan;
 mod instruction;
 mod structural_case;
 mod terminator;

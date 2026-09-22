@@ -8,9 +8,10 @@
 //! and the optional scalar result home — is reconstructed independently from
 //! the boundary declaration and the claimed plan. A substituted binding,
 //! provider, argument, or result home fails closed.
-use super::super::{AbstractOperation, Error, PsiOptimizationUnit, TargetOperationPlan};
+use super::super::{Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use abstract_operations::AbstractOperation;
 use abstract_operations::AbstractOperationPlan;
 use calling_conventions::{CallSignature, CallingPolicy, EntryControl, ValueLocation};
 use legalized_operations::LegalizedScalarInstruction;

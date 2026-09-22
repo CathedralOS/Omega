@@ -1,7 +1,9 @@
 //! Exact machine join between legal and selected functions.
 
 use super::scalar_graph;
-use crate::selection::shared::*;
+use crate::selection::model::SelectedInstructionError;
+use legalized_operations::LegalizedOperationPlan;
+use selected_instructions::SelectedSelectionConstraints;
 
 pub(super) fn validate(
     target: &LegalizedOperationPlan,

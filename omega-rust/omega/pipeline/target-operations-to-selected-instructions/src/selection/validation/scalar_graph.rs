@@ -4,12 +4,20 @@
 
 use super::integrity::validate_block_constraints;
 use crate::selection::constraints::row;
-use crate::selection::shared::*;
+use crate::selection::model::SelectedInstructionError;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier,
 };
+use optimization_unit::ValueDefinitionSite;
 use register_model::RegisterConstraintKey;
+use register_model::{RegisterClassId, RegisterViewId};
+use selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, VirtualRegisterId, VirtualRegisterOrigin,
+};
 use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 
 mod aggregate_argument;
 mod aggregate_memory;

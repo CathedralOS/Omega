@@ -20,7 +20,6 @@ mod read_result_input;
 mod record_input;
 mod scalar_array_input;
 mod scalar_call_abi;
-mod shared;
 mod validation;
 pub(crate) mod value_transport;
 

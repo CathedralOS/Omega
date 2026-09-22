@@ -4,10 +4,10 @@
 //! `scalar_instructions`.
 
 use super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, LegalizedValueDefinition, PsiOptimizationUnit,
-    TargetOperationPlan,
+    AbstractOperationPlan, Error, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    LegalizedValueDefinition, PsiOptimizationUnit, TargetOperationPlan,
 };
+use abstract_operations::AbstractOperation;
 mod call_instructions;
 mod scalar_instructions;
 mod storage_instructions;

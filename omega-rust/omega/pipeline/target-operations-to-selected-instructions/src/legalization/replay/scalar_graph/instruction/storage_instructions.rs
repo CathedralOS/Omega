@@ -2,11 +2,12 @@
 //! replayed against the abstract operation each legalizes.
 
 use super::super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarInstruction,
-    LegalizedScalarInstructionKind, PsiOptimizationUnit,
+    AbstractOperationPlan, Error, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+    PsiOptimizationUnit,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use abstract_operations::AbstractOperation;
 use semantic_vocabulary::OperationId;
 
 pub(super) fn validate_structural_scalar_field_read(

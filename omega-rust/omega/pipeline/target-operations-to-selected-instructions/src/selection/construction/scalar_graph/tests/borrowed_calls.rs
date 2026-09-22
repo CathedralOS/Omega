@@ -1,5 +1,5 @@
 //! Shared descriptor calls retain the original pointer and independent replay.
-use super::super::{IndirectPointerLocation, SelectedInstructionId, VirtualRegisterOrigin};
+use super::super::{SelectedInstructionId, VirtualRegisterOrigin};
 use super::{
     CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarArgument,
     LegalizedScalarCall, LegalizedScalarFunction, LegalizedScalarInstructionKind,
@@ -8,6 +8,7 @@ use super::{
     ValueDefinitionSite, ValueId, ValueLocation, ValueShape, VirtualRegisterId, build,
     evaluate_call_plan, fixture, returned,
 };
+use calling_conventions::IndirectPointerLocation;
 mod fixed_windows;
 mod literal_storage;
 mod mixed;

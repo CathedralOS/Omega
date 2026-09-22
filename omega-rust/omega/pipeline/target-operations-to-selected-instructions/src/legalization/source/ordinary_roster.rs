@@ -1,5 +1,6 @@
 //! Project every function through the common graph validator.
-use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
+use super::{AbstractOperationPlan, PsiOptimizationUnit, TargetOperationPlan};
+use crate::LegalizationError as Error;
 use crate::LegalizationError;
 use crate::legalization::source::SourceFunctionRosters;
 

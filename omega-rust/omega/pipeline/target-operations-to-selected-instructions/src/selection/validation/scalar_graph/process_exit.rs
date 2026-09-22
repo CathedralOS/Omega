@@ -1,13 +1,14 @@
 //! Independently join a selected terminal to the final boundary/source return pair.
 use super::{
     IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedTerminator,
+    SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarReturnValue, LegalizedScalarTerminator,
 };
+use selected_instructions::SelectedTerminator;
 use selected_instructions::{SelectedBoundarySettlement, SelectedBoundarySettlementPayload};
 
 pub(super) fn validate(

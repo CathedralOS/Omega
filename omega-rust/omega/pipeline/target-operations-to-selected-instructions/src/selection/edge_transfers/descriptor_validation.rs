@@ -1,9 +1,5 @@
 //! Independently reconstruct exact edge storage reads before destination writes.
-use super::{
-    SelectedBlock, SelectedFunction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedSelectionConstraints, SelectedSuccessor,
-    VirtualRegister, VirtualRegisterOrigin,
-};
+use super::{SelectedFunction, SelectedSuccessor};
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::chunks;
 use crate::selection::edge_transfers::invalid;
@@ -11,6 +7,10 @@ use crate::selection::edge_transfers::stored_transport;
 use selected_instructions::{
     FrameStorageSlotId, SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
     SelectedStructuralTransport,
+};
+use selected_instructions::{
+    SelectedBlock, SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterOrigin,
 };
 
 pub(super) fn check(

@@ -80,7 +80,7 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ),
     (
         "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
-        2,
+        1,
     ),
     ("omega-rust/omega/representations/abstract-operations", 13),
     ("omega-rust/omega/representations/boundary-applications", 1),

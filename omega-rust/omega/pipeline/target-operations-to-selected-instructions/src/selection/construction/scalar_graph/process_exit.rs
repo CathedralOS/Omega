@@ -1,12 +1,13 @@
 //! Collapse an admitted final boundary and its nominal source return into native exit.
 use super::{
     Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedTerminator,
+    SelectedInstructionKind, SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
 use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarReturnValue, LegalizedScalarTerminator,
 };
+use selected_instructions::SelectedTerminator;
 use selected_instructions::{SelectedBoundarySettlement, SelectedBoundarySettlementPayload};
 
 pub(super) fn build(

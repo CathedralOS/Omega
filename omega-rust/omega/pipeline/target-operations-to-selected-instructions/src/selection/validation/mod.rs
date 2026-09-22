@@ -1,5 +1,9 @@
 //! Optimizer module role: executable entrance. Independent selected-plan reconstruction and admission.
 
+use crate::legalization::ValidatedLegalizedOperations;
+use crate::selection::model::{SelectedInstructionError, ValidatedSelectedInstructions};
+use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
+use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 mod def_use;
 mod integrity;
 mod ordinary_roster;
@@ -10,7 +14,6 @@ mod structural_case_tests;
 pub(in crate::selection) mod value_transport;
 
 use super::identity::receipt;
-use super::shared::*;
 
 pub fn validate_selected_instructions(
     legalized: &ValidatedLegalizedOperations,

@@ -1,11 +1,9 @@
 //! Whole-value edge mechanics, independently exercised with swaps and narrow tails.
-use super::{
-    SelectedInstructionKind, SelectedSelectionConstraints, SelectedTerminator, VirtualRegisterId,
-    project,
-};
+use super::{SelectedTerminator, VirtualRegisterId, project};
 use crate::selection::edge_transfers::prepare;
 use optimization_unit::{FuelSettlement, PsiProvenance};
 use selected_instructions::{FrameStorageSlotId, SelectedStructuralTransport};
+use selected_instructions::{SelectedInstructionKind, SelectedSelectionConstraints};
 
 #[test]
 fn whole_values_snapshot_before_parallel_replacement_and_replay_exact_extents() {

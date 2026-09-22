@@ -41,10 +41,6 @@ const CATCH_ALL_MODULE_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
         1,
     ),
-    (
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
-        3,
-    ),
     ("omega-rust/omega/representations/legalized-operations", 1),
     ("omega-rust/psi/pipeline/typed-trees-to-checked-trees", 1),
     ("omega-rust/psi/representations/checked-trees", 1),

@@ -2,9 +2,10 @@
 //! Production construction and replay borrow one immutable validated environment.
 use super::{
     LegalizedScalarFunction, SelectedFunction, SelectedSelectionConstraints,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog, validate_with_environment,
+    validate_with_environment,
 };
 use crate::SelectedInstructionError;
+use register_model::{ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog};
 
 pub(in crate::selection) fn validate(
     function: usize,

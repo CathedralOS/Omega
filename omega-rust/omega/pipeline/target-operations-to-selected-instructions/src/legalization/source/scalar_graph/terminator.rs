@@ -1,9 +1,10 @@
 use super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarReturn,
-    LegalizedScalarReturnValue, LegalizedScalarSuccessor, LegalizedScalarTerminator,
+    AbstractOperationPlan, Error, LegalizedScalarReturn, LegalizedScalarReturnValue,
+    LegalizedScalarSuccessor, LegalizedScalarTerminator,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use abstract_operations::AbstractOperation;
 pub(super) fn project(
     node: &optimization_unit::OptimizationNode,
     function: &optimization_unit::PsiOptimizationFunction,

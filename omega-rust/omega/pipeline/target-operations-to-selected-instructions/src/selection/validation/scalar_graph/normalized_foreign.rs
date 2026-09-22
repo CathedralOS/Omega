@@ -3,10 +3,11 @@
 //! record are reconstructed and compared, never trusted from the proposal.
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation, VirtualRegisterOrigin,
+    SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
+use calling_conventions::ValueLocation;
 use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::{
     LocalStorageSlotId, SelectedLocalStorageSlot, SelectedNormalizedForeignCall,

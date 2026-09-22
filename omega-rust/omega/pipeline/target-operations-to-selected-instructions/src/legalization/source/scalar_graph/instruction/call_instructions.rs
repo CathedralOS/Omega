@@ -2,11 +2,12 @@
 //! instruction kind that realizes each.
 
 use super::super::{
-    AbstractOperation, AbstractOperationPlan, Error, LegalizedScalarArgument, LegalizedScalarCall,
+    AbstractOperationPlan, Error, LegalizedScalarArgument, LegalizedScalarCall,
     LegalizedScalarInstructionKind, NativeCallOrigin, PsiOptimizationUnit, TargetOperationPlan,
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use abstract_operations::AbstractOperation;
 use legalized_operations::LegalizedDynamicParameterCall;
 use semantic_vocabulary::OperationId;
 use target_operations::TargetUnitScalarHomeRequirement;
