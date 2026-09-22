@@ -5,7 +5,7 @@
 // `consume`'s `item in Scanned` assumption discharges `inspect`'s requirement.
 // This is the carrier-orthogonal domain fact flowing through a call.
 
-data Blob {
+data Blob [copy] {
     payload: i32;
 }
 

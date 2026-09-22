@@ -1,4 +1,4 @@
-data Password {
+data Password [copy] {
     length: i32;
     score: i32;
     salt: i32 in Wrapping;

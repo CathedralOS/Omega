@@ -1,4 +1,4 @@
-data Item {
+data Item [copy] {
     value: i32;
     tag: i32;
 }
