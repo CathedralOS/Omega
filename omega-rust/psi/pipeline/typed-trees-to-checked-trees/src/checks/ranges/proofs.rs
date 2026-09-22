@@ -139,14 +139,14 @@ pub(super) fn unknown_length_range_is_proven(
     }
 }
 
-/// Symbolic-extent lane: the collection's fixed extent names a const
-/// parameter (`items: [u8; N]` inside a generic body). The concrete-length
-/// lane cannot read `N` and the slice lane does not apply, so the obligation
-/// `index < N` / `end <= N` is discharged against the binder itself: explicit
-/// collection-keyed facts (`i < items.len` guards and dependent-parameter
-/// proofs record the pair independent of extent kind), the binder's declared
-/// floor, and the index's own `u64[..N]`/`u64[..=N]` declared range — the
-/// language's spelling of "this value is bounded by `N`".
+// Symbolic-extent lane: the collection's fixed extent names a const
+// parameter (`items: [u8; N]` inside a generic body). The concrete-length
+// lane cannot read `N` and the slice lane does not apply, so the obligation
+// `index < N` / `end <= N` is discharged against the binder itself: explicit
+// collection-keyed facts (`i < items.len` guards and dependent-parameter
+// proofs record the pair independent of extent kind), the binder's declared
+// floor, and the index's own `u64[..N]`/`u64[..=N]` declared range — the
+// language's spelling of "this value is bounded by `N`".
 
 /// `bound` is textually the extent binder itself (`items[..N]`) or the place's
 /// builtin length (`items[..items.len]`) — both spell `end <= N` trivially.

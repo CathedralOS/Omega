@@ -192,8 +192,10 @@ pub fn fixture() -> Fixture {
     let foreign_state =
         symbols.insert_root(SymbolKind::State, SymbolNameRef::Borrowed("foreign-state"));
 
-    let mut typed = TypedTrees::default();
-    typed.symbols = symbols.finish();
+    let mut typed = TypedTrees {
+        symbols: symbols.finish(),
+        ..Default::default()
+    };
 
     let mut trait_definition = TraitDefinition {
         symbol: trait_symbol,

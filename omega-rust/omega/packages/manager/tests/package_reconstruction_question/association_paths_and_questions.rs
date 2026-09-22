@@ -2,7 +2,7 @@ use super::{
     claim_free_review_fixture, graph_workbench_question, join_question, remove_temporary_tree,
     resolve_external_closure, split_question, temporary_root,
 };
-use crate::package_reconstruction_question::accepted_policy_fixture;
+use crate::accepted_policy_fixture;
 use package_evidence::ledger::OrdinaryPackageObligationStatus;
 use package_evidence::record::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,

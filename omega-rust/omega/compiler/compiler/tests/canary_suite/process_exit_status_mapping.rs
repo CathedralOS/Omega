@@ -7,10 +7,13 @@
 //! contract's).
 
 use super::{
-    CheckedCompileRequest, Command, PathBuf, compile_reviewed_repository_fixture,
-    compile_rooted_backend_canary_without_output_for_target, fs, interpret, native_hosted_target,
+    CheckedCompileRequest, compile_reviewed_repository_fixture,
+    compile_rooted_backend_canary_without_output_for_target, interpret, native_hosted_target,
     pass_canary,
 };
+// Only the Unix leg runs the retained image and reads its presented status.
+#[cfg(unix)]
+use super::{Command, PathBuf, fs};
 /// Taken-branch semantic status: negative `i32`, presented by a Unix host as
 /// its low byte (212). The untaken helper retains 300, so neither branch's
 /// status fits the presented range and the two custody rows cannot alias.

@@ -1,9 +1,5 @@
 //! A boundary result and guarded mutable view compose through ordinary edges.
-use super::native_function;
-use super::{AdmissionProfile, IntegerValue, NativeTarget, calls};
-use abstract_operations_to_target_operations::{
-    AdmittedBoundaryExecution, AdmittedBoundarySettlement,
-};
+// `native_function` is only mounted on the hosts that can execute the text.
 #[cfg(any(
     all(
         target_os = "linux",
@@ -11,6 +7,11 @@ use abstract_operations_to_target_operations::{
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
+use super::native_function;
+use super::{AdmissionProfile, IntegerValue, NativeTarget, calls};
+use abstract_operations_to_target_operations::{
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
 #[path = "byte_input/line_read.rs"]

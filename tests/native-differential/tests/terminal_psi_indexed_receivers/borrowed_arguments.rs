@@ -3,7 +3,16 @@
 //! aggregate, owned local roots, callee re-forwarding, and attached callees
 //! with extra write-only parameters all land on caller storage.
 
-use super::{NativeTarget, artifact_for, native_function, native_text_for, optimize};
+// `native_function` is only mounted on the hosts that can execute the text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
+use super::{NativeTarget, artifact_for, native_text_for, optimize};
 
 /// Two disjoint `&write` arguments in one call keep their own referents.
 const DISJOINT_WRITE_ONLY: &str = "machine stamp(left: &write u64, right: &write u64, value: u64) {

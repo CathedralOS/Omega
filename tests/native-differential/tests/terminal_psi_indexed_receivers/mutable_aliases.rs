@@ -1,6 +1,15 @@
 //! Mutable alias descent preserves original storage when the child attenuates to write-only.
 
-use super::{NativeTarget, native_function, primitive_stores};
+// `native_function` is only mounted on the hosts that can execute the text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
+use super::{NativeTarget, primitive_stores};
 #[test]
 fn mutable_parent_alias_captures_projected_write_child_through_publication() {
     let source = "data Record [copy] { before: u8; value: u16; after: u8; }

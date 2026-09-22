@@ -654,6 +654,13 @@ fn expected_unsigned(artifact: &CorpusArtifact) -> u64 {
     }
 }
 
+// Only the host-native exercisers read the Boolean and per-arm expectations,
+// and those are gated to the hosts that can execute the produced text.
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
 fn expected_boolean(artifact: &CorpusArtifact) -> bool {
     match artifact.expected {
         CorpusExpected::Boolean(expected) => expected,
@@ -665,6 +672,11 @@ fn expected_boolean(artifact: &CorpusArtifact) -> bool {
     }
 }
 
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
 fn expected_boolean_arms(artifact: &CorpusArtifact) -> (bool, bool) {
     match artifact.expected {
         CorpusExpected::BooleanPerArm {
@@ -679,6 +691,11 @@ fn expected_boolean_arms(artifact: &CorpusArtifact) -> (bool, bool) {
     }
 }
 
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+))]
 fn expected_unsigned_arms(artifact: &CorpusArtifact) -> (u64, u64) {
     match artifact.expected {
         CorpusExpected::UnsignedPerArm {

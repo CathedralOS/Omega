@@ -5,18 +5,15 @@
 //! recovery instead of silently recapturing it.
 
 use package_manager::declarations::{DependencyPurpose, PackageKey};
-use package_manager::lock::{
-    HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLock, PackageLockError,
-    PackageLockRecoveryLimits, PackageLockTarget,
-};
+use package_manager::lock::{PackageLock, PackageLockError, PackageLockRecoveryLimits};
 use package_manager::operations::{
     LockedSourceRecoveryOptions, RecoverLockedSourcesError, check_locked_sources,
     recover_locked_sources,
 };
 use package_manager::resolution::graph::GitResolutionOptions;
 use package_manager::resolution::graph::{
-    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageRootSourceRequest,
-    PackageSourceClosureLimits, ResolveLockedPackageClosureError, ResolvedPackageSourceClosure,
+    CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, PackageSourceClosureLimits,
+    ResolveLockedPackageClosureError, ResolvedPackageSourceClosure,
     resolve_external_local_project_closure, resolve_locked_local_project_closure,
 };
 use package_manager::resolution::package_compilation_inputs;
@@ -24,12 +21,9 @@ use package_manager::review::compile_resolved_package_reviews;
 use package_source::git::resolution::GitExactRevisionAcquisition;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolverStorage};
 use std::fs;
-use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
-#[path = "locked_source_recovery/support.rs"]
-mod support;
-use support::*;
+use crate::locked_source_recovery::support::*;
 
 const TARGET: TargetProfile = TargetProfile::WindowsX64;
 const CONTEXT: &[u8] = b"dependency-purposes";

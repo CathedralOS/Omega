@@ -1,6 +1,15 @@
 //! IEEE stores preserve runtime payload bits in the original borrowed storage.
 
-use super::{NativeTarget, artifact, native_function, primitive_stores};
+// `native_function` is only mounted on the hosts that can execute the text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
+use super::{NativeTarget, artifact, primitive_stores};
 #[test]
 fn ieee_field_store_reaches_canonical_terminal() {
     for scalar in ["f32", "f64"] {

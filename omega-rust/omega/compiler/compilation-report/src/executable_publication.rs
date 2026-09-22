@@ -503,8 +503,11 @@ mod tests {
     //! chain above this is covered by `compile_report/custody_tests.rs`.
     use super::{
         ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
-        publish_exact_executable_bytes, publish_exact_file_bytes, remove_stale_companion,
+        publish_exact_executable_bytes, remove_stale_companion,
     };
+    // Only the Unix permission-mode leg publishes a plain file here.
+    #[cfg(unix)]
+    use super::publish_exact_file_bytes;
     use std::path::{Path, PathBuf};
 
     /// A fresh per-test destination directory under the system temp root.

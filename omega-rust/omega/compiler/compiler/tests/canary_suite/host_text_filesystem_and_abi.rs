@@ -8,6 +8,9 @@ use super::{
 #[cfg(windows)]
 use crate::compile_rooted_canary_for_target;
 use checked_interpreter::BuildMachineEntry;
+// Only `native_wrapper_write_all_result_interpreter_oracle` binds the real
+// filesystem behind a grant, and that test is Unix-gated.
+#[cfg(unix)]
 use checked_interpreter::{
     FilesystemAccess, FilesystemGrantRoot, FilesystemGrantRootIdentity, FsGrants,
 };

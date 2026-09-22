@@ -1,8 +1,12 @@
 use super::{
-    AdmissionProfile, NativeTarget, TargetLoweringRequest, TerminalExecutionResult,
-    TerminalScalarValue, compile_to_checked, derive_fixed_entry_fuel, interpret_verified_artifact,
-    lower_machine, lower_to_target_operations, lower_verified_artifact, source_canary,
+    AdmissionProfile, TerminalExecutionResult, TerminalScalarValue, compile_to_checked,
+    derive_fixed_entry_fuel, interpret_verified_artifact, lower_machine, source_canary,
     verify_module,
+};
+// Only the Unix-gated target-lowering differential reaches these.
+#[cfg(unix)]
+use super::{
+    NativeTarget, TargetLoweringRequest, lower_to_target_operations, lower_verified_artifact,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use compiler::CheckedCompileRequest;

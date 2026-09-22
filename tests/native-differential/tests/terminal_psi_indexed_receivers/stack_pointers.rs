@@ -1,4 +1,11 @@
-use super::{NativeTarget, artifact, native_function, native_text, optimize};
+use super::{NativeTarget, artifact, native_text, optimize};
+// The C-text assertions only run where this host can execute the produced text.
+#[cfg(any(
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64"),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
 #[path = "stack_pointers/publication.rs"]
 mod publication;
 

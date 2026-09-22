@@ -177,7 +177,12 @@ pub(super) fn make_owner_writable(path: &Path) {
         use std::os::unix::fs::PermissionsExt;
         permissions.set_mode(permissions.mode() | if metadata.is_dir() { 0o700 } else { 0o600 });
     }
+    // Off Unix there are no permission mode bits, so clearing the read-only
+    // attribute is the only way to make the fixture owner-writable again. The
+    // lint's world-writable concern is a Unix one, and the Unix arm above
+    // widens only the owner bits through `PermissionsExt::set_mode`.
     #[cfg(not(unix))]
+    #[allow(clippy::permissions_set_readonly_false)]
     permissions.set_readonly(false);
     std::fs::set_permissions(path, permissions).unwrap();
 }

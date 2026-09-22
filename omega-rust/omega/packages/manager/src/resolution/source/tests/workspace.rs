@@ -5,6 +5,8 @@ use crate::resolution::source::{
 };
 #[cfg(unix)]
 use package_source::PrimaryGitChoices;
+// Only the Unix symlink-escape leg inspects the resolver error.
+#[cfg(unix)]
 use package_source::SourceResolveError;
 use package_source::{
     IdentityError, ImmutableSourceResolution, LocalSourceLimits, SourceLineage, SourceRelativePath,

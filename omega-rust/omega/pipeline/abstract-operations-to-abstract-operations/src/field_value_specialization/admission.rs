@@ -337,11 +337,11 @@ fn matches_observed_kind(
     declaration: &StructuralFieldDeclaration,
     kind: ObservedFieldKind,
 ) -> bool {
-    match (kind, declaration.field_type.scalar_type()) {
-        (ObservedFieldKind::Boolean, Some(ScalarType::Boolean)) => true,
-        (ObservedFieldKind::Integer, Some(ScalarType::Integer(_))) => true,
-        _ => false,
-    }
+    matches!(
+        (kind, declaration.field_type.scalar_type()),
+        (ObservedFieldKind::Boolean, Some(ScalarType::Boolean))
+            | (ObservedFieldKind::Integer, Some(ScalarType::Integer(_)))
+    )
 }
 
 /// The establishment basis: the place's producer proves the field's stored

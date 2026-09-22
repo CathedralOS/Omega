@@ -1,6 +1,15 @@
 //! Owned callers observe writes through projected exclusive subloans.
 
-use super::{NativeTarget, native_function, native_text, primitive_stores};
+// `native_function` is only mounted on the hosts that can execute the text.
+#[cfg(any(
+    all(
+        target_os = "linux",
+        any(target_arch = "x86_64", target_arch = "aarch64")
+    ),
+    all(target_os = "macos", target_arch = "aarch64")
+))]
+use super::native_function;
+use super::{NativeTarget, native_text, primitive_stores};
 
 fn source(access: &str, record_first: bool) -> String {
     let fields = if record_first {

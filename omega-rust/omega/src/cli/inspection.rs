@@ -80,9 +80,6 @@ fn terminal_summary(
                 terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
                     format!("mixed(fields={},cases={})", fields.len(), cases.len())
                 }
-                terminal_psi::StructuralTypeShape::ElementView { element } => {
-                    format!("element_view(element=type:{})", element.get())
-                }
             }
         )
         .expect("writing to a String cannot fail");

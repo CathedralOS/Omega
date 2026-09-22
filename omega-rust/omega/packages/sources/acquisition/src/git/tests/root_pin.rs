@@ -202,7 +202,12 @@ fn whole_root_pin_rejects_corrupt_cache_and_changed_snapshot_without_fetch() {
             use std::os::unix::fs::PermissionsExt;
             permissions.set_mode(permissions.mode() | 0o200);
         }
+        // Off Unix there are no permission mode bits, so clearing the read-only
+        // attribute is the only way to make the retained file writable again.
+        // The lint's world-writable concern is a Unix one, and the Unix arm
+        // above widens only the owner bit through `PermissionsExt::set_mode`.
         #[cfg(not(unix))]
+        #[allow(clippy::permissions_set_readonly_false)]
         permissions.set_readonly(false);
         std::fs::set_permissions(&altered, permissions).expect("make fixture file owner-writable");
         std::fs::write(&altered, b"changed cache contents\n")

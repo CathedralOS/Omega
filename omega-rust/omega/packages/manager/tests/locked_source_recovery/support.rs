@@ -12,9 +12,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 static SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
-pub(super) struct Tree(pub(super) PathBuf);
+pub(crate) struct Tree(pub(crate) PathBuf);
 impl Tree {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -27,10 +27,10 @@ impl Tree {
         fs::create_dir(&path).unwrap();
         Self(path)
     }
-    pub(super) fn path(&self, relative: &str) -> PathBuf {
+    pub(crate) fn path(&self, relative: &str) -> PathBuf {
         self.0.join(relative)
     }
-    pub(super) fn storage(&self, name: &str) -> SourceResolverStorage {
+    pub(crate) fn storage(&self, name: &str) -> SourceResolverStorage {
         SourceResolverStorage::for_hardened_base(self.path(name), PrimaryGitChoices::default())
             .unwrap()
     }
@@ -73,13 +73,13 @@ fn writable(path: &Path) {
     }
 }
 
-pub(super) fn package(path: &Path, name: &str, dependencies: &str) {
+pub(crate) fn package(path: &Path, name: &str, dependencies: &str) {
     fs::create_dir_all(path).unwrap();
     fs::write(path.join("build.omg"), format!("machine build(builder: &mut Build) {{\n builder.package(\"{name}\");\n{dependencies}}}\n")).unwrap();
     fs::write(path.join("main.omg"), "pub machine value() -> u64 { 7 }\n").unwrap();
 }
 
-pub(super) fn capture_lock(
+pub(crate) fn capture_lock(
     closure: &ResolvedPackageSourceClosure,
     build: &Path,
 ) -> (PackageLock, PackageRootSourceRequest) {
@@ -117,7 +117,7 @@ pub(super) fn capture_lock(
     (lock, closure.source_requests().root().request().clone())
 }
 
-pub(super) fn assert_fresh_matches(lock: &PackageLock, fresh: &ResolvedPackageSourceClosure) {
+pub(crate) fn assert_fresh_matches(lock: &PackageLock, fresh: &ResolvedPackageSourceClosure) {
     let subject = CanonicalSourceClosureSubject::from_resolved(
         &fresh.for_exact_target(TARGET),
         CanonicalSourceClosureSubjectLimits::default(),

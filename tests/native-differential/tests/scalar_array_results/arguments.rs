@@ -1,7 +1,5 @@
 //! The complete module customer must transport owned payloads, not just construct them.
-use super::native_function;
-use super::{NativeTarget, publish, publish_target, target_artifact};
-use compiler::CheckedCompileRequest;
+// `native_function` is only mounted on the hosts that can execute the text.
 #[cfg(any(
     all(
         target_os = "linux",
@@ -9,6 +7,9 @@ use compiler::CheckedCompileRequest;
     ),
     all(target_os = "macos", target_arch = "aarch64")
 ))]
+use super::native_function;
+use super::{NativeTarget, publish, publish_target, target_artifact};
+use compiler::CheckedCompileRequest;
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };

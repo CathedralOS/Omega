@@ -10,10 +10,10 @@
 // reifies the whole place as the adapter's leading argument, and the checked
 // interpreter executes the selected adapter in both value and statement
 // position.
-use crate::{
-    Command, compile_reviewed_repository_fixture, compile_rooted_canary_for_native_host, fs,
-    interpret, repo_root,
-};
+use crate::{compile_reviewed_repository_fixture, interpret, repo_root};
+// Only the non-Windows leg produces and runs the native artifact.
+#[cfg(not(windows))]
+use crate::{Command, compile_rooted_canary_for_native_host, fs};
 use compiler::CheckedCompileRequest;
 
 fn member_call_fixture() -> std::path::PathBuf {
