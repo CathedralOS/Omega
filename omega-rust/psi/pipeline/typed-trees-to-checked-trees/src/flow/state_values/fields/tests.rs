@@ -18,6 +18,7 @@ fn field(symbol: u32, literal: u32, predicates: Vec<ByteSequencePredicate>) -> F
         edge_potential,
         predicate_ceiling: Vec::new(),
         bounds_growth: 0,
+        bounds_shrink: 0,
     }
 }
 
