@@ -467,5 +467,4 @@ fn append_candidate_audit_reasons(
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

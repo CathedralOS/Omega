@@ -1,6 +1,5 @@
 //! Source diagnostics never enter the editable compiler policy document.
 
-#[path = "old_sources.rs"]
 mod old_sources;
 
 use super::model::{PackageCommandError, failure};

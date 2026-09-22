@@ -9,7 +9,6 @@ use semantic_vocabulary::PackageKeyIdentity;
 use std::collections::BTreeMap;
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
 
 pub(super) fn validate_association(

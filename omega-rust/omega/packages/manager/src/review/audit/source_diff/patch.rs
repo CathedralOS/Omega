@@ -333,5 +333,4 @@ pub fn render_package_source_patch(
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
