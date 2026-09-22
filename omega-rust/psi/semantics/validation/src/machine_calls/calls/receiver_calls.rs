@@ -282,9 +282,7 @@ pub(super) fn validate_receiver_call(
         );
         return;
     }
-    if let Some(signature) =
-        boundary_trait_signature(program, current_machine, machine_symbols, symbols, call)
-    {
+    if let Some(signature) = boundary_trait_signature(program, current_machine, call) {
         validate_result_use(
             program,
             call,

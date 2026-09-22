@@ -101,8 +101,6 @@ pub(super) fn receiver_requires_boundary_frame(
 pub(crate) fn boundary_trait_signature<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'program>,
     call: &TableCall,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
     let receiver_members = program
@@ -114,8 +112,6 @@ pub(crate) fn boundary_trait_signature<'program>(
     boundary_trait_signature_for_parts(
         program,
         current_machine,
-        machine_symbols,
-        symbols,
         &receiver_members,
         call.target.as_str(),
         CallerWriteSite::Call(call),
@@ -125,22 +121,12 @@ pub(crate) fn boundary_trait_signature<'program>(
 pub(super) fn boundary_trait_signature_for_parts<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'program>,
     receiver_members: &[String],
     target: &str,
     site: CallerWriteSite<'_>,
 ) -> Option<&'program typed_trees::signature::StateSignature> {
-    boundary_trait_signature_and_receiver(
-        program,
-        current_machine,
-        machine_symbols,
-        symbols,
-        receiver_members,
-        target,
-        site,
-    )
-    .map(|(signature, _)| signature)
+    boundary_trait_signature_and_receiver(program, current_machine, receiver_members, target, site)
+        .map(|(signature, _)| signature)
 }
 
 /// The Boolean records actual runtime receiver storage, not a trait qualifier.
@@ -149,8 +135,6 @@ pub(super) fn boundary_trait_signature_for_parts<'program>(
 fn boundary_trait_signature_and_receiver<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'program>,
     receiver_members: &[String],
     target: &str,
     site: CallerWriteSite<'_>,
@@ -158,8 +142,6 @@ fn boundary_trait_signature_and_receiver<'program>(
     boundary_trait_signature_and_receiver_inner(
         program,
         current_machine,
-        machine_symbols,
-        symbols,
         receiver_members,
         target,
         site,
@@ -211,8 +193,6 @@ fn boundary_receiver_type_symbol(
 fn boundary_write_signature_and_receiver<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
-    machine_symbols: &MachineSymbols<'_>,
-    symbols: &TopLevelSymbols<'program>,
     receiver_members: &[String],
     target: &str,
     site: CallerWriteSite<'_>,
@@ -220,8 +200,6 @@ fn boundary_write_signature_and_receiver<'program>(
     boundary_trait_signature_and_receiver_inner(
         program,
         current_machine,
-        machine_symbols,
-        symbols,
         receiver_members,
         target,
         site,
@@ -229,12 +207,9 @@ fn boundary_write_signature_and_receiver<'program>(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn boundary_trait_signature_and_receiver_inner<'program>(
     program: &'program TypedTrees,
     current_machine: &Machine,
-    _machine_symbols: &MachineSymbols<'_>,
-    _symbols: &TopLevelSymbols<'program>,
     receiver_members: &[String],
     target: &str,
     site: CallerWriteSite<'_>,
@@ -751,15 +726,8 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     arguments: &[ExpressionHandle],
     inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
-    let selected = boundary_write_signature_and_receiver(
-        program,
-        current_machine,
-        machine_symbols,
-        symbols,
-        receiver,
-        target,
-        site,
-    )?;
+    let selected =
+        boundary_write_signature_and_receiver(program, current_machine, receiver, target, site)?;
     let BoundaryWriteSignature {
         signature,
         has_runtime_receiver,
@@ -897,8 +865,6 @@ fn boundary_result_origins(
     let selected = boundary_write_signature_and_receiver(
         program,
         current_machine,
-        machine_symbols,
-        symbols,
         &receiver,
         call.target.as_str(),
         CallerWriteSite::Expression(expression),

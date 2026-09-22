@@ -8,7 +8,7 @@
 //! frames.
 
 use super::boundary_calls::boundary_trait_signature_for_parts;
-use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::declarations::symbols::TopLevelSymbols;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
@@ -26,7 +26,6 @@ pub(super) fn call_argument_types(
     target_name: &str,
     receiver: &[String],
     site: super::caller_aliases::CallerWriteSite<'_>,
-    machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
 ) -> Vec<TypeReferenceHandle> {
     let Some((machine, state)) = machine_state_by_symbol(program, target_symbol).or_else(|| {
@@ -38,8 +37,6 @@ pub(super) fn call_argument_types(
         return boundary_trait_signature_for_parts(
             program,
             current_machine,
-            machine_symbols,
-            symbols,
             receiver,
             target_name,
             site,

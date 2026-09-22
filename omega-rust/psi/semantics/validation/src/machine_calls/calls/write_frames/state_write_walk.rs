@@ -774,7 +774,6 @@ fn walk_state_write_prefix_inner(
                         nested_call.target.as_str(),
                         &nested_receiver_members,
                         CallerWriteSite::Call(nested_call),
-                        &machine_symbols,
                         symbols,
                     );
                     let argument_origins = origins.argument_origins(
