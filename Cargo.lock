@@ -1123,6 +1123,7 @@ dependencies = [
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "semantic-vocabulary",
+ "symbols",
  "terminal-codec",
  "terminal-psi",
 ]

@@ -11,6 +11,6 @@ mod publish_artifact;
 
 pub use boundary_operator_custody::{
     CheckedBoundaryOperatorApplicationOccurrence, CheckedBoundaryOperatorApplicationScope,
-    checked_boundary_operator_scope,
+    CheckedDynamicCallLane, CheckedDynamicCallOccurrence, checked_boundary_operator_scope,
 };
 pub use publish_artifact::finalize_terminal_artifact;
