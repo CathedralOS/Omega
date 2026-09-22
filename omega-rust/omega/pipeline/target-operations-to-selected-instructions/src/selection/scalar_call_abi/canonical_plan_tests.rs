@@ -2,12 +2,13 @@
 //! evaluation, not merely agree with the arguments that echo it.
 use super::{
     CallSignature, CallingPolicy, IntegerSign, LegalizedScalarArgument, LegalizedScalarCall,
-    LegalizedScalarFunction, ScalarType, ValueDefinitionSite, ValueId, ValueLocation, ValueShape,
-    evaluate_call_plan, validate,
+    LegalizedScalarFunction, ScalarType, ValueId, ValueLocation, ValueShape, evaluate_call_plan,
+    validate,
 };
 use crate::selection::scalar_call_abi::unit_key;
 use calling_conventions::RegisterSet;
 use legalized_operations::LegalizedScalarParameter;
+use optimization_unit::ValueDefinitionSite;
 use semantic_vocabulary::{BlockId, IntegerType, MachineId, OperationId};
 
 fn scalar_call(

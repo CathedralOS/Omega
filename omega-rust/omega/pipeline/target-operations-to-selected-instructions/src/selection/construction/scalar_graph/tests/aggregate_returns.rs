@@ -1,5 +1,5 @@
 //! Owned return custody is independent of input and result ABI placement.
-use super::super::StructuralAccess;
+
 use super::{
     CallSignature, CallingPolicy, IntegerSign, IntegerType, LegalizedScalarFunction,
     LegalizedScalarReturnValue, LegalizedScalarTerminator, ScalarType, SelectedFunction,
@@ -7,6 +7,7 @@ use super::{
     evaluate_call_plan,
 };
 use semantic_vocabulary::{PlaceId, StructuralFieldId, StructuralPlaceKind};
+use terminal_psi::StructuralAccess;
 use terminal_psi::{
     BindingRelevance, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeShape,

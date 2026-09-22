@@ -2,12 +2,21 @@
 //! Scalar instructions share one selection path regardless of the caller's result.
 
 use crate::selection::constraints::{fixed_input_constraint, instruction, row};
-use crate::selection::shared::*;
+use crate::selection::model::SelectedInstructionError;
+use calling_conventions::ValueLocation;
 use legalized_operations::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SaturatingCarrier,
 };
-use register_model::RegisterConstraintKey;
-use semantic_vocabulary::IntegerValue;
+use optimization_unit::ValueDefinitionSite;
+#[cfg(test)]
+use register_model::ValidatedPhysicalRegisterModel;
+use register_model::{RegisterClassId, RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+use selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedConstraintKeys, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedSelectionConstraints, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
 
 mod aggregate_argument;
 mod aggregate_memory;

@@ -1,14 +1,18 @@
 //! Parallel-copy preparation is independent of authored cycle admission.
 use super::{
-    IntegerSign, ScalarType, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedSelectionConstraints, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueTransport, ValueDefinitionSite, ValueId, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin, project,
+    SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, SelectedValueTransport, VirtualRegisterId, project,
 };
 use crate::selection::edge_transfers::prepare;
 use crate::selection::edge_transfers::successors_mut;
+use optimization_unit::ValueDefinitionSite;
+use selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
+    VirtualRegisterOrigin,
+};
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId};
+use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 
 #[test]
 fn shared_conditional_fallthrough_bridges_project_to_exact_original_edges() {

@@ -1,10 +1,12 @@
 //! Optimizer module role: executable entrance.
 //! Canonical selected-plan construction from the complete ordinary graph roster.
 
+use crate::legalization::ValidatedLegalizedOperations;
+use crate::selection::model::SelectedInstructionError;
+use selected_instructions::{SelectedInstructionPlan, SelectedSelectionConstraints};
 mod scalar_graph;
 
 use crate::selection::constraints::require_key_rows;
-use crate::selection::shared::*;
 
 pub(super) fn build_plan(
     legalized: &ValidatedLegalizedOperations,

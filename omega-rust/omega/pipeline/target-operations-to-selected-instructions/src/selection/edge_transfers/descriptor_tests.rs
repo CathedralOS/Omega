@@ -1,19 +1,24 @@
 //! Transfer mechanics only: no claim of source cycle admission or native execution.
 use super::{
-    IntegerSign, ScalarType, SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
-    SelectedSelectionConstraints, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
-    SelectedValueTransport, ValidatedRegisterConstraintCatalog, ValueDefinitionSite, ValueId,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin, project,
+    SelectedBlockOrigin, SelectedFunction, SelectedSuccessor, SelectedSuccessorRole,
+    SelectedTerminator, SelectedValueTransport, VirtualRegisterId, project,
 };
 use crate::selection::edge_transfers::prepare;
+use optimization_unit::ValueDefinitionSite;
 use optimization_unit::{FuelSettlement, PsiProvenance};
+use register_model::ValidatedRegisterConstraintCatalog;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedStructuralBinding,
     SelectedStructuralTransport, SelectedValueBinding,
 };
+use selected_instructions::{
+    SelectedBlock, SelectedBlockId, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
+    VirtualRegisterOrigin,
+};
 use semantic_vocabulary::{BlockId, EdgeId, IntegerType, MachineId, PlaceId};
+use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 
 #[test]
 fn scalar_and_descriptor_swaps_snapshot_all_inputs_before_reentry_replacement() {

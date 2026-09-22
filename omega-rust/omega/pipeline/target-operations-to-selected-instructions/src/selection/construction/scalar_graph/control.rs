@@ -2,8 +2,7 @@
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstructionKind,
     RegisterConstraintKey, ScalarType, SelectedBlockId, SelectedInstruction,
-    SelectedInstructionKind, SelectedInstructionProvenance, SelectedSuccessor, SelectedTerminator,
-    ValueLocation, VirtualRegisterId,
+    SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
@@ -11,6 +10,7 @@ use legalized_operations::{
     LegalizedScalarBlock, LegalizedScalarComparison as Comparison, LegalizedScalarReturnValue,
     LegalizedScalarSuccessor, LegalizedScalarTerminator,
 };
+use selected_instructions::{SelectedSuccessor, SelectedTerminator};
 use selected_instructions::{SelectedValueBinding, SelectedValueTransport};
 
 pub(super) fn build(

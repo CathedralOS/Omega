@@ -1,4 +1,6 @@
-use super::shared::*;
+use crate::legalization::ValidatedLegalizedOperations;
+use crate::selection::model::SelectedInstructionValidationReceipt;
+use selected_instructions::SelectedInstructionPlan;
 use selected_instructions::selected_instruction_plan_identity;
 
 pub(super) fn receipt(

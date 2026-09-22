@@ -1,16 +1,18 @@
 //! Descriptor and whole-value snapshots precede every destination replacement.
-use super::{
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedSelectionConstraints,
-    ValidatedRegisterConstraintCatalog, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
-};
+use super::VirtualRegisterId;
 use crate::SelectedInstructionError;
 use crate::selection::edge_transfers::chunks;
 use crate::selection::edge_transfers::invalid;
 use crate::selection::edge_transfers::stored_transport;
+use register_model::ValidatedRegisterConstraintCatalog;
 use selected_instructions::{
     FrameStorageSlotId, SelectedMemoryAccess, SelectedMemoryAccessOrigin, SelectedMemoryAccessRole,
     SelectedStructuralBinding,
+};
+use selected_instructions::{
+    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedSelectionConstraints, VirtualRegister,
+    VirtualRegisterOrigin,
 };
 
 pub(super) fn snapshot(

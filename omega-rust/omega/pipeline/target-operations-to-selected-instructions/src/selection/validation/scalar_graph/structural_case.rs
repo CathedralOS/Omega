@@ -1,13 +1,14 @@
 //! Independently replay the tag observation and edge-produced payload roster.
 use super::{
     IntegerSign, ScalarType, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedTerminator, ValidatedRegisterConstraintCatalog,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionProvenance, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use crate::selection::validation::scalar_graph::validate_block_constraints;
 use legalized_operations::{LegalizedScalarBlock, LegalizedScalarTerminator};
+use register_model::ValidatedRegisterConstraintCatalog;
+use selected_instructions::SelectedTerminator;
 use selected_instructions::{
     FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedSuccessorRole,

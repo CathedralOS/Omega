@@ -1,4 +1,7 @@
-use super::shared::*;
+use crate::{LegalizationError, LegalizationError as Error};
+use abstract_operations::AbstractOperationPlan;
+use optimization_unit::PsiOptimizationUnit;
+use target_operations::TargetOperationPlan;
 
 pub(super) fn validate_source_custody(
     target: &TargetOperationPlan,

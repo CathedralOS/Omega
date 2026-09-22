@@ -1,7 +1,9 @@
 //! Publication eligibility is input classification, not attempted legalization.
 //! Independent construction/replay still checks source, proof and physical custody.
 
-use super::shared::*;
+use abstract_operations::AbstractOperationPlan;
+use optimization_unit::PsiOptimizationUnit;
+use target_operations::TargetOperationPlan;
 
 pub(crate) fn accepts(
     native: &TargetOperationPlan,

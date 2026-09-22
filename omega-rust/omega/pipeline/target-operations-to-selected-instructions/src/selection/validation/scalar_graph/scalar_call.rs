@@ -1,8 +1,8 @@
 //! Independent replay of scalar-result calls and their argument transport.
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess,
-    ValidatedRegisterConstraintCatalog, VirtualRegisterId, VirtualRegisterOrigin,
+    SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
+    VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -10,6 +10,8 @@ use crate::selection::validation::scalar_graph::row;
 use crate::selection::validation::scalar_graph::structural;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
 use register_environment::ValidatedTargetRegisterEnvironment;
+use register_model::ValidatedRegisterConstraintCatalog;
+use terminal_psi::StructuralAccess;
 
 /// Snapshot the projected pointer, then place its bits in the exact outgoing ABI slot.
 pub(super) fn argument_pointer(

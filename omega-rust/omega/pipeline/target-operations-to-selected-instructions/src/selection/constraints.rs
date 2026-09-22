@@ -1,4 +1,12 @@
-use super::shared::*;
+use crate::selection::model::SelectedInstructionError;
+use register_model::{
+    RegisterConstraintKey, RegisterInstructionConstraint, ValidatedRegisterConstraintCatalog,
+};
+use selected_instructions::{
+    SelectedConstraintKeys, SelectedFixedInputConstraint, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
+    VirtualRegisterId,
+};
 
 pub(super) fn instruction(
     id: SelectedInstructionId,

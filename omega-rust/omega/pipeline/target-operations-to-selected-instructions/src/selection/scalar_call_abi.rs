@@ -1,6 +1,11 @@
 //! Join the exact CallPlan to register operands, result fragments, and pointer slots.
 
-use super::shared::*;
+use crate::selection::model::SelectedInstructionError;
+use calling_conventions::{IndirectPointerLocation, ValueLocation};
+use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess};
+use selected_instructions::{SelectedConstraintKeys, SelectedInstructionKind};
+use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
+use terminal_psi::StructuralAccess;
 mod borrowed_argument;
 pub(crate) mod normalized_foreign;
 mod owned_argument;
