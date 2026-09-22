@@ -3399,6 +3399,9 @@ deliverable host runs, not four implementations of the gate.
   evidence, not an executed release row. Use the corrected recorder procedure.
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; cross-emission or compiler-only success is insufficient.
+  Include `windows_set_file_time_exit_canary_runs`: SetFileTime followed by
+  `_stat64` must read back Unix time 1,500,000,000 and exit 70. Its corrected
+  unsigned byte assembly is not evidence that Windows execution passed.
 
 
 ## Omega-written compiler (after Rust completion)
@@ -3574,14 +3577,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 ## Mined items (deep-mine sweep, wave 9)
 
-- **AARCH64-BRANCH-RELAXATION.** Mined candidate — resolved, alias of
-  NON-X86-LAYOUT-RELAXATION (its row names this stub verbatim:
-  "AARCH64-BRANCH-RELAXATION names this same surface — no separate board
-  row"; re-verified `f600f8400b7`): the only functioning pins are the
-  rejects — `x86_rel8_selected` rejects `Architecture::Aarch64` as
-  `UnsupportedTarget` in catalog.rs and `hosted_sequences.rs` emits the
-  out-of-range diagnostic. No authorized implementation surface; resolved
-  with the parent row.
 
 - **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry accepted checked assembly
   through the ordinary source-to-native pipeline under
@@ -3629,86 +3624,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   establish fidelity for unmodeled halt/register/cache effects. Unsupported
   effects must reject, while genuinely elidable hints retain their catalog
   meaning; do not silently turn all asm into successful no-ops.
-- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; verify scope then implement.
-  surfaces are under live claims (UEFI-OS-HANDOFF until 20:00Z,
-  UEFI-PHYSICAL-SEMANTIC-ENTRY 22:59Z, OPAQUE-BY-VALUE-BOUNDARY-ABI and
-  TV-BOUNDARY-SETTLEMENTS-REPLAY into next day). No independent slice is
-  landable from this row. Re-verified at `7110606f46` — the same-item
-  claim remains live and no new leg landed since `db3dfb4302`.
-  Re-witnessed at `f501d377d8`: the recorded frontier moved upstream —
-  `native_uefi_os_handoff_invocation_reports_missing_boundary_plan` no longer
-  exists; bodied boundary machines now lower as ordinary Unit callees and
-  `&mut` boundary requirements carry caller-side plans, so gap (a) landed.
-  The pinned refusal is now
-  `native_uefi_os_handoff_invocation_reports_cyclic_control_frontier`
-  (cyclic-machine custody: ControlCycle rejection while `self.legs.*`,
-  `self.terminal.*`, `self.cycle` receivers and `retain`'s granted extents
-  stay outside the bare-`self` envelope). Both pins green here:
-  `native_..._cyclic_control_frontier` + `checked_uefi_os_handoff_invocation
-  _retains_edge_binding` 2/2 in 54s. UEFI-OS-HANDOFF claim still live
-  (exp 10:19Z) covering the canary file and handoff.omg; the verifier's
-  cyclic-custody surfaces are fenced under REGISTERED-CALLBACK-LIFETIME and
-  CONSERVATION-CONTRACT. Still no landable slice from this row.
-  Re-witnessed at `b53c7ea26032`: the recorded frontier moved upstream
-  again — the cyclic-control-custody shape now lowers (record-local
-  forwarders ride `Loader::run`'s plain block-parameter extents) and the
-  pinned refusal is
-  `native_uefi_os_handoff_invocation_reports_termination_catalog_frontier`
-  ("no closed native catalog identity" for the compiler-owned
-  `UefiOsHandoffTermination::transfer`/`firmware_return` edges — a UEFI
-  physical-entry lane leg). Both pins green here:
-  `native_..._termination_catalog_frontier` +
-  `checked_uefi_os_handoff_invocation_retains_edge_binding` 2/2 in 48s.
-  UEFI-OS-HANDOFF claim still live (exp 10:19Z) on the canary fixture and
-  handoff.omg; REGISTERED-CALLBACK-LIFETIME's verifier fences live to
-  ~14:37Z; CONSERVATION-CONTRACT has drained. Still no landable slice
-  from this row.
-  covered — alias of the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP surface (ENTRY-MECHANICS-RUNTIME-CONSOLIDATION, `be03555d17`)
-- **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; scope verified,
-  covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
-  surface adjudicated on the BACKEND-RUNTIME-STARTUP-MECHANICS row above
-  (~:8466, audit `be03555d17`, re-verified `7d03d489e3`): entry/exit
-  mechanics sit under one owner,
-  `omega-rust/omega/backend/runtime/external-roots/src/root_entry/`
-  (root_validation, root_admission, provider_execution,
-  progress_profile_installation, opaque_callback_replacement — plus
-  required_root_slots) and `platform_bringup`; free Unit entries emit
-  process adapters and ELF `e_entry` round-trips through final-image
-  validation. Re-verified at `ebd58a0544` on linux x86-64: the
-  `root_entry/` module layout is intact, `cargo check -p external-roots`
-  is clean, and the hosted_unit_entry suite is 7/7 green — note the crate
-  now lives at `omega-rust/omega/backend/images/image-emission/src/
-  hosted_unit_entry.rs` (moved under `images/` since the prior witness).
-  No independent slice exists here. Board hygiene: this item has three
-  same-name rows — this one, a bare stub at ~:8503, and a sibling
-  adjudication at ~:8580 (verified `138ed79a677`, same verdict from the
-  program-entry-lane angle); all reach "no independent slice".
-- **BACKEND-RUNTIME-STARTUP-MECHANICS** — mined candidate; scope verified,
-  covered — sibling alias on the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP
-  surface recorded on the resolved ENTRY-MECHANICS-RUNTIME-CONSOLIDATION
-  row (~TASKS.md:7467, audit at `be03555d17`): entry/exit mechanics sit
-  under one owner,
-  `omega-rust/omega/backend/runtime/external-roots/src/root_entry/`
-  (root_validation, root_admission, provider_execution,
-  progress_profile_installation, opaque_callback_replacement) plus
-  `platform_bringup` for UEFI bootstrap; the runtime leg was settled by
-  BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS — free Unit entries emit process
-  adapters and ELF `e_entry` round-trips through final-image validation
-  (`image-emission/src/hosted_unit_entry.rs` pins the exact Linux
-  x86-64/ARM64 adapter selection). Re-verified at `83625209125b` on linux
-  x86-64: `root_entry/` module layout intact, `cargo check -p
-  external-roots` clean, `hosted_unit_entry` suite 7/7 green. No
-  independent slice exists here. Sibling aliases: STARTUP-ENTRY-MECHANICS,
-  STARTUP-ENTRY-PLACEHOLDER-SWEEP, STARTUP-ENTRY-RUNTIME-MECHANICS,
-  BACKEND-STARTUP-ENTRY-MECHANICS. Re-verified at `7d03d489e3` on linux
-  x86-64: `root_entry/` still carries the five named modules
-  (root_validation, root_admission, provider_execution,
-  progress_profile_installation, opaque_callback_replacement) and
-  `image-emission/src/hosted_unit_entry.rs` is intact; the settled
-  verdict stands (dispatcher re-dispatched the resolved alias).
-  The concrete entry-acquisition leg the README named — era-entry-gated sealing of `InstalledEntryReference` on the retained runnable's `InstalledCode` — landed at `be03555d1795` (`entry_acquisition.rs` joins the `ActiveComponentEraEntry` token to the era's retained runnable through `RunnableComponentEraLedger::acquire_installed_entry`, delegates the seal to the executable-installation control-flow-integrity gate, and returns the authority and receipt unchanged on refusal); re-witnessed `cargo nextest run -p component-publication -E 'test(~entry_acquisition)'` 3/3 PASS on linux x86-64 at `483dfea65fc3`. Additional sibling alias on this settled surface: BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS.
-  BACKEND-STARTUP-ENTRY-MECHANICS.
-  covered — alias of the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP surface (ENTRY-MECHANICS-RUNTIME-CONSOLIDATION, `be03555d17`)
 - **BACKEND-VOCABULARY-REJECTION-AUDIT.** Mined candidate; scope verified at
   cb01abfa42 — audit that every vocabulary operation reaching the backend is
   either legalized+selected or cleanly refused, never silently miscompiled or
@@ -3733,15 +3648,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   validate). Territory: `target-operations-to-selected-instructions/src/{legalization,selection}`
   + `representations/abstract-operations` (read-only enumeration).
 
-- **BACKEND-STARTUP-ENTRY-MECHANICS.** — mined candidate; scope verified at
-  `138ed79a677` (linux x86-64) for sibling stub
-  **BACKEND-RUNTIME-STARTUP-MECHANICS** (same surface — the runtime startup /
-  program-entry lane: `backend/runtime/external-roots` platform_bringup +
-  program-entry plan + `component-publication`, the directories earlier waves
-  claimed under the two startup-mechanics names). The `component-publication` tests.rs
-  custody-matrix migration belongs to CUSTODY-MUTATION-COVERAGE in
-  TASKS_OPTIMIZER.md, not a
-  startup-mechanics leg. No independent slice landable from this stub.
 
 
 - **CANARY-ACQUIRES-THROUGH-HELPER-RETURN** — mined candidate; scope verified, real residual — the canary exists and is rostered (`tests/omega/pass/capabilities/acquires_through_helper_return`, in `tests/canary_suite.rs` + `tests/fixture_rosters/reports_and_capabilities.rs`), but the rostered fixture is red on `1fc01bb690`: `pass_canaries_compile` filtered to it fails at native-artifact Terminal production — `InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: "`Main::main` has no admitted body (local construction stopped at signature)" }`. The remaining leg is the checked/lowering gap that stops `Main::main`'s local construction at the signature (authority-propagating helper-return shape reaches no admitted body), not a missing corpus member. Fixture path is under a live same-item claim (Devin / cathr-acquires-helper-return).
@@ -4050,20 +3956,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   ambiguous-elision rejection. Explicit same-lifetime multi-source unions already
   work; general authored outlives syntax is outside the current contract, not an
   implementation prerequisite.
-- **INTEL-MACOS-HOST-PROFILE** — mined candidate; verify scope then implement.
-  Verified scope: named alias of **MACOS-X64-HOST-PROFILE** (TASKS.md:5962)
-  — "Intel gap" is that row's own parenthetical. `TargetProfile::MacosX64`
-  already catalogues the host through checked admission (which refuses on
-  the missing `targets/macos_x86_64` provider package); the enumerated legs
-  are the `ProgramEntryPhysicalContractPackage::MacosX64` entry contract +
-  `targets/macos_x86_64/` source library, the x86-64 Mach-O writer
-  (`image_output.rs` refuses `(MachO, X86_64)`), the
-  `native_hosted_target()` cfg arm in `canary_suite.rs`, and a real
-  x86_64-apple-darwin host run. Every implementing surface is under that
-  item's live claims this wave (image-macho/image_output.rs +
-  macos_x86_64 sources at 00:10Z+1d; final_image_validation.rs +
-  installed_artifact.rs at 00:12Z+1d; native_evidence.rs at 00:24Z+1d —
-  all Devin / swarm-w9-macos-x64-host-profile).
 - **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Recheck and resolve excessive
   compile time for
   `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
@@ -4175,14 +4067,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   corpus migration executes against.
 - **NEW-RBRA-STD-LIBRARY-MIGRATION.** Inserted row, scope verified at `891194236afa` (planner-scoped to `source/library/std/{console,time,calling}.omg` + `source/library/std/targets/{linux_x86_64,linux_arm64,windows_x86_64,macos_x86_64}`) — no migration is pending on the scoped surface: every assigned path is byte-identical between this worktree and `origin/main` (empty `git diff --stat` per file/dir), and the std library already spells the current `Service<R>` carrier vocabulary (`time.omg:951` `host: Service<TimeHost>`; bare boundary-trait value spellings reject under `32f5182254`). The `RBRA` token occurs nowhere in the tree or boards; the only sibling in the series is NEW-RBRA-PASS-RECAST-GENERICS, which holds `tests/omega/pass/{recast,generics}` (15:22Z) — the corpus side of whatever migration the series names. Nothing to implement under this name until a concrete contract or failing customer identifies the delta.
 - **NEW-TLBR-PARAMETERIZED-REQUIREMENT-ADMISSION.** Inserted row, scope verified at `c3dd8016a74d` (planner-scoped to `psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs`, byte-identical to origin/main) — the parameterized-requirement admission frontier is `is_directly_callable_top_level_requirement`: a top-level `boundary requirement` may be body-called only when public, nongeneric (`lifetime_parameters.is_empty()` AND `machine_type_parameters(callee).is_empty()`), single-state, and self-free or owned-self; generic/lifetime-parameterized requirements deliberately keep the symbol fence ("receiver custody and obligation transfer are a separate settlement shape"). Widening the predicate is not a slice inside this file: it decides which bodyless symbols may execute, which requires the selected-provider settlement to answer a generic instantiation plus the lifetime-linked return frontier — machinery in selected-dispatch/provider-planning, not validation. The instantiation-bound machinery that an admitted parameterized call would need (`validate_type_parameter_instantiation_bounds` positional pinning + `type_satisfies_declared_property`) already exists and is exercised through the resolved-target rung. No bounded slice remains under the assigned file; the cross-file leg needs a dispatch that includes selected-dispatch's provider resolution.
-- **NON-X86-LAYOUT-RELAXATION** — mined candidate; scope verified at `8734480a01`, no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
-- **NON-X86-LAYOUT-RELAXATION.** — mined candidate; scope verified at `8734480a01`, stamp refreshed `138ed79a677` (facts
-  unchanged at HEAD), no authorized implementation surface. The only function-relative layout rule in the catalog is `X86RelaxConditionalBranchesToRel8V1`, deliberately `Architecture::X86_64`-scoped: selecting it for AArch64 is an explicit `UnsupportedTarget` rejection, not a silent skip (`resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs`). Non-x86 branch encodings are single fixed-width forms — there is no short/long rel8-style pair to relax between — and out-of-range AArch64 targets reject at sequence emission (`isa-aarch64/src/hosted_sequences.rs` "target is out of range"). A veneer/trampoline mechanism for >±1MB conditional branches is a different mechanism named only by `machine_state_evidence.md`'s final-artifact validation list; it needs an authorizing spec and a concrete failing customer before it is an item.
-  Alias: **AARCH64-BRANCH-RELAXATION** names this same surface — no separate
-  board row exists at `2e1db3ba3e`; both pins re-verified there
-  (`x86_rel8_selected` rejects `Architecture::Aarch64` as `UnsupportedTarget`
-  in catalog.rs, and `hosted_sequences.rs` emits the out-of-range
-  diagnostic). Dispatch it here — already resolved.
 - **HOSTED-BUILTIN-SETTLEMENT-EXPANSION** — mined candidate; verify scope then implement.
 - **HOSTED-RECEIVER-SERVICE-CARRIER** — mined candidate; verify scope then implement.
 - **HOSTILE-SHARED-MEMORY-PLACEMENT** — mined candidate; verify scope then implement.
@@ -4760,109 +4644,19 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 
 
 
-- **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) — the optimized program
-  storage semantic wrapper encoding lane has no AArch64 implementation.
-  `select_optimized_program_storage_semantic_wrapper_encoding`
-  (`omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_encoding/mod.rs`)
-  calls `encode_x86_64_semantic_unit_wrapper_template` unconditionally, with
-  no `Architecture` switch, so on AArch64 the lane cannot produce a template.
-  It refuses cleanly rather than miscompiling — the error surfaces as
-  `NonCanonicalRequest` — so this is a missing peer implementation, not a
-  correctness hole. An AArch64 template is owed: the lane's own module doc
-  calls this the "target-owned semantic ProgramStorage wrapper", and
-  [entry roots](wiki/spec/build/entry_roots.md) frames the whole surface as
-  per-target, a "target-authored bootstrap adapter and physical result map".
+- **NATIVE-WRAPPER-ENCODING-AARCH64.** (new-scope) Resolve the existing
+  `aarch64-semantic-wrapper-arrival-shape` decision in
+  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) before adding a peer encoding.
+  `select_optimized_program_storage_semantic_wrapper_encoding` currently
+  selects the x86-64 template; its recipe assumes the UEFI indirect Extent
+  arrival and caller-owned copies. AArch64 declarations instead use register
+  fragments, and current AArch64 profiles expose hosted entry, not
+  ProgramStorage entry. Do not assume they need the UEFI wrapper.
+  Acceptance after the ruling: either implement the required arrival and
+  continuation with architecture-correct branch relocation and independent
+  substitution checks, or pin the intended refusal and remove this task.
+  AArch64 hosted execution remains with the native matrix owners.
 
-  Blocked on owner question 5 (`aarch64-semantic-wrapper-arrival-shape`):
-  what that template *is* is undetermined, not merely unwritten. The x86-64
-  template exists because the UEFI target authors a by-reference semantic
-  arrival — `ValueLocation::Indirect { pointer: Register(X86Rcx), has_copy:
-  true, copy_stack_byte_offset: 32 }` and `shadow_bytes = 32` in
-  `source/library/std/targets/uefi_x86_64/entry.omg` — so every number in
-  `program-entry-plan/src/optimized_semantic_wrapper/recipe.rs` (shadow 32,
-  copies into 32/40/48/56, address binds at 32/48) is read off that
-  declaration. Both AArch64 targets author the opposite: `extent_value(0, 1)`
-  and `extent_value(2, 3)` place each Extent as two `Aarch64X` register
-  fragments with no copy, and neither file sets `shadow_bytes`
-  (`macos_arm64/entry.omg`, `linux_arm64/entry.omg`, whose comment reads "the
-  generated bridge passes the image and initial-storage roots in the first
-  four AAPCS64 integer registers"). The wrapper calls its continuation under
-  the same plan fingerprint it arrived on, so on AArch64 there is no
-  caller-owned copy to re-materialize, and `validate_root_placement` rejects a
-  register-fragment placement outright. Separately, no AArch64 profile
-  declares `ProgramStorageApplication`/`ImageAndInitialStorage`
-  (`target/src/lib.rs` `program_entry_slot` gives `MacosArm64` and
-  `LinuxArm64` `HostedApplication`/`None`), so the lane's own input contract
-  has no AArch64 instance to construct a test from today.
-
-  The ISA half needs no decision and is on record. Independently assembled
-  with Apple clang (`clang -c -arch arm64`, read back with `otool -t`) on
-  macOS 24.5.0: `sub sp, sp, #48` is `d100c3ff`, `str x30, [sp, #40]` is
-  `f90017fe`, `str x0, [sp]` is `f90003e0`, `add x1, sp, #16` is `910043e1`,
-  `bl` is `9400_0000 | imm26`, `b` is `1400_0000 | imm26`, and `ret` is
-  `d65f03c0`. The call relocation field is not the x86-64 shape: `BL` carries
-  `imm26` in bits [25:0] of the branch word, scaled by 4 and ranged to
-  128 MiB either way, sharing the word with opcode `0b100101`.
-  `X86_64SemanticUnitWrapperEncodingRequest.relocation_field_byte_width = 4`,
-  resolved by overwriting four bytes with `i32::to_le_bytes`, and the
-  plan-level `OptimizedProgramStorageSemanticWrapperRelocationKind::X86Relative32PrivateContinuationV1`
-  with `byte_width: 4`, cannot describe it. AArch64 resolution is a masked
-  merge into the retained opcode word, and its unresolved state is "bits
-  [25:0] are zero", not "four zero bytes"; a peer needs its own relocation
-  kind rather than the shared 32-bit byte-displacement field.
-
-  Acceptance: once owner question 5 fixes the arrival shape, either the lane
-  selects a template per architecture and an AArch64 host encodes its own
-  wrapper, with a test pinning both ISAs; or the refusal is pinned as the
-  intended contract by a test that names the architecture, and this row is
-  removed.
-
-  **DESIGN-BLOCKED (verified 2026-09-21).**
-  `wiki/spec/build/entry_roots.md`'s entry-shape section gives only the
-  Windows/UEFI x86-64 worked example and defers the rest to "the exact target
-  adapter", stating no rule for a register-fragment semantic ProgramStorage
-  arrival (no copy, no `shadow_bytes`). `target/src/lib.rs` gives AArch64 only
-  `HostedApplication`/`None`, so there is no `ProgramStorageApplication`
-  instance to build a request from even if one wanted to.
-
-- **STARTUP-ENTRY-MECHANICS.** Resolved — named sibling alias of the
-  settled STARTUP-ENTRY-MECHANICS-OWNERSHIP cluster (resolved by audit
-  at `be03555d17`; ENTRY-MECHANICS-RUNTIME-CONSOLIDATION at :7683 names
-  this stub verbatim). Re-verified at `c3dd8016a74d`+ head fetch
-  (Zergling-52, linux x86-64, claim 64ad3bc5): `root_entry/` holds six
-  modules (root_validation, root_admission, provider_execution,
-  progress_profile_installation, opaque_callback_replacement,
-  required_root_slots), `tests/architecture/layering.rs` still pins the
-  external-roots ownership rows, and `hosted_unit_entry.rs` is intact under
-  image-emission. The prior `external-roots/src/root_entry` fence under
-  this name has drained; `hosted_receiver*` stays fenced by
-  PLAN-LAID-VIEWS (~09:25Z). Entry/exit mechanics consolidate at
-  `backend/runtime/external-roots/src/root_entry` (validation,
-  admission, provider execution, progress-profile installation) plus
-  `platform_bringup` for UEFI bootstrap; `program-entry-plan` is
-  data-only and `_start` resolution + `entry_settlement` are emission
-  detail, not a second mechanics site. `tests/architecture/layering.rs`
-  pins the ownership rows; the runtime side was settled by
-  BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS (free Unit entries emit
-  process adapters on linux_x86_64/linux_arm64; ELF `e_entry`
-  round-trips through final-image validation). No independent slice
-  exists.
-  covered — alias of the settled STARTUP-ENTRY-MECHANICS-OWNERSHIP cluster (be03555d17)
-- **STARTUP-ENTRY-PLACEHOLDER-SWEEP.** Resolved — named sibling alias of
-  the resolved STARTUP-ENTRY-MECHANICS-OWNERSHIP cluster (:7578). The
-  sweep for placeholder/shadow startup-entry mechanics is already
-  settled: ownership consolidates at
-  `backend/runtime/external-roots/src/root_entry` (validation,
-  admission, provider execution, progress-profile installation) plus
-  `platform_bringup` for UEFI bootstrap; `program-entry-plan` is
-  data-only and `_start` resolution + `entry_settlement` are emission
-  detail, not second mechanics sites. `tests/architecture/layering.rs`
-  pins the ownership rows; the runtime side was settled by
-  BACKEND-RUNTIME-STARTUP-ENTRY-MECHANICS (free Unit entries emit process
-  adapters on linux_x86_64/linux_arm64; ELF `e_entry` round-trips through
-  final-image validation). No placeholder mechanics survive to sweep —
-  no independent slice exists.
-- **STARTUP-ENTRY-RUNTIME-MECHANICS** — mined candidate; verify scope then implement.
 - **T2C-RANK-RANGE-FIELD-ENDPOINTS.** Mined candidate — resolved:
   rank-range endpoints expressed as field chains are landed and green.
   `typed-trees-to-checked-trees/src/checks/termination/ranking/ranges/endpoints.rs`
@@ -4881,43 +4675,16 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
   — `EndpointInput` resolution, per-self-edge `preserved_by` re-checks and
   `prefix_preserves_path` all intact.
   covered — field-chain rank-range endpoints landed in checks/termination/ranking/ranges/endpoints.rs; 49/49 green
-- **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Scope verified; audit plus
-  one landed fix. The mined name resolves to the exact-target-request
-  contract (`wiki/spec/build/configuration.md`): reject `all`, `*`, empty
-  sets and inference from source/dependencies/the toolchain catalog, and
-  certify selected platforms mechanically (semantics, ABI/layout, resources,
-  reach validate — "mechanical closure, not a claim of human testing").
-  Already implemented and pinned before this leg: `ExplicitTargetSet`
-  (`compiler/request/targets.rs`) rejects empty/`all`/`*`, dedups and orders
-  canonically; `CompileRequest::validate_for_execution` (`request.rs`)
-  requires exact names on multi-target runs, resolves an omitted name
-  through `TargetProfile::host_if_supported` for NativeArtifact and refuses
-  with a diagnostic on uncatalogued hosts, and keeps absent targets
-  target-neutral for Check/TerminalArtifact; selected-profile certification
-  runs through `required_root_slots` binding plus exact physical-contract
-  package digests in `build-evaluation/admission/selection.rs`, with
-  recognized-but-unrealized `alpha_bootstrap` reporting not-implemented.
-  Landed fix: `NativeTarget::from_omega_target_name(None)` resolved through
-  raw `NativeTarget::host()`, which panics in `host_architecture` on
-  uncatalogued architectures and fabricates `(Aarch64, Coff)` /
-  `(X86_64, Elf)` triples on hosts with no catalogued profile (the
-  `host_if_supported` contract on `TargetProfile` requires build-scope
-  source-selection callers to carry that absence, never panic or name a
-  foreign shape); the `None` arm now routes through a new
-  `NativeTarget::host_if_supported()` (`TargetProfile::host_if_supported`
-  → `native_target`), so target-neutral admission paths
-  (`filter_target_machines_by_scope`, `filter_generated_extension`,
-  provider settlement's profile-absent fallback entry) refuse with a
-  diagnostic instead of panicking or fabricating on uncatalogued hosts.
-  Identical triples on every catalogued host. Also refreshed the stale
-  `MacosX64` doc comment (the Mach-O x86-64 writer and
-  `targets/macos_x86_64` package landed at `5a5046d1dbc`; the slot arm stays
-  empty under MACOS-X64-HOST-PROFILE). Residual nits not owned here: the
-  uncatalogued-host diagnostic in `request.rs` lists seven profiles and
-  omits `macos_x86_64`/`alpha_bootstrap`. Verified at HEAD on linux x86-64:
-  `cargo check -p build-evaluation -p provider-planning -p
-  package-compilation --all-targets` clean; `nextest -p target` 55/55,
-  `-p build-evaluation` 90/90.
+- **TARGET-INFERENCE-AND-PLATFORM-CERTIFICATION.** Enforce canonical target
+  spellings at compiler and CLI request boundaries under
+  [exact target requests](wiki/spec/build/configuration.md#exact-target-requests).
+  `TargetProfile::from_omega_target_name` and `ExplicitTargetSet` still accept
+  `linux_x64`, `windows_x64` and `uefi_x64`; the specification requires
+  canonical names rather than these aliases. Preserve Host convenience,
+  exact-set deduplication/order, independent child outcomes and unsupported
+  profile diagnostics. Acceptance: canonical single/multiple requests work;
+  aliases, empty sets, wildcards and unknown names reject. Target-neutral
+  checking remains distinct from native execution on a matching host.
 - **TERMINATION-FIELD-ENDPOINT-TRIO.** Mined candidate — resolved: the name
   names the three `rank_ranges` field-endpoint failures recorded in
   `wiki/drafts/known_baseline_failures.md` at `660f5af762`
@@ -5125,68 +4892,6 @@ Squalr app lane (source: `samples/apps/squalr/TASKS.md`):
 - **TV-GENERAL-CALLS-REPLAY.** — mined candidate; verify scope then implement.
 
 - **TV-GENERAL-CALLS-REPLAY** — mined candidate; verify scope then implement.
-- **WINDOWS-FILE-TIME-CARRIER-RESPELL.** — mined candidate; scope verified,
-  covered — the stub is the same "unsigned carrier" clause of
-  WINDOWS-SET-FILE-TIME-RESPELL as resolved sibling
-  WINDOWS-FILE-TIME-UNSIGNED-RESPELL (merged with
-  FILESYSTEM-WINDOWS-FILETIME-RESPELL): the respelling landed at
-  `ff782bdf21` — `tests/omega/pass/filesystem/windows_set_file_time_exit/main.omg`
-  assembles `st_mtime` through the u64 carrier (`widen_u8_to_u64` per byte,
-  `narrow_u64_to_i64_wrapping` once at landing, main.omg:74-81) instead of
-  the overflowing `widen_u8_to_i64(byte) << 56` idiom, and the fixture is
-  registered in `CHECKED_ONLY_PASS_CANARIES` (`canary_suite.rs:1056`).
-  Re-verified on tip `43104bde655` (linux x86-64, source inspection): the
-  u64-carrier assembly is still in place and the old idiom does not recur;
-  the fixture's native-execution leg stays Windows-gated and unmeasurable
-  on this host, as `wiki/drafts/known_baseline_failures.md` records. The
-  parent row owns the residual bookkeeping; no independent slice exists
-  here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-UNSIGNED-RESPELL,
-  WINDOWS-SET-FILE-TIME-CARRIER, WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
-- **WINDOWS-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified,
-  dispatch (~10:19Z). Still no implementation slice exists to claim.
-  Earlier same-day verification at `e5bbe53956f` (z148) reached the same
-  gate: `CompositionCrossActivationEdges::NotRetained` still publishes
-  (composition_model/mod.rs:118-226) and the spec deferral text was
-  unchanged (concurrency.md:138).
-- **WINDOWS-FILE-TIME-UNSIGNED-RESPELL** — mined candidate; scope verified,
-  covered. The stub is the "unsigned carrier" clause of
-  WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with
-  FILESYSTEM-WINDOWS-FILETIME-RESPELL), landed at `ff782bdf21` — the
-  `windows_set_file_time_exit` fixture assembles the `st_mtime`
-  nanos-through-100ns conversion through the u64 carrier
-  (`widen_u8_to_u64`/`narrow_u64_to_i64_wrapping`) instead of the overflowing
-  `widen_u8_to_i64(byte) << 56` idiom. `wiki/drafts/known_baseline_failures.md`
-  names the same respelling and records that the fixture is Windows-gated, so
-  neither its failure nor its repair can be measured on a non-Windows host.
-  The parent row owns the residual bookkeeping; no independent slice exists
-  here. Re-verified at `59610bf809` (linux x86-64): main.omg still assembles
-  `st_mtime` through `widen_u8_to_u64` per byte with
-  `narrow_u64_to_i64_wrapping` at landing; the old `widen_u8_to_i64`
-  idiom does not recur. Sibling stubs resolved on the same clause:
-  WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
-  WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.
-- **WINDOWS-SET-FILE-TIME-RESPELL.** Resolved — the named repair
-  landed at `ff782bdf21` and stands at `b868b9ee8f270`:
-  `tests/omega/pass/filesystem/windows_set_file_time_exit/main.omg`
-  assembles `st_mtime` in the unsigned `u64` carrier
-  (`widen_u8_to_u64(byte) << N` per byte, `narrow_u64_to_i64_wrapping`
-  once at the landing — `255 << 56` stays Exact-representable only in
-  `u64`; the overflowing `widen_u8_to_i64(byte) << 56` idiom does not
-  recur), and the fixture is registered in `CHECKED_ONLY_PASS_CANARIES`
-  (`canary_suite.rs`). The native-execution leg is Windows-gated — the
-  entry's `Main::fs` wants a selected fused `FilesystemHost` provider —
-  so it is unmeasurable on this linux x86-64 host and stays attributed
-  there (`wiki/drafts/known_baseline_failures.md`,
-  the prior canary repair disposition). No slice remains on this
-  host. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL,
-  WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER,
-  WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL, FILESYSTEM-WINDOWS-FILETIME-RESPELL. Re-verified at `8f58b6676b`: `ff782bdf21` is
-  an ancestor of base; `main.omg:74-82` still assembles `st_mtime` via
-  `widen_u8_to_u64` per byte with `narrow_u64_to_i64_wrapping` at landing,
-  and the fixture stays in `CHECKED_ONLY_PASS_CANARIES`
-  (`canary_suite.rs:1066`).
-- **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified, covered — the stub is the "unsigned carrier" clause of WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with FILESYSTEM-WINDOWS-FILETIME-RESPELL): `known_baseline_failures.md` already names the respelling — `widen_u8_to_i64(byte) << 56` intermediates (about 1.84e19/4.28e9 against the i64/i32 ceilings) assemble in the unsigned carrier of the field's own width and reinterpret once at landing — and records that `tests/omega/pass/filesystem/windows_set_file_time_exit` is Windows-gated, so neither its failure nor its repair can be measured on a non-Windows host. The parent item owns the leg; no independent slice exists here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER.
-- **WINDOWS-SET-FILE-TIME-UNSIGNED-RESPELL.** — mined candidate; scope verified, covered — the stub is the "unsigned carrier" clause of WINDOWS-SET-FILE-TIME-RESPELL verbatim (merged with FILESYSTEM-WINDOWS-FILETIME-RESPELL): `known_baseline_failures.md` already names the respelling — `widen_u8_to_i64(byte) << 56` intermediates (about 1.84e19/4.28e9 against the i64/i32 ceilings) assemble in the unsigned carrier of the field's own width and reinterpret once at landing — and records that `tests/omega/pass/filesystem/windows_set_file_time_exit` is Windows-gated, so neither its failure nor its repair can be measured on a non-Windows host. The parent item owns the leg; no independent slice exists here. Sibling stubs on the same clause: WINDOWS-FILE-TIME-CARRIER-RESPELL, WINDOWS-FILE-TIME-UNSIGNED-RESPELL, WINDOWS-SET-FILE-TIME-CARRIER. Parent stub **WINDOWS-SET-FILE-TIME-RESPELL** resolved at `138ed79a677` (linux x86-64, source inspection): the `ff782bdf21` respelling still stands — `tests/omega/pass/filesystem/windows_set_file_time_exit/main.omg:74-82` assembles `st_mtime` through `widen_u8_to_u64` per byte with `narrow_u64_to_i64_wrapping` at landing, no `widen_u8_to_i64` recurrence, and the fixture stays registered in `CHECKED_ONLY_PASS_CANARIES` (`canary_suite.rs:1056`); its native-execution leg remains Windows-gated and unmeasurable on this host. The respell item's whole surface closes on that pin.
 ## Platform-gated verification
 
 - Run Linux host/time/filesystem and `IntegerAt` runtime paths on AArch64;
