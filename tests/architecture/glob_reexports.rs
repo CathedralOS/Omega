@@ -34,7 +34,7 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ),
     (
         "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
-        3,
+        2,
     ),
     (
         "omega-rust/omega/pipeline/register-homes-to-post-allocation-machine",
