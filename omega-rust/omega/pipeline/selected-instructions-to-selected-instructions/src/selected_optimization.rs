@@ -5,11 +5,11 @@ pub(crate) mod optimization_output;
 #[cfg(test)]
 mod catalog_route_tests;
 
+use crate::analyses::stage_optimized_allocation_legality_for_frameless_leaf;
 use crate::{
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionOptimizationError,
     SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationOutput,
-    SelectedStageRuleRows, run_selected_lowering_optimizations,
-    stage_optimized_allocation_legality_for_frameless_leaf, stage_optimized_live_ranges,
+    SelectedStageRuleRows, run_selected_lowering_optimizations, stage_optimized_live_ranges,
     stage_optimized_liveness,
 };
 use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};

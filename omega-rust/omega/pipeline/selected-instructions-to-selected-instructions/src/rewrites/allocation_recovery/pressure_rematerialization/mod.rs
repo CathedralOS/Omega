@@ -19,7 +19,7 @@ pub(crate) mod validate;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) mod tests;
 
-pub use identity::pressure_rematerialization_identity;
+pub(crate) use identity::pressure_rematerialization_identity;
 pub use model::*;
 pub use validate::validate_pressure_rematerialization;
 

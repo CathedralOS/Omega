@@ -2,10 +2,9 @@ use super::{
     assert_budget_is_enforced, assert_deterministic_fixed_point, budget, fold_with, policy_without,
     restage_literal, staged_and_inputs, staged_inputs, validate,
 };
-use crate::{
-    LiteralFoldError, LiteralFoldPolicy, fold_selected_incoming_literal, validate_literal_fold,
-    validated_machine_effect_catalog,
-};
+use crate::analyses::validated_machine_effect_catalog;
+use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
+use crate::{LiteralFoldError, LiteralFoldPolicy};
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;
 use register_model::RegisterOperandAccess;

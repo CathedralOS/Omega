@@ -1,8 +1,7 @@
 use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
 
-use crate::{
-    LiteralFoldPlan, LiteralFoldValidationReceipt, ValidatedLiteralFold, literal_fold_identity,
-};
+use crate::rewrites::literal_fold_identity;
+use crate::{LiteralFoldPlan, LiteralFoldValidationReceipt, ValidatedLiteralFold};
 
 pub(super) fn admit_literal_fold(
     plan: LiteralFoldPlan,

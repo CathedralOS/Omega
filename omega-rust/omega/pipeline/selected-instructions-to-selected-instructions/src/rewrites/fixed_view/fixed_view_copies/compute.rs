@@ -1,4 +1,5 @@
-use crate::{FixedViewCopyPolicy, ValidatedFixedViewCopies, materialize_fixed_view_copies};
+use crate::rewrites::materialize_fixed_view_copies;
+use crate::{FixedViewCopyPolicy, ValidatedFixedViewCopies};
 use optimization_core::OptimizationWorkBudget;
 
 use crate::StagedOptimizedFixedPrecoloredSegmentHomes;

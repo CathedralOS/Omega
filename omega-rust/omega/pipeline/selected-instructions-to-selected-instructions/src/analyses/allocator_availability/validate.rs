@@ -13,7 +13,7 @@ use register_homes::{
     AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy, allocator_availability_identity,
 };
 
-pub fn validate_allocator_availability(
+pub(crate) fn validate_allocator_availability(
     register_environment: TargetRegisterEnvironmentIdentity,
     target: NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,

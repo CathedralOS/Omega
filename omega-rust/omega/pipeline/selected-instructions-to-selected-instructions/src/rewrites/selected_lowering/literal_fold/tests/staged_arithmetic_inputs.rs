@@ -2,6 +2,7 @@
 
 use super::{Inputs, budget, successor, usage};
 use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::analyses::validated_machine_effect_catalog;
 use crate::{
     AllocationLegalityValidationReceipt, AllocatorAvailabilityValidationReceipt,
     FunctionLiteralFold, LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy,
@@ -9,7 +10,6 @@ use crate::{
     RecoveryClassificationValidationReceipt, SpillChoiceValidationReceipt,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiteralFold,
     ValidatedLiveRanges, ValidatedRecoveryClassifications, ValidatedSpillChoices,
-    validated_machine_effect_catalog,
 };
 use optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};

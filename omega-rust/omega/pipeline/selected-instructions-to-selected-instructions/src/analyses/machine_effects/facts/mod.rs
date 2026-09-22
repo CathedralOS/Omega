@@ -25,7 +25,7 @@ use selected_instructions::ValidatedMachineEffectCatalog;
 /// sidecar. This grants no transformation, home, emission, or publication
 /// authority.
 #[allow(clippy::too_many_arguments)]
-pub fn analyze_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
+pub(crate) fn analyze_pre_allocation_machine_effects<S: ValidatedSelectedAnalysis>(
     selected: &S,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,

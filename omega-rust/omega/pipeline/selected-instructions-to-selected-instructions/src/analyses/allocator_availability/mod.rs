@@ -14,7 +14,7 @@ pub use model::{
     ValidatedAllocatorAvailability,
 };
 use register_homes::AllocatorAvailabilityPolicy;
-pub use validate::validate_allocator_availability;
+pub(crate) use validate::validate_allocator_availability;
 
 /// Materialize and independently replay one exact named policy controlling
 /// unconstrained physical-view availability. This is allocator input only; it

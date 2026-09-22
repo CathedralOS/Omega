@@ -3,7 +3,7 @@ use crate::{
     PressureRematerializationPolicy,
 };
 
-pub fn pressure_rematerialization_identity(
+pub(crate) fn pressure_rematerialization_identity(
     plan: &PressureRematerializationPlan,
 ) -> PressureRematerializationIdentity {
     let mut bytes = Vec::new();
@@ -94,7 +94,7 @@ mod tests {
     use crate::PressureRematerializationPlan;
     use crate::PressureRematerializationPolicy;
     use crate::PressureRematerializationRewrite;
-    use crate::pressure_rematerialization_identity;
+    use crate::rewrites::pressure_rematerialization_identity;
     use optimization_core::{
         OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage,
     };

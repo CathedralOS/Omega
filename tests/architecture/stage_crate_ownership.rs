@@ -597,7 +597,7 @@ const UNSEQUENCED_SPILL_FAMILIES: [(&str, &str); 16] = [
 /// rosters do not yet attach to the proof bundle, so it has no caller at all
 /// and narrowing it would only make the module dead code; it stays `pub`
 /// until that leg lands or the module is retired.
-const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 20] = [
+const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 2] = [
     (
         "checked-trees-to-lowered-psi",
         "check_entry_requirement_certificate",
@@ -605,78 +605,6 @@ const INTERNALLY_CALLED_REEXPORTS: [(&str, &str); 20] = [
     (
         "checked-trees-to-lowered-psi",
         "produce_entry_requirement_certificates",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "complete_optimized_active_resident_rematerialization",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "corrupt_active_resident_rematerialization_pressure_custody_for_test",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "project_post_allocation_optimization_manifest",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "project_post_allocation_optimization_manifest_after_selected_lowering",
-    ),
-    (
-        "selected-instructions-to-register-homes",
-        "validate_post_allocation_optimization_manifest_after_selected_lowering",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "analyze_pre_allocation_machine_effects",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "enabled_pair_rules",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "fold_selected_incoming_literal",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "literal_fold_identity",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "materialize_fixed_view_copies",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "pressure_rematerialization_identity",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "selected_stage_catalog_contains",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "selected_stage_rule_rows",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "stage_optimized_allocation_legality_for_frameless_leaf",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "validate_allocator_availability",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "validate_literal_fold",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "validate_staged_optimized_liveness_custody",
-    ),
-    (
-        "selected-instructions-to-selected-instructions",
-        "validated_machine_effect_catalog",
     ),
 ];
 

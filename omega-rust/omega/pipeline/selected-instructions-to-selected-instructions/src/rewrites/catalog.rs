@@ -108,7 +108,7 @@ pub const SELECTED_STAGE_RULE_CATALOG: [SelectedStageRuleCatalogSlice; 2] = [
 ];
 
 /// The catalog slice admitting rules under `phase`, if this stage carries it.
-pub fn selected_stage_rule_rows(
+pub(crate) fn selected_stage_rule_rows(
     phase: OptimizationExecutionPhase,
 ) -> Option<SelectedStageRuleRows> {
     SELECTED_STAGE_RULE_CATALOG
@@ -119,7 +119,7 @@ pub fn selected_stage_rule_rows(
 
 /// Stage-level membership: `optimization` is a selectable rule under `phase`.
 /// This is the membership authority both phase resolvers consult.
-pub fn selected_stage_catalog_contains(
+pub(crate) fn selected_stage_catalog_contains(
     phase: OptimizationExecutionPhase,
     optimization: Optimization,
 ) -> bool {

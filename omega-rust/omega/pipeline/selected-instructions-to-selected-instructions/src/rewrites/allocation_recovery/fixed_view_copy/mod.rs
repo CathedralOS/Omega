@@ -28,7 +28,7 @@ pub use validate::validate_fixed_view_copies;
 
 /// Apply one explicitly selected fixed-view copy policy and independently
 /// reconstruct its complete selected CFG.
-pub fn materialize_fixed_view_copies(
+pub(crate) fn materialize_fixed_view_copies(
     selected: &ValidatedSelectedInstructions,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,

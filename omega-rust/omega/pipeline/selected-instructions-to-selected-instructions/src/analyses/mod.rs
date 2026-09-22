@@ -8,11 +8,11 @@ mod reanalysis;
 
 #[cfg(any(test, feature = "test-support"))]
 pub use legality::OptimizedAllocationLegalityCustodyFieldForTest;
+pub(crate) use legality::stage_optimized_allocation_legality_for_frameless_leaf;
 pub use legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
-    stage_optimized_allocation_legality_for_frameless_leaf,
     stage_optimized_allocation_legality_with_availability,
     validate_optimized_allocation_legality_custody,
 };
@@ -26,20 +26,22 @@ pub use live_ranges::{
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use liveness::OptimizedLivenessCustodyFieldForTest;
+pub(crate) use liveness::validate_staged_optimized_liveness_custody;
 pub use liveness::{
     LivenessError, LivenessValidationReceipt, OptimizedLivenessCustodyError,
     StagedOptimizedLiveness, StagedOptimizedLivenessCustodyReceipt, ValidatedLiveness,
     analyze_liveness, analyze_liveness_reusing, stage_optimized_liveness, validate_liveness,
-    validate_optimized_liveness_custody, validate_staged_optimized_liveness_custody,
+    validate_optimized_liveness_custody,
 };
+pub(crate) use machine_effects::analyze_pre_allocation_machine_effects;
+pub(crate) use machine_effects::validated_machine_effect_catalog;
 pub use machine_effects::{
     BlockMachineEffects, FunctionMachineEffects, InstructionMachineEffects, MachineEffectError,
     MachineEffectStageError, PreAllocationMachineEffectDecodeError,
     PreAllocationMachineEffectIdentity, PreAllocationMachineEffectPlan,
     PreAllocationMachineEffectReceipt, ValidatedPreAllocationMachineEffects,
-    analyze_machine_effects, analyze_pre_allocation_machine_effects,
-    pre_allocation_machine_effect_identity, validate_machine_effects,
-    validate_pre_allocation_machine_effects, validated_machine_effect_catalog,
+    analyze_machine_effects, pre_allocation_machine_effect_identity, validate_machine_effects,
+    validate_pre_allocation_machine_effects,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use reanalysis::OptimizedSelectedReanalysisCustodyFieldForTest;
@@ -61,10 +63,10 @@ pub use allocation_legality::{
     AllocationLegalityError, AllocationLegalityValidationReceipt, ValidatedAllocationLegality,
     analyze_allocation_legality, validate_allocation_legality,
 };
+pub(crate) use allocator_availability::validate_allocator_availability;
 pub use allocator_availability::{
     AllocatorAvailabilityError, AllocatorAvailabilityValidationReceipt,
     ValidatedAllocatorAvailability, materialize_allocator_availability,
-    validate_allocator_availability,
 };
 pub use fixed_precolored_intervals::{
     FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,

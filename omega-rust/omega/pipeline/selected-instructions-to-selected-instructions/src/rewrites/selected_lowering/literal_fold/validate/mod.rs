@@ -27,7 +27,7 @@ use roots::validate_literal_fold_roots;
 use usage::{ensure_budget, reconstruct_fold_usage};
 
 #[allow(clippy::too_many_arguments)]
-pub fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
+pub(crate) fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
     selected: &S,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,

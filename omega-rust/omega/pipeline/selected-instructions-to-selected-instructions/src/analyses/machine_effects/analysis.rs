@@ -1,7 +1,5 @@
-use crate::{
-    ValidatedPreAllocationMachineEffects, analyze_pre_allocation_machine_effects,
-    validate_pre_allocation_machine_effects,
-};
+use crate::analyses::analyze_pre_allocation_machine_effects;
+use crate::{ValidatedPreAllocationMachineEffects, validate_pre_allocation_machine_effects};
 
 use register_environment::ValidatedTargetRegisterEnvironment;
 

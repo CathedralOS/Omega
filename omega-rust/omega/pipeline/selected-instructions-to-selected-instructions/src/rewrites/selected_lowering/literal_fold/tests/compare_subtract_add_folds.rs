@@ -3,10 +3,9 @@ use super::{
     policy_without, restage_literal, staged_add_inputs, staged_inputs, staged_subtract_inputs,
     validate,
 };
-use crate::{
-    LiteralFoldError, LiteralFoldPolicy, fold_selected_incoming_literal, validate_literal_fold,
-    validated_machine_effect_catalog,
-};
+use crate::analyses::validated_machine_effect_catalog;
+use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
+use crate::{LiteralFoldError, LiteralFoldPolicy};
 use optimization_core::AcceptedObligationFactIdentity;
 use register_environment::baseline_target_register_environment;
 use register_homes::{RecoveryClassification, RecoveryVictimRole};

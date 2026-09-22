@@ -48,7 +48,7 @@ pub struct PressureRematerializationPlan {
 impl PressureRematerializationPlan {
     pub fn encode(&self) -> Vec<u8> {
         let content = encode_terminal_pressure_rematerialization_content(self);
-        let identity = crate::pressure_rematerialization_identity(self);
+        let identity = crate::rewrites::pressure_rematerialization_identity(self);
         let mut encoded = Vec::with_capacity(44 + content.len());
         encoded.extend_from_slice(MAGIC);
         encoded.extend_from_slice(&VERSION.to_le_bytes());
@@ -164,7 +164,7 @@ impl PressureRematerializationPlan {
             functions,
             transformed_selected,
         };
-        if crate::pressure_rematerialization_identity(&plan) != identity {
+        if crate::rewrites::pressure_rematerialization_identity(&plan) != identity {
             return Err(PressureRematerializationDecodeError::IdentityMismatch);
         }
         Ok(plan)

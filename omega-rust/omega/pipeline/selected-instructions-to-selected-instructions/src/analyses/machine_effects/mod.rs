@@ -24,7 +24,7 @@ use register_environment::ValidatedTargetRegisterEnvironment;
 /// Optimizations whose descriptors admit a machine-effect surface bind this
 /// catalog's identity and resolve producer, consumer, and rewritten
 /// declarations in it rather than re-deriving target-specific declarations.
-pub fn validated_machine_effect_catalog(
+pub(crate) fn validated_machine_effect_catalog(
     target: target::NativeTarget,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
 ) -> Result<selected_instructions::ValidatedMachineEffectCatalog, MachineEffectStageError> {

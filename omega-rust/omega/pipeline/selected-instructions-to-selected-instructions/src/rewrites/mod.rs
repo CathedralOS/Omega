@@ -32,6 +32,8 @@ pub mod test_support;
 pub mod unexecuted;
 mod window_hazards;
 
+pub(crate) use allocation_recovery::materialize_fixed_view_copies;
+pub(crate) use allocation_recovery::pressure_rematerialization_identity;
 pub use allocation_recovery::{
     ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
     AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload, FixedViewCopy,
@@ -42,14 +44,16 @@ pub use allocation_recovery::{
     PressureRematerializationError, PressureRematerializationPlan, PressureRematerializationPolicy,
     PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
     ValidatedFixedViewCopies, ValidatedPressureRematerialization, fixed_view_copy_identity,
-    materialize_fixed_view_copies, pressure_rematerialization_identity,
     rematerialize_selected_active_resident, selected_allocation_recovery_rule,
     validate_fixed_view_copies, validate_pressure_rematerialization,
 };
+// Reached as `crate::rewrites::<name>` by the catalog's own tests and by
+// `selected_optimization`'s admission decision.
 pub use catalog::{
     SELECTED_STAGE_RULE_CATALOG, SelectedStageRuleCatalogSlice, SelectedStageRuleRows,
-    selected_stage_catalog_contains, selected_stage_rule_rows,
 };
+#[allow(unused_imports)]
+pub(crate) use catalog::{selected_stage_catalog_contains, selected_stage_rule_rows};
 pub use fixed_view::{
     FixedPrecoloredSegmentHomeDecline, OptimizedFixedPrecoloredSegmentHomeCustodyError,
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
@@ -87,6 +91,13 @@ pub use runtime_spill::{
     spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
     validate_runtime_spill, validate_runtime_spill_with_span_policy,
 };
+pub(crate) use selected_lowering::enabled_pair_rules;
+pub(crate) use selected_lowering::fold_selected_incoming_literal;
+pub(crate) use selected_lowering::literal_fold_identity;
+// Reached as `crate::rewrites::validate_literal_fold` by the literal-fold
+// test corpus.
+#[allow(unused_imports)]
+pub(crate) use selected_lowering::validate_literal_fold;
 pub use selected_lowering::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldDecodeError, LiteralFoldError,
     LiteralFoldIdentity, LiteralFoldPlan, LiteralFoldPolicy, LiteralFoldValidationReceipt,
@@ -96,8 +107,7 @@ pub use selected_lowering::{
     PairUnitDefRelation, PairUnitEffects, SELECTED_LOWERING_RULE_CATALOG,
     SelectedInstructionPairRule, SelectedLoweringRuleCatalogEntry,
     SelectedLoweringRuleCatalogError, SelectedLoweringRuleCatalogPayload, ValidatedLiteralFold,
-    enabled_pair_rules, fold_selected_incoming_literal, literal_fold_identity,
-    resolve_selected_lowering_rules, validate_literal_fold,
+    resolve_selected_lowering_rules,
 };
 
 /// Explicit applicability of the currently architecture-independent rules.
