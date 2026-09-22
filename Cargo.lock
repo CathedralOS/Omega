@@ -2462,6 +2462,7 @@ dependencies = [
  "compiler",
  "component-description",
  "libc",
+ "mutation-matrix",
  "native-realization",
  "package-manager",
  "package-source",

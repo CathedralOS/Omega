@@ -20,6 +20,7 @@ bounded-process = { path = "../../tooling/bounded-process" }
 compiler = { path = "../../compiler/compiler" }
 component-description = { path = "../../backend/artifacts/component-description", features = ["test-support"] }
 libc = "0.2.186"
+mutation-matrix = { path = "../../../psi/foundation/mutation-matrix", features = ["test-support"] }
 native-realization = { path = "../../compiler/native-realization" }
 package-manager = { path = "../manager" }
 package-source = { path = "../sources/acquisition" }
