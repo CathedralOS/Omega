@@ -65,9 +65,9 @@ fn assert_adjacency_snapshot(checked: &checked_trees::CheckedTrees, reverse: boo
     let zero = Some(BorrowCompatibilitySelectorValue::Integer(0));
     let four = Some(BorrowCompatibilitySelectorValue::Integer(4));
     let values = if reverse {
-        [zero, boundary, boundary, four]
+        [zero, boundary.clone(), boundary, four]
     } else {
-        [boundary, four, zero, boundary]
+        [boundary.clone(), four, zero, boundary]
     };
     let locations = [
         (
@@ -91,7 +91,7 @@ fn assert_adjacency_snapshot(checked: &checked_trees::CheckedTrees, reverse: boo
         certificate
             .selector_snapshot
             .iter()
-            .map(|row| { (row.side, row.segment_index, row.position, row.value) })
+            .map(|row| { (row.side, row.segment_index, row.position, row.value.clone()) })
             .collect::<Vec<_>>(),
         locations
             .into_iter()

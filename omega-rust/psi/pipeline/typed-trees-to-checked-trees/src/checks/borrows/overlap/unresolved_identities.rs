@@ -310,7 +310,7 @@ fn replay_rejects_extra_selector_rows_before_an_unknown_identity() {
             );
             assert_eq!(captured.selector_snapshot.len(), 1);
             let mut extra = captured.selector_snapshot;
-            extra.push(extra[0]);
+            extra.push(extra[0].clone());
             assert!(
                 captured_place_compatibility_from_selector_snapshot(
                     &program,

@@ -158,7 +158,7 @@ fn disequality_certificate_rejects_missing_retargeted_and_reordered_evidence() {
                 "premise tokens drifted"
             }
             "operand" => {
-                certificate.premises[0].right = certificate.premises[0].left;
+                certificate.premises[0].right = certificate.premises[0].left.clone();
                 "premise tokens drifted"
             }
             "fact" => {
@@ -297,7 +297,13 @@ fn premise_tokens(
     certificate
         .premises
         .iter()
-        .map(|premise| (premise.relation, premise.left, premise.right))
+        .map(|premise| {
+            (
+                premise.relation,
+                premise.left.clone(),
+                premise.right.clone(),
+            )
+        })
         .collect()
 }
 
@@ -710,7 +716,7 @@ fn rejects_extra_retained_premise_tokens() {
         .expect("certificate")
         .0;
     let certificate = checked.facts.borrow.compatibility_certificates.get_mut(row);
-    let extra = certificate.premises[0];
+    let extra = certificate.premises[0].clone();
     certificate.premises.push(extra);
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
@@ -878,7 +884,11 @@ fn stated_ordering_premise_certifies_summed_index_bounds() {
         certificate
             .premises
             .iter()
-            .map(|premise| (premise.relation, premise.left, premise.right))
+            .map(|premise| (
+                premise.relation,
+                premise.left.clone(),
+                premise.right.clone()
+            ))
             .collect::<Vec<_>>(),
         vec![(
             checked_trees::BorrowCompatibilityPremiseRelation::StrictlyBefore,
@@ -1005,9 +1015,9 @@ fn segmented_value(
 ) -> checked_trees::BorrowCompatibilitySelectorValue {
     checked_trees::BorrowCompatibilitySelectorValue::Segmented {
         symbol: parameter_symbol(checked, name),
-        segment: facts::PlaceSegment::Field {
+        segments: vec![facts::PlaceSegment::Field {
             symbol: field_symbol(checked, member),
-        },
+        }],
     }
 }
 
@@ -1036,7 +1046,11 @@ fn projected_stated_premise_certifies_disjoint_window_write() {
         certificate
             .premises
             .iter()
-            .map(|premise| (premise.relation, premise.left, premise.right))
+            .map(|premise| (
+                premise.relation,
+                premise.left.clone(),
+                premise.right.clone()
+            ))
             .collect::<Vec<_>>(),
         vec![(
             checked_trees::BorrowCompatibilityPremiseRelation::LessOrEqual,
@@ -1091,12 +1105,12 @@ fn rejects_retained_projection_retargeted_to_the_other_member() {
         .expect("certificate")
         .0;
     let certificate = checked.facts.borrow.mutation_certificates.get_mut(row);
-    let checked_trees::BorrowCompatibilitySelectorValue::Segmented { segment, .. } =
+    let checked_trees::BorrowCompatibilitySelectorValue::Segmented { segments, .. } =
         &mut certificate.premises[0].right
     else {
         panic!("the projected premise records a segmented bound");
     };
-    *segment = facts::PlaceSegment::Field { symbol: other };
+    *segments = vec![facts::PlaceSegment::Field { symbol: other }];
 
     assert_recording_rejects(&mut checked, "premise tokens drifted");
 }

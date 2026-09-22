@@ -66,7 +66,7 @@ pub(super) fn append_membership_premises(
             program,
             PremiseScope::Domain {
                 definition: domain,
-                subject,
+                subject: subject.clone(),
             },
             *expression,
             false,

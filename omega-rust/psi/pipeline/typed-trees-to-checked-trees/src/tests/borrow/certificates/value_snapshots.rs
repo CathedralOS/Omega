@@ -104,12 +104,12 @@ fn assert_snapshot(checked: &checked_trees::CheckedTrees, reverse: bool) {
         certificate
             .selector_snapshot
             .iter()
-            .map(|row| row.value)
+            .map(|row| row.value.clone())
             .collect::<Vec<_>>(),
         if reverse {
-            vec![zero, boundary, boundary, four]
+            vec![zero, boundary.clone(), boundary, four]
         } else {
-            vec![boundary, four, zero, boundary]
+            vec![boundary.clone(), four, zero, boundary]
         },
         "both loans retain Symbol(cut), including through copies and source mutation"
     );
@@ -313,7 +313,7 @@ fn shared_symbol_offsets_certify_nested_window_containment_and_replay() {
             certificate
                 .selector_snapshot
                 .iter()
-                .map(|row| row.value)
+                .map(|row| row.value.clone())
                 .collect::<Vec<_>>(),
             vec![
                 Some(BorrowCompatibilitySelectorValue::Symbol(cut)),

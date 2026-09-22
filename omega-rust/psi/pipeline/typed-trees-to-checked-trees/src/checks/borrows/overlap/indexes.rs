@@ -8,7 +8,7 @@ use symbols::SymbolHandle;
 
 use super::premises::{StatedOrderingPremise, premise_chain_proves, premise_proves};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) enum NormalizedBound {
     Integer(i64),
     Symbol {
@@ -24,21 +24,22 @@ pub(super) enum NormalizedBound {
     Storage {
         symbol: SymbolHandle,
     },
-    /// The value at one projected member place under an immutable storage
-    /// symbol (`pair.first`): a frozen identity of the bound value's member,
-    /// equal only to the same projection of the same symbol. Projections of
-    /// longer member paths stay outside the vocabulary.
+    /// The value at one projected place under an immutable storage symbol
+    /// (`pair.first`, `pair.items[2]`): a frozen identity of the bound
+    /// value's place, equal only to the same projection path of the same
+    /// symbol. Projections whose path carries unresolved segments stay
+    /// outside the vocabulary.
     Projected {
         symbol: SymbolHandle,
-        segment: facts::PlaceSegment,
+        segments: Vec<facts::PlaceSegment>,
     },
-    /// The value currently stored under one projected member place of mutable
-    /// storage (`mut_pair.first`). Like `Storage` it is a query coordinate,
-    /// never positive evidence, and needs the same version-pin evidence
-    /// before stated premises can claim it.
+    /// The value currently stored under one projected place of mutable
+    /// storage (`mut_pair.first`, `self.pivot[2]`). Like `Storage` it is a
+    /// query coordinate, never positive evidence, and needs the same
+    /// version-pin evidence before stated premises can claim it.
     StorageProjected {
         symbol: SymbolHandle,
-        segment: facts::PlaceSegment,
+        segments: Vec<facts::PlaceSegment>,
     },
     /// `first + second + offset` over two distinct immutable symbols in
     /// canonical arena order; `offset` may be zero because a two-symbol sum
@@ -63,9 +64,9 @@ pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelec
             BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
         }
         NormalizedBound::Storage { symbol } => BorrowCompatibilitySelectorValue::Symbol(symbol),
-        NormalizedBound::Projected { symbol, segment }
-        | NormalizedBound::StorageProjected { symbol, segment } => {
-            BorrowCompatibilitySelectorValue::Segmented { symbol, segment }
+        NormalizedBound::Projected { symbol, segments }
+        | NormalizedBound::StorageProjected { symbol, segments } => {
+            BorrowCompatibilitySelectorValue::Segmented { symbol, segments }
         }
         NormalizedBound::SymbolSum {
             first,
@@ -111,13 +112,13 @@ fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
         (
             NormalizedBound::Projected {
                 symbol: left_symbol,
-                segment: left_segment,
+                segments: left_segments,
             },
             NormalizedBound::Projected {
                 symbol: right_symbol,
-                segment: right_segment,
+                segments: right_segments,
             },
-        ) => left_symbol == right_symbol && left_segment == right_segment,
+        ) => left_symbol == right_symbol && left_segments == right_segments,
         _ => false,
     }
 }
@@ -147,7 +148,7 @@ pub enum CompatibilityReplayDrift {
 /// a selector session. A non-range expression is a single point bound; a range
 /// expression is a half-open `[start, end)` window. `None` bounds are
 /// conservatively unknown, never negative evidence.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(super) enum EvaluatedIndexExtent {
     Point(Option<NormalizedBound>),
     Window {
@@ -284,7 +285,7 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
         if let Some(index) = self
             .premises
             .iter()
-            .position(|premise| premise_proves(premise, left, relation, right))
+            .position(|premise| premise_proves(premise, left.clone(), relation, right.clone()))
         {
             let token = self.premises[index].token();
             return self.record_premise(token);
@@ -300,9 +301,9 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
                 if !premise_chain_proves(
                     &self.premises[first_index],
                     &self.premises[second_index],
-                    left,
+                    left.clone(),
                     relation,
-                    right,
+                    right.clone(),
                 ) {
                     continue;
                 }
@@ -345,7 +346,7 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
                     *recorded == location && *recorded_position == position
                 })
         {
-            return *value;
+            return value.clone();
         }
         if let Some(frozen) = self.frozen {
             let current = current();
@@ -360,7 +361,7 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
                 self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                 return None;
             }
-            let current_value = current.map(selector_value);
+            let current_value = current.clone().map(selector_value);
             if row.value != current_value {
                 self.mark_drift(CompatibilityReplayDrift::SelectorSnapshot);
                 return None;
@@ -370,7 +371,7 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
             // vocabulary, so the fresh bound is the canonical one to use: it
             // keeps storage-bound mutability the serialized row cannot spell.
             if self.drift.is_none() {
-                self.recorded.push((location, position, current));
+                self.recorded.push((location, position, current.clone()));
             }
             return current;
         }
@@ -380,9 +381,9 @@ impl<'a> SelectorSnapshotEvaluation<'a> {
             side: location.side,
             segment_index: location.segment_index,
             position,
-            value: value.map(selector_value),
+            value: value.clone().map(selector_value),
         });
-        self.recorded.push((location, position, value));
+        self.recorded.push((location, position, value.clone()));
         value
     }
 }
@@ -450,8 +451,8 @@ pub(super) fn index_extents_may_overlap(
 ) -> bool {
     match (left, right) {
         (EvaluatedIndexExtent::Point(Some(left)), EvaluatedIndexExtent::Point(Some(right))) => {
-            !bound_is_strictly_before(left, right, selectors)
-                && !bound_is_strictly_before(right, left, selectors)
+            !bound_is_strictly_before(left.clone(), right.clone(), selectors)
+                && !bound_is_strictly_before(right.clone(), left.clone(), selectors)
                 && !selectors.prove_ordering(
                     left,
                     BorrowCompatibilityPremiseRelation::NotEqual,
@@ -519,13 +520,13 @@ fn index_window_may_contain_point(
     point: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    if index_window_provably_empty(start, end, selectors) {
+    if index_window_provably_empty(start.clone(), end.clone(), selectors) {
         return false;
     }
     let Some(point) = point else {
         return true;
     };
-    if start.is_some_and(|start| bound_is_strictly_before(point, start, selectors)) {
+    if start.is_some_and(|start| bound_is_strictly_before(point.clone(), start, selectors)) {
         return false;
     }
     if end.is_some_and(|end| bound_is_at_or_before(end, point, selectors)) {
@@ -543,8 +544,8 @@ fn index_windows_may_overlap(
     right_end: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    if index_window_provably_empty(left_start, left_end, selectors)
-        || index_window_provably_empty(right_start, right_end, selectors)
+    if index_window_provably_empty(left_start.clone(), left_end.clone(), selectors)
+        || index_window_provably_empty(right_start.clone(), right_end.clone(), selectors)
     {
         return false;
     }
@@ -571,7 +572,10 @@ fn index_window_provably_empty(
     end: Option<NormalizedBound>,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    matches!((start, end), (Some(start), Some(end)) if bound_is_at_or_before(end, start, selectors))
+    match (start, end) {
+        (Some(start), Some(end)) => bound_is_at_or_before(end, start, selectors),
+        _ => false,
+    }
 }
 
 fn range_integer_bounds(
@@ -598,14 +602,14 @@ pub(super) fn bound_is_at_or_before(
     right: NormalizedBound,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    if structural_bound_is_at_or_before(left, right) {
+    if structural_bound_is_at_or_before(left.clone(), right.clone()) {
         return true;
     }
     selectors.prove_ordering(left, BorrowCompatibilityPremiseRelation::LessOrEqual, right)
 }
 
 fn structural_bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool {
-    bound_terms_equal(left, right)
+    bound_terms_equal(left.clone(), right.clone())
         && match (bound_offset(left), bound_offset(right)) {
             (Some(left), Some(right)) => left <= right,
             _ => false,
@@ -619,7 +623,7 @@ pub(super) fn bound_is_strictly_before(
     right: NormalizedBound,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    if structural_bound_is_strictly_before(left, right) {
+    if structural_bound_is_strictly_before(left.clone(), right.clone()) {
         return true;
     }
     selectors.prove_ordering(
@@ -630,7 +634,7 @@ pub(super) fn bound_is_strictly_before(
 }
 
 fn structural_bound_is_strictly_before(left: NormalizedBound, right: NormalizedBound) -> bool {
-    bound_terms_equal(left, right)
+    bound_terms_equal(left.clone(), right.clone())
         && match (bound_offset(left), bound_offset(right)) {
             (Some(left), Some(right)) => left < right,
             _ => false,
@@ -645,14 +649,14 @@ pub(super) fn bound_equal(
     right: NormalizedBound,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    if structural_bound_equal(left, right) {
+    if structural_bound_equal(left.clone(), right.clone()) {
         return true;
     }
     selectors.prove_ordering(left, BorrowCompatibilityPremiseRelation::Equal, right)
 }
 
 fn structural_bound_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
-    bound_terms_equal(left, right)
+    bound_terms_equal(left.clone(), right.clone())
         && match (bound_offset(left), bound_offset(right)) {
             (Some(left), Some(right)) => left == right,
             _ => false,
@@ -783,11 +787,11 @@ pub(super) fn projected_bound(
         }
         _ => field,
     };
-    let segment = facts::PlaceSegment::Field { symbol: field };
+    let segments = vec![facts::PlaceSegment::Field { symbol: field }];
     Some(if is_mutable {
-        NormalizedBound::StorageProjected { symbol, segment }
+        NormalizedBound::StorageProjected { symbol, segments }
     } else {
-        NormalizedBound::Projected { symbol, segment }
+        NormalizedBound::Projected { symbol, segments }
     })
 }
 
@@ -799,12 +803,12 @@ pub(super) fn indexed_bound(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    let (symbol, index, is_mutable) = validation::indexed_integer_bound_root(program, expression)?;
-    let segment = facts::PlaceSegment::FixedIndex { index };
+    let (symbol, segments, is_mutable) =
+        validation::indexed_integer_bound_root(program, expression)?;
     Some(if is_mutable {
-        NormalizedBound::StorageProjected { symbol, segment }
+        NormalizedBound::StorageProjected { symbol, segments }
     } else {
-        NormalizedBound::Projected { symbol, segment }
+        NormalizedBound::Projected { symbol, segments }
     })
 }
 
