@@ -6,7 +6,7 @@ use semantic_vocabulary::{IntegerType, Proposition, PropositionContext, ScalarTe
 use crate::proofs::nonzero_divisor_certificate::affine_custody::DefinitionIndex;
 use crate::proofs::nonzero_divisor_certificate::integer_selection::dispatch::relax_math_bound;
 
-use super::model::SearchState;
+use super::SearchState;
 
 mod combine;
 mod endpoint;

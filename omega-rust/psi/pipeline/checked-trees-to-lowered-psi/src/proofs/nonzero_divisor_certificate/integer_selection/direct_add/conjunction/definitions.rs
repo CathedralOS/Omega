@@ -3,7 +3,7 @@
 use proof_admission::ProofNode;
 use semantic_vocabulary::{IntegerType, IntegerValue, Proposition, ScalarTerm};
 
-use super::model::cited_proof;
+use super::cited_proof;
 use crate::proofs::nonzero_divisor_certificate::affine_custody::DefinitionIndex;
 
 pub(super) struct LiteralLanding {
