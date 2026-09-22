@@ -1,0 +1,135 @@
+{
+ "wave": "linw3",
+ "mode": "local",
+ "sessions": [
+  {
+   "name": "structural-borrow-identity",
+   "host": "local",
+   "board": "TASKS.md",
+   "item": "STRUCTURAL-BORROW-IDENTITY",
+   "owning_paths": [
+    "omega-rust/psi/representations/checked-trees/src/checked_trees/values/structural_values.rs",
+    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/receiver_calls",
+    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/calls/computation_arguments",
+    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/borrow/receiver_access.rs",
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations"
+   ],
+   "suggested_first_slice": "Runtime-index leg: CheckedUnitStructuralPathSegment (checked-trees .../values/structural_values.rs) has no runtime-index variant, and the remaining src/tests/borrow/receiver_access.rs pins cover local-rooted indexed receivers plus runtime-indexed parameter receivers/explicit shared arguments. Take ONE bounded step: add a runtime-index segment carrying a checked selector/value and bounds relationship (not a widened path predicate or trusted byte offset), admit it through execution/terminal_unit/receiver_calls or calls/computation_arguments for one pinned receiver_access case, and keep terminal-verifier structural_operations replay honest for the new segment. Reuse terminal-semantics::static_path. Owned-root/construction-local admission and bracketed-range fixture migration (REMOVE-BRACKETED-RANGE-ANNOTATIONS) are separate obligations - do not fold them in. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
+  },
+  {
+   "name": "spill-realization",
+   "host": "local",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "SPILL-REALIZATION",
+   "owning_paths": [
+    "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+   ],
+   "suggested_first_slice": "Logical-to-physical join leg: assignment/runtime_spill/recovery.rs calls sequenced_logical_operations to choose logical victims and plan their operations, but the actual candidate loop still selects and rewrites victims independently. Connect the retained plan to the emitted spill/reload ops (or prove the plan redundant and remove it) such that a mismatch between plan and emitted operations rejects. Preserve executable recovery + independent checking. Fenced this wave: s2rh/src/assignment/stack_slot_coloring and s2s rewrites/{mod.rs,module_catalog.rs,allocation_recovery,load_forwarding,dead_store,store_motion} (linw3-alias-aware-memory holds the memory three). Narrow owning_paths to what you actually touch. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
+  },
+  {
+   "name": "termination-ranking-checks",
+   "host": "local",
+   "board": "TASKS.md",
+   "item": "TERMINATION-RANKING-CHECKS",
+   "owning_paths": [
+    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/graph.rs",
+    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/order.rs",
+    "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/termination",
+    "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range",
+    "omega-rust/psi/semantics/validation/src/machine_calls/call_cycles",
+    "tests/omega/fail/termination",
+    "tests/omega/pass/termination",
+    "omega-rust/omega/compiler/compiler/tests/rank_remainder_endpoints.rs",
+    "omega-rust/omega/compiler/compiler/tests/rank_endpoint_borrows.rs"
+   ],
+   "suggested_first_slice": "Non-polynomial endpoint leg: extend actual-argument substitution beyond the supported quotient/remainder endpoints in rank_ranges/{field_endpoint_arithmetic,call_components}.rs - recheck constituent operations at each exact arrival; cancellation, equal intervals and unoriented disequality do not establish divisor validity, absence of overflow or subject identity. Preserve formation, exact arrival correspondence and complete write-frame checks; controls live in src/tests/termination/rank_ranges/ and tests/omega/{pass,fail}/termination/. The native scalar-plan dependency of rank_remainder_endpoints/rank_endpoint_borrows belongs to STATE-LOCAL-VALUE-FRONTIER - stay on checked legs. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
+  },
+  {
+   "name": "top-level-boundary-requirements",
+   "host": "local",
+   "board": "TASKS.md",
+   "item": "TOP-LEVEL-BOUNDARY-REQUIREMENTS",
+   "owning_paths": [
+    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch.rs",
+    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch",
+    "omega-rust/omega/build/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
+    "omega-rust/psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs",
+    "tests/omega/pass/providers",
+    "tests/omega/fail/providers"
+   ],
+   "suggested_first_slice": "Parameterized-requirement leg: boundary_dispatch.rs still restricts direct requirements to nongeneric, receiver-free signatures and selected_dispatch/requirement_adapter.rs rejects family rows. Take ONE bounded step: admit a type- OR lifetime-parameterized requirement (pick whichever the adapter-call shape already carries), preserving the requirement's package-qualified operation, static telescope, signature, contract, selected provider/adapter and era through ordinary lowering - or pin the next refusal boundary honestly. Keep unselected/private/ambiguous/foreign-package/stale-era rejections. OPERATOR-MACHINE-SUPPLY owns source supply migration - do not touch it. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
+  },
+  {
+   "name": "proof-kernel-core",
+   "host": "local",
+   "board": "TASKS.md",
+   "item": "PROOF-KERNEL-CORE",
+   "owning_paths": [
+    "omega-rust/psi/semantics/proof-admission/src/mathematical_core",
+    "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs",
+    "omega-rust/psi/semantics/proof-admission/src/lib.rs",
+    "omega-rust/psi/semantics/proof-admission/tests",
+    "omega-rust/omega/compiler/compiler/tests/proof_kernel_canaries.rs",
+    "omega-rust/omega/compiler/compiler/tests/kernel_equality_transport.rs",
+    "omega-rust/psi/semantics/terminal-codec/src",
+    "tests/omega/pass/proofs/kernel_theorem_equality_certificates"
+   ],
+   "suggested_first_slice": "Replace one bounded_denotation rule_axiom fallback family with a checked derivation or an explicitly justified checked rule: remaining cases include cast bounds, correlated forbidden roots/multiply bounds, nested canonical identity reversal and Boolean identities needing case analysis. Take ONE family. Preserve numeric policy and exact operands; keep J-re-decided rules distinct from interned assumptions; a term that merely assumes its conclusion is not independently proved. Source integration belongs to PROOF-CONTRACT-MIGRATION - stay kernel-side. Controls: proof-admission/tests, compiler/tests/{proof_kernel_canaries,kernel_equality_transport}.rs. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
+  },
+  {
+   "name": "alias-aware-memory",
+   "host": "local",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "ALIAS-AWARE-MEMORY",
+   "owning_paths": [
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/store_motion"
+   ],
+   "suggested_first_slice": "Validation-independence leg (residual): check which of the three modules' validation.rs still calls its own rewrite's admission::admit - load_forwarding was done in linw2; take ONE remaining module (dead_store or store_motion) and make its validator reconstruct the legality preconditions independently (interferes/memory_accesses roster checks re-derived, not the producer's admit), with a forged-proposal rejection in independence_tests. Alternatively, if both are already independent, take ONE bounded step of the non-aliasing-premise leg: bind distinct-place non-aliasing to retained fact identities at the access-roster producer. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/{runtime_spill,address_fold,literal_minuend,allocation_recovery}. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
+  },
+  {
+   "name": "translation-validation",
+   "host": "local",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "TRANSLATION-VALIDATION",
+   "owning_paths": [
+    "omega-rust/omega/backend/artifacts/native-artifact/src/physical",
+    "omega-rust/psi/pipeline/lowered-psi-to-terminal-psi/src/boundary_operator_custody/replay_scope.rs"
+   ],
+   "suggested_first_slice": "Coordinator slot. physical/operator_applications.rs spans CallDynamic* kinds (descriptor/parameter ordinals, no static callee) and non-FMA/non-IEEE intrinsic kinds still land as named gap subjects. Take one bounded arm: derive the physical child for one CallDynamic* kind or the next intrinsic span arm, extending the same per-occurrence attribution so failures keep naming the exact subject. Controls: physical_child_replay tests. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
+  }
+ ],
+ "max_acu_limit": 1,
+ "bypass_approval": false,
+ "resumable": true,
+ "tags": [
+  "omega-swarm",
+  "linw3"
+ ],
+ "owner_label_prefix": "Devin / linw3",
+ "exclusions": [
+  "SQUALR-HEADLESS",
+  "MACOS-APPLICATION-PUBLICATION",
+  "ALPHA-WINDOWS-CONFORMANCE",
+  "UEFI-PHYSICAL-SEMANTIC-ENTRY",
+  "UEFI-OS-HANDOFF",
+  "AP-BRINGUP",
+  "TRANSPARENT-TRAIT-REFINEMENTS",
+  "REMOVE-BRACKETED-RANGE-ANNOTATIONS",
+  "STATE-LOCAL-VALUE-FRONTIER",
+  "PLACED-ACCESS-NATIVE-OPS",
+  "FINITE-GENERIC-DISPATCH",
+  "OPERATOR-MACHINE-SUPPLY",
+  "BOUNDED-INSTALLATION-REACH-ROWS",
+  "COMPONENT-SUBSTRATE",
+  "DECLARATIVE-PEEPHOLES",
+  "EXACT-MACHINE-SIMPLIFICATIONS",
+  "FRAME-LAYOUT",
+  "PROOF-CONTRACT-MIGRATION",
+  "PCC-CANONICAL-SEMANTIC-LEDGER",
+  "PROOF-CERTIFICATION-BRIDGE"
+ ]
+}

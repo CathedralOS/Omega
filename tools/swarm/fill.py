@@ -308,7 +308,7 @@ def command_note(repository, manifest, ledger, arguments):
 
 
 def wip_commit(worktree, wave, slot, reason):
-    git = lambda *args: coordination.git(worktree, *args)
+    git = lambda *args, **kwargs: coordination.git(worktree, *args, **kwargs)
     git("add", "-A")
     message = f"wip: {wave} {slot} — {reason}, coordinator preserve"
     committed = git("commit", "-m", message, allow_failure=True)

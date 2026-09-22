@@ -104,8 +104,18 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   For remaining intrinsic families, retain checked demand and exact Terminal
   occurrences before adding physical span arms. Current operator replay covers
   local initializers/FMA, structural returns and float/integer comparisons.
-  Complete source-produced dynamic-call replay through descriptor-table
-  materialization and register-indirect forms. Dynamic occurrence families and
+  Rebound scalar/unit calls now replay into `CheckedDynamicCallOccurrence`
+  rows beside the D29 roster (descriptor-table lane); register-indirect forms
+  remain. `derive_operator_physical_span` still returns `Ok(None)` — and the
+  occurrence names `UnsupportedOperatorSpan` — for non-FMA/non-comparison
+  `ExactCompilerIntrinsic` realizations and non-static-callee operations under
+  checked-body realizations; no end-to-end gap has been witnessed because
+  corpus fixtures currently omit unit plans upstream at ProgramEntry
+  establishment (structural field store / transition scalar-argument phases,
+  pre-existing on this base). Parked probe: branch
+  `swarm/linw3-translation-validation` (`tests/linw3_translation_probe.rs`
+  compiles a directed-float canary through package-input helpers and inspects
+  `physical_evidence_gap()`). Dynamic occurrence families and
   multi-window relocation custody already exist; use their current tests and
   `physical_child_replay`, not the retired single-window model. Reproduce
   source customers and attribute any earlier refusal to its actual stage.
@@ -468,15 +478,22 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Bind distinct-place non-aliasing to retained fact identities, or independently
   establish at the access-roster producer that the distinct places cannot
-  overlap. SelectedMemoryAccess and rewrite receipts do not yet carry the
-  loan/compatibility/fact identities used to justify that premise. Exclusive
-  ownership alone does not establish projection disjointness; follow
+  overlap. Byte-view payload roster rows now bind the resolved backing storage
+  root at the producer (`ByteViewHomes`), so subslice-view accesses charge the
+  root instead of mislabeling the view identity; extend that premise binding to
+  retained fact identities beyond storage roots. SelectedMemoryAccess and
+  rewrite receipts still do not carry the loan/compatibility/fact identities
+  used to justify the general premise. Exclusive ownership alone does not
+  establish projection disjointness; follow
   [loan semantics](wiki/spec/terminal-psi/loans.md), not differing PlaceIds.
 
   Preserve shared storage-route and extent semantics in `place_storage` across
   the rewrites and commutation checking. Remaining control-flow work includes
   forwarding where incoming stored registers differ and store motion across
-  forks/joins without adding or dropping writes. Unsupported dynamic geometry
+  non-reconvergent forks/joins without adding or dropping writes (forks whose
+  edges reconverge on one join fed only by the crossed block and
+  sole-predecessor arms now cross, derived independently by admission and
+  validation). Unsupported dynamic geometry
   must reject until justified; do not equate storage routes or reuse stale
   evidence. Existing off-range constant-index, Structural-slot, and same-extent
   CopyBytes cases are controls, not new implementation tasks.
