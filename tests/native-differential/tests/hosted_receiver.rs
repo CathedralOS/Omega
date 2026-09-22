@@ -109,6 +109,7 @@ fn hosted_receiver_binding_fails_closed_on_substituted_custody() {
             &hosted_receiver::physical_contract(TargetProfile::MacosArm64),
             &[],
             &demand,
+            false,
         )
         .is_err(),
         "a substituted physical contract rejects before binding",
@@ -135,7 +136,8 @@ fn hosted_receiver_binding_fails_closed_on_substituted_custody() {
             &free_signature,
             &linux,
             &[],
-            &demand
+            &demand,
+            false,
         )
         .is_err(),
         "a receiver source substitution rejects",
@@ -146,8 +148,15 @@ fn hosted_receiver_binding_fails_closed_on_substituted_custody() {
     let mut uncustodied = compiled.artifact;
     uncustodied.clear_fragment_replay_for_test();
     assert!(
-        image_emission::bind_hosted_receiver(&mut uncustodied, &signature, &linux, &[], &demand,)
-            .is_err(),
+        image_emission::bind_hosted_receiver(
+            &mut uncustodied,
+            &signature,
+            &linux,
+            &[],
+            &demand,
+            false,
+        )
+        .is_err(),
         "an object without fragment replay custody cannot bind a receiver",
     );
 }

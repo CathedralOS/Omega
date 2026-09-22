@@ -251,12 +251,15 @@ pub(crate) fn bind_hosted_receiver(
 ) {
     let demand = image_emission::derive_stack_demand(artifact, artifact.entry())
         .expect("entry stack demand");
+    // The differential fixtures attach receivers whose data needs no nominal
+    // cleanup, so no hosted extent stays occupied through completion.
     image_emission::bind_hosted_receiver(
         artifact,
         signature,
         &physical_contract(profile),
         &[],
         &demand,
+        false,
     )
     .expect("the exact admitted bridge binds the emitted object");
 }
