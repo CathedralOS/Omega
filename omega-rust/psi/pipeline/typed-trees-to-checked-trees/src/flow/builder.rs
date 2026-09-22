@@ -107,7 +107,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
     // than rebuilding identical rows.
-    let mut ctx = FlowBuildContext::new(
+    let mut build = FlowBuildContext::new(
         borrow,
         proof,
         semantic,
@@ -138,17 +138,18 @@ pub(crate) fn build_flow_facts_with_service_reaches(
             break;
         }
         if pass != 0 {
-            ctx.discard_output();
+            build.discard_output();
             semantic.clone_from(&baseline);
         }
         for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
             for state in program.machine_states(machine) {
-                if !complete_pass && !ctx.dirty_state_value_inputs.contains(&state.symbol) {
+                if !complete_pass && !build.dirty_state_value_inputs.contains(&state.symbol) {
                     continue;
                 }
                 // Clear before transfer: a self/back edge may dirty this state
                 // again. A later destination can still run in this same sweep.
-                ctx.dirty_state_value_inputs
+                build
+                    .dirty_state_value_inputs
                     .retain(|symbol| *symbol != state.symbol);
                 build_state_flow_fact(
                     program,
@@ -156,7 +157,7 @@ pub(crate) fn build_flow_facts_with_service_reaches(
                     proof,
                     semantic,
                     domains,
-                    &mut ctx,
+                    &mut build,
                     machine,
                     state,
                     [global_contexts, *machine_contexts],
@@ -166,10 +167,10 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         // Each newly reached field contributes one literal and its finite
         // predicate set; parameter qualifications contribute finite membership
         // cells. Subsequent joins only remove these cells.
-        pass_limit = pass_limit.saturating_add(ctx.new_state_field_input_height);
-        if ctx.dirty_state_value_inputs.is_empty() {
+        pass_limit = pass_limit.saturating_add(build.new_state_field_input_height);
+        if build.dirty_state_value_inputs.is_empty() {
             if complete_pass {
-                let mut flow = { ctx.finish() };
+                let mut flow = { build.finish() };
                 attach_reach_summaries(&mut flow, service_reaches, operational);
                 return flow;
             }
@@ -185,12 +186,12 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         pass += 1;
     }
     // No provisional input fact survives a nonconvergent graph.
-    ctx.discard_output();
+    build.discard_output();
     *semantic = baseline;
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
-    ctx.state_value_inputs = super::state_values::unknown_inputs(program);
-    ctx.dirty_state_value_inputs.clear();
+    build.state_value_inputs = super::state_values::unknown_inputs(program);
+    build.dirty_state_value_inputs.clear();
     for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
         for state in program.machine_states(machine) {
             build_state_flow_fact(
@@ -199,14 +200,14 @@ pub(crate) fn build_flow_facts_with_service_reaches(
                 proof,
                 semantic,
                 domains,
-                &mut ctx,
+                &mut build,
                 machine,
                 state,
                 [global_contexts, *machine_contexts],
             );
         }
     }
-    let mut flow = { ctx.finish() };
+    let mut flow = { build.finish() };
     attach_reach_summaries(&mut flow, service_reaches, operational);
     flow
 }

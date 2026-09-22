@@ -462,7 +462,7 @@ fn has_self(program: &typed_trees::TypedTrees, state: &typed_trees::state::State
 pub(super) fn capture(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
-    ctx: &FlowBuildContext,
+    build: &FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     destination: &typed_trees::state::State,
@@ -500,7 +500,7 @@ pub(super) fn capture(
     }
     let mut fields: Vec<FieldValue> = Vec::new();
     let mut bounds_ranks: Vec<(usize, u8)> = Vec::new();
-    for reference in ctx.contexts.semantic_context_refs.span_or_empty(contexts) {
+    for reference in build.contexts.semantic_context_refs.span_or_empty(contexts) {
         for fact in semantic
             .context_view(semantic.contexts.get(reference.context))
             .facts()
@@ -671,13 +671,14 @@ pub(super) fn capture(
         // predicates or byte-side store classes -- so a carrier whose every
         // store leaves the class still refutes itself.
         field.edge_potential = field.predicates.clone();
-        for predicate in super::field_predicate_ceiling(ctx, state.symbol, &field.segments) {
+        for predicate in super::field_predicate_ceiling(build, state.symbol, &field.segments) {
             if !field.edge_potential.contains(predicate) {
                 field.edge_potential.push(*predicate);
             }
         }
         if let Some((_, _, byteok)) =
-            ctx.element_store_potentials
+            build
+                .element_store_potentials
                 .iter()
                 .find(|(stored_state, segments, _)| {
                     *stored_state == state.symbol && *segments == field.segments

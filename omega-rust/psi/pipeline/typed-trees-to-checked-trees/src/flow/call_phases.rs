@@ -23,16 +23,16 @@ pub(super) struct CallFlowContexts {
 
 pub(super) fn build_call_entry_contexts(
     borrow: &BorrowFacts,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     active_contexts: HandleSpan<FlowSemanticContextRef>,
     active_constraints: HandleSpan<FlowConstraintRef>,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     borrow_call: &BorrowCallFact,
 ) -> CallFlowContexts {
-    let contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, active_contexts);
+    let contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, active_contexts);
     let mut constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, active_constraints);
+        retained_constraint_refs(&build.contexts.constraint_refs, active_constraints);
     // Coordinates repeat across states. The state owns the call identity;
     // a global first-match can attach another invocation's authority.
     let owned_call = borrow.states.iter().find_map(|(_, state)| {
@@ -53,7 +53,7 @@ pub(super) fn build_call_entry_contexts(
     });
     if let Some(borrow_call_handle) = owned_call {
         append_constraint_ref(
-            &mut ctx.contexts.constraint_refs,
+            &mut build.contexts.constraint_refs,
             &mut constraints,
             FlowConstraintKind::BorrowCall {
                 call: borrow_call_handle,
@@ -61,7 +61,7 @@ pub(super) fn build_call_entry_contexts(
         );
     }
     append_contiguous_borrow_access_constraints(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut constraints,
         borrow_call.accesses,
     );
@@ -74,14 +74,14 @@ pub(super) fn build_call_entry_contexts(
 
 pub(super) fn build_call_requires_contexts(
     semantic: &FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
 ) -> CallFlowContexts {
     build_call_contract_contexts(
         semantic,
-        ctx,
+        build,
         ProgramPoint::CallRequires {
             machine_symbol: machine.symbol,
             state_symbol: state.symbol,
@@ -93,18 +93,19 @@ pub(super) fn build_call_requires_contexts(
 
 pub(super) fn build_call_exit_contexts(
     semantic: &FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
     post_contexts: HandleSpan<FlowSemanticContextRef>,
     post_constraints: HandleSpan<FlowConstraintRef>,
 ) -> CallFlowContexts {
-    let mut contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, post_contexts);
-    let mut constraints = retained_constraint_refs(&ctx.contexts.constraint_refs, post_constraints);
+    let mut contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, post_contexts);
+    let mut constraints =
+        retained_constraint_refs(&build.contexts.constraint_refs, post_constraints);
     append_call_contract_contexts(
         semantic,
-        ctx,
+        build,
         &mut contexts,
         &mut constraints,
         ProgramPoint::CallEnsures {
@@ -123,12 +124,12 @@ pub(super) fn build_call_exit_contexts(
 
 fn build_call_contract_contexts(
     semantic: &FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     point: ProgramPoint,
 ) -> CallFlowContexts {
     let mut contexts = HandleSpan::empty();
     let mut constraints = HandleSpan::empty();
-    append_call_contract_contexts(semantic, ctx, &mut contexts, &mut constraints, point);
+    append_call_contract_contexts(semantic, build, &mut contexts, &mut constraints, point);
     CallFlowContexts {
         contexts,
         constraints,
@@ -137,16 +138,16 @@ fn build_call_contract_contexts(
 
 fn append_call_contract_contexts(
     semantic: &FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     contexts: &mut HandleSpan<FlowSemanticContextRef>,
     constraints: &mut HandleSpan<FlowConstraintRef>,
     point: ProgramPoint,
 ) {
     append_flow_contexts_for_points(
         semantic,
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         contexts,
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         constraints,
         &[point],
     );

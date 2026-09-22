@@ -29,14 +29,14 @@ pub(super) fn build_call_flow_fact<'plans>(
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
     active_constraints: &mut arena::HandleSpan<FlowConstraintRef>,
     borrow_call: &BorrowCallFact,
 ) -> FlowCallFact {
-    super::state_values::record_invocation(program, ctx, machine, state, borrow_call);
+    super::state_values::record_invocation(program, build, machine, state, borrow_call);
     let contract_call = proof_contract_call(
         proof,
         machine.symbol,
@@ -47,7 +47,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     let entry = {
         build_call_entry_contexts(
             borrow,
-            ctx,
+            build,
             *active_contexts,
             *active_constraints,
             machine.symbol,
@@ -55,14 +55,14 @@ pub(super) fn build_call_flow_fact<'plans>(
             borrow_call,
         )
     };
-    let requires = { build_call_requires_contexts(semantic, ctx, machine, state, borrow_call) };
+    let requires = { build_call_requires_contexts(semantic, build, machine, state, borrow_call) };
     let invalidation = {
         apply_call_invalidations(
             program,
             borrow,
             semantic,
             domains,
-            ctx,
+            build,
             machine,
             state,
             *active_contexts,
@@ -73,7 +73,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     let mut exit = {
         build_call_exit_contexts(
             semantic,
-            ctx,
+            build,
             machine,
             state,
             borrow_call,
@@ -84,7 +84,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     append_one_to_one_call_carry_facts(
         program,
         semantic,
-        ctx,
+        build,
         machine,
         state,
         borrow_call,
@@ -94,7 +94,7 @@ pub(super) fn build_call_flow_fact<'plans>(
     append_call_result_field_domain_facts(
         program,
         semantic,
-        ctx,
+        build,
         machine,
         state,
         borrow_call,
@@ -105,16 +105,17 @@ pub(super) fn build_call_flow_fact<'plans>(
     append_call_referent_field_domain_facts(
         program,
         semantic,
-        ctx,
+        build,
         machine,
         state,
         borrow_call,
         entry.contexts,
         &mut exit,
     );
-    let boundary_edges = { append_call_boundary_edges(program, ctx, borrow_call) };
-    *active_contexts = retained_flow_contexts(&ctx.contexts.semantic_context_refs, exit.contexts);
-    *active_constraints = retained_constraint_refs(&ctx.contexts.constraint_refs, exit.constraints);
+    let boundary_edges = { append_call_boundary_edges(program, build, borrow_call) };
+    *active_contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, exit.contexts);
+    *active_constraints =
+        retained_constraint_refs(&build.contexts.constraint_refs, exit.constraints);
 
     FlowCallFact {
         statement_index: borrow_call.statement_index,
@@ -155,33 +156,36 @@ pub(super) fn build_call_flow_fact<'plans>(
 /// Conditional aggregates and every n-ary shape wait for P1c path mappings.
 fn memoized_call_target_return_type<'plans>(
     program: &'plans typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    *ctx.call_target_returns
+    *build
+        .call_target_returns
         .entry(target)
         .or_insert_with(|| call_target_return_type(program, target))
 }
 
 fn memoized_call_target_parameters<'plans>(
     program: &'plans typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     target: SymbolHandle,
 ) -> Option<&'plans [typed_trees::signature::StateParameter]> {
-    *ctx.call_target_parameters
+    *build
+        .call_target_parameters
         .entry(target)
         .or_insert_with(|| crate::semantic_calls::call_target_parameters(program, target))
 }
 
 pub(super) fn memoized_find_call_site<'plans>(
     program: &'plans typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
     call_ordinal: usize,
 ) -> Option<crate::semantic_calls::CallSite<'plans>> {
-    *ctx.call_sites
+    *build
+        .call_sites
         .entry((machine_symbol, state_symbol, statement_index, call_ordinal))
         .or_insert_with(|| {
             crate::semantic_calls::find_call_site(
@@ -197,7 +201,7 @@ pub(super) fn memoized_find_call_site<'plans>(
 fn append_one_to_one_call_carry_facts<'plans>(
     program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
@@ -205,7 +209,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
     exit: &mut CallFlowContexts,
 ) {
     let Some(target_return_type) =
-        memoized_call_target_return_type(program, ctx, borrow_call.target_symbol)
+        memoized_call_target_return_type(program, build, borrow_call.target_symbol)
     else {
         return;
     };
@@ -217,7 +221,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
     let Some(crate::semantic_calls::CallSite::Expression { expression, call }) =
         memoized_find_call_site(
             program,
-            ctx,
+            build,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
@@ -230,7 +234,8 @@ fn append_one_to_one_call_carry_facts<'plans>(
     let arguments = program.expression_table.expression_handles(call.arguments);
     let mut argument_index = 0usize;
     let mut linear_inputs = Vec::new();
-    let Some(parameters) = memoized_call_target_parameters(program, ctx, borrow_call.target_symbol)
+    let Some(parameters) =
+        memoized_call_target_parameters(program, build, borrow_call.target_symbol)
     else {
         return;
     };
@@ -269,7 +274,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
     };
     let target_place = semantic.append_place_from_expression(program, expression);
     let source_label = program.expression_table.display_name(*source_argument);
-    let context_handles = ctx
+    let context_handles = build
         .contexts
         .semantic_context_refs
         .span_or_empty(entry.contexts)
@@ -334,12 +339,12 @@ fn append_one_to_one_call_carry_facts<'plans>(
     }
     let context = semantic.append_context(point, refs);
     common::append_flow_reference(
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         &mut exit.contexts,
         FlowSemanticContextRef { context },
     );
     append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut exit.constraints,
         FlowConstraintKind::SemanticContext { context },
     );
@@ -358,7 +363,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
 fn append_call_result_field_domain_facts<'plans>(
     program: &'plans typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     borrow_call: &BorrowCallFact,
@@ -368,7 +373,7 @@ fn append_call_result_field_domain_facts<'plans>(
     // content checker independently rejoins routed result claims to this
     // invocation after linear claim reconstruction; ordinary callee exits
     // must establish every qualification before CheckedTrees can be accepted.
-    let paths = ctx
+    let paths = build
         .call_result_identities
         .entry(borrow_call.target_symbol)
         .or_insert_with(|| {
@@ -384,7 +389,7 @@ fn append_call_result_field_domain_facts<'plans>(
     let Some(crate::semantic_calls::CallSite::Expression { expression, .. }) =
         memoized_find_call_site(
             program,
-            ctx,
+            build,
             machine.symbol,
             state.symbol,
             borrow_call.statement_index,
@@ -426,12 +431,12 @@ fn append_call_result_field_domain_facts<'plans>(
     }
     let context = semantic.append_context(point, refs);
     common::append_flow_reference(
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         &mut exit.contexts,
         FlowSemanticContextRef { context },
     );
     append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut exit.constraints,
         FlowConstraintKind::SemanticContext { context },
     );

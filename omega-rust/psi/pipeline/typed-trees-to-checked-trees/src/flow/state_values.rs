@@ -36,11 +36,11 @@ pub(super) struct StateValues {
 /// delivered for `segments` -- the co-inductive premise an element-store
 /// reseed may assume for the carrier. Empty when no edge has established any.
 pub(super) fn field_predicate_ceiling<'a>(
-    ctx: &'a FlowBuildContext<'_>,
+    build: &'a FlowBuildContext<'_>,
     state: SymbolHandle,
     segments: &[facts::PlaceSegment],
 ) -> &'a [crate::facts::field_domain::ByteSequencePredicate] {
-    let field = ctx
+    let field = build
         .state_value_inputs
         .iter()
         .find(|row| row.state == state)
@@ -49,7 +49,7 @@ pub(super) fn field_predicate_ceiling<'a>(
 }
 
 fn reachable(
-    ctx: &FlowBuildContext,
+    build: &FlowBuildContext,
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: SymbolHandle,
@@ -58,7 +58,7 @@ fn reachable(
         .machine_states(machine)
         .first()
         .is_some_and(|entry| entry.symbol == state)
-        || ctx
+        || build
             .state_value_inputs
             .iter()
             .any(|input| input.state == state)
@@ -66,7 +66,7 @@ fn reachable(
 
 fn join(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     source: fields::BoundsSource,
     incoming: StateValues,
@@ -76,8 +76,8 @@ fn join(
     // The widening thresholds are program-pure: fetch the context's memoized
     // set before borrowing the row so the arena scan runs at most once per
     // flow build, not once per rejoin.
-    let thresholds = ctx.integer_literal_thresholds_at(program);
-    if let Some(previous) = ctx
+    let thresholds = build.integer_literal_thresholds_at(program);
+    if let Some(previous) = build
         .state_value_inputs
         .iter_mut()
         .find(|row| row.state == incoming.state)
@@ -105,23 +105,23 @@ fn join(
         }
     } else {
         changed = true;
-        ctx.new_state_field_input_height += fields::height(&incoming.fields);
-        ctx.new_state_field_input_height += incoming.qualifications.len();
+        build.new_state_field_input_height += fields::height(&incoming.fields);
+        build.new_state_field_input_height += incoming.qualifications.len();
         let mut incoming = incoming;
         for field in &mut incoming.fields {
             field.seed_delivery(source);
         }
-        ctx.state_value_inputs.push(incoming);
+        build.state_value_inputs.push(incoming);
     }
     #[cfg(test)]
     if super::builder::tests::WHOLE_PASS_REFERENCE.get() {
-        if changed && ctx.built_state_value_inputs.contains(&state) {
-            ctx.state_value_inputs_changed_after_build = true;
+        if changed && build.built_state_value_inputs.contains(&state) {
+            build.state_value_inputs_changed_after_build = true;
         }
         return;
     }
-    if changed && !ctx.dirty_state_value_inputs.contains(&state) {
-        ctx.dirty_state_value_inputs.push(state);
+    if changed && !build.dirty_state_value_inputs.contains(&state) {
+        build.dirty_state_value_inputs.push(state);
     }
 }
 
@@ -162,7 +162,7 @@ fn literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> O
 fn value_at_place(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
-    ctx: &FlowBuildContext,
+    build: &FlowBuildContext,
     contexts: HandleSpan<FlowSemanticContextRef>,
     place: facts::PlaceHandle,
 ) -> ScalarValue {
@@ -174,7 +174,8 @@ fn value_at_place(
     crate::values::scalar_value_at_place(
         program,
         semantic,
-        ctx.contexts
+        build
+            .contexts
             .semantic_context_refs
             .span_or_empty(contexts)
             .iter()
@@ -188,7 +189,7 @@ fn value_at_place(
 pub(super) fn record_transition(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     transition: &typed_trees::statement::TableTransition,
@@ -198,7 +199,7 @@ pub(super) fn record_transition(
     argument_qualifications: Vec<qualifications::QualifiedInput>,
 ) {
     if transition.exit != TransitionExit::Ordinary
-        || !reachable(ctx, program, machine, state.symbol)
+        || !reachable(build, program, machine, state.symbol)
     {
         return;
     }
@@ -206,7 +207,7 @@ pub(super) fn record_transition(
         TransitionTargetNode::Named {
             path, arguments, ..
         } => {
-            let Some(destination) = ctx
+            let Some(destination) = build
                 .state_index_in_machine(program, machine.symbol, path.symbol)
                 .and_then(|index| program.machine_states(machine).get(index))
             else {
@@ -247,14 +248,14 @@ pub(super) fn record_transition(
             captured.cloned().unwrap_or_default()
         } else {
             let source = semantic.append_symbol_place(parameter.symbol);
-            value_at_place(program, semantic, ctx, contexts, source)
+            value_at_place(program, semantic, build, contexts, source)
         };
         values.push((parameter.symbol, value));
     }
     let fields = fields::capture(
         program,
         semantic,
-        ctx,
+        build,
         machine,
         state,
         destination,
@@ -263,11 +264,11 @@ pub(super) fn record_transition(
     let qualifications = if arguments.is_some() {
         argument_qualifications
     } else {
-        qualifications::capture_self(program, semantic, ctx, state, contexts)
+        qualifications::capture_self(program, semantic, build, state, contexts)
     };
     join(
         program,
-        ctx,
+        build,
         machine,
         fields::BoundsSource::transition(state.symbol, target),
         StateValues {
@@ -282,16 +283,17 @@ pub(super) fn record_transition(
 /// Ordinary invocations are not narrowed by the internal transition proof.
 pub(super) fn record_invocation<'plans>(
     program: &'plans typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &BorrowCallFact,
 ) {
-    if !reachable(ctx, program, machine, state.symbol) {
+    if !reachable(build, program, machine, state.symbol) {
         return;
     }
     let Some((owner, destination)) =
-        ctx.state_location(program, call.target_symbol)
+        build
+            .state_location(program, call.target_symbol)
             .map(|(machine_index, state_index)| {
                 let owner = &program.machines()[machine_index];
                 (owner, &program.machine_states(owner)[state_index])
@@ -310,7 +312,7 @@ pub(super) fn record_invocation<'plans>(
         && matches!(
             super::calls::memoized_find_call_site(
                 program,
-                ctx,
+                build,
                 machine.symbol,
                 state.symbol,
                 call.statement_index,
@@ -323,7 +325,7 @@ pub(super) fn record_invocation<'plans>(
     }
     join(
         program,
-        ctx,
+        build,
         owner,
         fields::BoundsSource::invocation(state.symbol, call.statement_index, call.call_ordinal),
         StateValues {
@@ -343,11 +345,11 @@ pub(super) fn record_invocation<'plans>(
 pub(super) fn append_entry_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
 ) {
-    let Some(input) = ctx
+    let Some(input) = build
         .state_value_inputs
         .iter()
         .find(|input| input.state == state.symbol)

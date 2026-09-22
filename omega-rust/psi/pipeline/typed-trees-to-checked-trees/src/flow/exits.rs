@@ -18,7 +18,7 @@ pub(super) fn append_state_exit_facts(
     program: &typed_trees::TypedTrees,
     proof: &ProofFacts,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     transition_target: typed_trees::statement::TransitionTargetHandle,
@@ -34,16 +34,16 @@ pub(super) fn append_state_exit_facts(
             .then_some(exit)
     }) {
         let entry_exit_contexts =
-            retained_flow_contexts(&ctx.contexts.semantic_context_refs, active_contexts);
+            retained_flow_contexts(&build.contexts.semantic_context_refs, active_contexts);
         let entry_constraints =
-            retained_constraint_refs(&ctx.contexts.constraint_refs, active_constraints);
+            retained_constraint_refs(&build.contexts.constraint_refs, active_constraints);
         let mut ensures_contexts = arena::HandleSpan::empty();
         let mut ensures_constraints = arena::HandleSpan::empty();
         append_flow_contexts_for_points(
             semantic,
-            &mut ctx.contexts.semantic_context_refs,
+            &mut build.contexts.semantic_context_refs,
             &mut ensures_contexts,
-            &mut ctx.contexts.constraint_refs,
+            &mut build.contexts.constraint_refs,
             &mut ensures_constraints,
             &[ProgramPoint::Exit {
                 machine_symbol,
@@ -53,18 +53,18 @@ pub(super) fn append_state_exit_facts(
             }],
         );
 
-        let machine = ctx
+        let machine = build
             .machine_index(program, machine_symbol)
             .map(|index| &program.machines()[index])
             .expect("exit machine");
-        let state = ctx
+        let state = build
             .state_index_in_machine(program, machine_symbol, state_symbol)
             .and_then(|index| program.machine_states(machine).get(index))
             .expect("exit state");
         let (rebased_contexts, parameter_origins) = super::entry_origins::rebase_contexts(
             program,
             semantic,
-            ctx,
+            build,
             machine,
             state,
             ensures_contexts,
@@ -72,21 +72,21 @@ pub(super) fn append_state_exit_facts(
         );
         ensures_contexts = rebased_contexts;
         ensures_constraints = HandleSpan::empty();
-        for context in ctx
+        for context in build
             .contexts
             .semantic_context_refs
             .span_or_empty(ensures_contexts)
             .to_vec()
         {
             append_constraint_ref(
-                &mut ctx.contexts.constraint_refs,
+                &mut build.contexts.constraint_refs,
                 &mut ensures_constraints,
                 FlowConstraintKind::SemanticContext {
                     context: context.context,
                 },
             );
         }
-        ctx.control.exits.append_to_span(
+        build.control.exits.append_to_span(
             &mut state_exits,
             FlowExitFact {
                 machine_symbol,
@@ -113,7 +113,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
@@ -132,7 +132,7 @@ pub(super) fn append_transition_flow_facts<'plans>(
         state,
         statement_index,
         semantic,
-        ctx,
+        build,
         state_calls,
         calls,
         active_contexts,

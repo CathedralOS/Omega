@@ -23,7 +23,7 @@ pub(super) fn build_state_flow_fact<'plans>(
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     declaration_groups: [facts::FactContextGroup; 2],
@@ -39,14 +39,15 @@ pub(super) fn build_state_flow_fact<'plans>(
 
     // Store potentials are this pass's evidence; a rebuilt state accumulates
     // them afresh.
-    ctx.element_store_potentials
+    build
+        .element_store_potentials
         .retain(|(stored_state, _, _)| *stored_state != state.symbol);
 
     #[cfg(test)]
     if super::builder::tests::WHOLE_PASS_REFERENCE.get() {
-        ctx.built_state_value_inputs.push(state.symbol);
+        build.built_state_value_inputs.push(state.symbol);
     }
-    super::state_values::append_entry_context(program, semantic, ctx, machine, state);
+    super::state_values::append_entry_context(program, semantic, build, machine, state);
     let declaration_contexts = declaration_groups
         .into_iter()
         .flat_map(|group| semantic.context_handles_in_group(group));
@@ -72,16 +73,16 @@ pub(super) fn build_state_flow_fact<'plans>(
     let mut state_constraints = arena::HandleSpan::empty();
     append_flow_contexts(
         declaration_contexts,
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         &mut state_contexts,
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut state_constraints,
     );
     append_flow_contexts_for_points(
         semantic,
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         &mut state_contexts,
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut state_constraints,
         &[ProgramPoint::State {
             machine_symbol: machine.symbol,
@@ -92,7 +93,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         super::entry_origins::rebase_contexts(
             program,
             semantic,
-            ctx,
+            build,
             machine,
             state,
             state_contexts,
@@ -101,19 +102,19 @@ pub(super) fn build_state_flow_fact<'plans>(
     };
     state_contexts = rebased_contexts;
     state_constraints = project_constraint_refs_to_active_contexts(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         state_constraints,
         state_contexts,
-        &ctx.contexts.semantic_context_refs,
+        &build.contexts.semantic_context_refs,
     );
-    for context in ctx
+    for context in build
         .contexts
         .semantic_context_refs
         .span_or_empty(state_contexts)
         .to_vec()
     {
         append_constraint_ref(
-            &mut ctx.contexts.constraint_refs,
+            &mut build.contexts.constraint_refs,
             &mut state_constraints,
             FlowConstraintKind::SemanticContext {
                 context: context.context,
@@ -121,27 +122,27 @@ pub(super) fn build_state_flow_fact<'plans>(
         );
     }
     append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut state_constraints,
         FlowConstraintKind::BorrowState {
             state: borrow_state_handle,
         },
     );
     append_contiguous_borrow_root_constraints(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut state_constraints,
         borrow_state.writable_roots,
     );
     let mut active_contexts =
-        retained_flow_contexts(&ctx.contexts.semantic_context_refs, state_contexts);
+        retained_flow_contexts(&build.contexts.semantic_context_refs, state_contexts);
     let mut active_constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, state_constraints);
-    let state_invalidations_start = ctx.invalidations.events.len();
-    let state_borrow_activations_start = ctx.borrow_lifetimes.activations.len();
-    let state_borrow_weakenings_start = ctx.borrow_lifetimes.weakenings.len();
-    let state_boundary_edges_start = ctx.boundaries.edges.len();
-    let state_statements_start = ctx.control.statements.len();
-    let state_exits_start = ctx.control.exits.len();
+        retained_constraint_refs(&build.contexts.constraint_refs, state_constraints);
+    let state_invalidations_start = build.invalidations.events.len();
+    let state_borrow_activations_start = build.borrow_lifetimes.activations.len();
+    let state_borrow_weakenings_start = build.borrow_lifetimes.weakenings.len();
+    let state_boundary_edges_start = build.boundaries.edges.len();
+    let state_statements_start = build.control.statements.len();
+    let state_exits_start = build.control.exits.len();
     let state_calls = {
         append_state_statement_flow_facts(
             program,
@@ -149,7 +150,7 @@ pub(super) fn build_state_flow_fact<'plans>(
             proof,
             semantic,
             domains,
-            ctx,
+            build,
             machine,
             state,
             &mut active_contexts,
@@ -158,8 +159,8 @@ pub(super) fn build_state_flow_fact<'plans>(
         )
     };
     active_constraints = filter_expired_borrow_loans(
-        &mut ctx.borrow_lifetimes.weakenings,
-        &mut ctx.contexts.constraint_refs,
+        &mut build.borrow_lifetimes.weakenings,
+        &mut build.contexts.constraint_refs,
         active_constraints,
         borrow,
         program
@@ -172,7 +173,7 @@ pub(super) fn build_state_flow_fact<'plans>(
         program,
         proof,
         semantic,
-        ctx,
+        build,
         machine.symbol,
         state.symbol,
         Default::default(),
@@ -180,26 +181,26 @@ pub(super) fn build_state_flow_fact<'plans>(
         active_constraints,
     );
 
-    ctx.control.states.append(FlowStateFact {
+    build.control.states.append(FlowStateFact {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
         writable_roots: borrow_state.writable_roots,
         mutable_parameter_count: borrow_state.mutable_parameter_count,
         entry_semantic_contexts: state_contexts,
         entry_constraints: state_constraints,
-        invalidations: appended_span_since(&ctx.invalidations.events, state_invalidations_start),
+        invalidations: appended_span_since(&build.invalidations.events, state_invalidations_start),
         borrow_activations: appended_span_since(
-            &ctx.borrow_lifetimes.activations,
+            &build.borrow_lifetimes.activations,
             state_borrow_activations_start,
         ),
         borrow_weakenings: appended_span_since(
-            &ctx.borrow_lifetimes.weakenings,
+            &build.borrow_lifetimes.weakenings,
             state_borrow_weakenings_start,
         ),
-        boundary_edges: appended_span_since(&ctx.boundaries.edges, state_boundary_edges_start),
-        statements: appended_span_since(&ctx.control.statements, state_statements_start),
+        boundary_edges: appended_span_since(&build.boundaries.edges, state_boundary_edges_start),
+        statements: appended_span_since(&build.control.statements, state_statements_start),
         calls: state_calls,
-        exits: appended_span_since(&ctx.control.exits, state_exits_start),
+        exits: appended_span_since(&build.control.exits, state_exits_start),
         service_reach: Default::default(),
         suspension: Default::default(),
         blocking: Default::default(),

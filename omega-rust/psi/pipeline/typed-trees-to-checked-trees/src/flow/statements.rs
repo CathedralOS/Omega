@@ -27,7 +27,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     proof: &ProofFacts,
     semantic: &mut FactPlan,
     domains: &DomainFacts,
-    ctx: &mut FlowBuildContext<'plans>,
+    build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     active_contexts: &mut arena::HandleSpan<FlowSemanticContextRef>,
@@ -49,7 +49,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         append_proof_output_ensures(
             proof,
             semantic,
-            ctx,
+            build,
             machine.symbol,
             state.symbol,
             statement_index,
@@ -57,14 +57,14 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             active_constraints,
         );
         *active_constraints = filter_expired_borrow_loans(
-            &mut ctx.borrow_lifetimes.weakenings,
-            &mut ctx.contexts.constraint_refs,
+            &mut build.borrow_lifetimes.weakenings,
+            &mut build.contexts.constraint_refs,
             *active_constraints,
             borrow,
             statement_index,
             FlowBorrowWeakeningReason::LastUseExpired,
         );
-        ctx.control.statements.append(FlowStatementFact {
+        build.control.statements.append(FlowStatementFact {
             statement_index,
             entry_semantic_contexts: *active_contexts,
             entry_constraints: *active_constraints,
@@ -82,14 +82,14 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 statement_index,
             };
             *active_contexts =
-                retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+                retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
             *active_constraints =
-                retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+                retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
             append_flow_contexts_for_points(
                 semantic,
-                &mut ctx.contexts.semantic_context_refs,
+                &mut build.contexts.semantic_context_refs,
                 active_contexts,
-                &mut ctx.contexts.constraint_refs,
+                &mut build.contexts.constraint_refs,
                 active_constraints,
                 &[point],
             );
@@ -120,7 +120,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 proof,
                 semantic,
                 domains,
-                ctx,
+                build,
                 machine,
                 state,
                 statement_index,
@@ -147,7 +147,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 proof,
                 semantic,
                 domains,
-                ctx,
+                build,
                 machine,
                 state,
                 statement_index,
@@ -164,13 +164,13 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         // activating loans carried by the replacement below; otherwise the
         // replacement spuriously conflicts with the value it is replacing.
         let reassigned_place = if let StatementNode::Assignment(assignment) = statement {
-            ctx.canonical_place_at(program, state.symbol, statement_index, assignment.target)
+            build.canonical_place_at(program, state.symbol, statement_index, assignment.target)
         } else {
             None
         };
         *active_constraints = filter_reassigned_borrow_loans(
-            &mut ctx.borrow_lifetimes.weakenings,
-            &mut ctx.contexts.constraint_refs,
+            &mut build.borrow_lifetimes.weakenings,
+            &mut build.contexts.constraint_refs,
             *active_constraints,
             borrow,
             program,
@@ -192,7 +192,8 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 borrow_state.loans.start().generation(),
             );
 
-            ctx.borrow_lifetimes
+            build
+                .borrow_lifetimes
                 .activations
                 .append(FlowBorrowActivationFact {
                     source: FlowInvalidationSource::Statement { statement_index },
@@ -200,7 +201,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 });
 
             append_constraint_ref(
-                &mut ctx.contexts.constraint_refs,
+                &mut build.contexts.constraint_refs,
                 active_constraints,
                 FlowConstraintKind::BorrowLoan { loan: loan_handle },
             );
@@ -213,16 +214,16 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 state.symbol,
                 statement_index,
                 statement,
-                ctx.call_frames,
+                build.call_frames,
             )
         };
         if storage_writes.is_none() {
             *active_contexts = HandleSpan::empty();
             *active_constraints = project_constraint_refs_to_active_contexts(
-                &mut ctx.contexts.constraint_refs,
+                &mut build.contexts.constraint_refs,
                 *active_constraints,
                 *active_contexts,
-                &ctx.contexts.semantic_context_refs,
+                &build.contexts.semantic_context_refs,
             );
         }
         // RHS calls have already contributed their effects. Preserve only
@@ -233,7 +234,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         if let StatementNode::Call(call) = statement {
             mutated_places.extend(operator_statement_call_mutated_places(
                 program,
-                ctx,
+                build,
                 machine.symbol,
                 state.symbol,
                 statement_index,
@@ -245,18 +246,18 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                 program,
                 semantic,
                 domains,
-                &mut ctx.contexts.semantic_context_refs,
-                &mut ctx.invalidations.segments,
-                &mut ctx.invalidations.events,
+                &mut build.contexts.semantic_context_refs,
+                &mut build.invalidations.segments,
+                &mut build.invalidations.events,
                 *active_contexts,
                 &mutated_places,
                 FlowInvalidationSource::Statement { statement_index },
             );
             *active_constraints = project_constraint_refs_to_active_contexts(
-                &mut ctx.contexts.constraint_refs,
+                &mut build.contexts.constraint_refs,
                 *active_constraints,
                 *active_contexts,
-                &ctx.contexts.semantic_context_refs,
+                &build.contexts.semantic_context_refs,
             );
         }
 
@@ -264,7 +265,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             append_operator_statement_ensures(
                 program,
                 semantic,
-                ctx,
+                build,
                 machine.symbol,
                 state.symbol,
                 statement_index,
@@ -277,7 +278,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             program,
             borrow,
             semantic,
-            ctx,
+            build,
             machine.symbol,
             state.symbol,
             statement_index,
@@ -303,7 +304,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     append_proof_output_ensures(
         proof,
         semantic,
-        ctx,
+        build,
         machine.symbol,
         state.symbol,
         program
@@ -321,7 +322,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
 fn append_proof_output_ensures(
     proof: &ProofFacts,
     semantic: &FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     statement_index: usize,
@@ -338,9 +339,9 @@ fn append_proof_output_ensures(
         return;
     }
     *active_contexts =
-        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     *active_constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
     let point = ProgramPoint::CallEnsures {
         machine_symbol,
         state_symbol,
@@ -349,9 +350,9 @@ fn append_proof_output_ensures(
     };
     append_flow_contexts_for_points(
         semantic,
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         active_contexts,
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         active_constraints,
         &[point],
     );

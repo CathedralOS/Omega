@@ -5,10 +5,10 @@ use symbols::SymbolHandle;
 
 pub(super) fn append_call_boundary_edges(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     borrow_call: &BorrowCallFact,
 ) -> HandleSpan<FlowBoundaryEdgeFact> {
-    let Some((target_machine, target_state)) = ctx
+    let Some((target_machine, target_state)) = build
         .state_location(program, borrow_call.target_symbol)
         .map(|(machine_index, state_index)| {
             let machine = &program.machines()[machine_index];
@@ -23,7 +23,7 @@ pub(super) fn append_call_boundary_edges(
     for conformance in program.machine_trait_conformances(target_machine) {
         append_boundary_edges_for_trait(
             program,
-            ctx,
+            build,
             borrow_call,
             target_state,
             conformance.symbol,
@@ -37,7 +37,7 @@ pub(super) fn append_call_boundary_edges(
 
 fn append_boundary_edges_for_trait(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     borrow_call: &BorrowCallFact,
     target_state: &typed_trees::state::State,
     trait_symbol: SymbolHandle,
@@ -64,7 +64,7 @@ fn append_boundary_edges_for_trait(
             .iter()
             .filter(|signature| signature.name == target_state.name)
         {
-            ctx.boundaries.edges.append_to_span(
+            build.boundaries.edges.append_to_span(
                 span,
                 FlowBoundaryEdgeFact {
                     statement_index: borrow_call.statement_index,
@@ -81,7 +81,7 @@ fn append_boundary_edges_for_trait(
     for requirement in program.trait_requirements(trait_definition) {
         append_boundary_edges_for_trait(
             program,
-            ctx,
+            build,
             borrow_call,
             target_state,
             requirement.symbol,

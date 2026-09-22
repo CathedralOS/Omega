@@ -68,7 +68,7 @@ pub(super) fn build_whole_pass_reference(
         if pass != 0 {
             *semantic = baseline.clone();
         }
-        let mut ctx = FlowBuildContext::new(
+        let mut build = FlowBuildContext::new(
             borrow,
             proof,
             semantic,
@@ -78,7 +78,7 @@ pub(super) fn build_whole_pass_reference(
             call_frames.as_ref(),
             &state_mutation_summary_cache,
         );
-        ctx.state_value_inputs = inputs;
+        build.state_value_inputs = inputs;
         for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
             for state in program.machine_states(machine) {
                 build_state_flow_fact(
@@ -87,7 +87,7 @@ pub(super) fn build_whole_pass_reference(
                     proof,
                     semantic,
                     domains,
-                    &mut ctx,
+                    &mut build,
                     machine,
                     state,
                     [global_contexts, *machine_contexts],
@@ -97,20 +97,20 @@ pub(super) fn build_whole_pass_reference(
         // Each newly reached field contributes one literal and its finite
         // predicate set; parameter qualifications contribute finite membership
         // cells. Subsequent joins only remove these cells.
-        pass_limit = pass_limit.saturating_add(ctx.new_state_field_input_height);
+        pass_limit = pass_limit.saturating_add(build.new_state_field_input_height);
         // Inputs arriving before a state's entry was built are already in its
         // contexts. Only a change after that point requires rebuilding flow.
-        if !ctx.state_value_inputs_changed_after_build {
-            let mut flow = ctx.finish();
+        if !build.state_value_inputs_changed_after_build {
+            let mut flow = build.finish();
             attach_reach_summaries(&mut flow, service_reaches, operational);
             return flow;
         }
-        inputs = std::mem::take(&mut ctx.state_value_inputs);
+        inputs = std::mem::take(&mut build.state_value_inputs);
         pass += 1;
     }
     // No provisional input fact survives a nonconvergent graph.
     *semantic = baseline;
-    let mut ctx = FlowBuildContext::new(
+    let mut build = FlowBuildContext::new(
         borrow,
         proof,
         semantic,
@@ -122,7 +122,7 @@ pub(super) fn build_whole_pass_reference(
     );
     // Unknown is absorbing: immediate joins during fallback cannot establish
     // a new provisional constant in a state built later in this pass.
-    ctx.state_value_inputs = state_values::unknown_inputs(program);
+    build.state_value_inputs = state_values::unknown_inputs(program);
     for (machine, machine_contexts) in program.machines().iter().zip(&machine_contexts) {
         for state in program.machine_states(machine) {
             build_state_flow_fact(
@@ -131,14 +131,14 @@ pub(super) fn build_whole_pass_reference(
                 proof,
                 semantic,
                 domains,
-                &mut ctx,
+                &mut build,
                 machine,
                 state,
                 [global_contexts, *machine_contexts],
             );
         }
     }
-    let mut flow = ctx.finish();
+    let mut flow = build.finish();
     attach_reach_summaries(&mut flow, service_reaches, operational);
     flow
 }

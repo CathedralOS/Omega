@@ -99,7 +99,7 @@ struct OperatorStatementOperand {
 
 fn operator_statement_operands<'program>(
     program: &'program typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -150,7 +150,8 @@ fn operator_statement_operands<'program>(
             let argument = arguments.get(argument_index).copied();
             argument_index = argument_index.saturating_add(1);
             let place = argument.and_then(|expression| {
-                ctx.canonical_place_at(program, caller_state_symbol, statement_index, expression)
+                build
+                    .canonical_place_at(program, caller_state_symbol, statement_index, expression)
                     .or_else(|| canonical_place_from_expression(program, expression))
             });
             let label = argument.map_or_else(
@@ -178,7 +179,7 @@ fn operator_statement_operands<'program>(
 /// contract instantiation renders identical operand names either way.
 fn named_operator_call_operands<'program>(
     program: &'program typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
@@ -192,7 +193,7 @@ fn named_operator_call_operands<'program>(
             .iter()
             .zip(operand_expressions.iter())
             .map(|(parameter, expression)| {
-                let place = ctx
+                let place = build
                     .canonical_place_at(program, caller_state_symbol, statement_index, *expression)
                     .or_else(|| canonical_place_from_expression(program, *expression));
                 let label = place.as_ref().map_or_else(
@@ -228,7 +229,7 @@ pub(super) fn apply_named_operator_call_effects(
     program: &typed_trees::TypedTrees,
     domains: &DomainFacts,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -239,7 +240,8 @@ pub(super) fn apply_named_operator_call_effects(
 ) {
     let Some(operator) = typed_trees::operator::declaration_by_symbol(
         program,
-        ctx.operators
+        build
+            .operators
             .named_uses
             .get(named_use)
             .selected_operator_symbol,
@@ -248,7 +250,7 @@ pub(super) fn apply_named_operator_call_effects(
     };
     let Some(operands) = named_operator_call_operands(
         program,
-        ctx,
+        build,
         caller_state_symbol,
         statement_index,
         call,
@@ -270,24 +272,24 @@ pub(super) fn apply_named_operator_call_effects(
             program,
             semantic,
             domains,
-            &mut ctx.contexts.semantic_context_refs,
-            &mut ctx.invalidations.segments,
-            &mut ctx.invalidations.events,
+            &mut build.contexts.semantic_context_refs,
+            &mut build.invalidations.segments,
+            &mut build.invalidations.events,
             *active_contexts,
             &mutated_places,
             FlowInvalidationSource::Statement { statement_index },
         );
         *active_constraints = crate::flow::project_constraint_refs_to_active_contexts(
-            &mut ctx.contexts.constraint_refs,
+            &mut build.contexts.constraint_refs,
             *active_constraints,
             *active_contexts,
-            &ctx.contexts.semantic_context_refs,
+            &build.contexts.semantic_context_refs,
         );
     }
     append_operator_ensures_context(
         program,
         semantic,
-        ctx,
+        build,
         operator,
         &operands,
         ProgramPoint::Statement {
@@ -312,7 +314,7 @@ pub(super) fn apply_named_operator_call_effects(
 /// `operator_statement_call_mutated_places`.
 pub(super) fn named_operator_call_mutated_places(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
     call: &typed_trees::expression::TableCallExpression,
@@ -320,14 +322,15 @@ pub(super) fn named_operator_call_mutated_places(
 ) -> Option<Vec<CanonicalPlace>> {
     let operator = typed_trees::operator::declaration_by_symbol(
         program,
-        ctx.operators
+        build
+            .operators
             .named_uses
             .get(named_use)
             .selected_operator_symbol,
     )?;
     let operands = named_operator_call_operands(
         program,
-        ctx,
+        build,
         caller_state_symbol,
         statement_index,
         call,
@@ -345,7 +348,7 @@ pub(super) fn named_operator_call_mutated_places(
 /// operator's postconditions are introduced.
 pub(super) fn operator_statement_call_mutated_places(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -353,7 +356,7 @@ pub(super) fn operator_statement_call_mutated_places(
 ) -> Vec<CanonicalPlace> {
     operator_statement_operands(
         program,
-        ctx,
+        build,
         caller_machine_symbol,
         caller_state_symbol,
         statement_index,
@@ -376,7 +379,7 @@ pub(super) fn operator_statement_call_mutated_places(
 pub(super) fn append_operator_statement_ensures(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     caller_machine_symbol: SymbolHandle,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
@@ -386,7 +389,7 @@ pub(super) fn append_operator_statement_ensures(
 ) {
     let Some((operator, operands)) = operator_statement_operands(
         program,
-        ctx,
+        build,
         caller_machine_symbol,
         caller_state_symbol,
         statement_index,
@@ -397,7 +400,7 @@ pub(super) fn append_operator_statement_ensures(
     append_operator_ensures_context(
         program,
         semantic,
-        ctx,
+        build,
         operator,
         &operands,
         ProgramPoint::Statement {
@@ -417,7 +420,7 @@ pub(super) fn append_operator_statement_ensures(
 fn append_operator_ensures_context(
     program: &typed_trees::TypedTrees,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     operator: &typed_trees::operator::OperatorDefinition,
     operands: &[OperatorStatementOperand],
     point: ProgramPoint,
@@ -611,17 +614,17 @@ fn append_operator_ensures_context(
     }
     let context = semantic.append_context(point, refs);
     let mut next_contexts =
-        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     common::append_flow_reference(
-        &mut ctx.contexts.semantic_context_refs,
+        &mut build.contexts.semantic_context_refs,
         &mut next_contexts,
         FlowSemanticContextRef { context },
     );
     *active_contexts = next_contexts;
     let mut next_constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
     append_constraint_ref(
-        &mut ctx.contexts.constraint_refs,
+        &mut build.contexts.constraint_refs,
         &mut next_constraints,
         FlowConstraintKind::SemanticContext { context },
     );

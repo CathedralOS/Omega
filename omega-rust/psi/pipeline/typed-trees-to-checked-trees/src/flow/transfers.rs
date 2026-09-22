@@ -28,7 +28,7 @@ pub(super) fn propagate_statement_transfers(
     program: &typed_trees::TypedTrees,
     borrow: &BorrowFacts,
     semantic: &mut FactPlan,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     machine_symbol: SymbolHandle,
     state_symbol: SymbolHandle,
     statement_index: usize,
@@ -65,17 +65,18 @@ pub(super) fn propagate_statement_transfers(
             // close the window on the aliased field. A local binding
             // replacement rebinds the reference itself and an ambiguous
             // origin proves nothing exact, so both keep the alias place.
-            let Some(target_place) = ctx
+            let Some(target_place) = build
                 .canonical_place_at(program, state_symbol, statement_index, assignment.target)
                 .map(|canonical| {
                     let mut owned_frames = None;
                     let writes_through_alias = crate::flow::shared_call_frames_or(
-                        ctx.call_frames,
+                        build.call_frames,
                         program,
                         &mut owned_frames,
                     )
                     .zip(
-                        ctx.machine_index(program, machine_symbol)
+                        build
+                            .machine_index(program, machine_symbol)
                             .map(|index| &program.machines()[index]),
                     )
                     .and_then(|(resolver, machine)| {
@@ -95,12 +96,12 @@ pub(super) fn propagate_statement_transfers(
                         state_symbol,
                         statement_index,
                         canonical.clone(),
-                        ctx.call_frames,
+                        build.call_frames,
                     ) {
                         Some(exact) => exact,
                         None => {
                             if let PlaceRoot::Symbol(root) = canonical.root
-                                && let Some(candidates) = ctx.reference_candidate_places_at(
+                                && let Some(candidates) = build.reference_candidate_places_at(
                                     program,
                                     state_symbol,
                                     statement_index,
@@ -147,7 +148,7 @@ pub(super) fn propagate_statement_transfers(
     let source_label = program.expression_table.display_name(source_expression);
 
     let mut refs = HandleSpan::empty();
-    let context_handles: Vec<_> = ctx
+    let context_handles: Vec<_> = build
         .contexts
         .semantic_context_refs
         .span_or_empty(*active_contexts)
@@ -369,7 +370,7 @@ pub(super) fn propagate_statement_transfers(
             {
                 retain_qualification_correspondence(
                     program,
-                    ctx,
+                    build,
                     semantic,
                     source_fact,
                     fact,
@@ -405,7 +406,7 @@ pub(super) fn propagate_statement_transfers(
             owned_qualifications::append_owned_qualification_transfer(
                 program,
                 semantic,
-                ctx,
+                build,
                 *active_contexts,
                 source_place,
                 target_place,
@@ -421,7 +422,7 @@ pub(super) fn propagate_statement_transfers(
         projected::append_copied_field_predicates(
             program,
             semantic,
-            ctx,
+            build,
             *active_contexts,
             source_place,
             target_place,
@@ -450,7 +451,7 @@ pub(super) fn propagate_statement_transfers(
         projected::append_copied_field_predicates(
             program,
             semantic,
-            ctx,
+            build,
             *active_contexts,
             viewed_place,
             target_place,
@@ -480,7 +481,7 @@ pub(super) fn propagate_statement_transfers(
         && let Some(referent_place) = projected::bound_reference_referent_place(
             program,
             semantic,
-            ctx,
+            build,
             machine_symbol,
             state_symbol,
             statement_index,
@@ -491,7 +492,7 @@ pub(super) fn propagate_statement_transfers(
         projected::append_copied_field_predicates(
             program,
             semantic,
-            ctx,
+            build,
             *active_contexts,
             referent_place,
             target_place,
@@ -508,7 +509,7 @@ pub(super) fn propagate_statement_transfers(
         constructed::append_constructed_field_values(
             program,
             semantic,
-            ctx,
+            build,
             assignment_source_contexts,
             statement,
             source_expression,
@@ -523,7 +524,7 @@ pub(super) fn propagate_statement_transfers(
         byte_sequences::append_concatenated_predicates(
             program,
             semantic,
-            ctx,
+            build,
             assignment_source_contexts,
             source_expression,
             target_place,
@@ -540,7 +541,7 @@ pub(super) fn propagate_statement_transfers(
         program,
         borrow,
         semantic,
-        ctx,
+        build,
         machine_symbol,
         state_symbol,
         statement_index,
@@ -552,7 +553,7 @@ pub(super) fn propagate_statement_transfers(
             program,
             borrow,
             semantic,
-            ctx,
+            build,
             machine_symbol,
             state_symbol,
             statement_index,
@@ -566,7 +567,7 @@ pub(super) fn propagate_statement_transfers(
         byte_sequences::append_element_replacement_predicates(
             program,
             semantic,
-            ctx,
+            build,
             assignment_source_contexts,
             machine_symbol,
             state_symbol,
@@ -739,7 +740,7 @@ pub(super) fn propagate_statement_transfers(
             &candidate.segments,
         );
         for (domain_symbol, semantic_domain) in &declared_target_domains {
-            let was_live = ctx
+            let was_live = build
                 .contexts
                 .semantic_context_refs
                 .span_or_empty(assignment_source_contexts)
@@ -813,9 +814,9 @@ pub(super) fn propagate_statement_transfers(
         }
     }
     let mut next_contexts =
-        retained_flow_contexts(&ctx.contexts.semantic_context_refs, *active_contexts);
+        retained_flow_contexts(&build.contexts.semantic_context_refs, *active_contexts);
     let mut next_constraints =
-        retained_constraint_refs(&ctx.contexts.constraint_refs, *active_constraints);
+        retained_constraint_refs(&build.contexts.constraint_refs, *active_constraints);
     for (_, group) in groups {
         let mut group_refs = HandleSpan::empty();
         for reference in group {
@@ -823,12 +824,12 @@ pub(super) fn propagate_statement_transfers(
         }
         let context = semantic.append_context(point, group_refs);
         common::append_flow_reference(
-            &mut ctx.contexts.semantic_context_refs,
+            &mut build.contexts.semantic_context_refs,
             &mut next_contexts,
             FlowSemanticContextRef { context },
         );
         append_constraint_ref(
-            &mut ctx.contexts.constraint_refs,
+            &mut build.contexts.constraint_refs,
             &mut next_constraints,
             FlowConstraintKind::SemanticContext { context },
         );
@@ -840,7 +841,7 @@ pub(super) fn propagate_statement_transfers(
 #[allow(clippy::too_many_arguments)]
 fn retain_qualification_correspondence(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     semantic: &mut FactPlan,
     source_fact: facts::FactHandle,
     destination_fact: facts::FactHandle,
@@ -864,7 +865,7 @@ fn retain_qualification_correspondence(
         || !exact_statement_owner(program, machine_symbol, state_symbol)
         || !exact_structural_symbol_place(
             program,
-            ctx,
+            build,
             semantic,
             source_place,
             machine_symbol,
@@ -873,7 +874,7 @@ fn retain_qualification_correspondence(
         )
         || !exact_structural_symbol_place(
             program,
-            ctx,
+            build,
             semantic,
             source_occurrence_place,
             machine_symbol,
@@ -882,7 +883,7 @@ fn retain_qualification_correspondence(
         )
         || !exact_structural_symbol_place(
             program,
-            ctx,
+            build,
             semantic,
             destination_place,
             machine_symbol,
@@ -966,7 +967,7 @@ fn exact_evidence_source(
 
 fn exact_structural_symbol_place(
     program: &typed_trees::TypedTrees,
-    ctx: &mut FlowBuildContext,
+    build: &mut FlowBuildContext,
     semantic: &FactPlan,
     handle: PlaceHandle,
     machine_symbol: SymbolHandle,
@@ -986,7 +987,7 @@ fn exact_structural_symbol_place(
     let Some(segments) = semantic.place_segments.span(place.segments) else {
         return false;
     };
-    let Some(mut current) = *ctx
+    let Some(mut current) = *build
         .correspondence_root_types
         .entry((
             machine_symbol,
