@@ -118,10 +118,16 @@
 //! value definitions and uses J in the exact replacement contexts. This
 //! composes multiple equations, Boolean operations, exact addition/subtraction
 //! and connective binders. A normalized Truth premise establishes a reflexive
-//! expanded result by refl. Opaque operations, additional Boolean identities,
-//! and reversed identities nested inside connectives can still require
-//! rule-instance evidence; a bounded construction allowance also declines to
-//! that explicit route rather than rejecting an otherwise supported proof.
+//! expanded result by refl. Two `Id Two` identities differing by open
+//! `not`/`equal` compositions over neutral Boolean atoms — the pairs Boolean
+//! normalization equates without a closed computation — are decided by
+//! `caseTwo` case analysis on each atom: `refl` closes a branch whose goal
+//! endpoints agree, and `J` eliminates the contradictory premise at a branch
+//! whose premise endpoints disagree. Identities over other carriers beyond a
+//! single swap, dependent codomains, unmatched tagged sums, and endpoints
+//! outside the denoted Boolean fragment can still require rule-instance
+//! evidence; a bounded construction allowance also declines to that explicit
+//! route rather than rejecting an otherwise supported proof.
 //! Other witness-bearing bound rules and denotation-conversion instances outside the
 //! supported `Int` vocabulary denote a *rule-instance decision*: an assumption constant whose type
 //! is the checked implication `Π(_ : ⟦premise₁⟧). … . ⟦conclusion⟧`,

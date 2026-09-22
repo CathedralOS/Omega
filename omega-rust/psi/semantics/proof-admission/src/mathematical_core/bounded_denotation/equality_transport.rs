@@ -359,9 +359,12 @@ impl Denotation {
     /// `Pi` domains coerce contravariantly, `Sigma` pairs covariantly, and a
     /// `Two`-indexed family selects the per-branch coercion by `caseTwo`, so
     /// conjunction, disjunction and implication positions are all covered.
-    /// `None` keeps the explicit rule-instance route for any difference
-    /// outside these shapes — a dependent codomain, an unmatched family, or
-    /// endpoints that are not a single swap.
+    /// `Id Two` endpoints differing by open `not`/`equal` compositions are
+    /// not a swap — they are a Boolean identity decided by `caseTwo` case
+    /// analysis on each neutral atom. `None` keeps the explicit rule-instance
+    /// route for any difference outside these shapes — a dependent codomain,
+    /// an unmatched family, or endpoints that are neither a single swap nor
+    /// a checked Boolean identity.
     pub(super) fn oriented_evidence(
         &mut self,
         premise: TermHandle,
@@ -393,10 +396,20 @@ impl Denotation {
                     left: goal_left,
                     right: goal_right,
                 },
-            ) => (self.arena.structurally_equal(ty, goal_ty)
-                && self.arena.structurally_equal(goal_left, right)
-                && self.arena.structurally_equal(goal_right, left))
-            .then(|| self.symmetry(ty, left, right, evidence)),
+            ) => {
+                if self.arena.structurally_equal(ty, goal_ty)
+                    && self.arena.structurally_equal(goal_left, right)
+                    && self.arena.structurally_equal(goal_right, left)
+                {
+                    return Some(self.symmetry(ty, left, right, evidence));
+                }
+                // Two `Id Two` identities can also differ by open
+                // `not`/`equal` compositions over Boolean atoms — a
+                // Boolean identity the kernel itself decides by `caseTwo`
+                // case analysis on each atom rather than an instance
+                // axiom for the whole judgment.
+                self.boolean_identity_transport(premise, goal, evidence)
+            }
             (
                 Term::Pi { domain, codomain },
                 Term::Pi {
