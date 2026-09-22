@@ -17,4 +17,7 @@ impl X86BranchRelaxationIdentity {
 
 pub mod relaxation;
 pub mod relaxation_identity;
-pub use relaxation::*;
+pub use relaxation::{
+    X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
+    X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
+};

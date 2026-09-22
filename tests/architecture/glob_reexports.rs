@@ -86,7 +86,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
     ("omega-rust/omega/representations/abstract-operations", 13),
     ("omega-rust/omega/representations/boundary-applications", 1),
     ("omega-rust/omega/representations/legalized-operations", 10),
-    ("omega-rust/omega/representations/machine-code", 48),
     ("omega-rust/omega/representations/optimization-unit", 17),
     ("omega-rust/omega/representations/physical-instructions", 7),
     ("omega-rust/omega/representations/register-homes", 20),

@@ -5,13 +5,17 @@ mod identity;
 mod rows;
 #[cfg(test)]
 mod tests;
-pub use custody::*;
+pub use custody::{SelectedFormMachineOptimizationCustody, SelectedFormMovnOptimizationCustody};
 use optimization_core::Optimization;
 use physical_instructions::{Aarch64CbnzFusionIdentity, Aarch64MovnMaterializationIdentity};
 use physical_instructions::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
 };
-pub use rows::*;
+pub use rows::{
+    DeferredControlEncodingReason, ResolvedPhysicalAddress, SelectedFormDecodedFootprint,
+    SelectedFormEncodingCounts, SelectedFormEncodingRow, SelectedFormEncodingState,
+    SelectedFormMachineDisposition,
+};
 
 /// Current encoded data and its exact content joins. Construction, cloning and
 /// identity recomputation grant no admission, layout or publication authority.

@@ -4,7 +4,11 @@
 mod identity;
 mod publication;
 pub use identity::relocation_free_text_section_identity;
-pub use publication::*;
+pub use publication::{
+    FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
+    FunctionFragmentTextSectionStage, FunctionFragmentTextSectionStatistics,
+    FunctionFragmentTextSectionUnavailableData,
+};
 
 use optimization_core::{
     FunctionFragmentEmissionIdentity, TerminalRelocationFreeTextSectionIdentity,
