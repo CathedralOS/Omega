@@ -89,6 +89,8 @@ mod macos_entry_acceptance;
 mod native_acceptance;
 #[path = "samples_compile/unit_closure.rs"]
 mod unit_closure;
+#[path = "support/windows_entry_acceptance.rs"]
+mod windows_entry_acceptance;
 
 fn sample_package_identity(marker: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([marker; 32]).expect("sample package identity is nonzero")
@@ -227,6 +229,16 @@ fn sample_native_package_inputs(
             &repo_root().join("source/library/std"),
             standard_library,
         )?),
+        // The harness gives the standard library a fixture package identity,
+        // so the bundled-contract branch of physical entry admission never
+        // applies here: every target this harness compiles needs its accepted
+        // package-owned entry binding, Windows included.
+        "windows_x86_64" => Some(
+            windows_entry_acceptance::candidate_windows_x86_64_entry_binding(
+                &repo_root().join("source/library/std"),
+                standard_library,
+            )?,
+        ),
         _ => None,
     };
     if let Some(entry_binding) = entry_binding {
