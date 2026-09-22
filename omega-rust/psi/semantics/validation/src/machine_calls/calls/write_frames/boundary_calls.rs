@@ -644,6 +644,106 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     Some(written)
 }
 
+/// The exact frame of a resolved signature-only machine callee: a boundary,
+/// requirement, admitted, or externally realized machine has no authored
+/// body, so its declared signature is the complete caller-visible write
+/// contract -- an exclusive `self` writes every proven receiver base (or the
+/// spelled receiver place), and each exclusive parameter writes its
+/// argument's proven origins, exactly the reach the trait-signature rungs
+/// derive. A by-value carrier that can still contain mutable references
+/// keeps the call opaque rather than manufacturing a receiver-only frame,
+/// and a generic declaration stays opaque because this contract does not
+/// seed its bindings.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn signature_state_call_written_paths(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    callee_machine: &Machine,
+    callee_state: &typed_trees::state::State,
+    receiver: &[String],
+    receiver_origins: &[FramePlaceOrigin],
+    arguments: &[ExpressionHandle],
+    inference: &mut FrameInference,
+) -> Option<Vec<String>> {
+    if !program.machine_type_parameters(callee_machine).is_empty()
+        || !callee_machine.lifetime_parameters.is_empty()
+    {
+        return None;
+    }
+    let parameters = program.state_parameters(callee_state);
+    let paired = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .collect::<Vec<_>>();
+    if paired.len() != arguments.len() {
+        return None;
+    }
+    let mut written = Vec::new();
+    if parameters.iter().any(|parameter| {
+        parameter.is_self
+            && live_unconstrained_type(program, parameter.type_reference).is_some_and(|reference| {
+                matches!(
+                    program.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::Reference { access, .. } if access.is_exclusive()
+                )
+            })
+    }) {
+        if receiver_origins.is_empty() {
+            if !receiver.is_empty() {
+                written.push(receiver.join("."));
+            } else if callee_machine.attached_data.is_some() {
+                written.push("self".to_owned());
+            }
+        } else {
+            for origin in receiver_origins {
+                if !written.contains(&origin.path) {
+                    written.push(origin.path.clone());
+                }
+            }
+        }
+    }
+    for (parameter, argument) in paired.into_iter().zip(arguments) {
+        let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
+        let TypeReferenceNode::Reference {
+            access, referee, ..
+        } = program.type_reference_table.type_reference(parameter_type)
+        else {
+            if !matches!(
+                program.type_reference_table.type_reference(parameter_type),
+                TypeReferenceNode::Unit
+            ) && !type_is_caller_isolated_local_in(program, parameter_type, &[])
+            {
+                // A by-value carrier can still contain mutable references.
+                // Without leaf-origin transport, omitting their writes would
+                // manufacture a complete receiver-only frame.
+                return None;
+            }
+            continue;
+        };
+        if !access.is_exclusive() {
+            continue;
+        }
+        if !referent_has_only_owned_storage_in(program, *referee, &[]) {
+            return None;
+        }
+        for origin in boundary_argument_origins(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            *argument,
+            inference,
+        )? {
+            if !written.contains(&origin.path) {
+                written.push(origin.path);
+            }
+        }
+    }
+    Some(written)
+}
+
 pub(super) fn receiver_type_symbol(
     program: &TypedTrees,
     mut reference: typed_trees::types::TypeReferenceHandle,

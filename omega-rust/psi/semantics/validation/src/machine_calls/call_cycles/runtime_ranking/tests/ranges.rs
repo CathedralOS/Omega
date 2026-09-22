@@ -485,6 +485,60 @@ fn prefix_call_writing_a_premise_carrier_rejects_the_component() {
 }
 
 #[test]
+fn prefix_call_to_a_boundary_machine_uses_the_selected_signature_frame() {
+    // The boundary signature carries no exclusive reach: reading a premise
+    // carrier by value writes nothing, so the prefix keeps every hypothesis.
+    let observed = PREFIX_CALL.replace(
+        "machine Main::audit(&mut self, value: u64) -> u64 { value }\n    machine",
+        "machine",
+    );
+    let observed = format!(
+        "boundary machine note(value: u64) -> u64; {}",
+        observed.replace("self.audit(index);", "note(index);")
+    );
+    assert_eq!(admitted(&typed_source(&observed)).len(), 1);
+    // An exclusive argument's proven origin is the frame: writing disjoint
+    // caller storage through the boundary call still preserves the ranking.
+    let disjoint = format!(
+        "boundary machine poke(value: &mut u64) -> u64; {}",
+        PREFIX_CALL
+            .replace("data Main {}", "data Main { scratch: u64 }")
+            .replace("self.audit(index);", "poke(&mut self.scratch);")
+            .replace(
+                "machine Main::audit(&mut self, value: u64) -> u64 { value }\n    machine",
+                "machine",
+            )
+    );
+    assert_eq!(admitted(&typed_source(&disjoint)).len(), 1);
+}
+
+#[test]
+fn prefix_let_bound_to_a_boundary_result_keeps_the_entry_telescope() {
+    // A value-position boundary call in an initializer frames through its
+    // signature the same way: `observe` writes nothing, so the fresh local
+    // cannot disturb a premise carrier.
+    let source = PREFIX_CALL.replace(
+        "self.audit(index);",
+        "let seen: u64 = observe(index); self.audit(index);",
+    );
+    let admitted_source = format!("boundary machine observe(value: u64) -> u64; {source}");
+    assert_eq!(admitted(&typed_source(&admitted_source)).len(), 1);
+    // The same initializer behind an exclusive-argument boundary signature
+    // frames its write to the carrier it borrows: `index` is protected, so
+    // the call -- not the premise -- must give way.
+    let written = format!(
+        "boundary machine observe(value: &mut u64) -> u64; {}",
+        source
+            .replace("observe(index)", "observe(&mut index)")
+            .replace(
+                "machine Main::scan_a(&mut self, index: u64 [0..=4], limit",
+                "machine Main::scan_a(&mut self, mut index: u64 [0..=4], limit",
+            )
+    );
+    assert!(admitted(&typed_source(&written)).is_empty());
+}
+
+#[test]
 fn ranged_call_prefix_cannot_change_an_endpoint() {
     let source = RANGED.replace("lower: u64", "mut lower: u64").replace(
         "    transition remaining > lower",

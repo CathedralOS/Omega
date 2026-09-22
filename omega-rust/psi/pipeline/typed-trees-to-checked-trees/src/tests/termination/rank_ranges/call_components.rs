@@ -429,14 +429,49 @@ machine Main::bump(&mut self, slot: &mut u64) -> u64 {
         "    transition remaining > floor",
         "    let seen: u64 = self.recall(remaining) + 0;\n    transition remaining > floor",
     ));
-    // A bodyless boundary callee still refuses: its signature state has an
-    // empty body summary that would claim an exclusive argument write never
-    // happened.
-    let boundary = format!("boundary machine observe(value: u64) -> u64;\n{helpers}{PAIR}");
-    reject(&boundary.replace(
+    // A signature-only callee answers through its selected contract instead
+    // of a body summary: a public boundary requirement satisfied by a checked
+    // provider may execute, and its declared exclusive reach is the whole
+    // frame. A by-value read of a premise carrier writes nothing and keeps
+    // the telescope; the same call spelling behind an exclusive parameter
+    // writes the borrowed carrier and rejects.
+    let requirement = "pub data Ops {}
+pub boundary requirement Ops::note(value: u64) -> u64;
+data OpsProvider {}
+machine OpsProvider::note_impl(input: u64) -> u64
+satisfies Ops::note
+{
+    transition { _ -> input }
+}
+";
+    prove(&format!("{requirement}{helpers}{PAIR}").replace(
         "    transition remaining > floor",
-        "    let seen: u64 = observe(remaining);\n    transition remaining > floor",
+        "    let seen: u64 = Ops::note(remaining);\n    transition remaining > floor",
     ));
+    // The same contract answers at statement position: a value-only
+    // requirement call writes no caller place, so the prefix stays provable.
+    prove(&format!("{requirement}{helpers}{PAIR}").replace(
+        "    transition remaining > floor",
+        "    _ = Ops::note(remaining);\n    transition remaining > floor",
+    ));
+    let writing = requirement
+        .replace("note(value: u64)", "note(value: &mut u64)")
+        .replace(
+            "note_impl(input: u64) -> u64",
+            "note_impl(input: &mut u64) -> u64",
+        );
+    let writing = writing.replace(
+        "transition { _ -> input }",
+        "input = input + 0; transition { _ -> 0 }",
+    );
+    reject(
+        &format!("{writing}{helpers}{PAIR}")
+            .replace(
+                "    transition remaining > floor",
+                "    let seen: u64 = Ops::note(&mut remaining);\n    transition remaining > floor",
+            )
+            .replace("remaining: u64", "mut remaining: u64"),
+    );
     reject(
         &bound
             .replace("remaining: u64", "mut remaining: u64")

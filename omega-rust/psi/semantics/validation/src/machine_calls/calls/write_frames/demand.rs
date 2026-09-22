@@ -1238,4 +1238,63 @@ mod tests {
             "machine-control and content builtins keep their own custody",
         );
     }
+
+    #[test]
+    fn boundary_machine_calls_frame_their_exclusive_arguments() {
+        // A signature-only callee has no body to summarize: the declared
+        // signature's exclusive reach is the complete write contract, so the
+        // `&mut slot` actual -- not an empty body summary -- names the frame.
+        let program = typed(
+            "machine caller(slot: u64) { poke(&mut slot); }
+             boundary machine poke(value: &mut u64) -> u64;",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let call_statement = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::Call(call) => Some(call),
+                _ => None,
+            })
+            .expect("statement call");
+        let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+        assert_eq!(
+            resolver
+                .may_write_frame(machine, call_statement)
+                .complete_paths(),
+            Some(["slot".to_owned()].as_slice()),
+            "the exclusive parameter's actual origin is the whole frame",
+        );
+    }
+
+    #[test]
+    fn boundary_machine_calls_with_value_parameters_write_nothing() {
+        // A boundary declaration whose signature carries no exclusive reach
+        // frames to the empty set: the call cannot write caller storage.
+        let program = typed(
+            "machine caller(slot: u64) { note(slot); }
+             boundary machine note(value: u64) -> u64;",
+        );
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let call_statement = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::Call(call) => Some(call),
+                _ => None,
+            })
+            .expect("statement call");
+        let resolver = crate::CallFrameResolver::new(&program).expect("frame resolver");
+        assert_eq!(
+            resolver
+                .may_write_frame(machine, call_statement)
+                .complete_paths(),
+            Some([].as_slice()),
+            "a value-only boundary signature admits no caller write",
+        );
+    }
 }
