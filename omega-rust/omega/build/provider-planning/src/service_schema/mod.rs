@@ -179,10 +179,13 @@ pub fn schema_binds_exact_boundary_requirement(
 }
 
 /// Reify one exact explicit top-level boundary requirement as a
-/// single-row provider slot. This first planning rung is deliberately
-/// closed over a non-generic callable: lifetime and static generic
-/// telescopes remain outside provider selection until their application
-/// identity has an equally exact carrier.
+/// single-row provider slot. This first planning rung admits an erased
+/// lifetime telescope (`Owner::name<'a>(...)`): the conformance edge
+/// carries no lifetime arguments because the realizing machine's own
+/// telescope is the identity application, and the erased names never
+/// enter the schema's canonical identity axes. A static generic
+/// telescope still remains outside provider selection until its
+/// application identity has an equally exact carrier.
 pub fn from_typed_boundary_requirement(
     program: &typed_trees::TypedTrees,
     requirement: &typed_trees::machine::Machine,
@@ -192,7 +195,6 @@ pub fn from_typed_boundary_requirement(
         || !requirement.is_public
         || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
         || requirement.body_is_present
-        || !requirement.lifetime_parameters.is_empty()
         || !program.machine_type_parameters(requirement).is_empty()
     {
         return None;

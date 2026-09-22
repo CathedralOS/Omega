@@ -103,11 +103,7 @@ fn top_level_requirement_schema_fences_non_public_and_generic_declarations() {
         "#,
     );
 
-    for name in [
-        "Private::complete",
-        "StaticGeneric::complete",
-        "LifetimeGeneric::complete",
-    ] {
+    for name in ["Private::complete", "StaticGeneric::complete"] {
         assert!(
             provider_planning::service_schema::from_typed_boundary_requirement(
                 &typed,
@@ -123,6 +119,41 @@ fn top_level_requirement_schema_fences_non_public_and_generic_declarations() {
             requirement(&typed, "Plain::complete")
         )
         .is_some()
+    );
+}
+
+#[test]
+fn lifetime_parameterized_requirement_schema_erases_the_telescope() {
+    let typed = typed_source(
+        r#"
+        pub boundary requirement LifetimeGeneric::complete<'a>(value: &'a u32) -> &'a u32;
+        "#,
+    );
+    let requirement = requirement(&typed, "LifetimeGeneric::complete");
+    let schema =
+        provider_planning::service_schema::from_typed_boundary_requirement(&typed, requirement)
+            .expect("an erased lifetime telescope stays inside the planning rung");
+
+    assert_eq!(schema.trait_name, "LifetimeGeneric::complete");
+    let [method] = schema.methods.as_slice() else {
+        panic!("one exact top-level requirement method")
+    };
+    assert_eq!(method.name, "complete");
+    assert_eq!(method.requirement_owner, "LifetimeGeneric");
+    assert_eq!(
+        method.requirement_identity,
+        typed
+            .normalized_machine_overload_identity(requirement)
+            .expect("normalized requirement identity")
+            .identity()
+    );
+    // Canonical parameter/result identities carry no lifetime axis: the
+    // erased telescope is validated by conformance, never by schema naming.
+    assert_eq!(method.parameter_count, 1);
+    assert_eq!(method.parameter_type_identities, ["ref(named(name(u32)))"]);
+    assert_eq!(
+        method.result_type_identity.as_deref(),
+        Some("ref(named(name(u32)))")
     );
 }
 

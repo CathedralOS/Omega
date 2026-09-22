@@ -372,10 +372,14 @@ pub(crate) fn resolve_selected_adapter_row(
 }
 
 /// Resolve the one exact checked adapter realizing a top-level `boundary
-/// requirement`. Two rungs are deliberately closed: a public, nongeneric
-/// requirement (`pub boundary requirement Owner::name(...);`) and a
-/// nongeneric checked-body adapter whose sole `satisfies` edge rejoins that
-/// exact requirement symbol with the same non-self arity. A receiver-free
+/// requirement`. Two rungs are deliberately closed: a public requirement
+/// carrying no static generic binders (`pub boundary requirement
+/// Owner::name(...);`, optionally with an erased lifetime telescope
+/// `Owner::name<'a>(...)`) and a checked-body adapter with no static generic
+/// binders whose sole `satisfies` edge rejoins that exact requirement symbol
+/// with the same non-self arity. The requirement's lifetime telescope is the
+/// adapter's own telescope by the identity application conformance checked,
+/// so an erased telescope needs no row argument of its own. A receiver-free
 /// requirement admits only an exact-arity adapter and the row keys on the
 /// nominal owner the direct call retains as its receiver. A by-value `self`
 /// requirement (`Owner::name(self, ...)`) admits only an adapter taking the

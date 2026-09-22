@@ -337,8 +337,69 @@ fn byte_argument(
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let shared = argument.access == StructuralAccess::SharedBorrow;
-    if !argument.path.is_empty()
-        || argument.access != declaration.access
+    // A fixed-array byte window is the same call-scoped presentation of the
+    // caller's own backing the structural-call lane emits: the argument keeps
+    // its real path, and a scalar or unit result changes no custody.
+    if !argument.path.is_empty() {
+        let Some(source) = prepared
+            .parameters
+            .iter()
+            .find(|source| source.place == argument.place)
+        else {
+            return Err(invalid());
+        };
+        let Some(window) = function.structural_parameters.iter().find_map(|actual| {
+            terminal_semantics::fixed_byte_array_window(
+                types.values().copied(),
+                actual,
+                argument,
+                declaration,
+            )
+        }) else {
+            return Err(invalid());
+        };
+        let mut shape_cache = BTreeMap::new();
+        let mut active = BTreeSet::new();
+        let backing_offset = if window.backing_path.is_empty() {
+            0
+        } else {
+            crate::lowering::structural_layout::resolve_structural_field_path(
+                source.structural_type,
+                window.backing_path,
+                types,
+                &mut shape_cache,
+                &mut active,
+            )?
+            .2
+        };
+        let source_byte_offset = u64::from(backing_offset)
+            .checked_add(window.offset)
+            .and_then(|offset| u32::try_from(offset).ok())
+            .ok_or(LoweringError::StructuralTypeTooLarge(
+                source.structural_type,
+            ))?;
+        if destination.shape != ValueShape::borrowed_reference(16, 8)
+            || u64::from(backing_offset)
+                .checked_add(window.backing_length)
+                .is_none_or(|end| end > u64::from(source.shape.byte_size))
+        {
+            return Err(invalid());
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: argument.path.clone(),
+            root_structural_type: source.structural_type,
+            structural_type: declaration.structural_type,
+            shape: destination.shape,
+            source_byte_offset,
+            fixed_array_length: Some(window.length),
+            element_stride: Some(1),
+            source: source.placement.clone().into(),
+            destination: destination.placement.clone(),
+        });
+    }
+    if argument.access != declaration.access
         || !crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
         || destination.shape != ValueShape::borrowed_reference(16, 8)
     {

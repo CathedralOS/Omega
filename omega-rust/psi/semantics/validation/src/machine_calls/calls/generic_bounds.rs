@@ -70,9 +70,12 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
 }
 
 /// Whether a top-level `boundary requirement` may be called directly: public,
-/// nongeneric, and at most an owned `self` receiver. A receiver-free
-/// requirement is called `Owner::name(...)`; an owned-`self` requirement is
-/// called through a member receiver `place.name(...)`. Such a call executes
+/// free of static generic binders, and at most an owned `self` receiver. A
+/// receiver-free requirement is called `Owner::name(...)`; an owned-`self`
+/// requirement is called through a member receiver `place.name(...)`. An
+/// erased lifetime telescope (`Owner::name<'a>(...)`) is admitted: it carries
+/// no static application arguments, so the call executes through the same
+/// selected provider row a nongeneric requirement uses. Such a call executes
 /// only through the selected provider row that selected-dispatch settles
 /// after provider planning, which rejects a called requirement with no
 /// selected provider; a private or generic requirement keeps the symbol
@@ -86,7 +89,6 @@ fn is_directly_callable_top_level_requirement(
 ) -> bool {
     callee_machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         && callee_machine.is_public
-        && callee_machine.lifetime_parameters.is_empty()
         && program.machine_type_parameters(callee_machine).is_empty()
         && program.machine_states(callee_machine).len() == 1
         && program

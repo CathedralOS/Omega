@@ -18,8 +18,11 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::types::PrimitiveType;
 
-/// A public, nongeneric, receiver-free top-level `boundary requirement`: the
-/// shape a direct call may execute through its selected provider.
+/// A public, receiver-free top-level `boundary requirement` with no static
+/// generic binders: the shape a direct call may execute through its selected
+/// provider. An erased lifetime telescope is admitted; it contributes no
+/// static application arguments, so the retained use keys on the same
+/// canonical-empty demand a nongeneric requirement produces.
 fn directly_callable_requirement(
     program: &TypedTrees,
     entry_symbol: symbols::SymbolHandle,
@@ -31,7 +34,6 @@ fn directly_callable_requirement(
         machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
             && machine.is_public
             && !machine.body_is_present
-            && machine.lifetime_parameters.is_empty()
             && program.machine_type_parameters(machine).is_empty()
             && matches!(
                 program.machine_states(machine),

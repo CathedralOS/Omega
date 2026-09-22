@@ -4,6 +4,7 @@
 
 use crate::declarations::traits::conformance::signature_matching::{
     TraitTypeBinding, TraitTypeBindingTarget, parameter_shape_label,
+    type_reference_lifetimes_match_requirement_application,
     type_references_match_with_trait_bindings,
     validate_machine_state_satisfies_trait_signature_with_arguments,
 };
@@ -390,6 +391,47 @@ fn validate_machine_top_level_requirement_conformance(
             type_reference_label(program, provider_entry.return_type),
             type_reference_label(program, requirement_entry.return_type),
         )));
+    }
+
+    // The requirement's erased lifetime telescope still has identity. A
+    // top-level requirement conformance supplies no explicit lifetime
+    // arguments, so the provider realizes requirement lifetime ordinal `i`
+    // with its own ordinal `i` — an implicit identity application. Recheck
+    // the signature mentions ordinary type equality erases so a reordered or
+    // renamed provider telescope cannot satisfy the requirement.
+    if requirement.lifetime_parameters.len() == machine.lifetime_parameters.len() {
+        let identity_application =
+            (0..requirement.lifetime_parameters.len() as u32).collect::<Vec<_>>();
+        for (index, (required, actual)) in required_parameters
+            .iter()
+            .zip(actual_parameters)
+            .enumerate()
+        {
+            if !type_reference_lifetimes_match_requirement_application(
+                program,
+                actual.type_reference,
+                required.type_reference,
+                &requirement.lifetime_parameters,
+                machine,
+                &identity_application,
+            ) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{label} parameter {index} does not realize the requirement's declared lifetime telescope"
+                )));
+            }
+        }
+        if !type_reference_lifetimes_match_requirement_application(
+            program,
+            provider_entry.return_type,
+            requirement_entry.return_type,
+            &requirement.lifetime_parameters,
+            machine,
+            &identity_application,
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "{label} return type does not realize the requirement's declared lifetime telescope"
+            )));
+        }
     }
 
     validate_top_level_requirement_effect_ceiling(

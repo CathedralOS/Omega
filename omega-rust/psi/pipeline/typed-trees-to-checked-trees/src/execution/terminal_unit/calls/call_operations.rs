@@ -1040,6 +1040,16 @@ pub(in crate::execution) fn build_call_operation(
         })
     } else if expected_call_result.is_some()
         && (!structural_arguments.is_empty() || !transfers.is_empty())
+        // A settled provider adapter is the registered producer for its
+        // requirement's scalar result: boundary-dispatch settlement already
+        // re-verified the exact signature and reach, so the retargeted call
+        // schedules the same scalar structural edge a cataloged callee takes.
+        // Every other scalar-result call with structural operands still
+        // requires a registered producer catalog.
+        && !facts
+            .boundary_adapter_dispatch
+            .iter()
+            .any(|row| row.realization_state == target_state.symbol)
         && !matches!(expected_call_result, Some(ExpectedCallValueResult::Scalar(result))
             if is_registered_boundary_scalar_target(
                 scalar_callees, target_machine.symbol, target_state.symbol, result)

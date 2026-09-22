@@ -392,7 +392,10 @@ pub(super) fn validate_structural_argument(
     // A boundary lends the same exact initialized fixed-array range as an
     // ordinary call. Keep the array's real type and path: presentation
     // is not a type substitution, storage grant, or permission to resize.
+    // Scalar-result calls lend the same read-only or mutable window: a
+    // scalar return carries no custody, so the subloan shape is identical.
     let fixed_array_presentation = (borrowed_call
+        || ordinary_call
         || source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals)
         && caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::fixed_byte_array_extent(

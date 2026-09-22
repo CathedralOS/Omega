@@ -1,0 +1,43 @@
+// TOP-LEVEL-BOUNDARY-REQUIREMENTS lifetime-parameterized leg: a public
+// `boundary requirement` may carry an erased lifetime telescope
+// (`CellSource::read<'a>`). The telescope supplies no static call arguments;
+// conformance validates the provider's own telescope as the requirement's
+// positional identity, settlement keys the same owner-keyed dispatch row a
+// nongeneric requirement produces, and the settled adapter executes under
+// the one selected ProviderPlan in both engines -- the interpreter and the
+// native artifact both exit 41.
+//
+// `main` calls the requirement directly in value and statement position,
+// lending `&self.bytes[0..41]`: the unit plan admits a borrowed boundary
+// argument through the fixed-range byte-view lane when its place roots at a
+// caller parameter (here the `&mut self` receiver).
+use omega_language_std::console;
+use omega::language::core::service;
+
+pub data CellSource {}
+
+pub boundary requirement CellSource::read<'a>(source: &'a [u8]) -> i32;
+
+data CellSourceProvider {}
+
+machine CellSourceProvider::read_impl<'a>(source: &'a [u8]) -> i32
+satisfies CellSource::read
+{
+    // `source.len` is an arbitrary-slice u64 byte count, so the narrowing
+    // spells its policy: a modular image at u16 (an unsigned narrowing), then
+    // a total widening re-tag to the requirement's Exact i32.
+    transition { _ -> ((source.len as u16 in Wrapping) as i32) }
+}
+
+data Main {
+    console: Service<Console>;
+    bytes: [u8; 41];
+}
+
+machine Main::main(&mut self)
+reaches Console
+{
+    let picked: i32 = CellSource::read(&self.bytes[0..41]);
+    _ = CellSource::read(&self.bytes[1..41]);
+    self.console.exit_process(picked);
+}

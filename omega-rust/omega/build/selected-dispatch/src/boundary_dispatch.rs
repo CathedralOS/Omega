@@ -779,8 +779,10 @@ fn plan_selected_boundary_adapter_dispatch(
 }
 
 /// Whether a machine is a top-level `boundary requirement` a direct call may
-/// execute through a settled dispatch row: public, nongeneric, and without a
-/// `self` receiver.
+/// execute through a settled dispatch row: public, free of static generic
+/// binders, and without a `self` receiver. An erased lifetime telescope is
+/// admitted: it contributes no static application arguments, so the settled
+/// adapter row carries the call exactly as for a nongeneric requirement.
 pub(crate) fn is_directly_callable_top_level_requirement(
     typed: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -788,7 +790,6 @@ pub(crate) fn is_directly_callable_top_level_requirement(
     machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         && machine.is_public
         && !machine.body_is_present
-        && machine.lifetime_parameters.is_empty()
         && typed.machine_type_parameters(machine).is_empty()
         && matches!(
             typed.machine_states(machine),

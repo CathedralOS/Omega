@@ -203,12 +203,13 @@ pub(crate) fn bind_boundary_operator_application_demands(
             }
         }
     }
-    // A direct call to a public nongeneric top-level `boundary requirement`
-    // is the requirement's own D29 demand: the same value-site row a named
-    // boundary operator use retains, keyed on the requirement machine symbol
-    // with no binder arguments (the retained use facts admit only nongeneric
-    // requirements). Terminal custody and application coverage rejoin the
-    // selected realization to this row whichever species spelled the call.
+    // A direct call to a public top-level `boundary requirement` without
+    // static generic binders is the requirement's own D29 demand: the same
+    // value-site row a named boundary operator use retains, keyed on the
+    // requirement machine symbol with no binder arguments (an admitted erased
+    // lifetime telescope supplies none either). Terminal custody and
+    // application coverage rejoin the selected realization to this row
+    // whichever species spelled the call.
     for (_, requirement_use) in operators.named_requirement_uses.iter() {
         let ExpressionNode::Call(call) = program
             .expression_table

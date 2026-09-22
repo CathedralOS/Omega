@@ -337,6 +337,30 @@ fn apply_requirement_call(checked: &mut CheckedTrees, rewrite: &SettledRequireme
         }
     }
 
+    // The borrow call row is the same settled occurrence: its recorded
+    // argument accesses still describe the authored operand places, but the
+    // target identity must follow the retarget so exact access reconstruction
+    // (`exact_structural_borrow_access`) rejoins this call instead of missing
+    // every retained statement/ordinal row still naming the requirement.
+    let borrow_calls = checked
+        .facts
+        .borrow
+        .states
+        .iter()
+        .find(|(_, state)| state.state_symbol == rewrite.caller_state)
+        .map(|(_, state)| state.calls);
+    if let Some(calls) = borrow_calls {
+        for call in checked.facts.borrow.calls.span_mut_or_empty(calls) {
+            if call.statement_index == rewrite.statement_ordinal as usize
+                && call.call_ordinal == rewrite.call_ordinal as usize
+            {
+                call.target_symbol = rewrite.entry_symbol;
+                call.receiver_symbol = symbols::SymbolHandle::invalid();
+                call.has_receiver = false;
+            }
+        }
+    }
+
     let unit_role = |role: CheckedScalarExpressionRole| match role {
         CheckedScalarExpressionRole::BoundaryCallArgument {
             call_ordinal,

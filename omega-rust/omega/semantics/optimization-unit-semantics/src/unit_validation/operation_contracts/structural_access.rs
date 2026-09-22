@@ -177,9 +177,14 @@ pub(crate) fn structural_arguments_match(
         // Fixed windows borrow their real backing; they do not resolve to an
         // owned structural subtree. Reconstruct the exact array/view relation
         // even after optimization instead of treating equal lengths as identity.
+        // Scalar-result and dynamic calls lend the same window a Unit or
+        // boundary call does: the borrowed subloan shape is identical and a
+        // scalar or dispatched result carries no custody of the backing.
         let fixed_array_presentation = matches!(
             projection,
-            StructuralProjectionPolicy::Unit | StructuralProjectionPolicy::Boundary
+            StructuralProjectionPolicy::Unit
+                | StructuralProjectionPolicy::Projected
+                | StructuralProjectionPolicy::Boundary
         ) && caller.structural_parameters.iter().any(|actual| {
             terminal_semantics::fixed_byte_array_window(
                 types.values().copied(),

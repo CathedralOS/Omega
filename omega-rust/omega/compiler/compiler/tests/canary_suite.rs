@@ -157,6 +157,8 @@ mod inline_asm;
 mod relational_invariants;
 #[path = "canary_suite/task_runtime.rs"]
 mod task_runtime;
+#[path = "canary_suite/top_level_requirement_lifetime_call.rs"]
+mod top_level_requirement_lifetime_call;
 #[path = "canary_suite/top_level_requirement_member_call.rs"]
 mod top_level_requirement_member_call;
 
@@ -2759,6 +2761,7 @@ const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "providers/checked_boundary_requirement_dispatch_exit",
     "providers/checked_boundary_requirement_terminal_exit",
     "providers/checked_boundary_requirement_statement_call_exit",
+    "providers/lifetime_boundary_requirement_dispatch_exit",
     "providers/runtime_result_domain_requirement_overload_exit",
     "float/named_provider_min_max_sqrt_exit",
     "float/named_provider_negate_is_nan_exit",
@@ -4720,6 +4723,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "providers/checked_boundary_requirement_dispatch_exit",
     "providers/checked_boundary_requirement_terminal_exit",
     "providers/checked_boundary_requirement_statement_call_exit",
+    "providers/lifetime_boundary_requirement_dispatch_exit",
     "capabilities/win64_pointer_length_vs_descriptor_compile",
     "targets/target_machine_gating_exit",
     "targets/single_target_internal_machine_skipped",

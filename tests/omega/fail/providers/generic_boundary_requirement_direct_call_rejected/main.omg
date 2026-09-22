@@ -1,8 +1,9 @@
-// A parameterized top-level boundary requirement is not an executable
-// declaration today: `is_directly_callable_top_level_requirement` admits no
-// type or lifetime parameter, so a direct call to `StaticGeneric::complete<T>`
-// settles no dispatch row even when a same-generic provider satisfies it, and
-// the ordinary bodyless boundary symbol fence rejects the call at check.
+// A statically parameterized top-level boundary requirement is not an
+// executable declaration: `is_directly_callable_top_level_requirement`
+// admits an erased lifetime telescope but no type, const, or value
+// parameter, so a direct call to `StaticGeneric::complete<T>` settles no
+// dispatch row even when a same-generic provider satisfies it, and the
+// ordinary bodyless boundary symbol fence rejects the call at check.
 pub data StaticGeneric {}
 
 pub boundary requirement StaticGeneric::complete<T>(value: T) -> T;
