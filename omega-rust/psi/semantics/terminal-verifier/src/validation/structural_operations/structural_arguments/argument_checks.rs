@@ -354,6 +354,51 @@ pub(super) fn validate_structural_argument(
             argument_index: index as u32,
         });
     }
+    // A `RuntimeIndex` segment carries no authority of its own. Its selector
+    // must name one direct scalar parameter of this caller at the dense
+    // position the segment claims, that parameter must be a fixed-width
+    // integer, and the catalog's published integer entry range must carry
+    // exactly the inclusive bounds the segment spells — with a nonnegative
+    // minimum. The `maximum < extent` relation is replayed separately by
+    // `resolve_structural_path` against the resolved fixed array.
+    for segment in &argument.path {
+        let StructuralPathSegment::RuntimeIndex {
+            selector,
+            minimum,
+            maximum,
+        } = segment
+        else {
+            continue;
+        };
+        let selector_bounded = caller
+            .parameters
+            .get(*selector as usize)
+            .and_then(|declaration| {
+                let semantic_vocabulary::ScalarType::Integer(integer_type) =
+                    declaration.scalar_type
+                else {
+                    return None;
+                };
+                module
+                    .scalar_qualifications
+                    .integer_entry_ranges
+                    .iter()
+                    .find(|range| range.machine == caller.id && range.parameter == declaration.id)
+                    .filter(|range| {
+                        range.integer_type == integer_type
+                            && range.minimum == *minimum
+                            && range.maximum == *maximum
+                    })
+            })
+            .is_some()
+            && terminal_semantics::runtime_index_minimum_is_nonnegative(*minimum);
+        if !selector_bounded {
+            return Err(ModuleError::InvalidStructuralArgumentPath {
+                operation,
+                argument_index: index as u32,
+            });
+        }
+    }
     let root_type = actual_type;
     if crate::validation::scalar_array::owned_payload_source(module, caller, argument.place)
         && (expected.multiplicity != StructuralMultiplicity::Unrestricted

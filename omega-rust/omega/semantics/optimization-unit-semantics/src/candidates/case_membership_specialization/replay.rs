@@ -204,10 +204,12 @@ fn descended_type(
                 _ => None,
             }
         }
-        StructuralPathSegment::FixedIndex(_) => match shape {
-            StructuralTypeShape::FixedArray { element, .. } => Some(*element),
-            _ => None,
-        },
+        StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
+            match shape {
+                StructuralTypeShape::FixedArray { element, .. } => Some(*element),
+                _ => None,
+            }
+        }
         StructuralPathSegment::Referent => match shape {
             StructuralTypeShape::Reference { referent, .. } => Some(*referent),
             _ => None,

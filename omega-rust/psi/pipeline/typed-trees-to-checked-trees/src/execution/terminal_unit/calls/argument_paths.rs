@@ -213,6 +213,46 @@ pub(crate) fn projected_argument_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
+    projected_argument_path_impl(program, state_symbol, statement_index, place, None)
+}
+
+/// `projected_argument_path` with runtime-index admission for the borrowed
+/// receiver lane. A runtime `Index` segment retains `RuntimeIndex` — the
+/// checked selector's dense scalar position and the inclusive bounds its
+/// retained integer entry range publishes — only while
+/// `bounded_runtime_index` proves `0 <= index < extent` against the enclosing
+/// fixed array's literal extent. Every other caller keeps rejecting runtime
+/// indexes through `projected_argument_path`.
+pub(crate) fn projected_borrowed_receiver_path(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+) -> Option<(
+    typed_trees::types::TypeReferenceHandle,
+    Vec<CheckedUnitStructuralPathSegment>,
+)> {
+    projected_argument_path_impl(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        Some((facts, machine)),
+    )
+}
+
+fn projected_argument_path_impl(
+    program: &TypedTrees,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+    runtime_index_bounds: Option<(&CheckFacts, SymbolHandle)>,
+) -> Option<(
+    typed_trees::types::TypeReferenceHandle,
+    Vec<CheckedUnitStructuralPathSegment>,
+)> {
     let mut path = Vec::with_capacity(place.segments.len());
     for (position, segment) in place.segments.iter().enumerate() {
         match segment {
@@ -239,14 +279,122 @@ pub(crate) fn projected_argument_path(
                     u64::try_from(*index).ok()?,
                 ));
             }
-            facts::PlaceSegment::FixedRange { .. }
-            | facts::PlaceSegment::Index { .. }
-            | facts::PlaceSegment::Case { .. } => return None,
+            facts::PlaceSegment::Index { expression } => {
+                let (facts, machine) = runtime_index_bounds?;
+                let container = crate::flow::CanonicalPlace {
+                    root: place.root,
+                    segments: place.segments[..position].to_vec(),
+                };
+                let container = crate::flow::canonical_place_type_reference(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    &container,
+                )?;
+                let extent = fixed_array_literal_length(program, container)?;
+                let (selector, minimum, maximum) = bounded_runtime_index(
+                    program,
+                    facts,
+                    machine,
+                    state_symbol,
+                    *expression,
+                    extent,
+                )?;
+                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex {
+                    selector,
+                    minimum,
+                    maximum,
+                });
+            }
+            facts::PlaceSegment::FixedRange { .. } | facts::PlaceSegment::Case { .. } => {
+                return None;
+            }
         }
     }
     let projected =
         crate::flow::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     Some((projected, path))
+}
+
+/// The bounds evidence an authored runtime index must publish before a
+/// `RuntimeIndex` segment may retain it. The selector expression must be one
+/// bare direct scalar parameter of the caller's entry state, and that
+/// parameter's retained closed integer entry range must prove
+/// `0 <= index < extent` for the fixed array it indexes. The returned
+/// selector is the parameter's dense scalar position — the same coordinate
+/// `CheckedScalarExpression::Parameter` and the Terminal caller's
+/// `parameters` vector share — and the inclusive endpoints restate the range
+/// row at the parameter's declared signedness, so terminal verification
+/// replays the published row rather than trusting this segment.
+fn bounded_runtime_index(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state_symbol: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    extent: usize,
+) -> Option<(
+    u32,
+    semantic_vocabulary::IntegerValue,
+    semantic_vocabulary::IntegerValue,
+)> {
+    let machine = crate::lookup::machine_by_symbol(program, machine)?;
+    // Retained integer entry ranges publish on the machine's entry state, so
+    // a bounded runtime selector proves only there.
+    if program.machine_states(machine).first()?.symbol != state_symbol {
+        return None;
+    }
+    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let parameters = program.state_parameters(state);
+    let authored_position = crate::values::parameter_position(program, name, &parameters)?;
+    let authored = &parameters[authored_position];
+    let primitive_type = program.primitive_type_reference(authored.type_reference)?;
+    // `CheckedScalarExpression::Parameter` positions skip erased primitive
+    // formals while the retained range roster counts every primitive
+    // parameter; both namespaces derive from this one authored order.
+    let selector = parameters[..authored_position]
+        .iter()
+        .filter(|parameter| crate::values::occupies_scalar_position(program, parameter))
+        .count();
+    let roster_position = parameters[..authored_position]
+        .iter()
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        })
+        .count();
+    let requirement = facts
+        .contract_plans
+        .for_machine(machine.symbol)?
+        .closed_scalar_values
+        .integer_entry_ranges()?
+        .iter()
+        .find(|requirement| {
+            requirement.position == roster_position && requirement.primitive_type == primitive_type
+        })?;
+    // A negative minimum fails `to_u64`, and the normalized inclusive maximum
+    // must fit strictly below the declared extent.
+    let minimum = requirement.minimum.value_bignum()?.to_u64()?;
+    let maximum = requirement.maximum.value_bignum()?.to_u64()?;
+    if maximum >= u64::try_from(extent).ok()? {
+        return None;
+    }
+    let endpoint = |value: u64| {
+        if primitive_type.is_signed_integer() {
+            semantic_vocabulary::IntegerValue::Signed(i128::from(value))
+        } else {
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(value))
+        }
+    };
+    Some((
+        u32::try_from(selector).ok()?,
+        endpoint(minimum),
+        endpoint(maximum),
+    ))
 }
 
 /// The shared owner under the ordinary rule: the projected type must carry the

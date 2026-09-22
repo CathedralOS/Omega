@@ -216,7 +216,9 @@ pub struct CheckedUnitStructuralParameterPlan {
 }
 
 /// Source-handle-free structural path retained by checked terminal plans.
-/// Cases and runtime indexes deliberately have no variant in this vocabulary.
+/// Cases deliberately have no variant in this vocabulary. A runtime index is
+/// not a widened predicate or a trusted byte offset: `RuntimeIndex` retains
+/// the exact checked selector and the bounds relationship that admitted it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CheckedUnitStructuralPathSegment {
     Field(String),
@@ -225,6 +227,20 @@ pub enum CheckedUnitStructuralPathSegment {
     FixedByteRange {
         start: u64,
         end: u64,
+    },
+    /// A runtime-selected element of a fixed array. `selector` is the dense
+    /// direct scalar parameter position of the caller — the same coordinate
+    /// `CheckedScalarExpression::Parameter` uses — so the checked selector is
+    /// a real scalar value, never a computed byte offset. `minimum` and
+    /// `maximum` restate the inclusive bounds that selector's retained
+    /// integer entry range publishes; checking already proved that range lies
+    /// inside the enclosing array's literal extent, and terminal verification
+    /// replays the same containment against the published row rather than
+    /// trusting this segment.
+    RuntimeIndex {
+        selector: u32,
+        minimum: semantic_vocabulary::IntegerValue,
+        maximum: semantic_vocabulary::IntegerValue,
     },
     Referent,
 }

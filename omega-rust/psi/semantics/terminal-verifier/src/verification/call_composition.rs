@@ -623,9 +623,16 @@ fn structural_contract_substitutions(
             )
             .is_some()
         });
+        // A runtime-indexed shared borrow likewise has no canonical owned-field
+        // prefix: it lends the dynamically selected element, and an unobserved
+        // binder is omitted rather than substituted with the whole backing.
+        let runtime_indexed_borrow = argument.access
+            == terminal_psi::StructuralAccess::SharedBorrow
+            && crate::validation::is_runtime_indexed_borrow_path(&argument.path);
         if observed
             || (!crate::validation::is_reference_projection(module, caller, argument)
-                && !fixed_window)
+                && !fixed_window
+                && !runtime_indexed_borrow)
         {
             return Err(ModuleError::InvalidReferenceCustody {
                 machine: caller.id,

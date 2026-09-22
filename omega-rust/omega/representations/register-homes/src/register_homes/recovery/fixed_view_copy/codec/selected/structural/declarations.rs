@@ -18,7 +18,7 @@ use super::calling::{decode_placement, decode_shape, encode_placement, encode_sh
 use super::projected_qualifications::{decode_projected, encode_projected};
 use crate::register_homes::recovery::fixed_view_copy::codec::{
     primitives::{Cursor, decode_id, decode_ids, encode_ids, length},
-    values::{decode_scalar, encode_scalar},
+    values::{decode_integer, decode_scalar, encode_integer, encode_scalar},
 };
 
 mod bounded_integer;
@@ -491,6 +491,16 @@ pub(super) fn encode_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {
                 bytes.extend_from_slice(&start.to_le_bytes());
                 bytes.extend_from_slice(&end.to_le_bytes());
             }
+            StructuralPathSegment::RuntimeIndex {
+                selector,
+                minimum,
+                maximum,
+            } => {
+                bytes.push(5);
+                bytes.extend_from_slice(&selector.to_le_bytes());
+                encode_integer(bytes, *minimum);
+                encode_integer(bytes, *maximum);
+            }
         }
     }
 }
@@ -508,6 +518,11 @@ pub(super) fn decode_path(
             4 => StructuralPathSegment::FixedByteRange {
                 start: cursor.u64()?,
                 end: cursor.u64()?,
+            },
+            5 => StructuralPathSegment::RuntimeIndex {
+                selector: cursor.u32()?,
+                minimum: decode_integer(cursor)?,
+                maximum: decode_integer(cursor)?,
             },
             tag => return Err(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag)),
         });

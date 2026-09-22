@@ -49,6 +49,9 @@ fn subloan(path: Vec<StructuralPathSegment>, access: StructuralAccess) -> PsiOpt
             StructuralPathSegment::FixedByteRange { .. } => {
                 panic!("byte windows are not write-only subloan fixtures")
             }
+            StructuralPathSegment::RuntimeIndex { .. } => {
+                panic!("runtime indexes are not write-only subloan fixtures")
+            }
             StructuralPathSegment::Referent => {
                 panic!("native subloan fixture requires an owned field or array projection")
             }

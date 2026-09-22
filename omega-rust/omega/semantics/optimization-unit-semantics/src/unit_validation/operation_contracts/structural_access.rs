@@ -112,7 +112,8 @@ pub(crate) fn structural_arguments_match(
             )
             && argument.path.iter().all(|segment| match segment {
                 terminal_psi::StructuralPathSegment::Field(identity) => !identity.is_empty(),
-                terminal_psi::StructuralPathSegment::FixedIndex(_) => true,
+                terminal_psi::StructuralPathSegment::FixedIndex(_)
+                | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => true,
                 terminal_psi::StructuralPathSegment::Referent
                 | terminal_psi::StructuralPathSegment::FixedByteRange { .. } => false,
             });

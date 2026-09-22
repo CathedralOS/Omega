@@ -50,7 +50,7 @@ pub(crate) use contract_entry::{
     lower_operator_crash_contract_expression, lower_signature_crash_contract_expression,
 };
 pub(crate) use expression_facts::{
-    occupies_scalar_position, operator_is_builtin, scalar_expression_type,
+    occupies_scalar_position, operator_is_builtin, parameter_position, scalar_expression_type,
 };
 pub(crate) use expression_plans::build_checked_scalar_expression_plans;
 pub(crate) use machine_parameter_booleans::lower_machine_parameter_boolean_expression;

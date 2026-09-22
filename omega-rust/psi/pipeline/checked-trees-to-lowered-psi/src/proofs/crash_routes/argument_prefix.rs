@@ -73,6 +73,11 @@ pub(crate) fn structural_crash_route_argument_prefix(
                     "reference crash paths require retained referent projection custody",
                 );
             }
+            StructuralPathSegment::RuntimeIndex { .. } => {
+                return unsupported(
+                    "runtime-indexed crash predicates have no canonical element prefix",
+                );
+            }
             StructuralPathSegment::Field(identity) => {
                 let fields = match &declaration.shape {
                     StructuralTypeShape::Record { fields }

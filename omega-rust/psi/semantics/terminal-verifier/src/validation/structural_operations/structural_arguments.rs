@@ -294,6 +294,11 @@ pub(crate) fn is_admitted_unit_call_argument_path(
                     if backing.iter().all(|segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()))))
         || (matches!(argument.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
             && is_static_borrow_path(&argument.path))
+        // A runtime-indexed shared borrow keeps the owning root and replays
+        // the selector's published bounds; the dynamic element is borrowed,
+        // not moved, and its access stays `SharedBorrow`.
+        || (argument.access == StructuralAccess::SharedBorrow
+            && is_runtime_indexed_borrow_path(&argument.path))
         // Structural paths already retain only fields and literal indexes;
         // write-only subloans may interleave them. Resolution checks each hop.
         || argument.access == StructuralAccess::WriteOnlyBorrow
@@ -313,8 +318,34 @@ fn is_static_borrow_path(path: &[StructuralPathSegment]) -> bool {
         && path.iter().all(|segment| match segment {
             StructuralPathSegment::Field(identity) => !identity.is_empty(),
             StructuralPathSegment::FixedIndex(_) => true,
-            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => false,
+            StructuralPathSegment::Referent
+            | StructuralPathSegment::FixedByteRange { .. }
+            | StructuralPathSegment::RuntimeIndex { .. } => false,
         })
+}
+
+/// A borrowed projection that crosses at least one runtime index. Fields,
+/// literal indexes, and `RuntimeIndex` hops may interleave; each runtime hop
+/// still resolves to its fixed array's element type while
+/// `validate_structural_argument` independently replays the selector's
+/// published entry range. `Referent` and byte ranges stay out.
+pub(crate) fn is_runtime_indexed_borrow_path(path: &[StructuralPathSegment]) -> bool {
+    let mut saw_runtime_index = false;
+    for segment in path {
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                if identity.is_empty() {
+                    return false;
+                }
+            }
+            StructuralPathSegment::FixedIndex(_) => {}
+            StructuralPathSegment::RuntimeIndex { .. } => saw_runtime_index = true,
+            StructuralPathSegment::Referent | StructuralPathSegment::FixedByteRange { .. } => {
+                return false;
+            }
+        }
+    }
+    saw_runtime_index
 }
 
 fn is_material_write_only_type(module: &TerminalModule, structural_type: StructuralTypeId) -> bool {
@@ -457,7 +488,11 @@ pub(crate) fn is_unrestricted_shared_subloan(
         || (matches!(
             actual.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-        ) && is_static_borrow_path(&argument.path)))
+        ) && (is_static_borrow_path(&argument.path)
+            // A shared observation through a runtime index lends one
+            // element of the same root without moving it; the selector's
+            // bounds are replayed by the argument check itself.
+            || is_runtime_indexed_borrow_path(&argument.path))))
         && argument.access == StructuralAccess::SharedBorrow
         && expected.access == StructuralAccess::SharedBorrow
         && expected.multiplicity == StructuralMultiplicity::Unrestricted

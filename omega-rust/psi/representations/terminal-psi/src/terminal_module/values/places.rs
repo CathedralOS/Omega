@@ -1,4 +1,4 @@
-use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use semantic_vocabulary::{IntegerValue, PlaceId, StructuralPlaceKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum StructuralPathSegment {
@@ -10,6 +10,19 @@ pub enum StructuralPathSegment {
     FixedByteRange {
         start: u64,
         end: u64,
+    },
+    /// A runtime-selected element of a fixed array. `selector` is the dense
+    /// direct scalar parameter position of the calling machine: the value it
+    /// names is `caller.parameters[selector].id`, a real scalar operand
+    /// rather than a trusted byte offset. `minimum`/`maximum` restate the
+    /// inclusive bounds that selector's retained integer entry range
+    /// publishes. Verifiers replay the published row and re-prove
+    /// `0 <= minimum <= selector <= maximum < extent` against the resolved
+    /// container type instead of trusting this segment.
+    RuntimeIndex {
+        selector: u32,
+        minimum: IntegerValue,
+        maximum: IntegerValue,
     },
     /// Cross a reference carrier's borrowed boundary. This never grants owned
     /// access to the referent or includes it in the carrier's cleanup.
