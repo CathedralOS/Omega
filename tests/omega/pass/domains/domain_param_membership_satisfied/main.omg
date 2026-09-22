@@ -4,7 +4,7 @@
 // proves the desugar enforces precisely -- it rejects a raw value but accepts an
 // established one (it is not blanket over-rejection).
 
-data Blob {
+data Blob [copy] {
     payload: i32;
 }
 

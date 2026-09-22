@@ -1,4 +1,4 @@
-data Player {
+data Player [copy] {
     health: i32;
 }
 
