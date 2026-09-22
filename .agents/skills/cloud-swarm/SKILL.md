@@ -15,10 +15,14 @@ Never sit still. The wave fails when the coordinator waits on one thing:
 - **Reconcile slots every turn.** At every turn boundary — after any tool batch,
   after any user message, and before returning to your own item — run
   `devin_session_search parent_session_id=<self>` and count children that are
-  `running` or `new`. Settle notifications are unreliable: sessions die
-  silently as `suspended (user_request)`, `suspended (inactivity)`, or vanish
-  to `403` — only the search count tells the truth. Notifications are a
-  bonus, never the trigger.
+  `running` or `new`. Notifications can still be lost to `403` or prompt
+  drops — the search count stays the backstop — but every dispatch carries
+  its own alarm, so a settle you caused always reaches you.
+- **Arm `notify_on_response` on every dispatch.** `devin_session_interact
+  message` to a worker MUST pass `notify_on_response=true`. It is one-shot:
+  consumed when that session next settles (finishes, blocks, or exits), so
+  re-arm it on every subsequent message too. Without it the coordinator
+  never learns the worker finished and the slot idles invisibly.
 - **Notifications drive drains.** When a settle notification arrives, handle it
   immediately: `devin_session_interact get` → verify commits are ancestors of
   `origin/main` → append a record to the wave outcomes file → **recycle or
