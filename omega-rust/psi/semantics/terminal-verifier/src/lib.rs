@@ -34,9 +34,50 @@ mod terminal_trace_v1;
 mod validation;
 mod verification;
 
-pub use optimization::*;
-pub use proof_recursion::*;
-pub use quotient_correspondence::*;
-pub use terminal_trace_v1::*;
-pub use validation::*;
-pub use verification::*;
+pub use optimization::{
+    BlockLocalEvidence, ControlFlowCleanupRewriteError, CopyPropagationRewriteError,
+    DeadScalarRewriteError, GlobalValueNumberingRewriteError, ProofCheckElisionRewriteError,
+    SparseConditionalConstantPropagationRewriteError, block_local_evidence, machine_evidence_bound,
+    retained_machines, retained_machines_with_roots, validate_control_flow_cleanup,
+    validate_copy_propagation, validate_dead_scalar_elimination, validate_global_value_numbering,
+    validate_proof_check_elision, validate_sparse_conditional_constant_propagation,
+};
+pub use proof_recursion::{
+    proof_recursive_component_identity, proof_recursive_edge_obligation_id,
+    proof_recursive_well_foundedness_obligation_id,
+    reconstruct_proof_recursive_component_obligations,
+};
+pub use quotient_correspondence::{
+    QuotientCorrespondenceReplayError, replay_non_executable_quotient_correspondence,
+};
+pub use terminal_trace_v1::{
+    TerminalTraceV1ReconstructionError, reconstruct_terminal_observation_profile_rows,
+    reconstruct_terminal_trace_v1_rows,
+};
+pub(crate) use validation::reconstruct_validated_structural_ownership_frontiers;
+pub use validation::{
+    BoundaryCrashOutcomeError, ContractClauseKind, ModuleError, ServiceCeilingOwner,
+    StructuralSignatureOwner, SuspensionCallPlanError, ValidatedInterpretableTerminalModule,
+    ValidatedOptimizableTerminalModule, ValidatedTerminalModule, VerifiedLiveClaim,
+    VerifiedMachineStructuralFrontiers, VerifiedOwnedStructuralPlace,
+    VerifiedPartialStructuralCustody, VerifiedStructuralOwnershipFrontier,
+    VerifiedTerminalStructuralFrontiers, has_schema_application_in_call_closure,
+    maximum_registered_obligation_id, reconstruct_structural_ownership_frontiers,
+    scalar_block_invariant_scope, substitute_crash_routes, validate_boundary_crash_outcome,
+    validate_module, validate_module_for_interpretation, validate_module_for_optimization,
+    validate_module_representation,
+};
+pub use verification::{
+    ControlCycleEvidence, EvidenceProducerProvenance, EvidenceProducerRealization,
+    EvidenceProducerRowSource, FloatMeaningProjectionVerificationError, ObligationEvidence,
+    ProofBundle, ReconstructedFloatMeaningProjection, ReconstructedOperationObligation,
+    ReconstructedTerminalObligation, ReconstructedTerminalObligationOwner,
+    ReconstructedTerminalObligationSet, RecursiveComponentEvidence, VerificationError,
+    VerifiedFixedFuelTerminalModule, VerifiedInterpretableTerminalModule,
+    VerifiedOptimizableTerminalModule, VerifiedTerminalModule,
+    reconstruct_execution_terminal_obligations, reconstruct_float_meaning_projection,
+    reconstruct_interpretable_operation_obligations,
+    reconstruct_interpretable_terminal_obligations, reconstruct_operation_obligations,
+    reconstruct_optimizable_terminal_obligations, reconstruct_terminal_obligations, verify_module,
+    verify_module_for_fixed_fuel, verify_module_for_interpretation, verify_module_for_optimization,
+};
