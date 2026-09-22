@@ -1,6 +1,7 @@
 //! Exact comparison of proposed and independently replayed function liveness.
 
-use super::shared::*;
+use crate::analyses::liveness::model::LivenessError;
+use selected_instructions::FunctionLiveness;
 
 pub(super) fn validate_function(
     function_index: usize,
@@ -140,6 +141,20 @@ pub(super) fn validate_function(
                 });
             }
         }
+    }
+    Ok(())
+}
+
+fn require_canonical<T: Ord>(
+    function: usize,
+    instruction: Option<u32>,
+    set: &[T],
+) -> Result<(), LivenessError> {
+    if set.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(LivenessError::NonCanonicalSet {
+            function,
+            instruction,
+        });
     }
     Ok(())
 }
