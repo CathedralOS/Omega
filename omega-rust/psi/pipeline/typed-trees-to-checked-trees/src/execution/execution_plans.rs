@@ -16,14 +16,13 @@ pub(crate) struct ExecutionPlans {
 }
 
 /// Independent returns precede Unit closure; complete structural returns depend
-/// on that closure. Initial checking has no previous roster. Selected rebuilding
-/// preserves nominal and selected callees while refreshing primitive bodies.
+/// on that closure. Initial checking and provider settlement build the lanes
+/// the same way, from the current facts and the selected applications.
 /// Diagnostics remain owned output so initial checking can aggregate its later
 /// affine-cleanup failures before deciding whether to publish checked trees.
 pub(crate) fn build_execution_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
-    previous_returns: Option<&CheckedStructuralScalarReturnPlans>,
     operator_applications: &[SelectedOperatorApplication],
     ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
@@ -32,19 +31,10 @@ pub(crate) fn build_execution_plans(
         crate::execution::terminal_unit::returns::build_checked_boundary_scalar_return_plans(
             program, facts,
         );
-    let primitive_returns =
+    let structural_callees =
         crate::execution::terminal_unit::returns::build_checked_primitive_store_scalar_return_plans(
             program, facts,
         );
-    let structural_callees = match previous_returns {
-        Some(previous) => {
-            crate::execution::terminal_unit::returns::reconcile_primitive_store_scalar_returns(
-                previous,
-                primitive_returns,
-            )
-        }
-        None => primitive_returns,
-    };
     let scalar_callees = crate::execution::terminal_unit::ScalarCalleePlans {
         boundary_returns: &boundary_returns,
         structural_returns: &structural_callees,

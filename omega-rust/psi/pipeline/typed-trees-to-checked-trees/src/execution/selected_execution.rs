@@ -175,7 +175,6 @@ pub fn settle_checked_execution(
     } = build_execution_plans(
         &checked.typed,
         &checked.facts,
-        Some(&checked.facts.flow.terminal_structural_scalar_returns),
         settlement.operator_applications,
         settlement.ieee_float_fma_unit_applications,
         call_frames.as_ref(),
@@ -549,38 +548,6 @@ fn retire_rewritten_call_row(
     );
 }
 
-/// Rebuild every checked Terminal plan whose exact shape depends on selected
-/// operator execution. Unit-local scalar calls and direct structural-scalar
-/// returns are one transaction so neither selected family can erase the
-/// other's custody.
-pub fn rebuild_checked_terminal_plans_with_selected_execution(
-    program: &mut CheckedTrees,
-    operator_applications: &[SelectedOperatorApplication],
-    ieee_float_fma_applications: &[SelectedIeeeFloatFmaUnitApplication],
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    let call_frames = validation::CallFrameResolver::new(&program.typed);
-    let ExecutionPlans {
-        boundary_returns,
-        unit_effects,
-        structural_scalar_returns,
-        cleanup_diagnostics,
-    } = build_execution_plans(
-        &program.typed,
-        &program.facts,
-        Some(&program.facts.flow.terminal_structural_scalar_returns),
-        operator_applications,
-        ieee_float_fma_applications,
-        call_frames.as_ref(),
-    );
-    if !cleanup_diagnostics.is_empty() {
-        return Err(cleanup_diagnostics);
-    }
-    program.facts.flow.terminal_boundary_scalar_returns = boundary_returns;
-    program.facts.flow.terminal_unit_effects = unit_effects;
-    program.facts.flow.terminal_structural_scalar_returns = structural_scalar_returns;
-    Ok(())
-}
-
 /// Re-derive the retained state write frames from the settled typed program
 /// after settlement rewrote authored bodies in place.
 ///
@@ -592,7 +559,7 @@ pub fn rebuild_checked_terminal_plans_with_selected_execution(
 /// re-inferred from the settled body, so the retained facts follow the
 /// settled program. Every refreshed frame must equal the retained frame or
 /// refine a retained opaque frame; any other change is a settlement fault.
-pub fn refresh_settled_state_write_frames(
+fn refresh_settled_state_write_frames(
     program: &mut CheckedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
     let Some(call_frames) = validation::CallFrameResolver::new(&program.typed) else {
@@ -657,4 +624,53 @@ fn settled_mutation_facts(
         })
         .collect();
     checked_trees::MutationFacts { machines }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::refresh_settled_state_write_frames;
+    use crate::{CheckingRequest, lower_typed_trees};
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
+    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
+    use tokens_to_syntax_trees::parse_syntax_trees;
+
+    fn checked(source: &str) -> checked_trees::CheckedTrees {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        lower_typed_trees(typed, &CheckingRequest::settled()).expect("check")
+    }
+
+    #[test]
+    fn write_frame_refresh_accepts_agreement_and_rejects_a_changed_complete_frame() {
+        let mut program = checked(
+            "data Counter { value: u64 }
+             machine Counter::reset(&mut self) { self.value = 0u64; }",
+        );
+        let retained = program.facts.mutation.clone();
+        refresh_settled_state_write_frames(&mut program)
+            .expect("an unrewritten body derives the frames checking retained");
+        assert_eq!(program.facts.mutation, retained);
+
+        let plan = program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .flat_map(|machine| machine.state_write_frames.iter_mut())
+            .find(|plan| plan.frame.completeness() == facts::WriteFrameCompleteness::Complete)
+            .expect("a state with a complete retained frame");
+        plan.frame = facts::NormalizedWriteFrame::complete(vec!["self.drifted".to_owned()]);
+        let diagnostics = refresh_settled_state_write_frames(&mut program)
+            .expect_err("a retained complete frame the settled body does not derive is a fault");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("changed the complete write frame retained for state"),
+            "{:?}",
+            diagnostics[0].message
+        );
+    }
 }

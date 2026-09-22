@@ -56,8 +56,9 @@ fn structural_field_store_planning_rejects_tampered_checked_evidence() {
         .find(|frame| frame.state == caller_state)
         .expect("caller state mutation frame");
     state_frame.frame = facts::NormalizedWriteFrame::opaque();
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut mutation_tampered, &[], &[])
-        .expect("full rebuild suppresses the store with opaque mutation custody");
+    mutation_tampered =
+        crate::settle_checked_execution(mutation_tampered, &crate::ExecutionSettlement::default())
+            .expect("full rebuild suppresses the store with opaque mutation custody");
     assert!(
         sole_direct_dynamic_plan(&mutation_tampered)
             .caller_structural_scalar_field_store
@@ -82,8 +83,9 @@ fn structural_field_store_planning_rejects_tampered_checked_evidence() {
     assignment_value.expression = checked_trees::CheckedScalarExpression::Boolean(Box::new(
         checked_trees::CheckedBooleanExpression::Constant(true),
     ));
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut scalar_tampered, &[], &[])
-        .expect("full rebuild suppresses the store with wrong-typed scalar custody");
+    scalar_tampered =
+        crate::settle_checked_execution(scalar_tampered, &crate::ExecutionSettlement::default())
+            .expect("full rebuild suppresses the store with wrong-typed scalar custody");
     assert!(
         sole_direct_dynamic_plan(&scalar_tampered)
             .caller_structural_scalar_field_store

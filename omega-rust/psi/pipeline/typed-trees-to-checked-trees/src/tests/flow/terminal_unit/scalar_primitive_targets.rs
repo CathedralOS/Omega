@@ -24,7 +24,7 @@ fn initial_finalization_restores_complete_rosters_without_changing_check_evidenc
 }
 
 #[test]
-fn failed_selected_rebuild_preserves_previously_published_facts() {
+fn failed_settlement_publishes_no_intermediate_facts() {
     let source = format!(
         r#"{SOURCE}
         data Token {{ ready: bool; }}
@@ -59,8 +59,9 @@ fn failed_selected_rebuild_preserves_previously_published_facts() {
     for premise in premises {
         assert!(checked.facts.proof.contract_facts.free(premise));
     }
-    // A rebuild would repopulate both rosters before finding the missing cleanup
-    // premise. Failure must not publish independent returns or the Unit closure.
+    // Planning would repopulate both rosters before finding the missing cleanup
+    // premise; the settlement consumes its input and publishes nothing on
+    // failure, so the caller never sees the repopulated rosters.
     checked
         .facts
         .flow
@@ -68,7 +69,6 @@ fn failed_selected_rebuild_preserves_previously_published_facts() {
         .machines
         .clear();
     checked.facts.flow.terminal_unit_effects.machines.clear();
-    let before = checked.clone();
     let initial_diagnostics = crate::execution::finalize_execution::finalize_execution(
         &checked.typed,
         checked.facts.clone(),
@@ -81,17 +81,13 @@ fn failed_selected_rebuild_preserves_previously_published_facts() {
             .contains("cannot prove automatic cleanup requires at scalar return edge")
     }));
     let diagnostics =
-        crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
-            .expect_err("missing cleanup premise rejects the complete rebuild");
+        crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
+            .expect_err("missing cleanup premise rejects the complete settlement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
             .contains("cannot prove automatic cleanup requires at scalar return edge")
     }));
-    assert_eq!(
-        checked, before,
-        "a failed rebuild publishes no intermediate facts"
-    );
 }
 
 const SOURCE: &str = r#"
@@ -218,7 +214,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         CheckedScalarExpression::IntegerLiteral { literal }) if literal.value_i64() == Some(7))
     );
 
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
         .expect("full selected rebuild");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
@@ -229,7 +225,7 @@ fn primitive_scalar_callee_is_discovered_before_its_unit_caller() {
         Some(&ordered_callee)
     );
     let rebuilt = checked.clone();
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
         .expect("repeated full selected rebuild");
     assert_eq!(checked, rebuilt, "full rebuild is idempotent");
     assert_eq!(
@@ -281,7 +277,7 @@ fn primitive_discovery_keeps_nominal_return_cleanup_in_the_dependent_phase() {
         );
     assert!(independent.for_machine(primitive_machine).is_some());
     assert!(independent.for_machine(nominal_machine).is_none());
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
         .expect("full rebuild retains dependent nominal cleanup");
     assert_eq!(
         checked
@@ -597,7 +593,7 @@ fn write_only_scalar_call_stores_its_result_after_scalar_parameters() {
             "result position {substituted_position} must not replace the exact result home"
         );
     }
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
         .expect("full selected rebuild");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),

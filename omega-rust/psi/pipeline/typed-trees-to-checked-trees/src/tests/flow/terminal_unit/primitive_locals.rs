@@ -128,14 +128,14 @@ fn primitive_local_borrow_and_later_read_keep_the_authored_storage() {
                         == CheckedUnitStructuralTypeShape::PrimitiveScalar(PrimitiveType::U64)
             })
     );
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
         .expect("selected rebuild");
     assert_eq!(
         checked.facts.flow.terminal_unit_effects.for_machine(caller),
         Some(&plan)
     );
     let rebuilt = checked.clone();
-    crate::rebuild_checked_terminal_plans_with_selected_execution(&mut checked, &[], &[])
+    checked = crate::settle_checked_execution(checked, &crate::ExecutionSettlement::default())
         .expect("repeated full rebuild retains primitive local storage custody");
     assert_eq!(checked, rebuilt, "full rebuild is idempotent");
 }
