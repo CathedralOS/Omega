@@ -1,32 +1,10 @@
-pub(super) use crate::legalized_operations::{
-    LegalizedBoundarySettlement, LegalizedDynamicParameterCall, LegalizedExactIntegerOperator,
-    LegalizedNormalizedForeignCall, LegalizedOperationPlan, LegalizedOperationPlanIdentity,
-    LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarComparison,
-    LegalizedScalarFunction, LegalizedScalarInstructionKind, LegalizedScalarReturnValue,
-    LegalizedScalarSuccessor, LegalizedScalarTerminator, LegalizedStructuralContract,
-    NativeCallOrigin,
-};
-pub(super) use abstract_operations::{CompletionClaimSource, ValueBinding};
-pub(super) use calling_conventions::{
-    CallPlan, CallbackMaterialization, CallingPolicy, EntryControl, IndirectPointerLocation,
-    NativePlace, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
-};
-pub(super) use optimization_unit::{
-    EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite,
-};
-pub(super) use semantic_vocabulary::{
-    ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion, IeeeFloatFormat,
-    IntegerType, IntegerValue, StructuralPlaceKind,
-};
-pub(super) use target::NativeTarget;
-pub(super) use target_operations::MachineRegister;
-pub(super) use terminal_psi::{
-    BindingRelevance, ByteSequenceCarrier, ClaimContentProjection, EntryClaim,
-    ProviderCandidateConformance, StructuralAccess, StructuralArgument, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape,
-};
+//! Byte-encoding primitives every identity encoder composes: lengths,
+//! identifier rosters, optional identifiers, the native target, and fuel
+//! settlements. Each encoder owns what it encodes; this module owns only how
+//! the shared scalar shapes are laid down.
+
+use optimization_unit::{FuelSettlement, PsiProvenance};
+use target::NativeTarget;
 
 pub(super) fn encode_fuel(bytes: &mut Vec<u8>, fuel: &[FuelSettlement]) {
     encode_len(bytes, fuel.len());

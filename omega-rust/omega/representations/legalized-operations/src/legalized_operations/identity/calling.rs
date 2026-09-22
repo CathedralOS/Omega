@@ -1,5 +1,9 @@
+use super::encoding::encode_len;
 use super::scalar::encode_register;
-use super::shared::*;
+use calling_conventions::{
+    CallPlan, CallbackMaterialization, CallingPolicy, EntryControl, IndirectPointerLocation,
+    NativePlace, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
+};
 
 pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     bytes.push(match plan.policy {

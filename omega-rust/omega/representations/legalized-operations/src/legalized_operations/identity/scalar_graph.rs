@@ -1,10 +1,15 @@
 use super::calling::{encode_call_plan, encode_placement};
+use super::encoding::{encode_fuel, encode_ids, encode_len, encode_option_id};
 use super::scalar::{
     encode_bindings, encode_definition_site, encode_integer, encode_integer_type,
     encode_scalar_type,
 };
-use super::shared::*;
 use super::structural::{encode_effect, encode_ownership_roster};
+use crate::legalized_operations::{
+    LegalizedExactIntegerOperator, LegalizedScalarComparison, LegalizedScalarFunction,
+    LegalizedScalarInstructionKind, LegalizedScalarReturnValue, LegalizedScalarSuccessor,
+    LegalizedScalarTerminator,
+};
 use crate::{SaturatingCarrier, SaturatingOperation};
 pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     bytes.extend_from_slice(&function.machine.get().to_le_bytes());

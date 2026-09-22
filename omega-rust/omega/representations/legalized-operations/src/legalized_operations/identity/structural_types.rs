@@ -1,6 +1,13 @@
 use super::calling::{encode_placement, encode_shape};
+use super::encoding::{encode_ids, encode_len};
 use super::scalar::encode_scalar_type;
-use super::shared::*;
+use semantic_vocabulary::{IeeeFloatFormat, IntegerValue, StructuralPlaceKind};
+use terminal_psi::{
+    BindingRelevance, ByteSequenceCarrier, EntryClaim, StructuralAccess, StructuralArgument,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralTypeDeclaration, StructuralTypeShape,
+};
 
 #[cfg(test)]
 mod block_parameter_tests;
