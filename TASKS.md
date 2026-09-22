@@ -1064,6 +1064,15 @@ syntax and other terminal services are not prerequisites.
   existing `ArtifactSections`, codec, optimization and verified-native-input
   boundary rather than rebuilding admission.
 
+  macw4 probe (blocked, evidence on branch `swarm/macw4-plan-laid-views` at
+  `670843530b`): `view.status.read()` fails before realization — synthesized
+  `PlacedField` accessor boundary machines attach as
+  `DataSupplyMode::BoundaryOpaque` (`record_synthesis.rs`), which the
+  `CheckedShape` supply gates in `typed-trees-to-checked-trees` `types/mod.rs`
+  reject, so no `CheckedBoundaryMachinePlan` exists and `Inspector::inspect`
+  reports `MissingBoundaryTarget`. The fix lives in accessor synthesis or
+  the shape gates, not the access-plan machinery.
+
   Acceptance: one source program establishes, accesses and retires a view
   through interpretation and published native execution. Codec/optimization
   preserve semantics; stale/substituted plan, artifact, backing, range, rights,
@@ -1122,20 +1131,17 @@ syntax and other terminal services are not prerequisites.
   do not add compiler-owned drivers or treat a CPU barrier as device completion.
 
 - **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
-  handed off by **WRITE-ONLY-BORROW**. The checked producer, Terminal verifier,
-  codec/interpreter and verified abstract inventory already carry the runtime
-  index, array path, stored value and bounds through optimization. Target
-  lowering in
-  `abstract-operations-to-target-operations/src/lowering/control_flow/operations.rs`
-  still rejects `WriteOnlyIndexedPrimitiveStore` with
-  `UnsupportedWriteOnlyPrimitiveStore`.
+  handed off by **WRITE-ONLY-BORROW**. `d61f983d6a` (macw4) landed the
+  indexed-store delivery: the omission was upstream of lowering —
+  `proven_runtime_index` only consumed the revoked `u64 [0..=N]` roster; it
+  now folds authored `requires` conjuncts into the same closed interval
+  (unsigned carriers get implicit lower 0, signed require explicit lower),
+  and source-driven `&write`/`&mut` indexed stores execute natively with
+  neighbor preservation. `indexed_stores.rs` now exercises host execution.
 
-  Recover the original borrowed parameter address, scale by the element width,
-  and preserve independently checked bounds and access authority through the
-  ordinary target route. Start with
-  `tests/native-differential/tests/terminal_psi_indexed_receivers/indexed_stores.rs`:
-  `declared_range_runtime_index_store_reaches_verified_abstract_inventory`
-  currently expects that native refusal. Coordinate its source fixture with
+  Remaining surrounding lanes stay open: extend the same contract-fact index
+  derivation to further placed-access operations, and keep coordinating
+  source fixtures with
   **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: use contract/domain facts, not another
   admission of the revoked annotation syntax.
 
@@ -1147,14 +1153,21 @@ syntax and other terminal services are not prerequisites.
 
 - **RECAST-SOURCE-POSITIONS.** Compose admitted representation recasts in
   guard operands, call arguments and nested expressions without requiring a
-  reference-typed `let`. `validation/src/value_custody/recasts.rs` still
-  admits selected initializer roots and rejects remaining recasts in its
-  positional sweep; diagnostic source spans already exist. The
+  reference-typed `let`. `b167d9d48c` (macw4) moved recast judgment to
+  executable statement positions — inline recasts in guards, call arguments
+  and nested operands now check, spelled-borrow polarity agreement
+  (`&x as &mut T` / `&mut x as &T`) rejects, and whole-place recast sources
+  lower via the source place's checked read — with new checked corpus
+  fixtures. The
   [recast contract](wiki/spec/layouts/recasts.md) requires representation
   compatibility, not this source-position restriction.
   Carry checked layout/validity, backing identity, lifetime and access through
   ordinary expression sequencing and temporary loans rather than bypassing
-  the recast check. Acceptance: valid inline equivalents of supported shared
+  the recast check. Runtime `recast_views` canaries remain blocked on a
+  pre-existing Terminal unit-plan omission at local construction (entry
+  establishment rejoins 0 attachment identities), reproduced identically on
+  the pre-change base — not recast machinery. Acceptance: valid inline
+  equivalents of supported shared
   and mutable recasts check and execute; incompatible geometry/validity,
   access escalation and conflicting backing use reject at the offending
   location. Preserve precise symbolic/boundary-witness footprint refusals.
@@ -1252,8 +1265,16 @@ syntax and other terminal services are not prerequisites.
   vocabulary, envelopes and mathematical certificates; maintain that coverage
   as the operation owners extend it, not another wire-format project.
 
-  Remaining resource analysis is in `terminal-fixed-fuel`: derive bounds from
-  relevant preconditions and retain precise absence-of-bound causes, including
+  Remaining resource analysis is in `terminal-fixed-fuel`. `3c43ed43dc`
+  (macw4) tightened `Natural` ranked-cycle visit multipliers to literal
+  `requires` ceilings when every first-entry arrival reduces to a
+  clause-bound parameter, binding consulted clauses as certificate
+  `relevant_preconditions`. Open: derive bounds from relevant preconditions
+  beyond that literal ceiling — the current empty set is *sound* for the
+  max-arm bound (segment_partition merges acyclic branching as a maximum),
+  so a non-empty set means a tighter conditional bound needing its own
+  checked derivation plus the verifier-side check of P — and retain precise
+  absence-of-bound causes, including
   unbounded rank and the wait/foreign edge preventing closure. Acyclic
   conditional/case segments, condensed ranked interiors and topology-identified
   unranked cycles already have derivation. An invocation-bound callee without
@@ -1535,10 +1556,13 @@ syntax and other terminal services are not prerequisites.
   and their independent Terminal verifier.
 
   The single-state free-loop order claim has a native positive and wrong-step
-  control. Arithmetic accumulation (`result == acc + remaining`) checks at
-  source but lacks a Terminal proof of
-  `(acc + 1) + (remaining - 1) == acc + remaining`; dropping the unproved
-  header proposal leaves `OperationProofUnavailable`. The attached
+  control. `ebd634e638` (macw4) closed the arithmetic-accumulation gap on the
+  derivation lane: kernel `ClosedIntegerRelation` lifts `Exact` compounds on
+  `Fixed` carriers through open-term ring normalization
+  (`proof-admission/integer_rules/open_terms.rs`), the lowering transport
+  fallback is gated to compound endpoints, and a source `ensures result ==
+  acc + remaining` fixture proves and runs natively (exit 70) while its
+  wrong-update twin rejects. The attached
   `proof_inductive_gauss_sum` and `proof_inductive_climbing_sum` fixtures are
   still checked-only and also need STATE-LOCAL-VALUE-FRONTIER's ordinary
   value-returning cyclic execution.
@@ -1571,9 +1595,11 @@ syntax and other terminal services are not prerequisites.
   Revalidate changed entries' justifications before refreshing source digests;
   a matching digest is not a soundness argument. Remaining work:
 
-  - Move search out of verification, including the 4096-step search in
-    `validation/crash/entry_requirements.rs`. Producers supply certificates;
-    receivers reconstruct questions and check the supplied route.
+  - `32d6986d45` (macw4) moved the crash-obligation search out of
+    verification: `ProofBundle` now carries `crash_obligations` as supplied
+    certificate rows (codec marker 34), producer-side bounded search lives in
+    `proof-admission::certificate_search`, and the verifier reconstructs
+    questions and replays the supplied route without searching.
   - Discharge `ExplicitlyTrusted` reconstruction, normalization, scope,
     invalidation and call/cycle-composition rows with checked evidence and
     exact dependencies. Preserve `PROVED_ENTRIES`, dispatch/fact coverage,
@@ -1600,13 +1626,15 @@ syntax and other terminal services are not prerequisites.
 
 - **PROOF-RELEVANCE-MIGRATION.** Complete carrier-independent erased arguments
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
-  Static scalar and proof-only argument lanes exist. Two implementation gaps
-  remain: `validation/src/proof_contracts/relevance/shape_admission.rs`
-  rejects erased runtime-record/enum formals, and
+  `baffe0a0ed` (macw4) closed the static gap: closed checked-shape
+  record/enum erased formals are admitted on the contract-term lane via a new
+  `ProofTerm::Scalar` leaf (wire tag 3, markers 106/108) with verifier scope
+  checks and the `erased_record_parameter_exit` canary (native exit 70);
+  array-field carriers stay a named refusal. The remaining gap is
   `typed-trees-to-checked-trees/src/checks/contracts/dynamic_erased_lane.rs`
-  rejects erased formals on dynamic requirements because their dispatch plans
-  carry no proof actuals. These refusals diagnose missing support; they do not
-  complete the specified feature.
+  rejecting erased formals on dynamic requirements because their dispatch
+  plans carry no proof actuals. These refusals diagnose missing support; they
+  do not complete the specified feature.
 
   Carry the exact erased subjects/actuals through static and dynamic call plans,
   Terminal contracts and independent call composition without adding runtime
@@ -1639,22 +1667,6 @@ syntax and other terminal services are not prerequisites.
   existing capability owners, including **X86-FMA-PROVIDER-TRANSPORT**; do not
   expand the accepted vocabulary or build another generic audit framework.
 
-- **COMPILER-PASS-PROFILE-TIMINGS.** Preserve timing opt-in through retained
-  and direct Terminal production. Both paths in
-  `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs`
-  construct enabled Psi collectors even when surrounding `CompileTimings`
-  is disabled. Carry the request's collection state into the existing
-  Psi-owned `TerminalProductionTimings`, without a Psi-to-Omega dependency.
-  Internal stage instrumentation and prepared-project flag/report forwarding
-  already exist; do not rebuild those mechanisms.
-
-  Acceptance: untimed production performs the same work without optional clock
-  collection or retained timing rows; timed production retains its stage ladder
-  through direct and prepared-project reports. Preserve exact error propagation,
-  stderr-only CLI reporting and absence of debug files. Existing disabled-merge
-  tests prove row suppression, not absence of inner measurement; cover the
-  actual collection choice on both production paths.
-
 - **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Recheck and resolve excessive
   compile time for
   `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
@@ -1669,6 +1681,13 @@ syntax and other terminal services are not prerequisites.
   Accepted-premise indexing, unchanged-module reconstruction reuse and reachable
   equality-roster selection already exist. Instrument the actual producer;
   `OMEGA_PROOF_MEASUREMENTS` does not account for all certificate work.
+  `ebd634e638` (macw4) gated the `exact.rs` transport fallback to compound
+  endpoints and ordered compound pairs first, cutting the known backedge
+  obligation to single-digit milliseconds; the named nominal-affine test may
+  already pass — re-measure with an explicit timeout before profiling.
+  Parked WIP: branch `swarm/macw4-c2l-blowup` at `546fa2d83d` holds an
+  unvalidated drain checkpoint spanning `nonzero_divisor_certificate`
+  (integer_selection + affine_custody) — resume by reviewing or discarding.
   Acceptance: the unreduced test completes its assertions within an ordinary
   test timeout, proof/reconstruction controls remain valid, and subsequent crate
   `--no-fail-fast` validation has no timeout member. Algorithmic repair needs no
@@ -2419,15 +2438,13 @@ syntax and other terminal services are not prerequisites.
     type-equality alternative, including finite disjunctions and branch-local
     equalities that cannot escape joins. Closed case-equation decisions do
     not establish this general route.
-  - Finish domain-application identity after matching. Declared domain heads
-    and constrained spellings already match; constrained indexed domains also
-    have `ClosedConstraintIdentity::IndexedDeclaration`. Join both spellings
-    to exact declaration/carrier/index identity, including package selection
-    and generic carriers. `generic_data/arguments.rs` still takes a data-only
-    identity route for generic heads and rejects generic-carrier domain identity.
-    Re-drive `domain_application_arguments_reach_instance_identity_after_binding`:
-    its expectation that both spellings fail predates constrained identity
-    support. Do not present that stale pin as a newly observed failure.
+  - Domain-application identity is joined: `e27a86d1a0` (macw4) unified
+    carrier-qualified (`u64::AtMost<256>`) and constrained
+    (`u64 in AtMost<256>`) spellings through one `DomainHead` selector to the
+    same `Constrained` identity with const-index parity; the stale pin now
+    asserts deduplication and distinct-index non-deduplication. Still open:
+    package selection and generic-carrier domain identity — the data-only
+    identity route for generic heads remains.
     Distinct domain indices gain no implicit variance; compatibility evidence
     does not rename their identities.
   - Support selected named-lifetime identity and remaining const-index kinds;
@@ -3126,11 +3143,17 @@ syntax and other terminal services are not prerequisites.
 
   The local relation/result-flow checks are broader than their canonical
   publisher. In validation's `proof_contracts/quotients/relation_plan/`,
-  argument adaptation and immutable result aliases have checked forms, but
-  `terminal_bridge.rs` still admits monomorphic, single-state, direct
-  position-preserving rows. Complete missing correspondence judgments and
-  extend publication and independent reconstruction for adaptation,
-  aliases/forwarding, result computation, preconditioned `define`, and
+  argument adaptation and immutable result aliases have checked forms.
+  macw4 landed two publication slices: `278bc98a25` admits transport-backed
+  `lift` canonical rows retaining the exact argument-adaptation map
+  (selection, permutation, repetition, omission) in representative order, and
+  `9a76eb51f1` admits immutable result aliases plus finite-state forwarding
+  as exact result flow through package evidence, a new
+  `quotient-result-flow` codec tag family, and independent verifier
+  correspondence. `terminal_bridge.rs` still admits monomorphic,
+  single-state, direct position-preserving rows elsewhere. Complete missing
+  correspondence judgments and extend publication and independent
+  reconstruction for result computation, preconditioned `define`, and
   generic/private applications; reuse the local judgments already implemented.
   Retain complete application, relation, precondition and theorem-role evidence.
   Do not multiply source-shape recognizers to publish each arrangement.

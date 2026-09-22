@@ -44,19 +44,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   and retained plans constrain the physical operations they describe.
   An isolated validator or retained-but-unused plan does not close the join.
 
-- **REVIEW-RESEAL-ELIMINATION.** Remove repeated identity serialization of the
-  same unchanged in-memory UEFI semantic-wrapper object across construction,
-  encoding and staging validation in
-  `native-realization/src/optimized_semantic_wrapper_object`.
-  Construction already uses `validate_object_preserving_seal`; encoding and
-  trailing staging validation still invoke full object validation. Trace those
-  repeated computations before changing them. Preserve independent decoding,
-  shape/target/template checks and honest-reseal mutation controls. Acceptance:
-  demonstrate fewer duplicate identity computations on the actual staging route,
-  identical valid artifacts and unchanged rejection of corrupted/substituted
-  encoded objects. Do not remove decode-boundary checking or introduce
-  package-acceptance receipts.
-
 - **REPRESENTATION-OWNERSHIP.** Finish durable representation ownership for
   the semantic-wrapper record and codec under
   `native-realization/src/optimized_semantic_wrapper_object/`, coordinated
@@ -213,11 +200,16 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Remaining boundaries:
   - Establishment/custody families not covered by current relocation.
-    Copyable unrestricted whole-root Owned arguments are already supported;
+    `49468aee46` (macw4) added crash-continuation scalar calls: they relocate
+    through the authenticated shared-source preheader with the roster
+    re-derived from the callee's verifier-owned contract via
+    `substitute_crash_routes` (also repaired the freeze replay's missing
+    `verified_contract` on the reconstructed seed). Still open:
+    copyable unrestricted whole-root Owned arguments are already supported;
     affine/linear argument transfers need custody the boundary cannot currently
     re-express. Plain unrestricted claim-free structural results already admit;
-    call motion carrying claim transfers, requirement obligations, crash
-    continuations or selected evidence still lacks reconstruction of those
+    call motion carrying claim transfers, requirement obligations or selected
+    evidence still lacks reconstruction of those
     relationships. Missing cyclic source operations must first pass ordinary
     Psi verification, not synthetic bypasses.
   - Profitability beyond the current execution-guarantee gate, keeping logical
@@ -292,6 +284,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     function through this path to an admission or a rejection. Target-required
     probing and setup are frame/provisioning work, not an owner-blocked
     language choice.
+
+  Parked macw4 WIP: branch `swarm/macw4-spill-realization` at `3ee6bf7ebc`
+  holds an unvalidated drain checkpoint — in-flight edits in
+  `assignment/runtime_spill/{mod,recovery,replay}.rs`, `output/retained.rs`,
+  `register_allocation.rs`, `analyses/spill_choice/compute.rs`, plus two
+  `tests/native-differential` fixture files; aimed at the composition-admission
+  bullet above. Resume by reviewing or discarding the checkpoint.
 
   Acceptance: slot reuse is not double-counted; changed allocation or frame
   realization invalidates stale demand; insufficient supply rejects before
@@ -435,8 +434,11 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Execute retained copy, extension, address,
   compare/test, and scheduling rewrites on compiler-produced selected programs.
   Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
-  Its public stage executes selected-lowering literal folds, not the remaining
-  helper rewrite families.
+  `ad5cb24ec6` (macw4) connected the same-block copy-removal family through
+  exact-named selection from `optimize_analyzed_selected_instructions`
+  (`CopyRemovalIdentity`, repaired re-export `cb21535d0a`); extension,
+  address, compare/test, and scheduling families still run outside the public
+  stage.
 
   Add exact selection names, ordered catalog descriptors, candidate discovery
   binding source/selection identities, and execution from
