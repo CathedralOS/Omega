@@ -104,6 +104,7 @@ pub(super) fn check_call_requires(
                                 call_flow,
                                 expression,
                                 incoming_guards,
+                                call_frames,
                             )
                         } else {
                             // The actual-aware proof above already checked
@@ -126,7 +127,12 @@ pub(super) fn check_call_requires(
             let satisfied = satisfied
                 || (!super::prover::indexed_membership(program, fact.payload)
                     && (transition_guard_proves_requires(
-                        program, facts, state_flow, call_flow, fact,
+                        program,
+                        facts,
+                        state_flow,
+                        call_flow,
+                        fact,
+                        call_frames,
                     ) || string_literal_grants_domain(
                         program,
                         &facts.semantic,
@@ -509,7 +515,9 @@ fn explain_domain_requirement_failure(
 /// preserve every field the expression names (whole-state: any assignment
 /// mentioning one, or any call statement, defeats the route) and every
 /// unqualified operand name the instantiated requirement spells (a rebinding
-/// such as `limit = 0` leaves the label match quoting a stale premise).
+/// such as `limit = 0` leaves the label match quoting a stale premise), and
+/// the jump's own earlier operands must leave the requirement's reads
+/// unwritten (`guard_operands`).
 fn incoming_guard_proves_requires(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
@@ -517,6 +525,7 @@ fn incoming_guard_proves_requires(
     call_flow: &FlowCallFact,
     expression: typed_trees::expression::ExpressionHandle,
     incoming: &[crate::checks::ranges::incoming_guards::IncomingGuard],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
@@ -580,6 +589,18 @@ fn incoming_guard_proves_requires(
             call_flow,
             state,
             &required_label,
+        )
+        // The statement scans above stop at the call; the jump's own operands
+        // run after them and before the requirement's read.
+        && super::guard_operands::requirement_reads_survive_earlier_operand_writes(
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            crate::semantic_calls::call_site_argument_expressions(program, &call_site),
+            target_parameters,
+            &super::guard_operands::boolean_requirement_mentions(program, expression),
+            call_frames,
         )
 }
 
@@ -768,13 +789,16 @@ fn replace_unqualified_identifiers(label: &str, replacements: &[(&str, String)])
 /// establish the target state's arrival requirement after positional
 /// substitution (`value > 0` becomes `self.value > 0`). Ordinary call entry
 /// contexts are statement-entry facts and therefore deliberately do not assume
-/// that guard; discharge it explicitly for the transition target only.
+/// that guard; discharge it explicitly for the transition target only, and
+/// only while the arm's own operands, evaluated after the guard and before
+/// the jump, leave the guard's storage unwritten (`guard_operands`).
 fn transition_guard_proves_requires(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     fact: &facts::Fact,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let Some(call_site) = crate::semantic_calls::find_call_site(
         program,
@@ -832,7 +856,24 @@ fn transition_guard_proves_requires(
         }
         _ => return false,
     };
-    guard_conjunct_matches(program, guard, &required_label)
+    if !guard_conjunct_matches(program, guard, &required_label) {
+        return false;
+    }
+    // The guard was read before the arm's operands ran. An operand evaluated
+    // ahead of the requirement's read may have written the storage that read
+    // names; the label match alone cannot see that, so the operand write
+    // frames decide whether the quoted premise still describes the delivered
+    // value.
+    super::guard_operands::requirement_reads_survive_earlier_operand_writes(
+        program,
+        facts,
+        state_flow,
+        call_flow,
+        crate::semantic_calls::call_site_argument_expressions(program, &call_site),
+        target_parameters,
+        &super::guard_operands::fact_requirement_mentions(program, facts, fact),
+        call_frames,
+    )
 }
 
 pub(super) fn guard_conjunct_matches(

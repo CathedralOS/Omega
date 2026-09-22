@@ -1013,3 +1013,64 @@ fn runtime_nested_inline_chain_result_exit_canary_runs() {
 // RECEIVER SLICE 2, INLINE ROUTE: a non-looping value machine spliced
 // through the SECOND same-type receiver from a NON-entry caller (two-hop
 // splice; chain-walk recovery + call-target-first leaf-write resolution).
+
+/// A guarded arm's value call is evaluated inside the selected arm at its
+/// authored point: resolution synthesizes no continuation state, the callee
+/// runs only when the arm is taken, and both the interpreter and the native
+/// artifact deliver the arm's result. Exit 70 is the fixtures' own witness.
+fn assert_guarded_value_call_arm_canary_exits_70(fixture: &str, description: &str) {
+    let canary = pass_canary(fixture);
+    let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
+        &canary.join("main.omg"),
+        None,
+    ))
+    .unwrap_or_else(|diagnostics| {
+        panic!("{description} should compile to checked trees: {diagnostics:?}")
+    });
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(
+        interpreted.error, None,
+        "{description} should interpret cleanly"
+    );
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "{description}: the interpreter must take the guarded arm's call result"
+    );
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-{}-{}",
+        fixture
+            .rsplit('/')
+            .next()
+            .unwrap_or(fixture)
+            .replace('_', "-"),
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .unwrap_or_else(|diagnostics| {
+            panic!("{description} should compile natively: {diagnostics:?}")
+        });
+    assert_native_exit_code(
+        &compilation,
+        70,
+        description,
+        "the native artifact must evaluate the guarded arm's call at its authored point",
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn guarded_value_call_arm_exit_canary_runs() {
+    assert_guarded_value_call_arm_canary_exits_70(
+        fixture_roster::GUARDED_VALUE_CALL_ARM_EXIT,
+        "guarded value-call arm canary",
+    );
+}
+
+#[test]
+fn guarded_value_call_computed_argument_exit_canary_runs() {
+    assert_guarded_value_call_arm_canary_exits_70(
+        fixture_roster::GUARDED_VALUE_CALL_COMPUTED_ARGUMENT_EXIT,
+        "guarded value-call computed-argument canary",
+    );
+}

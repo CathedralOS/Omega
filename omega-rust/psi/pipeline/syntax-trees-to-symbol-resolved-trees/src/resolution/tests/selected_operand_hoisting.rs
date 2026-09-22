@@ -337,13 +337,22 @@ fn scalar_successor_arguments_retain_calls_in_both_authored_arms() {
 }
 
 #[test]
-fn structural_state_fallback_return_call_keeps_binding_in_selected_continuation() {
+fn structural_state_fallback_return_call_stays_in_its_authored_arm() {
+    // A guarded arm's value call is evaluated where it was written: the
+    // arm keeps `read()` as its own value target and resolution synthesizes
+    // no continuation state for it.
     let program = resolved(
         "machine read() -> u8 { 7u8 }
          machine value(items: [u8; 1], selected: bool) -> u8 {
              transition selected { true -> 1u8 false -> (read()) }
          }",
     );
+    let machine = program
+        .machines
+        .iter()
+        .find(|machine| machine.name.as_str() == "value")
+        .unwrap();
+    assert_eq!(program.machine_state_handles(machine.states).len(), 1);
     let statements = value_statements(&program);
     assert_eq!(statements.len(), 2);
     assert!(matches!(statements[0], StatementNode::Transition(_)));
@@ -351,39 +360,58 @@ fn structural_state_fallback_return_call_keeps_binding_in_selected_continuation(
         panic!("authored fallback");
     };
     assert!(matches!(fallback.guard, TransitionGuardNode::Always));
-    assert!(matches!(
-        program
-            .tables
-            .bodies
-            .statements
-            .transition_target(fallback.target),
-        TransitionTargetNode::Named { .. }
-    ));
+    let TransitionTargetNode::Value(value) = program
+        .tables
+        .bodies
+        .statements
+        .transition_target(fallback.target)
+    else {
+        panic!("the arm keeps its value target");
+    };
+    let mut calls = Vec::new();
+    guard_call_targets(&program, *value, &mut calls);
+    assert_eq!(calls, ["read"]);
+}
+
+#[test]
+fn structural_state_guarded_successor_argument_call_stays_in_its_authored_arm() {
+    // The same holds for a call in a guarded named-target argument: the
+    // argument remains the call, evaluated only when the arm is selected,
+    // and no argument-evaluation state is synthesized.
+    let program = resolved(
+        "machine read() -> u8 { 7u8 }
+         machine value(items: [u8; 1], selected: bool) -> u8 {
+             transition selected { true -> finish(read()) false -> 0u8 }
+             state finish(result: u8) -> u8 { result }
+         }",
+    );
     let machine = program
         .machines
         .iter()
         .find(|machine| machine.name.as_str() == "value")
         .unwrap();
-    let states = program.machine_state_handles(machine.states);
-    assert_eq!(states.len(), 2);
-    let continuation = program.machine_state(states[1]);
-    let statements = program
+    assert_eq!(program.machine_state_handles(machine.states).len(), 2);
+    let statements = value_statements(&program);
+    let StatementNode::Transition(selected) = &statements[0] else {
+        panic!("authored arm");
+    };
+    let TransitionTargetNode::Named { arguments, .. } = program
         .tables
         .bodies
         .statements
-        .statements(continuation.statement_nodes);
-    let StatementNode::LocalData(local) = &statements[0] else {
-        panic!("legacy call binding remains in the selected continuation");
+        .transition_target(selected.target)
+    else {
+        panic!("authored successor");
     };
-    assert!(matches!(
-        program
-            .tables
-            .bodies
-            .expressions
-            .expression(local.initial_value),
-        ExpressionNode::Call(_)
-    ));
-    assert!(matches!(statements[1], StatementNode::Transition(_)));
+    let arguments = program
+        .tables
+        .bodies
+        .statements
+        .expression_handles(*arguments);
+    assert_eq!(arguments.len(), 1);
+    let mut calls = Vec::new();
+    guard_call_targets(&program, arguments[0], &mut calls);
+    assert_eq!(calls, ["read"]);
 }
 
 fn return_expressions(program: &SymbolResolvedTrees) -> Vec<ExpressionHandle> {

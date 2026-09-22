@@ -1,21 +1,19 @@
 //! Statements, including the operand-hoisting rewrites.
 //!
 //! Most statements lower one-to-one. Runtime-indexed operand reads and
-//! guarded arm-local value calls are hoisted into synthetic `let` bindings
-//! and continuation states ahead of the rewritten statement, so later passes
-//! see only root-level reads and plain locals. `guarded_call_arguments`
-//! captures the values an arm-local return call needs.
+//! unconditional value calls are hoisted into synthetic `let` bindings ahead
+//! of the rewritten statement, so later passes see only root-level reads and
+//! plain locals. A guarded arm's calls are never moved: they keep their
+//! authored evaluation point inside the arm, and the checking stage evaluates
+//! them there in operand order.
 //!
 //! This file owns the statement entry point. `statement_nodes.rs` lowers
 //! each statement node, transition guard and target, `indexed_read_hoisting.rs`
-//! hoists runtime-indexed operand reads, `value_call_hoisting.rs` hoists
-//! scalar value calls, `guarded_arm_rewrites.rs` rewrites guarded arms and
-//! their argument calls, `match_subject_hoisting.rs` hoists membership and
-//! comparison match subjects and `guarded_call_arguments.rs` captures the
-//! values an arm-local return call needs.
+//! hoists runtime-indexed operand reads (and pure builtin guard calls),
+//! `value_call_hoisting.rs` hoists unconditional scalar value calls and
+//! `match_subject_hoisting.rs` hoists membership and comparison match
+//! subjects.
 
-mod guarded_arm_rewrites;
-mod guarded_call_arguments;
 mod indexed_read_hoisting;
 mod match_subject_hoisting;
 mod statement_nodes;

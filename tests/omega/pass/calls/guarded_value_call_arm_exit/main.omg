@@ -1,8 +1,8 @@
-// GUARDED-ARM VALUE CALLS (task #45's deep fix): `cond -> (call(args))`
-// rewrites to a named-target arm + a synthesized continuation state whose
-// Always terminal hoists the call -- the callee runs ONLY when the arm is
-// taken. Both arms observed: pick(60) takes the true arm (dbl -> 120);
-// pick(10) takes the else arm (raw 10, dbl NOT run). RUNS exit 70.
+// GUARDED-ARM VALUE CALLS: `cond -> (call(args))` evaluates the call inside
+// the selected arm, at its authored point -- no continuation state is
+// synthesized, and the callee runs ONLY when the arm is taken. Both arms
+// observed: pick(60) takes the true arm (dbl -> 120); pick(10) takes the
+// else arm (raw 10, dbl NOT run). RUNS exit 70.
 use omega_language_std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; }

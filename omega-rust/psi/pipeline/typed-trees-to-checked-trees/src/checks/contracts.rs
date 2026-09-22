@@ -10,6 +10,7 @@ mod entailment;
 mod evaluator;
 mod evidence;
 mod exits;
+mod guard_operands;
 mod integer_embeddings;
 mod nominal_inputs;
 mod writes;

@@ -1,6 +1,5 @@
 //! Hoisting runtime-indexed operand reads into synthetic locals.
 
-use crate::lowering::statement::guarded_arm_rewrites::is_hoistable_builtin_guard_call;
 use crate::lowering::statement::match_subject_hoisting::{
     borrow_membership_subject, is_reference_struct_parameter_member,
 };
@@ -556,4 +555,44 @@ pub(crate) fn hoist_into_temp(
             head_symbol: SymbolHandle::invalid(),
             symbol: SymbolHandle::invalid(),
         }))
+}
+
+/// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`
+/// are already desugared to these) that Phase-1 guard hoisting materializes: a
+/// free call (no receiver) whose FIRST argument is a `self.<field>` place, so the
+/// synthetic temp's type is resolvable from that field. `abs(self.x)` desugars to
+/// `max(self.x, 0 - self.x)` (first arg `self.x`, hoisted); `clamp(self.x, ..)`
+/// desugars to `min(max(self.x, ..), ..)` whose first arg is a call, so it is
+/// left alone (not hoisted) -- the temp would be untypeable.
+pub(super) fn is_hoistable_builtin_guard_call(
+    lowerer: &Lowerer,
+    expression: ExpressionHandle,
+) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+        return false;
+    };
+    if call.receiver.is_valid() {
+        return false; // a method call, not a free builtin
+    }
+    if !matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+        return false;
+    }
+    let arguments = expressions.expression_handles(call.arguments);
+    let Some(&first) = arguments.first() else {
+        return false;
+    };
+    // The first argument must be a `self.<field>` member access -- the only place
+    // shape `infer_hoist_temp_type` can type the temp from.
+    let ExpressionNode::Member(member) = expressions.expression(first) else {
+        return false;
+    };
+    matches!(
+        expressions.expression(member.receiver),
+        ExpressionNode::Name(path)
+            if expressions
+                .name_path_members(path.members)
+                .first()
+                .is_some_and(|name| name.as_str() == "self")
+    )
 }

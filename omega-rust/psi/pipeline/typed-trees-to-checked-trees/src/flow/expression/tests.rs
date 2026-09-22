@@ -548,6 +548,9 @@ fn named_state_arguments_reject_unproven_memberships() {
 
 #[test]
 fn jump_operand_mutation_cannot_replay_the_taken_guard() {
+    // The guard read `self.flag` as true; the first operand then wrote it
+    // false before the second operand read it. The guard's fact must not
+    // stand in for the value actually delivered to `current`.
     check(
         r#"
         data Main { flag: bool; }
@@ -561,5 +564,92 @@ fn jump_operand_mutation_cannot_replay_the_taken_guard() {
         }
         "#,
         false,
+    );
+}
+
+#[test]
+fn jump_operand_mutation_nested_in_a_call_cannot_replay_the_taken_guard() {
+    // The write hides one call deeper: `wrap(clear(&mut self.flag))` is the
+    // first operand, so `self.flag` is still read after the mutation.
+    check(
+        r#"
+        data Main { flag: bool; }
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine wrap(value: bool) -> bool { value }
+        machine Main::run(&mut self) {
+            transition self.flag {
+                true -> done(wrap(clear(&mut self.flag)), self.flag)
+                false -> {}
+            }
+            state done(ignored: bool, current: bool) requires current {}
+        }
+        "#,
+        false,
+    );
+}
+
+#[test]
+fn jump_operand_mutation_cannot_replay_a_predecessor_incoming_guard() {
+    // The guard that admitted `relay` read `self.flag` one state earlier;
+    // the jump's first operand clears it before the second operand reads
+    // it, so that incoming guard cannot discharge `requires current` either.
+    check(
+        r#"
+        data Main { flag: bool; }
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine Main::run(&mut self) {
+            transition self.flag {
+                true -> relay()
+                false -> {}
+            }
+            state relay(&mut self) {
+                transition { _ -> done(clear(&mut self.flag), self.flag) }
+            }
+            state done(ignored: bool, current: bool) requires current == true {}
+        }
+        "#,
+        false,
+    );
+}
+
+#[test]
+fn jump_operand_mutation_cannot_replay_a_state_entry_fact() {
+    // The fact comes from the machine's own entry requirement rather than
+    // a guard. The first operand still clears it before the second operand
+    // reads it, so the entry fact cannot discharge `requires current`.
+    check(
+        r#"
+        data Main { flag: bool; other: bool; }
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine Main::run(&mut self) requires self.flag == true {
+            transition self.other {
+                true -> done(clear(&mut self.flag), self.flag)
+                false -> {}
+            }
+            state done(ignored: bool, current: bool) requires current == true {}
+        }
+        "#,
+        false,
+    );
+}
+
+#[test]
+fn jump_operand_read_before_a_later_mutation_keeps_the_taken_guard() {
+    // Operands evaluate left to right: `current` copies `self.flag` before
+    // the second operand clears it, so the guard still describes the value
+    // `done` receives.
+    check(
+        r#"
+        data Main { flag: bool; }
+        machine clear(flag: &mut bool) -> bool { flag = false; true }
+        machine Main::run(&mut self) {
+            transition self.flag {
+                true -> done(self.flag, clear(&mut self.flag))
+                false -> {}
+            }
+            state done(current: bool, ignored: bool) requires current {}
+        }
+        "#,
+        true,
     );
 }

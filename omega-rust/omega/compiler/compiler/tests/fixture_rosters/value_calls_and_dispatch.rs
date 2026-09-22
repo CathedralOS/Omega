@@ -330,3 +330,6 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_LOCAL_NAMED_DYN_MUTABLE_PROJECTED_BOOLEAN_PASS_THROUGH_EXIT,
     RUNTIME_LOCAL_NAMED_DYN_MULTI_HOP_PASS_THROUGH_EXIT,
 ];
+pub(crate) const GUARDED_VALUE_CALL_ARM_EXIT: &str = "calls/guarded_value_call_arm_exit";
+pub(crate) const GUARDED_VALUE_CALL_COMPUTED_ARGUMENT_EXIT: &str =
+    "calls/guarded_value_call_computed_argument_exit";

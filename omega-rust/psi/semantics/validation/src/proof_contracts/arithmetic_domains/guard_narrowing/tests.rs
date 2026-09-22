@@ -576,78 +576,15 @@ fn arrival_bounds_preserve_scalar_argument_evaluation_position() {
             machine overwrite(value: &mut u32 [0..=4]) -> u32 {{ value = 4; 0u32 }}
         "
         );
-        // Source normalization currently hoists this call before the complete
-        // jump argument list. The actual typed prefix therefore invalidates
-        // self.value in both source variants.
+        // The jump's operands evaluate left to right where they were written:
+        // reading `self.value` before `overwrite` runs keeps the guard's
+        // bound, reading it afterwards sees the overwritten value.
         assert_eq!(
             terminal_bounds(&source),
-            Some((1, 5)),
-            "{arguments}: hoisted call"
-        );
-        let mut program = arrival_program(&source);
-        restore_argument_call_position(&mut program);
-        assert_eq!(
-            terminal_bounds_for_program(&program),
             Some(expected),
-            "{arguments}: direct call"
+            "{arguments}: authored operand order"
         );
     }
-}
-
-fn restore_argument_call_position(program: &mut TypedTrees) {
-    use typed_trees::statement::TransitionTargetNode;
-    let machine = &program.machines()[0];
-    let arm = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.name.as_str().starts_with("__arm_"))
-        .unwrap();
-    let statements = program
-        .statement_table
-        .iter_statements(arm.statement_nodes)
-        .collect::<Vec<_>>();
-    let (local_handle, StatementNode::LocalData(local)) = statements[0] else {
-        panic!("call hoist");
-    };
-    let local = local.clone();
-    let StatementNode::Transition(transition) = statements[1].1 else {
-        panic!("jump");
-    };
-    let TransitionTargetNode::Named { arguments, .. } =
-        program.statement_table.transition_target(transition.target)
-    else {
-        panic!("named jump");
-    };
-    let arguments = *arguments;
-    let offset = program
-        .statement_table
-        .expression_handles(arguments)
-        .iter()
-        .position(|argument| {
-            program.expression_table.display_name(*argument) == local.name.as_str()
-        })
-        .unwrap();
-    let last_machine = program.machines().last().unwrap();
-    let last_state = &program.machine_states(last_machine)[0];
-    let StatementNode::Expression(zero) = program
-        .statement_table
-        .statements(last_state.statement_nodes)
-        .last()
-        .unwrap()
-    else {
-        panic!("literal return");
-    };
-    let zero = *zero;
-    program.statement_table.set_expression_handle_at_offset(
-        arguments,
-        offset as u32,
-        local.initial_value,
-    );
-    let StatementNode::LocalData(hoist) = program.statement_table.statement_mut(local_handle)
-    else {
-        unreachable!();
-    };
-    hoist.initial_value = zero;
 }
 
 #[test]

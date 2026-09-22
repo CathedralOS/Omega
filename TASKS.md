@@ -2822,8 +2822,10 @@ syntax and other terminal services are not prerequisites.
     `transition_argument_call_result_derives_the_exact_entry_subject`,
     `jump_operand_mutation_cannot_replay_the_taken_guard` and
     `composed_unit_claims` controls. `machine_lowering/machine_dispatch.rs`
-    still rejects simultaneous scalar/Unit dynamic joins;
-    `rewrite_guarded_transition_argument_calls` still synthesizes states.
+    still rejects simultaneous scalar/Unit dynamic joins. Resolution no
+    longer synthesizes guarded-arm states: a guarded arm's calls stay at
+    their authored point and `checks/contracts/guard_operands.rs` retires a
+    taken guard's facts after an earlier operand's write.
     Delete superseded shape producers as their operations compose; a failed
     custody rejoin must never fall back to a weaker recognizer.
   - Rejoin composed scalar calls with structural/boundary callees, structural

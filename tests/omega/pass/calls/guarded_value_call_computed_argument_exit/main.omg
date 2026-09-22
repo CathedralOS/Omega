@@ -1,10 +1,7 @@
-// GUARDED-ARM VALUE CALLS WITH A COMPUTED ARGUMENT (task #45's V1 gate,
-// graduated): a guarded arm's value call rewrites to a synthesized
-// continuation state. `dbl(x)` keeps every argument a bare NAME of an
-// enclosing state parameter; `dbl(x + 1)` additionally evaluates a computed
-// argument through the spliced continuation, whose operation proof
-// obligation the backend now discharges. pick(60) takes the true arm,
-// dbl(61) returns 122, and main exits 70.
+// GUARDED-ARM VALUE CALLS WITH A COMPUTED ARGUMENT: a guarded arm's value
+// call is evaluated inside the selected arm, operands first. `dbl(x + 1)`
+// computes its argument and calls at the authored point; pick(60) takes the
+// true arm, dbl(61) returns 122, and main exits 70.
 use omega_language_std::console;
 use omega::language::core::service;
 data Main { console: Service<Console>; }

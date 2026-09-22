@@ -142,7 +142,7 @@ fn asm_block_writes_fact_place(
         })
 }
 
-fn expression_reads_overlapping_place(
+pub(super) fn expression_reads_overlapping_place(
     program: &typed_trees::TypedTrees,
     state_symbol: symbols::SymbolHandle,
     statement_index: usize,
