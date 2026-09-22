@@ -245,7 +245,7 @@ pub use proof_contracts::immutable_integer_bounds::{
     immutable_integer_bound_sum, immutable_integer_bound_symbol_offset,
     immutable_integer_bound_value_symbol, mutable_integer_bound_storage_symbol,
     normalize_immutable_integer_bound_expression, normalize_immutable_integer_bound_to_usize,
-    projected_integer_bound_root,
+    projected_integer_bound_root, projected_integer_bound_subject_type,
 };
 pub use proof_contracts::proof_embeddings::{
     ValidatedIntegerEmbeddingCall, integer_embedding_argument,
