@@ -106,8 +106,8 @@ pub(crate) fn project_contract_name_expression(
             root_name.is_some_and(|name| name == &parameter.name)
         }
     });
-    let is_domain_subject =
-        context.domain_symbol.is_some() && root_name.is_some_and(|name| name.as_str() == "self");
+    let is_domain_subject = context.domain_symbol.is_some()
+        && root_name.is_some_and(|name| language_core::is_self_receiver(name.as_str()));
     let binder_position = binders
         .iter()
         .position(|(symbol, _)| *symbol == root_symbol)
