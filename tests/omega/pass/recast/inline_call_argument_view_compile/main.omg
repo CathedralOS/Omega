@@ -1,0 +1,13 @@
+// PASS CANARY (checked route): a representation recast composes inline as a
+// call argument -- the `&self.x as &u32` view satisfies the `&u32` parameter
+// without a reference-typed `let` binding. The borrow walk attributes the
+// shared lend to the source place `x`.
+data Bits { x: i32; }
+
+machine Bits::read(&mut self, v: &u32) {
+    self.x = 0;
+}
+
+machine Bits::go(&mut self) {
+    self.read(&self.x as &u32);
+}

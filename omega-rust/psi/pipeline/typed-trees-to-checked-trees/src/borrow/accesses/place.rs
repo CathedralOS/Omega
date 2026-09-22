@@ -112,6 +112,33 @@ pub(crate) fn borrow_access_place(
                 segments,
             })
         }
+        // A recast re-views the SAME backing storage under another stated
+        // shape (§5b): its access place is the source place, so `&x as &T`
+        // conflicts exactly where `&x` would. Restricted to whole-place
+        // sources -- an indexed recast's validated byte-region footprint can
+        // cover neighbouring elements, and an element-granularity place
+        // would understate it; literal ranges publish `FixedRange` loans
+        // through `literal_indexed_recast_borrow_place` instead.
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            let mut source = cast.value;
+            while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
+                source = borrow.target;
+            }
+            if matches!(
+                program.expression_table.expression(source),
+                ExpressionNode::Name(_) | ExpressionNode::Member(_)
+            ) {
+                borrow_access_place(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    source,
+                    machine_symbol,
+                )
+            } else {
+                None
+            }
+        }
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Match(_)
         | ExpressionNode::Binary(_)

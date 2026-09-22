@@ -1,0 +1,12 @@
+// FAIL CANARY (rung-A geometry at an inline position): the inline judgment
+// is the same relation as the let binding -- a view widening 4 bytes to 8
+// still refuses at the cast, not behind a position fence.
+data Bits { x: i32; }
+
+machine Bits::go(&mut self) {
+    transition (&self.x as &u64) == 0u64 {
+        true -> done()
+        _ -> done()
+    }
+    state done(&mut self) { self.x = 1; }
+}

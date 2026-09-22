@@ -12,8 +12,9 @@ use crate::values::scalar::expression_plans::ScalarLocal;
 use crate::values::scalar::primitive_reference_read;
 use crate::values::scalar::structural_fields;
 use checked_trees::{
-    CheckedIntegerRange, CheckedOperatorFacts, CheckedOperatorResolutionStatus,
-    CheckedScalarExpression,
+    CheckedBooleanExpression, CheckedIntegerRange, CheckedOperatorFacts,
+    CheckedOperatorResolutionStatus, CheckedScalarExpression,
+    CheckedStructuralPredicatePathSegment,
 };
 use language_semantics::declaration_selection::CollectionMeasure;
 use numerics::arithmetic::ArithmeticDomain;
@@ -22,7 +23,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use typed_trees::signature::StateParameter;
 use typed_trees::statement::StatementNode;
-use typed_trees::types::{PrimitiveType, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 pub(crate) use validation::integer_widen_is_total;
 
 /// Lower one call argument in the caller state's checked scalar namespace.
@@ -283,6 +284,31 @@ pub(crate) fn lower_scalar_expression(
     locals: &[ScalarLocal],
     exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    // A recast operand `&place as &T` / `&mut place as &mut T` re-views its
+    // source place under the stated target carrier (§5b address identity):
+    // the checked form is the source place's own read retagged to the
+    // target type. Validation already proved the representation relation
+    // and the borrow walk attributes the view to the source place, so only
+    // whole-place sources compose here -- a byte-region view over an
+    // indexed source keeps element-unit reads that cannot carry the target
+    // width and stays unlowered (loud) rather than misattributing bytes.
+    if let Some((source, target_type)) = recast_view_operand(program, expression) {
+        let primitive_type = program.primitive_type_reference(target_type)?;
+        let (read, _) = lower_scalar_expression(
+            program,
+            operators,
+            source,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        )?;
+        return Some((
+            retag_place_read(&read, primitive_type)?,
+            program.arithmetic_domain_for_type_reference(target_type),
+        ));
+    }
     // A landed floating leaf has the same bits whether it is the whole return
     // or selected from a closed constructor. The caller still checks its exact
     // destination carrier; this does not choose meaning for float operations.
@@ -955,4 +981,168 @@ pub(crate) fn landed_for_primitive(primitive_type: PrimitiveType) -> Option<Land
             return None;
         }
     })
+}
+
+/// Peel the authored `&`/`&mut` spellings around one recast view operand,
+/// returning the whole-place source and the cast's stated target type.
+/// `&x as &T` parses as `Borrow { Cast }` -- the unary `&` wraps the postfix
+/// chain with the authored access -- while parentheses can leave the borrow
+/// around the cast's SOURCE (`&(x) as &T`). Sources are restricted to name
+/// and member places: an indexed source's element-unit read cannot carry the
+/// target width, and deeper view chains have no scalar place read to retag.
+pub(crate) fn recast_view_operand(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
+    let mut expression = expression;
+    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) {
+        expression = borrow.target;
+    }
+    let ExpressionNode::Cast(cast) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if !cast.form.is_recast() {
+        return None;
+    }
+    let mut source = cast.value;
+    while let ExpressionNode::Borrow(borrow) = program.expression_table.expression(source) {
+        source = borrow.target;
+    }
+    matches!(
+        program.expression_table.expression(source),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_)
+    )
+    .then_some((source, cast.target_type))
+}
+
+/// One whole scalar place's storage site, recovered from its checked read.
+/// A recast view re-reads the same site through its target carrier.
+enum PlaceReadSite {
+    Storage(symbols::SymbolHandle),
+    Parameter(usize),
+    Local(usize),
+    StructuralField(u32, Vec<CheckedStructuralPredicatePathSegment>),
+}
+
+/// Recover the storage site of one checked read when it is a whole scalar
+/// place. Boolean place leaves unwrap to their site as well; any composed
+/// value (operations, literals, indexed reads) is not a place.
+fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceReadSite> {
+    match read {
+        CheckedScalarExpression::StorageRead { symbol, .. } => {
+            Some(PlaceReadSite::Storage(*symbol))
+        }
+        CheckedScalarExpression::Parameter { position, .. } => {
+            Some(PlaceReadSite::Parameter(*position))
+        }
+        CheckedScalarExpression::Local { position, .. } => Some(PlaceReadSite::Local(*position)),
+        CheckedScalarExpression::StructuralParameterField {
+            parameter_position,
+            path,
+            ..
+        } => Some(PlaceReadSite::StructuralField(
+            *parameter_position,
+            path.clone(),
+        )),
+        CheckedScalarExpression::Boolean(inner) => match inner.as_ref() {
+            CheckedBooleanExpression::StorageRead { symbol } => {
+                Some(PlaceReadSite::Storage(*symbol))
+            }
+            CheckedBooleanExpression::Parameter { position } => {
+                Some(PlaceReadSite::Parameter(*position))
+            }
+            CheckedBooleanExpression::Local { position } => Some(PlaceReadSite::Local(*position)),
+            CheckedBooleanExpression::StructuralParameterField {
+                parameter_position,
+                path,
+            } => Some(PlaceReadSite::StructuralField(
+                *parameter_position,
+                path.clone(),
+            )),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// Re-read one place site through the recast's stated target carrier. Bool
+/// targets produce the Boolean place leaf; every other carrier stays a
+/// scalar read.
+fn retag_place_read(
+    read: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    let site = place_read_site(read)?;
+    if primitive_type == PrimitiveType::Bool {
+        return Some(CheckedScalarExpression::Boolean(Box::new(
+            place_read_site_as_boolean(site),
+        )));
+    }
+    Some(match site {
+        PlaceReadSite::Storage(symbol) => CheckedScalarExpression::StorageRead {
+            symbol,
+            primitive_type,
+        },
+        PlaceReadSite::Parameter(position) => CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        },
+        PlaceReadSite::Local(position) => CheckedScalarExpression::Local {
+            position,
+            primitive_type,
+        },
+        PlaceReadSite::StructuralField(parameter_position, path) => {
+            CheckedScalarExpression::StructuralParameterField {
+                parameter_position,
+                path,
+                primitive_type,
+            }
+        }
+    })
+}
+
+/// Re-read one place site through the bool carrier -- the checked form of
+/// `&place as &bool` in a Boolean position.
+fn place_read_site_as_boolean(site: PlaceReadSite) -> CheckedBooleanExpression {
+    match site {
+        PlaceReadSite::Storage(symbol) => CheckedBooleanExpression::StorageRead { symbol },
+        PlaceReadSite::Parameter(position) => CheckedBooleanExpression::Parameter { position },
+        PlaceReadSite::Local(position) => CheckedBooleanExpression::Local { position },
+        PlaceReadSite::StructuralField(parameter_position, path) => {
+            CheckedBooleanExpression::StructuralParameterField {
+                parameter_position,
+                path,
+            }
+        }
+    }
+}
+
+/// The checked Boolean read of a `&place as &bool` operand: the source
+/// place's own read retagged to the bool carrier. Returns `None` when the
+/// source has no whole-place scalar read.
+pub(crate) fn lower_recast_boolean_operand(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<CheckedBooleanExpression> {
+    let (source, target_type) = recast_view_operand(program, expression)?;
+    if program.primitive_type_reference(target_type) != Some(PrimitiveType::Bool) {
+        return None;
+    }
+    let (read, _) = lower_scalar_expression(
+        program,
+        operators,
+        source,
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    )?;
+    Some(place_read_site_as_boolean(place_read_site(&read)?))
 }

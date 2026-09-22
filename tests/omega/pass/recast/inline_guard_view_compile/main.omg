@@ -1,0 +1,14 @@
+// PASS CANARY (checked route): a representation recast composes inline as a
+// transition guard operand -- no reference-typed `let` binding is required.
+// The `&self.x as &u32` view re-reads the same backing place through the
+// stated carrier; validation judges it in place and the checked scalar plan
+// carries the source storage read retagged to `u32`.
+data Bits { x: i32; }
+
+machine Bits::go(&mut self) {
+    transition (&self.x as &u32) == self.x {
+        true -> done()
+        _ -> done()
+    }
+    state done(&mut self) { self.x = 1; }
+}

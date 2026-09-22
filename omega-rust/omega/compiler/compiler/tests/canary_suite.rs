@@ -1113,6 +1113,13 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // Native realization stays gated on fused-provider selection for an
     // entry-side FilesystemHost service, matching the `native_*` family above.
     "filesystem/scalar_host_call_field_store",
+    // RECAST-SOURCE-POSITIONS: representation recasts compose at executable
+    // statement positions -- guard operands, call arguments, and nested
+    // expression operands -- without a reference-typed `let`. Checked-only:
+    // the fixtures have no console entry, so `check_canary` is the route.
+    "recast/inline_guard_view_compile",
+    "recast/inline_call_argument_view_compile",
+    "recast/nested_operand_view_compile",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
@@ -1374,6 +1381,15 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "providers/adapter_forwarding_bad_lead",
     "recast/recast_size_mismatch_rejected",
     "recast/recast_position_fenced",
+    // RECAST-SOURCE-POSITIONS: the spelled source borrow must agree with the
+    // view polarity the `as` form claims, at let initializers and inline
+    // positions alike; a recast still attributes its access to the source
+    // backing place for conflict detection; the inline relation keeps the
+    // same geometry refusal.
+    "recast/recast_borrow_polarity_escalation",
+    "recast/recast_inline_polarity_escalation",
+    "recast/recast_conflicting_backing_loan",
+    "recast/recast_inline_size_mismatch_rejected",
     "recast/interior_recast_footprint_rejected",
     "recast/runtime_offset_footprint_rejected",
     "recast/record_view_footprint_rejected",

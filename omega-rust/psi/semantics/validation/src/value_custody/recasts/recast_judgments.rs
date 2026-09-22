@@ -32,6 +32,7 @@ pub(crate) fn judge_scalar_recast(
     cast_handle: ExpressionHandle,
     let_referee: TypeReferenceHandle,
     let_is_mutable: bool,
+    source_borrow_exclusive: Option<bool>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let context = format!(
@@ -43,6 +44,27 @@ pub(crate) fn judge_scalar_recast(
 
     let mutable_recast = cast.form == language_core::cast_form::CastForm::RecastMutable;
     if mutable_recast != let_is_mutable {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "{context}: recast borrow polarity must agree -- use `&x as &T` for a shared \
+                 view or `&mut x as &mut T` for a writable view"
+            ))
+            .with_source_span(source_span),
+        );
+        return;
+    }
+
+    // The authored source borrow must spell the same access the view claims.
+    // `&x as &mut T` mints an exclusive view from a shared borrow -- access
+    // escalation; `&mut x as &T` mismatches in the other direction. A bare
+    // `x as &T` has no source borrow to disagree with, and the target-side
+    // `as &mut` suffix still marks the view exclusive for the loan walk.
+    let source_borrow_exclusive =
+        source_borrow_exclusive.or_else(|| match program.expression_table.expression(cast.value) {
+            ExpressionNode::Borrow(borrow) => Some(borrow.access.is_exclusive()),
+            _ => None,
+        });
+    if source_borrow_exclusive.is_some_and(|exclusive| exclusive != mutable_recast) {
         diagnostics.push(
             Diagnostic::error(format!(
                 "{context}: recast borrow polarity must agree -- use `&x as &T` for a shared \

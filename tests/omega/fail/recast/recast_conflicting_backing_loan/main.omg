@@ -1,0 +1,13 @@
+// FAIL CANARY (backing identity): an inline recast re-views its SOURCE
+// place, so the borrow walk attributes the view to `x` itself. Lending
+// `&mut self.x` while `&self.x as &u32` re-reads the same bytes in the same
+// call is the identical conflict the same places would produce without the
+// recast spelling.
+data Bits { x: i32; }
+
+machine Bits::mix(&mut self, w: &mut i32, r: &u32) {
+}
+
+machine Bits::go(&mut self) {
+    self.mix(&mut self.x, &self.x as &u32);
+}

@@ -1,0 +1,13 @@
+// FAIL CANARY (rung-A polarity at an inline position): the same escalation
+// inside a guard operand -- the spelled `&` over `as &mut` claims write
+// authority the source borrow never granted. Reaching this diagnostic (not
+// the position fence) is what pins that inline recasts are judged in place.
+data Bits { x: u32; }
+
+machine Bits::go(&mut self) {
+    transition (&self.x as &mut u32) == self.x {
+        true -> done()
+        _ -> done()
+    }
+    state done(&mut self) { self.x = 1; }
+}

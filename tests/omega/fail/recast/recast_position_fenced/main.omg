@@ -1,14 +1,12 @@
-// FAIL CANARY (rung-A fence): a recast binds to a reference-typed let;
-// inline re-views (guard operands, call arguments, nested expressions)
-// land with the byte-view rung. The position sweep in validation
-// recasts.rs mirrors the D14 literal gate: blessed roots first, then a
-// whole-table sweep refuses strays.
-use omega_language_std::console;
-use omega::language::core::service;
-data Main { console: Service<Console>; bits: i32; }
-machine Main::main(&mut self) reaches Console {
-    self.bits = 1078530011;
-    transition (&self.bits as &f32) > 3.14 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self)  { self.console.exit_process(71); }
+// FAIL CANARY (rung-A fence): a recast re-views storage at an executable
+// position -- a reference-typed let initializer, a guard operand, a call
+// argument, a nested expression -- where the positional sweep in validation
+// recasts.rs judges it in place. Proof-only fact positions (`requires`/
+// `ensures`) produce no runtime borrow and stay fenced: this machine-level
+// `requires` holds a recast outside every executable statement root.
+data Main { bits: i32; }
+machine Main::main(&mut self)
+requires (&self.bits as &u32) == 0u32
+{
+    self.bits = 0;
 }
