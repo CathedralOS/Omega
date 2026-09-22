@@ -8,4 +8,7 @@ mod identity;
 mod model;
 
 pub use identity::stack_slot_coloring_identity;
-pub use model::*;
+pub use model::{
+    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
+    StackSlotColoringIdentity, StackSlotColoringPlan, StackSlotColoringPolicy,
+};

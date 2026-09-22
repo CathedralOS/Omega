@@ -20,16 +20,67 @@ pub mod storage;
 pub mod view;
 
 pub use codec::RegisterHomeDecodeError;
-pub use constraints::*;
+pub use constraints::{
+    AllocationLegalityIdentity, AllocationLegalityPlan, AllocatorAvailabilityDecodeError,
+    AllocatorAvailabilityIdentity, AllocatorAvailabilityPlan, AllocatorAvailabilityPolicy,
+    EntryFixedViewTransition, FixedPrecoloredInterval, FixedPrecoloredIntervalPlan,
+    FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredIntervalPolicy,
+    FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSourceFragmentRequirements,
+    FixedPrecoloredSourceSegment, FixedPrecoloredSourceSegmentId,
+    FixedPrecoloredSourceSegmentOpening, FixedPrecoloredSplitRequirementPlan,
+    FixedPrecoloredSplitRequirementPlanIdentity, FixedPrecoloredSplitRequirementPolicy,
+    FunctionAllocationLegality, FunctionFixedPrecoloredIntervals,
+    FunctionFixedPrecoloredSplitRequirements, RegisterClassAvailability,
+    VirtualEarlyClobberPointLegality, VirtualPointLegality, VirtualRegisterAllocationLegality,
+    allocation_legality, allocation_legality_identity, allocator_availability,
+    allocator_availability_identity, fixed_precolored_interval_plan_identity,
+    fixed_precolored_intervals, fixed_precolored_split_requirement_plan_identity,
+    fixed_precolored_split_requirements,
+};
 pub use identity::{
     AbstractSpillAccessConstraintPlanIdentity, RegisterHomeIdentity, register_home_identity,
 };
-pub use logical_spill_operations::*;
-pub use post_allocation_manifest::*;
-pub use preservation::*;
-pub use recovery::*;
-pub use stack_slot_coloring::*;
-pub use storage::*;
+pub use logical_spill_operations::{
+    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillOperationDecodeError, LogicalSpillOperationIdentity, LogicalSpillOperationPlan,
+    LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
+    LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
+    logical_spill_operation_identity,
+};
+pub use post_allocation_manifest::{
+    PostAllocationManifestStage, PostAllocationOptimizationManifest,
+    PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
+    PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
+    PostAllocationUnavailableData,
+};
+pub use preservation::{
+    AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
+    AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
+    CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
+};
+pub use recovery::{
+    FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
+    FixedViewCopyPolicy, FixedViewCopySourceEvidence, FunctionRecoveryClassification,
+    FunctionSpillChoices, NoAdmittedRecoveryReason, PressureContender,
+    PressureRecoveryClassification, PressureResident, RecoveryClassification,
+    RecoveryClassificationDecodeError, RecoveryClassificationIdentity, RecoveryClassificationPlan,
+    RecoveryClassificationPolicy, RecoveryFutureUse, RecoveryVictimRole, SpillChoice,
+    SpillChoiceDecodeError, SpillChoiceIdentity, SpillChoicePlan, SpillChoicePolicy,
+    classification, fixed_view_copy, fixed_view_copy_identity, recovery_classification_identity,
+    spill_choice, spill_choice_identity,
+};
+pub use stack_slot_coloring::{
+    FunctionStackSlotColoring, StackSlotAssignment, StackSlotColoringDecodeError,
+    StackSlotColoringIdentity, StackSlotColoringPlan, StackSlotColoringPolicy,
+    stack_slot_coloring_identity,
+};
+pub use storage::{
+    FixedPrecoloredHomeDomainId, FixedPrecoloredSegmentHomePlan,
+    FixedPrecoloredSegmentHomePlanIdentity, FixedPrecoloredSegmentHomePolicy,
+    FixedPrecoloredSourceSegmentHome, FunctionFixedPrecoloredSegmentHomes, FunctionRegisterHomes,
+    RegisterHomePlan, VirtualRegisterHome, fixed_precolored_segment_home_plan_identity,
+    fixed_precolored_segment_homes,
+};
 pub use view::AllocatedProgramRef;
 
 /// One current allocated program, independent of the route that produced it.

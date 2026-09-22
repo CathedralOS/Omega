@@ -8,8 +8,14 @@ mod identity;
 mod model;
 mod rendering;
 
-pub use error::*;
-pub use model::*;
+pub use error::{
+    PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
+};
+pub use model::{
+    PostAllocationManifestStage, PostAllocationOptimizationManifest,
+    PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
+    PostAllocationUnavailableData,
+};
 
 #[cfg(test)]
 mod tests;
