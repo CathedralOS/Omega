@@ -26,7 +26,7 @@ Follow its subordinate owners for:
 and replaying optimized ordinary callable entries. Its model, reconstruction,
 and codec live under `callable_entry/`. Follow
 [physical/derivation.rs](src/physical/derivation.rs) for independent physical
-evidence reconstruction and [physical/model.rs](src/physical/model.rs) for its
+evidence reconstruction and [physical/mod.rs](src/physical/mod.rs) for its
 retained carriers.
 
 This crate consumes source-free inputs. It does not select source providers,

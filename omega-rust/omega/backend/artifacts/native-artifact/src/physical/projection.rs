@@ -11,7 +11,7 @@ use semantic_vocabulary::OperationId;
 use sha2::{Digest, Sha256};
 use terminal_psi::TerminalPsiIdentity;
 
-use super::model::{
+use super::{
     ValidatedOptimizedNativePhysicalEvidenceScope, native_optimization_projection,
     optimized_boundary_occurrence, optimized_operator_occurrence,
     validated_optimized_native_physical_evidence_scope,
@@ -208,9 +208,9 @@ fn derive_optimized_scope(
 fn optimized_projection_identity(
     authority: ValidatedProjectionCoordinates,
     boundary_application_coverage: [u8; 32],
-    operator_occurrences: &[super::model::OptimizedOperatorOccurrence],
-    boundary_occurrences: &[super::model::OptimizedBoundaryOccurrence],
-    dynamic_call_occurrences: &[super::model::OptimizedOperatorOccurrence],
+    operator_occurrences: &[super::OptimizedOperatorOccurrence],
+    boundary_occurrences: &[super::OptimizedBoundaryOccurrence],
+    dynamic_call_occurrences: &[super::OptimizedOperatorOccurrence],
 ) -> NativeOptimizationProjectionIdentity {
     let mut canonical = validated_authority_bytes(authority);
     canonical.extend_from_slice(&boundary_application_coverage);

@@ -6,7 +6,7 @@ use image_emission::ObjectArtifact;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use sha2::{Digest, Sha256};
 
-use super::model::ValidatedOptimizedNativePhysicalEvidenceScope;
+use super::ValidatedOptimizedNativePhysicalEvidenceScope;
 
 /// Immutable admitted object evidence. Equality deliberately covers the complete
 /// object, including metadata not used by the current physical-child projection.
@@ -134,13 +134,11 @@ pub(crate) fn derive_scope(
     digest.update(b"omega.native-artifact.validated-fragment-physical-scope.sha256.v1\0");
     digest.update(scope.identity());
     digest.update(publication.identity());
-    Ok(
-        super::model::validated_fragment_native_physical_evidence_scope(
-            scope,
-            publication,
-            digest.finalize().into(),
-        ),
-    )
+    Ok(super::validated_fragment_native_physical_evidence_scope(
+        scope,
+        publication,
+        digest.finalize().into(),
+    ))
 }
 
 fn validate_final_plan(

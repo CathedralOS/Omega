@@ -3,7 +3,7 @@
 
 use crate::OptimizedBoundaryOccurrence;
 use crate::physical::derivation::evidence::{ranges_overlap, span};
-pub(crate) use crate::physical::model::native_byte_span;
+pub(crate) use crate::physical::native_byte_span;
 use crate::{NativeProviderExecution, NativeSelectedProviderPlan};
 use installation_evidence::ProviderExecutionEvidence;
 use machine_code::PortEffectRecord;
