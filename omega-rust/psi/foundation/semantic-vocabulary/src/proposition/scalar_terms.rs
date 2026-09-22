@@ -338,6 +338,20 @@ pub enum ScalarTerm {
 }
 
 impl ScalarTerm {
+    /// Shared body of the two-operand integer constructors: operand types are
+    /// checked against `scalar_type` through the operation's own `TypeMismatch`
+    /// variant, then `build` boxes the operands into the matching variant.
+    fn typed_binary_integer_term(
+        scalar_type: IntegerType,
+        left: ScalarTerm,
+        right: ScalarTerm,
+        mismatch: impl FnOnce(ScalarType, ScalarType, ScalarType) -> PropositionError,
+        build: impl FnOnce(IntegerType, ScalarTerm, ScalarTerm) -> Self,
+    ) -> Result<Self, PropositionError> {
+        validate_typed_integer_operands(scalar_type, &left, &right, mismatch)?;
+        Ok(build(scalar_type, left, right))
+    }
+
     pub fn value(id: ValueId, scalar_type: ScalarType) -> Self {
         Self::Value { id, scalar_type }
     }
@@ -395,18 +409,21 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
-            PropositionError::IntegerEqualTypeMismatch {
+        Self::typed_binary_integer_term(
+            scalar_type,
+            left,
+            right,
+            |expected, left, right| PropositionError::IntegerEqualTypeMismatch {
                 expected,
                 left,
                 right,
-            }
-        })?;
-        Ok(Self::IntegerEqual {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+            },
+            |scalar_type, left, right| Self::IntegerEqual {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        )
     }
 
     pub fn integer_less_than(
@@ -725,18 +742,21 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
-            PropositionError::WrappingIntegerAddTypeMismatch {
+        Self::typed_binary_integer_term(
+            scalar_type,
+            left,
+            right,
+            |expected, left, right| PropositionError::WrappingIntegerAddTypeMismatch {
                 expected,
                 left,
                 right,
-            }
-        })?;
-        Ok(Self::WrappingIntegerAdd {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+            },
+            |scalar_type, left, right| Self::WrappingIntegerAdd {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        )
     }
 
     pub fn saturating_integer_add(
@@ -744,18 +764,21 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
-            PropositionError::SaturatingIntegerAddTypeMismatch {
+        Self::typed_binary_integer_term(
+            scalar_type,
+            left,
+            right,
+            |expected, left, right| PropositionError::SaturatingIntegerAddTypeMismatch {
                 expected,
                 left,
                 right,
-            }
-        })?;
-        Ok(Self::SaturatingIntegerAdd {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+            },
+            |scalar_type, left, right| Self::SaturatingIntegerAdd {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        )
     }
 
     pub fn wrapping_integer_subtract(
@@ -763,18 +786,21 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
-            PropositionError::WrappingIntegerSubtractTypeMismatch {
+        Self::typed_binary_integer_term(
+            scalar_type,
+            left,
+            right,
+            |expected, left, right| PropositionError::WrappingIntegerSubtractTypeMismatch {
                 expected,
                 left,
                 right,
-            }
-        })?;
-        Ok(Self::WrappingIntegerSubtract {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+            },
+            |scalar_type, left, right| Self::WrappingIntegerSubtract {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        )
     }
 
     pub fn saturating_integer_subtract(
@@ -782,18 +808,21 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
-            PropositionError::SaturatingIntegerSubtractTypeMismatch {
+        Self::typed_binary_integer_term(
+            scalar_type,
+            left,
+            right,
+            |expected, left, right| PropositionError::SaturatingIntegerSubtractTypeMismatch {
                 expected,
                 left,
                 right,
-            }
-        })?;
-        Ok(Self::SaturatingIntegerSubtract {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+            },
+            |scalar_type, left, right| Self::SaturatingIntegerSubtract {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        )
     }
 
     pub fn wrapping_integer_multiply(
@@ -801,18 +830,21 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
-            PropositionError::WrappingIntegerMultiplyTypeMismatch {
+        Self::typed_binary_integer_term(
+            scalar_type,
+            left,
+            right,
+            |expected, left, right| PropositionError::WrappingIntegerMultiplyTypeMismatch {
                 expected,
                 left,
                 right,
-            }
-        })?;
-        Ok(Self::WrappingIntegerMultiply {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+            },
+            |scalar_type, left, right| Self::WrappingIntegerMultiply {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        )
     }
 
     pub fn saturating_integer_multiply(
@@ -820,18 +852,21 @@ impl ScalarTerm {
         left: ScalarTerm,
         right: ScalarTerm,
     ) -> Result<Self, PropositionError> {
-        validate_typed_integer_operands(scalar_type, &left, &right, |expected, left, right| {
-            PropositionError::SaturatingIntegerMultiplyTypeMismatch {
+        Self::typed_binary_integer_term(
+            scalar_type,
+            left,
+            right,
+            |expected, left, right| PropositionError::SaturatingIntegerMultiplyTypeMismatch {
                 expected,
                 left,
                 right,
-            }
-        })?;
-        Ok(Self::SaturatingIntegerMultiply {
-            scalar_type,
-            left: Box::new(left),
-            right: Box::new(right),
-        })
+            },
+            |scalar_type, left, right| Self::SaturatingIntegerMultiply {
+                scalar_type,
+                left: Box::new(left),
+                right: Box::new(right),
+            },
+        )
     }
 
     pub fn scalar_type(&self) -> ScalarType {
