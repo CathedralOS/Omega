@@ -38,6 +38,39 @@ pub enum ValueDefinitionSite {
     Node { block: BlockId, node: u32 },
 }
 
+/// The canonical identity encoding of [`ValueDefinitionSite`].
+///
+/// The variant tags written here — `0` for `FunctionParameter`, `1` for
+/// `BlockParameter`, `2` for `Node` — and the little-endian field order that
+/// follows each tag *are* the identity: selected-instruction plan identities,
+/// register-home recovery plans, legalized-operation scalar identities and the
+/// replay evidence derived from them all hash exactly these bytes. Changing a
+/// tag or reordering a field changes every artifact that embeds a definition
+/// site.
+///
+/// Consumers must call this function rather than repeat the table. A second
+/// copy is how two crates that are supposed to agree drift apart silently: the
+/// encoding stays compilable, each side keeps producing bytes, and only a
+/// mismatched artifact identity reveals it.
+pub fn encode_value_definition_site_identity(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
+    match site {
+        ValueDefinitionSite::FunctionParameter(position) => {
+            bytes.push(0);
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
+        ValueDefinitionSite::BlockParameter { block, position } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&position.to_le_bytes());
+        }
+        ValueDefinitionSite::Node { block, node } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&block.get().to_le_bytes());
+            bytes.extend_from_slice(&node.to_le_bytes());
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValueDefinition {
     pub value: ValueId,

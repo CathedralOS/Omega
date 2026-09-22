@@ -4,9 +4,6 @@ use crate::{
 };
 use physical_instructions::PostAllocationMachineIdentity;
 use register_model::{RegisterUnitId, RegisterViewId};
-use selected_instructions::{
-    MachineAlternativeFamily, MachineAlternativeKey, MachineEncodedEffects, SaturatingOperation,
-};
 use sha2::{Digest, Sha256};
 
 use physical_instructions::PostAllocationMachineOptimizationCustody;
@@ -61,7 +58,7 @@ pub(super) fn encoding_identity(
 
 fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
     hasher.update(row.instruction.0.to_le_bytes());
-    encode_alternative(hasher, row.alternative);
+    selected_instructions::encode_machine_alternative_key_identity(hasher, row.alternative);
     match row.address {
         None => hasher.update([0]),
         Some(address) => {
@@ -216,7 +213,10 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
             encode_views(hasher, &footprint.register_writes);
             encode_units(hasher, &footprint.implicit_defs);
             encode_units(hasher, &footprint.implicit_clobbers);
-            encode_effects(hasher, &footprint.encoded);
+            selected_instructions::encode_machine_encoded_effects_identity(
+                hasher,
+                &footprint.encoded,
+            );
         }
         SelectedFormEncodingState::DeferredControl { reason } => {
             hasher.update([1]);
@@ -236,7 +236,10 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
             encode_views(hasher, &footprint.register_writes);
             encode_units(hasher, &footprint.implicit_defs);
             encode_units(hasher, &footprint.implicit_clobbers);
-            encode_effects(hasher, &footprint.encoded);
+            selected_instructions::encode_machine_encoded_effects_identity(
+                hasher,
+                &footprint.encoded,
+            );
             encode_internal_fixup(hasher, *fixup);
         }
         SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
@@ -251,7 +254,10 @@ fn encode_encoding_row(hasher: &mut Sha256, row: &SelectedFormEncodingRow) {
             encode_views(hasher, &footprint.register_writes);
             encode_units(hasher, &footprint.implicit_defs);
             encode_units(hasher, &footprint.implicit_clobbers);
-            encode_effects(hasher, &footprint.encoded);
+            selected_instructions::encode_machine_encoded_effects_identity(
+                hasher,
+                &footprint.encoded,
+            );
             encode_normalized_foreign_fixup(hasher, *fixup);
         }
     }
@@ -331,236 +337,6 @@ fn encode_machine_disposition(hasher: &mut Sha256, disposition: &SelectedFormMac
             hasher.update(consumer.0.to_le_bytes());
         }
     }
-}
-
-fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
-    hasher.update((effects.external_operand_reads.len() as u64).to_le_bytes());
-    for operand in &effects.external_operand_reads {
-        hasher.update(operand.to_le_bytes());
-    }
-    hasher.update((effects.external_operand_writes.len() as u64).to_le_bytes());
-    for operand in &effects.external_operand_writes {
-        hasher.update(operand.to_le_bytes());
-    }
-    encode_units(hasher, &effects.implicit_unit_uses);
-    encode_units(hasher, &effects.implicit_unit_defs);
-    encode_units(hasher, &effects.implicit_unit_clobbers);
-    use selected_instructions::{
-        MachineEncodedControlEffect as Control, MachineEncodedMemoryEffect as Memory,
-        MachineEncodedStackEffect as Stack, MachineEncodedTrapBehavior as Trap,
-    };
-    match effects.memory {
-        Memory::CopyBytesV1 {
-            source_pointer_operand,
-            destination_pointer_operand,
-            count_operand,
-        } => {
-            hasher.update([9]);
-            hasher.update(source_pointer_operand.to_le_bytes());
-            hasher.update(destination_pointer_operand.to_le_bytes());
-            hasher.update(count_operand.to_le_bytes());
-        }
-        Memory::ReadIndexedPointerV1 {
-            pointer_operand,
-            index_operand,
-            byte_count,
-        } => {
-            hasher.update([5]);
-            hasher.update(pointer_operand.to_le_bytes());
-            hasher.update(index_operand.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        Memory::HostedReadByteV1 { stack_pointer } => {
-            hasher.update([8]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-        }
-        Memory::HostedWriteByteV1 { stack_pointer } => {
-            hasher.update([6]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-        }
-        Memory::WritePointerV1 { pointer_operand } => {
-            hasher.update([7]);
-            hasher.update(pointer_operand.to_le_bytes());
-        }
-        Memory::NoneV1 => hasher.update([0]),
-        Memory::ReadPointerV1 {
-            pointer_operand,
-            byte_count,
-        } => {
-            hasher.update([3]);
-            hasher.update(pointer_operand.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        Memory::WriteFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([4]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        Memory::ReadFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([10]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        Memory::ReadActivationStackV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([1]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        Memory::WriteReturnAddressBelowStackPointerV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([2]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-    }
-    match effects.stack {
-        Stack::UnchangedV1 => hasher.update([0]),
-        Stack::PopBytesV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([1]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        Stack::CallReturnAddressLifecycleV1 {
-            stack_pointer,
-            return_address_byte_count,
-        } => {
-            hasher.update([2]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(return_address_byte_count.to_le_bytes());
-        }
-    }
-    hasher.update([match effects.trap {
-        Trap::NeverV1 => 0,
-        Trap::ExplicitCrashV1 => 5,
-        Trap::HostedExitReturnedV1 => 3,
-        Trap::HostedReadFailureV1 => 4,
-        Trap::HostedWriteFailureV1 => 2,
-        Trap::MayArchitecturalFaultV1 => 1,
-    }]);
-    match effects.control {
-        Control::HostedExitOrTrapV1 => hasher.update([7]),
-        Control::CrashV1 => hasher.update([9]),
-        Control::HostedReadReturnOrTrapV1 => hasher.update([8]),
-        Control::HostedWriteReturnOrTrapV1 => hasher.update([6]),
-        Control::FallThroughV1 => hasher.update([0]),
-        Control::ConditionalRelativeBranchV1 => hasher.update([1]),
-        Control::ReturnFromActivationStackV1 => hasher.update([2]),
-        Control::ReturnIndirectRegisterV1 { target } => {
-            hasher.update([3]);
-            hasher.update(target.0.to_le_bytes());
-        }
-        Control::DirectRelativeCallV1 => hasher.update([4]),
-        Control::UnconditionalRelativeBranchV1 => hasher.update([5]),
-    }
-}
-
-fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
-    hasher.update([match alternative.family {
-        MachineAlternativeFamily::CompareI64Zero => 0,
-        MachineAlternativeFamily::MaterializeI64 => 1,
-        MachineAlternativeFamily::CopyI64 => 2,
-        MachineAlternativeFamily::Float32ToBits => 26,
-        MachineAlternativeFamily::Float64ToBits => 27,
-        MachineAlternativeFamily::BitsToFloat32 => 28,
-        MachineAlternativeFamily::BitsToFloat64 => 29,
-        MachineAlternativeFamily::ZeroExtendU8 => 15,
-        MachineAlternativeFamily::ZeroExtendU32 => 20,
-        MachineAlternativeFamily::ZeroExtendU16 => 37,
-        MachineAlternativeFamily::SignExtendI8 => 38,
-        MachineAlternativeFamily::SignExtendI16 => 39,
-        MachineAlternativeFamily::SignExtendI32 => 40,
-        MachineAlternativeFamily::MaterializeBooleanEqual => 41,
-        MachineAlternativeFamily::MaterializeBooleanU64LessThan => 42,
-        MachineAlternativeFamily::MaterializeBooleanI64LessThan => 43,
-        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual => 44,
-        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual => 45,
-        MachineAlternativeFamily::ExactAddI64 => 3,
-        MachineAlternativeFamily::ExactAddI64Immediate => 4,
-        MachineAlternativeFamily::ExactSubtractI64 => 5,
-        MachineAlternativeFamily::ConditionalBranchNonZero => 6,
-        MachineAlternativeFamily::ReturnScalar => 7,
-        MachineAlternativeFamily::ExactSubtractI64Immediate => 8,
-        MachineAlternativeFamily::ReturnUnit => 9,
-        MachineAlternativeFamily::CompareI64 => 10,
-        MachineAlternativeFamily::CompareI64Immediate => 53,
-        MachineAlternativeFamily::ConditionalBranchU64LessThan => 11,
-        MachineAlternativeFamily::ConditionalBranchI64LessThan => 12,
-        MachineAlternativeFamily::CallScalar => 13,
-        MachineAlternativeFamily::Jump => 14,
-        MachineAlternativeFamily::Store => 24,
-        MachineAlternativeFamily::AddressOffset => 25,
-        MachineAlternativeFamily::Load64 => 16,
-        MachineAlternativeFamily::LoadPacked3 => 46,
-        MachineAlternativeFamily::LoadPacked5 => 47,
-        MachineAlternativeFamily::LoadPacked6 => 48,
-        MachineAlternativeFamily::LoadPacked7 => 49,
-        MachineAlternativeFamily::StorePacked => 50,
-        MachineAlternativeFamily::BitwiseAndI64 => 51,
-        MachineAlternativeFamily::BitwiseXorI64 => 52,
-        MachineAlternativeFamily::ExactDivideU64 => 56,
-        MachineAlternativeFamily::WrappingRemainderI64 => 57,
-        MachineAlternativeFamily::WrappingAddI64 => 58,
-        MachineAlternativeFamily::SaturatingAdd(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Add, carrier)
-        }
-        MachineAlternativeFamily::SaturatingSubtract(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Subtract, carrier)
-        }
-        MachineAlternativeFamily::SaturatingDivide(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Divide, carrier)
-        }
-        MachineAlternativeFamily::SaturatingRemainder(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Remainder, carrier)
-        }
-        MachineAlternativeFamily::Load8 => 33,
-        MachineAlternativeFamily::Load16 => 34,
-        MachineAlternativeFamily::Load32 => 30,
-        MachineAlternativeFamily::HostedExitProcessI32 => 31,
-        MachineAlternativeFamily::Crash => 111,
-        MachineAlternativeFamily::HostedReadByte => 32,
-        MachineAlternativeFamily::HostedWriteByteI32 => 23,
-        MachineAlternativeFamily::ByteViewAddress => 22,
-        MachineAlternativeFamily::Load8Indexed => 21,
-        MachineAlternativeFamily::CopyBytes => 59,
-        MachineAlternativeFamily::Store64 => 17,
-        MachineAlternativeFamily::FrameAddress => 18,
-        MachineAlternativeFamily::CallUnit => 19,
-        MachineAlternativeFamily::CallAggregate => 35,
-        MachineAlternativeFamily::ReturnAggregate => 36,
-        MachineAlternativeFamily::NormalizedForeignCall => 87,
-        MachineAlternativeFamily::ExactMultiplyI64 => 88,
-        MachineAlternativeFamily::ExactRemainderU64 => 89,
-        MachineAlternativeFamily::WrappingSubtractI64 => 90,
-        MachineAlternativeFamily::WrappingMultiplyI64 => 91,
-        MachineAlternativeFamily::WrappingDivideI64 => 92,
-        MachineAlternativeFamily::ExactDivideI64 => 112,
-        MachineAlternativeFamily::ExactRemainderI64 => 113,
-        MachineAlternativeFamily::BitwiseOrI64 => 93,
-        MachineAlternativeFamily::BitwiseNotI64 => 94,
-        MachineAlternativeFamily::SaveFloatingControl => 103,
-        MachineAlternativeFamily::RestoreFloatingControl => 104,
-        MachineAlternativeFamily::WrappingShiftLeftI64 => 105,
-        MachineAlternativeFamily::WrappingShiftRightI64 => 106,
-        MachineAlternativeFamily::WrappingShiftRightU64 => 107,
-        MachineAlternativeFamily::ExactShiftLeftI64 => 108,
-        MachineAlternativeFamily::ExactShiftRightI64 => 109,
-        MachineAlternativeFamily::ExactShiftRightU64 => 110,
-    }]);
-    hasher.update(alternative.variant.to_le_bytes());
 }
 
 fn encode_views(hasher: &mut Sha256, views: &[RegisterViewId]) {

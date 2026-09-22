@@ -10,6 +10,7 @@ use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::MachineId;
+use sha2::{Digest, Sha256};
 use target::NativeTarget;
 
 use register_model::FrameAbiPreservationConvention;
@@ -52,6 +53,67 @@ pub enum CalleeSavedModificationWitness {
         block: SelectedBlockId,
         instruction: SelectedInstructionId,
     },
+}
+
+/// The canonical identity encoding of [`CalleeSavedModificationWitness`].
+///
+/// The variant tags written here — `0` for `OperandDefinition`, `1` for
+/// `ImplicitDefinition`, `2` for `ImplicitClobber` — the little-endian field
+/// order after each tag, and the write-semantics tag below *are* the identity:
+/// the allocated callee-saved requirement identity and the non-authoritative
+/// callee-save storage identity derived from it hash exactly this byte stream.
+/// Changing a tag or reordering a field changes both artifacts and every
+/// replay record that quotes them.
+///
+/// Producers must call this function rather than repeat the table. A second
+/// copy is how a producer and the downstream stage that must agree with it
+/// drift apart silently: both keep compiling, both keep hashing, and only a
+/// rejected identity ever reveals the divergence.
+pub fn encode_callee_saved_modification_witness_identity(
+    hasher: &mut Sha256,
+    witness: CalleeSavedModificationWitness,
+) {
+    match witness {
+        CalleeSavedModificationWitness::OperandDefinition {
+            block,
+            instruction,
+            operand,
+            virtual_register,
+            home_view,
+            write_semantics,
+        } => {
+            hasher.update([0]);
+            hasher.update(block.0.to_le_bytes());
+            hasher.update(instruction.0.to_le_bytes());
+            hasher.update(operand.to_le_bytes());
+            hasher.update(virtual_register.0.to_le_bytes());
+            hasher.update(home_view.0.to_le_bytes());
+            hasher.update([write_semantics_identity_tag(write_semantics)]);
+        }
+        CalleeSavedModificationWitness::ImplicitDefinition { block, instruction } => {
+            hasher.update([1]);
+            hasher.update(block.0.to_le_bytes());
+            hasher.update(instruction.0.to_le_bytes());
+        }
+        CalleeSavedModificationWitness::ImplicitClobber { block, instruction } => {
+            hasher.update([2]);
+            hasher.update(block.0.to_le_bytes());
+            hasher.update(instruction.0.to_le_bytes());
+        }
+    }
+}
+
+/// The write-semantics byte embedded in a witness identity. It is part of the
+/// encoding above and shares its stability contract.
+fn write_semantics_identity_tag(value: RegisterWriteSemantics) -> u8 {
+    match value {
+        RegisterWriteSemantics::ExactView => 0,
+        RegisterWriteSemantics::PreservesUnwritten => 1,
+        RegisterWriteSemantics::ZeroExtendsParent => 2,
+        RegisterWriteSemantics::ZeroExtendsWithinUnit => 3,
+        RegisterWriteSemantics::Discards => 4,
+        RegisterWriteSemantics::InstructionDefined => 5,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

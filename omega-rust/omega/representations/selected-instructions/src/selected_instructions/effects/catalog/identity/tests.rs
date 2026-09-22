@@ -1,9 +1,12 @@
 use super::{
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineBarrier,
     MachineEffectCatalog, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedTrapBehavior, MachineSemanticKind,
-    alternative_family_tag, machine_effect_catalog_identity, semantic_kind_tag,
+    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+    MachineSemanticKind, alternative_family_tag, encode_machine_alternative_identity,
+    encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
+    machine_effect_catalog_identity, semantic_kind_tag,
 };
+use crate::SaturatingCarrier;
 use crate::{
     MachineAlternative, MachineAlternativeKey, MachineCallEffect, MachineCleanupEffect,
     MachineEffectDeclaration, MachineLatencyKnowledge, MachineMemoryEffect, MachineSizeKnowledge,
@@ -11,6 +14,7 @@ use crate::{
 };
 use register_model::{
     RegisterConstraintCatalogIdentity, RegisterConstraintFamily, RegisterConstraintKey,
+    RegisterUnitId, RegisterViewId,
 };
 use target::NativeTarget;
 
@@ -645,5 +649,627 @@ fn identity_distinguishes_narrow_load_keys_and_semantics() {
             }
         }
         assert_ne!(baseline, machine_effect_catalog_identity(&changed));
+    }
+}
+
+/// Expected tags ported verbatim from the eighty-one-arm copy of this table
+/// that `machine_code::layout::identity` carried before the copies were
+/// removed, expanded over every family in
+/// [`MachineSemanticKind::ALL`]. These bytes are the identity of an
+/// alternative in every catalog, program, physical-instruction and
+/// machine-code artifact, so this table changing is always a defect.
+const PINNED_ALTERNATIVE_FAMILY_TAGS: [(MachineAlternativeFamily, u8); 109] = [
+    (MachineAlternativeFamily::Crash, 111),
+    (MachineAlternativeFamily::CopyBytes, 59),
+    (MachineAlternativeFamily::BitwiseAndI64, 51),
+    (MachineAlternativeFamily::BitwiseXorI64, 52),
+    (MachineAlternativeFamily::CallAggregate, 35),
+    (MachineAlternativeFamily::ReturnAggregate, 36),
+    (MachineAlternativeFamily::HostedExitProcessI32, 31),
+    (MachineAlternativeFamily::LoadPacked3, 46),
+    (MachineAlternativeFamily::LoadPacked5, 47),
+    (MachineAlternativeFamily::LoadPacked6, 48),
+    (MachineAlternativeFamily::LoadPacked7, 49),
+    (MachineAlternativeFamily::StorePacked, 50),
+    (MachineAlternativeFamily::Load8, 33),
+    (MachineAlternativeFamily::Load16, 34),
+    (MachineAlternativeFamily::Load32, 30),
+    (MachineAlternativeFamily::Float32ToBits, 26),
+    (MachineAlternativeFamily::Float64ToBits, 27),
+    (MachineAlternativeFamily::BitsToFloat32, 28),
+    (MachineAlternativeFamily::BitsToFloat64, 29),
+    (MachineAlternativeFamily::Load8Indexed, 21),
+    (MachineAlternativeFamily::CompareI64Zero, 0),
+    (MachineAlternativeFamily::MaterializeI64, 1),
+    (MachineAlternativeFamily::CopyI64, 2),
+    (MachineAlternativeFamily::ExactAddI64, 3),
+    (MachineAlternativeFamily::ExactAddI64Immediate, 4),
+    (MachineAlternativeFamily::ExactSubtractI64, 5),
+    (MachineAlternativeFamily::ExactDivideU64, 56),
+    (MachineAlternativeFamily::ExactSubtractI64Immediate, 8),
+    (MachineAlternativeFamily::ConditionalBranchNonZero, 6),
+    (MachineAlternativeFamily::ReturnScalar, 7),
+    (MachineAlternativeFamily::ReturnUnit, 9),
+    (MachineAlternativeFamily::CompareI64, 10),
+    (MachineAlternativeFamily::CompareI64Immediate, 53),
+    (MachineAlternativeFamily::ConditionalBranchU64LessThan, 11),
+    (MachineAlternativeFamily::ConditionalBranchI64LessThan, 12),
+    (MachineAlternativeFamily::CallScalar, 13),
+    (MachineAlternativeFamily::Jump, 14),
+    (MachineAlternativeFamily::ZeroExtendU8, 15),
+    (MachineAlternativeFamily::ZeroExtendU32, 20),
+    (MachineAlternativeFamily::ZeroExtendU16, 37),
+    (MachineAlternativeFamily::SignExtendI8, 38),
+    (MachineAlternativeFamily::SignExtendI16, 39),
+    (MachineAlternativeFamily::SignExtendI32, 40),
+    (MachineAlternativeFamily::Load64, 16),
+    (MachineAlternativeFamily::Store64, 17),
+    (MachineAlternativeFamily::FrameAddress, 18),
+    (MachineAlternativeFamily::CallUnit, 19),
+    (MachineAlternativeFamily::ByteViewAddress, 22),
+    (MachineAlternativeFamily::HostedReadByte, 32),
+    (MachineAlternativeFamily::HostedWriteByteI32, 23),
+    (MachineAlternativeFamily::Store, 24),
+    (MachineAlternativeFamily::AddressOffset, 25),
+    (MachineAlternativeFamily::MaterializeBooleanEqual, 41),
+    (MachineAlternativeFamily::MaterializeBooleanU64LessThan, 42),
+    (MachineAlternativeFamily::MaterializeBooleanI64LessThan, 43),
+    (
+        MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual,
+        44,
+    ),
+    (
+        MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual,
+        45,
+    ),
+    (MachineAlternativeFamily::WrappingRemainderI64, 57),
+    (MachineAlternativeFamily::WrappingAddI64, 58),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I8),
+        63,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I16),
+        64,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I32),
+        60,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::I64),
+        66,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U8),
+        67,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U16),
+        68,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U32),
+        69,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingAdd(SaturatingCarrier::U64),
+        55,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I8),
+        71,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I16),
+        72,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I32),
+        61,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::I64),
+        74,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U8),
+        75,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U16),
+        76,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U32),
+        77,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingSubtract(SaturatingCarrier::U64),
+        54,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I8),
+        79,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I16),
+        80,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I32),
+        62,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::I64),
+        82,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U8),
+        83,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U16),
+        84,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U32),
+        85,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingDivide(SaturatingCarrier::U64),
+        86,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I8),
+        95,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I16),
+        96,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I32),
+        97,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::I64),
+        98,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U8),
+        99,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U16),
+        100,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U32),
+        101,
+    ),
+    (
+        MachineAlternativeFamily::SaturatingRemainder(SaturatingCarrier::U64),
+        102,
+    ),
+    (MachineAlternativeFamily::NormalizedForeignCall, 87),
+    (MachineAlternativeFamily::ExactMultiplyI64, 88),
+    (MachineAlternativeFamily::ExactRemainderU64, 89),
+    (MachineAlternativeFamily::WrappingSubtractI64, 90),
+    (MachineAlternativeFamily::WrappingMultiplyI64, 91),
+    (MachineAlternativeFamily::WrappingDivideI64, 92),
+    (MachineAlternativeFamily::BitwiseOrI64, 93),
+    (MachineAlternativeFamily::BitwiseNotI64, 94),
+    (MachineAlternativeFamily::SaveFloatingControl, 103),
+    (MachineAlternativeFamily::RestoreFloatingControl, 104),
+    (MachineAlternativeFamily::WrappingShiftLeftI64, 105),
+    (MachineAlternativeFamily::WrappingShiftRightI64, 106),
+    (MachineAlternativeFamily::WrappingShiftRightU64, 107),
+    (MachineAlternativeFamily::ExactShiftLeftI64, 108),
+    (MachineAlternativeFamily::ExactShiftRightI64, 109),
+    (MachineAlternativeFamily::ExactShiftRightU64, 110),
+    (MachineAlternativeFamily::ExactDivideI64, 112),
+    (MachineAlternativeFamily::ExactRemainderI64, 113),
+];
+
+#[test]
+fn alternative_family_tag_is_pinned_for_every_family() {
+    for (family, expected) in PINNED_ALTERNATIVE_FAMILY_TAGS {
+        assert_eq!(alternative_family_tag(family), expected, "{family:?}");
+    }
+    for semantic in MachineSemanticKind::ALL {
+        let family = MachineAlternativeFamily::from(semantic);
+        assert!(
+            PINNED_ALTERNATIVE_FAMILY_TAGS
+                .iter()
+                .any(|(pinned, _)| *pinned == family),
+            "{family:?} has no pinned identity tag",
+        );
+    }
+}
+
+#[test]
+fn machine_alternative_key_identity_bytes_are_pinned() {
+    for (family, tag) in PINNED_ALTERNATIVE_FAMILY_TAGS {
+        let mut bytes = Vec::new();
+        encode_machine_alternative_key_identity(
+            &mut bytes,
+            MachineAlternativeKey {
+                family,
+                variant: 0x0403_0201,
+            },
+        );
+        assert_eq!(bytes, vec![tag, 0x01, 0x02, 0x03, 0x04], "{family:?}");
+    }
+}
+
+fn pinned_effects(
+    memory: MachineEncodedMemoryEffect,
+    stack: MachineEncodedStackEffect,
+    trap: MachineEncodedTrapBehavior,
+    control: MachineEncodedControlEffect,
+) -> MachineEncodedEffects {
+    MachineEncodedEffects {
+        external_operand_reads: Vec::new(),
+        external_operand_writes: Vec::new(),
+        implicit_unit_uses: Vec::new(),
+        implicit_unit_defs: Vec::new(),
+        implicit_unit_clobbers: Vec::new(),
+        memory,
+        stack,
+        trap,
+        control,
+    }
+}
+
+/// Five empty lists, each written as a little-endian `u64` length.
+const EMPTY_LIST_PREFIX: [u8; 40] = [0; 40];
+
+fn encoded_identity(effects: &MachineEncodedEffects) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    encode_machine_encoded_effects_identity(&mut bytes, effects);
+    bytes
+}
+
+#[test]
+fn encoded_effect_lists_are_length_prefixed_in_pinned_order() {
+    let mut effects = pinned_effects(
+        MachineEncodedMemoryEffect::NoneV1,
+        MachineEncodedStackEffect::UnchangedV1,
+        MachineEncodedTrapBehavior::NeverV1,
+        MachineEncodedControlEffect::FallThroughV1,
+    );
+    effects.external_operand_reads = vec![0x0201];
+    effects.external_operand_writes = vec![0x0403, 0x0605];
+    effects.implicit_unit_uses = vec![RegisterUnitId(0x0807)];
+    effects.implicit_unit_defs = vec![RegisterUnitId(0x0a09)];
+    effects.implicit_unit_clobbers = vec![RegisterUnitId(0x0c0b)];
+    assert_eq!(
+        encoded_identity(&effects),
+        vec![
+            1, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x02, //
+            2, 0, 0, 0, 0, 0, 0, 0, 0x03, 0x04, 0x05, 0x06, //
+            1, 0, 0, 0, 0, 0, 0, 0, 0x07, 0x08, //
+            1, 0, 0, 0, 0, 0, 0, 0, 0x09, 0x0a, //
+            1, 0, 0, 0, 0, 0, 0, 0, 0x0b, 0x0c, //
+            0, 0, 0, 0,
+        ],
+    );
+}
+
+#[test]
+fn encoded_memory_effect_identity_bytes_are_pinned() {
+    let cases: [(MachineEncodedMemoryEffect, &[u8]); 11] = [
+        (MachineEncodedMemoryEffect::NoneV1, &[0]),
+        (
+            MachineEncodedMemoryEffect::ReadActivationStackV1 {
+                stack_pointer: RegisterViewId(0x0201),
+                byte_count: 0x0403,
+            },
+            &[1, 0x01, 0x02, 0x03, 0x04],
+        ),
+        (
+            MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                stack_pointer: RegisterViewId(0x0201),
+                byte_count: 0x0403,
+            },
+            &[2, 0x01, 0x02, 0x03, 0x04],
+        ),
+        (
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0x0201,
+                byte_count: 0x0403,
+            },
+            &[3, 0x01, 0x02, 0x03, 0x04],
+        ),
+        (
+            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                stack_pointer: RegisterViewId(0x0201),
+                byte_count: 0x0403,
+            },
+            &[4, 0x01, 0x02, 0x03, 0x04],
+        ),
+        (
+            MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
+                pointer_operand: 0x0201,
+                index_operand: 0x0403,
+                byte_count: 0x0605,
+            },
+            &[5, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+        ),
+        (
+            MachineEncodedMemoryEffect::HostedWriteByteV1 {
+                stack_pointer: RegisterViewId(0x0201),
+            },
+            &[6, 0x01, 0x02],
+        ),
+        (
+            MachineEncodedMemoryEffect::WritePointerV1 {
+                pointer_operand: 0x0201,
+            },
+            &[7, 0x01, 0x02],
+        ),
+        (
+            MachineEncodedMemoryEffect::HostedReadByteV1 {
+                stack_pointer: RegisterViewId(0x0201),
+            },
+            &[8, 0x01, 0x02],
+        ),
+        (
+            MachineEncodedMemoryEffect::CopyBytesV1 {
+                source_pointer_operand: 0x0201,
+                destination_pointer_operand: 0x0403,
+                count_operand: 0x0605,
+            },
+            &[9, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+        ),
+        (
+            MachineEncodedMemoryEffect::ReadFrameStorageV1 {
+                stack_pointer: RegisterViewId(0x0201),
+                byte_count: 0x0403,
+            },
+            &[10, 0x01, 0x02, 0x03, 0x04],
+        ),
+    ];
+    for (memory, expected) in cases {
+        let mut wanted = EMPTY_LIST_PREFIX.to_vec();
+        wanted.extend_from_slice(expected);
+        wanted.extend_from_slice(&[0, 0, 0]);
+        assert_eq!(
+            encoded_identity(&pinned_effects(
+                memory,
+                MachineEncodedStackEffect::UnchangedV1,
+                MachineEncodedTrapBehavior::NeverV1,
+                MachineEncodedControlEffect::FallThroughV1,
+            )),
+            wanted,
+            "{memory:?}",
+        );
+    }
+}
+
+#[test]
+fn encoded_stack_effect_identity_bytes_are_pinned() {
+    let cases: [(MachineEncodedStackEffect, &[u8]); 3] = [
+        (MachineEncodedStackEffect::UnchangedV1, &[0]),
+        (
+            MachineEncodedStackEffect::PopBytesV1 {
+                stack_pointer: RegisterViewId(0x0201),
+                byte_count: 0x0403,
+            },
+            &[1, 0x01, 0x02, 0x03, 0x04],
+        ),
+        (
+            MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                stack_pointer: RegisterViewId(0x0201),
+                return_address_byte_count: 0x0403,
+            },
+            &[2, 0x01, 0x02, 0x03, 0x04],
+        ),
+    ];
+    for (stack, expected) in cases {
+        let mut wanted = EMPTY_LIST_PREFIX.to_vec();
+        wanted.push(0);
+        wanted.extend_from_slice(expected);
+        wanted.extend_from_slice(&[0, 0]);
+        assert_eq!(
+            encoded_identity(&pinned_effects(
+                MachineEncodedMemoryEffect::NoneV1,
+                stack,
+                MachineEncodedTrapBehavior::NeverV1,
+                MachineEncodedControlEffect::FallThroughV1,
+            )),
+            wanted,
+            "{stack:?}",
+        );
+    }
+}
+
+#[test]
+fn encoded_trap_behavior_identity_bytes_are_pinned() {
+    let cases: [(MachineEncodedTrapBehavior, u8); 6] = [
+        (MachineEncodedTrapBehavior::NeverV1, 0),
+        (MachineEncodedTrapBehavior::MayArchitecturalFaultV1, 1),
+        (MachineEncodedTrapBehavior::HostedWriteFailureV1, 2),
+        (MachineEncodedTrapBehavior::HostedExitReturnedV1, 3),
+        (MachineEncodedTrapBehavior::HostedReadFailureV1, 4),
+        (MachineEncodedTrapBehavior::ExplicitCrashV1, 5),
+    ];
+    for (trap, expected) in cases {
+        let mut wanted = EMPTY_LIST_PREFIX.to_vec();
+        wanted.extend_from_slice(&[0, 0, expected, 0]);
+        assert_eq!(
+            encoded_identity(&pinned_effects(
+                MachineEncodedMemoryEffect::NoneV1,
+                MachineEncodedStackEffect::UnchangedV1,
+                trap,
+                MachineEncodedControlEffect::FallThroughV1,
+            )),
+            wanted,
+            "{trap:?}",
+        );
+    }
+}
+
+#[test]
+fn encoded_control_effect_identity_bytes_are_pinned() {
+    let cases: [(MachineEncodedControlEffect, &[u8]); 10] = [
+        (MachineEncodedControlEffect::FallThroughV1, &[0]),
+        (
+            MachineEncodedControlEffect::ConditionalRelativeBranchV1,
+            &[1],
+        ),
+        (
+            MachineEncodedControlEffect::ReturnFromActivationStackV1,
+            &[2],
+        ),
+        (
+            MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                target: RegisterViewId(0x0201),
+            },
+            &[3, 0x01, 0x02],
+        ),
+        (MachineEncodedControlEffect::DirectRelativeCallV1, &[4]),
+        (
+            MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
+            &[5],
+        ),
+        (MachineEncodedControlEffect::HostedWriteReturnOrTrapV1, &[6]),
+        (MachineEncodedControlEffect::HostedExitOrTrapV1, &[7]),
+        (MachineEncodedControlEffect::HostedReadReturnOrTrapV1, &[8]),
+        (MachineEncodedControlEffect::CrashV1, &[9]),
+    ];
+    for (control, expected) in cases {
+        let mut wanted = EMPTY_LIST_PREFIX.to_vec();
+        wanted.extend_from_slice(&[0, 0, 0]);
+        wanted.extend_from_slice(expected);
+        assert_eq!(
+            encoded_identity(&pinned_effects(
+                MachineEncodedMemoryEffect::NoneV1,
+                MachineEncodedStackEffect::UnchangedV1,
+                MachineEncodedTrapBehavior::NeverV1,
+                control,
+            )),
+            wanted,
+            "{control:?}",
+        );
+    }
+}
+
+/// The pinned tail of an alternative whose encoded effects are all empty or
+/// `None`: five empty lists then the four neutral effect tags.
+fn pinned_neutral_effects_tail() -> Vec<u8> {
+    let mut tail = EMPTY_LIST_PREFIX.to_vec();
+    tail.extend_from_slice(&[0, 0, 0, 0]);
+    tail
+}
+
+fn pinned_alternative(
+    applicability: MachineAlternativeApplicability,
+    size: MachineSizeKnowledge,
+) -> MachineAlternative {
+    MachineAlternative {
+        key: MachineAlternativeKey {
+            family: MachineAlternativeFamily::CompareI64Zero,
+            variant: 0x0403_0201,
+        },
+        applicability,
+        size,
+        latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+        encoded: pinned_effects(
+            MachineEncodedMemoryEffect::NoneV1,
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::NeverV1,
+            MachineEncodedControlEffect::FallThroughV1,
+        ),
+    }
+}
+
+#[test]
+fn machine_alternative_identity_bytes_are_pinned_for_every_variant() {
+    // Expected bytes ported from the copy of this body that
+    // `physical_instructions::identity` carried before de-duplication: family
+    // tag, little-endian variant, applicability, size, latency, encoded
+    // effects.
+    let applicabilities: [(MachineAlternativeApplicability, &[u8]); 6] = [
+        (MachineAlternativeApplicability::Always, &[0]),
+        (
+            MachineAlternativeApplicability::ResultAliasesOperand {
+                result: 0x0201,
+                operand: 0x0403,
+            },
+            &[1, 0x01, 0x02, 0x03, 0x04],
+        ),
+        (
+            MachineAlternativeApplicability::ResultAliasesOperandAndDistinctFromOperand {
+                result: 0x0201,
+                aliased_operand: 0x0403,
+                distinct_operand: 0x0605,
+            },
+            &[2, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+        ),
+        (
+            MachineAlternativeApplicability::ResultAliasesOperands {
+                result: 0x0201,
+                left: 0x0403,
+                right: 0x0605,
+            },
+            &[3, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+        ),
+        (
+            MachineAlternativeApplicability::ResultDistinctFromOperands {
+                result: 0x0201,
+                left: 0x0403,
+                right: 0x0605,
+            },
+            &[4, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+        ),
+        (
+            MachineAlternativeApplicability::AtLeastOneOperandDoesNotAliasView {
+                left: 0x0201,
+                right: 0x0403,
+                excluded_view: RegisterViewId(0x0605),
+            },
+            &[5, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06],
+        ),
+    ];
+    let sizes: [(MachineSizeKnowledge, &[u8]); 3] = [
+        (MachineSizeKnowledge::ExactBytes(0x0201), &[0, 0x01, 0x02]),
+        (
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 0x0201,
+                maximum_bytes: None,
+            },
+            &[1, 0x01, 0x02, 0],
+        ),
+        (
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 0x0201,
+                maximum_bytes: Some(0x0403),
+            },
+            &[1, 0x01, 0x02, 1, 0x03, 0x04],
+        ),
+    ];
+    for (applicability, applicability_bytes) in applicabilities {
+        for (size, size_bytes) in sizes {
+            let mut expected = vec![
+                alternative_family_tag(MachineAlternativeFamily::CompareI64Zero),
+                0x01,
+                0x02,
+                0x03,
+                0x04,
+            ];
+            expected.extend_from_slice(applicability_bytes);
+            expected.extend_from_slice(size_bytes);
+            // Latency: the only knowledge variant.
+            expected.push(0);
+            expected.extend_from_slice(&pinned_neutral_effects_tail());
+            let mut bytes = Vec::new();
+            encode_machine_alternative_identity(
+                &mut bytes,
+                &pinned_alternative(applicability, size),
+            );
+            assert_eq!(bytes, expected, "{applicability:?} {size:?}");
+        }
     }
 }

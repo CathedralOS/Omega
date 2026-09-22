@@ -40,13 +40,6 @@ pub(super) fn encode_ids(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Ite
     }
 }
 
-pub(super) fn encode_u16s(bytes: &mut Vec<u8>, values: &[u16]) {
-    encode_len(bytes, values.len());
-    for value in values {
-        bytes.extend_from_slice(&value.to_le_bytes());
-    }
-}
-
 pub(super) fn encode_len(bytes: &mut Vec<u8>, length: usize) {
     bytes.extend_from_slice(&(length as u64).to_le_bytes());
 }

@@ -49,7 +49,7 @@ pub use evidence::{
 pub use graph::{
     EffectLink, FuelSettlement, OptimizationBlock, OptimizationEdge, OptimizationFact,
     OptimizationNode, OwnershipEvent, PsiOptimizationFunction, PsiProvenance, ValueDefinition,
-    ValueDefinitionSite, ValueUse,
+    ValueDefinitionSite, ValueUse, encode_value_definition_site_identity,
 };
 pub use identity::{recompute_psi_optimization_unit_identity, structural_domain_catalog_identity};
 pub use ledger::{

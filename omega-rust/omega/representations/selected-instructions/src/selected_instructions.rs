@@ -53,10 +53,12 @@ pub use effects::{
     MachineBarrier, MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog,
     MachineEffectCatalogIdentity, MachineEffectCatalogValidationError, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
-    PreAllocationMachineEffectPlan, ValidatedMachineEffectCatalog, machine_effect_catalog_identity,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineIdentityBytes,
+    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
+    MachineTrapBehavior, PreAllocationMachineEffectDecodeError, PreAllocationMachineEffectIdentity,
+    PreAllocationMachineEffectPlan, ValidatedMachineEffectCatalog, alternative_family_tag,
+    encode_machine_alternative_identity, encode_machine_alternative_key_identity,
+    encode_machine_encoded_effects_identity, machine_effect_catalog_identity,
     pre_allocation_machine_effect_identity, saturating_family_tag, validate_machine_effect_catalog,
 };
 pub use identity::{

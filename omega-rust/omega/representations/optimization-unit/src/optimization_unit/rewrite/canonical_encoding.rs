@@ -3,6 +3,17 @@
 use super::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, ScalarType, ValueDefinitionSite,
 };
+/// The rewrite-candidate definition-site table, which is **not** the canonical
+/// [`super::ValueDefinitionSite`] identity encoding.
+///
+/// These tags are one-based (`1`/`2`/`3`) while
+/// [`crate::encode_value_definition_site_identity`] is zero-based (`0`/`1`/`2`),
+/// matching the one-based convention the rest of this file uses for scalar
+/// types, integer types and integer values. Both tables are already baked into
+/// ratified identities — rewrite candidates and transformation-ledger records
+/// on one side, plan and artifact identities on the other — so they cannot be
+/// merged without changing one of them. Keep this copy, and do not "fix" the
+/// off-by-one.
 pub(super) fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
     match site {
         ValueDefinitionSite::FunctionParameter(position) => {

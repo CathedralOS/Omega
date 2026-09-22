@@ -237,25 +237,6 @@ pub(super) fn decode_origin(
     }
 }
 
-pub(super) fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
-    match site {
-        ValueDefinitionSite::FunctionParameter(position) => {
-            bytes.push(0);
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::BlockParameter { block, position } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::Node { block, node } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&node.to_le_bytes());
-        }
-    }
-}
-
 pub(super) fn decode_definition_site(
     cursor: &mut Cursor<'_>,
 ) -> Result<ValueDefinitionSite, LogicalSpillOperationDecodeError> {

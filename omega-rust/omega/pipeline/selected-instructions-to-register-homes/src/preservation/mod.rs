@@ -24,6 +24,7 @@ pub use register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
     AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
+    encode_callee_saved_modification_witness_identity,
 };
 use register_model::FrameAbiPreservationConvention;
 use register_model::{PhysicalRegisterModelIdentity, TargetRegisterEnvironmentIdentity};

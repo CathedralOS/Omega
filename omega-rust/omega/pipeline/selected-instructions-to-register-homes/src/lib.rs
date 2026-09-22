@@ -120,7 +120,8 @@ pub use preservation::{
     AllocatedCalleeSavedRequirementReceipt, AllocatedCalleeSavedUnitRequirement,
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
     ValidatedAllocatedCalleeSavedRequirements, allocated_callee_saved_requirement_identity,
-    stage_allocated_callee_saved_requirements, validate_allocated_callee_saved_requirements,
+    encode_callee_saved_modification_witness_identity, stage_allocated_callee_saved_requirements,
+    validate_allocated_callee_saved_requirements,
 };
 
 // Validated spill boundaries not yet sequenced by `stage_register_allocation`.

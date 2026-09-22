@@ -5,9 +5,9 @@ use crate::{
     AcceptedObligationFact, FuelSettlement, OptimizationEdge, OptimizationUnitIdentity,
     OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     ProofQuestion, ProofQuestionClass, ProofQuestionOwner, PrunedMachineCustody,
-    PsiOptimizationUnit, PsiProvenance, StructuralPlaceKind,
-    recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
-    structural_domain_catalog_identity,
+    PsiOptimizationUnit, PsiProvenance, StructuralPlaceKind, ValueDefinitionSite,
+    encode_value_definition_site_identity, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed, structural_domain_catalog_identity,
 };
 use abstract_operations::{AbstractFunctionResult, AbstractOperation, ValueBinding};
 use semantic_vocabulary::{
@@ -778,5 +778,43 @@ fn streamed_identity_matches_materialized_canonical_bytes() {
             OptimizationUnitIdentity::from_canonical_bytes(&catalog),
             structural_domain_catalog_identity(unit.structural_domains.as_ref()),
         );
+    }
+}
+
+#[test]
+fn value_definition_site_identity_bytes_are_pinned_for_every_variant() {
+    // Expected bytes ported from the seven copies of this encoder that
+    // selected-instructions, register-homes and legalized-operations carried
+    // before de-duplication. `BlockId` writes its nonzero `u64`; positions and
+    // node indices write a `u32`; both little-endian.
+    let block = BlockId::new(0x0807_0605_0403_0201).expect("block identity");
+    let cases: [(ValueDefinitionSite, &[u8]); 3] = [
+        (
+            ValueDefinitionSite::FunctionParameter(0x0403_0201),
+            &[0, 0x01, 0x02, 0x03, 0x04],
+        ),
+        (
+            ValueDefinitionSite::BlockParameter {
+                block,
+                position: 0x0c0b_0a09,
+            },
+            &[
+                1, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
+            ],
+        ),
+        (
+            ValueDefinitionSite::Node {
+                block,
+                node: 0x0c0b_0a09,
+            },
+            &[
+                2, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
+            ],
+        ),
+    ];
+    for (site, expected) in cases {
+        let mut bytes = Vec::new();
+        encode_value_definition_site_identity(&mut bytes, site);
+        assert_eq!(bytes, expected, "{site:?}");
     }
 }

@@ -1,4 +1,4 @@
-use optimization_unit::ValueDefinitionSite;
+use optimization_unit::encode_value_definition_site_identity;
 use register_model::{RegisterConstraintFamily, RegisterOperandAccess};
 use selected_instructions::{
     FixedViewCopyIdentity, VirtualFixedConstraintSite, selected_instruction_plan_identity,
@@ -29,7 +29,7 @@ pub fn fixed_view_copy_identity(plan: &FixedViewCopyPlan) -> FixedViewCopyIdenti
         bytes.extend_from_slice(&copy.machine.get().to_le_bytes());
         bytes.extend_from_slice(&copy.source_virtual_register.0.to_le_bytes());
         bytes.extend_from_slice(&copy.source_value.get().to_le_bytes());
-        encode_definition_site(&mut bytes, copy.source_definition_site);
+        encode_value_definition_site_identity(&mut bytes, copy.source_definition_site);
         bytes.extend_from_slice(&copy.from_view.0.to_le_bytes());
         bytes.extend_from_slice(&copy.to_view.0.to_le_bytes());
         bytes.extend_from_slice(&copy.insertion_block.0.to_le_bytes());
@@ -61,25 +61,6 @@ fn encode_source_evidence(bytes: &mut Vec<u8>, evidence: FixedViewCopySourceEvid
             bytes.extend_from_slice(&fixed_intervals.bytes());
             bytes.extend_from_slice(&split_requirements.bytes());
             bytes.extend_from_slice(&segment_homes.bytes());
-        }
-    }
-}
-
-fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
-    match site {
-        ValueDefinitionSite::FunctionParameter(position) => {
-            bytes.push(0);
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::BlockParameter { block, position } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::Node { block, node } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&node.to_le_bytes());
         }
     }
 }

@@ -4,11 +4,13 @@ use semantic_vocabulary::{MachineId, ValueId};
 
 use crate::{FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination};
 
+use optimization_unit::encode_value_definition_site_identity;
+
 use super::{
     primitives::{Cursor, decode_id, length},
     values::{
         decode_constraint_key, decode_definition_site, decode_fixed_site, encode_constraint_key,
-        encode_definition_site, encode_fixed_site,
+        encode_fixed_site,
     },
 };
 
@@ -17,7 +19,7 @@ pub(super) fn encode_copy(bytes: &mut Vec<u8>, copy: &FixedViewCopy) {
     bytes.extend_from_slice(&copy.machine.get().to_le_bytes());
     bytes.extend_from_slice(&copy.source_virtual_register.0.to_le_bytes());
     bytes.extend_from_slice(&copy.source_value.get().to_le_bytes());
-    encode_definition_site(bytes, copy.source_definition_site);
+    encode_value_definition_site_identity(bytes, copy.source_definition_site);
     bytes.extend_from_slice(&copy.from_view.0.to_le_bytes());
     bytes.extend_from_slice(&copy.to_view.0.to_le_bytes());
     bytes.extend_from_slice(&copy.insertion_block.0.to_le_bytes());

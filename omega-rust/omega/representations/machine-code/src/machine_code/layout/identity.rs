@@ -1,10 +1,5 @@
 //! Exact identity of the function-relative bytes, layout, and replay inputs.
 
-use selected_instructions::{
-    MachineAlternativeKey, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    SaturatingOperation,
-};
 use sha2::{Digest, Sha256};
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -91,7 +86,10 @@ pub fn resolved_machine_layout_identity(
             hasher.update((block.instructions.len() as u64).to_le_bytes());
             for instruction in &block.instructions {
                 hasher.update(instruction.instruction.0.to_le_bytes());
-                encode_alternative(&mut hasher, instruction.alternative);
+                selected_instructions::encode_machine_alternative_key_identity(
+                    &mut hasher,
+                    instruction.alternative,
+                );
                 hasher.update(instruction.offset.to_le_bytes());
                 hasher.update((instruction.bytes.len() as u64).to_le_bytes());
                 hasher.update(&instruction.bytes);
@@ -113,7 +111,10 @@ pub fn resolved_machine_layout_identity(
                         hasher.update(branch.when_fallthrough_offset.to_le_bytes());
                         hasher.update(branch.byte_displacement.to_le_bytes());
                         encode_views(&mut hasher, &branch.decoded_register_reads);
-                        encode_effects(&mut hasher, &branch.decoded_effects);
+                        selected_instructions::encode_machine_encoded_effects_identity(
+                            &mut hasher,
+                            &branch.decoded_effects,
+                        );
                     }
                     Some(super::ResolvedBranchEvidence::Jump(jump)) => {
                         hasher.update([2]);
@@ -122,7 +123,10 @@ pub fn resolved_machine_layout_identity(
                         hasher.update(jump.target_block.0.to_le_bytes());
                         hasher.update(jump.target_offset.to_le_bytes());
                         hasher.update(jump.byte_displacement.to_le_bytes());
-                        encode_effects(&mut hasher, &jump.decoded_effects);
+                        selected_instructions::encode_machine_encoded_effects_identity(
+                            &mut hasher,
+                            &jump.decoded_effects,
+                        );
                     }
                 }
                 encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup);
@@ -154,241 +158,6 @@ fn encode_internal_fixup(hasher: &mut Sha256, fixup: Option<SelectedFormInternal
 }
 
 fn encode_views(hasher: &mut Sha256, values: &[register_model::RegisterViewId]) {
-    hasher.update((values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(value.0.to_le_bytes());
-    }
-}
-
-fn encode_alternative(hasher: &mut Sha256, alternative: MachineAlternativeKey) {
-    use selected_instructions::MachineAlternativeFamily as Family;
-    hasher.update([match alternative.family {
-        Family::CompareI64Zero => 0,
-        Family::Crash => 111,
-        Family::MaterializeI64 => 1,
-        Family::CopyI64 => 2,
-        Family::Float32ToBits => 26,
-        Family::Float64ToBits => 27,
-        Family::BitsToFloat32 => 28,
-        Family::BitsToFloat64 => 29,
-        Family::ZeroExtendU8 => 15,
-        Family::ZeroExtendU32 => 20,
-        Family::ZeroExtendU16 => 37,
-        Family::SignExtendI8 => 38,
-        Family::SignExtendI16 => 39,
-        Family::SignExtendI32 => 40,
-        Family::MaterializeBooleanEqual => 41,
-        Family::MaterializeBooleanU64LessThan => 42,
-        Family::MaterializeBooleanI64LessThan => 43,
-        Family::MaterializeBooleanU64LessOrEqual => 44,
-        Family::MaterializeBooleanI64LessOrEqual => 45,
-        Family::ExactAddI64 => 3,
-        Family::ExactAddI64Immediate => 4,
-        Family::ExactSubtractI64 => 5,
-        Family::ConditionalBranchNonZero => 6,
-        Family::ReturnScalar => 7,
-        Family::ExactSubtractI64Immediate => 8,
-        Family::ReturnUnit => 9,
-        Family::CompareI64 => 10,
-        Family::CompareI64Immediate => 53,
-        Family::ConditionalBranchU64LessThan => 11,
-        Family::ConditionalBranchI64LessThan => 12,
-        Family::CallScalar => 13,
-        Family::Jump => 14,
-        Family::Store => 24,
-        Family::AddressOffset => 25,
-        Family::Load64 => 16,
-        Family::LoadPacked3 => 46,
-        Family::LoadPacked5 => 47,
-        Family::LoadPacked6 => 48,
-        Family::LoadPacked7 => 49,
-        Family::StorePacked => 50,
-        Family::BitwiseAndI64 => 51,
-        Family::BitwiseXorI64 => 52,
-        Family::ExactDivideU64 => 56,
-        Family::WrappingRemainderI64 => 57,
-        Family::WrappingAddI64 => 58,
-        Family::SaturatingAdd(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Add, carrier)
-        }
-        Family::SaturatingSubtract(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Subtract, carrier)
-        }
-        Family::SaturatingDivide(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Divide, carrier)
-        }
-        Family::SaturatingRemainder(carrier) => {
-            selected_instructions::saturating_family_tag(SaturatingOperation::Remainder, carrier)
-        }
-        Family::Load8 => 33,
-        Family::Load16 => 34,
-        Family::Load32 => 30,
-        Family::HostedExitProcessI32 => 31,
-        Family::HostedReadByte => 32,
-        Family::HostedWriteByteI32 => 23,
-        Family::ByteViewAddress => 22,
-        Family::Load8Indexed => 21,
-        Family::CopyBytes => 59,
-        Family::Store64 => 17,
-        Family::FrameAddress => 18,
-        Family::CallUnit => 19,
-        Family::CallAggregate => 35,
-        Family::ReturnAggregate => 36,
-        Family::NormalizedForeignCall => 87,
-        Family::ExactMultiplyI64 => 88,
-        Family::ExactRemainderU64 => 89,
-        Family::WrappingSubtractI64 => 90,
-        Family::WrappingMultiplyI64 => 91,
-        Family::WrappingDivideI64 => 92,
-        Family::ExactDivideI64 => 112,
-        Family::ExactRemainderI64 => 113,
-        Family::BitwiseOrI64 => 93,
-        Family::BitwiseNotI64 => 94,
-        Family::SaveFloatingControl => 103,
-        Family::RestoreFloatingControl => 104,
-        Family::WrappingShiftLeftI64 => 105,
-        Family::WrappingShiftRightI64 => 106,
-        Family::WrappingShiftRightU64 => 107,
-        Family::ExactShiftLeftI64 => 108,
-        Family::ExactShiftRightI64 => 109,
-        Family::ExactShiftRightU64 => 110,
-    }]);
-    hasher.update(alternative.variant.to_le_bytes());
-}
-
-fn encode_effects(hasher: &mut Sha256, effects: &MachineEncodedEffects) {
-    encode_u16s(hasher, &effects.external_operand_reads);
-    encode_u16s(hasher, &effects.external_operand_writes);
-    encode_units(hasher, &effects.implicit_unit_uses);
-    encode_units(hasher, &effects.implicit_unit_defs);
-    encode_units(hasher, &effects.implicit_unit_clobbers);
-    match effects.memory {
-        MachineEncodedMemoryEffect::CopyBytesV1 {
-            source_pointer_operand,
-            destination_pointer_operand,
-            count_operand,
-        } => {
-            hasher.update([9]);
-            hasher.update(source_pointer_operand.to_le_bytes());
-            hasher.update(destination_pointer_operand.to_le_bytes());
-            hasher.update(count_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
-            pointer_operand,
-            index_operand,
-            byte_count,
-        } => {
-            hasher.update([5]);
-            hasher.update(pointer_operand.to_le_bytes());
-            hasher.update(index_operand.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
-            hasher.update([8]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
-            hasher.update([6]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
-            hasher.update([7]);
-            hasher.update(pointer_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::NoneV1 => hasher.update([0]),
-        MachineEncodedMemoryEffect::ReadPointerV1 {
-            pointer_operand,
-            byte_count,
-        } => {
-            hasher.update([3]);
-            hasher.update(pointer_operand.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([4]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([10]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadActivationStackV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([1]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([2]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-    }
-    match effects.stack {
-        MachineEncodedStackEffect::UnchangedV1 => hasher.update([0]),
-        MachineEncodedStackEffect::PopBytesV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            hasher.update([1]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(byte_count.to_le_bytes());
-        }
-        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
-            stack_pointer,
-            return_address_byte_count,
-        } => {
-            hasher.update([2]);
-            hasher.update(stack_pointer.0.to_le_bytes());
-            hasher.update(return_address_byte_count.to_le_bytes());
-        }
-    }
-    hasher.update([match effects.trap {
-        MachineEncodedTrapBehavior::NeverV1 => 0,
-        MachineEncodedTrapBehavior::HostedExitReturnedV1 => 3,
-        MachineEncodedTrapBehavior::ExplicitCrashV1 => 5,
-        MachineEncodedTrapBehavior::HostedReadFailureV1 => 4,
-        MachineEncodedTrapBehavior::HostedWriteFailureV1 => 2,
-        MachineEncodedTrapBehavior::MayArchitecturalFaultV1 => 1,
-    }]);
-    match effects.control {
-        MachineEncodedControlEffect::HostedExitOrTrapV1 => hasher.update([7]),
-        MachineEncodedControlEffect::CrashV1 => hasher.update([9]),
-        MachineEncodedControlEffect::HostedReadReturnOrTrapV1 => hasher.update([8]),
-        MachineEncodedControlEffect::HostedWriteReturnOrTrapV1 => hasher.update([6]),
-        MachineEncodedControlEffect::FallThroughV1 => hasher.update([0]),
-        MachineEncodedControlEffect::ConditionalRelativeBranchV1 => hasher.update([1]),
-        MachineEncodedControlEffect::ReturnFromActivationStackV1 => hasher.update([2]),
-        MachineEncodedControlEffect::ReturnIndirectRegisterV1 { target } => {
-            hasher.update([3]);
-            hasher.update(target.0.to_le_bytes());
-        }
-        MachineEncodedControlEffect::DirectRelativeCallV1 => hasher.update([4]),
-        MachineEncodedControlEffect::UnconditionalRelativeBranchV1 => hasher.update([5]),
-    }
-}
-
-fn encode_u16s(hasher: &mut Sha256, values: &[u16]) {
-    hasher.update((values.len() as u64).to_le_bytes());
-    for value in values {
-        hasher.update(value.to_le_bytes());
-    }
-}
-
-fn encode_units(hasher: &mut Sha256, values: &[register_model::RegisterUnitId]) {
     hasher.update((values.len() as u64).to_le_bytes());
     for value in values {
         hasher.update(value.0.to_le_bytes());

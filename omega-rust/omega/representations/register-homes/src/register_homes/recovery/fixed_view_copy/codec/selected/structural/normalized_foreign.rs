@@ -12,7 +12,7 @@ use calling_conventions::{
     BoundaryEntryPlan, CallbackBinderRequirement, CallbackMaterializationContext,
     CallbackRequirementId, EntryStack, MachineRegime, MachineState, MachineStateSet,
     NativeCallbackDemand, NativeParameterApplication, NativeParameterId, Preemption, StatePlan,
-    StaticMachineBinderId,
+    StaticMachineBinderId, encode_state_plan_identity,
 };
 use function_identity::{MachineFunctionIdentity, StateKey};
 use legalized_operations::LegalizedNormalizedForeignCall;
@@ -152,7 +152,7 @@ fn encode_native_callback_argument(bytes: &mut Vec<u8>, callback: &TargetNativeC
     encode_shape(bytes, callback.application.shape);
     encode_placement(bytes, &callback.application.placement);
     encode_call_plan(bytes, &callback.registrar_boundary_entry_plan.call);
-    encode_state_plan(bytes, &callback.registrar_boundary_entry_plan.state);
+    encode_state_plan_identity(bytes, &callback.registrar_boundary_entry_plan.state);
     length(bytes, callback.registrar_context.binders.len());
     for row in &callback.registrar_context.binders {
         bytes.extend_from_slice(&row.binder.get().to_le_bytes());
@@ -258,7 +258,7 @@ fn decode_machine_function_identity(
 fn encode_call_binding(bytes: &mut Vec<u8>, binding: &NormalizedForeignCallBinding) {
     encode_locator(bytes, &binding.locator);
     encode_call_plan(bytes, &binding.boundary_entry_plan.call);
-    encode_state_plan(bytes, &binding.boundary_entry_plan.state);
+    encode_state_plan_identity(bytes, &binding.boundary_entry_plan.state);
     let contribution = &binding.same_stack_contribution;
     bytes.extend_from_slice(
         &contribution
@@ -393,41 +393,6 @@ fn encode_coordinate(bytes: &mut Vec<u8>, coordinate: &[u8]) {
 fn decode_coordinate(cursor: &mut Cursor<'_>) -> Result<Vec<u8>, FixedViewCopyDecodeError> {
     let count = cursor.length()?;
     Ok(cursor.take(count)?.to_vec())
-}
-
-fn encode_state_plan(bytes: &mut Vec<u8>, state: &StatePlan) {
-    match state.initial_regime {
-        MachineRegime::X86Long64 => bytes.push(1),
-        MachineRegime::Aarch64A64 { exception_level } => {
-            bytes.push(2);
-            bytes.push(exception_level);
-        }
-    }
-    for set in [
-        state.interrupted_state,
-        state.saved_state,
-        state.restored_state,
-        state.permitted_transitive_use,
-    ] {
-        bytes.extend_from_slice(&set.bits().to_le_bytes());
-    }
-    match state.stack {
-        EntryStack::Interrupted => bytes.push(1),
-        EntryStack::Dedicated { class } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&class.to_le_bytes());
-        }
-        EntryStack::ProviderSelected => bytes.push(3),
-    }
-    match state.preemption {
-        Preemption::NotApplicable => bytes.push(1),
-        Preemption::Masked => bytes.push(2),
-        Preemption::Nestable { maximum_depth } => {
-            bytes.push(3);
-            bytes.extend_from_slice(&maximum_depth.to_le_bytes());
-        }
-        Preemption::ProviderDefined => bytes.push(4),
-    }
 }
 
 fn decode_state_plan(cursor: &mut Cursor<'_>) -> Result<StatePlan, FixedViewCopyDecodeError> {
@@ -630,8 +595,9 @@ mod tests {
     use super::{
         decode_call_binding, decode_locator, decode_normalized_foreign_call, decode_scalar_source,
         decode_state_plan, encode_call_binding, encode_call_plan, encode_coordinate,
-        encode_locator, encode_normalized_foreign_call, encode_state_plan, encode_string,
+        encode_locator, encode_normalized_foreign_call, encode_string,
     };
+    use calling_conventions::encode_state_plan_identity;
     use calling_conventions::{CallSignature, CallingPolicy, ValueLocation, ValueShape};
     use legalized_operations::LegalizedNormalizedForeignCall;
     use optimization_unit::EffectLink;
@@ -869,7 +835,7 @@ mod tests {
         let mut prefix = Vec::new();
         encode_locator(&mut prefix, &binding.locator);
         encode_call_plan(&mut prefix, &binding.boundary_entry_plan.call);
-        encode_state_plan(&mut prefix, &binding.boundary_entry_plan.state);
+        encode_state_plan_identity(&mut prefix, &binding.boundary_entry_plan.state);
         let contribution_offset = prefix.len();
         let mut bytes = Vec::new();
         encode_call_binding(&mut bytes, &binding);

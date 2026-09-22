@@ -1,4 +1,4 @@
-use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
+use optimization_unit::{FuelSettlement, PsiProvenance, encode_value_definition_site_identity};
 use selected_instructions::{SelectedInstructionProvenance, VirtualRegisterOrigin};
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 use sha2::{Digest, Sha256};
@@ -59,7 +59,7 @@ pub(crate) fn encode_terminal_recovery_classification_content(
             match row.definition_site {
                 Some(site) => {
                     bytes.push(1);
-                    encode_definition_site(&mut bytes, site);
+                    encode_value_definition_site_identity(&mut bytes, site);
                 }
                 None => bytes.push(0),
             }
@@ -220,25 +220,6 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: VirtualRegisterOrigin) {
             bytes.push(1);
             bytes.extend_from_slice(&instruction.0.to_le_bytes());
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
-        }
-    }
-}
-
-fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
-    match site {
-        ValueDefinitionSite::FunctionParameter(position) => {
-            bytes.push(0);
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::BlockParameter { block, position } => {
-            bytes.push(1);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&position.to_le_bytes());
-        }
-        ValueDefinitionSite::Node { block, node } => {
-            bytes.push(2);
-            bytes.extend_from_slice(&block.get().to_le_bytes());
-            bytes.extend_from_slice(&node.to_le_bytes());
         }
     }
 }

@@ -5,7 +5,6 @@ use crate::{
 
 use crate::{InstructionMachineEffects, SaturatingOperation, saturating_family_tag};
 
-use super::alternative::encode_alternative;
 use super::provenance::encode_provenance;
 use super::values::{encode_constraint_key, encode_len, encode_units};
 
@@ -82,7 +81,7 @@ fn encode_provenance_and_alternatives(
     encode_provenance(bytes, &instruction.provenance);
     encode_len(bytes, instruction.alternatives.len());
     for alternative in &instruction.alternatives {
-        encode_alternative(bytes, alternative);
+        crate::encode_machine_alternative_identity(bytes, alternative);
     }
 }
 

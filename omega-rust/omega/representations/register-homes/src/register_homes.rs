@@ -57,6 +57,7 @@ pub use preservation::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
     AllocatedCalleeSavedRequirementPolicy, AllocatedCalleeSavedUnitRequirement,
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
+    encode_callee_saved_modification_witness_identity,
 };
 pub use recovery::{
     FixedViewCopy, FixedViewCopyDecodeError, FixedViewCopyDestination, FixedViewCopyPlan,
