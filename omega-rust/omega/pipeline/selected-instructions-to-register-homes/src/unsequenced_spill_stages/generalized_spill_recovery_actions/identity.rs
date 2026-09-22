@@ -2,7 +2,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryActionIdentity, GeneralizedSpillRecoveryActionPlan,
     GeneralizedSpillRecoveryActionPolicy, GeneralizedSpillRecoveryVictim,
 };
@@ -105,7 +105,10 @@ fn optional_identity(bytes: &mut Vec<u8>, identity: Option<[u8; 32]>) {
     }
 }
 
-fn action_id(bytes: &mut Vec<u8>, action: crate::GeneralizedSpillActionId) {
+fn action_id(
+    bytes: &mut Vec<u8>,
+    action: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
+) {
     bytes.extend_from_slice(&action.epoch.to_le_bytes());
     bytes.extend_from_slice(&action.ordinal.to_le_bytes());
 }

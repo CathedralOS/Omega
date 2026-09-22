@@ -2,11 +2,14 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillAreaReload, AbstractSpillAreaSlot, AbstractSpillAreaStore,
     AbstractSpillInsertionAction, AbstractSpillInsertionError, AbstractSpillInsertionPlan,
-    AbstractSpillInsertionPolicy, FunctionAbstractSpillInsertion, LogicalSpillAction,
-    StackSlotAssignment, ValidatedLogicalSpillOperations, ValidatedStackSlotColoring,
+    AbstractSpillInsertionPolicy, FunctionAbstractSpillInsertion,
+};
+use crate::{
+    LogicalSpillAction, StackSlotAssignment, ValidatedLogicalSpillOperations,
+    ValidatedStackSlotColoring,
 };
 
 pub(super) fn compute(

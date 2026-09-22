@@ -28,7 +28,7 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             assert_eq!(first.receipt().usage(), EXACT_USAGE);
             assert_eq!(
                 first.receipt().identity(),
-                selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(
+                selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_memory_effect_plan_identity(
                     first.plan()
                 ),
             );
@@ -46,11 +46,11 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             for (effect, pseudo) in function.effects.iter().zip(&pseudos.instructions) {
                 assert_exact_effect(effect, pseudo, pseudos);
                 let (storage, write) = match effect {
-                    selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
                         storage,
                         ..
                     } => (*storage, true),
-                    selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Read {
                         storage,
                         ..
                     } => (*storage, false),
@@ -63,8 +63,8 @@ fn both_recursive_paths_project_exact_abstract_accesses_on_both_targets() {
             assert!(
                 function.effects.iter().any(|effect| matches!(
                     effect,
-                    selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
-                        source: selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
+                        source: selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoStoredValue::Original(
                             selected_instructions::VirtualRegisterId(6)
                         ),
                         ..

@@ -2,10 +2,11 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
-    GeneralizedSpillActionSource, LogicalSpillStorageClass, RecursiveSpillActionSource,
-    RecursiveSpillEvent, RecursiveSpillInsertionIdentity, RecursiveSpillInsertionPlan,
-    RecursiveSpillInsertionPolicy, RecursiveSpillStoredValue,
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
+    GeneralizedSpillActionSource, RecursiveSpillActionSource, RecursiveSpillEvent,
+    RecursiveSpillInsertionIdentity, RecursiveSpillInsertionPlan, RecursiveSpillInsertionPolicy,
+    RecursiveSpillStoredValue,
 };
 
 pub fn recursive_spill_insertion_identity(
@@ -176,12 +177,15 @@ fn stored_value(bytes: &mut Vec<u8>, value: RecursiveSpillStoredValue) {
     }
 }
 
-fn action(bytes: &mut Vec<u8>, id: crate::GeneralizedSpillActionId) {
+fn action(bytes: &mut Vec<u8>, id: crate::unsequenced_spill_stages::GeneralizedSpillActionId) {
     bytes.extend_from_slice(&id.epoch.to_le_bytes());
     bytes.extend_from_slice(&id.ordinal.to_le_bytes());
 }
 
-fn option_action(bytes: &mut Vec<u8>, id: Option<crate::GeneralizedSpillActionId>) {
+fn option_action(
+    bytes: &mut Vec<u8>,
+    id: Option<crate::unsequenced_spill_stages::GeneralizedSpillActionId>,
+) {
     match id {
         None => bytes.push(0),
         Some(id) => {

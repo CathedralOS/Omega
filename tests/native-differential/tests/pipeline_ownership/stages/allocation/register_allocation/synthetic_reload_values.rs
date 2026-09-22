@@ -1,7 +1,7 @@
 //! Synthetic reload-value namespace custody after reload-home assignment.
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
-use selected_instructions_to_register_homes::{
+use selected_instructions_to_register_homes::unsequenced_spill_stages::{
     SyntheticReloadValueError, SyntheticReloadValueId, SyntheticReloadValuePlan,
     SyntheticReloadValuePolicy, ValidatedReloadValueHomes, ValidatedSyntheticReloadValues,
     bind_synthetic_reload_values, validate_synthetic_reload_values,
@@ -64,7 +64,7 @@ fn independent_replay_rejects_root_namespace_home_and_usage_corruption() {
 
         let mut root = canonical.clone();
         root.reload_value_homes =
-            selected_instructions_to_register_homes::ReloadValueHomeIdentity::from_bytes(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeIdentity::from_bytes(
                 [0x71; 32],
             );
         assert_eq!(

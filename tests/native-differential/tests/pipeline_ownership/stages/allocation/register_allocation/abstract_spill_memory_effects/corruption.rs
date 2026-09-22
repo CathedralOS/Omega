@@ -14,55 +14,55 @@ fn independent_replay_rejects_roots_geometry_views_lineage_and_order() {
             let source = build(constructor, target);
             let canonical = lower(&source, exact_budget()).unwrap().plan().clone();
             let identity =
-                selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(
+                selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_memory_effect_plan_identity(
                     &canonical,
                 );
             for corrupt in ROOT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(&changed),
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_memory_effect_plan_identity(&changed),
                     identity,
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(selected_instructions_to_register_homes::AbstractSpillMemoryEffectError::RootMismatch),
+                    Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectError::RootMismatch),
                 );
             }
             for corrupt in EFFECT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(&changed),
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_memory_effect_plan_identity(&changed),
                     identity,
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(selected_instructions_to_register_homes::AbstractSpillMemoryEffectError::NonCanonicalFunctions),
+                    Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectError::NonCanonicalFunctions),
                 );
             }
             let mut usage = canonical;
             usage.usage.validation_steps += 1;
             assert_ne!(
-                selected_instructions_to_register_homes::abstract_spill_memory_effect_plan_identity(
+                selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_memory_effect_plan_identity(
                     &usage
                 ),
                 identity,
             );
             assert_eq!(
                 validate(&source, usage),
-                Err(selected_instructions_to_register_homes::AbstractSpillMemoryEffectError::UsageMismatch),
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectError::UsageMismatch),
             );
         }
     }
 }
 
 const ROOT_MUTATIONS: [fn(
-    &mut selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlan,
+    &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectPlan,
 ); 5] = [
     |plan| {
         plan.homed_spill_pseudo_instructions =
-            selected_instructions_to_register_homes::HomedSpillPseudoInstructionPlanIdentity::from_bytes([0xd0; 32]);
+            selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstructionPlanIdentity::from_bytes([0xd0; 32]);
     },
     |plan| {
         plan.register_environment =
@@ -80,56 +80,56 @@ const ROOT_MUTATIONS: [fn(
 ];
 
 const EFFECT_MUTATIONS: [fn(
-    &mut selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlan,
+    &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectPlan,
 ); 9] = [
     |plan| match &mut plan.functions[0].effects[0] {
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
             source_view,
             ..
         } => source_view.0 += 1,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
             spill_area_offset,
             ..
         } => *spill_area_offset += 8,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
             size_bytes,
             ..
         } => *size_bytes += 8,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
             alignment_bytes,
             ..
         } => *alignment_bytes *= 2,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[2] {
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Read {
             destination_class,
             ..
         } => destination_class.0 += 1,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[2] {
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Read {
             destination_view,
             ..
         } => destination_view.0 += 1,
         _ => unreachable!(),
     },
     |plan| match &mut plan.functions[0].effects[0] {
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
             source,
             ..
         } => {
-            *source = selected_instructions_to_register_homes::SpillPseudoStoredValue::Original(
+            *source = selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoStoredValue::Original(
                 selected_instructions::VirtualRegisterId(99),
             );
         }

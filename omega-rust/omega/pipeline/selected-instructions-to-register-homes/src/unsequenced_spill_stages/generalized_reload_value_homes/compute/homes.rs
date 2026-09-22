@@ -7,10 +7,11 @@ use register_model::{
 };
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingHome, GeneralizedReloadCoexistingValue,
-    GeneralizedReloadValueHomeError, GeneralizedSpillActionId, LiveRangePoint, VirtualInterference,
+    GeneralizedReloadValueHomeError, GeneralizedSpillActionId,
 };
+use crate::{LiveRangePoint, VirtualInterference};
 
 use super::{ActiveHome, ReloadSpec};
 

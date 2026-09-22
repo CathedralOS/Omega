@@ -1,6 +1,6 @@
 //! Independent replay comparison and constraint receipt sealing.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessConstraintPlan,
     AbstractSpillAccessConstraintReceipt, AbstractSpillAccessDependencyReason,
     ValidatedAbstractSpillAccessConstraints, ValidatedAbstractSpillMemoryEffects,

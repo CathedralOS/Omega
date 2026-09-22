@@ -8,11 +8,14 @@ use register_model::{
     ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
 };
 
+use crate::unsequenced_spill_stages::{
+    ReloadValueHomeError, ReloadValueHomePolicy, SpillRecoveryEpoch, SpillRecoveryWorkItem,
+    SpillRecoveryWorklistError, SpillRecoveryWorklistPlan, SpillRecoveryWorklistPolicy,
+    SyntheticReloadValueId, ValidatedAbstractSpillInsertion,
+};
 use crate::{
-    LiveRangePoint, ReloadValueHomeError, ReloadValueHomePolicy, SpillRecoveryEpoch,
-    SpillRecoveryWorkItem, SpillRecoveryWorklistError, SpillRecoveryWorklistPlan,
-    SpillRecoveryWorklistPolicy, SyntheticReloadValueId, ValidatedAbstractSpillInsertion,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLogicalSpillOperations,
+    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedLogicalSpillOperations,
 };
 
 #[allow(clippy::too_many_arguments)]

@@ -6,13 +6,13 @@ use register_model::{
 };
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomePlan,
     GeneralizedReloadValueHomeReceipt, ValidatedAbstractSpillInsertion,
-    ValidatedAllocationLegality, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillInsertion, ValidatedLiveRanges, ValidatedSpillRecoveryActions,
-    generalized_reload_value_home_identity,
+    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
+    ValidatedSpillRecoveryActions, generalized_reload_value_home_identity,
 };
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_generalized_reload_value_homes(
@@ -84,7 +84,7 @@ pub fn validate_generalized_reload_value_homes(
         .filter(|outcome| {
             matches!(
                 outcome,
-                crate::GeneralizedReloadValueHomeOutcome::Assigned(_)
+                crate::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Assigned(_)
             )
         })
         .count();
@@ -95,19 +95,19 @@ pub fn validate_generalized_reload_value_homes(
         .filter(|outcome| {
             matches!(
                 outcome,
-                crate::GeneralizedReloadValueHomeOutcome::Pressure(_)
+                crate::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Pressure(_)
             )
         })
         .count();
     let retained_home_count = plan.functions.iter().try_fold(0_usize, |total, function| {
         function.outcomes.iter().try_fold(total, |total, outcome| {
             let count = match outcome {
-                crate::GeneralizedReloadValueHomeOutcome::Assigned(assignment) => {
-                    assignment.coexisting_homes.len()
-                }
-                crate::GeneralizedReloadValueHomeOutcome::Pressure(pressure) => {
-                    pressure.blocking_homes.len()
-                }
+                crate::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Assigned(
+                    assignment,
+                ) => assignment.coexisting_homes.len(),
+                crate::unsequenced_spill_stages::GeneralizedReloadValueHomeOutcome::Pressure(
+                    pressure,
+                ) => pressure.blocking_homes.len(),
             };
             total
                 .checked_add(count)

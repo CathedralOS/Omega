@@ -7,11 +7,12 @@ use register_model::{
 };
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomePolicy,
-    ValidatedAbstractSpillInsertion, ValidatedAllocationLegality,
-    ValidatedGeneralizedSpillInsertion, ValidatedLiveRanges, ValidatedSpillRecoveryActions,
+    ValidatedAbstractSpillInsertion, ValidatedGeneralizedSpillInsertion,
+    ValidatedSpillRecoveryActions,
 };
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn reconstruct(

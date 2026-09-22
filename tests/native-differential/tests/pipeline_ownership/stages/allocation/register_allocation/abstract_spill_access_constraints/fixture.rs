@@ -5,7 +5,7 @@ use super::super::{homed_spill_pseudo_instructions, recursive_reload_value_homes
 
 pub(super) struct ConstraintBundle {
     pub(super) effects:
-        selected_instructions_to_register_homes::ValidatedAbstractSpillMemoryEffects,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillMemoryEffects,
 }
 
 pub(super) fn build(
@@ -15,9 +15,9 @@ pub(super) fn build(
     let homed_source = homed_spill_pseudo_instructions::build(constructor, target);
     let homed =
         homed_spill_pseudo_instructions::lower(&homed_source, selected_lowering_budget()).unwrap();
-    let effects = selected_instructions_to_register_homes::derive_abstract_spill_memory_effects(
+    let effects = selected_instructions_to_register_homes::unsequenced_spill_stages::derive_abstract_spill_memory_effects(
         &homed,
-        selected_instructions_to_register_homes::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectPolicy::HomedPseudoReadWriteV1,
         OptimizationWorkBudget::new(7, 9, 15, 6, 10).unwrap(),
     )
     .unwrap();
@@ -28,24 +28,24 @@ pub(super) fn constrain(
     source: &ConstraintBundle,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints,
-    selected_instructions_to_register_homes::AbstractSpillAccessConstraintError,
-> {
-    selected_instructions_to_register_homes::constrain_abstract_spill_accesses(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillAccessConstraints,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintError,
+>{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::constrain_abstract_spill_accesses(
         &source.effects,
-        selected_instructions_to_register_homes::AbstractSpillAccessConstraintPolicy::BlockLocalDataBarrierAndOverlapV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintPolicy::BlockLocalDataBarrierAndOverlapV1,
         budget,
     )
 }
 
 pub(super) fn validate(
     source: &ConstraintBundle,
-    plan: selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlan,
+    plan: selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintPlan,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints,
-    selected_instructions_to_register_homes::AbstractSpillAccessConstraintError,
-> {
-    selected_instructions_to_register_homes::validate_abstract_spill_access_constraints(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillAccessConstraints,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintError,
+>{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::validate_abstract_spill_access_constraints(
         &source.effects,
         plan,
     )

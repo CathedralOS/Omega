@@ -2,10 +2,11 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
     HomedSpillPseudoInstruction, HomedSpillPseudoInstructionPlan,
     HomedSpillPseudoInstructionPlanIdentity, HomedSpillPseudoInstructionPolicy,
-    LogicalSpillStorageClass, SpillPseudoStoredValue,
+    SpillPseudoStoredValue,
 };
 
 pub fn homed_spill_pseudo_instruction_plan_identity(
@@ -119,16 +120,19 @@ fn stored_value(bytes: &mut Vec<u8>, value: SpillPseudoStoredValue) {
     }
 }
 
-fn action(bytes: &mut Vec<u8>, id: crate::GeneralizedSpillActionId) {
+fn action(bytes: &mut Vec<u8>, id: crate::unsequenced_spill_stages::GeneralizedSpillActionId) {
     bytes.extend_from_slice(&id.epoch.to_le_bytes());
     bytes.extend_from_slice(&id.ordinal.to_le_bytes());
 }
 
-fn pseudo(bytes: &mut Vec<u8>, id: crate::SpillPseudoInstructionId) {
+fn pseudo(bytes: &mut Vec<u8>, id: crate::unsequenced_spill_stages::SpillPseudoInstructionId) {
     bytes.extend_from_slice(&id.ordinal.to_le_bytes());
 }
 
-fn option_pseudo(bytes: &mut Vec<u8>, id: Option<crate::SpillPseudoInstructionId>) {
+fn option_pseudo(
+    bytes: &mut Vec<u8>,
+    id: Option<crate::unsequenced_spill_stages::SpillPseudoInstructionId>,
+) {
     match id {
         None => bytes.push(0),
         Some(id) => {

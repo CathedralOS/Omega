@@ -3,9 +3,9 @@ use selected_instructions::VirtualRegisterOrigin;
 use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
 use sha2::{Digest, Sha256};
 
-use crate::{
-    LogicalSpillStorageClass, SpillRecoveryActionIdentity, SpillRecoveryActionPlan,
-    SpillRecoveryActionPolicy,
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
+    SpillRecoveryActionIdentity, SpillRecoveryActionPlan, SpillRecoveryActionPolicy,
 };
 
 pub fn spill_recovery_action_identity(

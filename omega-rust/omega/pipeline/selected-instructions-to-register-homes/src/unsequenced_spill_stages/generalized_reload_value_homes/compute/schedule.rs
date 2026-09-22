@@ -4,11 +4,11 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{
+use crate::LiveRangePoint;
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeAssignment,
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomeOutcome,
     GeneralizedReloadValuePressure, GeneralizedSpillActionId, GeneralizedSpillActionSource,
-    LiveRangePoint,
 };
 
 use super::{ActiveHome, ReloadSpec, homes};
@@ -35,7 +35,7 @@ impl Event<'_> {
 pub(super) fn assign(
     function: usize,
     specs: &[ReloadSpec],
-    first: &crate::FunctionAbstractSpillInsertion,
+    first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     legality: &crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,

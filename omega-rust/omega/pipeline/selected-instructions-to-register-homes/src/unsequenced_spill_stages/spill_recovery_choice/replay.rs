@@ -6,11 +6,13 @@ use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::{RegisterClassId, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
-    LiveRangePoint, SpillRecoveryChoiceError, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy,
+use crate::unsequenced_spill_stages::{
+    SpillRecoveryChoiceError, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy,
     SpillRecoveryContender, SpillRecoveryResident, SpillRecoveryVictimChoice,
-    ValidatedAbstractSpillInsertion, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedSpillRecoveryWorklist, VirtualInterference,
+    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryWorklist,
+};
+use crate::{
+    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, VirtualInterference,
 };
 
 #[derive(Clone, Copy)]
@@ -98,7 +100,13 @@ pub(super) fn replay(
 fn replay_item<'a>(
     worklist: &'a ValidatedSpillRecoveryWorklist,
     insertion: &ValidatedAbstractSpillInsertion,
-) -> Result<(usize, &'a crate::SpillRecoveryWorkItem), SpillRecoveryChoiceError> {
+) -> Result<
+    (
+        usize,
+        &'a crate::unsequenced_spill_stages::SpillRecoveryWorkItem,
+    ),
+    SpillRecoveryChoiceError,
+> {
     if worklist.plan().epochs.len() != 1 {
         return Err(SpillRecoveryChoiceError::UnsupportedWorklistShape);
     }
@@ -132,8 +140,8 @@ fn replay_item<'a>(
 
 fn reconstruct(
     function: usize,
-    item: &crate::SpillRecoveryWorkItem,
-    action: &crate::AbstractSpillInsertionAction,
+    item: &crate::unsequenced_spill_stages::SpillRecoveryWorkItem,
+    action: &crate::unsequenced_spill_stages::AbstractSpillInsertionAction,
     legality: &crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,

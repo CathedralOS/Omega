@@ -2,17 +2,18 @@
 
 use std::collections::BTreeMap;
 
-use crate::{
+use crate::LiveRangePoint;
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedSpillActionId, GeneralizedSpillActionSource,
-    GeneralizedSpillEvent, LiveRangePoint, ValidatedSpillRecoveryActions,
+    GeneralizedSpillEvent, ValidatedSpillRecoveryActions,
 };
 
 use super::{ReplaySpec, homes};
 
 pub(super) fn index(
     function: usize,
-    generalized: &crate::FunctionGeneralizedSpillInsertion,
-    first: &crate::FunctionAbstractSpillInsertion,
+    generalized: &crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
+    first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     second: &ValidatedSpillRecoveryActions,
     legality: &crate::FunctionAllocationLegality,
 ) -> Result<Vec<ReplaySpec>, GeneralizedReloadValueHomeError> {
@@ -158,7 +159,7 @@ fn source_matches(
     function: usize,
     source: GeneralizedSpillActionSource,
     action: GeneralizedSpillActionId,
-    first: &crate::FunctionAbstractSpillInsertion,
+    first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     second: &ValidatedSpillRecoveryActions,
     victim: selected_instructions::VirtualRegisterId,
     victim_view: register_model::RegisterViewId,

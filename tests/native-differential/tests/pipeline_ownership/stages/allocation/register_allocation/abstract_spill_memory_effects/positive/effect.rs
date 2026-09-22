@@ -1,14 +1,14 @@
 pub(super) fn assert_exact_effect(
-    effect: &selected_instructions_to_register_homes::AbstractSpillMemoryEffect,
-    pseudo: &selected_instructions_to_register_homes::HomedSpillPseudoInstruction,
-    owner: &selected_instructions_to_register_homes::FunctionHomedSpillPseudoInstructions,
+    effect: &selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect,
+    pseudo: &selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction,
+    owner: &selected_instructions_to_register_homes::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
 ) {
     let storage_id = match pseudo {
-        selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Store {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Store {
             storage,
             ..
         }
-        | selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Reload {
+        | selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Reload {
             storage,
             ..
         } => *storage,
@@ -20,7 +20,7 @@ pub(super) fn assert_exact_effect(
         .unwrap();
     match (effect, pseudo) {
         (
-            selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Write {
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Write {
                 pseudo,
                 action,
                 block,
@@ -35,7 +35,7 @@ pub(super) fn assert_exact_effect(
                 size_bytes,
                 alignment_bytes,
             },
-            selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Store {
+            selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Store {
                 id,
                 action: expected_action,
                 block: expected_block,
@@ -77,7 +77,7 @@ pub(super) fn assert_exact_effect(
             );
         }
         (
-            selected_instructions_to_register_homes::AbstractSpillMemoryEffect::Read {
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffect::Read {
                 pseudo,
                 action,
                 block,
@@ -92,7 +92,7 @@ pub(super) fn assert_exact_effect(
                 destination_class,
                 destination_view,
             },
-            selected_instructions_to_register_homes::HomedSpillPseudoInstruction::Reload {
+            selected_instructions_to_register_homes::unsequenced_spill_stages::HomedSpillPseudoInstruction::Reload {
                 id,
                 action: expected_action,
                 block: expected_block,
@@ -149,7 +149,7 @@ fn assert_geometry(
         u64,
         u64,
     ),
-    storage: &selected_instructions_to_register_homes::SpillPseudoStorage,
+    storage: &selected_instructions_to_register_homes::unsequenced_spill_stages::SpillPseudoStorage,
 ) {
     assert_eq!(
         actual,

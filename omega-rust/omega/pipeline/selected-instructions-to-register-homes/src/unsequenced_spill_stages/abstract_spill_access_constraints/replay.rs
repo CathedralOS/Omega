@@ -6,7 +6,7 @@ mod work;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessConstraintPlan,
     AbstractSpillAccessConstraintPolicy, FunctionAbstractSpillAccessConstraints,
     ValidatedAbstractSpillMemoryEffects,

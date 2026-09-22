@@ -4,12 +4,12 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
-    GeneralizedSpillActionId, GeneralizedSpillEvent, LogicalSpillStorageClass,
-    RecursiveSpillActionSource, RecursiveSpillEvent, RecursiveSpillInsertionError,
-    RecursiveSpillInsertionPlan, RecursiveSpillInsertionPolicy, RecursiveSpillSlot,
-    RecursiveSpillStoredValue, ValidatedGeneralizedSpillInsertion,
-    ValidatedGeneralizedSpillRecoveryActions,
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
+    GeneralizedSpillActionId, GeneralizedSpillEvent, RecursiveSpillActionSource,
+    RecursiveSpillEvent, RecursiveSpillInsertionError, RecursiveSpillInsertionPlan,
+    RecursiveSpillInsertionPolicy, RecursiveSpillSlot, RecursiveSpillStoredValue,
+    ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
 };
 
 const SLOT_BYTES: u64 = 8;
@@ -188,8 +188,8 @@ pub(super) fn replay(
         let (source, stored_value) = match (policy, action.victim, action.store.source) {
             (
                 RecursiveSpillInsertionPolicy::EpochTwoReloadVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV1,
-                crate::GeneralizedSpillRecoveryVictim::Reload(victim),
-                crate::GeneralizedSpillRecoveryVictim::Reload(stored),
+                crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Reload(victim),
+                crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Reload(stored),
             ) if victim == stored => (
                 RecursiveSpillActionSource::EpochTwo {
                     work_item: action.source_work_item,
@@ -200,8 +200,8 @@ pub(super) fn replay(
             ),
             (
                 RecursiveSpillInsertionPolicy::EpochTwoOriginalVictimBlockLocalUnsignedU64ClosedIntervalFirstFitV2,
-                crate::GeneralizedSpillRecoveryVictim::Original(victim),
-                crate::GeneralizedSpillRecoveryVictim::Original(stored),
+                crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Original(victim),
+                crate::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Original(stored),
             ) if victim == stored => (
                 RecursiveSpillActionSource::EpochTwoOriginal {
                     work_item: action.source_work_item,
@@ -353,12 +353,14 @@ pub(super) fn replay(
                 .map(|end| size.max(end))
                 .ok_or(RecursiveSpillInsertionError::OffsetOverflow { function })
         })?;
-        functions.push(crate::FunctionRecursiveSpillInsertion {
-            machine: source.machine,
-            spill_area_bytes,
-            slots: assigned,
-            schedule,
-        });
+        functions.push(
+            crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion {
+                machine: source.machine,
+                spill_area_bytes,
+                slots: assigned,
+                schedule,
+            },
+        );
     }
     let usage = work_usage(&functions)?;
     if !usage.within(budget) {
@@ -455,7 +457,7 @@ fn event_key(event: &RecursiveSpillEvent) -> (u32, u8, u32, u32, u32, u16) {
 }
 
 fn work_usage(
-    functions: &[crate::FunctionRecursiveSpillInsertion],
+    functions: &[crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion],
 ) -> Result<OptimizationWorkUsage, RecursiveSpillInsertionError> {
     let mut actions = 0_u64;
     let mut events = 0_u64;

@@ -5,7 +5,6 @@
 //! `register_homes::post_allocation_manifest`; projection, reconstruction, and
 //! validation stay transform-local.
 
-mod model;
 mod projection;
 mod reconstruction;
 mod validation;
@@ -16,7 +15,6 @@ use optimization_core::{
 
 use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
 
-pub use model::*;
 pub use register_homes::post_allocation_manifest::*;
 
 pub fn project_post_allocation_optimization_manifest(
@@ -91,4 +89,17 @@ pub fn validate_post_allocation_optimization_manifest_after_selected_lowering(
         legality,
         homes,
     )
+}
+
+/// Validated authority receipt for the durable manifest record. The transform
+/// owns admission; the record itself lives in `register_homes`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedPostAllocationOptimizationManifest {
+    record: PostAllocationOptimizationManifest,
+}
+
+impl ValidatedPostAllocationOptimizationManifest {
+    pub const fn record(&self) -> &PostAllocationOptimizationManifest {
+        &self.record
+    }
 }

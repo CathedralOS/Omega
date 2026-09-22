@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::custody::{custody_receipt, pressure_custody_receipt};
-use super::model::{
+use super::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     StagedOptimizedActiveResidentRematerializationPressure,

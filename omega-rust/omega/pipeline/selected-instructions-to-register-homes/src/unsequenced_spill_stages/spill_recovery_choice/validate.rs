@@ -6,11 +6,12 @@ use register_model::{
     target_register_environment_identity,
 };
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     SpillRecoveryChoiceError, SpillRecoveryChoicePlan, SpillRecoveryChoiceReceipt,
-    ValidatedAbstractSpillInsertion, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedSpillRecoveryChoices, ValidatedSpillRecoveryWorklist, spill_recovery_choice_identity,
+    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryChoices, ValidatedSpillRecoveryWorklist,
+    spill_recovery_choice_identity,
 };
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_spill_recovery_choices(

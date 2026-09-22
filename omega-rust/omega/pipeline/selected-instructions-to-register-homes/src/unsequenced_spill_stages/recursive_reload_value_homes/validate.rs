@@ -6,13 +6,13 @@ use register_model::{
 };
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     RecursiveReloadValueHomeError, RecursiveReloadValueHomePlan, RecursiveReloadValueHomeReceipt,
-    ValidatedAllocationLegality, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillRecoveryActions, ValidatedLiveRanges,
+    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillRecoveryActions,
     ValidatedRecursiveReloadValueHomes, ValidatedRecursiveSpillInsertion,
     recursive_reload_value_home_identity,
 };
+use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_recursive_reload_value_homes(

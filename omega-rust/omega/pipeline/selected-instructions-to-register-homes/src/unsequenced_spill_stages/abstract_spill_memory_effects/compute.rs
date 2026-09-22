@@ -5,7 +5,7 @@ mod work;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffectError, AbstractSpillMemoryEffectPlan, AbstractSpillMemoryEffectPolicy,
     FunctionAbstractSpillMemoryEffects, ValidatedHomedSpillPseudoInstructions,
 };
@@ -45,7 +45,7 @@ pub(super) fn compute(
 
 fn project(
     function: usize,
-    source: &crate::FunctionHomedSpillPseudoInstructions,
+    source: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
 ) -> Result<FunctionAbstractSpillMemoryEffects, AbstractSpillMemoryEffectError> {
     for (index, storage) in source.storage.iter().enumerate() {
         if source.storage[..index]

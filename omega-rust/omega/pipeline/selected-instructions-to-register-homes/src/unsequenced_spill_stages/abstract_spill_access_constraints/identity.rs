@@ -2,7 +2,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintPlan, AbstractSpillAccessConstraintPlanIdentity,
     AbstractSpillAccessConstraintPolicy, AbstractSpillAccessDependencyReason,
     AbstractSpillAccessKind,
@@ -67,7 +67,7 @@ pub fn abstract_spill_access_constraint_plan_identity(
     AbstractSpillAccessConstraintPlanIdentity::from_bytes(Sha256::digest(bytes).into())
 }
 
-fn action(bytes: &mut Vec<u8>, id: crate::GeneralizedSpillActionId) {
+fn action(bytes: &mut Vec<u8>, id: crate::unsequenced_spill_stages::GeneralizedSpillActionId) {
     bytes.extend_from_slice(&id.epoch.to_le_bytes());
     bytes.extend_from_slice(&id.ordinal.to_le_bytes());
 }

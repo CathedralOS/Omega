@@ -10,11 +10,13 @@ use register_model::{
 };
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
-    LiveRangePoint, SpillRecoveryChoiceError, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy,
+use crate::unsequenced_spill_stages::{
+    SpillRecoveryChoiceError, SpillRecoveryChoicePlan, SpillRecoveryChoicePolicy,
     SpillRecoveryContender, SpillRecoveryResident, SpillRecoveryVictimChoice,
-    ValidatedAbstractSpillInsertion, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedSpillRecoveryWorklist, VirtualInterference,
+    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryWorklist,
+};
+use crate::{
+    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, VirtualInterference,
 };
 
 #[derive(Clone, Copy)]
@@ -159,7 +161,13 @@ fn admit_roots(
 fn resolve_item<'a>(
     worklist: &'a ValidatedSpillRecoveryWorklist,
     insertion: &ValidatedAbstractSpillInsertion,
-) -> Result<(usize, &'a crate::SpillRecoveryWorkItem), SpillRecoveryChoiceError> {
+) -> Result<
+    (
+        usize,
+        &'a crate::unsequenced_spill_stages::SpillRecoveryWorkItem,
+    ),
+    SpillRecoveryChoiceError,
+> {
     let epochs = &worklist.plan().epochs;
     let epoch = epochs
         .first()
@@ -192,8 +200,8 @@ fn resolve_item<'a>(
 
 fn choose(
     function: usize,
-    item: &crate::SpillRecoveryWorkItem,
-    action: &crate::AbstractSpillInsertionAction,
+    item: &crate::unsequenced_spill_stages::SpillRecoveryWorkItem,
+    action: &crate::unsequenced_spill_stages::AbstractSpillInsertionAction,
     legality: &crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,

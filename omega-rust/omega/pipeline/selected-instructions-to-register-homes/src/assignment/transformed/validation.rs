@@ -9,16 +9,16 @@ use crate::{
 };
 
 use super::custody::{literal_fold_home_custody_receipt, selected_lowering_home_custody_receipt};
-use super::model::{
+use super::projection::{
+    literal_fold_pre_physical, literal_fold_transformations, selected_lowering_final_analysis,
+    selected_lowering_transformations,
+};
+use super::{
     OptimizedPostLiteralFoldHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomesAfterLiteralFolds,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
-};
-use super::projection::{
-    literal_fold_pre_physical, literal_fold_transformations, selected_lowering_final_analysis,
-    selected_lowering_transformations,
 };
 
 pub fn validate_optimized_register_home_after_literal_fold_custody(

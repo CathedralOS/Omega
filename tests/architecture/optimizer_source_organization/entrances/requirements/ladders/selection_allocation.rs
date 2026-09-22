@@ -26,7 +26,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "logical spill-operation planning",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/model.rs",
             "omega-rust/omega/representations/register-homes/src/register_homes/logical_spill_operations/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute/mod.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/logical_spill_operations/compute/action.rs",
@@ -46,7 +45,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "stack-slot coloring",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/model.rs",
             "omega-rust/omega/representations/register-homes/src/register_homes/stack_slot_coloring/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/mod.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/stack_slot_coloring/compute/intervals.rs",
@@ -67,7 +65,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "abstract spill insertion",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_insertion/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_insertion/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_insertion/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_insertion/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_insertion/validate.rs",
@@ -77,7 +74,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "reload-value home assignment",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/reload_value_homes/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/reload_value_homes/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/reload_value_homes/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/reload_value_homes/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/reload_value_homes/replay.rs",
@@ -89,7 +85,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "synthetic reload-value namespace",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/synthetic_reload_values/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/synthetic_reload_values/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/synthetic_reload_values/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/synthetic_reload_values/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/synthetic_reload_values/replay.rs",
@@ -100,7 +95,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "recursive spill-recovery victim choice",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_choice/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_choice/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_choice/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_choice/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_choice/replay.rs",
@@ -111,7 +105,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "recursive spill-recovery logical actions",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_actions/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_actions/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_actions/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_actions/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_actions/replay.rs",
@@ -122,7 +115,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "generalized epoch-zero and epoch-one spill insertion",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_insertion/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_insertion/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_insertion/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_insertion/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_insertion/replay.rs",
@@ -133,7 +125,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "generalized epoch-zero and epoch-one reload-home reanalysis",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_reload_value_homes/compute/roots.rs",
@@ -154,7 +145,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "generalized epoch-two spill-recovery worklist",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_worklist/replay.rs",
@@ -165,7 +155,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "generalized epoch-two spill-recovery victim choice",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_choice/compute/original_eligibility.rs",
@@ -178,7 +167,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "generalized epoch-two logical recovery actions",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/generalized_spill_recovery_actions/compute/original.rs",
@@ -191,7 +179,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "recursive epoch-two spill insertion",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_spill_insertion/replay.rs",
@@ -202,7 +189,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "complete recursive reload-home closure",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/recursive_reload_value_homes/compute/roots.rs",
@@ -223,7 +209,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "target-neutral spill-pseudo instructions",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/replay.rs",
@@ -234,7 +219,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "V2 target-neutral homed spill-pseudo instructions",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_pseudo_instructions/homed/compute/work.rs",
@@ -247,7 +231,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "target-neutral abstract spill memory effects",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_memory_effects/compute/storage.rs",
@@ -261,8 +244,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "target-neutral abstract spill access constraints",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/model.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/model/error.rs",
+            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/error.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/abstract_spill_access_constraints/compute/accesses.rs",
@@ -280,7 +262,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         paths: &[
             "omega-rust/omega/backend/register-environment/src/abi_preservation.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/error.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/preservation/custody.rs",
@@ -361,7 +342,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "recursive spill-recovery worklist",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_worklist/mod.rs",
-            "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_worklist/model.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_worklist/identity.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_worklist/compute.rs",
             "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/unsequenced_spill_stages/spill_recovery_worklist/replay.rs",

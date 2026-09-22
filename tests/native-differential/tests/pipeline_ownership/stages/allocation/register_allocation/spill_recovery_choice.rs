@@ -14,16 +14,16 @@ pub(super) fn choose(
     sources: &ReloadSources,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedSpillRecoveryChoices,
-    selected_instructions_to_register_homes::SpillRecoveryChoiceError,
-> {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedSpillRecoveryChoices,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoiceError,
+>{
     let worklist = seed(sources, selected_lowering_budget()).unwrap();
     let ranges = sources.legality().live_range_stage();
     let environment = ranges
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    selected_instructions_to_register_homes::choose_spill_recovery_victims(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::choose_spill_recovery_victims(
         &worklist,
         sources.insertion(),
         sources.legality().legality(),
@@ -32,25 +32,25 @@ pub(super) fn choose(
         environment.constraints(),
         environment.reservations(),
         &environment.allocation_constraint_keys(),
-        selected_instructions_to_register_homes::SpillRecoveryChoicePolicy::EpochOneFarthestEndThenHighestVregV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoicePolicy::EpochOneFarthestEndThenHighestVregV1,
         budget,
     )
 }
 
 fn validate(
     sources: &ReloadSources,
-    plan: selected_instructions_to_register_homes::SpillRecoveryChoicePlan,
+    plan: selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoicePlan,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedSpillRecoveryChoices,
-    selected_instructions_to_register_homes::SpillRecoveryChoiceError,
-> {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedSpillRecoveryChoices,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoiceError,
+>{
     let worklist = seed(sources, selected_lowering_budget()).unwrap();
     let ranges = sources.legality().live_range_stage();
     let environment = ranges
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    selected_instructions_to_register_homes::validate_spill_recovery_choices(
+    selected_instructions_to_register_homes::unsequenced_spill_stages::validate_spill_recovery_choices(
         &worklist,
         sources.insertion(),
         sources.legality().legality(),
@@ -126,25 +126,25 @@ fn independent_replay_rejects_root_resident_contender_selection_and_usage_corrup
 
         let mut root = canonical.clone();
         root.worklist =
-            selected_instructions_to_register_homes::SpillRecoveryWorklistIdentity::from_bytes(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryWorklistIdentity::from_bytes(
                 [0x55; 32],
             );
         assert_eq!(
             validate(&sources, root),
-            Err(selected_instructions_to_register_homes::SpillRecoveryChoiceError::RootMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoiceError::RootMismatch)
         );
 
         for corrupt in [
-            |plan: &mut selected_instructions_to_register_homes::SpillRecoveryChoicePlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoicePlan| {
                 plan.choices[0].active_residents.reverse();
             },
-            |plan: &mut selected_instructions_to_register_homes::SpillRecoveryChoicePlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoicePlan| {
                 plan.choices[0].contenders.pop();
             },
-            |plan: &mut selected_instructions_to_register_homes::SpillRecoveryChoicePlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoicePlan| {
                 plan.choices[0].selected_victim.0 += 1;
             },
-            |plan: &mut selected_instructions_to_register_homes::SpillRecoveryChoicePlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoicePlan| {
                 plan.choices[0].reclaimed_view.0 += 1;
             },
         ] {
@@ -152,7 +152,7 @@ fn independent_replay_rejects_root_resident_contender_selection_and_usage_corrup
             corrupt(&mut changed);
             assert_eq!(
                 validate(&sources, changed),
-                Err(selected_instructions_to_register_homes::SpillRecoveryChoiceError::NonCanonicalChoice)
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoiceError::NonCanonicalChoice)
             );
         }
 
@@ -160,7 +160,7 @@ fn independent_replay_rejects_root_resident_contender_selection_and_usage_corrup
         usage.usage.validation_steps += 1;
         assert_eq!(
             validate(&sources, usage),
-            Err(selected_instructions_to_register_homes::SpillRecoveryChoiceError::UsageMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoiceError::UsageMismatch)
         );
     }
 }
@@ -179,7 +179,7 @@ fn exact_budget_and_every_representable_first_over_axis_are_typed_on_both_archit
         for budget in insufficient {
             assert!(matches!(
                 choose(&sources, budget),
-                Err(selected_instructions_to_register_homes::SpillRecoveryChoiceError::BudgetExceeded {
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::SpillRecoveryChoiceError::BudgetExceeded {
                     required: OptimizationWorkUsage {
                         rule_evaluations: 6,
                         candidates: 2,

@@ -2,9 +2,9 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::{
+use crate::LogicalSpillStorageClass;
+use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, AbstractSpillInsertionPlan, AbstractSpillInsertionPolicy,
-    LogicalSpillStorageClass,
 };
 
 pub fn abstract_spill_insertion_identity(

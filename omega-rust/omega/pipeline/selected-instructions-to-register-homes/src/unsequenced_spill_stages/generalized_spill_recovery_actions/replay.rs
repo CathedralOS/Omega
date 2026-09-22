@@ -4,16 +4,16 @@ use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedSpillEvent, GeneralizedSpillRecoveryActionError,
     GeneralizedSpillRecoveryActionPlan, GeneralizedSpillRecoveryActionPolicy,
     GeneralizedSpillRecoveryLogicalAction, GeneralizedSpillRecoveryLogicalReload,
     GeneralizedSpillRecoveryLogicalStorage, GeneralizedSpillRecoveryLogicalStore,
     GeneralizedSpillRecoveryLogicalUseRewrite, GeneralizedSpillRecoveryVictim,
-    LogicalSpillStorageClass, ValidatedGeneralizedReloadValueHomes,
-    ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryChoices,
-    ValidatedLiveRanges, ValidatedSelectedAnalysis,
+    ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
+    ValidatedGeneralizedSpillRecoveryChoices,
 };
+use crate::{LogicalSpillStorageClass, ValidatedLiveRanges, ValidatedSelectedAnalysis};
 
 mod original;
 
@@ -169,7 +169,7 @@ pub(super) fn replay(
         if victim_class != resident.class {
             return Err(GeneralizedSpillRecoveryActionError::UnsupportedVictim { function });
         }
-        let result = crate::GeneralizedSpillActionId {
+        let result = crate::unsequenced_spill_stages::GeneralizedSpillActionId {
             epoch: choice.work_item.epoch,
             ordinal: choice.work_item.ordinal,
         };

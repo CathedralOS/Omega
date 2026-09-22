@@ -1,11 +1,11 @@
 //! Executable pressure recovery over a finite roster of original runtime values.
 //! Allocation chooses the values; the selected rewrite owner validates semantics.
 
-use super::model::{
+use super::replay;
+use super::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts, RuntimeSpillSource,
     RuntimeSpillStep, RuntimeSpillStepRewrite,
 };
-use super::replay;
 use crate::{StagedOptimizedAllocationLegality, ValidatedSelectedAnalysis};
 use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin};
 

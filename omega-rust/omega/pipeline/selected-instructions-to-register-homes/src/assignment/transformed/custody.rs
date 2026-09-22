@@ -4,7 +4,7 @@ use crate::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
 };
 
-use super::model::{
+use super::{
     StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
 };

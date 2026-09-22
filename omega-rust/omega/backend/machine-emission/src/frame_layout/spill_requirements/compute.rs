@@ -3,7 +3,7 @@
 use crate::frame_layout::ValidatedTargetRegisterEnvironment;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_environment::selected_abi_preservation;
-use selected_instructions_to_register_homes::ValidatedAbstractSpillAccessConstraints;
+use selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillAccessConstraints;
 
 use super::{
     FrameAbiPreservationConvention, FunctionSpillFrameRequirements,
@@ -89,7 +89,7 @@ fn count(value: usize) -> Result<u64, SpillFrameRequirementError> {
 }
 
 fn derive_function(
-    function: &selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints,
+    function: &selected_instructions_to_register_homes::unsequenced_spill_stages::FunctionAbstractSpillAccessConstraints,
     abi: FrameAbiPreservationConvention,
     stack_alignment: u16,
     red_zone_capacity_bytes: u16,
@@ -114,7 +114,7 @@ pub(in crate::frame_layout::spill_requirements) fn derive_zero_access_requiremen
     machine: semantic_vocabulary::MachineId,
 ) -> FunctionSpillFrameRequirements {
     derive_function(
-        &selected_instructions_to_register_homes::FunctionAbstractSpillAccessConstraints {
+        &selected_instructions_to_register_homes::unsequenced_spill_stages::FunctionAbstractSpillAccessConstraints {
             machine,
             spill_area_bytes: 0,
             placements: Vec::new(),

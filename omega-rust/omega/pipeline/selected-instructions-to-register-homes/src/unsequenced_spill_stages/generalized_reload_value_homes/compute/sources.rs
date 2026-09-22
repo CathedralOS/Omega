@@ -3,17 +3,18 @@
 use register_model::RegisterViewId;
 use selected_instructions::VirtualRegisterId;
 
-use crate::{
+use crate::LiveRangePoint;
+use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedSpillActionSource, GeneralizedSpillEvent,
-    LiveRangePoint, ValidatedSpillRecoveryActions,
+    ValidatedSpillRecoveryActions,
 };
 
 use super::{ReloadSpec, homes};
 
 pub(super) fn reconstruct(
     function: usize,
-    generalized: &crate::FunctionGeneralizedSpillInsertion,
-    first: &crate::FunctionAbstractSpillInsertion,
+    generalized: &crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
+    first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     second: &ValidatedSpillRecoveryActions,
     legality: &crate::FunctionAllocationLegality,
 ) -> Result<Vec<ReloadSpec>, GeneralizedReloadValueHomeError> {
@@ -127,8 +128,8 @@ pub(super) fn reconstruct(
 
 fn validate_source(
     function: usize,
-    slot: &crate::GeneralizedSpillSlot,
-    first: &crate::FunctionAbstractSpillInsertion,
+    slot: &crate::unsequenced_spill_stages::GeneralizedSpillSlot,
+    first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     second: &ValidatedSpillRecoveryActions,
     victim: VirtualRegisterId,
     victim_view: RegisterViewId,
@@ -167,7 +168,7 @@ fn validate_source(
 
 fn invalid(
     function: usize,
-    action: crate::GeneralizedSpillActionId,
+    action: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> GeneralizedReloadValueHomeError {
     GeneralizedReloadValueHomeError::InvalidAction { function, action }
 }

@@ -1,13 +1,13 @@
 //! Producer-local abstract storage admission and effect projection.
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError, HomedSpillPseudoInstruction,
     SpillPseudoStorage,
 };
 
 pub(super) fn project(
     function: usize,
-    owner: &crate::FunctionHomedSpillPseudoInstructions,
+    owner: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
     instruction: HomedSpillPseudoInstruction,
 ) -> Result<AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError> {
     let storage_id = match instruction {
@@ -111,8 +111,8 @@ pub(super) fn validate(
 }
 
 fn storage_row(
-    owner: &crate::FunctionHomedSpillPseudoInstructions,
-    id: crate::GeneralizedSpillActionId,
+    owner: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
+    id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> &SpillPseudoStorage {
     owner
         .storage
@@ -122,29 +122,29 @@ fn storage_row(
 }
 
 fn storage_class(
-    owner: &crate::FunctionHomedSpillPseudoInstructions,
-    id: crate::GeneralizedSpillActionId,
+    owner: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
+    id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> crate::LogicalSpillStorageClass {
     storage_row(owner, id).class
 }
 
 fn storage_offset(
-    owner: &crate::FunctionHomedSpillPseudoInstructions,
-    id: crate::GeneralizedSpillActionId,
+    owner: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
+    id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> u64 {
     storage_row(owner, id).spill_area_offset
 }
 
 fn storage_size(
-    owner: &crate::FunctionHomedSpillPseudoInstructions,
-    id: crate::GeneralizedSpillActionId,
+    owner: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
+    id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> u64 {
     storage_row(owner, id).size_bytes
 }
 
 fn storage_alignment(
-    owner: &crate::FunctionHomedSpillPseudoInstructions,
-    id: crate::GeneralizedSpillActionId,
+    owner: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
+    id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
 ) -> u64 {
     storage_row(owner, id).alignment_bytes
 }

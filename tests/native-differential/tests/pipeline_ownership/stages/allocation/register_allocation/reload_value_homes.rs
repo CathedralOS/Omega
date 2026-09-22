@@ -69,19 +69,19 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
 
     let mut root = canonical.clone();
     root.abstract_spill_insertion =
-        selected_instructions_to_register_homes::AbstractSpillInsertionIdentity::from_bytes(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionIdentity::from_bytes(
             [0x91; 32],
         );
     assert_eq!(
         sources.validate(root),
-        Err(selected_instructions_to_register_homes::ReloadValueHomeError::RootMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::RootMismatch)
     );
 
     for corrupt in [
-        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomePlan| {
             plan.functions[0].assignment.as_mut().unwrap().view.0 += 1;
         },
-        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomePlan| {
             plan.functions[0]
                 .assignment
                 .as_mut()
@@ -89,7 +89,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
                 .candidates
                 .reverse();
         },
-        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomePlan| {
             let assignment = plan.functions[0].assignment.as_mut().unwrap();
             let unused = assignment
                 .candidates
@@ -98,7 +98,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
                 .unwrap();
             assignment.candidates.remove(unused);
         },
-        |plan: &mut selected_instructions_to_register_homes::ReloadValueHomePlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomePlan| {
             plan.functions[0]
                 .assignment
                 .as_mut()
@@ -111,7 +111,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
         corrupt(&mut changed);
         assert_eq!(
             sources.validate(changed),
-            Err(selected_instructions_to_register_homes::ReloadValueHomeError::NonCanonicalAssignment { function: 0 })
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::NonCanonicalAssignment { function: 0 })
         );
     }
 
@@ -119,7 +119,7 @@ fn independent_replay_rejects_root_assignment_domain_roster_and_usage_corruption
     usage.usage.validation_steps += 1;
     assert_eq!(
         sources.validate(usage),
-        Err(selected_instructions_to_register_homes::ReloadValueHomeError::UsageMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::UsageMismatch)
     );
 }
 
@@ -139,7 +139,7 @@ fn budget_is_exact_and_empty_pressure_has_no_reload_assignment() {
             )
             .unwrap()
         ),
-        Err(selected_instructions_to_register_homes::ReloadValueHomeError::BudgetExceeded { .. })
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::BudgetExceeded { .. })
     ));
 
     let legality = stage_optimized_allocation_legality(
@@ -192,7 +192,7 @@ fn bridge_chain_reaches_exact_reload_pressure_through_public_validation() {
         assert_eq!(
             sources.assign(selected_lowering_budget()),
             Err(
-                selected_instructions_to_register_homes::ReloadValueHomeError::ReloadPressure {
+                selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::ReloadPressure {
                     function: 0,
                     result: 0,
                 }
@@ -204,7 +204,7 @@ fn bridge_chain_reaches_exact_reload_pressure_through_public_validation() {
 pub(super) struct ReloadSources {
     legality: StagedOptimizedAllocationLegality,
     logical: selected_instructions_to_register_homes::ValidatedLogicalSpillOperations,
-    insertion: selected_instructions_to_register_homes::ValidatedAbstractSpillInsertion,
+    insertion: selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillInsertion,
 }
 
 impl ReloadSources {
@@ -243,10 +243,10 @@ impl ReloadSources {
             selected_lowering_budget(),
         )
         .unwrap();
-        let insertion = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        let insertion = selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             selected_lowering_budget(),
         )
         .unwrap();
@@ -261,15 +261,15 @@ impl ReloadSources {
         &self,
         budget: OptimizationWorkBudget,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedReloadValueHomes,
-        selected_instructions_to_register_homes::ReloadValueHomeError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedReloadValueHomes,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError,
+    >{
         let ranges = self.legality.live_range_stage();
         let environment = ranges
             .liveness_stage()
             .selected_stage()
             .register_environment();
-        selected_instructions_to_register_homes::assign_reload_value_homes(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::assign_reload_value_homes(
             &self.insertion,
             &self.logical,
             self.legality.legality(),
@@ -278,14 +278,14 @@ impl ReloadSources {
             environment.constraints(),
             environment.reservations(),
             &environment.allocation_constraint_keys(),
-            selected_instructions_to_register_homes::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomePolicy::BlockLocalSingleSpillReloadFirstLowestCompatibleViewV1,
             budget,
         )
     }
 
     pub(super) const fn insertion(
         &self,
-    ) -> &selected_instructions_to_register_homes::ValidatedAbstractSpillInsertion {
+    ) -> &selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedAbstractSpillInsertion{
         &self.insertion
     }
 
@@ -301,17 +301,17 @@ impl ReloadSources {
 
     fn validate(
         &self,
-        plan: selected_instructions_to_register_homes::ReloadValueHomePlan,
+        plan: selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomePlan,
     ) -> Result<
-        selected_instructions_to_register_homes::ValidatedReloadValueHomes,
-        selected_instructions_to_register_homes::ReloadValueHomeError,
-    > {
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedReloadValueHomes,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError,
+    >{
         let ranges = self.legality.live_range_stage();
         let environment = ranges
             .liveness_stage()
             .selected_stage()
             .register_environment();
-        selected_instructions_to_register_homes::validate_reload_value_homes(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_reload_value_homes(
             &self.insertion,
             &self.logical,
             self.legality.legality(),
@@ -417,12 +417,12 @@ fn call_spanning_reload_interval_selects_the_callee_saved_home_on_every_target()
 
         let mut root = canonical.clone();
         root.abstract_spill_insertion =
-            selected_instructions_to_register_homes::AbstractSpillInsertionIdentity::from_bytes(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionIdentity::from_bytes(
                 [0x5c; 32],
             );
         assert_eq!(
             sources.validate(root),
-            Err(selected_instructions_to_register_homes::ReloadValueHomeError::RootMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::RootMismatch)
         );
 
         let caller_saved = call_spanning_reload_allowlist(target)
@@ -430,7 +430,8 @@ fn call_spanning_reload_interval_selects_the_callee_saved_home_on_every_target()
             .map(|name| model.view_named(name).unwrap().id)
             .find(|view| *view != saved)
             .unwrap();
-        type Plan = selected_instructions_to_register_homes::ReloadValueHomePlan;
+        type Plan =
+            selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomePlan;
         for corrupt in [
             // A caller-saved home cannot legitimately carry the reload across
             // the clobbering call.
@@ -465,7 +466,7 @@ fn call_spanning_reload_interval_selects_the_callee_saved_home_on_every_target()
             assert_eq!(
                 sources.validate(changed),
                 Err(
-                    selected_instructions_to_register_homes::ReloadValueHomeError::NonCanonicalAssignment {
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::NonCanonicalAssignment {
                         function,
                     }
                 ),
@@ -477,7 +478,7 @@ fn call_spanning_reload_interval_selects_the_callee_saved_home_on_every_target()
         usage.usage.validation_steps += 1;
         assert_eq!(
             sources.validate(usage),
-            Err(selected_instructions_to_register_homes::ReloadValueHomeError::UsageMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::ReloadValueHomeError::UsageMismatch)
         );
     }
 }

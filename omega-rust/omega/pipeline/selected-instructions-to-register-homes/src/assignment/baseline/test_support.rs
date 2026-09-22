@@ -1,6 +1,4 @@
-use super::model::{
-    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
-};
+use super::{StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies};
 
 optimization_core::custody_field_inventory! {
     /// One substitutable field of [`StagedOptimizedRegisterHomeCustodyReceipt`](super::StagedOptimizedRegisterHomeCustodyReceipt). The custody matrix

@@ -12,10 +12,13 @@ use register_model::{
 };
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
-use crate::{
-    AbstractSpillInsertionAction, FunctionReloadValueHomes, LiveRangePoint, ReloadCoexistingHome,
+use crate::unsequenced_spill_stages::{
+    AbstractSpillInsertionAction, FunctionReloadValueHomes, ReloadCoexistingHome,
     ReloadValueHomeAssignment, ReloadValueHomeError, ReloadValueHomePlan, ReloadValueHomePolicy,
-    ValidatedAbstractSpillInsertion, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedAbstractSpillInsertion,
+};
+use crate::{
+    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges,
     ValidatedLogicalSpillOperations, VirtualInterference,
 };
 use mechanics::{contains_interference, reconstruct_usage, views_overlap};
@@ -166,7 +169,7 @@ fn validate_source_chain(
 
 fn reconstruct_function(
     function: usize,
-    insertion: &crate::FunctionAbstractSpillInsertion,
+    insertion: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     legality: &crate::FunctionAllocationLegality,
     ranges: &crate::FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,

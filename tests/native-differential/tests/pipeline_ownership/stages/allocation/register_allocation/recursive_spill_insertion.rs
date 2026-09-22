@@ -10,13 +10,13 @@ pub(super) fn sources(
     target: NativeTarget,
 ) -> (
     Sources,
-    selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryActions,
-) {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
+){
     let sources = Sources::new(target);
     let homes = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
+    let worklist = selected_instructions_to_register_homes::unsequenced_spill_stages::seed_generalized_spill_recovery_worklist(
         &homes,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -63,11 +63,11 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
             .find(|event| {
                 matches!(
                     event,
-                    selected_instructions_to_register_homes::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
                 )
             })
             .unwrap();
-        let selected_instructions_to_register_homes::RecursiveSpillEvent::Store {
+        let selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillEvent::Store {
             point,
             before_instruction,
             before_reload,
@@ -82,14 +82,14 @@ fn epoch_two_extends_one_schedule_and_reuses_the_disjoint_epoch_zero_offset() {
         assert_eq!(before_reload, Some(id(1, 0)));
         assert_eq!(
             source,
-            selected_instructions_to_register_homes::RecursiveSpillStoredValue::Reload(id(0, 0))
+            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillStoredValue::Reload(id(0, 0))
         );
         assert!(matches!(
             function.schedule.iter().find(|event| matches!(
                 event,
-                selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { action, .. } if *action == id(2, 0)
+                selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillEvent::Reload { action, .. } if *action == id(2, 0)
             )),
-            Some(selected_instructions_to_register_homes::RecursiveSpillEvent::Reload { point: LiveRangePoint(18), before_instruction, .. }) if before_instruction.0 == 9
+            Some(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillEvent::Reload { point: LiveRangePoint(18), before_instruction, .. }) if before_instruction.0 == 9
         ));
     }
 }
@@ -125,10 +125,10 @@ fn reload_victim_schedule_binds_current_actions_and_rejects_original_victim_poli
             OptimizationWorkBudget::new(1, 3, 14, 3, 4).unwrap(),
         ),
         Err(
-            selected_instructions_to_register_homes::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
+            selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::UnsupportedRecoveryVictim {
                 function: 0,
                 action: id(2, 0),
-                victim: selected_instructions_to_register_homes::GeneralizedSpillRecoveryVictim::Reload(id(0, 0)),
+                victim: selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryVictim::Reload(id(0, 0)),
             }
         )
     );
@@ -145,27 +145,27 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
             .clone();
 
         for corrupt in [
-            |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPlan| {
                 plan.generalized_spill_insertion =
-                    selected_instructions_to_register_homes::GeneralizedSpillInsertionIdentity::from_bytes([0xe1; 32]);
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillInsertionIdentity::from_bytes([0xe1; 32]);
             },
-            |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPlan| {
                 plan.recovery_actions =
-                    selected_instructions_to_register_homes::GeneralizedSpillRecoveryActionIdentity::from_bytes([0xe2; 32]);
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryActionIdentity::from_bytes([0xe2; 32]);
             },
-            |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPlan| {
                 plan.register_environment =
                     register_model::TargetRegisterEnvironmentIdentity::from_bytes([0xe3; 32]);
             },
-            |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPlan| {
                 plan.allocator_availability =
                     register_homes::AllocatorAvailabilityIdentity::from_bytes([0xe4; 32]);
             },
-            |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPlan| {
                 plan.optimization_unit =
                     optimization_core::OptimizationUnitIdentity::from_bytes([0xe5; 32]);
             },
-            |plan: &mut selected_instructions_to_register_homes::RecursiveSpillInsertionPlan| {
+            |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionPlan| {
                 plan.fuel_schedule =
                     semantic_vocabulary::FuelScheduleIdentity::new(99_950).unwrap();
             },
@@ -174,7 +174,7 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
             corrupt(&mut root);
             assert_eq!(
                 sources.validate_recursive_spills(&actions, root),
-                Err(selected_instructions_to_register_homes::RecursiveSpillInsertionError::RootMismatch)
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::RootMismatch)
             );
         }
 
@@ -182,7 +182,7 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
         slot.functions[0].slots[2].spill_area_offset = 8;
         assert_eq!(
             sources.validate_recursive_spills(&actions, slot),
-            Err(selected_instructions_to_register_homes::RecursiveSpillInsertionError::NonCanonicalSlots { function: 0 })
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::NonCanonicalSlots { function: 0 })
         );
 
         let mut event = canonical.clone();
@@ -192,28 +192,28 @@ fn independent_replay_rejects_root_slot_schedule_and_usage_corruption() {
             .find(|event| {
                 matches!(
                     event,
-                    selected_instructions_to_register_homes::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillEvent::Store { action, .. } if *action == id(2, 0)
                 )
             })
             .unwrap();
-        let selected_instructions_to_register_homes::RecursiveSpillEvent::Store { source, .. } =
+        let selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillEvent::Store { source, .. } =
             row
         else {
             unreachable!()
         };
-        *source = selected_instructions_to_register_homes::RecursiveSpillStoredValue::Original(
+        *source = selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillStoredValue::Original(
             selected_instructions::VirtualRegisterId(0),
         );
         assert_eq!(
             sources.validate_recursive_spills(&actions, event),
-            Err(selected_instructions_to_register_homes::RecursiveSpillInsertionError::NonCanonicalSchedule { function: 0 })
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::NonCanonicalSchedule { function: 0 })
         );
 
         let mut usage = canonical;
         usage.usage.iterations += 1;
         assert_eq!(
             sources.validate_recursive_spills(&actions, usage),
-            Err(selected_instructions_to_register_homes::RecursiveSpillInsertionError::UsageMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::UsageMismatch)
         );
     }
 }
@@ -233,7 +233,7 @@ fn exact_budget_and_cross_target_roots_fail_closed() {
         for budget in insufficient {
             assert!(matches!(
                 sources.schedule_recursive_spills(&actions, budget),
-                Err(selected_instructions_to_register_homes::RecursiveSpillInsertionError::BudgetExceeded { required, budget: actual })
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::BudgetExceeded { required, budget: actual })
                     if required == exact_usage() && actual == budget
             ));
         }
@@ -248,15 +248,18 @@ fn exact_budget_and_cross_target_roots_fail_closed() {
     let (arm, arm_actions) = sources(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate_recursive_spills(&arm_actions, foreign),
-        Err(selected_instructions_to_register_homes::RecursiveSpillInsertionError::RootMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::RecursiveSpillInsertionError::RootMismatch)
     );
 }
 
 const fn id(
     epoch: u32,
     ordinal: u32,
-) -> selected_instructions_to_register_homes::GeneralizedSpillActionId {
-    selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
+) -> selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+        epoch,
+        ordinal,
+    }
 }
 
 const fn exact_usage() -> OptimizationWorkUsage {

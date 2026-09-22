@@ -10,11 +10,11 @@ use optimization_core::OptimizationWorkBudget;
 use crate::StagedOptimizedAllocationLegality;
 
 use super::custody::{custody_receipt, pressure_custody_receipt};
-use super::model::{
+use super::validation::validate_source;
+use super::{
     OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationPressure,
 };
-use super::validation::validate_source;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compute_active_resident_rematerialization_pressure(

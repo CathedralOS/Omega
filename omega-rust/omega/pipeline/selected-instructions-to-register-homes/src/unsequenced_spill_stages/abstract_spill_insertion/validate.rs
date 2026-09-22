@@ -2,12 +2,15 @@
 
 use optimization_core::OptimizationWorkUsage;
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     AbstractSpillAreaReload, AbstractSpillAreaSlot, AbstractSpillAreaStore,
     AbstractSpillInsertionAction, AbstractSpillInsertionError, AbstractSpillInsertionPlan,
     AbstractSpillInsertionPolicy, AbstractSpillInsertionReceipt, FunctionAbstractSpillInsertion,
-    LogicalSpillAction, StackSlotAssignment, ValidatedAbstractSpillInsertion,
-    ValidatedLogicalSpillOperations, ValidatedStackSlotColoring, abstract_spill_insertion_identity,
+    ValidatedAbstractSpillInsertion, abstract_spill_insertion_identity,
+};
+use crate::{
+    LogicalSpillAction, StackSlotAssignment, ValidatedLogicalSpillOperations,
+    ValidatedStackSlotColoring,
 };
 
 pub fn validate_abstract_spill_insertion(

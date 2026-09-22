@@ -1,6 +1,6 @@
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{GeneralizedSpillActionId, SpillPseudoInstructionId};
+use crate::unsequenced_spill_stages::{GeneralizedSpillActionId, SpillPseudoInstructionId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AbstractSpillAccessConstraintError {

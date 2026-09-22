@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::{
+use crate::unsequenced_spill_stages::{
     FunctionGeneralizedSpillRecoveryWorklist, GeneralizedReloadValueHomeOutcome,
     GeneralizedSpillActionId, GeneralizedSpillActionSource, GeneralizedSpillRecoveryWorkItem,
     GeneralizedSpillRecoveryWorkItemId, GeneralizedSpillRecoveryWorklistError,
@@ -128,8 +128,10 @@ pub(super) fn replay(
 fn reconstruct_pressure<'a>(
     function: usize,
     rows: &[&'a GeneralizedReloadValueHomeOutcome],
-) -> Result<Option<&'a crate::GeneralizedReloadValuePressure>, GeneralizedSpillRecoveryWorklistError>
-{
+) -> Result<
+    Option<&'a crate::unsequenced_spill_stages::GeneralizedReloadValuePressure>,
+    GeneralizedSpillRecoveryWorklistError,
+> {
     let mut pressure = None;
     for (index, outcome) in rows.iter().enumerate() {
         match outcome {

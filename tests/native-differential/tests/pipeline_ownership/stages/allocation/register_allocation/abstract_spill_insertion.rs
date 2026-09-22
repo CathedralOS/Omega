@@ -12,17 +12,17 @@ fn exact_schedule_is_deterministic_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let (logical, slots) = spill_sources(target);
         let budget = OptimizationWorkBudget::new(1, 1, 5, 1, 1).unwrap();
-        let first = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        let first = selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             budget,
         )
         .unwrap();
-        let second = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        let second = selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             budget,
         )
         .unwrap();
@@ -93,10 +93,10 @@ fn exact_schedule_is_deterministic_on_both_architectures() {
 #[test]
 fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() {
     let (logical, slots) = spill_sources(NativeTarget::linux_x64());
-    let staged = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+    let staged = selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_abstract_spill_insertion(
         &logical,
         &slots,
-        selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -106,14 +106,14 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
     root.stack_slot_coloring =
         selected_instructions_to_register_homes::StackSlotColoringIdentity::from_bytes([0xd1; 32]);
     assert_eq!(
-        selected_instructions_to_register_homes::validate_abstract_spill_insertion(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_abstract_spill_insertion(
             &logical, &slots, root
         ),
-        Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::RootMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionError::RootMismatch)
     );
 
     for corrupt in [
-        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -122,7 +122,7 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
                 .source_view
                 .0 += 1;
         },
-        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -131,7 +131,7 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
                 .destination_class
                 .0 += 1;
         },
-        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -139,7 +139,7 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
                 .slot
                 .spill_area_offset += 8;
         },
-        |plan: &mut selected_instructions_to_register_homes::AbstractSpillInsertionPlan| {
+        |plan: &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPlan| {
             plan.functions[0]
                 .action
                 .as_mut()
@@ -151,28 +151,28 @@ fn independent_replay_rejects_root_schedule_slot_rewrite_and_usage_corruption() 
         let mut changed = canonical.clone();
         corrupt(&mut changed);
         assert_eq!(
-            selected_instructions_to_register_homes::validate_abstract_spill_insertion(&logical, &slots, changed),
-            Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::NonCanonicalSchedule { function: 0 })
+            selected_instructions_to_register_homes::unsequenced_spill_stages::validate_abstract_spill_insertion(&logical, &slots, changed),
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionError::NonCanonicalSchedule { function: 0 })
         );
     }
 
     let mut usage = canonical.clone();
     usage.usage.validation_steps += 1;
     assert_eq!(
-        selected_instructions_to_register_homes::validate_abstract_spill_insertion(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::validate_abstract_spill_insertion(
             &logical, &slots, usage
         ),
-        Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::UsageMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionError::UsageMismatch)
     );
 
     assert!(matches!(
-        selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+        selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_abstract_spill_insertion(
             &logical,
             &slots,
-            selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
             OptimizationWorkBudget::new(1, 1, 4, 1, 1).unwrap(),
         ),
-        Err(selected_instructions_to_register_homes::AbstractSpillInsertionError::BudgetExceeded { .. })
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionError::BudgetExceeded { .. })
     ));
 }
 
@@ -193,10 +193,10 @@ fn empty_pressure_retains_zero_abstract_spill_area_without_insertions() {
         selected_lowering_budget(),
     )
     .unwrap();
-    let staged = selected_instructions_to_register_homes::schedule_abstract_spill_insertion(
+    let staged = selected_instructions_to_register_homes::unsequenced_spill_stages::schedule_abstract_spill_insertion(
         &logical,
         &slots,
-        selected_instructions_to_register_homes::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillInsertionPolicy::BlockLocalNonAddressUnsignedU64AbstractSpillAreaV1,
         selected_lowering_budget(),
     )
     .unwrap();

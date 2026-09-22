@@ -14,51 +14,51 @@ fn replay_rejects_every_root_placement_dependency_and_usage_corruption() {
             let source = build(constructor, target);
             let canonical = constrain(&source, exact_budget()).unwrap().plan().clone();
             let identity =
-                selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&canonical);
+                selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_access_constraint_plan_identity(&canonical);
             for corrupt in ROOT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&changed),
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_access_constraint_plan_identity(&changed),
                     identity
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::RootMismatch),
+                    Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintError::RootMismatch),
                 );
             }
             for corrupt in CONTENT_MUTATIONS {
                 let mut changed = canonical.clone();
                 corrupt(&mut changed);
                 assert_ne!(
-                    selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&changed),
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_access_constraint_plan_identity(&changed),
                     identity
                 );
                 assert_eq!(
                     validate(&source, changed),
-                    Err(selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::NonCanonicalFunctions),
+                    Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintError::NonCanonicalFunctions),
                 );
             }
             let mut usage = canonical;
             usage.usage.iterations += 1;
             assert_ne!(
-                selected_instructions_to_register_homes::abstract_spill_access_constraint_plan_identity(&usage),
+                selected_instructions_to_register_homes::unsequenced_spill_stages::abstract_spill_access_constraint_plan_identity(&usage),
                 identity
             );
             assert_eq!(
                 validate(&source, usage),
-                Err(selected_instructions_to_register_homes::AbstractSpillAccessConstraintError::UsageMismatch),
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintError::UsageMismatch),
             );
         }
     }
 }
 
 const ROOT_MUTATIONS: [fn(
-    &mut selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlan,
+    &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintPlan,
 ); 5] = [
     |plan| {
         plan.abstract_spill_memory_effects =
-            selected_instructions_to_register_homes::AbstractSpillMemoryEffectPlanIdentity::from_bytes([0xe0; 32])
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillMemoryEffectPlanIdentity::from_bytes([0xe0; 32])
     },
     |plan| {
         plan.register_environment =
@@ -75,7 +75,7 @@ const ROOT_MUTATIONS: [fn(
 ];
 
 const CONTENT_MUTATIONS: [fn(
-    &mut selected_instructions_to_register_homes::AbstractSpillAccessConstraintPlan,
+    &mut selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessConstraintPlan,
 ); 13] = [
     |plan| plan.functions[0].placements[0].pseudo.ordinal += 1,
     |plan| plan.functions[0].placements[0].block_ordinal += 1,
@@ -83,7 +83,7 @@ const CONTENT_MUTATIONS: [fn(
     |plan| plan.functions[0].placements[0].before_instruction.0 += 1,
     |plan| {
         plan.functions[0].placements[0].kind =
-            selected_instructions_to_register_homes::AbstractSpillAccessKind::Read
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessKind::Read
     },
     |plan| plan.functions[0].placements[0].storage.epoch += 1,
     |plan| plan.functions[0].placements[0].spill_area_offset += 8,
@@ -93,7 +93,7 @@ const CONTENT_MUTATIONS: [fn(
     |plan| plan.functions[0].dependencies[0].after.ordinal += 1,
     |plan| {
         plan.functions[0].dependencies[0].reason =
-            selected_instructions_to_register_homes::AbstractSpillAccessDependencyReason::DeclaredBeforeReload;
+            selected_instructions_to_register_homes::unsequenced_spill_stages::AbstractSpillAccessDependencyReason::DeclaredBeforeReload;
     },
     |plan| plan.functions[0].dependencies.pop().map(|_| ()).unwrap(),
 ];

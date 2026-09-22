@@ -12,16 +12,16 @@ fn sources(
     target: NativeTarget,
 ) -> (
     Sources,
-    selected_instructions_to_register_homes::ValidatedGeneralizedReloadValueHomes,
-    selected_instructions_to_register_homes::ValidatedGeneralizedSpillRecoveryWorklist,
-) {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
+    selected_instructions_to_register_homes::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryWorklist,
+){
     let sources = Sources::from_legality(
         staged_active_resident_original_victim_chain_two_view_legality(target),
     );
     let homes = sources.assign(selected_lowering_budget()).unwrap();
-    let worklist = selected_instructions_to_register_homes::seed_generalized_spill_recovery_worklist(
+    let worklist = selected_instructions_to_register_homes::unsequenced_spill_stages::seed_generalized_spill_recovery_worklist(
         &homes,
-        selected_instructions_to_register_homes::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
+        selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryWorklistPolicy::EpochOnePressureToEpochTwoV1,
         selected_lowering_budget(),
     )
     .unwrap();
@@ -45,7 +45,7 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
         assert_ne!(first.receipt().identity(), legacy.receipt().identity());
         assert_eq!(
             legacy.plan().choices[0].selected_victim,
-            selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Reload(
                 action(0, 0)
             )
         );
@@ -59,7 +59,7 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
         assert_eq!(choice.point, LiveRangePoint(16));
         assert_eq!(
             choice.selected_victim,
-            selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Original(
                 VirtualRegisterId(6)
             )
         );
@@ -71,10 +71,10 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
                 .map(|resident| resident.value)
                 .collect::<Vec<_>>(),
             vec![
-                selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(
+                selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Original(
                     VirtualRegisterId(6)
                 ),
-                selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(
+                selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Reload(
                     action(0, 0)
                 ),
             ]
@@ -87,13 +87,13 @@ fn exact_graph_selects_an_eligible_original_before_the_reload() {
                 .collect::<Vec<_>>(),
             vec![
                 (
-                    selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Original(VirtualRegisterId(
                         6
                     ),),
                     LiveRangePoint(19),
                 ),
                 (
-                    selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0)),
+                    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Reload(action(0, 0)),
                     LiveRangePoint(21),
                 ),
             ]
@@ -129,7 +129,7 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
             .iter()
             .find(|contender| {
                 contender.value
-                    == selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
+                    == selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Reload(action(0, 0))
             })
             .copied()
             .unwrap();
@@ -138,17 +138,17 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
         reload.choices[0].reclaimed_view = contender.reclaimed_view;
         assert_eq!(
             sources.validate_generalized_victim(&homes, &worklist, reload),
-            Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
         );
 
         let mut original = canonical.clone();
         original.choices[0].selected_victim =
-            selected_instructions_to_register_homes::GeneralizedReloadCoexistingValue::Original(
+            selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedReloadCoexistingValue::Original(
                 VirtualRegisterId(7),
             );
         assert_eq!(
             sources.validate_generalized_victim(&homes, &worklist, original),
-            Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError::NonCanonicalChoices)
         );
 
         let mut root = canonical;
@@ -156,7 +156,7 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
             selected_instructions::SelectedInstructionPlanIdentity::from_bytes([0x85; 32]);
         assert_eq!(
             sources.validate_generalized_victim(&homes, &worklist, root),
-            Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::RootMismatch)
+            Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError::RootMismatch)
         );
     }
 
@@ -169,7 +169,7 @@ fn independent_replay_rejects_reload_original_and_root_forgery() {
     let (arm, arm_homes, arm_worklist) = sources(NativeTarget::linux_arm64());
     assert_eq!(
         arm.validate_generalized_victim(&arm_homes, &arm_worklist, foreign),
-        Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::RootMismatch)
+        Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError::RootMismatch)
     );
 }
 
@@ -195,7 +195,7 @@ fn guarded_original_choice_has_exact_representable_budget_boundaries() {
                     policy(),
                     budget,
                 ),
-                Err(selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoiceError::BudgetExceeded {
+                Err(selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoiceError::BudgetExceeded {
                     required,
                     budget: actual,
                 }) if required == exact_usage() && actual == budget
@@ -204,15 +204,18 @@ fn guarded_original_choice_has_exact_representable_budget_boundaries() {
     }
 }
 
-const fn policy() -> selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy {
-    selected_instructions_to_register_homes::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1
+const fn policy() -> selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoicePolicy{
+    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillRecoveryChoicePolicy::EpochTwoEligibleOriginalBeforeReloadThenFarthestEndThenHighestValueV1
 }
 
 const fn action(
     epoch: u32,
     ordinal: u32,
-) -> selected_instructions_to_register_homes::GeneralizedSpillActionId {
-    selected_instructions_to_register_homes::GeneralizedSpillActionId { epoch, ordinal }
+) -> selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+    selected_instructions_to_register_homes::unsequenced_spill_stages::GeneralizedSpillActionId {
+        epoch,
+        ordinal,
+    }
 }
 
 fn exact_budget() -> OptimizationWorkBudget {
