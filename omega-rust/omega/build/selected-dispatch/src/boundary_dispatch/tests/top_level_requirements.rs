@@ -142,7 +142,7 @@ fn public_requirement_settles_one_owner_keyed_direct_call_row() {
     );
 
     let original = Arc::new(checked);
-    let mut settled = Arc::clone(&original);
+    let mut settled = Arc::new(original.as_ref().clone());
     settle_selected_boundary_adapter_dispatch(&mut settled, &selected).unwrap();
     assert_eq!(
         settled.typed, original.typed,
@@ -161,7 +161,7 @@ fn public_requirement_settles_one_owner_keyed_direct_call_row() {
 fn called_requirement_without_a_selected_provider_rejects_at_settlement() {
     let (checked, _) = requirement_fixture(REQUIREMENT_SOURCE);
     let original = Arc::new(checked);
-    let mut settled = Arc::clone(&original);
+    let mut settled = Arc::new(original.as_ref().clone());
     let diagnostics = settle_selected_boundary_adapter_dispatch(
         &mut settled,
         &effects::SelectedProviderPlanFacts::default(),
@@ -173,7 +173,6 @@ fn called_requirement_without_a_selected_provider_rejects_at_settlement() {
         )),
         "{diagnostics:?}"
     );
-    assert!(Arc::ptr_eq(&settled, &original));
 }
 
 #[test]
@@ -183,8 +182,8 @@ fn execution_settlement_redirects_the_journaled_call_to_the_realization() {
     let requirement = entry_symbol(&checked, "CheckedMath::offset_zero");
     let realization = entry_symbol(&checked, "CheckedMathProvider::offset_zero_impl");
     let (expression, _) = direct_call(&checked);
-    let mut settled = Arc::new(checked);
-    let edits = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+    let settled = Arc::new(checked);
+    let (settled, edits) = settle_selected_execution_dispatch_with_source_edits(settled, &selected)
         .expect("execution settles");
     let ExpressionNode::Call(call) = settled.typed.expression_table.expression(expression) else {
         panic!("the journaled call is still a call");
@@ -265,8 +264,8 @@ fn a_statement_position_direct_call_redirects_to_the_selected_adapter() {
         })
         .expect("statement-position requirement call");
 
-    let mut settled = Arc::new(checked);
-    let edits = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+    let settled = Arc::new(checked);
+    let (settled, edits) = settle_selected_execution_dispatch_with_source_edits(settled, &selected)
         .expect("a statement-position direct call settles");
     let typed_trees::statement::StatementNode::Call(call) =
         settled.typed.statement_table.statement(statement)
@@ -388,8 +387,8 @@ fn a_member_call_on_a_self_requirement_forwards_the_receiver_as_argument_zero() 
         })
         .expect("the statement member call");
 
-    let mut settled = Arc::new(checked);
-    let edits = settle_selected_execution_dispatch_with_source_edits(&mut settled, &selected)
+    let settled = Arc::new(checked);
+    let (settled, edits) = settle_selected_execution_dispatch_with_source_edits(settled, &selected)
         .expect("a member call on a `self` requirement settles");
     let typed_trees::statement::StatementNode::Call(call) =
         settled.typed.statement_table.statement(statement)

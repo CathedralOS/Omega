@@ -1,10 +1,10 @@
 //! Float intrinsic dispatch tests.
 
 use super::{
-    Arc, ArithmeticDomain, BinaryOperator, BuiltinFunction, CheckedTrees,
-    CompilerIntrinsicExecutionIdentity, ExpressionNode, FloatFormat, NamedFloatRealization,
-    SelectedCompilerIntrinsicExecutionIdentity, StagedNamedFloatExecution, StagedNamedFloatRewrite,
-    apply_selected_float_intrinsic_rewrites, derive_selected_compiler_intrinsic_execution_identity,
+    Arc, ArithmeticDomain, BuiltinFunction, CheckedTrees, CompilerIntrinsicExecutionIdentity,
+    FloatFormat, NamedFloatRealization, SelectedCompilerIntrinsicExecutionIdentity,
+    StagedNamedFloatExecution, StagedNamedFloatRewrite,
+    derive_selected_compiler_intrinsic_execution_identity,
     settle_selected_float_intrinsic_dispatch,
 };
 use crate::selected_dispatch::float_intrinsic::intrinsic_resolution::{
@@ -14,6 +14,8 @@ use crate::selected_dispatch::float_intrinsic::named_float_realizations::preflig
 use effects::provider_plan::ProviderBinding;
 use provider_planning::CompilerNumericType;
 use provider_planning::ProviderPlanDerivation;
+use typed_trees::expression::{BinaryOperator, ExpressionNode};
+use typed_trees_to_checked_trees::{ExecutionSettlement, settle_checked_execution};
 
 const SOURCE: &str = r#"
     data F32 {}
@@ -549,15 +551,10 @@ fn shared_success_clones_only_after_complete_preflight() {
     let (fixture, selected, handle, retained) = selected_fixture();
     let original_contents = fixture.checked.clone();
     let original = Arc::new(fixture.checked);
-    let mut settled = Arc::clone(&original);
+    let settled = Arc::new(original.as_ref().clone());
 
-    settle_selected_float_intrinsic_dispatch(&mut settled, &selected)
+    let settled = settle_selected_float_intrinsic_dispatch(settled, &selected)
         .expect("exact selected intrinsic rewrites");
-
-    assert!(
-        !Arc::ptr_eq(&settled, &original),
-        "a shared successful settlement must publish through a fresh Arc"
-    );
     assert_eq!(
         original.as_ref(),
         &original_contents,
@@ -623,26 +620,23 @@ fn non_builtin_execution_forms_preflight_without_publication() {
 }
 
 #[test]
-fn negate_publication_appends_only_after_shared_arc_custody_separates() {
+fn negate_settlement_appends_exactly_one_landed_literal() {
     let (fixture, _, handle, retained) = selected_fixture();
     let expression_count = fixture.checked.typed.expression_table.expression_count();
-    let original_contents = fixture.checked.clone();
-    let original = Arc::new(fixture.checked);
-    let mut settled = Arc::clone(&original);
-
-    apply_selected_float_intrinsic_rewrites(
-        Arc::make_mut(&mut settled),
-        vec![StagedNamedFloatRewrite {
-            expression: retained.expression,
-            origin: retained.origin,
-            realization: NamedFloatRealization::Negate(FloatFormat::F32),
-            execution: StagedNamedFloatExecution::Negate(FloatFormat::F32),
-        }],
-        &mut crate::source_edits::SourceEditBuilder::default(),
-    );
-
-    assert!(!Arc::ptr_eq(&settled, &original));
-    assert_eq!(original.as_ref(), &original_contents);
+    let rewrite = StagedNamedFloatRewrite {
+        expression: retained.expression,
+        origin: retained.origin,
+        realization: NamedFloatRealization::Negate(FloatFormat::F32),
+        execution: StagedNamedFloatExecution::Negate(FloatFormat::F32),
+    };
+    let settled = settle_checked_execution(
+        fixture.checked,
+        &ExecutionSettlement {
+            float_intrinsics: &[rewrite.settled_intrinsic()],
+            ..ExecutionSettlement::default()
+        },
+    )
+    .expect("a negate intrinsic settles");
     assert_eq!(
         settled.typed.expression_table.expression_count(),
         expression_count + 1,
@@ -676,55 +670,38 @@ fn negate_publication_appends_only_after_shared_arc_custody_separates() {
 }
 
 #[test]
-fn shared_rejection_preserves_arc_identity_and_complete_contents() {
+fn one_invalid_intrinsic_use_rejects_the_complete_batch() {
     let (mut fixture, selected, _, retained) = selected_fixture();
     let mut invalid = retained;
     invalid.provider_plan_report_fingerprint = u64::MAX;
     fixture.checked.facts.operators.named_uses.append(invalid);
-    let before = fixture.checked.clone();
-    let original = Arc::new(fixture.checked);
-    let mut rejected = Arc::clone(&original);
-
-    let diagnostics = settle_selected_float_intrinsic_dispatch(&mut rejected, &selected)
-        .expect_err("one invalid intrinsic use rejects the complete rewrite batch");
+    let diagnostics =
+        settle_selected_float_intrinsic_dispatch(Arc::new(fixture.checked), &selected)
+            .expect_err("one invalid intrinsic use rejects the complete rewrite batch");
     assert!(
         diagnostics[0]
             .message
             .contains("unknown ProviderPlan report fingerprint")
     );
-    assert_eq!(
-        rejected.as_ref(),
-        &before,
-        "validation failure must not publish any staged rewrite",
-    );
-    assert!(
-        Arc::ptr_eq(&rejected, &original),
-        "rejection must preserve exact shared program custody"
-    );
 }
 
 #[test]
-fn empty_settlement_preserves_shared_arc_identity_and_contents() {
+fn empty_settlement_returns_the_program_unchanged() {
     let fixture = fixture();
     let original_contents = fixture.checked.clone();
-    let original = Arc::new(fixture.checked);
-    let mut settled = Arc::clone(&original);
-
-    settle_selected_float_intrinsic_dispatch(
-        &mut settled,
+    let settled = settle_selected_float_intrinsic_dispatch(
+        Arc::new(fixture.checked),
         &effects::SelectedProviderPlanFacts::default(),
     )
     .expect("a program without selected float intrinsics is already settled");
-
-    assert!(Arc::ptr_eq(&settled, &original));
     assert_eq!(settled.as_ref(), &original_contents);
 }
 
 #[test]
 fn settled_write_frame_refresh_accepts_agreement_and_rejects_a_changed_complete_frame() {
     let (fixture, selected, _, _) = selected_fixture();
-    let mut settled = Arc::new(fixture.checked);
-    settle_selected_float_intrinsic_dispatch(&mut settled, &selected)
+    let settled = Arc::new(fixture.checked);
+    let settled = settle_selected_float_intrinsic_dispatch(settled, &selected)
         .expect("exact selected intrinsic rewrites");
     let mut program = settled.as_ref().clone();
     typed_trees_to_checked_trees::refresh_settled_state_write_frames(&mut program)
