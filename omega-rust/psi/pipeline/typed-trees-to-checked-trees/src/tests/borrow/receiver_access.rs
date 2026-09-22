@@ -502,14 +502,38 @@ fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
         let calls = plan
             .operations
             .iter()
-            .filter_map(|operation| match operation {
+            .flat_map(|operation| match operation {
                 checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
                     structural_arguments,
                     ..
-                } => Some(structural_arguments),
-                _ => None,
+                } => structural_arguments.iter().collect::<Vec<_>>(),
+                checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                    value:
+                        checked_trees::CheckedCallScalarArgument::Computation(root),
+                    ..
+                } => {
+                    let computations = &checked.facts.values.scalar_computations;
+                    let checked_trees::CheckedScalarComputationKind::Call {
+                        structural_arguments,
+                        ..
+                    } = &computations.nodes.get(*root).kind
+                    else {
+                        return Vec::new();
+                    };
+                    computations
+                        .structural_arguments
+                        .span_or_empty(*structural_arguments)
+                        .iter()
+                        .filter_map(|argument| match argument {
+                            checked_trees::CheckedScalarComputationStructuralArgument::Place(
+                                plan,
+                            ) => Some(plan),
+                            _ => None,
+                        })
+                        .collect::<Vec<_>>()
+                }
+                _ => Vec::new(),
             })
-            .flatten()
             .collect::<Vec<_>>();
         let [receiver] = calls.as_slice() else {
             panic!("the indexed receiver call passes exactly one structural argument: {calls:#?}")
@@ -616,7 +640,7 @@ fn explicit_shared_dynamic_indexed_argument_still_omits_caller_in_call_operation
 }
 
 #[test]
-fn local_indexed_receiver_still_omits_in_call_statement_shape() {
+fn local_indexed_receiver_plans_in_call_statement_shape() {
     let checked = checked_program_result(
         "data Cell { value: u64; }
          machine Cell::get(&self) -> u64 { self.value }
@@ -626,14 +650,15 @@ fn local_indexed_receiver_still_omits_in_call_statement_shape() {
          }",
     )
     .expect("local indexed receiver still checks at the source stage");
-    let stage = omission_stage(&checked, "run");
+    let plans = &checked.facts.flow.terminal_unit_effects;
     assert!(
-        matches!(
-            stage,
-            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction { phase, .. }
-                if phase.contains("call statement shape")
-        ),
-        "a literal index on a local-rooted receiver still stops in call statement shape: {stage:?}"
+        plans.for_machine(machine_named(&checked, "get")).is_some(),
+        "the callee keeps its own Unit plan"
+    );
+    assert!(
+        plans.for_machine(machine_named(&checked, "run")).is_some(),
+        "a literal index on a local-rooted receiver is an exact element, so the caller is planned: {:?}",
+        plans.omission_for_machine(machine_named(&checked, "run"))
     );
 }
 

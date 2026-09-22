@@ -72,6 +72,14 @@ pub enum CheckedStructuralValueKind {
         subject: CheckedScalarComputationHandle,
         arms: HandleSpan<CheckedStructuralDispatchArm>,
     },
+    /// An element-wise owned construction of a fixed array of structural
+    /// values. Each element is its own structural node — a record literal,
+    /// a place, a call product — so field scalars, ownership, and calls
+    /// compose exactly as they do inside a record constructor; the array
+    /// contributes only their ordered container.
+    FixedArray {
+        elements: Vec<CheckedStructuralValueHandle>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
