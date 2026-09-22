@@ -1,7 +1,7 @@
 //! Exact, closed-strengthened, and two-citation integer order proofs.
 
 use proof_admission::{ProofNode, ProofRule};
-use semantic_vocabulary::Proposition;
+use semantic_vocabulary::{Proposition, PropositionContext};
 
 use super::super::integer_evidence::cited_facts;
 
@@ -10,11 +10,12 @@ mod closed;
 mod transitive;
 
 pub(super) fn prove_aliased_integer_bound(
+    context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    aliases::prove(goal, assumptions, semantic_axioms)
+    aliases::prove(context, goal, assumptions, semantic_axioms)
 }
 
 pub(super) fn prove_two_fact_transitive_integer_bound(
@@ -42,6 +43,7 @@ pub(super) fn prove_exact_or_closed_transitive_integer_bound(
 }
 
 pub(super) fn prove_equal_integer_bound(
+    context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -53,6 +55,7 @@ pub(super) fn prove_equal_integer_bound(
     // The kernel checks the conversion rather than treating the two
     // propositions as interchangeable citations.
     if let Some(relation) = super::exact::prove(
+        context,
         &Proposition::Equal(left.clone(), right.clone()),
         assumptions,
         semantic_axioms,

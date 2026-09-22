@@ -19,7 +19,7 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    prove_without_subtract(goal, assumptions, semantic_axioms)
+    prove_without_subtract(context, goal, assumptions, semantic_axioms)
         .or_else(|| subtract::prove(context, goal, assumptions, semantic_axioms, definitions))
         // Strict endpoints traverse checked wrapping-update chains that the
         // non-strict affine selection cannot cite.
@@ -63,6 +63,7 @@ fn prove_discrete_endpoint(
         for literal in &literals {
             if literal.scalar_type() != target.scalar_type()
                 || exact::prove(
+                    context,
                     &Proposition::Equal(target.clone(), literal.clone()),
                     assumptions,
                     semantic_axioms,
@@ -102,7 +103,7 @@ fn prove_discrete_endpoint(
                     relation: Box::new(relation),
                 },
             };
-            if let Some(proof) = complete(goal, discrete, assumptions, semantic_axioms) {
+            if let Some(proof) = complete(context, goal, discrete, assumptions, semantic_axioms) {
                 return Some(proof);
             }
         }
@@ -111,6 +112,7 @@ fn prove_discrete_endpoint(
 }
 
 fn prove_without_subtract(
+    context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
@@ -132,7 +134,9 @@ fn prove_without_subtract(
     for fact in facts.iter().rev() {
         match fact.proposition {
             Proposition::LessThan(_, _) => {
-                if let Some(proof) = complete(goal, fact.proof(), assumptions, semantic_axioms) {
+                if let Some(proof) =
+                    complete(context, goal, fact.proof(), assumptions, semantic_axioms)
+                {
                     return Some(proof);
                 }
             }
@@ -149,7 +153,9 @@ fn prove_without_subtract(
                             relation: Box::new(fact.proof()),
                         },
                     };
-                    if let Some(proof) = complete(goal, discrete, assumptions, semantic_axioms) {
+                    if let Some(proof) =
+                        complete(context, goal, discrete, assumptions, semantic_axioms)
+                    {
                         return Some(proof);
                     }
                 }
@@ -171,6 +177,7 @@ fn prove_without_subtract(
                     && candidate.scalar_type() == term.scalar_type())
                 .then(|| {
                     exact::prove(
+                        context,
                         &Proposition::Equal(term.clone(), candidate.clone()),
                         assumptions,
                         semantic_axioms,
@@ -181,7 +188,7 @@ fn prove_without_subtract(
             })
     };
     let closed = closed_integer_relation(Proposition::LessThan(literal(left)?, literal(right)?))?;
-    complete(goal, closed, assumptions, semantic_axioms)
+    complete(context, goal, closed, assumptions, semantic_axioms)
 }
 
 fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
@@ -199,6 +206,7 @@ fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
 }
 
 fn complete(
+    context: &PropositionContext,
     goal: &Proposition,
     mut proof: ProofNode,
     assumptions: &[Proposition],
@@ -216,6 +224,7 @@ fn complete(
             continue;
         }
         let equality = exact::prove(
+            context,
             &Proposition::Equal(old.clone(), target.clone()),
             assumptions,
             semantic_axioms,

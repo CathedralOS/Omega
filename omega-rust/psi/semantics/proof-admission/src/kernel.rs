@@ -1,6 +1,7 @@
 use crate::integer_rules::closed_integer::{
     ClosedIntegerEvaluationError, check_integer_math_term_size, compare_integer_math_terms,
 };
+use crate::proof::integer_math_normalization::lift_exact_integer_relation;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 pub use terminal_psi::PrimitiveJudgment;
 
@@ -35,14 +36,14 @@ pub fn decide_primitive(
         (PrimitiveJudgment::ReflexiveEquality, Proposition::ContentConservation(conservation)) => {
             conservation.left() == conservation.right()
         }
-        (PrimitiveJudgment::ClosedIntegerRelation, Proposition::Equal(left, right)) => {
-            compare_integer_literals(left, right).is_some_and(|ordering| ordering.is_eq())
-        }
-        (PrimitiveJudgment::ClosedIntegerRelation, Proposition::LessThan(left, right)) => {
-            compare_integer_literals(left, right).is_some_and(|ordering| ordering.is_lt())
-        }
-        (PrimitiveJudgment::ClosedIntegerRelation, Proposition::LessOrEqual(left, right)) => {
-            compare_integer_literals(left, right).is_some_and(|ordering| !ordering.is_gt())
+        (PrimitiveJudgment::ClosedIntegerRelation, Proposition::Equal(..))
+        | (PrimitiveJudgment::ClosedIntegerRelation, Proposition::LessThan(..))
+        | (PrimitiveJudgment::ClosedIntegerRelation, Proposition::LessOrEqual(..)) => {
+            compare_fixed_integer_relation(proposition)?.is_some_and(|ordering| match proposition {
+                Proposition::Equal(..) => ordering.is_eq(),
+                Proposition::LessThan(..) => ordering.is_lt(),
+                _ => !ordering.is_gt(),
+            })
         }
         (PrimitiveJudgment::ClosedIntegerRelation, Proposition::IntegerMathEqual(left, right)) => {
             compare_integer_math_terms(left, right)
@@ -109,6 +110,33 @@ pub(crate) fn compare_integer_literals(
         return None;
     }
     left_type.compare(left, right)
+}
+
+/// The exact mathematical ordering of a scalar `Equal`/`LessThan`/
+/// `LessOrEqual` relation: the closed literal comparison first, then the
+/// kernel's structural lift — `Exact` add/subtract/multiply compounds on
+/// `Fixed` carriers included — decided by the same closed evaluator and
+/// open-term ring normalization `IntegerMath*` propositions already use.
+/// This is the licensed derivation behind
+/// `PrimitiveJudgment::ClosedIntegerRelation`, not a premise-matching
+/// normalization: it answers the relation itself and `None` when either
+/// operand stays open past normalization or cannot lift.
+fn compare_fixed_integer_relation(
+    proposition: &Proposition,
+) -> Result<Option<std::cmp::Ordering>, KernelError> {
+    let (left, right) = match proposition {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => (left, right),
+        _ => return Ok(None),
+    };
+    if let Some(ordering) = compare_integer_literals(left, right) {
+        return Ok(Some(ordering));
+    }
+    let Some((left, right)) = lift_exact_integer_relation(proposition) else {
+        return Ok(None);
+    };
+    compare_integer_math_terms(&left, &right).map_err(KernelError::ClosedIntegerEvaluation)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

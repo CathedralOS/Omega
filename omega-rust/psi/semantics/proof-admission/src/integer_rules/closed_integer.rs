@@ -211,11 +211,22 @@ fn charge_limit(
 }
 
 /// Evaluates one comparison with a fresh shared budget for both operands.
+///
+/// Closed evaluation decides first. When it leaves a term open, the licensed
+/// ring normalization in [`super::open_terms`] decides the remaining ring
+/// identities: `left - right` reducing to a closed constant fixes the
+/// ordering for every valuation of the open atoms. Anything else — a
+/// nonconstant difference, an uninterpreted operation, a refusal — is still
+/// `None`, never a guessed judgment.
 pub fn compare_integer_math_terms(
     left: &IntegerMathTerm,
     right: &IntegerMathTerm,
 ) -> Result<Option<Ordering>, ClosedIntegerEvaluationError> {
-    ClosedIntegerEvaluator::default().compare(left, right)
+    let mut evaluator = ClosedIntegerEvaluator::default();
+    if let Some(ordering) = evaluator.compare(left, right)? {
+        return Ok(Some(ordering));
+    }
+    super::open_terms::constant_difference_ordering(left, right)
 }
 
 pub(crate) fn check_integer_math_term_size(
@@ -227,7 +238,7 @@ pub(crate) fn check_integer_math_term_size(
     evaluator.check_term_size(right)
 }
 
-fn big_integer_literal(literal: IntegerMathLiteral) -> BigInt {
+pub(crate) fn big_integer_literal(literal: IntegerMathLiteral) -> BigInt {
     let magnitude = BigInt::from_u128(literal.magnitude());
     if literal.negative() {
         magnitude.negate()

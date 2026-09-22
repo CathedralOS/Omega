@@ -52,9 +52,13 @@ pub(super) fn prove(
                         Proposition::LessOrEqual(goal_left.clone(), left.clone()),
                     )
                 };
-                let Some(strict) =
-                    super::complete(&strict_goal, relation.clone(), assumptions, semantic_axioms)
-                else {
+                let Some(strict) = super::complete(
+                    context,
+                    &strict_goal,
+                    relation.clone(),
+                    assumptions,
+                    semantic_axioms,
+                ) else {
                     continue;
                 };
                 let Some(nonstrict) = bound::prove(

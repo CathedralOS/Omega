@@ -35,6 +35,31 @@ fn runtime_ranked_accumulator_guarantee_exit_canary_runs() {
 }
 
 #[test]
+fn accumulator_guarantee_exit_canary_runs() {
+    // A free accumulator loop whose `ensures result == acc + remaining` claim
+    // is proved against the `climb(remaining - 1, acc + 1)` arrival: the
+    // kernel's licensed open-term derivation discharges
+    // `(acc + 1) + (remaining - 1) == acc + remaining` and the certificate
+    // replays through lowering, so `climb(4, 10)` returns 14.
+    let canary = pass_canary(fixture_roster::PROOFS_ACCUMULATOR_GUARANTEE_EXIT);
+    let build_dir = std::env::temp_dir().join(format!("omega-accumulator-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("accumulator guarantee canary should compile from its authored root");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("accumulator guarantee canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected climb(4, 10) to return 14 under its proved guarantee (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn accumulator_guarantee_twins_reject_in_checked_semantics() {
     // The twins share the checked-only pass canary's conserved
     // `acc + remaining` claim but break one obligation each: the wrong-step

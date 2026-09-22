@@ -253,6 +253,147 @@ fn wrong_accumulator_arrival_rejects_the_replayed_guarantee_certificate() {
     ));
 }
 
+const CLIMB: &str = "machine climb(remaining: u64[0..=1000], acc: u64[0..=1000]) -> u64
+terminates by remaining -> Nat::Descending;
+ensures result == acc + remaining
+{
+    transition remaining > 0 && acc < 1000 {
+        true -> climb(remaining - 1, acc + 1)
+        false -> (acc + remaining)
+    }
+}";
+
+/// The strengthened cyclic header and its backedge preservation obligation.
+fn conserved_sum_header(lowered: &LoweredPsi) -> (&Proposition, ObligationId) {
+    let machine = &lowered.semantic_module.machines[0];
+    let invariant = lowered
+        .semantic_module
+        .scalar_block_invariants
+        .iter()
+        .find(|invariant| {
+            machine
+                .blocks
+                .iter()
+                .any(|block| block.id == invariant.header && block.id != machine.entry)
+        })
+        .expect("the latch header is strengthened");
+    let backedge = machine
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            Terminator::Jump { edge, target, .. }
+                if *target == invariant.header && block.id != machine.entry =>
+            {
+                Some(*edge)
+            }
+            _ => None,
+        })
+        .expect("the latch jumps back to its header");
+    let arrival = invariant
+        .arrivals
+        .iter()
+        .find(|arrival| arrival.edge == backedge)
+        .expect("the backedge is an invariant arrival");
+    (&invariant.predicate, arrival.obligation)
+}
+
+/// Whether `predicate` carries an exact `sum == sum` conjunct.
+fn conserves_a_sum(predicate: &Proposition) -> bool {
+    match predicate {
+        Proposition::Conjunction(members) => members.iter().any(conserves_a_sum),
+        Proposition::Equal(left, right) => {
+            matches!(left, ScalarTerm::ExactIntegerAdd { .. })
+                && matches!(right, ScalarTerm::ExactIntegerAdd { .. })
+        }
+        _ => false,
+    }
+}
+
+#[test]
+fn arithmetic_accumulator_guarantee_retains_the_conserved_sum_invariant() {
+    let checked = checked_source(CLIMB);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("climb"))
+        .expect("the conserved sum makes the guarantee provable");
+    let module = &lowered.semantic_module;
+    let (invariant, preservation) = conserved_sum_header(&lowered);
+    assert!(
+        conserves_a_sum(invariant),
+        "the header invariant carries the transported guarantee: {invariant:?}"
+    );
+    let verified = verify_module(module, &lowered.proof_bundle, &AdmissionProfile::default())
+        .expect("the emitted certificates verify independently");
+    assert_eq!(verified.accepted_control_cycles().len(), 1);
+    let guarantee = module.machines[0].contract.ensures[0].obligation;
+    assert!(
+        lowered
+            .proof_bundle
+            .evidence
+            .iter()
+            .any(|evidence| evidence.obligation == guarantee),
+        "the ensures clause has its own certificate"
+    );
+
+    // The certified backedge is the update's own claim: forwarding the
+    // accumulator's predecessor unchanged asks a different preservation
+    // question, and the retained certificate refuses it rather than silently
+    // covering the wrong arrival.
+    let mut wrong = module.clone();
+    let latch_index = wrong.machines[0]
+        .blocks
+        .iter()
+        .position(|block| match &block.terminator {
+            Terminator::Jump { target, .. } => {
+                *target
+                    == module
+                        .scalar_block_invariants
+                        .iter()
+                        .find(|invariant| {
+                            invariant
+                                .arrivals
+                                .iter()
+                                .any(|arrival| arrival.obligation == preservation)
+                        })
+                        .map(|invariant| invariant.header)
+                        .expect("strengthened header")
+                    && block.id != wrong.machines[0].entry
+            }
+            _ => false,
+        })
+        .expect("the latch block");
+    let unchanged_acc = wrong.machines[0].blocks[latch_index]
+        .operations
+        .iter()
+        .find_map(|operation| match operation.kind {
+            OperationKind::ExactIntegerAdd { left, .. } => Some(left),
+            _ => None,
+        })
+        .expect("the latch adds one to the accumulator");
+    let Terminator::Jump { arguments, .. } = &mut wrong.machines[0].blocks[latch_index].terminator
+    else {
+        panic!("latch jump")
+    };
+    arguments[1] = unchanged_acc;
+    let questions = reconstruct_terminal_obligations(&wrong).unwrap();
+    let goal = &questions
+        .obligations()
+        .iter()
+        .find(|question| question.obligation.id == preservation)
+        .unwrap()
+        .obligation
+        .proposition;
+    assert!(
+        goal.any_value_id(|value| value == unchanged_acc),
+        "{goal:?}"
+    );
+    assert_eq!(
+        verify_module(&wrong, &lowered.proof_bundle, &AdmissionProfile::default()).err(),
+        Some(VerificationError::RejectedEvidence {
+            obligation: preservation,
+            error: EvidenceError::Certificate(ProofError::CertificateConclusionMismatch),
+        })
+    );
+}
+
 #[test]
 fn a_guarantee_the_loop_does_not_establish_discards_the_whole_strengthening() {
     // `result <= n` claims the accumulator never exceeds the initial rank; the
