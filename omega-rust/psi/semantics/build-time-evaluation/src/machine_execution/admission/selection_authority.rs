@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::BuildOperation;
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceOrigin, SourceSpan};
 use symbols::{SymbolHandle, SymbolKind};
@@ -695,7 +696,8 @@ fn late_bound_selection_symbol(
     let table = &program.expression_table;
     let selected = match (binding, table.expression(expression)) {
         (Binding::CheckedStaticArgument, ExpressionNode::Call(call))
-            if call.target.as_str() == "select_provider" =>
+            if BuildOperation::from_call_target(call.target.as_str())
+                == Some(BuildOperation::ProviderSelection) =>
         {
             call.machine_arguments
                 .get(ordinal)

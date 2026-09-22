@@ -1,3 +1,4 @@
+use crate::authored_selections::is_boundary_acceptance_marker;
 use crate::lookup::{statement_call_can_dispatch_to_machine, statement_call_receiver_path};
 use checked_trees::statement::{StatementNode, TransitionGuardNode};
 use checked_trees::{BorrowArgumentAccessFact, BorrowCallFact};
@@ -61,7 +62,7 @@ pub(crate) fn collect_statement_borrow_calls(
                 crate::lookup::statement_call_receiver_members(program, call),
                 &call.target,
             );
-            if !call.target.as_str().starts_with("accept_boundary#")
+            if !is_boundary_acceptance_marker(call.target.as_str())
                 && (resolved_target.is_valid()
                     || statement_call_can_dispatch_to_machine(program, machine, state, call))
             {

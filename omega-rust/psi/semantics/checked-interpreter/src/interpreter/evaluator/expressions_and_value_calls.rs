@@ -555,10 +555,7 @@ impl<'program> Evaluator<'program> {
             return Ok(plan);
         }
         // CH10 root grant marker (see the statement-call twin): a no-op.
-        if target.starts_with("accept_boundary#")
-            || target == "select_representation"
-            || target.starts_with("wire_compatibility#")
-        {
+        if super::statements_and_calls::is_statically_harvested_build_declaration(target) {
             return Ok(Value::Unit);
         }
         if let Some(value) = self.try_provider_selection_value_call(handle, call, frame)? {

@@ -9,9 +9,10 @@ use crate::symbols::scoped_paths::resolve_state_scoped_members;
 use crate::symbols::targets::{
     assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
     assign_runtime_subject_argument_symbol, assign_static_argument_symbols,
-    assign_transition_target_symbols, resolve_call_target_symbol,
+    assign_transition_target_symbols, build_operand_route, resolve_call_target_symbol,
 };
 use crate::symbols::type_references::assign_type_reference_symbol_with_locals_and_self_type_and_constraints;
+use language_semantics::declaration_selection::BuildOperation;
 
 pub(super) fn assign_statement_symbols(
     machine: &MachineScope<'_>,
@@ -138,10 +139,7 @@ pub(super) fn assign_statement_symbols(
                 child_type_references,
                 symbols,
             );
-            let provider_selection =
-                call.target.as_str() == "select_provider" && !call.target_symbol.is_valid();
-            let representation_selection = call.target.as_str() == "select_representation";
-            let service_exclusion = call.target.as_str() == "exclude_service";
+            let operand_route = build_operand_route(call.target.as_str(), call.target_symbol);
             for argument in &call.machine_arguments {
                 crate::symbols::expressions::assign_static_argument_type_symbols(
                     symbols,
@@ -154,17 +152,23 @@ pub(super) fn assign_statement_symbols(
                 );
             }
             for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
-                if provider_selection || service_exclusion {
-                    assign_provider_selection_argument_symbol(
+                match operand_route {
+                    Some(BuildOperation::RepresentationSelection) => {
+                        assign_representation_selection_argument_symbol(
+                            symbols,
+                            argument,
+                            index == 0,
+                        );
+                    }
+                    Some(operation) => assign_provider_selection_argument_symbol(
                         symbols,
                         argument,
-                        provider_selection && index == 0,
-                    );
-                } else if representation_selection {
-                    assign_representation_selection_argument_symbol(symbols, argument, index == 0);
-                } else {
-                    assign_static_argument_symbols(symbols, machine.symbol, argument, false);
-                    assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
+                        operation == BuildOperation::ProviderSelection && index == 0,
+                    ),
+                    None => {
+                        assign_static_argument_symbols(symbols, machine.symbol, argument, false);
+                        assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
+                    }
                 }
             }
         }

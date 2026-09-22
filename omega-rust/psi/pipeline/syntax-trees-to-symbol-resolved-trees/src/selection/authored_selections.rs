@@ -12,6 +12,7 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionKind as Kind,
     AuthoredDeclarationSelectionLateBinding as LateBinding,
     AuthoredDeclarationSelectionOccurrenceId, AuthoredDeclarationSelectionRecordError,
+    BuildOperation,
 };
 use source::SourceSpan;
 use symbol_resolved_trees::{
@@ -999,7 +1000,9 @@ fn expression_candidates(
                 program,
                 expression,
                 &call.machine_arguments,
-                call.target.as_str() == "select_provider" && !call.target_symbol.is_valid(),
+                BuildOperation::from_call_target(call.target.as_str())
+                    == Some(BuildOperation::ProviderSelection)
+                    && !call.target_symbol.is_valid(),
                 &mut candidates,
             );
         }

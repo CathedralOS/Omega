@@ -6,6 +6,7 @@ use crate::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
     MAX_INCLUDED_BUILD_SOURCES,
 };
+use language_semantics::declaration_selection::BuildOperation;
 
 pub(super) const ROOTED_BUILD_PATH_TYPE: &str = "$OmegaBuildRootedPath";
 const SOURCE_ROOT_FACET_TYPE: &str = "$OmegaBuildSourceRoot";
@@ -269,7 +270,10 @@ impl<'program> Evaluator<'program> {
         call: &typed_trees::expression::TableCallExpression,
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        if call.target.as_str() != "include_source" || !call.receiver.is_valid() {
+        if BuildOperation::from_call_target(call.target.as_str())
+            != Some(BuildOperation::IncludedSourceHandoff)
+            || !call.receiver.is_valid()
+        {
             return Ok(None);
         }
         let receiver = self.resolve_place(call.receiver, frame)?;
@@ -286,7 +290,10 @@ impl<'program> Evaluator<'program> {
         call: &typed_trees::statement::TableCall,
         frame: &Frame,
     ) -> EvalResult<bool> {
-        if call.target.as_str() != "include_source" || call.receiver.is_empty() {
+        if BuildOperation::from_call_target(call.target.as_str())
+            != Some(BuildOperation::IncludedSourceHandoff)
+            || call.receiver.is_empty()
+        {
             return Ok(false);
         }
         let Some(receiver) = self.statement_receiver_cell(call.receiver, frame)? else {
@@ -444,7 +451,7 @@ impl<'program> Evaluator<'program> {
                 .is_some_and(|attached| attached.as_str() == "BuildOutput")
                 && self.symbol_has_build_prelude_source(machine.symbol)
                 && self.program.machine_states(machine).iter().any(|state| {
-                    state.name.as_str() == "include_source"
+                    state.name.as_str() == BuildOperation::IncludedSourceHandoff.authored_spelling()
                         && self.symbol_has_build_prelude_source(state.symbol)
                         && (!target_symbol.is_valid() || state.symbol == target_symbol)
                 })

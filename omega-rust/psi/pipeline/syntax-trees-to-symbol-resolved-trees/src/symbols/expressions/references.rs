@@ -15,8 +15,9 @@ use super::super::scoped_paths::{
 };
 use super::super::targets::{
     assign_provider_selection_argument_symbol, assign_representation_selection_argument_symbol,
-    assign_runtime_subject_argument_symbol, assign_static_argument_symbols,
+    assign_runtime_subject_argument_symbol, assign_static_argument_symbols, build_operand_route,
 };
+use language_semantics::declaration_selection::BuildOperation;
 
 /// The spelled member names of a `self`-rooted receiver path, root -> leaf
 /// (`["self", "p"]` for the receiver `self.p`). `None` for non-place receivers
@@ -150,30 +151,29 @@ pub(super) fn assign_call_symbol(
         expression_table.expression_mut(expression)
     {
         call.target_symbol = target_symbol;
-        let provider_selection =
-            call.target.as_str() == "select_provider" && !target_symbol.is_valid();
-        let representation_selection = call.target.as_str() == "select_representation";
         // `exclude_service<Trait>()` names one exact declaration the same way
         // a provider slot does; build harvesting requires a boundary trait.
-        let service_exclusion = call.target.as_str() == "exclude_service";
+        let operand_route = build_operand_route(call.target.as_str(), target_symbol);
         for (index, argument) in call.machine_arguments.iter_mut().enumerate() {
-            if provider_selection || service_exclusion {
-                assign_provider_selection_argument_symbol(
+            match operand_route {
+                Some(BuildOperation::RepresentationSelection) => {
+                    assign_representation_selection_argument_symbol(symbols, argument, index == 0);
+                }
+                Some(operation) => assign_provider_selection_argument_symbol(
                     symbols,
                     argument,
-                    provider_selection && index == 0,
-                );
-            } else if representation_selection {
-                assign_representation_selection_argument_symbol(symbols, argument, index == 0);
-            } else {
-                let proof_static = target_symbol.is_valid()
-                    && matches!(
-                        symbols.get(target_symbol).kind,
-                        SymbolKind::Proposition | SymbolKind::PropositionParameter
-                    );
-                assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
-                if !proof_static {
-                    assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
+                    operation == BuildOperation::ProviderSelection && index == 0,
+                ),
+                None => {
+                    let proof_static = target_symbol.is_valid()
+                        && matches!(
+                            symbols.get(target_symbol).kind,
+                            SymbolKind::Proposition | SymbolKind::PropositionParameter
+                        );
+                    assign_static_argument_symbols(symbols, machine.symbol, argument, proof_static);
+                    if !proof_static {
+                        assign_runtime_subject_argument_symbol(symbols, state_symbol, argument);
+                    }
                 }
             }
         }

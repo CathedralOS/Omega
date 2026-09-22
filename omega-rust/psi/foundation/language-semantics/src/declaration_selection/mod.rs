@@ -193,6 +193,151 @@ impl CollectionMeasure {
     }
 }
 
+/// One toolchain-owned build operation authored syntax selects on the root
+/// build vocabulary (`Build`, `BuildOutput`, `BuildLog`, `Optimizations`).
+///
+/// No package declares these methods: the toolchain's build prelude owns
+/// them, and Psi checking classifies each authored use as the matching
+/// [`AuthoredDeclarationSelectionIntrinsic`] (see [`Self::intrinsic`]). The
+/// spelling is the call target the trees retain, and this map is the only
+/// place those spellings live. Provider selection, optimization policy, wire
+/// compatibility and boundary grants are then harvested and enforced by
+/// Omega's build evaluation; the map classifies declaration provenance only.
+///
+/// Omega's `build.omg` dependency-row grammar (`depend`, `depend_as`, ...)
+/// is a different vocabulary and stays with Omega's build declarations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuildOperation {
+    /// `b.select_provider<Subject, Product>()` on the mutable root `Build`.
+    ProviderSelection,
+    /// `select_representation<Type, Representation>()`.
+    RepresentationSelection,
+    /// `b.exclude_service<BoundaryTrait>()`.
+    ServiceExclusion,
+    /// `Optimizations::enable`.
+    OptimizationSelection,
+    /// `Optimizations::emit_report`.
+    OptimizationReportRequest,
+    /// `b.accept_boundary<pkg::symbol>()`, retained as the
+    /// `accept_boundary#<path>` marker.
+    BoundaryAcceptance,
+    /// `b.require_wire_compatibility<Edge, Lineage, Local, Peer, Fact..>()`,
+    /// retained as the `wire_compatibility#<operands>` marker.
+    WireCompatibilityRequest,
+    /// `BuildOutput::include_source`.
+    IncludedSourceHandoff,
+    /// `BuildLog::write_line`.
+    LogWriteLine,
+}
+
+impl BuildOperation {
+    /// The separator after which a marker-carrying operation's angle-bracket
+    /// operands follow in its retained call target. `#` cannot appear in an
+    /// identifier, so a marker never collides with a declared method.
+    pub const MARKER_OPERAND_SEPARATOR: char = '#';
+
+    /// Every toolchain-owned build operation. Adding a variant without its
+    /// spelling stops compiling here rather than silently dropping out of
+    /// the map.
+    pub const ALL: [Self; 9] = [
+        Self::ProviderSelection,
+        Self::RepresentationSelection,
+        Self::ServiceExclusion,
+        Self::OptimizationSelection,
+        Self::OptimizationReportRequest,
+        Self::BoundaryAcceptance,
+        Self::WireCompatibilityRequest,
+        Self::IncludedSourceHandoff,
+        Self::LogWriteLine,
+    ];
+
+    /// The call-target spelling which selects this operation.
+    ///
+    /// The spelling is authored vocabulary, so it belongs to the vocabulary
+    /// that owns the operation. For a marker-carrying operation
+    /// ([`Self::carries_marker_operands`]) it is the marker prefix the parser
+    /// retains ahead of [`Self::MARKER_OPERAND_SEPARATOR`], which for the
+    /// wire-compatibility request differs from the authored method name
+    /// `require_wire_compatibility`; everywhere else it is the authored
+    /// method name itself.
+    pub const fn authored_spelling(self) -> &'static str {
+        match self {
+            Self::ProviderSelection => "select_provider",
+            Self::RepresentationSelection => "select_representation",
+            Self::ServiceExclusion => "exclude_service",
+            Self::OptimizationSelection => "enable",
+            Self::OptimizationReportRequest => "emit_report",
+            Self::BoundaryAcceptance => "accept_boundary",
+            Self::WireCompatibilityRequest => "wire_compatibility",
+            Self::IncludedSourceHandoff => "include_source",
+            Self::LogWriteLine => "write_line",
+        }
+    }
+
+    /// Whether the parser retains this operation's angle-bracket operands in
+    /// the call target after [`Self::MARKER_OPERAND_SEPARATOR`]
+    /// (`accept_boundary#pkg::symbol`), so a call target selects the
+    /// operation by prefix rather than by exact spelling.
+    pub const fn carries_marker_operands(self) -> bool {
+        matches!(
+            self,
+            Self::BoundaryAcceptance | Self::WireCompatibilityRequest
+        )
+    }
+
+    /// The build operation a retained call target selects, or `None` when
+    /// the target names no toolchain-owned build operation.
+    ///
+    /// An exact spelling selects an ordinary operation; a marker-carrying
+    /// operation is selected by its spelling followed by the separator and
+    /// its operands. A matching spelling is a necessary condition, never a
+    /// sufficient one: a declared machine may be spelled `enable` too. The
+    /// caller still owes the receiver and call-shape conditions which
+    /// separate the toolchain-owned operation from an ordinary call of the
+    /// same name.
+    pub fn from_call_target(target: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|operation| {
+            let spelling = operation.authored_spelling();
+            if operation.carries_marker_operands() {
+                target
+                    .strip_prefix(spelling)
+                    .is_some_and(|rest| rest.starts_with(Self::MARKER_OPERAND_SEPARATOR))
+            } else {
+                target == spelling
+            }
+        })
+    }
+
+    /// The intrinsic selection target checking records for this operation.
+    pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
+        match self {
+            Self::ProviderSelection => {
+                AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
+            }
+            Self::RepresentationSelection => {
+                AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection
+            }
+            Self::ServiceExclusion => AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion,
+            Self::OptimizationSelection => {
+                AuthoredDeclarationSelectionIntrinsic::BuildOptimizationSelection
+            }
+            Self::OptimizationReportRequest => {
+                AuthoredDeclarationSelectionIntrinsic::BuildOptimizationReportRequest
+            }
+            Self::BoundaryAcceptance => {
+                AuthoredDeclarationSelectionIntrinsic::BuildBoundaryAcceptance
+            }
+            Self::WireCompatibilityRequest => {
+                AuthoredDeclarationSelectionIntrinsic::BuildWireCompatibilityRequest
+            }
+            Self::IncludedSourceHandoff => {
+                AuthoredDeclarationSelectionIntrinsic::BuildIncludedSourceHandoff
+            }
+            Self::LogWriteLine => AuthoredDeclarationSelectionIntrinsic::BuildLogWriteLine,
+        }
+    }
+}
+
 /// A compiler-owned language meaning selected by authored syntax without a
 /// package declaration. Intrinsics finalize explicitly so package admission
 /// never invents a declaration symbol or leaves a successful selection

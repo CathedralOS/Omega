@@ -4,6 +4,7 @@ use super::{
     ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle, TypeReferenceNode,
     TypedTrees,
 };
+use language_semantics::declaration_selection::BuildOperation;
 /// A standalone call may perform Unit work before later statements. The final
 /// expression still has the state's return contract. Call this for a direct
 /// statement root; recursive validators must also retain the current use
@@ -116,7 +117,8 @@ pub(super) fn admitted_provider_selection(
         return false;
     };
     if call.target_symbol.is_valid()
-        || call.target.as_str() != "select_provider"
+        || BuildOperation::from_call_target(call.target.as_str())
+            != Some(BuildOperation::ProviderSelection)
         || !call.receiver.is_valid()
         || call.machine_arguments.len() != 2
         || program

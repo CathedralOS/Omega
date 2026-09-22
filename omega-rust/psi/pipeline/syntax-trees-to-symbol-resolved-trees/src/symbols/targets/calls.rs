@@ -1,3 +1,4 @@
+use language_semantics::declaration_selection::BuildOperation;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use crate::symbols::lookup::{
@@ -438,6 +439,40 @@ pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
         &[SymbolKind::Parameter, SymbolKind::Local],
         name.as_str(),
     );
+}
+
+/// The build operation whose static operands name declarations rather than
+/// executable static machines, or `None` when a call's operands resolve as
+/// ordinary static machine arguments.
+///
+/// `select_provider<Subject, Product>` and `exclude_service<Service>` name
+/// exact declaration paths (see
+/// [`assign_provider_selection_argument_symbol`]);
+/// `select_representation<Type, Representation>` names declaration identity
+/// with an opaque first operand (see
+/// [`assign_representation_selection_argument_symbol`]). Provider selection
+/// takes this route only while its target is unresolved: a declared machine
+/// which happens to be spelled `select_provider` resolves as an ordinary
+/// target and keeps ordinary operands. Representation selection and service
+/// exclusion are parser-carved markers with no declared target, so their
+/// spelling alone selects the route. The remaining build operations carry no
+/// static operands and route nothing here.
+pub(in crate::symbols) fn build_operand_route(
+    target: &str,
+    target_symbol: SymbolHandle,
+) -> Option<BuildOperation> {
+    match BuildOperation::from_call_target(target)? {
+        BuildOperation::ProviderSelection if target_symbol.is_valid() => None,
+        operation @ (BuildOperation::ProviderSelection
+        | BuildOperation::ServiceExclusion
+        | BuildOperation::RepresentationSelection) => Some(operation),
+        BuildOperation::OptimizationSelection
+        | BuildOperation::OptimizationReportRequest
+        | BuildOperation::BoundaryAcceptance
+        | BuildOperation::WireCompatibilityRequest
+        | BuildOperation::IncludedSourceHandoff
+        | BuildOperation::LogWriteLine => None,
+    }
 }
 
 /// Resolve one `Build::select_provider` path as an exact declaration identity.

@@ -1,3 +1,4 @@
+use crate::authored_selections::is_boundary_acceptance_marker;
 use crate::borrow::calls::BorrowCallCollection;
 use crate::lookup::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
@@ -70,7 +71,7 @@ pub(super) fn collect_expression_borrow_calls(
             // `accept_boundary#...` is a statically harvested build
             // declaration, not an operational machine call. Keep nested
             // expression traversal below, but do not mint flow-call evidence.
-            if is_machine_call && !call.target.as_str().starts_with("accept_boundary#") {
+            if is_machine_call && !is_boundary_acceptance_marker(call.target.as_str()) {
                 let accesses = collection.collect_call_argument_accesses(
                     collection
                         .program

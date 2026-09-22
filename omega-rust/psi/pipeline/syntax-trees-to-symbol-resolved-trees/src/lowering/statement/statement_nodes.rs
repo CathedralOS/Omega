@@ -17,6 +17,7 @@ use crate::lowering::type_reference::lower_type_reference_handle;
 use crate::resolution::lowerer::Lowerer;
 use arena::HandleSpan;
 use diagnostics::Diagnostic;
+use language_semantics::declaration_selection::BuildOperation;
 use symbol_resolved_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbol_resolved_trees::name::DiagnosticName;
 use symbol_resolved_trees::statement::{
@@ -223,7 +224,8 @@ pub(crate) fn lower_statement_node(
             // custody so that decision can finalize the operand occurrences;
             // the statement-call form retains only its callee occurrence.
             // Static and explicit-discard calls retain their ordinary form.
-            if call.target.as_str() == "select_provider"
+            if BuildOperation::from_call_target(call.target.as_str())
+                == Some(BuildOperation::ProviderSelection)
                 && !call.target_is_static
                 && !call.discards_result
             {
