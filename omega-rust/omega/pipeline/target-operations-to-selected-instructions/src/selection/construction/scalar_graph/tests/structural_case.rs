@@ -144,7 +144,7 @@ fn structural_case_unused_payload_retains_direct_edge_metadata_without_load() {
                 boundary: abstracted.boundary_machines[0].id,
                 execution: abstract_operations_to_target_operations::AdmittedBoundaryExecution::CompilerBuiltin(target_operations::CompilerBuiltinExecution::HostedReadByte),
                 realization: target_operations::HostedReadByteRealization.into(),
-            }], installation: None, ieee_float_fma: &[] }).unwrap();
+            }], installation: None, ieee_float_fma: &[], native_callbacks: &[] }).unwrap();
         let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
             &abstracted,
             semantic_vocabulary::FuelScheduleIdentity::new(1).unwrap(),

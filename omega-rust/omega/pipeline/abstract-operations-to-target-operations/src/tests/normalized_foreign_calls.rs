@@ -391,6 +391,7 @@ fn lower(
             settlements: &settlements,
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .unwrap()
@@ -1119,15 +1120,15 @@ fn registrar_callback_slot_replays_from_the_retained_roster() {
             execution: crate::AdmittedBoundaryExecution::Provider(&execution),
             realization: BoundarySettlementRealization::NormalizedForeignCall(binding),
         }];
-        let target = crate::lower_to_target_operations_and_native_callbacks(
+        let target = crate::lower_to_target_operations(
             &source,
             crate::TargetLoweringRequest {
                 target: native,
                 settlements: &settlements,
                 installation: None,
                 ieee_float_fma: &[],
+                native_callbacks: &[admission],
             },
-            &[admission],
         )
         .expect("admitted callback lowers");
         // The plan retains the roster entry joined to the consuming row, and
@@ -1282,15 +1283,15 @@ fn mixed_registrar_callback_preserves_authored_formals_around_its_private_slot()
                 execution: AdmittedBoundaryExecution::Provider(&execution),
                 realization: BoundarySettlementRealization::NormalizedForeignCall(foreign.clone()),
             }];
-            let target = crate::lower_to_target_operations_and_native_callbacks(
+            let target = crate::lower_to_target_operations(
                 &source,
                 crate::TargetLoweringRequest {
                     target: native,
                     settlements: &settlements,
                     installation: None,
                     ieee_float_fma: &[],
+                    native_callbacks: &[admission],
                 },
-                &[admission],
             )
             .expect("mixed registrar lowers");
             crate::validate_abstract_to_target_translation(&source, native, &target)

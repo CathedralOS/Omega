@@ -131,6 +131,7 @@ pub(crate) fn fixture(
             ],
             installation: None,
             ieee_float_fma: &[],
+            native_callbacks: &[],
         },
     )
     .expect("case arms can jump to an ordinary returning join in non-topological roster order");
