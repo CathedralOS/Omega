@@ -113,22 +113,59 @@ impl PremiseScope<'_> {
                 result,
                 result_mutable,
             } => {
-                if guarantee.is_result(program, expression) {
-                    result.is_valid().then(|| {
-                        if result_mutable {
+                if let Some(segments) = guarantee.result_segments(program, expression) {
+                    match segments.as_slice() {
+                        [] => result.is_valid().then_some(if result_mutable {
                             NormalizedBound::Storage { symbol: result }
                         } else {
                             NormalizedBound::Symbol {
                                 symbol: result,
                                 offset: 0,
                             }
-                        }
-                    })
+                        }),
+                        // `result.first` binds the pinned binding's projected
+                        // member place; the binding's own pin covers the
+                        // projection's root.
+                        [facts::PlaceSegment::Field { .. }] => result.is_valid().then(|| {
+                            let segment = segments[0];
+                            if result_mutable {
+                                NormalizedBound::StorageProjected {
+                                    symbol: result,
+                                    segment,
+                                }
+                            } else {
+                                NormalizedBound::Projected {
+                                    symbol: result,
+                                    segment,
+                                }
+                            }
+                        }),
+                        _ => None,
+                    }
                 } else {
-                    normalized_bound(program, guarantee.actual(program, expression)?)
+                    let (actual, remaining) = guarantee.actual_projection(program, expression)?;
+                    match remaining.as_slice() {
+                        [] => normalized_bound(program, actual),
+                        [facts::PlaceSegment::Field { .. }] => {
+                            match normalized_bound(program, actual)? {
+                                // `value.first` binds the actual's projected
+                                // member place; longer projections and
+                                // non-identity bases stay unboundable.
+                                NormalizedBound::Symbol { symbol, offset: 0 } => {
+                                    Some(NormalizedBound::Projected {
+                                        symbol,
+                                        segment: remaining[0],
+                                    })
+                                }
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    }
                 }
             }
-            Self::State { .. } => normalized_bound(program, expression),
+            Self::State { .. } => normalized_bound(program, expression)
+                .or_else(|| projected_immutable_bound(program, expression)),
             Self::Domain {
                 definition,
                 subject,
@@ -143,6 +180,7 @@ impl PremiseScope<'_> {
                     None
                 }
             }
+
             Self::Proposition {
                 parameters,
                 arguments,
@@ -161,11 +199,29 @@ impl PremiseScope<'_> {
                 {
                     return normalized_bound(program, arguments[index]);
                 }
-                normalized_bound(program, expression).and_then(|bound| {
-                    propositions::substitute_bound(program, bound, parameters, arguments)
-                })
+                normalized_bound(program, expression)
+                    .or_else(|| projected_immutable_bound(program, expression))
+                    .and_then(|bound| {
+                        propositions::substitute_bound(program, bound, parameters, arguments)
+                    })
             }
         }
+    }
+}
+
+/// The bound of one receiver-rooted field projection as a stated premise
+/// operand. Only an immutable receiver's frozen projection identity can
+/// claim a stated relation; a mutable receiver's projected storage would
+/// assert a premise about its current contents, which stated evidence has
+/// no version pin for — the same contract `normalized_bound` already
+/// applies to whole mutable names.
+fn projected_immutable_bound(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<NormalizedBound> {
+    match super::indexes::projected_bound(program, expression)? {
+        bound @ NormalizedBound::Projected { .. } => Some(bound),
+        _ => None,
     }
 }
 
@@ -529,6 +585,16 @@ fn transport_query_bound(
         NormalizedBound::Storage { symbol } => NormalizedBound::Storage {
             symbol: argument(symbol)?,
         },
+        NormalizedBound::Projected { symbol, segment } => NormalizedBound::Projected {
+            symbol: argument(symbol)?,
+            segment,
+        },
+        NormalizedBound::StorageProjected { symbol, segment } => {
+            NormalizedBound::StorageProjected {
+                symbol: argument(symbol)?,
+                segment,
+            }
+        }
         NormalizedBound::SymbolSum {
             first,
             second,
@@ -770,6 +836,29 @@ fn bound_shift(value: NormalizedBound, base: NormalizedBound) -> Option<i64> {
                 symbol: base_symbol,
             },
         ) if value_symbol == base_symbol => Some(0),
+        // One projected member place of the same symbol sits on the
+        // zero-offset line of that projection: `pair.first >= 2` shifts the
+        // query's own `pair.first` by zero.
+        (
+            NormalizedBound::Projected {
+                symbol: value_symbol,
+                segment: value_segment,
+            },
+            NormalizedBound::Projected {
+                symbol: base_symbol,
+                segment: base_segment,
+            },
+        ) if value_symbol == base_symbol && value_segment == base_segment => Some(0),
+        (
+            NormalizedBound::StorageProjected {
+                symbol: value_symbol,
+                segment: value_segment,
+            },
+            NormalizedBound::StorageProjected {
+                symbol: base_symbol,
+                segment: base_segment,
+            },
+        ) if value_symbol == base_symbol && value_segment == base_segment => Some(0),
         (
             NormalizedBound::SymbolSum {
                 first: value_first,

@@ -96,12 +96,28 @@ pub(super) fn substitute_bound(
                 offset: offset + actual_offset,
             }),
             NormalizedBound::Integer(value) => Some(NormalizedBound::Integer(offset + value)),
-            NormalizedBound::SymbolSum { .. } | NormalizedBound::Storage { .. } => None,
+            NormalizedBound::SymbolSum { .. }
+            | NormalizedBound::Storage { .. }
+            | NormalizedBound::Projected { .. }
+            | NormalizedBound::StorageProjected { .. } => None,
+        },
+        NormalizedBound::Projected { symbol, segment } => match argument_bound(symbol)? {
+            // `p.first` with `p` substituted by the argument names the
+            // argument's same member place.
+            NormalizedBound::Symbol {
+                symbol: actual,
+                offset: 0,
+            } => Some(NormalizedBound::Projected {
+                symbol: actual,
+                segment,
+            }),
+            _ => None,
         },
         // Storage bounds are scope-local coordinates; substitution through a
         // proposition's immutable argument bounds cannot preserve the pinned
-        // occurrence the storage name requires.
-        NormalizedBound::Storage { .. } => None,
+        // occurrence the storage name requires. Projected storage shares
+        // that contract.
+        NormalizedBound::Storage { .. } | NormalizedBound::StorageProjected { .. } => None,
         NormalizedBound::SymbolSum {
             first,
             second,

@@ -34,9 +34,28 @@ const MUTABLE_RESULT_PREMISED_WRITE: &str = r#"
     }
 "#;
 
+// A segmented premise bound — a member projection of an immutable
+// parameter — must replay post-publication like the whole-value spellings.
+const PROJECTED_PREMISED_WRITE: &str = r#"
+    data Pair { first: u64 [0..=4]; second: u64; }
+    data Main { items: [i32; 4]; }
+
+    machine Main::main(&mut self, pair: Pair) -> u64
+        requires pair.first >= 2;
+    {
+        let left: &mut [i32] = self.items[pair.first..4];
+        self.items[0] = 7;
+        left.len
+    }
+"#;
+
 #[test]
 fn published_borrow_certificates_replay_at_the_lowering_boundary() {
-    for source in [PREMISED_WRITE, MUTABLE_RESULT_PREMISED_WRITE] {
+    for source in [
+        PREMISED_WRITE,
+        MUTABLE_RESULT_PREMISED_WRITE,
+        PROJECTED_PREMISED_WRITE,
+    ] {
         let checked = checked_source(source);
         assert!(
             checked

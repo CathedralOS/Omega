@@ -439,3 +439,36 @@ fn borrow_compatibility_does_not_discharge_callee_preconditions_or_false_guarant
         );
     }
 }
+
+/// A field projection of a returned structural result carries the
+/// establishment premise: `ensures result.first >= 2` mints the same
+/// segmented bound the callee's own proof must also discharge. The borrow
+/// evidence is complete — the remaining rejection is the callee-side exit
+/// proof, which does not yet project constructed result members.
+const PROJECTED_RESULT_WINDOW: &str = r#"
+    data Pair { first: u64 [0..=4]; second: u64; }
+    data Main { items: [i32; 4]; }
+    machine choose(value: u64 [2..=4]) -> Pair
+        ensures result.first >= 2;
+    { Pair { first: value, second: value } }
+    machine Main::main(&mut self, seed: u64 [2..=4]) -> u64 {
+        let pair: Pair = choose(seed);
+        let held: &mut [i32] = self.items[pair.first..4];
+        self.items[0] = 3;
+        held.len
+    }
+"#;
+
+#[test]
+fn projected_result_premise_reaches_borrow_evidence_awaiting_exit_proof() {
+    let Err(diagnostics) = checked_program_result(PROJECTED_RESULT_WINDOW) else {
+        panic!("callee-side projection of constructed result members is not yet proven");
+    };
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            diagnostic.message.contains("cannot prove ensures")
+                && diagnostic.message.contains("result.first >= 2")
+        }),
+        "expected only the exit-projection residual, not a borrow conflict: {diagnostics:#?}"
+    );
+}

@@ -36,30 +36,35 @@ impl AvailableGuarantee<'_> {
             .decomposed_builtin_meaning(program, expression)
     }
 
-    pub(in crate::checks) fn is_result(
+    /// The member-projection segments behind this operand when it resolves
+    /// to this guarantee's own reserved result (`result` or `result.first`).
+    /// A projection rooted at a different callable's result does not qualify.
+    pub(in crate::checks) fn result_segments(
         &self,
         program: &TypedTrees,
         expression: ExpressionHandle,
-    ) -> bool {
-        validation::reserved_result_place(program, expression).is_some_and(|result| {
-            result.machine_symbol == self.invocation.callable.owner_symbol()
-                && result.segments.is_empty()
-        })
+    ) -> Option<Vec<facts::PlaceSegment>> {
+        let result = validation::reserved_result_place(program, expression)?;
+        (result.machine_symbol == self.invocation.callable.owner_symbol())
+            .then_some(result.segments)
     }
 
-    pub(in crate::checks) fn actual(
+    /// The argument expression behind one contract operand, with the
+    /// projection segments the operand carries beyond the parameter's own
+    /// place (`value.first` → the actual plus `[Field{first}]`). Literal
+    /// operands carry no projection.
+    pub(in crate::checks) fn actual_projection(
         &self,
         program: &TypedTrees,
         expression: ExpressionHandle,
-    ) -> Option<ExpressionHandle> {
+    ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
         if matches!(
             program.expression_table.expression(expression),
             ExpressionNode::Integer(_)
         ) {
-            return Some(expression);
+            return Some((expression, Vec::new()));
         }
-        let (actual, remaining) = actual_projection(program, &self.invocation, expression)?;
-        remaining.is_empty().then_some(actual)
+        actual_projection(program, &self.invocation, expression)
     }
 
     /// The initial assignment names an occurrence; it is never evaluated.

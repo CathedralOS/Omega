@@ -24,6 +24,22 @@ pub(super) enum NormalizedBound {
     Storage {
         symbol: SymbolHandle,
     },
+    /// The value at one projected member place under an immutable storage
+    /// symbol (`pair.first`): a frozen identity of the bound value's member,
+    /// equal only to the same projection of the same symbol. Projections of
+    /// longer member paths stay outside the vocabulary.
+    Projected {
+        symbol: SymbolHandle,
+        segment: facts::PlaceSegment,
+    },
+    /// The value currently stored under one projected member place of mutable
+    /// storage (`mut_pair.first`). Like `Storage` it is a query coordinate,
+    /// never positive evidence, and needs the same version-pin evidence
+    /// before stated premises can claim it.
+    StorageProjected {
+        symbol: SymbolHandle,
+        segment: facts::PlaceSegment,
+    },
     /// `first + second + offset` over two distinct immutable symbols in
     /// canonical arena order; `offset` may be zero because a two-symbol sum
     /// has no simpler spelling.
@@ -47,6 +63,10 @@ pub(super) fn selector_value(bound: NormalizedBound) -> BorrowCompatibilitySelec
             BorrowCompatibilitySelectorValue::SymbolOffset { symbol, offset }
         }
         NormalizedBound::Storage { symbol } => BorrowCompatibilitySelectorValue::Symbol(symbol),
+        NormalizedBound::Projected { symbol, segment }
+        | NormalizedBound::StorageProjected { symbol, segment } => {
+            BorrowCompatibilitySelectorValue::Segmented { symbol, segment }
+        }
         NormalizedBound::SymbolSum {
             first,
             second,
@@ -88,6 +108,16 @@ fn bound_terms_equal(left: NormalizedBound, right: NormalizedBound) -> bool {
                 ..
             },
         ) => left_first == right_first && left_second == right_second,
+        (
+            NormalizedBound::Projected {
+                symbol: left_symbol,
+                segment: left_segment,
+            },
+            NormalizedBound::Projected {
+                symbol: right_symbol,
+                segment: right_segment,
+            },
+        ) => left_symbol == right_symbol && left_segment == right_segment,
         _ => false,
     }
 }
@@ -98,6 +128,7 @@ fn bound_offset(bound: NormalizedBound) -> Option<i64> {
         NormalizedBound::Integer(value) => Some(value),
         NormalizedBound::Symbol { offset, .. } => Some(offset),
         NormalizedBound::Storage { .. } => Some(0),
+        NormalizedBound::Projected { .. } | NormalizedBound::StorageProjected { .. } => Some(0),
         NormalizedBound::SymbolSum { offset, .. } => Some(offset),
     }
 }
@@ -694,6 +725,11 @@ fn exclusive_end_bound(
                 // `storage + 1` is outside the storage vocabulary, so an
                 // inclusive mutable end reports unknown.
                 NormalizedBound::Storage { .. } => None,
+                // `projection + 1` is likewise outside the segmented
+                // vocabulary.
+                NormalizedBound::Projected { .. } | NormalizedBound::StorageProjected { .. } => {
+                    None
+                }
                 NormalizedBound::SymbolSum {
                     first,
                     second,
@@ -720,9 +756,29 @@ pub(super) fn selector_bound(
     program: &typed_trees::TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    normalized_bound(program, expression).or_else(|| {
-        validation::mutable_integer_bound_storage_symbol(program, expression)
-            .map(|symbol| NormalizedBound::Storage { symbol })
+    normalized_bound(program, expression)
+        .or_else(|| {
+            validation::mutable_integer_bound_storage_symbol(program, expression)
+                .map(|symbol| NormalizedBound::Storage { symbol })
+        })
+        .or_else(|| projected_bound(program, expression))
+}
+
+/// The bound of one receiver-rooted field projection (`pair.first`). An
+/// immutable receiver contributes the frozen projection identity; a mutable
+/// receiver contributes the projected storage coordinate under the same
+/// pin-evidence contract as `Storage`.
+pub(super) fn projected_bound(
+    program: &typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<NormalizedBound> {
+    let (symbol, field, is_mutable) =
+        validation::projected_integer_bound_root(program, expression)?;
+    let segment = facts::PlaceSegment::Field { symbol: field };
+    Some(if is_mutable {
+        NormalizedBound::StorageProjected { symbol, segment }
+    } else {
+        NormalizedBound::Projected { symbol, segment }
     })
 }
 

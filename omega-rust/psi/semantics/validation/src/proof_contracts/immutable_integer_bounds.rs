@@ -367,6 +367,100 @@ pub fn mutable_integer_bound_storage_symbol(
     Some(symbol)
 }
 
+/// Resolve one single-segment receiver-rooted field projection —
+/// `pair.first` or `param.first` — to the receiver's storage symbol, the
+/// exact declared field symbol, and the receiver's mutability. The receiver
+/// must be one bare local or state/machine parameter name and the field's
+/// declared type an exact-domain integer primitive; projections through
+/// receivers that are not bare names, through case variants, into
+/// multi-level member paths, or into non-integer fields stay unboundable.
+///
+/// The receiver symbol's meaning still belongs to the consumer: an
+/// immutable receiver contributes a frozen projection identity, a mutable
+/// receiver the value currently stored under the projected coordinate,
+/// which stated evidence can only claim under the version-pin evidence the
+/// storage vocabulary already requires.
+pub fn projected_integer_bound_root(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<(SymbolHandle, SymbolHandle, bool)> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if member.case_variant.is_some() {
+        return None;
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
+        return None;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    if members.len() != 1 {
+        return None;
+    }
+    let (symbol, is_mutable, type_reference) =
+        if path.symbol.is_valid() && path.head_symbol == path.symbol {
+            match local_by_symbol(program, path.symbol) {
+                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
+                LocalLookup::Missing => {
+                    let parameter = parameter_by_symbol(program, path.symbol)?;
+                    (path.symbol, parameter.is_mutable, parameter.type_reference)
+                }
+                LocalLookup::Invalid => return None,
+            }
+        } else {
+            match local_by_name(program, members[0].as_str()) {
+                LocalLookup::Found(local) => (local.symbol, local.is_mutable, local.type_reference),
+                LocalLookup::Missing | LocalLookup::Invalid => return None,
+            }
+        };
+    if !symbol.is_valid() {
+        return None;
+    }
+    let receiver = crate::value_custody::places::unwrapped_type_reference(program, type_reference)?;
+    let typed_trees::types::TypeReferenceNode::Named {
+        symbol: type_symbol,
+        ..
+    } = program.type_reference_table.type_reference(receiver)
+    else {
+        return None;
+    };
+    if !type_symbol.is_valid()
+        || program.symbols.get(*type_symbol).kind != symbols::SymbolKind::Data
+    {
+        return None;
+    }
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *type_symbol)?;
+    let field = crate::value_custody::places::exact_data_member_field(
+        program,
+        data,
+        member.member_symbol,
+        member.member.as_str(),
+        None,
+    )?;
+    let primitive = program
+        .type_reference_table
+        .primitive_type(field.type_reference)?;
+    if !matches!(
+        primitive,
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    ) || program.arithmetic_domain_for_type_reference(field.type_reference)
+        != numerics::arithmetic::ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    Some((symbol, field.symbol, is_mutable))
+}
+
 /// Normalize an integer literal or finite immutable local-copy chain to one
 /// exact host index. Symbolic parameter leaves and every unsupported alias
 /// shape remain unknown.
