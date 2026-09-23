@@ -35,6 +35,7 @@ mod shared_convergence;
 mod shared_result_borrows;
 mod slice_view_locals;
 mod state_graph_carriers;
+mod state_graph_crash_exit;
 mod state_graph_guarded_jumps;
 mod state_graph_literals;
 mod state_graph_scalars;
