@@ -402,6 +402,10 @@ pub(super) fn build_traced(
                 CheckedUnitEffectOperationPlan::BoundaryCall {
                     structural_arguments,
                     ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    structural_arguments,
+                    ..
                 } if structural_arguments.iter().all(|argument| {
                         whole_shared_argument(argument)
                             // A borrowed view may project from a parameter,

@@ -38,9 +38,9 @@ pub(super) fn checked_provider_attachment_requirements(
             _ => None,
         })
         .collect::<Vec<_>>();
-    let [(field, provider_type_identity)] = provider_fields.as_slice() else {
-        return provider_fields.is_empty().then(Vec::new);
-    };
+    if provider_fields.is_empty() {
+        return Some(Vec::new());
+    }
     // Ordinary callees own their direct provider requirements, including when
     // they borrow this receiver. Receiver loans do not forward attachment roots.
     // Select boundary operations directly: a list of unrelated operations to
@@ -64,7 +64,9 @@ pub(super) fn checked_provider_attachment_requirements(
     // so a parameter must not be a second provider surface: neither a fused
     // `Service` receipt nor a carrier whose own shape holds a provider-backed
     // field can cross here as an unspecialized argument.
-    if field.identity.starts_with('#')
+    if provider_fields
+        .iter()
+        .any(|(field, _)| field.identity.starts_with('#'))
         || structural_parameters
             .iter()
             .any(|parameter| !parameter.is_self && parameter_is_provider_carrier(shapes, parameter))
@@ -77,14 +79,25 @@ pub(super) fn checked_provider_attachment_requirements(
         .data_definitions()
         .iter()
         .find(|data| data.name == *attached_name)?;
-    let provider_symbol = program.data_members(attached).iter().find_map(|member| {
-        let DataMember::Field(source_field) = member else {
-            return None;
-        };
-        if source_field.name.as_str() != field.identity {
-            return None;
-        }
-        typed_trees::service::exact_bound_service_requirement(program, source_field.type_reference)
+    // Every provider-backed field claims the boundary calls it answers: a
+    // `self.<field>` receiver names its field, and the field's requirement
+    // picks the trait whose signatures own each call's target. An entry may
+    // carry several service fields at once — a console beside a fused
+    // filesystem — so the roster resolves the provider per call rather than
+    // admitting exactly one field.
+    let mut providers = Vec::with_capacity(provider_fields.len());
+    for (field, provider_type_identity) in &provider_fields {
+        let provider_symbol = program.data_members(attached).iter().find_map(|member| {
+            let DataMember::Field(source_field) = member else {
+                return None;
+            };
+            if source_field.name.as_str() != field.identity {
+                return None;
+            }
+            typed_trees::service::exact_bound_service_requirement(
+                program,
+                source_field.type_reference,
+            )
             .or_else(|| {
                 // Attached data carries the provider as `&'a mut <boundary
                 // trait>`: unwrap references and qualifications to the trait
@@ -108,16 +121,22 @@ pub(super) fn checked_provider_attachment_requirements(
                     }
                 }
             })
-    })?;
-    let provider = program
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == provider_symbol && definition.is_boundary)?;
-    let provider_requirements = program
-        .trait_machine_signatures(provider)
-        .iter()
-        .map(|requirement| requirement.symbol)
-        .collect::<Vec<_>>();
+        })?;
+        let provider = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == provider_symbol && definition.is_boundary)?;
+        providers.push((
+            *field,
+            *provider_type_identity,
+            provider,
+            program
+                .trait_machine_signatures(provider)
+                .iter()
+                .map(|requirement| requirement.symbol)
+                .collect::<Vec<_>>(),
+        ));
+    }
 
     let mut requirements = Vec::with_capacity(call_operations.len());
     for operation in call_operations {
@@ -138,7 +157,13 @@ pub(super) fn checked_provider_attachment_requirements(
         let [call] = matching_calls.as_slice() else {
             return None;
         };
-        if !provider_requirements.contains(&call.target_symbol) {
+        let candidates = providers
+            .iter()
+            .filter(|(_, _, _, provider_requirements)| {
+                provider_requirements.contains(&call.target_symbol)
+            })
+            .collect::<Vec<_>>();
+        if candidates.is_empty() {
             // A direct call to a top-level `boundary requirement` (or a
             // boundary / admission-claim machine) resolves to that machine's
             // entry state, not to a trait signature: the call settles through
@@ -168,30 +193,53 @@ pub(super) fn checked_provider_attachment_requirements(
             call.statement_index,
             call.call_ordinal,
         )?;
-        if !provider_attachment_receiver_matches(program, machine, &call_site, provider.symbol) {
+        // The `self.<field>` receiver names the provider a call answers to:
+        // a call claims exactly the field it routes through, not a
+        // same-boundary sibling.
+        let receiver_field =
+            crate::execution::terminal_unit::calls::provider_attachment_receiver_field(
+                program, &call_site,
+            );
+        let mut claimed = false;
+        for (field, provider_type_identity, provider, _) in candidates {
+            if receiver_field.as_ref().map(|name| name.as_str()) != Some(field.identity.as_str())
+                || !provider_attachment_receiver_matches(
+                    program,
+                    machine,
+                    &call_site,
+                    provider.symbol,
+                )
+            {
+                continue;
+            }
+            if !matches!(operation,
+                CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. }
+                    if *target_machine == call.target_symbol)
+            {
+                return None;
+            }
+            requirements.push(CheckedProviderAttachmentRequirementPlan {
+                field_identity: field.identity.clone(),
+                provider_type_identity: provider_type_identity.to_string(),
+                boundary: call.target_symbol,
+            });
+            claimed = true;
+            break;
+        }
+        if !claimed {
             return None;
         }
-        if !matches!(operation,
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. }
-                if *target_machine == call.target_symbol)
-        {
-            return None;
-        }
-        requirements.push(CheckedProviderAttachmentRequirementPlan {
-            field_identity: field.identity.clone(),
-            provider_type_identity: provider_type_identity.to_string(),
-            boundary: call.target_symbol,
-        });
     }
     requirements.sort_by_key(|requirement| {
         (
+            requirement.field_identity.clone(),
             requirement.boundary.arena_index(),
             requirement.boundary.generation(),
         )
     });
-    requirements.dedup_by_key(|requirement| requirement.boundary);
+    requirements.dedup();
     Some(requirements)
 }
 

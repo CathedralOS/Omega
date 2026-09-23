@@ -74,6 +74,7 @@ pub(super) fn check_selected_execution(
     package_inputs: Option<&PackageCompilationInputs>,
     optimization_rollback: &crate::OptimizationRollback,
     timings: &mut CompileTimings,
+    permit_unsettled_fused_service_fields: bool,
 ) -> Result<CheckedExecution, Vec<Diagnostic>> {
     let BuiltCheckedProgram {
         mut typed,
@@ -295,6 +296,7 @@ pub(super) fn check_selected_execution(
             &selected_execution_settlement.program,
             entry.source_signature(),
             &selected_execution_settlement.selected_provider_provenance,
+            permit_unsettled_fused_service_fields,
         )?;
         entry
             .bind_fused_service_establishments(establishments)

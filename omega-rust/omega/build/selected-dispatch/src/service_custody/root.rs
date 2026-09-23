@@ -10,6 +10,7 @@ pub fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
     source: &program_entry_plan::SelectedProgramEntrySourceSignature,
     selected: &[SelectedProviderReviewProvenance],
+    permit_unsettled: bool,
 ) -> Result<Vec<program_entry_plan::ProgramEntryFusedServiceEstablishment>, Vec<Diagnostic>> {
     let Some(receiver_identity) = source.receiver().normalized_type_identity() else {
         return Ok(Vec::new());
@@ -96,6 +97,18 @@ pub fn derive_fused_program_entry_establishments(
     }
     if service_fields.is_empty() {
         return Ok(Vec::new());
+    }
+
+    // A dependency-discovery pass tolerates fields whose provider selection
+    // does not exist yet: nominating that selection is what the pass is for.
+    // Unsettled fields leave the derivation instead of diagnosing; every other
+    // establishment check still applies to the fields that keep a selection.
+    if permit_unsettled {
+        service_fields
+            .retain(|(_, carrier)| checked.fused_service_erasure(carrier.requirement).is_some());
+        if service_fields.is_empty() {
+            return Ok(Vec::new());
+        }
     }
 
     // Shape collection cannot retain a Service field without its exact Fused
