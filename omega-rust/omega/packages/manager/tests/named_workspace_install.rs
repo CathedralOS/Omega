@@ -4,8 +4,7 @@
 #[path = "named_workspace_install/cases.rs"]
 mod cases;
 #[cfg(unix)]
-#[path = "named_workspace_install/fixture.rs"]
-mod fixture;
+use crate::named_workspace_fixture as fixture;
 
 #[cfg(not(unix))]
 #[test]

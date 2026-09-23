@@ -8,6 +8,14 @@ mod capability_conflicts;
 // with `use crate::<name>` rather than a second `#[path]` mount of the file.
 #[path = "support/accepted_policy.rs"]
 mod accepted_policy_fixture;
+// The named-workspace installation fixture drives four topics. It is Unix-only
+// because it shells out to the test-only SSH transport, and each topic reaches
+// a different part of it, so the mount carries the dead-code allowance the
+// four separate mounts used to carry one apiece.
+#[cfg(unix)]
+#[allow(dead_code)]
+#[path = "support/named_workspace.rs"]
+mod named_workspace_fixture;
 
 mod build_named_inputs;
 mod build_scope_topology_confinement;
