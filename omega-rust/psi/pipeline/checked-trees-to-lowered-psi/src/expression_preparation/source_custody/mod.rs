@@ -165,14 +165,16 @@ pub(crate) fn locate(
                     .and_then(|target| {
                         let parameters = program.state_parameters(target);
                         let arguments = program.statement_table.expression_handles(*arguments);
-                        if arguments.len() != parameters.len()
-                            || parameters.get(argument_ordinal as usize)?.is_self
-                        {
+                        if parameters.get(argument_ordinal as usize)?.is_self {
                             return None;
                         }
+                        let explicit = parameters[..argument_ordinal as usize]
+                            .iter()
+                            .filter(|parameter| !parameter.is_self)
+                            .count();
                         let ExpressionNode::Indexed(indexed) = program
                             .expression_table
-                            .expression(*arguments.get(argument_ordinal as usize)?)
+                            .expression(*arguments.get(explicit)?)
                         else {
                             return None;
                         };

@@ -221,6 +221,107 @@ pub(super) fn decode_byte_sequence_length(
     })
 }
 
+pub(super) fn encode_establish_element_view(
+    writer: &mut Writer,
+    destination: PlaceId,
+    source: StructuralArgument,
+    element: semantic_vocabulary::StructuralTypeId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ESTABLISH_ELEMENT_VIEW);
+    writer.id(destination);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "element view source path", &source.path)?;
+    writer.id(element);
+    Ok(())
+}
+
+pub(super) fn decode_establish_element_view(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::EstablishElementView {
+        destination: reader.id("PlaceId")?,
+        source: terminal_psi::StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
+        element: reader.id("StructuralTypeId")?,
+    })
+}
+
+pub(super) fn encode_element_view_length(
+    writer: &mut Writer,
+    source: PlaceId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ELEMENT_VIEW_LENGTH);
+    writer.id(source);
+    Ok(())
+}
+
+pub(super) fn decode_element_view_length(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ElementViewLength {
+        source: reader.id("PlaceId")?,
+    })
+}
+
+pub(super) fn encode_element_view_read(
+    writer: &mut Writer,
+    source: PlaceId,
+    index: ValueId,
+    length: ValueId,
+    obligation: ObligationId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ELEMENT_VIEW_READ);
+    writer.id(source);
+    writer.id(index);
+    writer.id(length);
+    writer.id(obligation);
+    Ok(())
+}
+
+pub(super) fn decode_element_view_read(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ElementViewRead {
+        source: reader.id("PlaceId")?,
+        index: reader.id("ValueId")?,
+        length: reader.id("ValueId")?,
+        obligation: reader.id("ObligationId")?,
+    })
+}
+
+pub(super) fn encode_element_view_subslice(
+    writer: &mut Writer,
+    source: PlaceId,
+    start: ValueId,
+    end: ValueId,
+    length: ValueId,
+    obligation: ObligationId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ELEMENT_VIEW_SUBSLICE);
+    writer.id(source);
+    writer.id(start);
+    writer.id(end);
+    writer.id(length);
+    writer.id(obligation);
+    Ok(())
+}
+
+pub(super) fn decode_element_view_subslice(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::ElementViewSubslice {
+        source: reader.id("PlaceId")?,
+        start: reader.id("ValueId")?,
+        end: reader.id("ValueId")?,
+        length: reader.id("ValueId")?,
+        obligation: reader.id("ObligationId")?,
+    })
+}
+
 pub(super) fn encode_write_only_primitive_store(
     writer: &mut Writer,
     destination: PlaceId,

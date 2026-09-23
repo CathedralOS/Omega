@@ -188,6 +188,10 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
                         structural::byte_observation(source, &mut replay, operation)?
                     }
+                    LegalizedScalarInstructionKind::ElementViewRead { .. }
+                    | LegalizedScalarInstructionKind::ElementViewLength { .. } => {
+                        structural::element_observation(source, &mut replay, operation)?
+                    }
                     LegalizedScalarInstructionKind::Compare {
                         predicate,
                         operand_type,
@@ -1244,7 +1248,9 @@ pub(in crate::selection) fn validate_with_environment(
                     | LegalizedScalarInstructionKind::NormalizedForeignCall(_)
                     | LegalizedScalarInstructionKind::DynamicParameterCall(_)
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
+                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
+                    | LegalizedScalarInstructionKind::EstablishElementView { .. }
+                    | LegalizedScalarInstructionKind::ElementViewSubslice { .. } => {
                         return Err(invalid());
                     }
                     LegalizedScalarInstructionKind::Call(_) => {

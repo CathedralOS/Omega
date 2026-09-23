@@ -109,6 +109,32 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_abstract_result(bytes, *result);
             bytes.id(*source);
         }
+        O::ElementViewLength {
+            psi_operation,
+            result,
+            source,
+        } => {
+            bytes.u8(86);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+        }
+        O::ElementViewRead {
+            psi_operation,
+            result,
+            source,
+            index,
+            length,
+            obligation,
+        } => {
+            bytes.u8(87);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            bytes.id(*source);
+            bytes.id(*index);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
         O::IntegerConstant {
             psi_operation,
             result,

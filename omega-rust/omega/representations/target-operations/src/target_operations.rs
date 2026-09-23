@@ -57,8 +57,8 @@ pub mod operations;
 pub use operations::{NativeCallOrigin, TargetUnitOperation};
 pub mod values;
 pub use values::{
-    TargetBooleanExpression, TargetByteView, TargetIntegerExpression, TargetReferenceResult,
-    TargetScalarBlockValue, TargetScalarExpression, TargetScalarImmediate,
+    TargetBooleanExpression, TargetByteView, TargetElementView, TargetIntegerExpression,
+    TargetReferenceResult, TargetScalarBlockValue, TargetScalarExpression, TargetScalarImmediate,
     TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralParameter,
 };
 pub mod storage;

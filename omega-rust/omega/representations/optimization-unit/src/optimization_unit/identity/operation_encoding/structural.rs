@@ -91,6 +91,38 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*length);
             bytes.id(*obligation);
         }
+        O::ElementViewSubslice {
+            psi_operation,
+            result,
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } => {
+            bytes.u8(84);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.id(*source);
+            bytes.id(*start);
+            bytes.id(*end);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
+        O::EstablishElementView {
+            psi_operation,
+            result,
+            destination,
+            source,
+            element,
+        } => {
+            bytes.u8(85);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.id(*destination);
+            encode_structural_argument(bytes, source);
+            bytes.id(*element);
+        }
         O::WriteOnlyPrimitiveStore {
             psi_operation,
             destination,

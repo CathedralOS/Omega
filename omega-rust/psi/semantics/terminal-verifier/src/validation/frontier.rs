@@ -542,6 +542,7 @@ fn validate_owned_reads(
         .chain(observation);
     for place in reads.filter(|place| {
         super::byte_sequence_subslice::borrowed_result(machine, *place).is_none()
+            && super::element_view_subslice::borrowed_result(machine, *place).is_none()
             && super::primitive_storage::local_result(machine, *place).is_none()
             // Copyable case results have no affine frontier entry. Their exact
             // producer and dominance are checked by scalar_case::validate_uses;

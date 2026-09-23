@@ -169,6 +169,7 @@ fn disturbs(
         }
         ReadByteSpan { .. }
         | ReadByteSequence { .. }
+        | ReadElementView { .. }
         | WriteByteSpan { .. }
         | WriteByteSequence { .. }
         | WriteIndexedPrimitive { .. } => {
@@ -1021,7 +1022,8 @@ fn reconstruct<'source>(
                 // the removal contract does not name.
                 SelectedMemoryAccessRole::ReadPlace
                 | SelectedMemoryAccessRole::ReadByteSpan { .. }
-                | SelectedMemoryAccessRole::ReadByteSequence { .. } => {}
+                | SelectedMemoryAccessRole::ReadByteSequence { .. }
+                | SelectedMemoryAccessRole::ReadElementView { .. } => {}
                 _ => return Err(DeadStoreEliminationError::UnsupportedPair),
             }
         } else {

@@ -31,6 +31,10 @@ pub(super) fn encode_argument_source(bytes: &mut Vec<u8>, source: &TargetStructu
             bytes.push(4);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
+        TargetStructuralArgumentSource::EstablishedElementView { psi_operation } => {
+            bytes.push(5);
+            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+        }
     }
 }
 
@@ -52,6 +56,9 @@ pub(super) fn decode_argument_source(
             psi_operation: decode_id(cursor, OperationId::new)?,
         }),
         4 => Ok(TargetStructuralArgumentSource::StructuralHome {
+            psi_operation: decode_id(cursor, OperationId::new)?,
+        }),
+        5 => Ok(TargetStructuralArgumentSource::EstablishedElementView {
             psi_operation: decode_id(cursor, OperationId::new)?,
         }),
         tag => Err(FixedViewCopyDecodeError::UnknownOption(tag)),
@@ -89,6 +96,9 @@ mod tests {
             TargetStructuralArgumentSource::EstablishedByteView {
                 psi_operation: OperationId::new(313).unwrap(),
             },
+            TargetStructuralArgumentSource::EstablishedElementView {
+                psi_operation: OperationId::new(313).unwrap(),
+            },
         ] {
             let mut encoded = Vec::new();
             encode_argument_source(&mut encoded, &source);
@@ -103,7 +113,7 @@ mod tests {
 
     #[test]
     fn argument_source_rejects_unknown_kind_and_absent_establishment() {
-        assert!(decode_argument_source(&mut Cursor::new(&[5])).is_err());
+        assert!(decode_argument_source(&mut Cursor::new(&[6])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[4, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0])).is_err());
         assert!(decode_argument_source(&mut Cursor::new(&[2])).is_err());

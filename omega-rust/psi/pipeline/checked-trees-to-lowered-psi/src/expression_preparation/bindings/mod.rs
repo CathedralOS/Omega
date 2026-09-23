@@ -3,7 +3,7 @@ use super::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees,
     LoweringError, PlaceId, ScalarType, StructuralAccess, StructuralArgument,
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
-    terminal_scalar_type, unsupported,
+    StructuralTypeId, terminal_scalar_type, unsupported,
 };
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody;
@@ -26,6 +26,9 @@ pub(crate) struct ScalarBindings {
     local_cases: Vec<structural_cases::LocalCaseBinding>,
     structural_fields: Vec<StructuralScalarFieldBinding>,
     structural_cases: Vec<structural_cases::StructuralCaseBinding>,
+    /// Whole element-view parameters resolved to their scalar element type.
+    /// Only primitive-element views join: `&[u8]` stays on the byte path.
+    element_views: std::collections::BTreeMap<StructuralTypeId, ScalarType>,
 }
 
 impl ScalarBindings {
@@ -79,9 +82,15 @@ impl ScalarBindings {
     /// Borrow the established referent, not a copy of its scalar field values.
     /// Source replay checks the declaration and loan occurrence; this join binds
     /// that source to the current activation's exact local or parameter place.
+    /// `parameters` is the authored signature list: `StructuralLocal` names a
+    /// live local or an authored parameter directly by symbol; a receiver place
+    /// (`self.member`) roots at the machine's own declared symbol and resolves
+    /// to the `is_self` parameter.
     pub(crate) fn shared_structural_argument(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        machine: &checked_trees::machine::Machine,
+        parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("computed shared argument changes its access");
@@ -89,23 +98,60 @@ impl ScalarBindings {
         let place = match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
-                let (_, source) = locals.next().ok_or(LoweringError::Unsupported(
-                    "computed shared argument lost its established local",
-                ))?;
-                // An owned local lends its whole place; a `&T` local is itself
-                // a shared-borrow join result, so borrowing through it reuses
-                // that same shared custody rather than fabricating ownership.
-                if !symbol.is_valid()
-                    || locals.next().is_some()
-                    || !matches!(
-                        source.access,
-                        StructuralAccess::Owned | StructuralAccess::SharedBorrow
-                    )
-                    || !source.path.is_empty()
-                {
-                    return unsupported("computed shared argument changes its local custody");
+                match locals.next() {
+                    Some(source) => {
+                        // An owned local lends its whole place; a `&T` local
+                        // is itself a shared-borrow join result, so borrowing
+                        // through it reuses that same shared custody rather
+                        // than fabricating ownership.
+                        if !symbol.is_valid()
+                            || locals.next().is_some()
+                            || !matches!(
+                                source.1.access,
+                                StructuralAccess::Owned | StructuralAccess::SharedBorrow
+                            )
+                            || !source.1.path.is_empty()
+                        {
+                            return unsupported(
+                                "computed shared argument changes its local custody",
+                            );
+                        }
+                        source.1.place
+                    }
+                    None => {
+                        let position = parameters
+                            .iter()
+                            .position(|parameter| parameter.symbol == symbol)
+                            .or_else(|| {
+                                (symbol == machine.symbol).then(|| {
+                                    parameters.iter().position(|parameter| parameter.is_self)
+                                })?
+                            })
+                            .ok_or(LoweringError::Unsupported(
+                                "computed shared argument lost its established local",
+                            ))?;
+                        let (_, source) = self
+                            .structural_parameters
+                            .iter()
+                            .find(|(place_position, _)| *place_position as usize == position)
+                            .ok_or(LoweringError::Unsupported(
+                                "computed shared argument lost its parameter",
+                            ))?;
+                        if !matches!(
+                            source.access,
+                            StructuralAccess::Owned
+                                | StructuralAccess::SharedBorrow
+                                | StructuralAccess::MutableBorrow
+                        ) || !source.qualifications.is_empty()
+                            || !source.projected_qualifications.is_empty()
+                        {
+                            return unsupported(
+                                "computed shared argument widens its parameter custody",
+                            );
+                        }
+                        source.place
+                    }
                 }
-                source.place
             }
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index,
@@ -257,6 +303,24 @@ impl ScalarBindings {
             StructuralScalarFieldBinding::collect(&self.structural_parameters, types);
         self.structural_cases =
             structural_cases::StructuralCaseBinding::collect(&self.structural_parameters, types);
+        self.element_views = self
+            .structural_parameters
+            .iter()
+            .filter_map(|(_, parameter)| {
+                let shape = types
+                    .iter()
+                    .find(|declaration| declaration.id == parameter.structural_type)?;
+                let terminal_psi::StructuralTypeShape::ElementView { element } = shape.shape else {
+                    return None;
+                };
+                let element = types.iter().find(|declaration| declaration.id == element)?;
+                let terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) = element.shape
+                else {
+                    return None;
+                };
+                Some((parameter.structural_type, scalar_type))
+            })
+            .collect();
         self
     }
 
@@ -287,6 +351,7 @@ impl ScalarBindings {
             local_cases: Vec::new(),
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
+            element_views: std::collections::BTreeMap::new(),
         }
     }
 
@@ -300,6 +365,7 @@ impl ScalarBindings {
             local_cases: Vec::new(),
             structural_fields: Vec::new(),
             structural_cases: Vec::new(),
+            element_views: std::collections::BTreeMap::new(),
         }
     }
 
@@ -310,6 +376,7 @@ impl ScalarBindings {
         self.structural_parameters = parameters.to_vec();
         self.structural_fields.clear();
         self.structural_cases.clear();
+        self.element_views.clear();
         self
     }
 
@@ -642,9 +709,11 @@ impl ScalarBindings {
             .values
             .scalar_expressions
             .bound_expression_at(state, statement, role)
-            .ok_or(LoweringError::Unsupported(
-                "scalar computation needs one checked expression and one source binding",
-            ))?;
+            .ok_or_else(|| {
+                LoweringError::Unsupported(
+                    "scalar computation needs one checked expression and one source binding",
+                )
+            })?;
         let expression = self.expression(expression)?;
         source_custody::validate_pure(checked, binding, expression.scalar_type())?;
         Ok(expression)
@@ -662,6 +731,7 @@ impl ScalarBindings {
             &self.structural_fields,
             &self.structural_cases,
             &self.primitive_storage,
+            &self.element_views,
         )
     }
 }

@@ -103,6 +103,16 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
+        | O::ElementViewSubslice {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | O::ElementViewRead {
+            psi_operation,
+            obligation,
+            ..
+        }
         | O::IntegerExactCast {
             psi_operation,
             obligation,

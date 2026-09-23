@@ -203,16 +203,74 @@ fn validate_structural_parameter(
             checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
         }
     };
+    let referee_node = checked.type_reference_table.type_reference(*referee);
+    if matches!(referee_node, TypeReferenceNode::Slice { .. }) {
+        // A `&[T]` view referee carries the slice's normalized identity; its
+        // element joins the checked catalog as a borrowed view, not the
+        // primitive-reference referent shape checked below.
+        let TypeReferenceNode::Slice { element_type } = referee_node else {
+            return unsupported("scalar graph slice referee changed shape");
+        };
+        if retained.is_self
+            || retained.position as usize != position
+            || retained.access != access
+            || retained.multiplicity != Multiplicity::Unrestricted
+            || !retained.qualifications.is_empty()
+            || retained.fused_service_erasure.is_some()
+            || retained.type_identity != checked.normalized_type_identity(*referee).into_string()
+        {
+            return unsupported("scalar graph slice parameter differs from its authored signature");
+        }
+        let mut shapes = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter()
+            .filter(|shape| shape.identity == retained.type_identity);
+        let shape = shapes.next().ok_or(LoweringError::Unsupported(
+            "scalar graph slice view shape is absent",
+        ))?;
+        let checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+            element_type_identity,
+        } = &shape.shape
+        else {
+            return unsupported("scalar graph slice view shape differs from its source");
+        };
+        if shapes.next().is_some() {
+            return unsupported("scalar graph slice view shape differs from its source");
+        }
+        // The element's own catalog row must be the primitive its constrained
+        // handle resolves to — the authored `[i32 in Wrapping]` element joins
+        // as `PrimitiveScalar(I32)`, not as a domain-carrying structural type.
+        let primitive =
+            checked
+                .primitive_type_reference(*element_type)
+                .ok_or(LoweringError::Unsupported(
+                    "scalar graph slice element is not primitive",
+                ))?;
+        let mut elements = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .structural_types
+            .iter()
+            .filter(|candidate| candidate.identity == *element_type_identity);
+        if elements.next().map(|candidate| &candidate.shape)
+            != Some(&checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive))
+            || elements.next().is_some()
+        {
+            return unsupported("scalar graph slice element shape differs from its source");
+        }
+        return Ok(());
+    }
     if retained.is_self
         || retained.position as usize != position
         || retained.access != access
         || retained.multiplicity != Multiplicity::Unrestricted
         || !retained.qualifications.is_empty()
         || retained.fused_service_erasure.is_some()
-        || !matches!(
-            checked.type_reference_table.type_reference(*referee),
-            TypeReferenceNode::Named { .. }
-        )
+        || !matches!(referee_node, TypeReferenceNode::Named { .. })
         || checked.primitive_type_reference(*referee).is_none()
         || retained.type_identity != checked.normalized_type_identity(*referee).into_string()
     {

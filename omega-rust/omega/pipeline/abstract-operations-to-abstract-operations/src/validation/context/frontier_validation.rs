@@ -156,6 +156,18 @@ fn validate_surviving_byte_operations(
             } => (*psi_operation, Some(*obligation)),
             O::ByteSequenceLength { psi_operation, .. }
             | O::StructuralByteSequenceFieldLength { psi_operation, .. } => (*psi_operation, None),
+            O::ElementViewRead {
+                psi_operation,
+                obligation,
+                ..
+            }
+            | O::ElementViewSubslice {
+                psi_operation,
+                obligation,
+                ..
+            } => (*psi_operation, Some(*obligation)),
+            O::EstablishElementView { psi_operation, .. }
+            | O::ElementViewLength { psi_operation, .. } => (*psi_operation, None),
             _ => continue,
         };
         let original = module
@@ -292,6 +304,66 @@ fn validate_surviving_byte_operations(
                     }),
                     terminal_psi::OperationKind::ByteSequenceLength { source: *source },
                 ),
+                O::EstablishElementView {
+                    result,
+                    destination,
+                    source,
+                    element,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Structural(result.clone()),
+                    terminal_psi::OperationKind::EstablishElementView {
+                        destination: *destination,
+                        source: source.clone(),
+                        element: *element,
+                    },
+                ),
+                O::ElementViewLength { result, source, .. } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::ElementViewLength { source: *source },
+                ),
+                O::ElementViewRead {
+                    result,
+                    source,
+                    index,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::ElementViewRead {
+                        source: *source,
+                        index: *index,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
+                O::ElementViewSubslice {
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Structural(result.clone()),
+                    terminal_psi::OperationKind::ElementViewSubslice {
+                        source: *source,
+                        start: *start,
+                        end: *end,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
                 _ => return false,
             };
             original.result == result
@@ -400,6 +472,51 @@ fn byte_operation_kind_matches(
                 obligation: expected_obligation,
             },
             terminal_psi::OperationKind::ByteSequenceSubslice {
+                source: actual_source,
+                start: actual_start,
+                end: actual_end,
+                length: actual_length,
+                obligation: actual_obligation,
+            },
+        ) => {
+            expected_obligation == actual_obligation
+                && root_matches(*expected_source, *actual_source)
+                && operand_matches(*expected_start, *actual_start)
+                && operand_matches(*expected_end, *actual_end)
+                && operand_matches(*expected_length, *actual_length)
+        }
+        (
+            terminal_psi::OperationKind::ElementViewLength { source: expected },
+            terminal_psi::OperationKind::ElementViewLength { source: actual },
+        ) => root_matches(*expected, *actual),
+        (
+            terminal_psi::OperationKind::ElementViewRead {
+                source: expected_source,
+                index: expected_index,
+                length: expected_length,
+                obligation: expected_obligation,
+            },
+            terminal_psi::OperationKind::ElementViewRead {
+                source: actual_source,
+                index: actual_index,
+                length: actual_length,
+                obligation: actual_obligation,
+            },
+        ) => {
+            expected_obligation == actual_obligation
+                && root_matches(*expected_source, *actual_source)
+                && operand_matches(*expected_index, *actual_index)
+                && operand_matches(*expected_length, *actual_length)
+        }
+        (
+            terminal_psi::OperationKind::ElementViewSubslice {
+                source: expected_source,
+                start: expected_start,
+                end: expected_end,
+                length: expected_length,
+                obligation: expected_obligation,
+            },
+            terminal_psi::OperationKind::ElementViewSubslice {
                 source: actual_source,
                 start: actual_start,
                 end: actual_end,

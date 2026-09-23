@@ -57,6 +57,10 @@ fn encode_structural_source(
             bytes.push(1);
             push_u64(bytes, psi_operation.get());
         }
+        InternalUnitStructuralArgumentSourceRecord::EstablishedElementView { psi_operation } => {
+            bytes.push(4);
+            push_u64(bytes, psi_operation.get());
+        }
         InternalUnitStructuralArgumentSourceRecord::BlockParameter { block, place } => {
             bytes.push(2);
             push_u64(bytes, block.get());
@@ -81,6 +85,12 @@ fn decode_structural_source(
         )),
         1 => Ok(
             InternalUnitStructuralArgumentSourceRecord::EstablishedByteView {
+                psi_operation: OperationId::new(reader.u64()?)
+                    .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
+            },
+        ),
+        4 => Ok(
+            InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
                 psi_operation: OperationId::new(reader.u64()?)
                     .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?,
             },
@@ -822,6 +832,9 @@ mod tests {
         assert_eq!(bytes, [1, 8, 7, 6, 5, 4, 3, 2, 1]);
         for source in [
             established,
+            InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
+                psi_operation: OperationId::new(0x0102_0304_0506_0708).unwrap(),
+            },
             InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal {
                 psi_operation: OperationId::new(0x0102_0304_0506_0708).unwrap(),
             },
@@ -853,8 +866,8 @@ mod tests {
             Err(InstallationError::ZeroInternalUnitCallIdentity),
         );
         assert_eq!(
-            decode_structural_source(&mut Reader::new(&[4])),
-            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(4)),
+            decode_structural_source(&mut Reader::new(&[5])),
+            Err(InstallationError::InvalidInternalUnitStructuralSourceTag(5)),
         );
         assert_eq!(
             decode_structural_source(&mut Reader::new(&[3, 0, 0, 0, 0, 0, 0, 0, 0])),

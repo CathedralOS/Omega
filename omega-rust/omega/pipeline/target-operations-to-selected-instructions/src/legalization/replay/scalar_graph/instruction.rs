@@ -424,6 +424,50 @@ pub(super) fn validate(
             actual, node, optimized, unit, operation,
         )?,
         (
+            LegalizedScalarInstructionKind::ElementViewSubslice { .. },
+            AbstractOperation::ElementViewSubslice { .. },
+        ) => storage_instructions::validate_element_view_subslice(
+            actual, node, optimized, unit, operation,
+        )?,
+        (
+            LegalizedScalarInstructionKind::EstablishElementView {
+                result,
+                destination,
+                source,
+                element,
+            },
+            AbstractOperation::EstablishElementView {
+                result: expected_result,
+                destination: expected_destination,
+                source: expected_source,
+                element: expected_element,
+                ..
+            },
+        ) => {
+            if result != expected_result
+                || destination != expected_destination
+                || source != expected_source
+                || element != expected_element
+            {
+                return Err(invalid);
+            }
+        }
+        (
+            LegalizedScalarInstructionKind::ElementViewRead { .. },
+            AbstractOperation::ElementViewRead { .. },
+        ) => storage_instructions::validate_element_view_read(
+            actual, node, optimized, unit, operation,
+        )?,
+        (
+            LegalizedScalarInstructionKind::ElementViewLength {
+                source,
+                length_byte_offset: 8,
+            },
+            AbstractOperation::ElementViewLength {
+                source: expected, ..
+            },
+        ) if source == expected => {}
+        (
             LegalizedScalarInstructionKind::Call(_),
             AbstractOperation::CallUnit { .. } | AbstractOperation::CallStructuralScalar { .. },
         ) => call_instructions::validate_call(

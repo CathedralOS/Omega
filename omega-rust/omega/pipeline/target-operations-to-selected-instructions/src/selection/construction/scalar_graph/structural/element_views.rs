@@ -1,0 +1,364 @@
+//! Select element observations from descriptor and derived value homes.
+use super::{
+    Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+};
+use crate::SelectedInstructionError;
+use crate::selection::construction::scalar_graph::structural::invalid;
+use crate::selection::construction::scalar_graph::structural::provenance;
+use crate::selection::construction::scalar_graph::structural::transport_register;
+use semantic_vocabulary::IntegerValue;
+use terminal_psi::StructuralTypeShape;
+
+/// The byte stride of the view's element. A derived view home already carries
+/// it; a descriptor source reconstructs it from the declared element type,
+/// which must be a primitive scalar on this lane.
+pub(super) fn element_stride(
+    function: &LegalizedScalarFunction,
+    builder: &Builder<'_>,
+    source: PlaceId,
+) -> Option<u32> {
+    if let Some(view) = builder
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == source)
+    {
+        return Some(view.element_stride);
+    }
+    let view_type = crate::selection::established_view_input::element_view_type(function, source)?;
+    let signature = function.structural.as_ref()?;
+    let declaration = signature
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|declaration| declaration.id == view_type)?;
+    let StructuralTypeShape::ElementView { element } = &declaration.shape else {
+        return None;
+    };
+    let element_declaration = signature
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|declaration| declaration.id == *element)?;
+    let StructuralTypeShape::PrimitiveScalar(scalar) = element_declaration.shape else {
+        return None;
+    };
+    let shape = crate::structural_inputs::structural_reference_input::scalar_shape(scalar)?;
+    crate::structural_inputs::structural_reference_input::align(
+        u32::from(shape.byte_size),
+        shape.alignment,
+    )
+}
+
+pub(in crate::selection) fn element_observation(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let source = match row.kind {
+        LegalizedScalarInstructionKind::ElementViewRead { source, .. }
+        | LegalizedScalarInstructionKind::ElementViewLength { source, .. } => source,
+        _ => return Err(invalid()),
+    };
+    // An addressable record is not an element descriptor. Reconstruct the
+    // semantic view type before interpreting any pointer home as backing and
+    // element extent.
+    if crate::selection::established_view_input::element_view_type(function, source).is_none() {
+        return Err(invalid());
+    }
+    match row.kind {
+        LegalizedScalarInstructionKind::ElementViewRead { .. } => {
+            element_view_read(function, builder, row)
+        }
+        LegalizedScalarInstructionKind::ElementViewLength {
+            source,
+            length_byte_offset,
+        } => element_view_length(builder, row, source, length_byte_offset),
+        _ => Err(invalid()),
+    }
+}
+
+fn element_view_read(
+    function: &LegalizedScalarFunction,
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::ElementViewRead {
+        source,
+        index,
+        length,
+        obligation,
+        accepted_fact,
+    } = row.kind
+    else {
+        return Err(invalid());
+    };
+    let definition = row.result.ok_or_else(invalid)?;
+    let (_, index_register, _, index_type) = builder.resolve(index).ok_or_else(invalid)?;
+    if index_type
+        != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?)
+    {
+        return Err(invalid());
+    }
+    let stride = element_stride(function, builder, source).ok_or_else(invalid)?;
+    let Some(signature) = function.structural.as_ref() else {
+        return Err(invalid());
+    };
+    // The read result is the view's declared element scalar exactly.
+    let Some(view_type) =
+        crate::selection::established_view_input::element_view_type(function, source)
+    else {
+        return Err(invalid());
+    };
+    let element = signature
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|declaration| declaration.id == view_type)
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::ElementView { element } => Some(element),
+            _ => None,
+        })
+        .ok_or_else(invalid)?;
+    let element_scalar = signature
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|declaration| declaration.id == element)
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+            _ => None,
+        })
+        .ok_or_else(invalid)?;
+    if definition.scalar_type != element_scalar {
+        return Err(invalid());
+    }
+    let pointer = element_backing_pointer(builder, row, source)?;
+    let view = builder
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == source)
+        .copied();
+    // i * K <= L * K <= R * K <= root bytes, so the element-to-byte scaling of
+    // a checked in-bounds index cannot overflow.
+    let stride_register = transport_register(builder, source, 0)?;
+    let scaled_index = transport_register(builder, source, 0)?;
+    builder.emit(
+        SelectedInstructionKind::MaterializeI64 {
+            value: IntegerValue::Unsigned(u128::from(stride)),
+        },
+        builder.constraints.keys.materialize_i64,
+        &[stride_register],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    builder.emit(
+        SelectedInstructionKind::WrappingMultiplyI64,
+        builder.constraints.keys.multiply_i64,
+        &[index_register, stride_register, scaled_index],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    let physical_index = if let Some(view) = view {
+        let offset = transport_register(builder, source, 0)?;
+        // O + i * K <= O + L * K <= R * K, so only this byte-offset sum is
+        // claimed exact.
+        builder.emit(
+            SelectedInstructionKind::ExactAddI64 {
+                obligation,
+                accepted_fact,
+            },
+            builder.constraints.keys.add_i64,
+            &[view.byte_offset, scaled_index, offset],
+            SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![index, length, view.root_length],
+                obligations: vec![obligation],
+                ..Default::default()
+            },
+        )?;
+        offset
+    } else {
+        scaled_index
+    };
+    let output = builder.register(
+        definition.value,
+        definition.definition_site,
+        definition.scalar_type,
+    )?;
+    memory(
+        builder,
+        row,
+        source,
+        0,
+        stride,
+        SelectedMemoryAccessRole::ReadElementView {
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        },
+    )?;
+    let address = transport_register(builder, source, 0)?;
+    builder.emit(
+        SelectedInstructionKind::ByteViewAddress,
+        builder.constraints.keys.add_i64,
+        &[pointer, physical_index, address],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length],
+            obligations: vec![obligation],
+            ..Default::default()
+        },
+    )?;
+    let (kind, constraint) = match stride {
+        1 => (
+            SelectedInstructionKind::Load8 { byte_offset: 0 },
+            builder.constraints.keys.load8.ok_or_else(invalid)?,
+        ),
+        2 => (
+            SelectedInstructionKind::Load16 { byte_offset: 0 },
+            builder.constraints.keys.load16.ok_or_else(invalid)?,
+        ),
+        4 => (
+            SelectedInstructionKind::Load32 { byte_offset: 0 },
+            builder.constraints.keys.load32.ok_or_else(invalid)?,
+        ),
+        8 => (
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            builder.constraints.keys.load64.ok_or_else(invalid)?,
+        ),
+        _ => return Err(invalid()),
+    };
+    builder.emit(
+        kind,
+        constraint,
+        &[address, output],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![index, length, definition.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
+fn element_view_length(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    source: PlaceId,
+    length_byte_offset: u32,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if length_byte_offset != 8 {
+        return Err(invalid());
+    }
+    let definition = row.result.ok_or_else(invalid)?;
+    if definition.scalar_type
+        != ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?)
+    {
+        return Err(invalid());
+    }
+    let output = builder.register(
+        definition.value,
+        definition.definition_site,
+        definition.scalar_type,
+    )?;
+    if let Some(view) = builder
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == source)
+        .copied()
+    {
+        builder.emit(
+            SelectedInstructionKind::CopyI64,
+            builder.constraints.keys.copy_i64,
+            &[view.element_length, output],
+            SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![definition.value, view.root_length],
+                ..Default::default()
+            },
+        )?;
+        return Ok(output);
+    }
+    let descriptor = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == source)
+        .map(|(_, register)| *register)
+        .ok_or_else(invalid)?;
+    memory(
+        builder,
+        row,
+        source,
+        8,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load64 { byte_offset: 8 },
+        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        &[descriptor, output],
+        SelectedInstructionProvenance {
+            operations: vec![row.operation],
+            values: vec![definition.value],
+            fuel: row.fuel.clone(),
+            ..Default::default()
+        },
+    )?;
+    Ok(output)
+}
+
+/// The root's base address, whether carried by a derived view home or behind a
+/// freshly established 16-byte descriptor.
+pub(super) fn element_backing_pointer(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    source: PlaceId,
+) -> Result<VirtualRegisterId, SelectedInstructionError> {
+    if let Some(view) = builder
+        .transport
+        .element_views
+        .iter()
+        .find(|view| view.place == source)
+    {
+        return Ok(view.backing_pointer);
+    }
+    let descriptor = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == source)
+        .map(|(_, register)| *register)
+        .ok_or_else(invalid)?;
+    let pointer = transport_register(builder, source, 0)?;
+    memory(
+        builder,
+        row,
+        source,
+        0,
+        8,
+        SelectedMemoryAccessRole::ReadPlace,
+    )?;
+    builder.emit(
+        SelectedInstructionKind::Load64 { byte_offset: 0 },
+        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        &[descriptor, pointer],
+        provenance(row),
+    )?;
+    Ok(pointer)
+}

@@ -78,6 +78,17 @@ pub(super) fn validate_block(
             operation,
             &available_structural,
         )?;
+        super::super::element_view_establishment::validate_uses(
+            machine,
+            operation,
+            &available_structural,
+        )?;
+        super::super::element_view_subslice::validate_uses(
+            module,
+            machine,
+            operation,
+            &available_structural,
+        )?;
         super::super::primitive_storage::validate_uses(machine, operation, &available_primitives)?;
         super::super::record::validate_uses(module, machine, operation, &available_structural)?;
         super::super::scalar_case::validate_uses(
@@ -312,6 +323,7 @@ pub(super) fn validate_block(
                 });
             }
             if super::super::byte_sequence_subslice::borrowed_result(machine, *source).is_some()
+                || super::super::element_view_subslice::borrowed_result(machine, *source).is_some()
                 || block_parameter
                     .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
             {

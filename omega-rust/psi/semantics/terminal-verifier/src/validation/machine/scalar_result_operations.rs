@@ -68,11 +68,28 @@ pub(super) fn register_scalar_result_operation(
                 ModuleError::DuplicateObligation,
             )?;
         }
+        OperationKind::ElementViewLength { source } => {
+            super::super::element_view_length::validate(module, machine, operation, source)?;
+        }
+        OperationKind::ElementViewRead {
+            source,
+            length,
+            obligation,
+            ..
+        } => {
+            super::super::element_view_read::validate(module, machine, operation, source, length)?;
+            insert_unique(
+                &mut registry.obligations,
+                obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
         OperationKind::CallUnit { .. }
         | OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }
+        | OperationKind::EstablishElementView { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
@@ -87,6 +104,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::ByteSequenceSubslice { .. }
+        | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::StoreDynamicDescriptor { .. }

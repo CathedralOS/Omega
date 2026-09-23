@@ -43,7 +43,7 @@ pub(crate) fn stack_pointer_offset(placement: &ValuePlacement) -> Option<u32> {
     }
 }
 
-fn align(value: u32, alignment: u16) -> Option<u32> {
+pub(crate) fn align(value: u32, alignment: u16) -> Option<u32> {
     let alignment = u32::from(alignment);
     Some(value.checked_add(alignment.checked_sub(1)?)? / alignment * alignment)
 }
@@ -418,6 +418,74 @@ pub(crate) fn fixed_byte_array_view(
     Some((u32::try_from(offset).ok()?, window.length))
 }
 
+/// Reconstruct a borrowed element view presented from a fixed array reached
+/// through an authored field path. The element count and element byte size
+/// are the descriptor's length word and stride; the window's end must stay
+/// inside the source root storage.
+pub(crate) fn fixed_element_array_view(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u64, u32)> {
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    if source.place != argument.place
+        || !matches!(
+            (source.access, argument.access),
+            (
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+            ) | (
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow
+            ) | (
+                StructuralAccess::Owned,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::Owned,
+            )
+        )
+        || source.multiplicity != StructuralMultiplicity::Unrestricted
+        || !source.qualifications.is_empty()
+        || !source.projected_qualifications.is_empty()
+        || argument
+            .path
+            .iter()
+            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+    {
+        return None;
+    }
+    let StructuralTypeShape::ElementView {
+        element: view_element,
+    } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == view_type)?
+        .shape
+    else {
+        return None;
+    };
+    let (tip, offset) = project(source.structural_type, &argument.path, declarations)?;
+    let StructuralTypeShape::FixedArray { element, length } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == tip)?
+        .shape
+    else {
+        return None;
+    };
+    if element != view_element || *length == 0 {
+        return None;
+    }
+    let element_stride = align(
+        u32::from(shape(*element, declarations)?.byte_size),
+        shape(*element, declarations)?.alignment,
+    )?;
+    let end = u64::from(offset).checked_add(length.checked_mul(u64::from(element_stride))?)?;
+    if end > u64::from(shape(source.structural_type, declarations)?.byte_size) {
+        return None;
+    }
+    Some((offset, *length, element_stride))
+}
+
 /// Reconstruct a borrowed view presented from a bounded inline byte field.
 /// The field's live length word and capacity bytes stay in the caller's record
 /// storage; the descriptor staged for the call reads that length in place.
@@ -512,6 +580,9 @@ fn shape_inner(
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
             Some(ValueShape::integer(16, 8))
         }
+        // An element view rides the same borrowed descriptor pair: base
+        // pointer plus extent, realized as one borrowed aggregate slot.
+        StructuralTypeShape::ElementView { .. } => Some(ValueShape::integer(16, 8)),
         StructuralTypeShape::Sum { cases } => {
             let payloads = cases
                 .iter()

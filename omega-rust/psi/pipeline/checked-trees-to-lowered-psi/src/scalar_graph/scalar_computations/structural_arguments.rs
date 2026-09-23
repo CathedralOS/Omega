@@ -6,6 +6,7 @@ pub(super) fn lower(
     checked: &CheckedTrees,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
+    caller_state: symbols::SymbolHandle,
     arguments: &[checked_trees::CheckedScalarComputationStructuralArgument],
     bindings: &storage::ScalarBindings,
     arrays: &[arrays::Slot],
@@ -21,6 +22,9 @@ pub(super) fn lower(
         )?;
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, target_state)?;
+    let (caller_machine, caller_authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    let caller_parameters = checked.state_parameters(caller_authored);
     if target.entry_state()? != target_state
         || target.structural_parameters().len() != arguments.len()
         || !target.entry_claims().is_empty()
@@ -189,7 +193,11 @@ pub(super) fn lower(
             if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                 && checked.primitive_type_reference(*referee).is_none()
             {
-                return bindings.shared_structural_argument(argument);
+                return bindings.shared_structural_argument(
+                    argument,
+                    caller_machine,
+                    caller_parameters,
+                );
             }
             if !matches!(
                 checked.type_reference_table.type_reference(*referee),

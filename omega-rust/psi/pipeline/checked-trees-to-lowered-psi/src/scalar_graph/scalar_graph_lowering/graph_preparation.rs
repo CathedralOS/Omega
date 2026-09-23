@@ -153,7 +153,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             "scalar graph requires its exact structural entry namespace; primitive locals remain single-state",
         );
     }
-    let loop_plan = cycles::prepare(checked, graph, structural_parameters, next_place)?;
+    let loop_plan = cycles::prepare(
+        checked,
+        graph,
+        structural_parameters,
+        structural_types,
+        next_place,
+    )?;
     let structural_parameters = loop_plan
         .as_ref()
         .map_or(structural_parameters, |plan| plan.parameters.as_slice());

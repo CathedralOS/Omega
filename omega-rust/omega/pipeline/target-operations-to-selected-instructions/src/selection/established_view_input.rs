@@ -51,6 +51,35 @@ pub(super) fn view_type(
     source: &LegalizedScalarFunction,
     place: PlaceId,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
+    declared_view_type(source, place).filter(|identity| {
+        source.structural.as_ref().is_some_and(|signature| {
+            signature.structural_types.iter().any(|declaration| {
+                declaration.id == *identity
+                    && declaration.shape
+                        == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+            })
+        })
+    })
+}
+
+pub(super) fn element_view_type(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    declared_view_type(source, place).filter(|identity| {
+        source.structural.as_ref().is_some_and(|signature| {
+            signature.structural_types.iter().any(|declaration| {
+                declaration.id == *identity
+                    && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+            })
+        })
+    })
+}
+
+fn declared_view_type(
+    source: &LegalizedScalarFunction,
+    place: PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
     let signature = source.structural.as_ref()?;
     let parameter = signature
         .parameters
@@ -63,7 +92,7 @@ pub(super) fn view_type(
                 .flat_map(|block| &block.structural_parameters),
         )
         .find(|parameter| parameter.place == place);
-    let identity = if let Some(parameter) = parameter {
+    if let Some(parameter) = parameter {
         if !matches!(
             parameter.access,
             terminal_psi::StructuralAccess::SharedBorrow
@@ -74,35 +103,31 @@ pub(super) fn view_type(
         {
             return None;
         }
-        parameter.structural_type
-    } else {
-        source
-            .blocks
-            .iter()
-            .flat_map(|block| &block.instructions)
-            .find_map(|row| match &row.kind {
-                LegalizedScalarInstructionKind::ByteSequenceSubslice { result, .. }
-                    if result.place == place =>
-                {
-                    Some(result.structural_type)
-                }
-                LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
-                    destination,
-                    structural_type,
-                    ..
-                } if destination.id == place => Some(structural_type.id),
-                _ => None,
-            })?
-    };
-    signature
-        .structural_types
+        return Some(parameter.structural_type);
+    }
+    source
+        .blocks
         .iter()
-        .any(|declaration| {
-            declaration.id == identity
-                && declaration.shape
-                    == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        .flat_map(|block| &block.instructions)
+        .find_map(|row| match &row.kind {
+            LegalizedScalarInstructionKind::ByteSequenceSubslice { result, .. }
+            | LegalizedScalarInstructionKind::ElementViewSubslice { result, .. }
+                if result.place == place =>
+            {
+                Some(result.structural_type)
+            }
+            LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+                destination,
+                structural_type,
+                ..
+            } if destination.id == place => Some(structural_type.id),
+            LegalizedScalarInstructionKind::EstablishElementView { result, .. }
+                if result.place == place =>
+            {
+                Some(result.structural_type)
+            }
+            _ => None,
         })
-        .then_some(identity)
 }
 
 pub(super) fn accepts(
@@ -140,9 +165,14 @@ pub(super) fn accepts(
             }))
         .then_some(());
     }
-    let TargetStructuralArgumentSource::EstablishedByteView { psi_operation } = target.source
-    else {
-        return None;
+    let (psi_operation, element_view_source) = match &target.source {
+        TargetStructuralArgumentSource::EstablishedByteView { psi_operation } => {
+            (*psi_operation, false)
+        }
+        TargetStructuralArgumentSource::EstablishedElementView { psi_operation } => {
+            (*psi_operation, true)
+        }
+        _ => return None,
     };
     let signature = source.structural.as_ref()?;
     let mut occurrences = source.blocks.iter().flat_map(|block| {
@@ -168,6 +198,7 @@ pub(super) fn accepts(
             ..
         } => {
             if destination.id != target.place
+                || element_view_source
                 || !signature.structural_places.contains(destination)
                 || !signature.structural_types.contains(structural_type)
                 || structural_type.id != target.structural_type
@@ -185,6 +216,7 @@ pub(super) fn accepts(
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
                 || !result.claims.is_empty()
+                || element_view_source
                 || !signature.structural_places.iter().any(|place| {
                     place.id == result.place
                         && place.kind
@@ -197,6 +229,62 @@ pub(super) fn accepts(
                     declaration.id == result.structural_type
                         && declaration.shape
                             == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                })
+            {
+                return None;
+            }
+        }
+        LegalizedScalarInstructionKind::ElementViewSubslice { result, .. } => {
+            if result.place != target.place
+                || result.structural_type != target.structural_type
+                || result.multiplicity != StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !element_view_source
+                || !signature.structural_places.iter().any(|place| {
+                    place.id == result.place
+                        && place.kind
+                            == StructuralPlaceKind::OperationResult {
+                                producer: psi_operation,
+                                structural_type: result.structural_type,
+                            }
+                })
+                || !signature.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+                })
+            {
+                return None;
+            }
+        }
+        LegalizedScalarInstructionKind::EstablishElementView {
+            result,
+            destination,
+            element,
+            ..
+        } => {
+            if result.place != target.place
+                || result.structural_type != target.structural_type
+                || *destination != target.place
+                || result.multiplicity != StructuralMultiplicity::Unrestricted
+                || !result.qualifications.is_empty()
+                || !result.projected_qualifications.is_empty()
+                || !result.claims.is_empty()
+                || !element_view_source
+                || !signature.structural_places.iter().any(|place| {
+                    place.id == result.place
+                        && place.kind
+                            == StructuralPlaceKind::OperationResult {
+                                producer: psi_operation,
+                                structural_type: result.structural_type,
+                            }
+                })
+                || !signature.structural_types.iter().any(|declaration| {
+                    declaration.id == result.structural_type
+                        && matches!(declaration.shape,
+                            StructuralTypeShape::ElementView { element: declared }
+                                if declared == *element)
                 })
             {
                 return None;

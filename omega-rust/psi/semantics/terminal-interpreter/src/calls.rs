@@ -614,6 +614,7 @@ impl TerminalExecution {
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),

@@ -14,7 +14,7 @@ use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, IntegerSign, IntegerValue,
     LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
-    StructuralParameterDeclaration, unsupported,
+    StructuralParameterDeclaration, StructuralTypeId, unsupported,
 };
 use semantic_vocabulary::CanonicalStructuralPathSegment;
 
@@ -40,7 +40,14 @@ pub(crate) fn lower_checked_scalar_expression_at(
 pub(crate) fn lower_checked_scalar_expression(
     expression: &CheckedScalarExpression,
 ) -> Result<LoweredDirectExpression, LoweringError> {
-    lower_checked_scalar_expression_with_parameters(expression, &[], &[], &[], &[])
+    lower_checked_scalar_expression_with_parameters(
+        expression,
+        &[],
+        &[],
+        &[],
+        &[],
+        &std::collections::BTreeMap::new(),
+    )
 }
 
 /// `lower_checked_scalar_expression_at` carrying the callee's authored
@@ -67,33 +74,34 @@ pub(crate) fn lower_checked_scalar_expression_at_with_parameters(
         &[],
         &[],
         &[],
+        &std::collections::BTreeMap::new(),
     )?;
     source_custody::validate_pure(checked, binding, expression.scalar_type())?;
     Ok(expression)
 }
 
-fn byte_observation_parameter(
+fn view_observation_parameter<'a>(
     position: u32,
-    parameters: &[(u32, StructuralParameterDeclaration)],
+    parameters: &'a [(u32, StructuralParameterDeclaration)],
     length_only: bool,
-) -> Result<PlaceId, LoweringError> {
+) -> Result<&'a StructuralParameterDeclaration, LoweringError> {
     let parameter = parameters
         .iter()
         .find_map(|(source_position, parameter)| {
             (*source_position == position).then_some(parameter)
         })
         .ok_or(LoweringError::Unsupported(
-            "byte observation has no exact structural parameter",
+            "view observation has no exact structural parameter",
         ))?;
     if !(parameter.access == StructuralAccess::SharedBorrow
         || (length_only && parameter.access == StructuralAccess::MutableBorrow))
         || parameter.multiplicity != StructuralMultiplicity::Unrestricted
     {
         return unsupported(
-            "byte observation requires an exact whole view with access for this observation",
+            "view observation requires an exact whole view with access for this observation",
         );
     }
-    Ok(parameter.place)
+    Ok(parameter)
 }
 
 pub(crate) fn lower_checked_scalar_expression_with_parameters(
@@ -102,6 +110,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
     structural_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
     structural_cases: &[crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding],
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
+    element_views: &std::collections::BTreeMap<StructuralTypeId, ScalarType>,
 ) -> Result<LoweredDirectExpression, LoweringError> {
     match expression {
         CheckedScalarExpression::StructuralParameterByteLength {
@@ -122,12 +131,16 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
                 });
             }
+            let parameter =
+                view_observation_parameter(*parameter_position, structural_parameters, true)?;
+            if element_views.contains_key(&parameter.structural_type) {
+                return Ok(LoweredDirectExpression::ElementViewLength {
+                    source: parameter.place,
+                    scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                });
+            }
             Ok(LoweredDirectExpression::ByteSequenceLength {
-                source: byte_observation_parameter(
-                    *parameter_position,
-                    structural_parameters,
-                    true,
-                )?,
+                source: parameter.place,
                 scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
             })
         }
@@ -322,6 +335,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
             right: Box::new(lower_checked_scalar_expression_with_parameters(
                 right,
@@ -329,6 +343,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         }),
         CheckedScalarExpression::IntegerBitwiseNot {
@@ -342,6 +357,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         }),
         CheckedScalarExpression::IntegerWiden {
@@ -355,6 +371,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         }),
         CheckedScalarExpression::StructuralParameterIndexedRead {
@@ -363,26 +380,45 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             index,
             primitive_type,
         } => {
-            if !path.is_empty() || *primitive_type != PrimitiveType::U8 {
+            if !path.is_empty() {
+                return unsupported("indexed reads require a whole view parameter");
+            }
+            let parameter =
+                view_observation_parameter(*parameter_position, structural_parameters, false)?;
+            let element_scalar = element_views.get(&parameter.structural_type).copied();
+            if element_scalar.is_none() && *primitive_type != PrimitiveType::U8 {
                 return unsupported("indexed reads require a whole byte-view parameter");
             }
-            let source =
-                byte_observation_parameter(*parameter_position, structural_parameters, false)?;
             let index = lower_checked_scalar_expression_with_parameters(
                 index,
                 structural_parameters,
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?;
             if index.scalar_type() != terminal_scalar_type(PrimitiveType::U64)? {
-                return unsupported("byte-view indexed reads require an exact u64 index");
+                return unsupported("view indexed reads require an exact u64 index");
             }
-            Ok(LoweredDirectExpression::ByteSequenceRead {
-                source,
-                index: Box::new(index),
-                scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
-            })
+            match element_scalar {
+                Some(scalar_type) => {
+                    if scalar_type != terminal_scalar_type(*primitive_type)? {
+                        return unsupported(
+                            "element-view indexed read drifted from its element type",
+                        );
+                    }
+                    Ok(LoweredDirectExpression::ElementViewRead {
+                        source: parameter.place,
+                        index: Box::new(index),
+                        scalar_type,
+                    })
+                }
+                None => Ok(LoweredDirectExpression::ByteSequenceRead {
+                    source: parameter.place,
+                    index: Box::new(index),
+                    scalar_type: terminal_scalar_type(PrimitiveType::U8)?,
+                }),
+            }
         }
         CheckedScalarExpression::IntegerWrappingCast {
             primitive_type,
@@ -395,6 +431,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
             let (ScalarType::Integer(source_type), ScalarType::Integer(target_type)) =
@@ -453,6 +490,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
             let (ScalarType::Integer(source_type), ScalarType::Integer(target_type)) =
@@ -534,6 +572,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         }),
         CheckedScalarExpression::Boolean(expression) => Ok(LoweredDirectExpression::Boolean {
@@ -543,6 +582,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         }),
     }
@@ -552,7 +592,14 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
 pub(crate) fn lower_checked_boolean_expression(
     expression: &CheckedBooleanExpression,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
-    lower_checked_boolean_expression_with_parameters(expression, &[], &[], &[], &[])
+    lower_checked_boolean_expression_with_parameters(
+        expression,
+        &[],
+        &[],
+        &[],
+        &[],
+        &std::collections::BTreeMap::new(),
+    )
 }
 
 fn lower_checked_boolean_expression_with_parameters(
@@ -561,6 +608,7 @@ fn lower_checked_boolean_expression_with_parameters(
     structural_fields: &[crate::expression_preparation::bindings::StructuralScalarFieldBinding],
     structural_cases: &[crate::expression_preparation::bindings::structural_cases::StructuralCaseBinding],
     primitive_storage: &[(symbols::SymbolHandle, PlaceId, ScalarType)],
+    element_views: &std::collections::BTreeMap<StructuralTypeId, ScalarType>,
 ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
     Ok(match expression {
         CheckedBooleanExpression::Constant(value) => {
@@ -671,6 +719,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         },
         CheckedBooleanExpression::Equal { left, right } => LoweredBooleanReturnExpression::Equal {
@@ -680,6 +729,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -687,6 +737,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         },
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
@@ -706,6 +757,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     structural_fields,
                     structural_cases,
                     primitive_storage,
+                    element_views,
                 )?),
                 right: Box::new(lower_checked_scalar_expression_with_parameters(
                     right,
@@ -713,6 +765,7 @@ fn lower_checked_boolean_expression_with_parameters(
                     structural_fields,
                     structural_cases,
                     primitive_storage,
+                    element_views,
                 )?),
             }
         }
@@ -739,6 +792,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -746,6 +800,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         },
         CheckedBooleanExpression::Or { left, right } => LoweredBooleanReturnExpression::Or {
@@ -755,6 +810,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
             right: Box::new(lower_checked_boolean_expression_with_parameters(
                 right,
@@ -762,6 +818,7 @@ fn lower_checked_boolean_expression_with_parameters(
                 structural_fields,
                 structural_cases,
                 primitive_storage,
+                element_views,
             )?),
         },
     })

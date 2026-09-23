@@ -254,6 +254,20 @@ pub(in crate::function_fragments) fn validate_function(
                     }
                 }
                 (
+                    target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+                        psi_operation,
+                    },
+                    InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
+                        psi_operation: actual_operation,
+                    },
+                ) if psi_operation == actual_operation => {
+                    if actual.source_location
+                        != established_views::location(source, selected, target, *psi_operation)?
+                    {
+                        return Err(invalid());
+                    }
+                }
+                (
                     target_operations::TargetStructuralArgumentSource::BlockParameter {
                         block,
                         place,

@@ -34,6 +34,12 @@ pub enum LoweringError {
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),
     InvalidByteSequenceWrite(semantic_vocabulary::OperationId),
     InvalidByteSequenceSubslice(semantic_vocabulary::OperationId),
+    /// Element-view establishment did not retain its structural result and
+    /// destination identity.
+    InvalidElementViewEstablishment(semantic_vocabulary::OperationId),
+    InvalidElementViewLength(semantic_vocabulary::OperationId),
+    InvalidElementViewRead(semantic_vocabulary::OperationId),
+    InvalidElementViewSubslice(semantic_vocabulary::OperationId),
     /// Independent Terminal-to-Omega projection could not rejoin one exact
     /// descriptor, its initializer/latest selections, and its indirect row.
     InvalidDynamicCall(semantic_vocabulary::OperationId),

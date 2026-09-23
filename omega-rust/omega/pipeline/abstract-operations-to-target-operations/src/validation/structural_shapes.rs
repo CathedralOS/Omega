@@ -441,7 +441,8 @@ fn classified_boundary_shape(
             classify_scalar_leaves(&leaves, referent, policy)?
         }
         StructuralTypeShape::PrimitiveScalar(_)
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => referent.class,
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        | StructuralTypeShape::ElementView { .. } => referent.class,
         _ => return Err(InvalidStructuralShape),
     };
     Ok(ValueShape {
@@ -483,7 +484,8 @@ fn collect_scalar_leaves(
             ));
         }
         StructuralTypeShape::Reference { .. }
-        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
+        | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        | StructuralTypeShape::ElementView { .. } => {
             let referent = shape(structural_type, declarations, cache, active)?;
             leaves.push((base_offset, u32::from(referent.byte_size), false));
         }
@@ -694,9 +696,8 @@ fn shape(
         // slot the lowering assigns rather than a pointer-sized payload.
         StructuralTypeShape::Reference { .. } => ValueShape::integer(0, 1),
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView) => {
-            ValueShape::integer(16, 8)
-        }
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+        | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),
         StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;

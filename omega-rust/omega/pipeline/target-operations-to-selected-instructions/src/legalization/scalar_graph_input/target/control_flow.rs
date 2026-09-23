@@ -308,6 +308,7 @@ pub(super) fn validate(
                             function,
                             available: Some(&available),
                             optimized,
+                            types: unit.structural_types.as_slice(),
                         };
                         match expression {
                             TargetScalarExpression::IeeeFloat(source) => {
@@ -409,6 +410,7 @@ pub(super) fn validate(
                         function,
                         available: Some(&available),
                         optimized,
+                        types: unit.structural_types.as_slice(),
                     })
                     .boolean_source(condition, *expected, &[])
                     && successor_matches(optimized, when_true, expected_true)

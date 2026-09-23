@@ -68,7 +68,7 @@ pub(super) fn eligible(module: &TerminalModule, machine: &TerminalMachine) -> bo
                                         declaration.shape,
                                         StructuralTypeShape::ByteSequence(
                                             terminal_psi::ByteSequenceCarrier::BorrowedView
-                                        )
+                                        ) | StructuralTypeShape::ElementView { .. }
                                     )
                             }))))
         })
@@ -168,8 +168,16 @@ fn operation_leaves_custody(
         | OperationKind::ByteSequenceLength { source }
         | OperationKind::ByteSequenceRead { source, .. }
         | OperationKind::ByteSequenceSubslice { source, .. }
+        | OperationKind::ElementViewLength { source }
+        | OperationKind::ElementViewRead { source, .. }
+        | OperationKind::ElementViewSubslice { source, .. }
         | OperationKind::BooleanStructuralField { source, .. }
         | OperationKind::IntegerStructuralField { source, .. } => clears(*source),
+        OperationKind::EstablishElementView {
+            destination,
+            source,
+            ..
+        } => clears(*destination) && clears(source.place),
         OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
         | OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. }
@@ -482,6 +490,12 @@ fn cycle_operation_eligible(
                     argument.path.is_empty()
                         && ((argument.access != StructuralAccess::Owned
                             && primitive_storage::local_result(machine, argument.place).is_some())
+                            || (argument.access == StructuralAccess::SharedBorrow
+                                && super::super::element_view_subslice::borrowed_result(
+                                    machine,
+                                    argument.place,
+                                )
+                                .is_some())
                             || owned_argument(module, machine, argument))
                 })
                 && claim_transfers.is_empty()
@@ -532,6 +546,11 @@ fn cycle_operation_eligible(
                                     machine,
                                     argument.place,
                                 )
+                                .is_some()
+                                || super::super::element_view_subslice::borrowed_result(
+                                    machine,
+                                    argument.place,
+                                )
                                 .is_some()))
                             || byte_field_boundary_loan(module, machine, argument, expected)
                     },
@@ -554,7 +573,7 @@ fn cycle_operation_eligible(
                                 && primitive_storage::local_result(machine, argument.place)
                                     .is_some())
                             || (argument.access == StructuralAccess::SharedBorrow
-                                && super::super::byte_sequence_length::validate_source(
+                                && (super::super::byte_sequence_length::validate_source(
                                     module,
                                     machine,
                                     operation,
@@ -564,7 +583,18 @@ fn cycle_operation_eligible(
                                         source: argument.place,
                                     },
                                 )
-                                .is_ok())
+                                .is_ok()
+                                    || super::super::element_view_length::validate_source(
+                                        module,
+                                        machine,
+                                        operation,
+                                        argument.place,
+                                        || ModuleError::InvalidElementViewLengthSource {
+                                            operation: operation.id,
+                                            source: argument.place,
+                                        },
+                                    )
+                                    .is_ok()))
                             || owned_argument(module, machine, argument))
                 })
                 && claim_transfers.is_empty()
@@ -574,9 +604,17 @@ fn cycle_operation_eligible(
                 byte_sequence_subslice::borrowed_result(machine, result.place) == Some(result)
             })
         }
+        OperationKind::EstablishElementView { .. } | OperationKind::ElementViewSubslice { .. } => {
+            operation.result.structural().is_some_and(|result| {
+                super::super::element_view_subslice::borrowed_result(machine, result.place)
+                    == Some(result)
+            })
+        }
         OperationKind::ByteSequenceLength { .. }
+        | OperationKind::ElementViewLength { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::ByteSequenceRead { .. }
+        | OperationKind::ElementViewRead { .. }
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::BooleanStructuralField { .. } => operation.result.scalar().is_some(),
