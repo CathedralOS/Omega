@@ -524,24 +524,20 @@ fn shared_nominal_argument(
         return None;
     }
     if target.is_self {
-        let Some(site) = crate::semantic::calls::find_call_site(
+        let site = crate::semantic::calls::find_call_site(
             program,
             machine,
             state.symbol,
             call.statement_index,
             call.call_ordinal,
-        ) else {
-            return None;
-        };
-        let Some(mut receiver) = crate::flow::canonical_receiver_place_for_call_site(
+        )?;
+        let mut receiver = crate::flow::canonical_receiver_place_for_call_site(
             program,
             machine,
             state.symbol,
             &site,
             call.statement_index,
-        ) else {
-            return None;
-        };
+        )?;
         crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut receiver);
         // Captured self retains the machine namespace; contextual expression
         // resolution uses its actual formal. Normalize only that exact pair,
