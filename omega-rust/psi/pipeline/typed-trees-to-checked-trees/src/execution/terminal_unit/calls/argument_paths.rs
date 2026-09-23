@@ -775,6 +775,19 @@ pub(crate) fn ordinary_projected_call_is_supported(
                     | CheckedUnitStructuralPathSegment::FixedIndex(_)
             )
         });
+    // Naming the projected root by index among siblings is the affine
+    // carrier's privilege: only it can publish the untouched complement on
+    // the caller's return edge. The legacy indexed cohort — a linear or
+    // otherwise non-affine root — has no residual lane, so its caller must
+    // still carry exactly one structural parameter and project that one.
+    if !result_projection
+        && !owned_affine_projection
+        && (caller_parameters.len() != 1
+            || caller_source_parameters.len() != 1
+            || arguments[0].source_parameter_index() != Some(0))
+    {
+        return false;
+    }
     let field_path = checked_nonempty_field_path(&arguments[0].path);
     let literal_index_fields = checked_literal_index_path(&arguments[0].path);
     let literal_index_path = literal_index_fields.is_some();
