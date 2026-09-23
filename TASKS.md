@@ -79,13 +79,11 @@ the complete product bar; focused successes below do not establish that baseline
   the essentially 1:1 Rust port; this item owns compiler integration and unchanged
   application acceptance.
 
-  Reconcile publication first: the parent pins
-  `ef6682f75f48f9a750bc8f7594cc1f04e78ddf60`, a descendant of freshly fetched
-  application `origin/main` at `52bcf254c983a9ae9bf6e0c3661cafd656ca056b`
-  (2026-09-21). This is unpublished cumulative work, not divergent ancestry.
-  Preserve the geometry and scalar scan/RLE/dispatch code in the pin; do not
-  re-port it. Squalr uses only `main`: publish cumulative work there without
-  force-pushing, then pin a tested commit on that line.
+  Reconcile application publication before changing the parent gitlink. The
+  recorded pin `ef6682f75f48f9a750bc8f7594cc1f04e78ddf60` contains cumulative
+  geometry and scalar scan/RLE/dispatch work; preserve it rather than re-porting.
+  Fetch application `main`, publish any remaining local work without force-pushing,
+  then pin a tested published commit.
 
   Run `python samples/apps/squalr/tools/verify.py native --timeout 600 --omega <binary>`
   through ordinary package review on matching hosts. Connect
@@ -174,9 +172,9 @@ the complete product bar; focused successes below do not establish that baseline
   `ProviderAttachment` is not an ordinary structural argument.
   **ENTRY-CONTENT-ROOTS**, **TR3-TR8** and **STATE-LOCAL-VALUE-FRONTIER** own these
   general repairs. No global provider state or weakened occurrence matching.
-  Parked WIP: `swarm/macw5-macos-app-pub` (three unvalidated commits — a
-  scalar-result provider-candidate catalog and nested call-source custody
-  drafting toward the multi-provider receiver requirement).
+  Unverified candidate: `swarm/macw5-macos-app-pub` contains scalar-result
+  provider selection and nested call-source custody work. Review it against
+  the multi-provider receiver requirement before reuse.
 
   Acceptance: all three authored apps publish a validated `.app` and execute
   on macOS ARM64 with observed window/render and completion behavior. Test-owned
@@ -198,12 +196,9 @@ the complete product bar; focused successes below do not establish that baseline
   exit/output on matching hosts. `compiler/tests/samples_compile.rs`, sample
   commands and the actual failing stage own integration; application submodules
   remain **SQUALR-HEADLESS** and language fixtures **CANARY-CORPUS**. The
-  harness is not yet a measurement: `compile_sample_to_checked` builds a fresh
-  `CheckedCompileRequest` per sample, so each re-prepares package evidence and
-  re-checks std, and on Windows x86-64 in the dev profile at `117f2abc9c` the
-  checked-trees test was still inside its first sample after 38 minutes with
-  nothing compiled. Sharing one std check and one acceptance across the
-  sweep is what would let `tools/progress.py` report a samples number.
+  harness repeats package preparation and std checking in
+  `compile_sample_to_checked`. Reuse unchanged checked inputs under their exact
+  identities and measure the complete sweep before reporting sample coverage.
 
   Preserve each algorithm, storage and observable behavior during legitimate
   surface migration. Migrate remaining bare or authored-`Bound` service fields
@@ -379,71 +374,8 @@ the complete product bar; focused successes below do not establish that baseline
   owe [exact intermediate arithmetic](wiki/spec/language/numeric_values.md)
   bounds even when a theorem uses `embed`.
 
-  THE COMPILER TEST TARGETS ARE UNGUARDED, and they have drifted red.
-  `land_tight.sh` runs `cargo check --workspace --all-targets --exclude
-  omega-native-differential-test --exclude compiler`, so nothing a landing
-  gate runs ever executes `-p compiler`'s ~80 test targets except
-  `canary_suite`. Sweeping them in batches (they must be batched -- an
-  unscoped `-p compiler` links ~150 binaries and exhausts this host's disk)
-  turned up reds in four of the first twenty-four targets, several of them
-  stale fixtures rather than real gaps. Repaired so far: three
-  `composed_internal_unit_arguments` cases that never declared the service
-  reach their own chain needs, one `calling_policy_plans` canary/fixture `pub`
-  drift, and five `module_machine_indices::indexed_domains` rejections
-  asserting wording that `060d737656c` replaced. Keep sweeping; the remaining
-  targets are unaudited.
-
-  `no_selection_golden::native_artifacts::retained_native_bytes_and_metadata_match_every_target_golden`
-  is a byte golden whose drift is worth someone CONFIRMING rather than
-  regenerating blind. On linux_x86_64 the recorded and produced rows differ in
-  exactly two fields -- `semantic` 347 -> 355 bytes and `proof` 70 -> 74, each
-  with a new digest -- while every other field is identical, `object_text`,
-  `image`, `final_text`, symbol and relocation counts, text address and
-  fingerprint, inventory and regions included. So the machine code did not
-  move; only the semantic module and its proof section grew, which is what an
-  addition to the operation roster looks like from here. If that is the
-  intended cause the golden should be regenerated with it named; regenerating
-  it without naming the cause spends the only signal this test carries.
-
-  Three reds in `module_machine_indices` are BEHAVIOR questions, not wording,
-  and are left for their owners:
-
-  - `indexed_domains::qualified_record_projection_rejects_unproven_constructor_membership`
-    expects `Marked` and `not proven`; it now gets `constant CONFIG is
-    invalid: domain constraint Marked for the const leaf value is false`.
-    Unproven and false are not the same claim, so this one asks whether the
-    leaf discharge should be DECIDING a constructor membership it previously
-    only failed to prove.
-  - `indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`
-    expects `a mutable recast must prove fact implication in BOTH
-    directions`; its program now stops earlier, at `cannot prove initializer
-    of local in Main::exchange is in domain u64::Tag; an annotation cannot
-    establish routed qualification`, so it no longer reaches the exchange it
-    exists to reject.
-  - `rational::anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands`
-    requires every listed expression to be refused, and `(1.0f64 < 2.0f64)`
-    now compiles. A float comparison carries none of the undefinedness the
-    other rows do, so admitting it may be intended -- but the fence moved
-    without the test moving with it.
-
-  A red OUTSIDE the corpus, found while sweeping crate suites and recorded here
-  because nothing else owns it: 8 tests in `package-manager`'s
-  `named_workspace_install::cases` fail with `fixture module path ends in
-  ::fixture`, raised by `tests/support/named_workspace.rs`'s `child_filter`.
-  `a78bae1742f` (2026-09-22) mounted that fixture ONCE in `suite.rs` as
-  `named_workspace_fixture` -- its own comment says "four separate mounts used
-  to carry one apiece" -- while `child_filter` still derives its topic with
-  `module_path!().strip_suffix("::fixture")`, which is now
-  `suite::named_workspace_fixture` and never matches. The deeper consequence is
-  that after the consolidation the fixture cannot know its caller at all: every
-  topic reaches it through `use crate::named_workspace_fixture as fixture`, so
-  one module path serves them all. The child filter has to be built from the
-  CALLER's `module_path!()`, passed into `run`, as `{caller}::{test}`.
-  `package_inspection`, `offline_package_commands` and `source_diff_commands`
-  alias the same fixture and may share the fault; only `named_workspace_install`
-  showed red and that asymmetry is unexplained. `packages/manager/tests` is
-  claimed by the package-name migration lane, so this is noted to that claim
-  rather than edited.
+  Non-corpus integration and package-fixture failures remain in
+  [release closure](#rust-compiler-release-closure), under their actual gates.
 
   Acceptance: complete corpus reaches declared stages, negatives fail for their
   intended reasons, runtime oracles pass on matching hosts, and roster/coverage
@@ -462,12 +394,9 @@ the complete product bar; focused successes below do not establish that baseline
     (`prove_ranking_range_call`, `endpoint_pins::argument_sources`,
     `requirements.rs::prove`, `saved_arguments::install`); saved let-locals
     remain inadmissible as call-component actuals (a separate feature).
-    `2f546a6da0`, `4743a48c14` and `eb8119213d` (macw7) transported exact
-    `<<`/`>>`/`&` terms through call arrivals —
-    `OpaqueTerm::{ShiftLeft,ShiftRight,BitwiseAnd}`,
-    `install_nonpolynomial_terms` recursion, the F8 count-within-width
-    obligation, floor-division semantics for signed `>>`, and
-    two's-complement `&` bounds.
+    Reuse `OpaqueTerm::{ShiftLeft,ShiftRight,BitwiseAnd}` and
+    `install_nonpolynomial_terms`, preserving count-within-width obligations,
+    floor-division semantics for signed `>>`, and two's-complement `&` bounds.
     Recheck constituent operations at each exact
     arrival; cancellation, equal intervals and unoriented disequality do not
     establish divisor validity, absence of overflow or subject identity.
@@ -617,8 +546,8 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   Bind each module's `Runner::run` as ProgramEntry and execute its computed-result
   branch. Scalar/provider and state-call closure belongs to **TR3-TR8** /
   **STATE-LOCAL-VALUE-FRONTIER**; exact receiver attachment belongs to
-  **ENTRY-CONTENT-ROOTS**. Unit Console-forwarding success (11/37) does not
-  complete this route.
+  **ENTRY-CONTENT-ROOTS**. Unit Console forwarding does not complete computed
+  result execution.
 
   Acceptance: selected module identity survives product descriptions, ordinary
   helper returns, Terminal production, and native execution. Preserve
@@ -828,28 +757,12 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   `native-realization/src/{native_product/realization,native_realization/behavior_exclusions,retained_native_product}.rs`.
   TWO-AXIS-TERMINAL-AUTHORITY-REVIEW separately owns receiving permission.
 
-  That upgrade is DONE, and the row cited a test name that no longer exists.
-  `sink_composition_physical_exclusion_reaches_native_custody_frontier` was
-  renamed for what it now does: measured at `07ba2de339`,
-  `compiler --test build_behavior_exclusions -E 'test(sink_composition)'` is
-  6 run, 6 passed, and the sentinel is gone in both directions the row asked
-  for --
-  `sink_composition_physical_exclusion_reaches_native_execution` asserts a
-  retained native artifact on macos_arm64, linux_x86_64 and windows_x86_64;
-  `sink_composition_physical_exclusion_publishes_and_runs_empty_on_the_host`
-  publishes it and runs it, asserting an empty successful exit (host-gated,
-  with its own SKIP line elsewhere); and
-  `retained_sink_composition_replays_against_the_product_by_consumers`
-  is the independent retained-product replay. The loud-sink controls
-  (`loud_sink_composition_physical_exclusion_rejects_on_every_target`,
-  `retained_loud_sink_composition_replays_the_exclusion_rejection`) preserve
-  the semantic service-exclusion rejection the row required be kept.
-
-  What remains is the envelope carriage, not the test: ordinary custody in
-  `target-operations-to-selected-instructions/src/legalization`
-  is the dependency; preserve the semantic service-exclusion rejection for
-  that same invocation. Carry exclusion envelopes through image emission,
+  Carry exclusion envelopes through ordinary custody in
+  `target-operations-to-selected-instructions/src/legalization`, image emission,
   COMPONENT-SUBSTRATE replacement, and WIRE-RUNTIME-AND-INSTALLATION.
+  Preserve `compiler --test build_behavior_exclusions -E 'test(sink_composition)'`:
+  it covers retained native artifacts, host execution, source-free replay, and
+  loud-sink rejection. Those controls do not close installation/replacement.
 
   Acceptance: silent and output-producing providers receive distinct physical
   verdicts, with/without receiving permission policy and optional optimization.
@@ -874,24 +787,10 @@ stage, topology-specific IR, or new trusted graph axiom.
   description producer/admission in compiler, build-evaluation, and
   `backend/artifacts/component-description/`.
 
-  The demand/supply contract join is CONNECTED to
-  `VerifiedComponent::export_contracts()` -- this paragraph previously said
-  `verified_components.rs` "still derives offered contracts from opaque
-  export identity strings", which contradicted the next paragraph and sent a
-  reader looking for a small available task. Re-measured at `d6474cb32d`:
-  `verified_components.rs`'s `export_contract_identity` already calls
-  `export_contracts()` and returns the matched `contract.contract_identity`;
-  no string is digested or parsed. The function's name is a holdover from the
-  string route, not evidence of one. `cargo nextest run -p topology-plan`
-  is 113 run, 113 passed, 1 skipped.
-
-  The demand/supply join compares structured contracts: an export
-  endpoint carries the contract `VerifiedComponent::export_contracts()`
-  derived for its surface, in `verified_components.rs` and in the
-  `build-scope-topology` package, whose `components.bin` now carries each
-  instance's derived export contracts after its profile (`compose.omg` no
-  longer digests surface names). The payment and package fixtures were
-  re-recorded in the same pass; `-p topology-plan` is 113/113.
+  Reuse the structured demand/supply join through
+  `VerifiedComponent::export_contracts()` in `verified_components.rs` and the
+  `build-scope-topology` fixture. Do not replace derived contract identities
+  with surface-name hashes or rebuild the existing join.
 
   Author the package over admitted input bytes and generic required outputs.
   `tests/fixtures/packages/build-scope-topology` establishes import/output
@@ -954,23 +853,17 @@ Remaining work:
   must account for domain death without inventing a whole-process resource census.
 - Preserve exact `i32` semantic status and ordered output through provider
   conformance and native realization. Reuse `SelectedProcessExit` custody and the
-  canonical host canaries. Owner rule (2026-09-22): a boundary-trait leaf
+  canonical host canaries. A boundary-trait leaf
   realizes through the target's DLL linkage, and as a direct syscall only on
   an OS with a stable syscall ABI; on `windows_x86_64` the console and
   process-exit leaves therefore bind kernel32 `ExitProcess` by `DllImport`
   rather than a hosted intrinsic, and the accepted Console/ProcessExit
-  binding is consumed by that row whatever its realization. Landed so far:
-  the std spelling, intrinsic review consuming the accepted binding on an
-  import exit row, the row-shape check admitting an evaluated `via` import,
-  and a settled Console/ProcessExit cohort in the receiving policy
-  (`terminal_authority_policy/console_host.rs`: exit = ProcessTermination,
-  writers = ProcessOutput, readers = ProcessInput). Frontier: on Windows an
-  exit-only fixture now stops at "demanded source-evaluated import
-  `Console::exit_process` has no admitted native settlement"
-  (`providers/settlements/source_imports.rs`): the source-evaluated import
-  has no retained external implementation contract to settle against. The
-  umbrella's active tier is unchanged by the spelling; the 180 owner-judged
-  fixtures behind this wall (record) are the acceptance.
+  binding is consumed by that row whatever its realization. Connect the retained
+  external implementation contract to native settlement in
+  `providers/settlements/source_imports.rs`; the reported Windows exit-only
+  refusal is `Console::exit_process has no admitted native settlement`.
+  Preserve receiving-policy classifications in `terminal_authority_policy/console_host.rs`:
+  ProcessTermination for exit, ProcessOutput for writers, ProcessInput for readers.
 
 Acceptance: source-produced unconditional and conditional/helper exits replay
 independently after serialization. Tampered identities, arguments, completion or
@@ -1211,14 +1104,14 @@ syntax and other terminal services are not prerequisites.
   existing `ArtifactSections`, codec, optimization and verified-native-input
   boundary rather than rebuilding admission.
 
-  macw4 probe (blocked, evidence on branch `swarm/macw4-plan-laid-views` at
-  `670843530b`): `view.status.read()` fails before realization — synthesized
+  A probe on `swarm/macw4-plan-laid-views` (`670843530b`) reports an earlier
+  admission gap: synthesized
   `PlacedField` accessor boundary machines attach as
   `DataSupplyMode::BoundaryOpaque` (`record_synthesis.rs`), which the
   `CheckedShape` supply gates in `typed-trees-to-checked-trees` `types/mod.rs`
   reject, so no `CheckedBoundaryMachinePlan` exists and `Inspector::inspect`
-  reports `MissingBoundaryTarget`. The fix lives in accessor synthesis or
-  the shape gates, not the access-plan machinery.
+  reports `MissingBoundaryTarget`. Reproduce on the working base before repairing
+  accessor synthesis/admission; retain the later referent-lending obligation.
 
   Acceptance: one source program establishes, accesses and retires a view
   through interpretation and published native execution. Codec/optimization
@@ -1277,31 +1170,16 @@ syntax and other terminal services are not prerequisites.
   Protocols, queues, isolation and translation policy remain provider/OS code;
   do not add compiler-owned drivers or treat a CPU barrier as device completion.
 
-- **PLACED-ACCESS-NATIVE-OPS.** Realize the native indexed primitive store
-  handed off by **WRITE-ONLY-BORROW**. `d61f983d6a` (macw4) landed the
-  indexed-store delivery: the omission was upstream of lowering —
-  `proven_runtime_index` only consumed the revoked `u64 [0..=N]` roster; it
-  now folds authored `requires` conjuncts into the same closed interval
-  (unsigned carriers get implicit lower 0, signed require explicit lower),
-  and source-driven `&write`/`&mut` indexed stores execute natively with
-  neighbor preservation. `indexed_stores.rs` now exercises host execution.
-
-  `b083b94a40` (macw7) shared that conjunct fold into
-  `ClosedScalarValueContractPlan::requires_bound_interval` and replayed it
-  on the verifier side — `selector_bounded` now accepts roster rows or
-  folded `requires` evidence for `RuntimeIndex` segments, with
-  substituted-bound/no-authority controls in
-  `terminal-interpreter/tests/unit/runtime_index_arguments.rs`. The dynamic
-  indexed shared receiver (`cells[i].get()`) is pinned at
-  `dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs` on two
-  upstream legs: CML4's `argument_paths.rs` checked admission and
-  DOMAIN-ISSUER-ROUTES' `source_path.rs` scalar-wrapper path.
-
-  Remaining surrounding lanes stay open: extend the same contract-fact index
-  derivation to further placed-access operations, and keep coordinating
-  source fixtures with
-  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: use contract/domain facts, not another
-  admission of the revoked annotation syntax.
+- **PLACED-ACCESS-NATIVE-OPS.** Extend contract-fact index derivation to remaining
+  placed-access operations. Reuse
+  `ClosedScalarValueContractPlan::requires_bound_interval`, verifier
+  `selector_bounded`, native `indexed_stores.rs`, and substitution/authority
+  controls in `terminal-interpreter/tests/unit/runtime_index_arguments.rs`.
+  The dynamic shared receiver `cells[i].get()` still needs CML4's checked
+  argument-path admission and DOMAIN-ISSUER-ROUTES' scalar-wrapper path; follow
+  `dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs`.
+  Coordinate source fixtures with **REMOVE-BRACKETED-RANGE-ANNOTATIONS**:
+  use contract/domain facts, not the revoked annotation syntax.
 
   Acceptance: source-driven native `&write` and `&mut` calls mutate the
   caller-selected element and leave its neighbors untouched; invalid indices,
@@ -1309,14 +1187,9 @@ syntax and other terminal services are not prerequisites.
   owns provider-backed view establishment and access-plan realization; this
   indexed-store delivery does not complete that larger contract.
 
-- **RECAST-SOURCE-POSITIONS.** Compose admitted representation recasts in
-  guard operands, call arguments and nested expressions without requiring a
-  reference-typed `let`. `b167d9d48c` (macw4) moved recast judgment to
-  executable statement positions — inline recasts in guards, call arguments
-  and nested operands now check, spelled-borrow polarity agreement
-  (`&x as &mut T` / `&mut x as &T`) rejects, and whole-place recast sources
-  lower via the source place's checked read — with new checked corpus
-  fixtures. The
+- **RECAST-SOURCE-POSITIONS.** Finish native execution of inline recasts in
+  guards, call arguments and nested expressions. Reuse their checked admission
+  and whole-place source reads, preserving borrow-polarity rejection. The
   [recast contract](wiki/spec/layouts/recasts.md) requires representation
   compatibility, not this source-position restriction.
   Carry checked layout/validity, backing identity, lifetime and access through
@@ -1409,19 +1282,10 @@ syntax and other terminal services are not prerequisites.
   profiles, not a policy DSL. **MACOS-APPLICATION-PUBLICATION** owns actual bundle
   execution, not this evidence.
 
-  ~~Also close producer-side failed publication in
-  `compilation-report/src/compile_report.rs`: flat publication writes Psi bytes
-  before their companion.~~ Done, measured at `5c99ddbec8`. Publication now
-  stages every requested product first -- `stage_exact_bytes` collects them and
-  `install_staged_products` installs the set -- so a failure between pair
-  members cannot leave a new artifact beside the old proof.
-  `executable_publication.rs::a_failed_pair_member_leaves_the_previous_pair_intact`
-  pins exactly that interruption, which the row correctly noted a successful
-  republication test cannot cover; the crate is green at 65 of 65.
-
-  Still owed by this clause: request-on/request-off replacement and retry
-  exercised against the staged route, and receiver mismatch rejection kept
-  separate from it.
+  Exercise request-on/request-off replacement and retry through
+  `stage_exact_bytes` / `install_staged_products`. Preserve
+  `executable_publication.rs::a_failed_pair_member_leaves_the_previous_pair_intact`;
+  receiver mismatch rejection is separate from publication atomicity.
 
 - **PSIIR.** Complete source-free Terminal execution and logical-work bounds
   across canonical encoding, independent reconstruction, interpretation,
@@ -1431,28 +1295,14 @@ syntax and other terminal services are not prerequisites.
   vocabulary, envelopes and mathematical certificates; maintain that coverage
   as the operation owners extend it, not another wire-format project.
 
-  Remaining resource analysis is in `terminal-fixed-fuel`. `3c43ed43dc`
-  (macw4) tightened `Natural` ranked-cycle visit multipliers to literal
-  `requires` ceilings when every first-entry arrival reduces to a
-  clause-bound parameter, binding consulted clauses as certificate
-  `relevant_preconditions`. `bee9db0661` (macw7) made cyclic closure
-  failures precise: an invocation-bound dynamic-parameter call inside a
-  ranked cyclic component now reports
-  `UnboundedCycleComponent{component, OpenCalleeSet{operation}}` — the
-  verifier-derived component identity plus the responsible operation;
-  acyclic blocks keep the flat `InvocationBoundCallee`. Open: derive bounds
-  from relevant preconditions beyond that literal ceiling — the current
-  empty set is *sound* for the max-arm bound (segment_partition merges
-  acyclic branching as a maximum), so a non-empty set means a tighter
-  conditional bound needing its own checked derivation plus the
-  verifier-side check of P — and retain the remaining absence-of-bound
-  causes (unbounded rank and wait/foreign edges still collapse flat).
-  Acyclic
-  conditional/case segments, condensed ranked interiors and topology-identified
-  unranked cycles already have derivation. An invocation-bound callee without
-  retained realization/bound evidence is genuinely open: preserve
-  `InvocationBoundCallee` rather than fabricate a ceiling or classify every
-  refusal as an implementation bug.
+  In `terminal-fixed-fuel`, derive conditional bounds beyond the existing
+  literal `requires` ceilings and retain unbounded-rank and wait/foreign causes
+  with their cycle/operation identity. Reuse the existing acyclic max-arm,
+  ranked-interior, and topology-derived cycle bounds. An empty precondition
+  set is sound for an unconditional maximum; tighter bounds need checked
+  derivation and independent premise validation. Preserve `InvocationBoundCallee`
+  and `UnboundedCycleComponent` when realization/bound evidence is unavailable;
+  do not fabricate a ceiling.
 
   Acceptance: discard source/producer state, independently reconstruct all
   obligations, then interpret or lower the same artifact with exact resource
@@ -1578,43 +1428,17 @@ syntax and other terminal services are not prerequisites.
     widening and supported unsigned narrowing. Truncation toward zero does not
     implement a negative value's modular image; bit masking alone supplies no
     proof of the exact-cast range.
-    HALF DONE. Every NARROWING pair with an unsigned DESTINATION now composes,
-    signed source included: `operand & (2^B - 1)` is the modular image already
-    inside the destination, and the bound machinery does carry an interval
-    through the mask, so the exact cast that receives it discharges --
-    `tests/signed_wrapping_conversion_values.rs` EXECUTES the serialized
-    module for `i16 -> u8` and `i32 -> u16`, including the rows truncation
-    toward zero gets wrong (`-1 -> 255`, `-200 -> 56`, `-40000 -> 25536`), so
-    the evidence is an answer and not a composition.
-    The residual is one missing bound, not a missing operation. A narrowing
-    pair with a SIGNED destination needs the window's upper half folded down,
-    `(masked ^ 2^(B-1)) - 2^(B-1)`; the value is right but no interval
-    survives the fold, so the cast reports `OperationProofUnavailable`.
-    Measured: swapping `ExactSubtract` for `WrappingSubtract` does not help,
-    which locates the gap in the fold's RANGE rather than the subtraction's
-    policy.
-    The gap is on the PRODUCER side, not the checking side -- measured by
-    building both and watching which one still refuses. Checking needs one new
-    affine endpoint step, `x ^ constant`, and it is a small, sound addition:
-    XOR is a permutation, so on an all-ones window `[0, 2^k - 1]` that already
-    contains the constant it moves NEITHER endpoint, and outside such a window
-    it has no total image and must be rejected (it must also be refused
-    outright where a single ROOT bound is mapped forward, since from a bound
-    on `x` nothing follows about `x ^ c`). `Subtract` already exists, so with
-    that step the chain `((x & m) ^ s) - s` derives exactly the destination's
-    range.
-    What still fails after adding it is that NO witness is produced at all --
-    `OperationProofUnavailable`, not a rejected proof. The producer is
-    `proofs/nonzero_divisor_certificate/integer_selection/range.rs`, whose
-    candidate selection reads a root/sibling pair out of ONE term shape
-    (`ExactIntegerMultiply`/`Divide`/`Remainder`/`IntegerBitwiseAnd`) and so
-    reaches the unsigned destination's single masked operand but not the
-    three-level fold above it. Threading a chain through that selection is the
-    work; the checking rule is the easy half and is worth writing second, once
-    something emits the witness.
-    Same-width and sign-widening pairs are a separate matter -- they have no
-    narrowing carrier to spell the mask in at all -- and keep the original
-    refusal, now under its own diagnostic so the two are not confused.
+    Preserve unsigned-destination narrowing controls in
+    `tests/signed_wrapping_conversion_values.rs`, including `-1 -> 255`,
+    `-200 -> 56`, and `-40000 -> 25536`. Signed-destination narrowing needs
+    range evidence through `(masked ^ 2^(B-1)) - 2^(B-1)`; the reported refusal
+    is `OperationProofUnavailable` in
+    `proofs/nonzero_divisor_certificate/integer_selection/range.rs`.
+    Replace single-term witness selection with compositional range derivation
+    and independent checking. Bound any XOR transport by its actual premises;
+    changing subtraction policy does not establish the missing range.
+    Same-width and sign-widening pairs need separate realization because they
+    cannot use the narrowing carrier's mask. Keep their diagnostics distinct.
   - Complete signed/mixed-sign saturating conversion beyond existing admitted
     cases. Boolean-to-integer and unsigned narrowing already lower; reuse them
     as controls. A signed saturating subtraction is not the unsigned clamp
@@ -1646,26 +1470,12 @@ syntax and other terminal services are not prerequisites.
 
   - Replace bounded denotation's per-instance `rule_axiom` fallbacks with
     checked derivations or explicitly justified checked rules, driven by real
-    source obligations. Correlated multiply bounds and correlated forbidden
-    roots now denote compositionally (checked affine-chain solving plus
-    dependent `Two` case split), and `Id Two` premise/goal pairs differing
-    by open not/equal compositions over neutral Boolean atoms now denote
-    through `caseTwo` Boolean identity transport (`4e1576578b`); remaining
-    cases include nested canonical identity reversal and the Int-carrier
-    crossings (`Id Two` vs `Id Int`).
-    **Cast bounds are no longer among them** -- measured at `b083b94a40`:
-    `bounded_denotation/casts.rs` walks the cited definition equalities
-    through the shared endpoint-substitution laws, and all three
-    `casts/tests.rs` shapes (single exact edge, truth-root tightest carrier,
-    multi-edge word in either direction) assert `rule_axioms == 0` and pass.
-    `rule_axiom` has exactly one caller, the generic `rule_instance`
-    fallback, which casts do not reach. The twelve `rule_instance` sites that
-    remain are `None =>` arms behind an attempted derivation -- among them
-    `EqualitySymmetry`, `EqualityTransitivity`, `PredicateDenotation`,
-    `ValueEqualityTransport` and the four integer-order rules -- so what is
-    left is per-instance residue on partially derived rules, not rules with
-    no derivation at all. Preserve numeric policy and
-    exact operands. Unsupported arithmetic or construction-budget fallback
+    source obligations. Reuse correlated multiply/forbidden-root derivations,
+    `caseTwo` Boolean identity transport, and cast endpoint-substitution laws;
+    keep `casts/tests.rs`'s `rule_axioms == 0` controls. Remaining residue is
+    behind `rule_instance` fallbacks, including nested identity reversal and
+    `Id Two`/`Id Int` crossings, not wholly underived rules.
+    Preserve numeric policy and exact operands. Unsupported arithmetic or construction-budget fallback
     must not be reported as independently proved merely because the kernel
     checks a term assuming its conclusion. Existing fixed integer laws also
     remain explicit assumptions, not a consistency proof.
@@ -1778,17 +1588,11 @@ syntax and other terminal services are not prerequisites.
   `checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`,
   and their independent Terminal verifier.
 
-  The single-state free-loop order claim has a native positive and wrong-step
-  control. `ebd634e638` (macw4) closed the arithmetic-accumulation gap on the
-  derivation lane: kernel `ClosedIntegerRelation` lifts `Exact` compounds on
-  `Fixed` carriers through open-term ring normalization
-  (`proof-admission/integer_rules/open_terms.rs`), the lowering transport
-  fallback is gated to compound endpoints, and a source `ensures result ==
-  acc + remaining` fixture proves and runs natively (exit 70) while its
-  wrong-update twin rejects. The attached
-  `proof_inductive_gauss_sum` and `proof_inductive_climbing_sum` fixtures are
-  still checked-only and also need STATE-LOCAL-VALUE-FRONTIER's ordinary
-  value-returning cyclic execution.
+  Reuse `ClosedIntegerRelation`'s exact compound normalization in
+  `proof-admission/integer_rules/open_terms.rs` and the free-loop native
+  positive/wrong-update controls. `proof_inductive_gauss_sum` and
+  `proof_inductive_climbing_sum` still need STATE-LOCAL-VALUE-FRONTIER's
+  value-returning cyclic execution beyond their checked-only routes.
 
   Carry the source derivation as checked facts that lowering certifies and the
   receiver checks, instead of independently searching for the same invariant
@@ -1818,16 +1622,9 @@ syntax and other terminal services are not prerequisites.
   Revalidate changed entries' justifications before refreshing source digests;
   a matching digest is not a soundness argument. Remaining work:
 
-  - `32d6986d45` (macw4) moved the crash-obligation search out of
-    verification: `ProofBundle` now carries `crash_obligations` as supplied
-    certificate rows (codec marker 34), producer-side bounded search lives in
-    `proof-admission::certificate_search`, and the verifier reconstructs
-    questions and replays the supplied route without searching.
-  - `e47e4defd8` (macw8) revalidated the drifted `ExplicitlyTrusted` rows
-    tracked in `known_baseline_failures.md`, refreshed 21 stale source
-    digests, and registered `bounded_denotation/forbidden_roots.rs` as an
-    implementation site; the `ExplicitlyTrusted` families themselves remain
-    undischarged.
+  - Preserve supplied `ProofBundle::crash_obligations` and untrusted search in
+    `proof-admission::certificate_search`; verification reconstructs obligations
+    and replays certificates without searching.
   - Discharge `ExplicitlyTrusted` reconstruction, normalization, scope,
     invalidation and call/cycle-composition rows with checked evidence and
     exact dependencies. Preserve `PROVED_ENTRIES`, dispatch/fact coverage,
@@ -1854,11 +1651,9 @@ syntax and other terminal services are not prerequisites.
 
 - **PROOF-RELEVANCE-MIGRATION.** Complete carrier-independent erased arguments
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
-  `baffe0a0ed` (macw4) closed the static gap: closed checked-shape
-  record/enum erased formals are admitted on the contract-term lane via a new
-  `ProofTerm::Scalar` leaf (wire tag 3, markers 106/108) with verifier scope
-  checks and the `erased_record_parameter_exit` canary (native exit 70);
-  array-field carriers stay a named refusal. The remaining gap is
+  Reuse static checked-shape record/sum formals through `ProofTerm::Scalar`
+  and the `erased_record_parameter_exit` control; array-field carriers remain
+  unsupported. The dynamic gap is
   `typed-trees-to-checked-trees/src/checks/contracts/dynamic_erased_lane.rs`
   rejecting erased formals on dynamic requirements because their dispatch
   plans carry no proof actuals. These refusals diagnose missing support; they
@@ -1975,19 +1770,12 @@ syntax and other terminal services are not prerequisites.
   and `calls/computation_arguments`, lowered structural calls, target
   `structural_call_arguments` and image `argument_custody`.
 
-  Static `Field`/`FixedIndex` shared receivers and explicit shared scalar-call
-  arguments are supported, and a bounded `RuntimeIndex` structural-path
-  segment now runs end-to-end (checked trees → lowering → Terminal Psi →
-  verifier replay → codecs → identity/hash → spec tag 5), `95a8faa03f` pins
-  that the divergent receiver repair composes, and `d437abb32f` records that
-  RUNTIME-VALUE-GENERICS admits a program its own where clause forbids.
+  Reuse static `Field`/`FixedIndex` and bounded `RuntimeIndex` path transport.
   Remaining `src/tests/borrow/receiver_access.rs` pins cover local-rooted
   indexed receivers and runtime-indexed parameter receivers/explicit shared
-  arguments. linw4 parked a finished but unlanded leg `ecfdedb34b` on
-  `swarm/linw4-structural-borrow-identity` (explicit shared dynamic-indexed
-  arguments retain bounded `RuntimeIndex`; its scoped checks are unverified) —
-  resume by rebasing, running the focused borrow tests, and landing or
-  discarding. Coordinate those fixtures' bracketed-range migration with
+  arguments. An unverified candidate for explicit shared dynamic-indexed arguments
+  is `ecfdedb34b` on `swarm/linw4-structural-borrow-identity`; rebase and run
+  focused borrow checks before adopting it. Coordinate bracketed-range migration with
   REMOVE-BRACKETED-RANGE-ANNOTATIONS. Owned-root and construction-local admission
   remain separate obligations; reuse `terminal-semantics::static_path`.
 
@@ -2046,24 +1834,13 @@ syntax and other terminal services are not prerequisites.
   failures here; these are implementation gaps, not unsettled language rules.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
-  [private callbacks](wiki/spec/build/private_callbacks.md). The bounded direct
-  parameter route now reaches native artifact, final-address and installation
-  replay; `callback_terminal_custody::direct_callback_relocation_resolves_to_its_private_function`
-  is a success witness, not a fragment-import rejection.
-  THAT IS NOT TRUE ON MAIN and has not been for at least a week. Measured at
-  four points -- `485327f4929` (2026-09-17), `d210421f021` (2026-09-20),
-  `09e2de5f006` (2026-09-22) and today -- the test fails with exactly the
-  rejection the sentence rules out: `native artifact fragment object
-  publication failed: fragment import lacks selected call custody`. Whatever
-  reached native artifact, final-address and installation replay, this witness
-  does not observe it now, so the sentence above states an intent rather than
-  the tree. Its sibling
-  `a_package_local_calling_copy_rejects_beside_the_standard_library_entry` is
-  red too and for an unrelated reason -- `target boundary schema
-  WindowsX86_64Application retains 0 evaluated calling plans for semantic
-  requirement ProgramStorageEntry::enter instead of exactly one` -- so it is
-  not observing its own rejection either. Re-establish both before treating
-  the bounded direct parameter route as witnessed.
+  [private callbacks](wiki/spec/build/private_callbacks.md). Reproduce and repair
+  `callback_terminal_custody::direct_callback_relocation_resolves_to_its_private_function`'s
+  reported `fragment import lacks selected call custody` failure. Restore the
+  evaluated `ProgramStorageEntry::enter` calling plan in
+  `a_package_local_calling_copy_rejects_beside_the_standard_library_entry` so
+  that negative reaches its intended check. Neither reported failure establishes
+  native artifact, final-address, or installation acceptance.
 
   Remaining: multiple callbacks and layout-field destinations; authenticated
   complete plan applications and independent authored-use-to-Terminal-operation
@@ -2106,25 +1883,11 @@ syntax and other terminal services are not prerequisites.
   only without claims/qualifications
   (`terminal-interpreter/src/calls.rs`).
 
-  Measured at `fb9f064bbb`, that rejection is an admission FENCE and not a
-  missing mechanism, which narrows what this bullet actually owes:
-
-  - The verifier already validates a structural result's projected
-    qualification roster. `validate_projected_qualification_roster` runs on
-    results at two sites in
-    `terminal-verifier/src/validation/foundation/machine_foundations.rs`, the
-    same routine the parameter lane uses.
-  - The interpreter never holds qualifications as runtime state. Every mention
-    in `terminal-interpreter/src` either asserts emptiness or writes
-    `Vec::new()`; only CLAIMS enter live state, through `live_claims`. So
-    admitting a projected result qualification costs the interpreter no
-    bookkeeping.
-
-  What is left is therefore the authored provider/customer and the
-  case-conditional sum, not the plumbing. Do not simply drop the
-  `projected_qualifications.is_empty()` gate to make a fixture pass: removing a
-  fence only widens acceptance, so the customer has to come first and carry the
-  evidence that a wrong roster still rejects.
+  Reuse `validate_projected_qualification_roster` in
+  `terminal-verifier/src/validation/foundation/machine_foundations.rs` and the
+  interpreter's `live_claims` custody. Removing the empty-qualification gate is
+  insufficient: the authored customer must establish correct case-conditional
+  evidence and reject a wrong roster.
   Success must join the exact live-registration capacity occurrence to the
   external root and code/component leases; rejection preserves that capacity
   without a root. Teardown requires quiescence before lease release.
@@ -2174,78 +1937,25 @@ syntax and other terminal services are not prerequisites.
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Complete portable lowering and native realization of borrowed non-byte
   `&[T]` views: runtime length, element access and subslices with exact
-  backing, extent, element identity and loan custody. Checked locals/formals
-  already retain `BorrowedSliceView { element_type_identity }` and ordinary
-  sequencing forwards them; `slice_view_locals.rs` uses an empty callee
-  (`machine observe(view: &[i32 in Wrapping]) {}`), not a view-consuming
-  implementation -- that half is still true and is what this row now turns on.
-  ~~Lowering still rejects the shape as lacking a Terminal descriptor.~~ It
-  does not, measured at `8bc1e94443`: `04f2fdbb85` added
-  `StructuralTypeShape::ElementView { element }` and
-  `checked-trees-to-lowered-psi/src/unit/attached_unit/catalog.rs` maps
-  `BorrowedSliceView` onto it, with cleanup and state-graph edges carrying the
-  shape. The descriptor exists; what is missing is a callee that READS the
-  runtime length, indexes an element or takes a subslice.
-  The Terminal operation/type contract this row asks for is BUILT, measured at
-  `6ea83184c5`. `terminal-psi`'s `control_flow/operations.rs` carries
-  `EstablishElementView`, `ElementViewLength`, `ElementViewRead` and
-  `ElementViewSubslice`; `terminal-interpreter/src/element_views.rs` executes
-  all four; `checked-trees-to-lowered-psi` emits them, and its catalog maps
-  `BorrowedSliceView` onto `StructuralTypeShape::ElementView`. A consuming
-  CUSTOMER exists too and is not empty: the
-  `slices/callee_non_byte_view_len_index_subslice` canary uses `sub.len`,
-  `sub[index]` and `sub[1..]` across a call boundary, and it is registered in
-  `CHECKED_ONLY_PASS_CANARIES`.
+  backing, extent, element identity and loan custody. Reuse
+  `StructuralTypeShape::ElementView`, `EstablishElementView`, `ElementViewLength`,
+  `ElementViewRead`, `ElementViewSubslice`, the catalog's `BorrowedSliceView`
+  mapping, and `terminal-interpreter/src/element_views.rs`.
 
-  What holds it there is one refusal, and the roster comment already names it:
-  "Native production stops at `Lowering(Unsupported("Unit graph borrowed slice
-  is not bytes"))`". That is
-  `unit/attached_unit/composed_control/state_graph/admission.rs`, whose
-  borrowed-parameter admission builds an expected shape for a primitive scalar
-  or a `u8` slice and refuses every other element type instead of producing the
-  `BorrowedSliceView` shape the catalog below it already understands. Start
-  there; do not erase extent or add a sample-specific recognizer.
+  Two distinct source routes remain:
+  - `slices/callee_non_byte_view_len_index_subslice` consumes length, elements,
+    and subslices but reports `unsupported statement kind` at local construction.
+    Repair its checked producer and continue through native execution.
+  - State forwarding passes Unit-graph admission but reports
+    `InvalidStructuralSuccessorArgument`: the forwarded mutable view creates
+    a reborrow place missing from the successor frontier. Complete that custody
+    join and retain `checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs`
+    and byte-view forwarding as controls. An empty callee does not exercise it.
 
-  The Unit-graph branch is TAKEN, at `1739bf1441a`: admission publishes the
-  referent's own shape rather than only byte slices (`Slice{non-u8}` ->
-  `BorrowedSliceView` with the element identity, `FixedArray` forwarding
-  element and length), edge arguments peel re-borrow wrappers, and
-  terminal-semantics grew `fixed_element_array_extent` beside
-  `fixed_byte_array_extent`. It landed without crate-level tests;
-  `checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs`
-  now pins it, all three failing against the pre-change tree.
-
-  Two corrections to what is written above. The roster comment naming `Unit
-  graph borrowed slice is not bytes` belongs to
-  `entry/service_borrowed_slice_call`, NOT to
-  `slices/callee_non_byte_view_len_index_subslice` -- that fixture is rostered
-  without a comment and stops much earlier, at `unsupported statement kind`
-  during local construction, both before and after this change. And the
-  admission site is reached only when a borrowed view parameter is FORWARDED
-  to a successor state; an empty callee body never gets there, so any probe
-  of this row must use the forwarding shape or it measures nothing.
-
-  The RESIDUAL, measured on the forwarding shape: a byte view now lowers end
-  to end (before the re-borrow peel even bytes stopped at `Unit graph
-  successor is not the retained parameter binding`), and a non-byte view
-  stops at `InvalidStructuralSuccessorArgument` in the successor-custody
-  verifier -- a forwarded `&mut` argument emits a fresh re-borrow place the
-  frontier cannot name. That is custody accounting, not element views: the
-  admission and the argument presentation are both past it. Take that next.
-
-  Whether anything else refuses afterwards is UNMEASURED, and one obvious
-  candidate is a red herring:
-  `target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs`'s
-  `select_function` does list `EstablishElementView` and `ElementViewSubslice`
-  among the legalized kinds it answers with `Err(invalid())` -- but it lists
-  `EstablishByteSequenceLiteral` and `ByteSequenceSubslice` there too, and byte
-  views demonstrably reach native (`wire/runtime_wire_decoded_byte_slice_index_exit`
-  and `text/runtime_owned_string_byte_view_exit` are exit canaries). So that
-  scalar-graph arm is not the route byte views take, and its rejection is not
-  evidence that element views need one. Take the Unit-graph branch first and
-  let the next diagnostic name itself.
-
-  Core `Slice::index<T [copy]>` already settles shared by-value element access.
+  Core `Slice::index<T [copy]>` settles shared by-value access. Keep
+  `entry/service_borrowed_slice_call` distinct from the consuming non-byte case;
+  reproduce subsequent failures on the actual Unit-graph route rather than
+  inferring them from scalar-graph rejection arms.
 
   Acceptance: a non-byte-view callee consumes `.len`, indexing and subslicing
   through Terminal production and native realization; bounds, element-type,
@@ -2408,14 +2118,13 @@ syntax and other terminal services are not prerequisites.
 ## Parallel language and compiler lanes
 
 - **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
-  now leaves owned custody at every successful exit edge without occurring in
-  any accounted disposition, and it does so regardless of multiplicity.
-  `6e8cb1f85c` ("owned self receivers retire their entry claims at normal
-  completion") added `consume_terminal_self_receiver` to
-  `terminal-verifier/src/validation/frontier/terminators.rs`; it is guarded on
-  `parameter.is_self && parameter.access == Owned` and does NOT consult
-  `multiplicity`, so an Affine owned receiver is removed from
-  `frontier.owned_places` before `validate_scalar_cleanup_actions` runs.
+  is removed by `consume_terminal_self_receiver` before cleanup validation,
+  regardless of multiplicity. Resolve
+  [`owned-self-receiver-implicit-retirement`](OWNER_QUESTIONS.md), then implement
+  its accounted disposition in
+  `terminal-verifier/src/validation/frontier/terminators.rs` under
+  [Terminal ownership](wiki/spec/terminal-psi/ownership.md).
+
   The `terminal-interpreter --test unit` controls
   `affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
   and `affine_cleanups::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`
@@ -2423,26 +2132,9 @@ syntax and other terminal services are not prerequisites.
   They reject with `ScalarReturnAffineDiscardsMismatch` after implicit removal
   of that root. Preserve their edge-charge and once-only-disposal observations.
 
-  Why this is a meaning question and not a stale fixture:
-  [Terminal ownership](wiki/spec/terminal-psi/ownership.md) says every incoming
-  owned obligation on a returning edge "occurs exactly once in the edge's
-  transfer map, explicit terminal consumption, eligible automatic cleanup, or
-  validated no-code affine discard". Implicit retirement is a fifth route, and
-  for a Linear receiver the commit's reasoning (the machine consumes it by
-  completing) reads coherently, while for an Affine one the discard is the
-  observable, charged disposition the spec's third and fourth routes name.
-
-  **Design-blocked** on `owned-self-receiver-implicit-retirement`
-  (OWNER_QUESTIONS.md question 12): implicit retirement at normal completion
-  is a fifth route the ownership clause does not enumerate, so which
-  disposition an owned receiver occurs in is a meaning the spec has to state
-  before the guard can be written either way.
-
-  Acceptance after the ruling: decide whether the rule is Linear-only or
-  whether an Affine owned receiver's disposition becomes implicit, and make
-  the two interpreter tests state that decision rather than merely pass. If it
-  stays multiplicity blind, say in the spec which accounted disposition the
-  receiver occurs in.
+  Acceptance after the ruling: specification, verifier, and both interpreter
+  tests agree on linear and affine receiver disposition without silent custody
+  removal. Do not merely repin the tests.
 
 - **CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.** (new-scope) The closed-sum
   arm's answer is stated in lowering: the case dispatch is the subject's
@@ -2461,67 +2153,26 @@ syntax and other terminal services are not prerequisites.
 - **AUTHORED-SELECTION-FINALIZATION-GAPS.** (new-scope) Close the authored
   declaration selection occurrences that survive successful checking.
   `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
-  rejects any occurrence still `LateBound` at the end of checking; two
-  unowned customers hit that today and both are measured on main, not
-  inferred:
+  rejects occurrences still `LateBound` at the end of checking. Reproduce:
 
   - `package-evidence` `terminal_permission_policy::uefi::ordinary_uefi_permission_retains_calling_meaning_omitted_from_accepted_schema_digest`
-    fails with "authored Call declaration selection occurrence 1686 remained
-    unresolved after successful checking (CheckedCall)".
-  - All four `compiler --test canary_suite` `float_semantic_twins` tests fail,
-    and `build_runtime_float_semantics_twins_agree` fails with the Operator
-    twin of the same message, occurrence 178, at
-    `tests/omega/pass/float/build_runtime_semantics_twins/main.omg` line 91
-    column 28 — the outer `==` of `(nan32 == nan32) == false`. Instrumenting
-    the rejection site confirms the node really is `Binary(Equal)`, so it
-    reaches finalization's Binary arm and all three resolvers decline:
+    reports an unresolved `CheckedCall` selection.
+  - `compiler --test canary_suite`'s `float_semantic_twins` and
+    `build_runtime_float_semantics_twins_agree` report an unresolved Operator
+    selection for the outer `==` in `(nan32 == nan32) == false`.
+    In finalization's Binary arm, all three resolvers decline:
     `checked_generic_operator_target`, `checked_operator_target_for_occurrence`
     and the `typed_operator_has_no_authored_selection` builtin fallback.
-    Start there. Reduced probes of `(a == b) == false` over `bool`, `i32` and
-    `f32`, with and without an authored `==` declared as a crowned machine or
-    as a trait requirement, all check cleanly, so the trigger is not the
-    comparison shape and not the mere presence of an authored spelling.
+    Reduced nested comparisons over `bool`, `i32`, and `f32` check; retain
+    the full package/customer context rather than a shape-specific repair.
 
   Acceptance: both customers check with every occurrence resolved to a real
   declaration or to an explicit builtin intrinsic, and an occurrence that
   genuinely selects nothing still rejects. Do not silence the finalization
   check or widen `allow_unresolved_toolchain` to cover authored source.
 
-  The third red `package-evidence` suite is unrelated to selections and is
-  recorded here only because it was measured alongside them.
-  `operators::boundary_selection::review_projects_application_closed_inside_specialized_generic_helper`
-  fails in `execution/selected_execution.rs`'s
-  `refresh_settled_state_write_frames` with "settlement changed the complete
-  write frame retained for state `exercise::entry`: retained ["$P0",
-  "self"], settled []". Measured, both frames are right and the rule between
-  them is what is missing:
-
-  - `exercise(value: i32) -> i32 { apply_identity(value) }` calls a helper
-    whose own frame is opaque (the helper calls a bodyless boundary), so the
-    caller falls back to `write_frames/demand.rs`'s
-    `syntactic_call_written_paths` ownership ceiling. Reduced in
-    `typed-trees-to-checked-trees`: the same call written DIRECTLY in
-    `exercise` yields opaque, through a helper it yields Complete
-    `["$P0","self"]`, and with a bodied helper it yields Complete `[]` --
-    generic or not.
-  - Both ceiling entries are deliberate. `self` there is not the caller's
-    receiver -- `exercise` has none -- it is the conservative unknown-place
-    sentinel that `tests/contracts/bounded_returns.rs::unresolved_no_argument_call_preserves_an_unpassed_parameter`
-    pins for a FREE machine, so that proof cannot conclude an unpassed
-    parameter is unmodified. Dropping it because the caller has no receiver
-    turns "unknown write" into "writes nothing" and breaks 19 checked tests;
-    that was tried and reverted. `$P0` is the documented by-value
-    conservatism.
-  - So settlement legitimately narrows a conservative ceiling to the truth,
-    and `refresh_settled_state_write_frames` treats any change to a frame
-    that is not marked opaque as a settlement fault. The frame vocabulary has
-    only `Complete` and `Opaque` (`facts/src/fact_plan/places/write_frame.rs`),
-    with no way to say "complete ceiling, not derived", which is why the
-    ceiling has to claim completeness and then cannot be refined.
-
-  Deciding whether a ceiling is a third completeness, or whether the refresh
-  admits a subset of a ceiling-derived frame, is the open question -- and a
-  subset rule must not let settlement silently drop a genuinely derived write.
+  The specialized-helper review's write-frame settlement failure belongs to
+  **R5**, not declaration selection.
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
@@ -2636,138 +2287,62 @@ syntax and other terminal services are not prerequisites.
     `contract_application_terms::runtime_body_calls_execute_with_checked_premises`:
     checked interpretation covers `restricted(saved, value)` under
     `observe(left) == observe(right)`, but the test stops before Terminal.
-    Re-witnessed at `4899a3c992` and pinned by
-    `checked-trees-to-lowered-psi/tests/call_premise_terminal_boundary.rs`:
-    both `restricted` and its caller stop at
-    `Unsupported("scalar contract contains an unsupported clause")`, while
-    `observe` -- same program, no call premise -- lowers, so the refusal is the
-    clause and not the fixture. The cause is `covered_requires` keeping an
-    explicit `None` requires row for a clause it cannot express as a closed
-    scalar contract, which `scalar_graph_lowering/graph_preparation.rs` then
-    refuses. Those tests pin a boundary, not desired behavior; the repair is
-    expected to fail them and replace them with the canonical reload,
-    independent verification, interpretation and native agreement this bullet
-    requires.
+    `checked-trees-to-lowered-psi/tests/call_premise_terminal_boundary.rs` pins
+    `covered_requires`'s unrepresentable clause and its rejection in
+    `scalar_graph_lowering/graph_preparation.rs`. Replace those limitation
+    expectations with canonical reload, independent verification, interpretation,
+    and native agreement; retain the same-program clause-free control.
   - Extend call-premise formation across remaining contract owners and
     substitutions: abstract signature declarations, domain/default predicates,
     static callable/evidence arguments, receiver/projection terms and
     citation/induction case guarantees. Abstract **callee** attribution already
     exists in `specification_calls.rs::RequirementOwner::Signature`; that does
     not validate every call occurring **inside** an abstract contract.
-    Evidence arguments are the measured cost of this gap today, not a
-    hypothetical one: `specification_calls.rs` gates every discharge behind
-    `arguments_select_plainly`, which requires `call.evidence_arguments`
-    to be EMPTY, and its requirement loop proves only `ProofFact::Expression`
-    — a `ProofFact::Proposition` requirement takes the `else { false }` arm
-    unconditionally. So a contract call that explicitly supplies the evidence
-    its callee requires is rejected BECAUSE it supplies it. All eight
-    `package-evidence` `contract_expressions::evidence_calls` tests are red on
-    main for exactly this, on a fixture unchanged since `272a371880c`
-    withheld the route: `pub machine inspect(value: i32) requires p:
-    carries(value) requires observes(value; p)` reports "cannot prove requires
-    contract for specification call `observes`". `encoding.md`'s
-    `evidence argument` row already names the shape a discharge would check —
-    input position, callee proposition id, source evidence term id and
-    instantiated proposition id — so the checked rule has a settled target.
+    `specification_calls.rs::arguments_select_plainly` excludes evidence
+    arguments, and its requirement loop handles `ProofFact::Expression` but
+    not `ProofFact::Proposition`. Use `package-evidence`'s
+    `contract_expressions::evidence_calls` customer, including
+    `requires p: carries(value) requires observes(value; p)`.
+    Retain the encoding contract's evidence-argument coordinates: input position,
+    callee proposition, source evidence term, and instantiated proposition.
     Establish premises before result formation or guarantee intake, including
     erased/discarded uses; recursion separately requires descent. Preserve
     exact subject/argument identity, complete constructor values versus tag-only
     evidence, and public-contract boundaries. Unsupported evidence is not proof.
   - Complete selected token-body supply outside the admitted expression routes,
     including open-ended ranges and match-pattern equality. Reproduce the
-    build-machine refusal before assigning its repair. Two refusals reproduced
-    at `bbc9e90e8a`, and they are not the same kind:
-
-    - Match-pattern equality refuses in validation with "match value patterns
-      require scalar subjects and scalar pattern values; structural, domain,
-      and case patterns are not supported yet" -- a general pattern limit that
-      a selected token body cannot reach past, not an operator-supply gap.
-    - A crowned `==` does not supply `==`, while a crowned `<` supplies `<`.
-      That asymmetry is SPECIFIED, not a gap:
-      [conformances.md](wiki/spec/language/conformances.md) says "`Equatable`
-      is a sealed type-owned operator route ... `==` and `!=` select it from
-      the operand type, not visibility. Other mathematical relations use
-      separately named contracts and conformances without competing for
-      operator syntax." So equality routing through `Equatable` while `<` goes
-      through the selected declaration is the rule working. Do not "fix" it.
-      What is worth a look is the other end: `machine == Card::same(..)` is
-      ACCEPTED at declaration even though a sealed route means it can never
-      supply `==`. Whether a crowned `==` should refuse where it is written was
-      not settled here.
-
-    (The `==` refusal's own suggested fix spelled a retired unnamed conformance
-    header; `c7a86bebb5` repaired the wording, which is unrelated to the gap.) Reuse ordinary calls,
+    build-machine refusal before assigning its repair. General structural/domain/
+    case-pattern admission belongs to **MATCH-SELECTIVE-LOWERING**. Preserve
+    [Equatable's sealed type-owned route](wiki/spec/language/conformances.md):
+    visible crowned `==` declarations cannot override it. Check the declaration
+    admission of `machine == Card::same(..)` against that rule without inventing
+    a competing equality route. Reuse ordinary calls,
     attached receiver loans and once-only operand evaluation; no separate
     operator interpreter or fallback arithmetic. These refusals are
     implementation boundaries, not new semantic prohibitions.
   - Finish per-law normalization coverage atop the explicit selected-conformance
-    route in `open_index_expressions.rs`. Reordering and reassociation are now
-    separate laws: `OpenIndexOperationSelection` carries
-    `commutativity_licensed`/`associativity_licensed`, a selection is recorded
-    as soon as the carrier declares either slot, and `collect_open_index_operands`
-    flattens a chain only under associativity and sorts operands only under
-    commutativity. A carrier declaring neither still selects nothing.
-    `validation/tests/open_index_algebra_laws.rs` pins what each carrier shape
-    records and `type_identity/tests.rs` pins what each recorded law then
-    licenses, both directions in each case. `normalizer_version` is 2 for the
-    canonical-form change this makes for single-law carriers.
-    Still open here: distributivity and zero/one identities each need their own
-    slot and their own consumer, and nothing yet carries per-law normalization
-    into a semantic domain NAME -- `declared_domain_identity` reads an interned
-    name fixed at lowering, which only
-    `monomorphization::refresh_closed_domain_instance_identities` rewrites, so a
-    source-rooted per-law fixture belongs with that pass rather than with
-    validation.
+    route in `open_index_expressions.rs`. Preserve separate commutativity and
+    associativity permissions in `OpenIndexOperationSelection`, with
+    `validation/tests/open_index_algebra_laws.rs` and `type_identity/tests.rs`
+    controls. Distributivity and zero/one identities need their own slots and
+    consumers. Carry per-law normalization into semantic domain identity through
+    `monomorphization::refresh_closed_domain_instance_identities`, with a
+    source-rooted fixture rather than only validation-level tests.
     Preserve missing/ambiguous selection, wrong-operation and unproved-law
     controls. Noncommutative operations remain usable without rewrites; AC
     grants neither zero identity nor integer-addition meaning.
-  - `expressions/token_bound_machine_operand_selection` now executes natively.
-    The roster held it back on the claim that borrowed local data arguments to
-    a free machine stop at the macOS hosted receiver bridge; measured, the
-    fixture compiles for the native host and exits 70, both routes producing
-    260. The token supply was never the gate either: the control -- the same
-    program with a plain `machine Wrapped::add` and the token route replaced
-    by a second named call -- also exits 70 natively. The fixture moved to
-    `ACTIVE_PASS_CANARIES` and
-    `token_bound_machine_operand_selection_exit_canary_runs` now pins the
-    oracle and the native exit together (71 = token route missed, 72 = named
-    route missed).
-    `expressions/declared_operator_match_result` stays checked-only by fixture
-    SHAPE, not by a lowering wall: it has three entries that are each their own
-    acceptance (`select_true` = 260, `select_false` = 1, `by_name` = 260), so it
-    carries no `Main::main` and no `build.omg`, and native production refuses
-    `native-artifact production requires one exact selected program entry`.
-    Giving it an entry would mean collapsing three acceptances into one exit
-    code; the operand-selection canary already carries the same operator
-    declaration natively, so the native evidence is not missing. Local-data
-    argument custody (**STATE-LOCAL-VALUE-FRONTIER**) and owned selective
-    execution (**MATCH-SELECTIVE-LOWERING**) no longer gate this row.
-    Promoting it also repaired two pre-existing drifts in the exact-native
-    coverage pins, which `a4ec8048a0b` last set deliberately:
-    `EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE` was 798 against a real 802 (four
-    rooted fixtures each landed with one new dedicated owner) and
-    `EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE` 31 against a real 35 (`398b73a4f60`
-    registered four `uefi_x86_64` pairs whose owners already existed). Both are
-    attributed in comments beside the constants.
+  - Preserve `token_bound_machine_operand_selection_exit_canary_runs` as the
+    native token/named-call control. `expressions/declared_operator_match_result`
+    separately checks three entries (`select_true`, `select_false`, `by_name`);
+    its lack of a selected native entry is not a compiler lowering gap.
   - Migrate library/corpus/embedded-test declarations and remove the old parser
     and representation consumers. Use the
     [retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)
     for navigation, not as a current census. Tokenless boundary rows depend on
     **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, including generic requirements.
-    Trait token signatures now take the ordinary `machine` grammar, measured at
-    `d29035cc1f`: the trait head admits `machine < before(...)` using the same
-    vocabulary and non-punctuation/semicolon guard `declarations::machines`
-    applies to every `machine`-headed form, which is the grammar
-    `expressions.md`'s executable-supply table gives and a concrete crowned
-    declaration already used. `operator <` still parses, and
-    `validation/tests/trait_token_heads.rs` checks the two heads agree past the
-    parser -- both record the same spelling on the typed requirement through
-    resolution and validation. The DOMAIN half of this clause already worked: a
-    domain operator is an ordinary top-level declaration and the `machine` head
-    has always carried its token, bodied and bodyless alike, which
-    `tokens-to-syntax-trees/tests/diagnostics.rs` now pins beside the trait
-    head. So the ordinary grammar is available for both; what remains of this
-    bullet is migrating declarations onto it and removing the old consumers. Rejoin
+    Trait and domain token signatures already accept ordinary `machine` grammar;
+    preserve `validation/tests/trait_token_heads.rs` and parser diagnostics
+    while removing the legacy `operator` head. Rejoin
     `SpelledOperator`, provider planning, selected build-time execution,
     package evidence and result-domain dispatch to the surviving declarations.
     Preserve semantic identities or explicitly reject stale schemas.
@@ -2803,42 +2378,22 @@ syntax and other terminal services are not prerequisites.
   Remaining work:
 
   - Finish typed/checked/Terminal transport for generic type-scoped constant
-    attachments, indexed constraints, operator homes and declared-domain case
-    facts. Declared-domain case facts now replay as generated `CaseMembership`
-    tag tests with exact symbol-based multiplicity matching (1fc2f4cdd2);
-    the other transports remain. Preserve exact lexical/package selection
+    attachments, indexed constraints, and operator homes. Reuse declared-domain
+    `CaseMembership` tag tests and exact symbol-based multiplicity matching.
+    Preserve exact lexical/package selection
     through specialization, same-leaf competitors, file-local imports and
     private/transitive exposure.
     `module_namespace_residuals` contains resolver-only operator/case tests;
     extend those customers through their remaining consumers rather than adding
     another namespace recognizer.
-  - **Design-blocked** on `unmanaged-root-package-identity`
-    (OWNER_QUESTIONS.md question 10): the spec never says what identity a root
-    compiled with no package declaration carries. `declarations.md` defines
-    `PackageKey`/`PackageInstance` only for a DECLARED package, "unmanaged"
-    appears nowhere under `wiki/spec/`, and `domains.md` states the collision
-    rule in terms of an owner it assumes exists. This bullet already rules out
-    the two obvious identities without naming an admissible third, which is
-    the owner decision rather than an engineering gap.
-    Supply portable package identity for unmanaged roots before permitting
-    equal module/domain paths across them. Keep `domains.rs`'s independent
-    collision rejection until then; host paths and source-order numbers are
-    not portable identity.
-    `control_flow/guarded_leaf_branch_expansion` is the corpus witness: its
-    unmanaged `pub domain [u8; 8]::Utf8` and the toolchain-injected
-    `source/library/std/calling.omg` `[u8; 256]::Utf8` both carry
-    `package_identity: None`, so `lowering/domain.rs` mints the legacy key
-    `[u8; N]::Utf8` for both and `domains.rs` rejects the cross-owner share.
-    There are TWO such symptoms, not one: `text/runtime_alias_string_write` is
-    also an `ACTIVE_PASS_CANARIES` member declaring its own `[u8; N]::Utf8`,
-    is rooted but carries no unique exact-native owner to elide it, and fails
-    the corpus compile with the same diagnostic. Both were re-measured at
-    `f2863aa05d`; the reproduction needs the ROOTED native-host route, because
-    an untargeted `Check` compile injects no toolchain std and so raises no
-    collision at all -- a probe that skips the target measures the wrong
-    thing. Instrumented, the two declarations agree on module (both the root
-    handle) and differ only in source package, which is exactly the
-    coordinate the minted legacy key drops.
+  - **Design-blocked** on [`unmanaged-root-package-identity`](OWNER_QUESTIONS.md).
+    `control_flow/guarded_leaf_branch_expansion` and
+    `text/runtime_alias_string_write` expose collisions between unmanaged
+    `[u8; N]::Utf8` and injected std declarations: `package_identity: None`
+    drops the distinct source owners from the legacy domain key. Reproduce
+    through the rooted native-host route; targetless checking injects no std
+    and misses the collision. Keep independent collision rejection; host paths
+    and source order are not portable owner identities.
   - Complete declaration evaluation, including unused initializers:
     specialized provider/target applications, authored NaN identity bits, and
     constrained constants beyond scalar-decodable record/array/case leaves.
@@ -2899,29 +2454,13 @@ syntax and other terminal services are not prerequisites.
     currently expects `Index<9>` to assign into `Index<7>` without relating
     those arguments. Shared layout/code does not prove captured indices agree.
 
-    Measured at `9ead87c6fd`, this is not only an identity gap -- it admits a
-    program the declaration's own `where` clause forbids. With
-
-        data Index<Limit: u32> [copy] where value < Limit, { value: u32; }
-        data Main { a: Index<9>; b: Index<7>; }
-        machine take7(v: Index<7>) -> u32 { v.value }
-
-    both `self.a = Index { Limit: 9, value: 8 }; take7(self.a)` and the
-    field assignment `self.b = self.a` are ACCEPTED. The value 8 satisfies
-    `value < 9` and is then admitted where `value < 7` is required, so the
-    applications unify in argument position as well as on assignment. The
-    spec settles it: "compatibility between applications with different
-    runtime subjects requires the relevant checked relationship, such as
-    equality established by a guard; matching variable spellings is not
-    evidence" -- and 9 and 7 are not merely unrelated, they are provably
-    unequal.
-
-    The repair is in type identity, not in the test: literal-subject
-    applications must carry their argument so `Index<9>` and `Index<7>` are
-    distinct, while genuinely runtime subjects still need the checked
-    relationship rather than a spelling match. Expect wide fixture fallout --
-    this changes type equality -- and note FINITE-GENERIC-DISPATCH works the
-    adjacent `monomorphization` and `values/` surfaces.
+    Preserve the reported invalid-control reproduction: with
+    `data Index<Limit: u32> [copy] where value < Limit, { value: u32; }`,
+    an `Index<9>` holding 8 must not pass as an `Index<7>` argument or field.
+    Literal-subject applications need distinct identity; runtime subjects need
+    a checked compatibility relationship. Repair type identity, not merely the
+    expectation, and coordinate adjacent `monomorphization`/`values/` work
+    with **FINITE-GENERIC-DISPATCH**.
     Correct application compatibility, bind construction arguments to their
     actual subjects, and retain executable indices as ordinary data, arguments
     or descriptors. Erase proof-only uses only after checking their obligations;
@@ -2970,13 +2509,10 @@ syntax and other terminal services are not prerequisites.
     type-equality alternative, including finite disjunctions and branch-local
     equalities that cannot escape joins. Closed case-equation decisions do
     not establish this general route.
-  - Domain-application identity is joined: `e27a86d1a0` (macw4) unified
-    carrier-qualified (`u64::AtMost<256>`) and constrained
-    (`u64 in AtMost<256>`) spellings through one `DomainHead` selector to the
-    same `Constrained` identity with const-index parity; the stale pin now
-    asserts deduplication and distinct-index non-deduplication. Still open:
-    package selection and generic-carrier domain identity — the data-only
-    identity route for generic heads remains.
+  - Complete package selection and generic-carrier domain identity; generic
+    heads still use a data-only identity route. Reuse `DomainHead`'s common
+    selection for `u64::AtMost<256>` and `u64 in AtMost<256>`, preserving
+    equivalent-application deduplication and distinct-index separation.
     Distinct domain indices gain no implicit variance; compatibility evidence
     does not rename their identities.
   - Support selected named-lifetime identity and remaining const-index kinds;
@@ -3043,15 +2579,10 @@ syntax and other terminal services are not prerequisites.
     `REBOUND_FAMILY_DYNAMIC_INTEGER_SOURCE`, replacing its ignored-width,
     discarded-result probe with observed distinct tuple results and the actual
     rebound selected instance. Test-constructed tuple rows do not close this.
-    Parked WIP: `swarm/macw5-finite-dispatch` (one unvalidated commit, ~600
-    lines across `dynamic_scalar_calls/`, `finite_family.rs` and dynamic trait
-    declarations) covers roster-membership drafting toward the first bullet;
-    `swarm/macw6-finite-dispatch` (one unvalidated commit 54a1609a64, family
-    membership and forwarded-call subjects) drafts further along the same
-    path — review both before resuming. Separately, `c48b78d7ae` landed one
-    checked dynamic dispatch plan carrying binding kind and result shape
-    through `dynamic_composed_unit/` and `dynamic_scalar_calls/`; reconcile
-    the parked drafts against that structure.
+    Unverified candidates: `swarm/macw5-finite-dispatch` and
+    `swarm/macw6-finite-dispatch` (`54a1609a64`) contain roster-membership and
+    forwarded-call work. Reconcile both with the existing checked dynamic plan's
+    binding kind and result shape before adopting either.
 
   Acceptance: source pass/fail/run cases dispatch widths 16/32/64 from a runtime
   value through one selected conformance and execute natively without
@@ -3083,9 +2614,8 @@ syntax and other terminal services are not prerequisites.
   missing ordinary callee/conformance identities and connect checked establishment
   evidence to its exact invocation result. Establish a source-produced qualified
   boundary-result roundtrip too; manually assembled Terminal fixtures do not
-  establish source admission. Parked WIP: branch
-  `swarm/macw7-domain-issuer-routes` at `b38ff7561a` holds unvalidated drain
-  checkpoints (three commits) — resume by reviewing or discarding.
+  establish source admission. Review the unverified candidate
+  `swarm/macw7-domain-issuer-routes` (`b38ff7561a`) before duplicating that work.
 
   Acceptance: source examples serialize, reload without source and independently
   validate requirement, exact-machine and boundary establishment, including
@@ -3132,13 +2662,10 @@ syntax and other terminal services are not prerequisites.
     Complete that native realization path without guessing unsupported target,
     path/slice adaptation or host-error mechanisms. General provider planning
     is not the missing implementation for this witness.
-    Also carry the exact toolchain-settled identity through package review:
-    `packages/review/evidence/src/capture/providers/policy/replay.rs` now
-    replays minted plans against their settled provenance — the positive
-    replay landed in `d756f86e21`, and `e08628f1326` (macw8) pins rejection
-    of changed settlement identity, authored-candidate substitution and
-    unsupported demanded leaves (`get_last_error` rejects at closure review).
-    Do not exempt ordinary `UniqueCoveringCandidate` plans.
+    Preserve settled-provenance replay in
+    `packages/review/evidence/src/capture/providers/policy/replay.rs`, including
+    changed settlement identity, authored-candidate substitution, and unsupported
+    demanded-leaf rejection. Do not exempt ordinary `UniqueCoveringCandidate` plans.
   - Drive console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr through
     ordinary package acceptance to native production without receiver-policy
     input. Coordinate their application owners, preserving existing host
@@ -3222,74 +2749,25 @@ syntax and other terminal services are not prerequisites.
   rather than treating each source arrangement as another unsupported feature.
   Remaining concrete joins:
 
-  - ~~`demand.rs` rejects a receiver mentioning a divergent local.~~ Done,
-    measured at `c5fa2cf467`: no receiver-level divergent bail remains in
-    `demand.rs` -- both surviving `mentions_divergent` calls compute
-    `has_divergent_actual` over ARGUMENTS, which is the next bullet's subject.
-    The repair carries the proven finite candidate set, and does so through
-    composition rather than only at the direct hop:
-    `write_frame_candidate_origins.rs::divergent_computed_receiver_unions_candidate_writes`
-    and `::divergent_receiver_candidates_survive_composition` both pass, the
-    second asserting the whole candidate set survives an aggregate result
-    standing between the binding and the call and a rebind onto a second
-    binding. Opacity for unknown callees, private escapes and unproved rebinds
-    is retained by the surrounding cases in that same file.
-  - ~~`demand.rs` and `state_write_walk.rs` reject wire arguments mentioning a
-    divergent alias before `wire_codecs.rs` can resolve its candidate set.~~
-    Done, measured at `a242d84e8e`: both sites now pass the divergent origins
-    into `known_wire_codec_call_written_paths`, which unions every proven
-    referent and keeps an unproven binding opaque on its own.
-    `validation/tests/wire_codec_write_frames.rs` pins both halves -- a codec
-    cursor bound to a `match`-selected reference publishes the buffer and BOTH
-    referents, and one bound to an unproven reference still fails closed. The
-    removal is a widening, so it was checked the other way too: cutting the
-    divergent origins off from the resolver turns the union back into an opaque
-    frame. Member/indexed reference loads still need their
-    own load evidence; the enclosing carrier's path is not the referent.
-  - Carry the receiver/codec repairs through contextual-case, named-state and
-    aggregate-result composition, preserving existing `write_frame_*` controls.
-    The receiver and codec lanes both compose now, measured at `a8a1cff2cc`.
-    The receiver lane already did:
-    `write_frame_candidate_origins.rs::divergent_receiver_candidates_survive_composition`
-    keeps the whole set through an aggregate result and a rebind. The codec
-    lane kept it through a rebind only -- a helper result standing between the
-    binding and the argument, `Blob::encode(.., hold(cursor))`, collapsed to an
-    opaque frame because `known_wire_codec_call_written_paths` resolved its
-    arguments BY NAME among the caller's aliases and a call expression had no
-    entry to find. Its `Call` arm now defers to the shared
-    `exclusive_reference_origins`, whose own `Call` arm composes through
-    `transparent_call_result_origins`, so this is the row's shared propagation
-    rather than a codec-side recognizer. `validation/tests/wire_codec_write_frames.rs`
-    pins both directions: a helper result publishes the buffer and both
-    referents, and an UNRESOLVABLE helper result still leaves the frame opaque.
-    Only that arm was added -- member and indexed spellings still fall through,
-    since an interior reference load needs its own load evidence.
+  - Distinguish conservative ownership ceilings from derived complete frames
+    during `execution/selected_execution.rs::refresh_settled_state_write_frames`.
+    `package-evidence`'s
+    `operators::boundary_selection::review_projects_application_closed_inside_specialized_generic_helper`
+    reports a retained `["$P0", "self"]` ceiling versus settled `[]` after
+    a helper calls a bodyless boundary. Allow justified refinement without
+    silently dropping a derived write. Preserve the unknown-place sentinel
+    even in free machines and the by-value ceiling; retain
+    `unresolved_no_argument_call_preserves_an_unpassed_parameter` as a control.
 
-    Match arguments compose too, and the load-evidence question that held them
-    up is settled: `carried_reference_origin` walks to the root name, REFUSES
-    when that root is itself a reference, requires owned storage, and matches
-    the spelling against the carrier's declared reference leaves -- so it is
-    the own load evidence this row demands, and reaching member/indexed
-    spellings through the shared resolver is not a way around the exclusion.
-    `wire_codec_write_frames.rs` pins both sides: two borrowed arms union, and
-    an arm loading `carrier.body` where `carrier` is a `&mut View` leaves the
-    whole frame opaque. Nested helper hops (`hold(hold(cursor))`) confirm the
-    delegation is recursive rather than one-deep.
-
-    Named-state composition already worked and now has coverage: a codec whose
-    cursor arrives as a state parameter substitutes the transition's actual
-    into the entry frame, for a caller place and for a divergent helper result
-    alike. That route is the named-state substitution rather than the codec
-    leaf's argument resolution -- removing the leaf's `Call` arm leaves it
-    passing -- so it is independent regression coverage, not evidence for the
-    delegation.
-
-    Still open on this bullet: the acceptance's full source-checking witnesses.
-    Everything above is measured through `CallFrameResolver` on typed trees,
-    which is where this coverage stops.
-    Add full source-checking witnesses where coverage stops at typed-tree frame
-    inference; retain conservative rejection at reference boundaries lacking
-    independent origin/load evidence and unsupported recursive result routes.
+  - Extend typed-tree `CallFrameResolver` coverage to full source checking for
+    contextual-case, named-state, aggregate-result, and nested-helper composition.
+    Reuse `exclusive_reference_origins`, `transparent_call_result_origins`,
+    `write_frame_candidate_origins.rs`, and `validation/tests/wire_codec_write_frames.rs`.
+    Proven candidate unions must survive receivers, codec arguments and rebinds.
+    `carried_reference_origin` admits declared reference leaves of owned storage,
+    not arbitrary loads through borrowed carriers. Keep unknown callees, private
+    escapes, unproved rebinds, unsupported recursive results, and loads without
+    independent origin evidence opaque.
 
   Architectural repair: share candidate-origin propagation and fixed-point
   composition across expressions, bindings, arguments and results. Do not add
@@ -3324,59 +2802,18 @@ syntax and other terminal services are not prerequisites.
   recover their actual replacement input. Remaining gaps are additional reference
   boundaries lacking independent load evidence, unresolved control-flow result
   routes, generic/dispatched callees and dynamic/unresolved projections.
-  Start with the unproven controls in `progress/origins/tests.rs`:
-  `control_flow_route_helper_result_stays_unproven`,
-  `dynamic_index_carrier_argument_stays_unproven` and
-  `embedded_call_written_on_the_demanded_path_has_no_exact_origin`.
+  In `progress/origins/tests.rs`, close the finite-alternative gaps in
+  `control_flow_route_helper_result_stays_unproven` and
+  `dynamic_index_carrier_argument_stays_unproven`. Resolve demanded values
+  through guarded prefix routes in `call_result_place`, not just terminal arms.
+  Carry the complete subject set through `origins.rs::at_call`,
+  `machine_summaries.rs`, and `lineage/transfers.rs` into the existing
+  `ParameterLineage::Exact` representation. Every route must be exact; one
+  unknown route leaves the whole result unproven.
 
-  Read at `a5bae0bbd2`: **those three are not alike, and the third must not be
-  flipped.**
-  `embedded_call_written_on_the_demanded_path_has_no_exact_origin` drives
-  `poke_then_read`, whose body calls `poke_mut(context, fresh)` -- a write to
-  the demanded carrier -- before returning `context.scheduler`. Its result is
-  whatever the write left, so it has no exact origin by the spec's own rule:
-  "Owned replacement captures the source value at assignment, not later source
-  contents", and "a may-write frame does not identify replacement contents".
-  That is a correctness control, not a gap; admitting it would mint a premise
-  the spec forbids.
-
-  The other two share ONE blocker, and it is representational rather than
-  semantic. `control_flow_route_helper_result_stays_unproven` returns
-  `former.scheduler` on one transition route and `latter.scheduler` on the
-  other; `dynamic_index_carrier_argument_stays_unproven` demands
-  `boxes[i].view.scheduler` over a two-element array. Both are FINITE sets of
-  exact subjects, which the spec admits -- "every finite entry-subject
-  alternative", "a finite permutation is not ambiguity" -- and which the
-  premise surface already represents, since
-  `lineage.rs::ParameterLineage::Exact` carries a `Vec<ProgressSubject>` and
-  `resolve` already returns `Vec<ProgressPremise>`.
-
-  What blocks them is NOT the shape it looks like. Measured by instrumenting
-  `call_result_place`: for
-  `machine choose(..) -> SchedulerHandle { transition flag { true -> former.scheduler false -> latter.scheduler } }`
-  the callee's terminal statement is an UNCONDITIONAL transition
-  (`guard == Always`, `continuation` invalid) and the two-arm guard sits in the
-  PREFIX (`prefix.len() == 1`). A `TableTransition` does carry `target` and
-  `continuation` fields, so reading the arms off those looks right and is
-  wrong -- an attempt built on that model resolved nothing, because the arms
-  were never there. Do not repeat it; instrument the terminal before
-  believing any model of this lowering.
-
-  The actual gate is the prefix rejection immediately below the terminal
-  match: "an unresolved control-flow or binding route cannot select which
-  input supplied the result; only the single linear prefix qualifies", which
-  returns `None` when any prefix statement is a `Transition`. Admitting the
-  finite set means resolving the demanded value once per guarded prefix route,
-  not per terminal arm.
-
-  Beyond that, `origins.rs::at_call` returns `Option<ProgressSubject>`, so even
-  a resolved disjunction has nowhere to go and collapses to `None`. Widening it to a set (empty = unproven) reaches two consumers:
-  `machine_summaries.rs:138`, which already loops over resolved instances, and
-  `lineage/transfers.rs:55`, whose transfer subject would carry the
-  alternatives that `merge_parameter_lineage` then folds. Admit a disjunction
-  only when EVERY route is exact -- one unknown route keeps the whole set
-  unproven -- so the widening cannot admit what a single-subject return
-  rejected for cause.
+  Preserve `embedded_call_written_on_the_demanded_path_has_no_exact_origin`
+  as a negative: `poke_then_read` writes the demanded carrier before reading
+  it, so its result cannot inherit the earlier subject.
   Admit finite cases from exact provenance; unknown writes, aliases or routes
   retain no guarantee. A may-write frame does not identify replacement contents,
   and aggregate root correspondence cannot resurrect overwritten field evidence.
@@ -3471,27 +2908,14 @@ syntax and other terminal services are not prerequisites.
     whole-root discard lists; `ReturnUnitPartialAffine` already exists.
     Update the encoding contract and representation, producer, codec,
     independent verifier/interpreter and native consumers together.
-  - Whole/residual scheduling across dying roots on a shared Unit consumer is
-    fixed (fc0fc77463): `execution/terminal_unit/cleanup/anonymous.rs::
-    append_continuation` emits each temporary's residual group
-    latest-established first, and the lowering validator and terminal
-    verifier independently rebuild that schedule. Parameter-rooted
-    projections at ordinary Unit return are fixed too (de08bc6b46): the
-    partial-affine carrier owns every machine that moves an owned
-    structural parameter through a projected argument — one residual
-    parameter root alongside whole-root sibling discards, projected
-    parameters sharing a consumer with dying temporaries and scalar
-    operands across multi-block bodies, and empty complements where
-    projections cover the root (the machine keeps `ReturnUnit` but
-    stays out of the root-only lane). The verifier keeps machine-scoped
-    parameter custody distinct from continuation-edge cleanup and
-    still rejects a second residual parameter root; lowering
-    independently reconstructs the complement from the checked type
-    plan. Remaining: construction-local roots, partial construction, a
-    second partially-moved parameter root (the return-edge vocabulary
-    holds one), and mixed dying roots beyond the parameter/temporary
-    pair. No runtime liveness flags, expansion of untouched arrays into
-    leaves, or cleanup deferred until final return.
+  - Extend independently reconstructed residual scheduling to construction-local
+    roots, partial construction, a second partially moved parameter root, and
+    mixed dying roots beyond the supported parameter/temporary pair. Reuse
+    `execution/terminal_unit/cleanup/anonymous.rs::append_continuation` and
+    the partial-affine carrier's exact complements; keep machine-scoped
+    parameter custody distinct from continuation-edge cleanup. No runtime
+    liveness flags, expansion of untouched arrays into leaves, or cleanup
+    deferred until final return.
   - Generalize projected temporary cleanup beyond empty, effect-free Unit
     consumers: compose other argument effects, non-Unit consumers,
     borrowed/owned temporary mixtures and retained claims/qualifications
@@ -3523,99 +2947,41 @@ syntax and other terminal services are not prerequisites.
   [evaluation order](wiki/spec/language/expressions.md#evaluation-schedule)
   and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering).
   Retain exact producer, parameter position, result owner and loan activation;
-  **CML4** owns residual cleanup. Measured on Windows x86-64 by
-  `tools/progress.py` after the construction trace learned to name the store
-  route that got furthest: 72 pass fixtures, 42% of the umbrella's 173
-  failures, omit their Unit plan at local construction — structural call
-  binding to a local 21, field store with no pure scalar source 12, call
-  operation 12, field store whose destination is not a parameter 7, pure
-  scalar initializer 4, attached-data-shape state parameter 4, guard
-  expression 3, scalar field type 2, parameter transfer 2, five singletons.
-  On the rooted native route the dedicated owner tests hit the same omission
-  for 532 of the 911 fixtures the umbrella elides, so this mechanism is the
-  first wall between a checked program and a running one.
-  Every site is in `typed-trees-to-checked-trees`, so the plan
-  is omitted before a target is chosen and the class is host-neutral by
-  construction. Each site is a recognizer for the arrangements earlier
-  fixtures needed; the histogram is the size of the gate below. At the
-  structural-call-binding site, record patterns in `let` position now
-  compose: typing infers each per-field local from its field chain,
-  the Unit producer treats the `__destructure#` marker as declaration-free,
-  and both lowering routes admit a record literal stored through a projected
-  place (`self.pair = Pair { .. }`) as one field store per member
-  (`data/record_pattern_{let_exit,bind_all_exit,double_underscore_field}`
-  compile natively; `omega run` cannot execute them while the fresh
-  `omega-language-std` package review rejects `filesystem.omg`'s
-  `self.rdn_result` moves). A bare case name (`let signal: Light = On;`,
-  `arithmetic/bare_name_scopes`) waits on `bare-case-value-names` in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md): validation's
-  `exact_case_reference_owner` refuses one-segment references, and widening
-  it changes what a bare name means to proof narrowing and interpreter
-  equality.
-  Record and case literals passed by value compose as fresh owned operands,
-  guarded state graphs dispose owned parameters on their edges, and exact
-  guard arithmetic owes its range proof (`693a39cd90`).
-  `control_flow/{arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit,
-  record_pattern_arm_rename_guard_exit}` compile natively on macos_arm64
-  through Terminal Psi (`5a0dc24319`: borrowed Unit calls reach callees with
-  a service ceiling; `8c20233fff`: `StructuralCase` dispatches on the
-  function's own owned sum parameter from the entry-retained
-  `StructuralParameter` slot). Remaining: (a) runtime execution is
-  unwitnessed: no native run test covers them, and `omega run` stops at
-  package review acceptance; (b) an owned sum parameter passed indirectly or
-  on the stack (the 12-byte `Msg` on Windows x64) still fails closed in
-  selection because no parameter slot is retained, and acceptance is the
-  cross-target compile of these canaries; (c) borrowed-call scalar results
-  into serviceful callees still refuse until a serviceful fixed-native
-  scalar ABI exists.
-  A guarded pair over a two-variant sum whose selected arm forwards a
-  `[copy]` record payload (`state_graph/tests/case_payload_edges.rs`,
-  `OpenResult::Opened { info } -> have(info)`) now admits: lowering's
-  fallback check mirrors the checker's closed-case complement. It stops in
-  emission at "Unit graph case-payload transfer has no Terminal channel"
-  (`state_graph/emission/state.rs`, the `CasePayload` transfer source).
-  Next acceptance: emit the payload as a Terminal transfer out of the tested
-  case and lower `Root::run` through Terminal verification.
-  Unread-`&mut self` roster defect, probed 2026-09-23: replacing the count
-  comparison in the four store planners (`primitive_store.rs`,
-  `structural_scalar_store/mod.rs`) with a position check that admits an
-  omitted reference `self` plans `Random::next_u32(&mut self, state: &mut
-  RandomState)`, but lowering then refuses it ("structural scalar store names
-  an unknown parameter"): `ordinary_machine/stores.rs`,
-  `state_graph/body.rs` and `emission/structural_scalar_store.rs` compare the
-  checked authored position with Terminal's dense
-  `StructuralParameterDeclaration.position`, which agree only while `self`
-  is present. Needs one authored-to-dense map in lowering; no corpus member's
-  first failure moves with it yet (WIP diff kept outside the repo).
-  The 21-fixture `record literal field` bucket was a trace artifact: the
-  four store routes in `structural_scalar_store` each name their phases and
-  the last route's precondition label overwrote the decisive one; the trace
-  now keeps the route that got furthest, and the bucket splits into its
-  causes, read 2026-09-22 with the crate harness: float arithmetic or float
-  field reads as store sources (7 fixtures; the checked scalar vocabulary has
-  no float binary form and `lower_structural_parameter_field` excludes F32/
-  F64, the parked computed-IEEE slice), float-to-integer policy casts (3, F4),
-  stores through recast reference locals (5, RECAST-SOURCE-POSITIONS: no
-  Unit-level re-view store vocabulary, and a `self`-rooted borrow alias
-  normalizes to the machine symbol so `primitive_store` never matches it),
-  Trapping integer arithmetic (1, ARITHMETIC-POLICY-REALIZATION), a case
-  literal stored into a field (1: the assignment branch of
-  `values/scalar/computations.rs` gates structural roots on record literals
-  only, while the local branch also admits `is_scalar_case_value`; the fix is
-  that gate plus `EstablishStructuralValue` + `StoreStructuralField` in the
-  store sequence and `ordinary_machine/stores.rs` accepting an established
-  value as the store source), a byte-slice literal into a `&[u8] in Utf8`
-  field (1), a mutable-receiver call nested in an arithmetic source (1:
-  `computation_arguments::structural_computation_argument` admits receivers
-  only through shared borrows), and two local-rooted stores, one of which
-  also exposes a roster defect: `calls/signatures.rs` drops a reference
-  `self` the body never reads while `abi_parameter_count` still counts it,
-  so `Random::next_u32(&mut self, state: &mut RandomState)` is omitted at
-  "parameter access".
-  Limits: no producer exists
-  for a record member typed `UInt`, for a record with a `&[u8] in Utf8`
-  field, or for a primitive-array record field (`[u32; 4]`); the closed-array
-  route exists only for top-level locals.
+  **CML4** owns residual cleanup. Start at the actual omission in
+  `typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
+  failure histogram. Preserve record-pattern and fresh record/case operand
+  support rather than recreating it.
+
+  Current source-to-native customers and gaps:
+  - Execute `data/record_pattern_{let_exit,bind_all_exit,double_underscore_field}`
+    and `control_flow/{arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit,record_pattern_arm_rename_guard_exit}`
+    through ordinary package review; native publication alone is not execution.
+    Retain owned sum parameter slots for indirect/stack passing, including
+    Windows x64's 12-byte `Msg`, and complete serviceful borrowed-call scalar ABI.
+  - `state_graph/tests/case_payload_edges.rs` admits
+    `OpenResult::Opened { info } -> have(info)` but lacks the `CasePayload`
+    Terminal transfer in `state_graph/emission/state.rs`. Carry the exact
+    tested payload through verification of `Root::run`.
+  - Reconcile authored parameter positions with dense Terminal positions when
+    `calls/signatures.rs` omits an unread reference `self`.
+    `Random::next_u32(&mut self, state: &mut RandomState)` exposes mismatches in
+    store planning and `ordinary_machine/stores.rs`, `state_graph/body.rs`,
+    and `emission/structural_scalar_store.rs`. Preserve the authored-to-retained
+    relation; admitting the planner alone does not repair lowering.
+  - Complete store sources for float reads/arithmetic and policy casts,
+    recast reference locals, case and qualified byte-slice literals, nested
+    mutable-receiver calls, and local-rooted destinations. `primitive_store`
+    must retain the referent behind a `self`-rooted alias;
+    `computation_arguments::structural_computation_argument` must compose
+    mutable calls without treating them as shared. Coordinate FLOAT-PROVIDERS,
+    RECAST-SOURCE-POSITIONS and ARITHMETIC-POLICY-REALIZATION.
+  - Add ordinary construction for record members typed `UInt`, `&[u8] in Utf8`,
+    and primitive arrays such as `[u32; 4]`; top-level array locals are not
+    record-field support. Aggregate replacement must keep the custody checks below.
+
+  `arithmetic/bare_name_scopes` depends on
+  [`bare-case-value-names`](OWNER_QUESTIONS.md); do not silently widen
+  `exact_case_reference_owner` while implementing value transport.
 
   Remaining work:
 
@@ -3901,13 +3267,10 @@ syntax and other terminal services are not prerequisites.
   The local relation/result-flow checks are broader than their canonical
   publisher. In validation's `proof_contracts/quotients/relation_plan/`,
   argument adaptation and immutable result aliases have checked forms.
-  macw4 landed two publication slices: `278bc98a25` admits transport-backed
-  `lift` canonical rows retaining the exact argument-adaptation map
-  (selection, permutation, repetition, omission) in representative order, and
-  `9a76eb51f1` admits immutable result aliases plus finite-state forwarding
-  as exact result flow through package evidence, a new
-  `quotient-result-flow` codec tag family, and independent verifier
-  correspondence. `terminal_bridge.rs` still admits monomorphic,
+  Reuse transport-backed `lift` argument maps (selection, permutation,
+  repetition, omission), immutable result aliases, and finite-state forwarding
+  through the `quotient-result-flow` codec and independent correspondence.
+  `terminal_bridge.rs` still admits monomorphic,
   single-state, direct position-preserving rows elsewhere. Complete missing
   correspondence judgments and extend publication and independent
   reconstruction for result computation, preconditioned `define`, and
@@ -4346,56 +3709,18 @@ syntax and other terminal services are not prerequisites.
   their current boundaries. Complete that distinction without choosing an
   arbitrary payload or inventing new literal syntax.
 
-  The remaining selected named-operation customers (classification,
-  conversion, directed rounding and fused operations) were measured against
-  the existing general evaluator at `5f46e74ff6`. The binary-operator match
-  was indeed not the boundary:
+  Complete classification, conversion, directed-rounding and fused-operation
+  const customers. `constant/initializer_dependencies.rs::Collector::call`
+  admits Machine/State targets but rejects sealed float Operator declarations
+  before evaluation. Connect exact selected-call admission to the existing
+  `FloatSemantics` dispatch in the checked interpreter; do not add a float engine.
+  Reuse `machine_execution/admission.rs::closure_needs_operator_selection`.
+  Bodyless catalog contract discharge remains **FLOAT-PROVIDERS**' responsibility.
 
-  - The general evaluator already reaches named calls at float carriers. A
-    bodied `machine scale(value: f32) -> f32 { value * 2.0f32 }` invoked from
-    `const R: f32 = scale(1.5f32);` evaluates, and so do a boolean
-    classification shape and a body-level `a * b + c`.
-  - What stops a DIRECT const call to a named float operation is
-    `constant/initializer_dependencies.rs` `Collector::call`, which admits
-    only `SymbolKind::Machine` and a machine's `State`. The sealed float
-    boundaries are `SymbolKind::Operator`, so the dependency walk rejects
-    with "constant initializer call has no exact ordinary machine
-    declaration" before evaluation is ever attempted.
-  - No float engine is missing. `checked-interpreter`'s
-    `evaluator/expressions_and_value_calls.rs` already computes square root,
-    classify, minimum/maximum and fused multiply-add out of `FloatSemantics`,
-    and `machine_execution/admission.rs` routes const invocations into that
-    same interpreter. The gap is const-initializer call admission, not
-    arithmetic.
-  - `float_operations.omg` contains two `{` characters in the whole file:
-    every named float operation on BOTH sides -- the `F32`/`F64` boundary
-    operators and the `FloatSemantics` rows their `ensures` cite -- is
-    bodyless. So any route ends at the catalog binding, which is
-    **FLOAT-PROVIDERS**' kernel discharge, not this row's.
-  - The fixture that would demonstrate build-time named float operations is
-    RED and off the active pass roster. All four
-    `canary_suite/proof_and_float_suites/float_semantic_twins.rs` tests fail
-    at this commit, and `build_runtime_float_semantics_twins_agree` fails
-    before any float question with "authored Operator declaration selection
-    occurrence 178 remained unresolved after successful checking
-    (CheckedOperator)" at
-    `tests/omega/pass/float/build_runtime_semantics_twins/main.omg` line 91
-    column 28 -- the OUTER `==` of `(nan32 == nan32) == false`, an ordinary
-    `bool` comparison. Reduced probes of `bool == bool`, `(a == b) == false`
-    and the same shapes over `f32` all check cleanly without the library
-    import, so the unresolved occurrence depends on the imported
-    `float_operations` providers rather than on the comparison shape. Repair
-    that finalization gap before reading anything else from this fixture.
-
-  Scouting (macw4, no code): named float calls in const-initializer position
-  fail earlier than any evaluator boundary —
-  `initializer_dependencies.rs::Collector::call` requires a Machine or
-  machine-parented State target, so boundary Operators die at dependency
-  collection. `machine_execution/admission.rs::closure_needs_operator_selection`
-  already detects resolved boundary-operator uses; the checked-interpreter
-  named-operation dispatch (policy domain from operand domains, FloatMeaning,
-  FloatClass classify, full directed-op table) is the shape to mirror keyed on
-  recovered authored identity. Full notes: devin summary history_b22e0e43edd349cb.
+  `float_semantic_twins` and `build_runtime_float_semantics_twins_agree` first
+  need **AUTHORED-SELECTION-FINALIZATION-GAPS**' imported nested-equality repair.
+  Keep that earlier selection failure distinct from const-call admission and
+  then run the full fixture through evaluation and retained replay.
 
   Acceptance: those source-authored constant customers evaluate and replay
   with exact selected custody; determined runtime results publish stable bits,
@@ -4569,6 +3894,12 @@ but report the missing runtime leg explicitly; it does not close that host row.
   name-collision repairs have since landed: reproduce before assigning more
   repair, retaining exact selection and package-use authority checks.
 
+  Package command fixtures: reproduce `fixture module path ends in ::fixture`
+  in `named_workspace_install::cases`. Fix caller-specific child-test selection
+  in `packages/manager/tests/support/named_workspace.rs` and exercise all four
+  consumers, including `package_inspection`, `offline_package_commands`, and
+  `source_diff_commands`.
+
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
   round-trip valid evidence, reject hostile/substituted evidence before
   PCC-required interpretation or lowering, and keep ordinary non-PCC output
@@ -4596,6 +3927,21 @@ Unset canary/sample filters. Verify emitted programs' required exit/output
 observations and publish the host record at the agreed release commit.
 Cross-target emission does not substitute for execution. These are independently
 deliverable host runs, not four implementations of the gate.
+
+RC-SOURCE-SEMANTICS includes compiler integration targets outside `canary_suite`.
+Use bounded batches during repair when linking all targets exceeds host capacity;
+release acceptance still requires complete coverage. Remaining reported failures:
+
+- `no_selection_golden::native_artifacts::retained_native_bytes_and_metadata_match_every_target_golden`:
+  identify the semantic/proof-section drift before updating goldens; verify
+  retained bytes, metadata and repeatability on every hosted target.
+- `module_machine_indices::indexed_domains::qualified_record_projection_rejects_unproven_constructor_membership`:
+  distinguish disproved membership from failure to prove it.
+- `module_machine_indices::indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`:
+  restore a valid initializer so the negative reaches mutable-recast checking.
+- `module_machine_indices::rational::anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands`:
+  reconcile finite float comparison acceptance with the numeric contract while
+  preserving undefined-value and landed-operand rejection.
 
 - **RC-NATIVE-MATRIX-LINUX-X86-64.** Execute the complete native, source and
   sample gates above on Linux x86-64 and resolve remaining failures through
@@ -4636,39 +3982,13 @@ deliverable host runs, not four implementations of the gate.
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; Linux emission evidence cannot close this task.
 
-  One of the three gate commands is now measured on the matching host, which
-  this row had no reading of before. `cargo nextest run
-  -p omega-native-differential-test --all-targets --no-fail-fast` at
-  `0e64720850`: **1158 run, 1140 passed, 18 failed, 1 skipped**, 2498.6 s.
-  The 18 exact names and the one expected skip
-  (`source_custody_artifact product_semantics_observe_source_custody_fixture`,
-  `#[ignore = "run by the source-custody artifact gate with its exact
-  fixture"]`) are in
-  [known baseline failures](wiki/drafts/measurements/known_baseline_failures.md).
-  Read it as the lane's denominator, not as an attribution: no member is
-  bisected yet.
-
-  Why the row stays open, stated exactly rather than as a percentage: this is
-  one gate of three. RC-SOURCE-SEMANTICS (`-p compiler --all-targets`) and
-  RC-REPRESENTATIVE-PROGRAMS (`--test samples_compile`) are unmeasured here,
-  and no `macos_arm64` record exists under `tools/release/records/` because
-  the recorder writes a lane only with a passing `--native-execution`
-  observation. The observation this lane needs is the canary suite's `_runs`
-  family, and it is now measured too, at `61deef7389`: **925 run, 175 passed,
-  750 failed, 554 filtered**, 5176.3 s. It exits 100, so the recorder will
-  not mark the row `recorded`, but it settles where the lane's problem is
-  NOT.
-
-  **Mach-O emission and execution are sound on this host.** 713 of the 750
-  failures panic at "should compile" and **zero are execution mismatches** —
-  no `should exit N, got M`, no launch failure — so every canary that
-  compiled then ran and exited as expected. 533 of those compile failures are
-  the single `selected ProgramEntry establishment rejoins 0 Terminal
-  attachment identities` family that the `linux_x86_64` record also names at
-  ~549. That family is host-independent and gates this lane far more than
-  anything macOS-specific; closing it is the highest-value work for this row.
-  One divergence worth keeping: `const_fold_unsigned_shift_right_arg` passes
-  here and is one of four genuine exit mismatches in the Linux record.
+  Use [known baseline failures](wiki/drafts/measurements/known_baseline_failures.md)
+  for prior failing names and expected skips, then reproduce at the release
+  revision. Partial native/canary runs do not establish complete source/sample
+  coverage or general Mach-O correctness. Route missing Unit plans to
+  **STATE-LOCAL-VALUE-FRONTIER** while retaining independent host validation.
+  Compare `const_fold_unsigned_shift_right_arg` across macOS and Linux when
+  attributing the recorded cross-host exit difference.
 
 - **RC-NATIVE-MATRIX-WINDOWS-X64.** Run the complete native/source/sample
   gates on Windows x86-64, executing emitted PE products, including the
@@ -4691,14 +4011,10 @@ deliverable host runs, not four implementations of the gate.
   from the completion contract's four required release hosts and does not depend
   on an Alpha bootstrap seed.
 
-  Wave evidence (macw8): `701b3ba1e58` landed the first host record,
-  [macos_x64_host_profile](wiki/drafts/measurements/macos_x64_host_profile.md).
-  `TargetProfile::host()` resolves `macos_x86_64` and `--target` accepts it;
-  every `macos_x86_64` leg stops in checked compilation at two attributed
-  admission gaps — the authored `ConsoleNativeProvider::exit_process` row is
-  not selected, and `macos_x86_64::ProgramEntry` has no bound required root
-  slot. Emitted-Mach-O entry/exit, receiver and import legs remain justified
-  skips until the provider-settlement/boundary-binding owner delivers.
+  Reproduce the [host record](wiki/drafts/measurements/macos_x64_host_profile.md)'s
+  two admission gaps: unselected `ConsoleNativeProvider::exit_process` and an
+  unbound `macos_x86_64::ProgramEntry` root. Complete provider settlement and
+  root binding before claiming emitted entry/exit, receiver, or import execution.
 
 ## Omega-written compiler (after Rust completion)
 
