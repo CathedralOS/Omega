@@ -1,3 +1,12 @@
+//! What one lowered machine hands back to the entrance.
+//!
+//! `LoweredSelectedMachine` carries the unsealed module beside the choices the
+//! plan family already made about it: which source machines it closed over
+//! (`SourceMapping`), whether operand proofs are finalized here or only
+//! validated (`OperandProofCompletion`), whether a debug companion is published
+//! (`DebugPublication`), and which conformances still need publishing. The
+//! entrance reads those modes to decide what remains to run.
+
 use crate::lowering_error::{LoweringError, unsupported};
 use lowered_psi::LoweredPsi;
 
