@@ -1,7 +1,8 @@
 //! Copy one readable root's verified leaf into fresh activation storage.
 use super::{
-    Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedMemoryAccessRole, memory,
+    Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -9,6 +10,7 @@ use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
 use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
+use semantic_vocabulary::IntegerValue;
 
 /// The copy reads the root through its durable pointer — an entry-assigned
 /// borrow, a retained owned home, a block arrival, or an earlier producer —
@@ -26,6 +28,8 @@ pub(super) fn copy(
         source,
         byte_offset,
         shape,
+        index,
+        index_stride,
         ..
     } = &row.kind
     else {
@@ -59,6 +63,57 @@ pub(super) fn copy(
             alignment: shape.alignment,
         });
     let pointer = local_storage::address(builder, row, slot, 0, u32::from(shape.byte_size), true)?;
+    // A runtime index scales by the declared element stride and joins the
+    // root's pointer ahead of the first load. The index is proven inside the
+    // array extent, so `index * stride` lands inside the array span and the
+    // wrapping multiply is exact for every reachable operand — the same
+    // address model the indexed store emits.
+    let input = if let Some(index) = index {
+        let (_, index_register, _, index_type) =
+            builder.resolve(index.value).ok_or_else(invalid)?;
+        let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+        if index.scalar_type != ScalarType::Integer(unsigned_64) || index_type != index.scalar_type
+        {
+            return Err(invalid());
+        }
+        let stride = transport_register(builder, *source, *byte_offset)?;
+        builder.emit(
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(u128::from(*index_stride)),
+            },
+            builder.constraints.keys.materialize_i64,
+            &[stride],
+            SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                ..Default::default()
+            },
+        )?;
+        let scaled = transport_register(builder, *source, *byte_offset)?;
+        builder.emit(
+            SelectedInstructionKind::WrappingMultiplyI64,
+            builder.constraints.keys.multiply_i64,
+            &[index_register, stride, scaled],
+            SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![index.value],
+                ..Default::default()
+            },
+        )?;
+        let address = transport_register(builder, *source, *byte_offset)?;
+        builder.emit(
+            SelectedInstructionKind::ByteViewAddress,
+            builder.constraints.keys.add_i64,
+            &[input, scaled, address],
+            SelectedInstructionProvenance {
+                operations: vec![row.operation],
+                values: vec![index.value],
+                ..Default::default()
+            },
+        )?;
+        address
+    } else {
+        input
+    };
     let mut cursor = 0u32;
     while cursor < u32::from(shape.byte_size) {
         let width = chunk(u32::from(shape.byte_size) - cursor);

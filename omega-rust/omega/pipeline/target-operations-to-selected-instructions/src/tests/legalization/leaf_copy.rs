@@ -8,8 +8,8 @@ use abstract_operations_to_target_operations::TargetLoweringRequest;
 use legalized_operations::LegalizedScalarInstructionKind;
 use selected_instructions::{SelectedInstructionKind, SelectedMemoryAccessRole};
 use semantic_vocabulary::{
-    FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
-    StructuralFieldId, StructuralTypeId,
+    FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
+    StructuralFieldId, StructuralTypeId, ValueId,
 };
 use target::NativeTarget;
 use target_operations::TargetUnitOperation;
@@ -399,10 +399,12 @@ fn leaf_copy_lowers_with_exact_projection_offset() {
                         source,
                         path,
                         byte_offset,
+                        index,
                     } if *psi_operation == OperationId::new(1).unwrap()
                         && *source == PlaceId::new(1).unwrap()
                         && path == &[StructuralPathSegment::Field("inner".into())]
                         && *byte_offset == 8
+                        && index.is_none()
                         && result_home.operation_result().is_some_and(|(operation, result)|
                             operation == OperationId::new(1).unwrap()
                                 && result.place == PlaceId::new(2).unwrap()
@@ -710,4 +712,220 @@ fn leaf_copy_selects_fixed_array_copy() {
         })
         .collect();
     assert_eq!(stores, [0, 8, 16, 24]);
+}
+
+fn u64_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+}
+
+/// A leaf copy through one `RuntimeIndex` segment: the host's `leaf` field is
+/// a fixed array of records and `selector` 0 names a `u64` index parameter.
+fn runtime_index_source(
+    selector: u32,
+    maximum: u128,
+    index_scalar: ScalarType,
+) -> abstract_operations::AbstractOperationPlan {
+    let mut source = leaf_copy_source(
+        host(structural_field(array_type())),
+        vec![
+            StructuralPathSegment::Field("leaf".into()),
+            StructuralPathSegment::RuntimeIndex {
+                selector,
+                minimum: IntegerValue::Unsigned(0),
+                maximum: IntegerValue::Unsigned(maximum),
+            },
+        ],
+        StructuralTypeId::new(10).unwrap(),
+    );
+    source.functions[0]
+        .parameters
+        .push(abstract_operations::AbstractParameter {
+            value: ValueId::new(9).unwrap(),
+            scalar_type: index_scalar,
+        });
+    source
+}
+
+fn runtime_index_fixture() -> (
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
+) {
+    let source = runtime_index_source(0, 1, u64_type());
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        TargetLoweringRequest::new(NativeTarget::linux_x64()),
+    )
+    .expect("a bounded runtime index admits a leaf copy");
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+        .expect("runtime-index leaf copy graph keeps canonical custody");
+    (source, target, unit)
+}
+
+#[test]
+fn leaf_copy_runtime_index_copies_through_dynamic_address() {
+    let native = NativeTarget::linux_x64();
+    let (source, target, unit) = runtime_index_fixture();
+    // The retained target row carries the static field offset plus the
+    // scaled runtime index, binding the selector's parameter verbatim.
+    let copies: Vec<_> = target.functions[0]
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation, TargetUnitOperation::StructuralLeafCopy { .. }))
+        .collect();
+    assert_eq!(copies.len(), 1, "one retained leaf copy row");
+    let TargetUnitOperation::StructuralLeafCopy {
+        byte_offset, index, ..
+    } = copies[0]
+    else {
+        unreachable!()
+    };
+    assert_eq!(*byte_offset, 8, "the arr field offset stays static");
+    let index = index.as_ref().expect("runtime index traversal is retained");
+    assert_eq!(index.stride, 16, "the record element stride");
+    assert_eq!(
+        index.operand,
+        target_operations::TargetUnitScalarArgumentSource::Parameter {
+            parameter_index: 0,
+            source_value: ValueId::new(9).unwrap(),
+            scalar_type: u64_type(),
+        }
+    );
+    let legal = legalize_target_operations(&target, &source, &unit)
+        .expect("runtime-index leaf copy legalizes");
+    let rows: Vec<_> = legal.plan().scalar_functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| {
+            matches!(
+                row.kind,
+                LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
+            )
+        })
+        .collect();
+    assert_eq!(rows.len(), 1, "one legalized leaf copy instruction");
+    let LegalizedScalarInstructionKind::StructuralLeafCopy {
+        byte_offset,
+        shape,
+        index,
+        index_stride,
+        ..
+    } = &rows[0].kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(*byte_offset, 8);
+    assert_eq!(*shape, calling_conventions::ValueShape::integer(16, 8));
+    assert_eq!(
+        *index,
+        Some(abstract_operations::AbstractResult {
+            value: ValueId::new(9).unwrap(),
+            scalar_type: u64_type(),
+        })
+    );
+    assert_eq!(*index_stride, 16);
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let constraints = selection_constraints(&legal, &environment);
+    let selected = select_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .expect("runtime-index leaf copy reaches selection");
+    // The independent validation replay must agree with the emitted stream.
+    validate_selected_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+        selected.plan().clone(),
+    )
+    .unwrap();
+    let function = &selected.plan().functions[0];
+    let ops: Vec<_> = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| row.provenance.operations == [OperationId::new(1).unwrap()])
+        .collect();
+    assert!(
+        ops.iter().any(|row| matches!(
+            row.kind,
+            SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(16)
+            }
+        )),
+        "the element stride materializes"
+    );
+    assert!(
+        ops.iter()
+            .any(|row| matches!(row.kind, SelectedInstructionKind::WrappingMultiplyI64)),
+        "the runtime index scales by the stride"
+    );
+    assert!(
+        ops.iter()
+            .any(|row| matches!(row.kind, SelectedInstructionKind::ByteViewAddress)),
+        "the scaled index joins the source pointer"
+    );
+    let loads: Vec<u32> = ops
+        .iter()
+        .filter_map(|row| match row.kind {
+            SelectedInstructionKind::Load64 { byte_offset } => Some(byte_offset),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(loads, [8, 16], "static field offset + chunk stride");
+    let stores: Vec<u32> = ops
+        .iter()
+        .filter_map(|row| match row.kind {
+            SelectedInstructionKind::Store { byte_offset, .. } => Some(byte_offset),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stores, [0, 8]);
+}
+
+#[test]
+fn leaf_copy_runtime_index_rejects_over_extent_maximum() {
+    // The declared maximum must stay inside the array extent — exactly the
+    // terminal verifier's bound replay.
+    let source = runtime_index_source(0, 5, u64_type());
+    assert!(
+        abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::linux_x64()),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn leaf_copy_runtime_index_requires_a_u64_parameter() {
+    // A narrower index scalar cannot feed the i64 address math honestly.
+    let source = runtime_index_source(0, 1, i32_type());
+    assert!(
+        abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::linux_x64()),
+        )
+        .is_err()
+    );
+    // A selector that names no parameter slot cannot resolve an operand.
+    let source = runtime_index_source(3, 1, u64_type());
+    assert!(
+        abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::linux_x64()),
+        )
+        .is_err()
+    );
 }

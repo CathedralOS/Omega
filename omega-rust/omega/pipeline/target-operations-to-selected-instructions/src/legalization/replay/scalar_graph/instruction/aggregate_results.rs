@@ -53,6 +53,8 @@ pub(super) fn validate(
                 path,
                 byte_offset,
                 shape,
+                index,
+                index_stride,
             },
             AbstractOperation::StructuralLeafCopy {
                 source: expected,
@@ -60,17 +62,34 @@ pub(super) fn validate(
                 result: expected_result,
                 ..
             },
-        ) if source == expected
-            && path == expected_path
-            && result == expected_result
-            && (*byte_offset, *shape)
-                == scalar_graph_input::structural_case::leaf_copy_layout(
+        ) if source == expected && path == expected_path && result == expected_result && {
+            let (expected_offset, expected_shape, expected_index) =
+                scalar_graph_input::structural_case::leaf_copy_layout(
                     optimized,
                     *expected,
                     expected_path,
                     expected_result,
                     plan,
-                )? => {}
+                )?;
+            let expected_index = expected_index
+                .map(|(selector, stride)| {
+                    let parameter = usize::try_from(selector)
+                        .ok()
+                        .and_then(|position| optimized.parameters.get(position))
+                        .ok_or(LegalizationError::SourceCustodyMismatch)?;
+                    Ok::<_, LegalizationError>((
+                        Some(abstract_operations::AbstractResult {
+                            value: parameter.value,
+                            scalar_type: parameter.scalar_type,
+                        }),
+                        stride,
+                    ))
+                })
+                .transpose()?
+                .unwrap_or((None, 0));
+            (*byte_offset, *shape) == (expected_offset, expected_shape)
+                && (*index, *index_stride) == expected_index
+        } => {}
         (
             LegalizedScalarInstructionKind::EstablishScalarArray {
                 result,

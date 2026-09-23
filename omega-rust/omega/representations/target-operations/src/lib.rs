@@ -30,8 +30,8 @@ pub use target_operations::{
     TargetScalarExpression, TargetScalarImmediate, TargetStructuralArgument,
     TargetStructuralArgumentSource, TargetStructuralCaseSource, TargetStructuralHomeLayout,
     TargetStructuralHomeOrigin, TargetStructuralHomeRequirement, TargetStructuralParameter,
-    TargetStructuralReturnSource, TargetUnitOperation, TargetUnitScalarArgumentSource,
-    TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
+    TargetStructuralReturnSource, TargetStructuralRuntimeIndex, TargetUnitOperation,
+    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument, TargetUnitScalarHomeRequirement,
     TargetUnitWriteOnlyPrimitiveStoreSource, TargetX86ScalarFmaSettlement, TerminalPsiProvenance,
     boundary, calls, control_flow, operations, provenance, storage, values,
 };

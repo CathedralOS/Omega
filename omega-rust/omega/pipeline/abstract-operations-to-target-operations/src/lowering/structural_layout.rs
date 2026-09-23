@@ -616,6 +616,88 @@ pub(super) fn resolve_structural_projection_path(
         .ok_or(LoweringError::UnknownStructuralType(root_type))
 }
 
+/// Resolve a leaf-copy projection that may traverse one `RuntimeIndex`
+/// segment. Static segments before and after the dynamic segment fold into
+/// the returned `byte_offset`; the dynamic segment contributes
+/// `(selector, stride)` so the copy can scale the runtime operand into the
+/// same address. The caller's published bound rows are replayed against the
+/// array's declared extent exactly like the terminal verifier does. A second
+/// `RuntimeIndex` remains an honest unsupported residual.
+#[allow(clippy::type_complexity)]
+pub(super) fn leaf_copy_projection(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
+    active: &mut BTreeSet<StructuralTypeId>,
+) -> Result<(StructuralTypeId, ValueShape, u32, Option<(u32, u32)>), LoweringError> {
+    let Some(position) = path
+        .iter()
+        .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+    else {
+        let (endpoint, shape, byte_offset) =
+            resolve_structural_projection_path(structural_type, path, declarations, cache, active)?;
+        return Ok((endpoint, shape, byte_offset, None));
+    };
+    if path[position + 1..]
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+    {
+        return Err(LoweringError::UnsupportedStructuralReference(
+            structural_type,
+        ));
+    }
+    let (container, prefix_offset) = if position == 0 {
+        (structural_type, 0)
+    } else {
+        let (container, _shape, prefix_offset) = resolve_structural_projection_path(
+            structural_type,
+            &path[..position],
+            declarations,
+            cache,
+            active,
+        )?;
+        (container, prefix_offset)
+    };
+    let StructuralPathSegment::RuntimeIndex {
+        selector, maximum, ..
+    } = &path[position]
+    else {
+        unreachable!("position selects a runtime index segment")
+    };
+    let declaration = declarations
+        .get(&container)
+        .copied()
+        .ok_or(LoweringError::UnknownStructuralType(container))?;
+    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        return Err(LoweringError::UnsupportedStructuralReference(container));
+    };
+    if !terminal_semantics::runtime_index_maximum_within_extent(*maximum, length) {
+        return Err(LoweringError::UnsupportedStructuralReference(container));
+    }
+    let element_shape = structural_shape(element, declarations, cache, active)?;
+    let stride = checked_align_up_u32(
+        u32::from(element_shape.byte_size),
+        u32::from(element_shape.alignment),
+    )
+    .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+    let (endpoint, shape, suffix_offset) = if position + 1 == path.len() {
+        (element, element_shape, 0)
+    } else {
+        resolve_structural_projection_path(
+            element,
+            &path[position + 1..],
+            declarations,
+            cache,
+            active,
+        )?
+    };
+    let byte_offset = prefix_offset
+        .checked_add(suffix_offset)
+        .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+    Ok((endpoint, shape, byte_offset, Some((*selector, stride))))
+}
+
 pub(super) fn byte_sequence_shape(
     carrier: terminal_psi::ByteSequenceCarrier,
     structural_type: StructuralTypeId,
