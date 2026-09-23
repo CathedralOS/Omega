@@ -103,6 +103,7 @@ pub(super) fn folded_literal<'a>(
                 | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
                 | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
+                | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                 | LegalizedScalarInstructionKind::EstablishElementView { .. }

@@ -111,6 +111,44 @@ pub(super) fn validate(
             }
         }
         (
+            TargetUnitOperation::StructuralLeafCopy {
+                psi_operation,
+                result_home,
+                source,
+                path,
+                byte_offset,
+            },
+            AbstractOperation::StructuralLeafCopy {
+                psi_operation: expected_operation,
+                result,
+                source: expected_source,
+                path: expected_path,
+            },
+        ) => {
+            let (expected_offset, expected_shape) =
+                scalar_graph_input::structural_case::leaf_copy_layout(
+                    optimized,
+                    *expected_source,
+                    expected_path,
+                    result,
+                    plan,
+                )?;
+            if psi_operation != expected_operation
+                || source != expected_source
+                || path != expected_path
+                || *byte_offset != expected_offset
+                || *result_home
+                    != scalar_graph_input::aggregate_results::result_home(
+                        optimized,
+                        result.place,
+                        plan,
+                    )?
+                || result_home.layout.shape() != expected_shape
+            {
+                return Err(invalid);
+            }
+        }
+        (
             TargetUnitOperation::EstablishScalarCase {
                 psi_operation,
                 result_home,

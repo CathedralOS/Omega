@@ -24,6 +24,7 @@ pub(super) use block_views::block_entry;
 pub(super) use entry::entry;
 mod byte_field_store;
 mod byte_views;
+mod leaf_copy;
 mod literals;
 mod local_storage;
 pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
@@ -230,6 +231,13 @@ pub(super) fn operation(
         LegalizedScalarInstructionKind::EstablishScalarCase { .. }
     ) {
         scalar_case::establish(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
+    ) {
+        leaf_copy::copy(source, row, builder)?;
         return Ok(true);
     }
     if matches!(

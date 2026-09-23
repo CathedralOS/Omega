@@ -167,6 +167,7 @@ pub(in crate::selection) fn entry(
             | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
+            | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
             | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,

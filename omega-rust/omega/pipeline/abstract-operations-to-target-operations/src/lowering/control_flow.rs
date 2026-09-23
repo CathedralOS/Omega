@@ -22,6 +22,7 @@ mod borrowed_calls;
 mod byte_write;
 mod dominance;
 mod installed_calls;
+mod leaf_copy;
 mod observations;
 mod operations;
 mod owned_arguments;

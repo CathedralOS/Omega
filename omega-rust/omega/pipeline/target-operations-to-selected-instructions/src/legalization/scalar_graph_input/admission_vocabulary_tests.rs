@@ -197,6 +197,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { .. }
         | AbstractOperation::StructuralCaseMembership { .. }
+        | AbstractOperation::StructuralLeafCopy { .. }
         | AbstractOperation::StructuralScalarFieldStore { .. }
         | AbstractOperation::WrappingIntegerAdd { .. }
         | AbstractOperation::WrappingIntegerDivide { .. }

@@ -77,6 +77,13 @@ pub(super) fn operation(
                 TargetUnitOperation::EstablishRecord { psi_operation: retained, result_home, fields: retained_fields }
                 if psi_operation == retained && result_home.operation_result() == Some((*psi_operation, result)) && fields == retained_fields)).count() == 1
         }
+        AbstractOperation::StructuralLeafCopy { psi_operation, result, source, path } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: retained_path, .. }
+                    if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
+                        && retained_source == source && retained_path == path
+            )).count() == 1
+        }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }

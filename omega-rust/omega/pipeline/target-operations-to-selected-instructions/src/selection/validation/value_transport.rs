@@ -170,6 +170,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::StructuralScalarFieldRead { .. }
         | Instruction::StructuralByteSequenceFieldLength { .. }
         | Instruction::StructuralCaseMembership { .. }
+        | Instruction::StructuralLeafCopy { .. }
         | Instruction::EstablishByteSequenceLiteral { .. }
         | Instruction::ByteSequenceLength { .. }
         | Instruction::EstablishElementView { .. }

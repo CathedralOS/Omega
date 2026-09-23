@@ -193,6 +193,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&case_tag.to_le_bytes());
                     bytes.extend_from_slice(&tag_byte_offset.to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::StructuralLeafCopy {
+                    result,
+                    source,
+                    path,
+                    byte_offset,
+                    shape,
+                } => {
+                    bytes.push(86);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    super::structural_types::encode_structural_path(bytes, path);
+                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                    super::calling::encode_shape(bytes, *shape);
+                }
                 LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path } => {
                     bytes.push(18);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
