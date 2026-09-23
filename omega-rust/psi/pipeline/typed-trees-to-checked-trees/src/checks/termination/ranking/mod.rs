@@ -280,13 +280,15 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
             return None;
         }
         let member_root = program.machine_states(member_machine).first()?;
-        let witness = member_machine.termination_plan.implementation_witness.as_ref()?;
+        let witness = member_machine
+            .termination_plan
+            .implementation_witness
+            .as_ref()?;
         let subjects = resolve_machine_witness_subjects(program, member_machine)?;
         let [decreases] = subjects.as_slice() else {
             return None;
         };
-        let ExpressionNode::Name(decreases_path) =
-            program.expression_table.expression(*decreases)
+        let ExpressionNode::Name(decreases_path) = program.expression_table.expression(*decreases)
         else {
             return None;
         };
@@ -295,13 +297,9 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
             .split("::")
             .filter(|member| !member.is_empty())
             .collect::<Vec<_>>();
-        let OrderResolution::Resolved(RankingOrder::NatDescending) = RankingOrder::resolve(
-            program,
-            member_root,
-            &[*decreases],
-            &ranking_view,
-            &[],
-        ) else {
+        let OrderResolution::Resolved(RankingOrder::NatDescending) =
+            RankingOrder::resolve(program, member_root, &[*decreases], &ranking_view, &[])
+        else {
             return None;
         };
         let decrease_name = program
@@ -380,8 +378,7 @@ pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
                         source_state: source.symbol,
                         target_state: target.symbol,
                         statement_ordinal: u32::try_from(edge.statement_ordinal).ok()?,
-                        source_rank_parameter_position: u32::try_from(source_rank_position)
-                            .ok()?,
+                        source_rank_parameter_position: u32::try_from(source_rank_position).ok()?,
                         target_rank_parameter_position: u32::try_from(
                             target_rank_parameter_position,
                         )

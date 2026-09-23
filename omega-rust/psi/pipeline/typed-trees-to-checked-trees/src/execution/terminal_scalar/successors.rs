@@ -132,8 +132,15 @@ pub(super) fn validate(
 ) -> Option<()> {
     for source in &graph.states {
         for successor in iter(&source.terminator) {
-            let expected =
-                arguments(program, expressions, proof_terms, graphs, graph, source, successor)?;
+            let expected = arguments(
+                program,
+                expressions,
+                proof_terms,
+                graphs,
+                graph,
+                source,
+                successor,
+            )?;
             if structural.span(successor.structural_transfers)? != expected.structural
                 || scalar.span(successor.scalar_arguments)? != expected.scalar
                 || scalar.span(successor.erased_arguments)? != expected.erased
@@ -236,8 +243,7 @@ fn arguments<'a>(
                               state: &CheckedScalarStateGraph| {
             ambient_roster(owner_machine, owner_states, state).is_some_and(
                 |(structural, scalar)| {
-                    state.structural_parameters == structural
-                        && state.scalar_parameters == scalar
+                    state.structural_parameters == structural && state.scalar_parameters == scalar
                 },
             )
         };

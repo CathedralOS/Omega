@@ -43,14 +43,13 @@ pub(crate) fn plain_scalar_sum_call(
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
-        && crash_continuations.is_empty()
+        && *crash_continuations == contract.crash_routes
         && selected_evidence.is_empty()
         && callee.entry_claim_declarations.is_empty()
         && callee.content_entry_claims.is_empty()
         && callee.evidence_contract_lanes.is_empty()
         && contract.requires.is_empty()
         && contract.ensures.is_empty()
-        && contract.crash_routes.is_empty()
         && contract.outcome_specific_ensures.is_empty()
         && callee.structural_parameters.iter().all(|parameter| {
             matches!(
@@ -240,13 +239,12 @@ pub(crate) fn exact_payloadless_structural_call(
         && callee.content_entry_claims.is_empty()
         && contract.requires.is_empty()
         && contract.ensures.is_empty()
-        && contract.crash_routes.is_empty()
         && callee.evidence_contract_lanes.is_empty()
         && structural_arguments.is_empty()
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
-        && crash_continuations.is_empty()
+        && *crash_continuations == contract.crash_routes
         && result.structural_type == callee_result.structural_type
         && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
         && result.multiplicity == callee_result.multiplicity

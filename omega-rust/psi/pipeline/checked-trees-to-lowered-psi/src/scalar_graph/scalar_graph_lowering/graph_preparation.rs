@@ -124,9 +124,8 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     for retained in states {
         // A fused graph retains a sibling machine's states beside its own;
         // the exact authored state resolves through its owning machine.
-        let (_, source) = source_custody::authored_state(checked, retained.state).map_err(
-            |_| LoweringError::Unsupported("scalar graph has no exact source state"),
-        )?;
+        let (_, source) = source_custody::authored_state(checked, retained.state)
+            .map_err(|_| LoweringError::Unsupported("scalar graph has no exact source state"))?;
         // Qualified signatures carry these exact membership requirements.
         // Reconstruct the source obligation; a producer's missing contract row
         // cannot authorize erasing a predicate, route, or unrelated state clause.
