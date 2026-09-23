@@ -1,17 +1,23 @@
 data Main { items: [i32; 4]; }
 
-machine choose(value: u64 [2..=4]) -> u64 [0..=4]
-    ensures result >= 2;
+machine choose(value: u64) -> u64
+    requires 2 <= value, value <= 4;
+    ensures result >= 2, result <= 4;
 {
-    value
+    transition value <= 4 {
+        true -> value
+        false -> 4
+    }
 }
 
 machine take(slot: &mut i32) {
     slot = 7;
 }
 
-machine Main::main(&mut self, seed: u64 [2..=4]) -> u64 {
-    let split_point: u64 [0..=4] = choose(seed);
+machine Main::main(&mut self, seed: u64) -> u64
+    requires 2 <= seed, seed <= 4;
+{
+    let split_point: u64 = choose(seed);
     let held: &mut [i32] = self.items[split_point..4];
     self.items[0] = 3;
     take(&mut self.items[1]);

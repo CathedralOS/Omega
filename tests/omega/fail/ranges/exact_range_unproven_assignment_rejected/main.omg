@@ -1,11 +1,15 @@
-// FAIL CANARY (R3 store-proof completion). An Exact ranged field is trusted
-// at every later read, so assigning an unbounded source cannot silently seed
-// that invariant. The store must prove both declared endpoints.
+// FAIL CANARY (R3 store-proof completion), migrated off the revoked
+// `u32 [0..=11]` field suffix. A bounded contract is trusted at every later
+// use, so admitting an unbounded source cannot silently seed that invariant:
+// `store(self.source)` cannot prove `v <= 11` and must reject.
 data Main {
     source: u32;
-    index: u32 [0..=11];
+    index: u32;
 }
 
 machine Main::main(&mut self) {
-    self.index = self.source;
+    transition { _ -> store(self.source) }
+    state store(&mut self, v: u32) requires v <= 11 {
+        self.index = v;
+    }
 }

@@ -1,8 +1,11 @@
-// FAIL CANARY (R3 store-proof completion). Local declarations establish the
-// same Exact range invariant as fields; an unbounded initializer cannot become
-// a proof merely because the destination carries a narrow type.
+// FAIL CANARY (R3 store-proof completion), migrated off the revoked
+// `u32 [0..=11]` local suffix. A bounded contract is a store-enforced
+// admission: an unbounded source cannot become a proof merely because the
+// destination declares a bound. `use_idx(source)` must reject.
 machine consume(source: u32) {
-    let index: u32 [0..=11] = source;
+    transition { _ -> use_idx(source) }
+    state use_idx(v: u32) requires v <= 11 {
+    }
 }
 
 data Main {

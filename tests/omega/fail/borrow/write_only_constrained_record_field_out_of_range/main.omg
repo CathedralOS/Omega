@@ -1,13 +1,19 @@
-// FAIL canary: admitting a closed literal-ranged record field as a write-only
-// place does not relax the store's bounded-assignment obligation. A literal
-// outside the declared range is rejected like any other unproven store.
+// FAIL canary: admitting a contract-bounded value into a write-only record
+// place does not relax the admission obligation. A literal outside the
+// declared contract is rejected like any other unproven store. (Was: the
+// `u8 [0..=10]` field suffix carried the bounded-assignment obligation; the
+// bound now lives on `fill`'s requires contract.)
 
 data Limited {
-    value: u8 [0..=10];
+    value: u8;
 }
 
-machine fill(limited: &write Limited) {
-    limited.value = 20;
+machine fill(limited: &write Limited, depth: u8) requires depth <= 10 {
+    limited.value = depth;
+}
+
+machine drive(limited: &write Limited) {
+    fill(&write limited, 20);
 }
 
 data Main {

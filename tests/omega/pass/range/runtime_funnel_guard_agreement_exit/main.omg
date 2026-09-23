@@ -1,35 +1,37 @@
 // MULTI-predecessor edge agreement (the last keystone catalog item): TWO
 // states funnel into `push` under STRUCTURALLY IDENTICAL guards `sp >= 0 &&
-// sp < 16`, and the guarded copy `self.y = self.sp` proves into `y: [0..=15]`.
-// Two fixes compose: the proof side's guard-equivalence walker gained literal
-// LEAF arms (identical guards from different statements used to compare
-// `false` at `(Integer(0), Integer(0))`), and validation joins ALL incoming
-// edge envs per-place (interval union). sp=7 -> exit 7.
+// sp < 16`, and each edge admits `push(self.sp)` against
+// `requires 0 <= v && v < 16`. Two fixes compose: the proof side's
+// guard-equivalence walker gained literal LEAF arms (identical guards from
+// different statements used to compare `false` at `(Integer(0),
+// Integer(0))`), and validation joins ALL incoming edge envs per-place
+// (interval union). The revoked `y: i32 [0..=15]` field suffix moved to
+// `push`'s requires, the checked admission boundary. sp=7 -> exit 7.
 use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
     sp: i32;
-    y: i32 [0..=15];
+    y: i32;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.sp = 7;
     transition self.sp >= 0 && self.sp < 16 {
-        true -> push()
+        true -> push(self.sp)
         false -> bad()
     }
 
     state other(&mut self) {
         transition self.sp >= 0 && self.sp < 16 {
-            true -> push()
+            true -> push(self.sp)
             false -> bad()
         }
     }
 
-    state push(&mut self) {
-        self.y = self.sp;
+    state push(&mut self, v: i32) requires v >= 0 && v < 16 {
+        self.y = v;
         transition self.y == 7 {
             true -> matched()
             false -> unmatched()
