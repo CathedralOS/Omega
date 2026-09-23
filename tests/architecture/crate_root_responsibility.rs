@@ -564,7 +564,12 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ),
     (
         "omega/backend/artifacts/native-artifact",
-        &["callable_entry", "native_artifact", "physical"],
+        &[
+            "callable_entry",
+            "native_artifact",
+            "physical",
+            "semantic_wrapper_object",
+        ],
     ),
     (
         "omega/backend/images/image",

@@ -1581,6 +1581,128 @@ fn applied_frame_data_and_target_mechanics_have_separate_owners() {
 }
 
 #[test]
+fn semantic_wrapper_object_records_and_codec_belong_to_the_native_artifact() {
+    let root = repository();
+    let owner = root.join("omega-rust/omega/backend/artifacts/native-artifact");
+    let entrance = std::fs::read_to_string(owner.join("src/semantic_wrapper_object.rs")).unwrap();
+    let children = rust_source(&owner.join("src/semantic_wrapper_object"));
+    let stage_root = root
+        .join("omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object");
+    let stage = rust_source(&stage_root);
+    // The named root declares every durable record once, at its entrance.
+    for declaration in [
+        "pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {",
+        "pub struct OptimizedProgramStorageSemanticWrapperObjectSymbol {",
+        "pub enum OptimizedProgramStorageSemanticWrapperCallResolutionState {",
+        "pub struct OptimizedProgramStorageSemanticWrapperCallResolution {",
+        "pub struct OptimizedProgramStorageSemanticWrapperObjectPlan {",
+        "pub struct OptimizedProgramStorageSemanticWrapperObjectContainer {",
+        "pub enum OptimizedProgramStorageSemanticWrapperObjectStage {",
+        "pub enum OptimizedProgramStorageSemanticWrapperObjectUnavailableData {",
+        "pub struct OptimizedProgramStorageSemanticWrapperObjectManifest {",
+        "pub struct ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {",
+        "pub struct OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {",
+        "pub enum OptimizedProgramStorageSemanticWrapperObjectRecordError {",
+        "pub enum OptimizedProgramStorageSemanticWrapperObjectDecodeError {",
+    ] {
+        assert_eq!(entrance.matches(declaration).count(), 1, "{declaration}");
+        assert!(
+            !children.contains(declaration),
+            "record declared below its entrance: {declaration}"
+        );
+        assert!(
+            !stage.contains(declaration),
+            "coordinator owns {declaration}"
+        );
+    }
+    // Codec, composition, shape validation, and manifest derivation are
+    // concept-owned children of the root, not coordinator code.
+    for (child, definition) in [
+        (
+            "codec.rs",
+            "pub fn encode_optimized_program_storage_semantic_wrapper_object(",
+        ),
+        (
+            "codec.rs",
+            "pub fn decode_optimized_program_storage_semantic_wrapper_object(",
+        ),
+        ("codec.rs", "fn encode_plan_content("),
+        ("codec.rs", "fn decode_manifest("),
+        (
+            "composition.rs",
+            "pub fn compose_optimized_program_storage_semantic_wrapper_object(",
+        ),
+        ("validation.rs", "fn validate_object_shape_content("),
+        ("manifest.rs", "fn construct_manifest("),
+        ("manifest.rs", "fn validate_manifest("),
+    ] {
+        let source =
+            std::fs::read_to_string(owner.join("src/semantic_wrapper_object").join(child)).unwrap();
+        assert!(source.contains(definition), "{child} lacks {definition}");
+        assert!(!stage.contains(definition), "coordinator owns {definition}");
+    }
+    for wire_identity in [
+        "omega.optimized-program-storage-semantic-wrapper-object.v1",
+        "omega.optimized-program-storage-semantic-wrapper-object-manifest.v1",
+        "__omega_program_entry_plan_semantic_wrapper_v1",
+    ] {
+        assert!(entrance.contains(wire_identity), "{wire_identity}");
+        assert!(
+            !stage.contains(wire_identity),
+            "coordinator owns {wire_identity}"
+        );
+    }
+    for retired in ["model.rs", "codec.rs", "custody.rs", "object"] {
+        assert!(
+            !stage_root.join(retired).exists(),
+            "coordinator retains record owner {retired}"
+        );
+    }
+    // The records outlive the stage: they name no stage custody and the
+    // representation owner does not depend on the coordinator.
+    for forbidden in [
+        "native_realization",
+        "StagedValidatedOptimizedProgramStorageSemanticWrapperObject",
+        "StagedOptimizedProgramStorageSemanticWrapperEncoding",
+        "ValidatedNativeProgramEntrySettlement",
+    ] {
+        assert!(
+            !entrance.contains(forbidden) && !children.contains(forbidden),
+            "representation imports stage custody {forbidden}"
+        );
+    }
+    let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
+    assert!(!manifest.contains("native-realization"));
+    // The stage keeps its custody join and reads the records directly from
+    // their owner rather than republishing them.
+    for definition in [
+        "pub struct StagedValidatedOptimizedProgramStorageSemanticWrapperObject {",
+        "pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(",
+        "pub fn validate_optimized_program_storage_semantic_wrapper_object(",
+        "pub(crate) fn construct_object(",
+        "impl From<OptimizedProgramStorageSemanticWrapperObjectRecordError>",
+    ] {
+        assert!(stage.contains(definition), "stage lost {definition}");
+    }
+    assert!(stage.contains("use native_artifact::{"));
+    let coordinator_root = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/native-realization/src/lib.rs"),
+    )
+    .unwrap();
+    for record in [
+        "OptimizedProgramStorageSemanticWrapperObjectPlan",
+        "OptimizedProgramStorageSemanticWrapperObjectManifest",
+        "OptimizedProgramStorageSemanticWrapperObjectDecodeError",
+        "decode_optimized_program_storage_semantic_wrapper_object",
+    ] {
+        assert!(
+            !coordinator_root.contains(record),
+            "coordinator republishes {record}"
+        );
+    }
+}
+
+#[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
     let owner = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout");
