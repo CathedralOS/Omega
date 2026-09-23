@@ -1,8 +1,9 @@
 //! Scalar arrivals select the byte observed by a real Unit output call.
-#[cfg(any(
-    all(target_os = "linux", target_arch = "x86_64"),
-    all(target_os = "linux", target_arch = "aarch64"),
-    all(target_os = "macos", target_arch = "aarch64"),
+// Mounted exactly where a use site runs it: every `assert_c_text` leg below
+// is gated to Linux, and the non-Linux branch prints its own SKIP.
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
 ))]
 use super::super::native_function;
 use super::super::{

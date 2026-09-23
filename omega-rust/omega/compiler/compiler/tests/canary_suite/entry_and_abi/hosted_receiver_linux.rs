@@ -6,9 +6,13 @@
 //! continuation, and completes through exit_group.
 
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, PathBuf, Stdio, compile, fs,
-    repo_root, unique_no_output_build_dir,
+    CanaryCompileProduct, CanaryCompileSpec, CompileReport, PathBuf, compile, fs, repo_root,
+    unique_no_output_build_dir,
 };
+// Launching the emitted ELF is the Linux x86-64 leg alone; every arrival check
+// in this file is gated to it and skips elsewhere.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use crate::{Command, Stdio};
 
 struct HostedProject(PathBuf);
 
