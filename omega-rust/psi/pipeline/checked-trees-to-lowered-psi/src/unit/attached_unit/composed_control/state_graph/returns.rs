@@ -28,6 +28,22 @@ pub(super) fn signature_matches(
             checked_trees::types::TypeReferenceNode::Unit
         ),
         CheckedControlResultPlan::Structural(result) => {
+            // A borrowed `&[T]` view result names the peeled slice carrier in
+            // its identity — the contents live in the caller's frame, so the
+            // owned-contents custody clause does not apply.
+            if let Some(slice) = borrowed_view_slice(checked, source.return_type) {
+                return checked.normalized_type_identity(slice).as_str() == result.type_identity
+                    && checked.type_multiplicity(source.return_type) == result.multiplicity
+                    && view_result_qualifications(checked, source.return_type).as_ref()
+                        == Some(&result.qualifications)
+                    && validation::structural_result_projected_qualifications(
+                        &checked.typed,
+                        source.return_type,
+                    )
+                    .ok()
+                    .as_ref()
+                        == Some(&result.projected_qualifications);
+            }
             let Ok(carrier) = crate::unit::attached_unit::parameters::structural_carrier_type(
                 checked,
                 source.return_type,
@@ -55,6 +71,72 @@ pub(super) fn signature_matches(
                 ))
         }
     }
+}
+
+/// The slice a shared-borrow `&[T]` result refers to, peeling constraint and
+/// reference shells. Mutable and write-only borrows stay with their own
+/// custody families.
+fn borrowed_view_slice(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<checked_trees::types::TypeReferenceHandle> {
+    let referee = loop {
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type
+            }
+            checked_trees::types::TypeReferenceNode::Reference {
+                referee,
+                access: language_core::ReferenceAccess::Shared,
+                ..
+            } => break *referee,
+            _ => return None,
+        }
+    };
+    matches!(
+        checked.type_reference_table.type_reference(referee),
+        checked_trees::types::TypeReferenceNode::Slice { .. }
+    )
+    .then_some(referee)
+}
+
+/// Domain qualifications collected above a view result's reference shell,
+/// mirroring `parameter_qualifications` in the checked side: constraints
+/// inside the borrow belong to the carrier's own shape and stop the slice
+/// resolution before this point is ever reached.
+fn view_result_qualifications(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> Option<Vec<language_semantics::SemanticDomainId>> {
+    let mut qualifications = Vec::new();
+    loop {
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Constrained {
+                base_type,
+                constraints,
+            } => {
+                let retained = checked.type_reference_table.constraints(*constraints);
+                if retained.len() != constraints.len() {
+                    return None;
+                }
+                for constraint in retained {
+                    let checked_trees::types::TypeConstraintNode::Domain(domain) = constraint
+                    else {
+                        return None;
+                    };
+                    if !domain.semantic_id.is_valid() {
+                        return None;
+                    }
+                    qualifications.push(domain.semantic_id);
+                }
+                reference = *base_type;
+            }
+            _ => break,
+        }
+    }
+    qualifications.sort_by_key(|domain| domain.0);
+    qualifications.dedup();
+    Some(qualifications)
 }
 
 pub(super) fn validate(
