@@ -89,6 +89,10 @@ The operating loop mirrors the cloud small-pool mode:
   conflicts (import-naming / module-move churn) by keeping BOTH intents —
   union signatures and import lists, never drop a side. Substantive
   conflicts escalate per the README conflict rules.
+- **Commit hygiene.** Agents run `python tools/fmt.py` BEFORE committing so
+  reformatting folds into the change commit — never a standalone
+  `fmt:`/whitespace-only commit on the slot's branch or on main. If a later
+  gate re-formats the diff, fold it into the next functional commit.
 - **Coordinator slot.** The coordinator works its own reserved item serially
   in its checkout or a dedicated worktree — claim, edits, scoped gates,
   land through `tools/landing.py` like every other slot. Between drains,
