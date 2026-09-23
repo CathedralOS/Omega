@@ -126,6 +126,11 @@ pub enum ModuleError {
         operand: ValueId,
         actual: ScalarType,
     },
+    ElementViewReadOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        actual: ScalarType,
+    },
     ElementViewNotEstablished {
         operation: OperationId,
         place: PlaceId,

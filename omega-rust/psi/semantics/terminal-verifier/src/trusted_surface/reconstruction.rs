@@ -385,6 +385,26 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     soundness: TRUSTED,
 };
 
+static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:element-extent-length",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "an element-view length observation whose exact validated producer is an establishment over a fixed array or a subslice with u64 endpoints",
+    conclusion: "the length equation: the array's static element count, or `end - start` with the subslice's two bounds left as its own obligations",
+    dependencies: &[
+        "fact:structural-effect-observation",
+        "formation:operation-validation",
+    ],
+    implementation: &[
+        "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/element_extent.rs",
+        OPERATION_FACTS,
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_length.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_subslice.rs",
+        "omega-rust/psi/semantics/terminal-semantics/src/structural_effect/element_extent.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_STRUCTURAL_EFFECT_OBSERVATION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:structural-effect-observation",
     family: LedgerFamily::ReconstructedFactKind,
@@ -644,6 +664,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_RECORD_ESTABLISHMENT,
     FACT_SCALAR_CASE_ESTABLISHMENT,
     FACT_BYTE_EXTENT_LENGTH,
+    FACT_ELEMENT_EXTENT_LENGTH,
     FACT_STRUCTURAL_EFFECT_OBSERVATION,
     FACT_INTEGER_FIELD_READ_RANGE,
     FACT_FIELD_STORE_LEAF_EQUATION,
