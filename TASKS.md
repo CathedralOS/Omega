@@ -315,6 +315,10 @@ the complete product bar; focused successes below do not establish that baseline
   `ForeignBinding` is the compile-time foreign LOCATOR in
   `core/external_binding.omg` and is not `boundary data`, so that row could
   never match.
+
+  // Note from owner: What the actual fuck is wrong with you? Rename it to binding. Fucking fix it. Stop reverting things to half implemented. Fucking retard.
+  // Fucking please rename this to fucking binding.omg and then go fix all the god damn fucked up namespace imports.
+  // Maybe in general consider doing work instead of crying like a bitch over the work that remains. Stop leaving things in a half state, for fucks sake.
   NAMING IS LEFT AS IS deliberately: the surviving file is `service.omg` while
   the carrier it declares is `Binding<R>`. Renaming the file is a 1807-importer
   migration plus both source-identity tables, which is a deliberate change to
