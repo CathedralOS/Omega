@@ -137,9 +137,14 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         "checked scalar control plan must contain an entry state",
     ))?;
     let (_, result_type) = qualifications.scalar_state_types(checked, entry_state.state)?;
+    // An ambient borrowed receiver is a machine-scope operand, not a
+    // forwarded argument, so it stays exempt from the state-forwarding bound.
+    let forwarded_parameters = structural_parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .count();
     if entry_state.structural_parameters.len() != structural_parameters.len()
-        || ((!structural_parameters.is_empty() || !primitive_locals.is_empty())
-            && states.len() != 1)
+        || ((forwarded_parameters != 0 || !primitive_locals.is_empty()) && states.len() != 1)
         || states
             .iter()
             .map(|state| state.primitive_locals.len())
