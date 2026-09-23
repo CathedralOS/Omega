@@ -2654,12 +2654,18 @@ syntax and other terminal services are not prerequisites.
       require scalar subjects and scalar pattern values; structural, domain,
       and case patterns are not supported yet" -- a general pattern limit that
       a selected token body cannot reach past, not an operator-supply gap.
-    - A crowned `==` does not supply `==` at all, while a crowned `<` supplies
-      `<`. With `machine == Card::same(..)` declared, `a == b` still refuses
-      with "structural equality is not synthesized for non-conforming types",
-      routing equality through `Equatable` synthesis instead of the selected
-      declaration; the same program's `machine < Card::before(..)` makes
-      `a < b` check. That asymmetry is the concrete supply gap here.
+    - A crowned `==` does not supply `==`, while a crowned `<` supplies `<`.
+      That asymmetry is SPECIFIED, not a gap:
+      [conformances.md](wiki/spec/language/conformances.md) says "`Equatable`
+      is a sealed type-owned operator route ... `==` and `!=` select it from
+      the operand type, not visibility. Other mathematical relations use
+      separately named contracts and conformances without competing for
+      operator syntax." So equality routing through `Equatable` while `<` goes
+      through the selected declaration is the rule working. Do not "fix" it.
+      What is worth a look is the other end: `machine == Card::same(..)` is
+      ACCEPTED at declaration even though a sealed route means it can never
+      supply `==`. Whether a crowned `==` should refuse where it is written was
+      not settled here.
 
     (The `==` refusal's own suggested fix spelled a retired unnamed conformance
     header; `c7a86bebb5` repaired the wording, which is unrelated to the gap.) Reuse ordinary calls,
