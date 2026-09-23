@@ -66,6 +66,12 @@ pub(crate) fn locate_source(
             program.expression_table.expression(local.initial_value),
             ExpressionNode::Call(_)
         ),
+        // A call assigned whole to a place is the statement's root call, as a
+        // local initializer's is; the target is an l-value, not an operand.
+        StatementNode::Assignment(assignment) => matches!(
+            program.expression_table.expression(assignment.value),
+            ExpressionNode::Call(_)
+        ),
         StatementNode::Expression(expression) => matches!(
             program.expression_table.expression(*expression),
             ExpressionNode::Call(_)
@@ -122,6 +128,16 @@ pub(crate) fn locate_source(
             }
             StatementNode::LocalData(local) if coordinate.call_ordinal == 0 => {
                 expression_call(checked, local.initial_value)?
+            }
+            StatementNode::Assignment(assignment) if coordinate.call_ordinal == 0 => {
+                super::occurrences::validate(
+                    checked,
+                    machine.symbol,
+                    caller_state,
+                    coordinate,
+                    assignment.value,
+                )?;
+                expression_call(checked, assignment.value)?
             }
             StatementNode::Expression(expression) if coordinate.call_ordinal == 0 => {
                 if validation::unit_statement_call_is_supported(

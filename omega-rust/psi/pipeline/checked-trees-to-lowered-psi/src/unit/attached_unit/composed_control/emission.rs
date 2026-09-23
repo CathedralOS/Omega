@@ -165,6 +165,14 @@ pub(super) fn emit_call_operations(
     next_edge: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(), LoweringError> {
+    // Borrowed-storage windows open and close within one straight-line
+    // operation sequence. Every exit of the sequence's block — the state's
+    // terminator, its successor edges and any return — follows the last
+    // operation, so requiring the ledger closed here closes it on every exit.
+    // No state-graph join can therefore receive an open window, and the
+    // blocks argument evaluation splits off in between rejoin with the one
+    // frontier this sequence carries.
+    let mut windows = crate::emission::borrowed_window::BorrowedWindowLedger::default();
     for operation in planned_operations {
         if matches!(
             operation,
@@ -593,6 +601,71 @@ pub(super) fn emit_call_operations(
             )?;
             continue;
         }
+        if let CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } = operation {
+            require_parameter_window_root(parameters, source, evaluation)?;
+            let moved = windows.emit_move(
+                source,
+                result,
+                parameters,
+                &catalogs.structural_types,
+                &catalogs.type_ids,
+                &mut catalogs.next_place,
+                operations,
+            )?;
+            let producer = operations
+                .operations
+                .last()
+                .ok_or(LoweringError::Unsupported(
+                    "borrowed-window move emitted no operation",
+                ))?;
+            let OperationResult::Structural(produced) = &producer.result else {
+                return unsupported("borrowed-window move established no structural value");
+            };
+            let produced = produced.clone();
+            catalogs.result_places.push(StructuralPlaceDeclaration {
+                id: moved,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: producer.id,
+                    structural_type: produced.structural_type,
+                },
+            });
+            evaluation.establish_structural_result(
+                checked,
+                state.state,
+                result,
+                produced,
+                &catalogs.structural_types,
+                operations,
+            )?;
+            continue;
+        }
+        if let CheckedUnitEffectOperationPlan::StoreStructuralField {
+            destination, value, ..
+        } = operation
+        {
+            let (Some(binding_ordinal), true, checked_trees::CheckedStructuralAccess::Owned) = (
+                value.source_structural_result_binding_ordinal(),
+                value.path.is_empty(),
+                value.access,
+            ) else {
+                return unsupported("borrowed-window repair value is not a whole owned result");
+            };
+            let repair = state_graph::case_emission::result(state, binding_ordinal, operations)?;
+            let repair = crate::emission::borrowed_window::BorrowedWindowRepairValue {
+                place: evaluation.current_structural_place(repair.place),
+                structural_type: repair.structural_type,
+            };
+            require_parameter_window_root(parameters, destination, evaluation)?;
+            windows.emit_store(
+                destination,
+                repair,
+                parameters,
+                &catalogs.structural_types,
+                &catalogs.type_ids,
+                operations,
+            )?;
+            continue;
+        }
         let (arguments, byte_argument_places) = literal_arguments::evaluate(
             checked,
             machine,
@@ -727,6 +800,27 @@ pub(super) fn emit_call_operations(
                 operations,
             )?;
         }
+    }
+    windows.require_closed()
+}
+
+/// The exclusive parameter root a borrowed-storage window names, as the
+/// sequence currently holds it. An owned selection that transported the root
+/// to a join parameter leaves no machine-parameter root for the window, and
+/// Terminal verification anchors windows on machine parameters only.
+fn require_parameter_window_root(
+    parameters: &[StructuralParameterDeclaration],
+    place: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    evaluation: &super::super::argument_evaluation::Evaluation,
+) -> Result<(), LoweringError> {
+    let transported = place.source_parameter_index().is_some_and(|position| {
+        parameters.iter().any(|parameter| {
+            parameter.position == position
+                && evaluation.current_structural_place(parameter.place) != parameter.place
+        })
+    });
+    if transported {
+        return unsupported("borrowed-window root was transported to a join parameter");
     }
     Ok(())
 }

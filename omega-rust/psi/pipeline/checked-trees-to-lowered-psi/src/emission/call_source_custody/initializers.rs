@@ -159,6 +159,39 @@ pub(crate) fn validate_structural(
             *expression,
         );
     }
+    // `place = call(..)`: the whole result replaces a structural field. The
+    // caller's body rejoins the destination window and the displaced value's
+    // disposal; here the call's own result identity must match its callee.
+    if let Some(StatementNode::Assignment(assignment)) =
+        statements.get(result.statement_index as usize)
+    {
+        let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
+        let target =
+            super::authored::target_signature(checked, caller_machine, authored.source_target)?;
+        if machine.symbol != caller_machine
+            || result.statement_index != coordinate.statement_index
+            || coordinate.call_ordinal != 0
+            || authored.boundary
+            || checked
+                .normalized_type_identity(crate::unit::attached_unit::structural_carrier_type(
+                    checked,
+                    target.return_type,
+                )?)
+                .as_str()
+                != result.type_identity
+            || checked.type_multiplicity(target.return_type) != result.multiplicity
+            || result.multiplicity == Multiplicity::Linear
+        {
+            return unsupported("structural call result disagrees with its assigned field");
+        }
+        return super::occurrences::validate(
+            checked,
+            caller_machine,
+            caller_state,
+            coordinate,
+            assignment.value,
+        );
+    }
     let Some(StatementNode::LocalData(local)) = checked
         .statement_table
         .statements(state.statement_nodes)

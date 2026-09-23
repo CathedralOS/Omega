@@ -432,7 +432,11 @@ pub(super) fn retain_call_targets<'a>(
                 | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                 // The paired call carries the callee dependency; cleanup only
                 // disposes its discarded result.
-                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}
+                | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
+                // A displaced field's move-out and restoring store carry no
+                // callee; the replacing call carries its own dependency.
+                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {}
                 _ => return unsupported("composed Unit call state contains a non-call operation"),
             }
         }
