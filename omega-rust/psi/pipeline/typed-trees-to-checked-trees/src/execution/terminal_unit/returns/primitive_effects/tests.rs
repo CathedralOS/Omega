@@ -122,6 +122,60 @@ fn borrowed_byte_view_returns_enter_the_independent_callee_catalog() {
 }
 
 #[test]
+fn ambient_borrowed_self_returns_enter_the_independent_callee_catalog() {
+    for access in ["&", "&mut"] {
+        // The borrowed `self` receiver rides the ambient attachment while the
+        // forwarded `&u64` operand keeps the roster slot — the squalr
+        // `read_bytes(&mut self, …, &mut [u8]) -> i64` shape. The caller line
+        // compiles only because the callee is now a registered scalar
+        // producer.
+        let checked = checked(&format!(
+            "data Main {{ fd: u64; }}\n\
+             machine Main::grow(&mut self, n: {access} u64) -> u64 {{ 0 }}\n\
+             machine Main::main(&mut self) {{\n\
+                 self.fd = self.grow(&mut self.fd);\n\
+             }}"
+        ));
+        let plans =
+            build_checked_primitive_store_scalar_return_plans(&checked.typed, &checked.facts);
+        let [plan] = plans.machines.as_slice() else {
+            panic!("borrowed-self primitive-reference callee: {access}");
+        };
+        assert!(plan.attachment_type_identity.is_some());
+        assert_eq!(
+            plan.structural_parameters
+                .iter()
+                .map(|parameter| parameter.position)
+                .collect::<Vec<_>>(),
+            [1]
+        );
+        assert!(is_primitive_reference_plan(plan));
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .terminal_structural_scalar_returns
+                .for_machine(plan.machine),
+            Some(plan)
+        );
+        assert!(
+            super::super::super::scalar_targets::registered_primitive_store_target(
+                &checked.typed,
+                &checked.facts,
+                Some(crate::execution::terminal_unit::ScalarCalleePlans {
+                    boundary_returns: &checked.facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &checked.facts.flow.terminal_structural_scalar_returns
+                }),
+                plan.machine,
+                plan.state,
+                plan.result_type,
+            )
+            .is_some()
+        );
+    }
+}
+
+#[test]
 fn pure_primitive_reference_returns_keep_restrictions_on_contracts_and_ranges() {
     for source in [
         "machine hold(value: &u64) -> u64 requires true; { 0 }",
