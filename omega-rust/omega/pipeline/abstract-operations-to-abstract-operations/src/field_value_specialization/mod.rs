@@ -10,11 +10,18 @@
 //! stored value permanently. Variant establishment: at a lone `Case` path the
 //! producer is an `EstablishScalarCase` whose `result_case` matches the
 //! observed case, so its scalar case-field initializer fixes the payload
-//! field's value the same way. Declared bound: the observed field's declared
-//! type is a `BoundedInteger` whose inclusive bound closes over exactly one
-//! value, so every inhabitant of the position holds that value independently
-//! of how the place arrived — parameters, block parameters, results, and
-//! non-establishing producers all qualify, at any resolvable path depth.
+//! field's value the same way. Nested establishment: a `Field` path segment
+//! descends the same two proofs into the child place the record stores whole
+//! — the field's initializer must be an owned, complete structural argument
+//! whose declared type is exactly the field's declared carrier, and the
+//! child's own producer then establishes the deeper position, so
+//! `Record { inner: child }` proves `source.inner` reads from the child's
+//! establishment, and a scalar-case child proves `source.inner.Case` reads.
+//! Declared bound: the observed field's declared type is a `BoundedInteger`
+//! whose inclusive bound closes over exactly one value, so every inhabitant
+//! of the position holds that value independently of how the place arrived —
+//! parameters, block parameters, results, and non-establishing producers all
+//! qualify, at any resolvable path depth.
 //!
 //! What the proven initializer admits depends on its shape. A
 //! `BooleanConstant`/`IntegerConstant` in the same function — or a bound
@@ -35,10 +42,12 @@
 //! operation shape.
 //!
 //! Reads whose field the unit cannot prove — an unestablished field on a
-//! multi-valued bound, a `Case` path on a place established under a different
-//! case, an `Erased` or structural field position, or a path that fails to
-//! resolve — are not covered, and neither is a nonconstant initializer whose
-//! uses escape the substitution lane or which fails to dominate a use.
+//! multi-valued bound, a `Field` descent into a borrowed, pathed, or
+//! unestablished child, a `Case` path on a place established under a
+//! different case, an `Erased` or structural field position, or a path that
+//! fails to resolve — are not covered, and neither is a nonconstant
+//! initializer whose uses escape the substitution lane or which fails to
+//! dominate a use.
 //! Only machines absent from the authenticated Terminal-cycle component
 //! roster are eligible: a machine containing a verified cyclic component is
 //! frozen byte-exact under `validate_frozen_component_blocks`.

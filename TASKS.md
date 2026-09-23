@@ -2328,130 +2328,6 @@ syntax and other terminal services are not prerequisites.
   that statement's consumption there, then drop the subtraction in lowering
   so the two facts agree by construction. Keep the equality check itself.
 
-- **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT.** (new-scope) A borrowed-self
-  record argument no longer lowers: `checked-trees-to-lowered-psi`'s
-  `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`
-  refuses with `Unsupported("record source attachment has no declared type")`
-  because `find_named_type_reference(caller.attached_data_symbol)` finds none
-  for a whole-root (`argument.path.is_empty()`) self source.
-
-  Bisected to `bd5648555c` ("scalar graphs: admit ambient borrowed-self field
-  reads"): `abstract-operations-to-target-operations`'s
-  `tests::structural_borrows::borrowed_unit_call_preserves_verified_requirement_obligations`
-  and `::borrowed_scalar_call_preserves_verified_requirement_obligations`
-  passed at `e73e1abbec` where they were authored, pass at `bd5648555c^`, and
-  fail from `bd5648555c` onward. They stop at `lower_machine`, so nothing
-  downstream of Psi lowering is implicated.
-
-  Measured at `ac770589f5` by instrumenting the rejection site with the
-  fixture's own `Main::run`, which answers the "no interned named type"
-  hypothesis and rules out the three obvious handles:
-
-  - `referee="Main::run" caller="Main::run" attached="Main" lookup=None
-    datadefs=["Main"]`. The self parameter's referee names the MACHINE
-    symbol, not the data symbol -- which the fence already tolerates through
-    its `*symbol != caller.symbol` arm -- so `reference` carries the wrong
-    symbol for the `data_definitions()` lookup below.
-  - `Main` is a real data definition and has NO `Named` type reference
-    anywhere in the program, because the source never spells `Main` as a
-    type: it writes `data Main`, `machine Main::put(&mut self, ...)` and
-    `self`. `find_named_type_reference` scans for a `Named` node, so it
-    succeeds only when the program incidentally mentions the type name. That
-    is the same "incidentally interned" property the fence's own comment
-    says a projected loan must not depend on.
-  - `caller.attached_data_application` is **invalid** for this machine
-    (`valid=false`), so the generic-application handle is not a substitute
-    either.
-
-  So no existing `TypeReferenceHandle` names the attachment, and the code
-  after the fence needs a handle rather than a symbol: `type_multiplicity`,
-  `normalized_type_identity` (compared against `argument.type_identity`) and
-  `has_plain_owned_contents_with_numeric_constraints` all take `reference`.
-  Passing the machine-named `reference` with the symbol swapped is not a
-  repair -- the identity comparison would then reject on
-  `"record operand changed its declared referent type"`.
-
-  It is not one site. Five places across three crates and both pipeline
-  stages reconstruct an attachment the same fragile way, by asking the
-  interning table for a `Named` node that only exists if some program
-  incidentally spells the type:
-
-  - `checked-trees-to-lowered-psi` `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs:176`
-    ("record source attachment has no declared type" -- the measured failure);
-  - `checked-trees-to-lowered-psi` `emission/call_source_custody/projected_receivers/aliases.rs:159`
-    ("receiver alias self lost its attachment"), whose whole-root-self branch
-    is the same shape line for line;
-  - `typed-trees-to-checked-trees` `execution/terminal_unit/calls/computation_arguments/mod.rs:295` and `:359`;
-  - `typed-trees-to-checked-trees` `execution/terminal_unit/receiver_aliases/mod.rs:161`.
-
-  Each fails closed with its own message, so repairing only the reported one
-  leaves four latent copies that surface later as unrelated-looking refusals.
-  Whatever route is chosen belongs behind one shared query on the machine,
-  not repeated at each call site.
-
-  The fork is therefore upstream of this file, in how a machine's attachment
-  is typed: intern a named reference for a machine's attached data so `self`
-  has a declared type to reconstruct from, type the self formal by the data
-  symbol rather than the machine symbol, or give these three queries a
-  symbol-keyed route. It is engineering, not language design -- no Omega
-  surface question is open -- so it is not in OWNER_QUESTIONS.md.
-
-  Acceptance: both lower and keep their proved requirement obligations, and an
-  ambient borrowed-self field read still reaches the scalar graph. The fence's
-  own comment says projected loans reconstruct the endpoint from the authored
-  place, so the question is what a whole-root self source reconstructs from
-  when its attachment has no interned named type -- not whether to drop the
-  fence. Note that making these lower re-exposes
-  **SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT**: the scalar member then fails
-  on `obligations.len() >= 2` instead, measured on base `18848f50f3`.
-
-- **SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT.** (new-scope) One callee's
-  requirement obligations depend on which lowering route prepared it, not on
-  its authored contract. `unit/attached_unit.rs` builds
-  `scalar_requirement_counts` from two incompatible rules in one expression:
-  a prepared scalar machine contributes `machine.requirement_count()`, which
-  `PreparedScalarContract::requirement_count` defines as
-  `usize::from(plan.requires().iter().any(...))` -- **0 or 1**, documented
-  there as "published as one canonical conjunction" -- while a machine
-  reached through `machine_signatures` contributes
-  `signature.requires.len()`, one per authored requirement.
-  `emit_direct_call_operation` then allocates exactly that many obligations
-  for the call.
-
-  `bd5648555c` ("scalar graphs: admit ambient borrowed-self field reads")
-  moved attached machines with a scalar graph and no unit effects from the
-  second rule to the first, so the same `Main::get(&self, value: u64) -> u64
-  requires 1 <= value; value <= 7;` now publishes ONE obligation to a scalar
-  caller and several to a Unit caller. Measured at `915122bedb`:
-  `abstract-operations-to-target-operations tests::structural_borrows::borrowed_unit_call_preserves_verified_requirement_obligations`
-  passes, and `::borrowed_scalar_call_preserves_verified_requirement_obligations`
-  fails on `assert!(obligations.len() >= 2, "both authored requirements
-  survive")` at `structural_borrows.rs:190`. Both pass at `93489c3a05`
-  (= `bd5648555c^`).
-
-  Not the contract lowering: `915122bedb` repaired the multi-fact `requires`
-  clause that made both tests fail earlier at
-  `Unsupported("scalar contract contains an unsupported clause")`, and the
-  Unit half passes with it. What remains is the count alone.
-
-  The fork, for the scalar-graph owner to settle -- a code-owner call inside
-  this lane, NOT a language-design question, so it stays here rather than in
-  OWNER_QUESTIONS.md: publish one obligation per
-  authored requirement on the scalar route too, so a callee's obligation
-  roster is a property of its contract rather than of its caller's route; or
-  keep the canonical conjunction and state deliberately that obligation
-  granularity is route-dependent, in which case the test repins onto the new
-  count and loses its `swap(0, 1)` mutation, which needs two. Collapsing the
-  Unit route to one conjunction instead would cost granularity everywhere
-  and is not proposed. Whichever is chosen, `scalar_requirement_counts`
-  should stop expressing both rules in one chained iterator without saying
-  why they differ.
-
-  Acceptance: one callee's requirement-obligation count is derivable from
-  its contract without knowing which route lowered it, or the board records
-  that it is not and why; the `structural_borrows` pair passes either way,
-  with mutation coverage retained rather than reduced to fit the new count.
-
 - **AUTHORED-SELECTION-FINALIZATION-GAPS.** (new-scope) Close the authored
   declaration selection occurrences that survive successful checking.
   `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
@@ -2617,9 +2493,18 @@ syntax and other terminal services are not prerequisites.
     `contract_application_terms::runtime_body_calls_execute_with_checked_premises`:
     checked interpretation covers `restricted(saved, value)` under
     `observe(left) == observe(right)`, but the test stops before Terminal.
-    Re-witness the recorded `scalar contract contains an unsupported clause`
-    at `scalar_contracts::covered_requires`; require canonical reload,
-    independent verification, interpretation and native agreement.
+    Re-witnessed at `4899a3c992` and pinned by
+    `checked-trees-to-lowered-psi/tests/call_premise_terminal_boundary.rs`:
+    both `restricted` and its caller stop at
+    `Unsupported("scalar contract contains an unsupported clause")`, while
+    `observe` -- same program, no call premise -- lowers, so the refusal is the
+    clause and not the fixture. The cause is `covered_requires` keeping an
+    explicit `None` requires row for a clause it cannot express as a closed
+    scalar contract, which `scalar_graph_lowering/graph_preparation.rs` then
+    refuses. Those tests pin a boundary, not desired behavior; the repair is
+    expected to fail them and replace them with the canonical reload,
+    independent verification, interpretation and native agreement this bullet
+    requires.
   - Extend call-premise formation across remaining contract owners and
     substitutions: abstract signature declarations, domain/default predicates,
     static callable/evidence arguments, receiver/projection terms and
