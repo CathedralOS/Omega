@@ -359,6 +359,17 @@ pub(crate) fn validate(
                 }
                 consumed_calls.push(handle);
             }
+            CheckedStructuralValueKind::ScalarCasePlace { source: argument } => {
+                shared_borrow::validate_scalar_case_place(
+                    checked,
+                    owner,
+                    source,
+                    result.statement_index,
+                    expression,
+                    reference,
+                    &argument,
+                )?;
+            }
             CheckedStructuralValueKind::Reference { source: argument } => {
                 if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` selection leaf replays its authored `&place`
