@@ -25,6 +25,7 @@ pub(in crate::selection) fn entry(
         return if crate::selection::primitive_local_input::accepts(source)
             || crate::selection::literal_storage_input::accepts(source)
             || crate::selection::read_result_input::accepts(source)
+            || crate::selection::silent_boundary_input::accepts(source)
             || crate::selection::aggregate_result_input::has_local_aggregates(source)
         {
             Ok(())

@@ -25,7 +25,9 @@ pub(super) fn function_abi(
             || (abstracted.result == AbstractFunctionResult::Unit
                 && super::read_byte::roster(optimized))
             || (abstracted.result == AbstractFunctionResult::Unit
-                && super::literals::provider_metadata_roster(optimized)))
+                && super::literals::provider_metadata_roster(optimized))
+            || (abstracted.result == AbstractFunctionResult::Unit
+                && super::silent_boundary::roster(optimized)))
         || !abstracted.entry_claims.is_empty()
         || !optimized.entry_claim_declarations.is_empty()
         || !optimized.content_entry_claims.is_empty()

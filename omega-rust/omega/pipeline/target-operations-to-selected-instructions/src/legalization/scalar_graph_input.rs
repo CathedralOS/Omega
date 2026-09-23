@@ -1,7 +1,8 @@
 //! Input-only custody for ordinary ordered scalar graphs. No legalized output is built here.
 use super::LegalizationError;
 use abstract_operations::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
@@ -25,6 +26,7 @@ mod hosted_scalar;
 pub(in crate::legalization) mod normalized_foreign;
 pub(super) mod read_byte;
 pub(super) mod scalar_arrays;
+mod silent_boundary;
 pub(super) mod structural_case;
 mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_realization;
@@ -54,6 +56,7 @@ pub(super) fn structural_contract(
         (!optimized.structural_places.is_empty()
             && (literals::roster(optimized)
                 || read_byte::roster(optimized)
+                || silent_boundary::roster(optimized)
                 || primitive_locals::roster(optimized)
                 || (aggregate_results::uses(optimized, plan)
                     && aggregate_results::roster(optimized))))
@@ -489,7 +492,6 @@ pub(super) fn callee_plan(
                     }] if *byte_size == placement.shape.byte_size && *alignment == placement.shape.alignment
                 )
     }) {
-
         return Err(LegalizationError::SourceCustodyMismatch);
     }
     Ok(call_plan)
