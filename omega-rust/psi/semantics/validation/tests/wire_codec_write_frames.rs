@@ -110,6 +110,13 @@ fn a_divergent_codec_cursor_survives_composition() {
              let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
              Blob::encode(&sample, &mut self.buffer, hold(cursor));",
         ),
+        // The delegation composes recursively rather than covering one hop.
+        (
+            "nested_helper_results",
+            "let sample: Blob = Blob { value: 7 }; \
+             let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
+             Blob::encode(&sample, &mut self.buffer, hold(hold(cursor)));",
+        ),
     ] {
         assert_eq!(
             caller_frame(&codec_program(body)),
