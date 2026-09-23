@@ -2939,9 +2939,10 @@ syntax and other terminal services are not prerequisites.
   omit their Unit plan at six construction sites — record-literal field store
   21, structural call binding to a local 20, attached-data-shape state
   parameter 16, call operation 10, pure scalar initializer 4, call-source
-  assignment 2 — and two of them fail identically for a Linux target, so the
-  class is not host-specific. Each site is a recognizer for the arrangements
-  earlier fixtures needed; the histogram is the size of the gate below.
+  assignment 2. Every site is in `typed-trees-to-checked-trees`, so the plan
+  is omitted before a target is chosen and the class is host-neutral by
+  construction. Each site is a recognizer for the arrangements earlier
+  fixtures needed; the histogram is the size of the gate below.
 
   Remaining work:
 

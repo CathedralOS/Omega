@@ -59,8 +59,8 @@ diagnostic, five families own 83% of them:
 | 85 | 43% | `ProgramEntry establishment rejoins 0 Terminal attachment identities`: the machine's Unit plan was omitted at a structural field store | STATE-LOCAL-VALUE-FRONTIER |
 | 30 | 15% | `selected compiler intrinsic ... has no closed native catalog identity` | FLOAT-PROVIDERS, ARITHMETIC-POLICY-REALIZATION |
 | 18 | 9% | `Lowering(InvalidUnitMachinePlan ...)` from native Terminal production | GENERAL-CYCLIC-EXECUTION |
-| 17 | 9% | `native-artifact production requires one exact selected program entry` | corpus: the fixture carries no `build.omg` entry binding |
-| 15 | 8% | `ProgramEntry Service field requires a selected Fused provider` | corpus: the fixture selects no provider |
+| 17 | 9% | `native-artifact production requires one exact selected program entry` | corpus: nine take parameters and cannot be a program root; eight are EFI programs on the host tier |
+| 15 | 8% | `ProgramEntry Service field requires a selected Fused provider` | library: no provider exists for the boundary |
 
 The first family is one mechanism at six sites, not eighty-five gaps. The
 Unit builder constructs a machine's plan site by site, and each site admits a
@@ -80,15 +80,32 @@ names the site:
 The field-store site (`structural_scalar_store/mod.rs`) refuses a floating
 computation, a payloadless sum case, a string literal, an indexed byte store
 or a call result stored into a field; `float` (9) and `recast` (5) hit it
-most. Compiling two of the 85 for a Linux target fails identically, so the
-class is not host-specific. Each site is a recognizer for the arrangements a
+most. The class is not host-specific by construction rather than by probe:
+every site is in `typed-trees-to-checked-trees`, the Psi stage, which the
+ownership firewall keeps target-neutral, so the plan is omitted before any
+target is chosen. A direct off-host compile could not confirm it — a full
+compile of one of these fixtures exceeds 400 s on this host and was cut off.
+Each site is a recognizer for the arrangements a
 prior fixture happened to need, where ordinary statement sequencing would
 admit them all; the product-compiler board item already flags the gate as
 advancing one statement shape per slice, and this is its measured size.
 
-Families four and five are fixture plumbing rather than compiler capability:
-32 fixtures that would be measured natively if they carried an entry binding
-and a provider selection. CANARY-CORPUS owns that.
+Family four is roster placement, repaired at this revision: nine fixtures
+whose `Main::main` takes parameters were on the native tier, where no hosted
+entry can bind them, and now check; eight EFI programs authored in July sat on
+the host tier from before the cross-target tier existed, and now compile for
+`uefi_x86_64` beside their siblings.
+
+Family five is a library gap. A `Service<X>` field demands a selected Fused
+provider for `X`, and `source/library/std` declares exactly three:
+`ConsoleNativeProvider`, `ProcessExitNativeProvider` and
+`UefiOsHandoffNativeProvider`. The fifteen fixtures declare
+`Service<FilesystemHost>` (9), `Service<TimeHost>` (2), `Service<Gui>` (2)
+and `Service<Input>` (1), for which no provider exists, so the compiler's
+refusal is correct and the fixtures cannot compile until the library supplies
+one. A real program that reaches the filesystem, the clock or a window through
+a service field is blocked the same way; the samples that stall on those
+surfaces stall here.
 
 ## Spec gaps
 
@@ -143,8 +160,8 @@ not that it exercises their interaction.
   practical blocker for the samples number, not a language gap.
 - **Other hosts.** These are Windows x86-64 results. Nine rooted-target and
   one Windows-host failure are host-specific by construction; the dominant
-  family is not, by the Linux probe above, but macOS and Linux runs would
-  settle the rest.
+  family is target-neutral by construction, as above, but a macOS or Linux
+  run of the same suites is the only evidence for the rest.
 - **The 30 dark fixtures.** Eighteen under `objc/` need a macOS target no roster
   supplies; six `terminal_psi/` and four `filesystem/` fixtures were unrostered
   when measured. Six that check were rostered as checked-only at this revision.
