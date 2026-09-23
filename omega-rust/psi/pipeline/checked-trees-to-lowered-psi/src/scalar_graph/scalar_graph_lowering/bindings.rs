@@ -73,6 +73,7 @@ pub(super) fn prepare(
     erased_formal_types: Vec<QualifiedScalarType>,
     erased_proof_formals: &[CheckedErasedProofParameterPlan],
     structural_parameters: &[StructuralParameterDeclaration],
+    structural_namespace: &[(u32, StructuralParameterDeclaration)],
     primitive_locals: &[primitive_locals::PrimitiveLocal],
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
@@ -179,19 +180,22 @@ pub(super) fn prepare(
     let mut parameter_types = parameter_types;
     let mut prefixes = Vec::new();
     let mut value_types = parameter_types.clone();
-    let mut structural_namespace = state
-        .structural_parameters
-        .iter()
-        .zip(structural_parameters)
-        .map(|(source, emitted)| (source.position, emitted.clone()))
-        .collect::<Vec<_>>();
+    // Each state's structural namespace is resolved by the graph preparation
+    // pass: entry formals pair with the emitted roster in authored order while
+    // non-entry formals resolve to the declaration their incoming edges
+    // forward.
+    let mut structural_namespace = structural_namespace.to_vec();
     // The ambient receiver is machine-scope: every state resolves `self`
-    // through it even though it sits only on the entry roster.
+    // through it even though it sits only on the entry roster. It is always
+    // authored first, so it precedes the forwarded formals at authored
+    // structural index zero — argument plans index that authored roster, not
+    // the checked forwarded subset.
     if !structural_namespace
         .iter()
         .any(|(_, emitted)| emitted.is_self)
     {
-        structural_namespace.extend(
+        structural_namespace.splice(
+            0..0,
             structural_parameters
                 .iter()
                 .filter(|parameter| parameter.is_self)

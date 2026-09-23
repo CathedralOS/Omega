@@ -1226,7 +1226,7 @@ pub(super) fn attached_self_application(
         .filter(|application| application.is_valid() && *application != type_reference)
 }
 
-fn closed_data_identity(
+pub(super) fn closed_data_identity(
     program: &TypedTrees,
     data: &typed_trees::data::DataDefinition,
     binders: &[(SymbolHandle, String)],

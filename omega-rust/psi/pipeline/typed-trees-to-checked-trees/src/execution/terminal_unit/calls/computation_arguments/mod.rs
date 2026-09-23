@@ -250,6 +250,22 @@ fn shared_nominal_argument(
     }) {
         return None;
     }
+    // A receiver argument binds `self` to `self` across machines: both sides'
+    // receiver referees are machine-keyed `Named { machine, "Self" }` nodes,
+    // so nominal identity can never join them. The join key is the shared
+    // attachment data, resolved from its declaration rather than an interned
+    // Named (a machine that never names its attachment elsewhere has none).
+    let self_receiver = if target.is_self {
+        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)
+    } else {
+        None
+    };
+    let self_attached = self_receiver.and_then(|(owner, _)| {
+        program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == owner.attached_data_symbol)
+    });
     // A shared formal borrows the selected record at its existing root/path.
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
@@ -269,13 +285,12 @@ fn shared_nominal_argument(
     ) {
         return None;
     }
-    let target_identity = if target.is_self {
-        let (owner, _) =
-            crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
-        let reference = program
-            .type_reference_table
-            .find_named_type_reference(owner.attached_data_symbol)?;
-        base_type_identity(program, reference, &[])?
+    let target_identity = if let Some(attached) = self_attached {
+        super::super::types::closed_data_identity(program, attached, &[])
+    } else if target.is_self {
+        // An attached callee whose attachment has no data declaration cannot
+        // carry a receiver argument.
+        return None;
     } else {
         if !matches!(
             program.type_reference_table.type_reference(*referee),
@@ -286,6 +301,7 @@ fn shared_nominal_argument(
         }
         base_type_identity(program, *referee, &[])?
     };
+    let mut receiver_argument = false;
     let parameters = program.state_parameters(state);
     let (reference, source_carrier, source) = if let Some(position) =
         parameters.iter().position(|parameter| {
@@ -310,7 +326,7 @@ fn shared_nominal_argument(
             _ => return None,
         };
         if parameter.is_self {
-            let owner = crate::lookup::machine_by_symbol(program, machine)?;
+            let owner = (crate::lookup::machine_by_symbol(program, machine))?;
             let TypeReferenceNode::Named { symbol, .. } =
                 program.type_reference_table.type_reference(reference)
             else {
@@ -319,12 +335,31 @@ fn shared_nominal_argument(
             if *symbol != owner.symbol && *symbol != owner.attached_data_symbol {
                 return None;
             }
-            // A projected borrow resolves through the exact attachment below.
-            // It does not need an unrelated authored use to intern Named<Owner>.
-            if place.segments.is_empty() {
-                reference = program
+            if let Some((callee_owner, _)) = self_receiver {
+                // Receiver-to-receiver on the whole attachment: the caller's
+                // `self` may loan only the attachment the callee's `self`
+                // formal denotes. A projected receiver (`self.field.m()`)
+                // binds the member's own attachment instead, so the whole-
+                // storage check below handles it through the normal path.
+                if place.segments.is_empty() {
+                    if owner.attached_data_symbol != callee_owner.attached_data_symbol {
+                        return None;
+                    }
+                    receiver_argument = true;
+                }
+            }
+            if !receiver_argument && place.segments.is_empty() {
+                // Unprojected `self` names the whole attachment; canonicalize
+                // to the interned data Named when one exists.
+                match program
                     .type_reference_table
-                    .find_named_type_reference(owner.attached_data_symbol)?;
+                    .find_named_type_reference(owner.attached_data_symbol)
+                {
+                    Some(found) => reference = found,
+                    None => {
+                        return None;
+                    }
+                }
             }
         }
         let ordinal = parameters[..position]
@@ -359,7 +394,7 @@ fn shared_nominal_argument(
                 StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
                 _ => None,
             });
-        let local = locals.next()?;
+        let local = (locals.next())?;
         // A shared invocation observes the current local home; mutability of
         // that home does not turn this call-local loan into a copied snapshot.
         if locals.next().is_some() || !local.initial_value.is_valid() {
@@ -399,7 +434,17 @@ fn shared_nominal_argument(
             source,
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { .. }
         );
-    if whole_storage
+    if receiver_argument {
+        // The receiver's storage is the attachment itself: its declaration's
+        // multiplicity is the whole-storage evidence, and the shape collected
+        // below from the same declaration carries the plain-contents check.
+        if !matches!(
+            self_attached.map(|data| data.properties.multiplicity),
+            Some(Multiplicity::Affine | Multiplicity::Unrestricted)
+        ) {
+            return None;
+        }
+    } else if whole_storage
         && (!matches!(
             program.type_reference_table.type_reference(reference),
             TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
@@ -429,7 +474,11 @@ fn shared_nominal_argument(
         return None;
     }
     let mut shapes = ShapeCollector::new(program);
-    let identity = shapes.add_type(reference, &[], &[])?;
+    let identity = if let Some((callee_owner, _)) = self_receiver {
+        (shapes.add_attached_application(callee_owner, &[]))?
+    } else {
+        (shapes.add_type(reference, &[], &[]))?
+    };
     // Whole scalar sums use the same established-place observation as records.
     // No payload is extracted, copied, or reconstructed to borrow the sum; its
     // source declaration and dominating call result remain separate evidence.
@@ -472,20 +521,24 @@ fn shared_nominal_argument(
         return None;
     }
     if target.is_self {
-        let site = crate::semantic_calls::find_call_site(
+        let Some(site) = crate::semantic_calls::find_call_site(
             program,
             machine,
             state.symbol,
             call.statement_index,
             call.call_ordinal,
-        )?;
-        let mut receiver = crate::flow::canonical_receiver_place_for_call_site(
+        ) else {
+            return None;
+        };
+        let Some(mut receiver) = crate::flow::canonical_receiver_place_for_call_site(
             program,
             machine,
             state.symbol,
             &site,
             call.statement_index,
-        )?;
+        ) else {
+            return None;
+        };
         crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut receiver);
         // Captured self retains the machine namespace; contextual expression
         // resolution uses its actual formal. Normalize only that exact pair,

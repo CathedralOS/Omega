@@ -216,16 +216,15 @@ pub(super) fn cleanup_type_is_unit(
     is_unit(program, type_reference)
 }
 
-/// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
-pub(super) fn structural_scalar_graph_signature(
+/// Whether a state's authored parameters fit the scalar graph's structural
+/// carrier contract: owned plain contents, closed primitive arrays, borrowed
+/// slices, and named primitive referees carry; anything else keeps the state
+/// off the graph.
+pub(crate) fn structural_scalar_graph_parameter_admission(
     program: &TypedTrees,
     state: &typed_trees::state::State,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-    Vec<CheckedUnitStructuralTypePlan>,
-)> {
-    if program.state_parameters(state).iter().any(|parameter| {
+) -> bool {
+    !program.state_parameters(state).iter().any(|parameter| {
         if parameter.is_self || parameter.relevance.is_erased() {
             return false;
         }
@@ -286,7 +285,19 @@ pub(super) fn structural_scalar_graph_signature(
             program.type_reference_table.type_reference(reference),
             TypeReferenceNode::Named { .. }
         )
-    }) {
+    })
+}
+
+/// Reuse ordinary shape ownership for borrowed and no-code owned graph inputs.
+pub(super) fn structural_scalar_graph_signature(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<CheckedUnitStructuralTypePlan>,
+)> {
+    if !structural_scalar_graph_parameter_admission(program, state) {
         return None;
     }
     let mut shapes = ShapeCollector::new(program);

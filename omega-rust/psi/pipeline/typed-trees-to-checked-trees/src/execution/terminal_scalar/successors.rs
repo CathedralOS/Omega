@@ -162,13 +162,46 @@ fn arguments(
             .count()
     };
     if forwarded(source) != 0 || forwarded(target) != 0 {
-        if states.len() != 1 || source.state != target.state {
-            return None;
-        }
-        let (structural, scalar, _) =
-            super::super::terminal_unit::structural_scalar_graph_signature(program, source_state)?;
-        if source.structural_parameters != structural || source.scalar_parameters != scalar {
-            return None;
+        // An attached machine without a mutable receiver carries the mixed
+        // signature per state: the ambient `&self` stays on the entry roster
+        // while each state's own structural formals forward on its incoming
+        // edges. Other rosters keep the single-state bound.
+        let ambient_roster = |state: &CheckedScalarStateGraph| {
+            let typed_state = states.iter().find(|entry| entry.symbol == state.state)?;
+            if machine.attached_data.is_none()
+                || program
+                    .state_parameters(typed_state)
+                    .iter()
+                    .any(|parameter| parameter.is_self && parameter.is_mutable)
+            {
+                return None;
+            }
+            let (structural, scalar, _) =
+                super::super::terminal_unit::calls::mixed_ambient_scalar_graph_signature(
+                    program,
+                    machine,
+                    typed_state,
+                    states.first()?.symbol,
+                )?;
+            Some((structural, scalar))
+        };
+        let matches_roster = |state: &CheckedScalarStateGraph| {
+            ambient_roster(state).is_some_and(|(structural, scalar)| {
+                state.structural_parameters == structural && state.scalar_parameters == scalar
+            })
+        };
+        if !(matches_roster(source) && matches_roster(target)) {
+            if states.len() != 1 || source.state != target.state {
+                return None;
+            }
+            let (structural, scalar, _) =
+                super::super::terminal_unit::structural_scalar_graph_signature(
+                    program,
+                    source_state,
+                )?;
+            if source.structural_parameters != structural || source.scalar_parameters != scalar {
+                return None;
+            }
         }
     }
     let StatementNode::Transition(transition) = program
