@@ -59,6 +59,8 @@ pub const SELECTED_LOWERING_RULE_CATALOG: [SelectedLoweringRuleCatalogEntry; 23]
             pairs: &[
                 SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
                 SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
+                SelectedInstructionPairRule::COMPARE_ZERO,
+                SelectedInstructionPairRule::COMPARE_LEFT_ZERO,
             ],
         },
     ),

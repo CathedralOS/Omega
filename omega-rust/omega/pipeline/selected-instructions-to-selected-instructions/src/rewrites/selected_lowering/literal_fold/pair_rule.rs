@@ -70,12 +70,15 @@
 //! each defined unit can reach through the function's CFG is
 //! equality-sensing. The
 //! immediate bound carries whether
-//! any literal up to an encoding limit is admitted or the fold's
+//! any literal up to an encoding limit is admitted, whether that window
+//! excludes the zero a dedicated constant-form pair binds, or the fold's
 //! correctness requires one exact literal value — and, for families that
 //! share one consumer kind and operand position, keeps the grammars
 //! disjoint on the literal's value: the bitwise-and annihilator and
 //! identity selections both fold `BitwiseAndI64` at either `Use`
-//! position, so pair selection matches the bound as well as the kind and
+//! position, and the compare family's immediate and zero realizations
+//! both fold `CompareI64` at either `Use` position, so pair selection
+//! matches the bound as well as the kind and
 //! position. When a rule needs shape
 //! data beyond those — a further non-isolated effect relationship or
 //! further operand roles — extend this struct rather than re-inlining kind
@@ -1295,6 +1298,14 @@ pub enum PairImmediateBound {
     /// Any unsigned literal up to the encoding limit the rewritten form's
     /// immediate field admits — the folded value only needs to fit.
     Encoding(u64),
+    /// Any *nonzero* unsigned literal up to the encoding limit the
+    /// rewritten form's immediate field admits — the folded value must
+    /// fit and must not name the dedicated constant form the same
+    /// consumer kind's zero-specific pair binds, so the two grammars stay
+    /// disjoint on the literal's value: the compare family's immediate
+    /// pairs carry this bound while the zero pairs carry
+    /// [`Exactly(0)`](Self::Exactly).
+    EncodingNonZero(u64),
     /// Exactly one literal value: the fold is an algebraic identity whose
     /// correctness depends on the value itself — the divide-by-one divisor
     /// — not merely on fitting an immediate field.
@@ -1346,23 +1357,34 @@ impl SelectedInstructionPairRule {
         unit_effects: PairUnitEffects::ISOLATED,
         machine_effects: PairMachineEffects::ISOLATED,
     };
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` — the
+    /// subtrahend — of `CompareI64` when the folded literal is nonzero:
+    /// `x - literal` rewrites to the `CompareI64Immediate` form. The
+    /// family partitions its consumer kind and operand position on the
+    /// literal's value: the zero literal names the dedicated
+    /// `CompareI64Zero` realization [`COMPARE_ZERO`](Self::COMPARE_ZERO)
+    /// binds instead, so the immediate grammars admit only nonzero
+    /// values and exactly one pair admits any candidate.
     pub const COMPARE_IMMEDIATE_U12: Self = Self {
         producer: MachineSemanticKind::MaterializeI64,
         consumer: MachineSemanticKind::CompareI64,
         rewritten: MachineSemanticKind::CompareI64Immediate,
         operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
-        immediate_bound: PairImmediateBound::Encoding(4095),
+        immediate_bound: PairImmediateBound::EncodingNonZero(4095),
         result: PairResultDisposition::ImplicitUnits,
         unit_effects: PairUnitEffects::ISOLATED,
         machine_effects: PairMachineEffects::ISOLATED,
     };
     /// Eliminate `MaterializeI64` feeding the operand-0 `Use` — the
-    /// minuend — of `CompareI64`: `literal - x` rewrites to the
+    /// minuend — of `CompareI64` when the folded literal is nonzero:
+    /// `literal - x` rewrites to the
     /// `CompareI64Immediate` form computing `x - literal`, the
     /// operand-swapped subtraction whose zero condition is identical but
     /// whose ordering predicates invert. The same catalog selection
     /// admits both operand positions; the pair disambiguates by which
-    /// `Use` position the folded literal occupies. Under
+    /// `Use` position the folded literal occupies, and a zero literal at
+    /// this position names [`COMPARE_LEFT_ZERO`](Self::COMPARE_LEFT_ZERO)
+    /// instead. Under
     /// [`OperandSwappedUnitDefs`](PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS)
     /// the rewrite keeps the consumer's implicit unit definitions — the
     /// target condition state — bit-identical while changing the
@@ -1373,6 +1395,36 @@ impl SelectedInstructionPairRule {
         operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
         machine_effects: PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS,
         ..Self::COMPARE_IMMEDIATE_U12
+    };
+    /// Eliminate `MaterializeI64` feeding the operand-1 `Use` — the
+    /// subtrahend — of `CompareI64` when the folded literal is exactly
+    /// zero: `x - 0` rewrites to the dedicated `CompareI64Zero` form
+    /// rather than the immediate form, publishing the same condition
+    /// state through the narrower realization the selected vocabulary
+    /// reserves for a zero comparison. The fold is a realization
+    /// refinement of the same computation, not a different computation:
+    /// the family's value partition keeps it disjoint from the immediate
+    /// grammar so exactly one pair admits the candidate.
+    pub const COMPARE_ZERO: Self = Self {
+        producer: MachineSemanticKind::MaterializeI64,
+        consumer: MachineSemanticKind::CompareI64,
+        rewritten: MachineSemanticKind::CompareI64Zero,
+        operand_shape: PairOperandShape::BINARY_RIGHT_LITERAL,
+        immediate_bound: PairImmediateBound::Exactly(0),
+        result: PairResultDisposition::ImplicitUnits,
+        unit_effects: PairUnitEffects::ISOLATED,
+        machine_effects: PairMachineEffects::ISOLATED,
+    };
+    /// The operand-swapped zero compare: `0 - x` rewrites to the
+    /// `CompareI64Zero` form computing `x - 0` — the zero condition is
+    /// identical while the ordering predicates invert exactly as under
+    /// the nonzero left-immediate grammar, so the pair carries the same
+    /// reader-flow audit under
+    /// [`OperandSwappedUnitDefs`](PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS).
+    pub const COMPARE_LEFT_ZERO: Self = Self {
+        operand_shape: PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP,
+        machine_effects: PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS,
+        ..Self::COMPARE_ZERO
     };
 
     /// Shared base of the unary materialization folds: `MaterializeI64`
@@ -2654,6 +2706,7 @@ impl SelectedInstructionPairRule {
     pub const fn admits_immediate(self, value: u64) -> bool {
         match self.immediate_bound {
             PairImmediateBound::Encoding(limit) => value <= limit,
+            PairImmediateBound::EncodingNonZero(limit) => value != 0 && value <= limit,
             PairImmediateBound::Exactly(exact) => value == exact,
         }
     }
@@ -2723,6 +2776,7 @@ impl SelectedInstructionPairRule {
             MachineSemanticKind::ExactAddI64Immediate => Some(keys.add_i64_immediate),
             MachineSemanticKind::ExactSubtractI64Immediate => Some(keys.subtract_i64_immediate),
             MachineSemanticKind::CompareI64Immediate => Some(keys.compare_i64_immediate),
+            MachineSemanticKind::CompareI64Zero => Some(keys.compare_i64_zero),
             MachineSemanticKind::MaterializeI64 => Some(keys.materialize_i64),
             MachineSemanticKind::Load8 => keys.load8,
             MachineSemanticKind::AddressOffset => keys.address_offset,
@@ -2770,6 +2824,17 @@ impl SelectedInstructionPairRule {
             }),
             (MachineSemanticKind::CompareI64Immediate, SelectedInstructionKind::CompareI64) => {
                 Some(SelectedInstructionKind::CompareI64Immediate { immediate: literal })
+            }
+            // A compare whose folded literal is exactly zero rewrites to
+            // the dedicated zero form — `x - 0` publishes the same
+            // condition state through the narrower realization — under
+            // either operand grammar: `0 - x` is the same operand-swapped
+            // realization refinement `x - 0` performs, admitted under the
+            // same reader-flow audit the left-immediate grammar carries.
+            // The pair's `Exactly(0)` bound already fixed the value, so
+            // the rewrite embeds no immediate field.
+            (MachineSemanticKind::CompareI64Zero, SelectedInstructionKind::CompareI64) => {
+                Some(SelectedInstructionKind::CompareI64Zero)
             }
             (
                 MachineSemanticKind::MaterializeI64,

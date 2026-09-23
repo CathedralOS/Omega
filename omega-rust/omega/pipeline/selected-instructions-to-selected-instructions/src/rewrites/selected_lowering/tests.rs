@@ -125,17 +125,41 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
     // The compare family admits the literal at either `Use` position of the
     // same consumer kind — the operand-1 subtrahend folds in place, the
     // operand-0 minuend folds the operand-swapped subtraction under the
-    // reader-flow audit — through the same immediate row.
-    let &[compare_right_rule, compare_left_rule] = compare.payload().pairs() else {
-        panic!("compare declares one pair per operand grammar")
+    // reader-flow audit — and partitions each grammar on the literal's
+    // value: a nonzero literal folds through the immediate row while the
+    // exact zero the dedicated `CompareI64Zero` realization owns folds
+    // through the zero row, so every candidate admits exactly one pair.
+    let &[
+        compare_right_rule,
+        compare_left_rule,
+        compare_zero_rule,
+        compare_left_zero_rule,
+    ] = compare.payload().pairs()
+    else {
+        panic!("compare declares one pair per operand grammar per value partition")
     };
     for pair in [compare_right_rule, compare_left_rule] {
         assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
-        assert_eq!(pair.immediate_bound(), PairImmediateBound::Encoding(4095));
+        assert_eq!(
+            pair.immediate_bound(),
+            PairImmediateBound::EncodingNonZero(4095)
+        );
+        assert!(!pair.admits_immediate(0));
+        assert!(pair.admits_immediate(1));
         assert!(pair.admits_immediate(4095));
         assert!(!pair.admits_immediate(4096));
         assert_eq!(pair.consumer(), MachineSemanticKind::CompareI64);
         assert_eq!(pair.rewritten(), MachineSemanticKind::CompareI64Immediate);
+        assert_eq!(pair.result(), PairResultDisposition::ImplicitUnits);
+        assert_eq!(pair.unit_effects(), PairUnitEffects::ISOLATED);
+    }
+    for pair in [compare_zero_rule, compare_left_zero_rule] {
+        assert_eq!(pair.producer(), MachineSemanticKind::MaterializeI64);
+        assert_eq!(pair.immediate_bound(), PairImmediateBound::Exactly(0));
+        assert!(pair.admits_immediate(0));
+        assert!(!pair.admits_immediate(1));
+        assert_eq!(pair.consumer(), MachineSemanticKind::CompareI64);
+        assert_eq!(pair.rewritten(), MachineSemanticKind::CompareI64Zero);
         assert_eq!(pair.result(), PairResultDisposition::ImplicitUnits);
         assert_eq!(pair.unit_effects(), PairUnitEffects::ISOLATED);
     }
@@ -242,6 +266,41 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         Some(SelectedInstructionKind::CompareI64Immediate {
             immediate: IntegerValue::Unsigned(12),
         })
+    );
+    // The value partition's zero half: either operand grammar rewrites
+    // `literal == 0` into the dedicated `CompareI64Zero` realization —
+    // the left grammar keeps the operand-swapped unit-definition surface
+    // and the same victim positions.
+    assert_eq!(compare_zero_rule, SelectedInstructionPairRule::COMPARE_ZERO);
+    assert_eq!(
+        compare_left_zero_rule,
+        SelectedInstructionPairRule::COMPARE_LEFT_ZERO
+    );
+    assert_eq!(
+        compare_zero_rule.operand_shape(),
+        PairOperandShape::BINARY_RIGHT_LITERAL
+    );
+    assert_eq!(
+        compare_zero_rule.machine_effects(),
+        PairMachineEffects::ISOLATED
+    );
+    assert_eq!(compare_zero_rule.victim_operand(), 1);
+    assert_eq!(
+        compare_zero_rule.rewrite_consumer(SelectedInstructionKind::CompareI64, 0, None),
+        Some(SelectedInstructionKind::CompareI64Zero)
+    );
+    assert_eq!(
+        compare_left_zero_rule.operand_shape(),
+        PairOperandShape::BINARY_LEFT_LITERAL_OPERAND_SWAP
+    );
+    assert_eq!(
+        compare_left_zero_rule.machine_effects(),
+        PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS
+    );
+    assert_eq!(compare_left_zero_rule.victim_operand(), 0);
+    assert_eq!(
+        compare_left_zero_rule.rewrite_consumer(SelectedInstructionKind::CompareI64, 0, None),
+        Some(SelectedInstructionKind::CompareI64Zero)
     );
 
     // The indexed byte-load family declares the first non-isolated
@@ -1941,6 +2000,8 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
         vec![
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
             SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
+            SelectedInstructionPairRule::COMPARE_ZERO,
+            SelectedInstructionPairRule::COMPARE_LEFT_ZERO,
         ]
     );
     assert_eq!(
@@ -2078,6 +2139,14 @@ fn catalog_rows_declare_symbolic_instruction_pairs() {
             Some(keys.compare_i64_immediate)
         );
     }
+    // The zero half of the compare family's value partition binds the
+    // dedicated `CompareI64Zero` row, not the immediate row.
+    for rule in [compare_zero_rule, compare_left_zero_rule] {
+        assert_eq!(
+            rule.immediate_constraint_key(&keys),
+            Some(keys.compare_i64_zero)
+        );
+    }
     assert_eq!(indexed_rule.immediate_constraint_key(&keys), keys.load8);
     assert_eq!(
         copy_rule.immediate_constraint_key(&keys),
@@ -2202,6 +2271,11 @@ fn declared_unit_effects_admit_the_real_immediate_rows() {
             // compare-immediate row — the operand swap is
             // instruction-level, the row's unit surface unchanged.
             SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
+            // The zero compares rewrite into the `CompareI64Zero` row —
+            // the same one-`Use`, implicit-condition-state shape the
+            // immediate row carries.
+            SelectedInstructionPairRule::COMPARE_ZERO,
+            SelectedInstructionPairRule::COMPARE_LEFT_ZERO,
             SelectedInstructionPairRule::LOAD8_INDEXED_U12,
             SelectedInstructionPairRule::COPY_LITERAL_FOLD,
             SelectedInstructionPairRule::BYTE_VIEW_ADDRESS_OFFSET_U12,
@@ -2321,6 +2395,10 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
             SelectedInstructionPairRule::EXACT_ADD_LEFT_IMMEDIATE_U12,
             SelectedInstructionPairRule::EXACT_SUBTRACT_IMMEDIATE_U12,
             SelectedInstructionPairRule::COMPARE_IMMEDIATE_U12,
+            // The zero compare is isolated like the immediate one — the
+            // `CompareI64Zero` declaration is the same flag-publishing,
+            // otherwise-isolated surface.
+            SelectedInstructionPairRule::COMPARE_ZERO,
         ]
         .into_iter()
         .chain(SelectedInstructionPairRule::EXTENSION_LITERAL_FOLDS)
@@ -2360,8 +2438,13 @@ fn declared_machine_effects_admit_the_real_catalog_declarations() {
         // operand swap itself is instruction-level, and the reader-flow
         // audit admitting it is record-level, checked separately by the
         // producer and the replay.
-        {
-            let rule = SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12;
+        for rule in [
+            SelectedInstructionPairRule::COMPARE_LEFT_IMMEDIATE_U12,
+            // The left-zero compare carries the same operand-swapped
+            // surface: `0 - x` rewrites to `x - 0` under the identical
+            // ordering-inversion relationship.
+            SelectedInstructionPairRule::COMPARE_LEFT_ZERO,
+        ] {
             assert_eq!(
                 rule.machine_effects(),
                 PairMachineEffects::OPERAND_SWAPPED_UNIT_DEFS
