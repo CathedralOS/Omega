@@ -744,6 +744,7 @@ dependencies = [
  "extents",
  "installation-evidence",
  "layout-plans",
+ "optimization-core",
  "sha2",
  "target",
 ]

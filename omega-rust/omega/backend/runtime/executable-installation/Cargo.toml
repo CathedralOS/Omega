@@ -14,3 +14,6 @@ layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 target = { path = "../../../representations/target" }
 installation-evidence = { path = "../../../representations/installation-evidence" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+optimization-core = { path = "../../../representations/optimization-core", features = ["test-support"] }
