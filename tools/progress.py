@@ -410,6 +410,63 @@ def fail_tier_sizes() -> dict[str, int]:
     return sizes
 
 
+SUITE_VERDICT = re.compile(r"^test (\S+) \.\.\. (ok|FAILED|ignored)\b", re.M)
+
+
+def parse_owner_index(path: Path) -> dict[str, list[dict]]:
+    """The umbrella's own owner index, written under
+    OMEGA_PASS_CANARY_OWNER_INDEX: one row per (kind, canary, target, owner
+    test, expected status). A fixture with a unique host-executed owner is
+    elided from the umbrella and judged by that owner's test."""
+    owners: dict[str, list[dict]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        kind, canary, target, test, status = (line.split("\t") + [""] * 5)[:5]
+        owners.setdefault(canary, []).append(
+            {"kind": kind, "target": target, "test": test, "expected_status": status}
+        )
+    return owners
+
+
+def parse_suite_log(path: Path) -> dict[str, str]:
+    """Per-test verdicts of one `cargo test -p compiler --test canary_suite`
+    run, keyed by the module-qualified test name the log prints."""
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    return {name: verdict for name, verdict in SUITE_VERDICT.findall(text)}
+
+
+def owner_outcomes(owners: dict[str, list[dict]], verdicts: dict[str, str]) -> dict:
+    """Join each fixture's host-executed owners (rooted or direct) to the
+    suite log. A fixture passes when every such owner test passed, fails when
+    any failed, and has no verdict when none of its owners ran in the log.
+    Target-only owners compile for another target and are not judged here."""
+    passing, failing, no_verdict = [], [], []
+    for canary, rows in sorted(owners.items()):
+        judged = [verdicts.get(row["test"]) for row in rows if row["kind"] in ("rooted", "direct")]
+        judged = [v for v in judged if v is not None]
+        if not judged:
+            no_verdict.append(canary)
+        elif all(v == "ok" for v in judged):
+            passing.append(canary)
+        else:
+            failing.append(canary)
+    return {"passing": passing, "failing": failing, "no_verdict": no_verdict}
+
+
+def merge_owner_verdicts(pass_outcome: dict, owner_outcome: dict, tier_of: dict[str, str]) -> None:
+    """Count a fixture whose dedicated owner failed as a failure of its tier;
+    the umbrella never compiled it, so its own log could not."""
+    for member in owner_outcome["failing"]:
+        if member in pass_outcome["failed_members"]:
+            continue
+        pass_outcome["failed_members"][member] = "dedicated-owner"
+        tier = tier_of.get(member)
+        if tier in pass_outcome["per_tier"]:
+            pass_outcome["per_tier"][tier]["failed"] += 1
+    pass_outcome["owners"] = {k: len(v) for k, v in owner_outcome.items()}
+
+
 def parse_fail_log(path: Path) -> dict:
     """The fail suite passes when every rostered fail fixture rejects with its
     expected diagnostic fragment; a failure names the fixture that did not."""
@@ -581,9 +638,14 @@ def headline(report: dict) -> dict:
         out["rostered pass fixtures that pass their tier"] = f"{measured - failed}/{measured}"
         coverage = o["pass"].get("coverage") or {}
         elided = sum(v for k, v in coverage.items() if k.endswith("-elided"))
-        if coverage:
+        owners = o["pass"].get("owners")
+        if coverage and not owners:
             out["fixtures the umbrella elided for a dedicated owner (not read here)"] = str(elided)
             out["umbrella-compiled fixtures that pass"] = f"{measured - elided - failed}/{measured - elided}"
+        if owners:
+            judged = owners["passing"] + owners["failing"]
+            out["elided fixtures judged by their dedicated owner"] = f"{owners['passing']}/{judged}"
+            out["elided fixtures with no owner verdict in the suite log"] = str(owners["no_verdict"])
         native = {t: b for t, b in o["pass"]["per_tier"].items() if t != "checked_only"}
         nm = sum(b["members"] for b in native.values())
         nf = sum(b["failed"] for b in native.values())
@@ -603,6 +665,8 @@ def main() -> int:
     parser.add_argument("--pass-log", type=Path, help="output of the collect-all pass canary suite")
     parser.add_argument("--fail-log", type=Path, help="output of the collect-all fail canary suite")
     parser.add_argument("--samples-log", type=Path, help="output of the samples harness")
+    parser.add_argument("--owner-index", type=Path, help="owner index the umbrella writes under OMEGA_PASS_CANARY_OWNER_INDEX")
+    parser.add_argument("--suite-log", type=Path, help="output of a full `cargo test -p compiler --test canary_suite` run, for the owners' verdicts")
     parser.add_argument("--pair-floor", type=int, default=5, help="samples a pair needs to 'matter' (default 5)")
     parser.add_argument("--json", type=Path, help="also write the full report as JSON")
     args = parser.parse_args()
@@ -613,6 +677,9 @@ def main() -> int:
     outcomes = {}
     if args.pass_log and args.pass_log.is_file():
         outcomes["pass"] = parse_pass_log(args.pass_log, report["corpus"]["tier_of"])
+    if "pass" in outcomes and args.owner_index and args.owner_index.is_file() and args.suite_log and args.suite_log.is_file():
+        verdicts = owner_outcomes(parse_owner_index(args.owner_index), parse_suite_log(args.suite_log))
+        merge_owner_verdicts(outcomes["pass"], verdicts, report["corpus"]["tier_of"])
     if args.fail_log and args.fail_log.is_file():
         outcomes["fail"] = parse_fail_log(args.fail_log)
     if args.samples_log and args.samples_log.is_file():
