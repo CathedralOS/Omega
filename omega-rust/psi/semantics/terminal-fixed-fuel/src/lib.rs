@@ -182,6 +182,11 @@ pub enum UnboundedCycleCause {
     /// The component carries no ranking row: no producer bound binds its
     /// visit count, so no fixed ceiling can cover its cyclic topology.
     Unranked,
+    /// An operation inside the component receives its callee through the
+    /// invocation's descriptor table — an open callee set no fixed ceiling
+    /// covers. The report names the responsible operation alongside the
+    /// component it sits in.
+    OpenCalleeSet { operation: OperationId },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

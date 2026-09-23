@@ -607,10 +607,17 @@ mod machine_bounds {
 
     /// A dynamic-parameter call receives its callee from the invocation's
     /// descriptor table: the realization set is open, so no fixed ceiling can
-    /// cover it and derivation rejects rather than under-approximates.
+    /// cover it and derivation rejects rather than under-approximates. On an
+    /// acyclic block there is no component to cite, so the flat operation
+    /// report is already the precise absence-of-bound cause.
     #[test]
     fn dynamic_parameter_call_rejects_as_invocation_bound() {
-        let walk = cyclic_machine(32, vec![parameter_unit_call(10)]);
+        let walk = machine(
+            1,
+            1,
+            vec![block(1, vec![parameter_unit_call(10)], return_unit(2))],
+            None,
+        );
         let module = module(1, vec![walk]);
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
@@ -895,16 +902,22 @@ mod machine_bounds {
         assert_eq!(derive_maximum_entry_bound(&module, id(1)), Ok(1 + 1 + 2));
     }
 
-    /// An invocation-bound dynamic-parameter call inside a cyclic member still
-    /// rejects rather than silently dropping the open callee set.
+    /// An invocation-bound dynamic-parameter call inside a cyclic member
+    /// reports the verifier-derived component identity and the `OpenCalleeSet`
+    /// cause — the responsible edge plus its cyclic component — rather than a
+    /// flat operation report that drops where closure failed.
     #[test]
     fn natural_cycle_dynamic_parameter_call_rejects() {
         let walk = cyclic_machine(32, vec![parameter_unit_call(10)]);
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
         let module = module(1, vec![walk]);
-        assert!(matches!(
+        assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Err(FixedFuelError::InvocationBoundCallee { .. })
-        ));
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::OpenCalleeSet { operation: id(10) },
+            })
+        );
     }
 
     /// A multi-block segment whose interior crosses a conditional needs no
