@@ -218,6 +218,17 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(None);
     }
 
+    // A FIELD-CHAIN read (`self.pair.x`, `p.inner.x`): the per-field locals a
+    // record pattern desugars to (`let { x, y } = self.pair;` binds
+    // `let x = self.pair.x`) carry the inference sentinel like a hoist temp.
+    // The local's type is the declared type of the last field, found by
+    // walking the chain from its root place through each Named data type.
+    if let ExpressionNode::Member(_) = expressions.expression(initial_value)
+        && let Some(field_type) = member_chain_type(lowerer, attached_data, state, initial_value)
+    {
+        return Ok(Some(lower_type_reference_into_table(lowerer, &field_type)?));
+    }
+
     // A COMPUTED-INDEX temp (`let __hoist = self.k + 1`, hoisted by the
     // syntax->resolved index hoist so `arr[k + 1]` indexes a slotted plain
     // place): the temp's type is the BASE SCALAR of the first typeable place
@@ -567,6 +578,52 @@ fn collection_type_reference(
                 )
             })
         }
+        _ => None,
+    }
+}
+
+/// The declared type of a place read through a chain of field members rooted
+/// at `self`, a state parameter or a typed local. A reference on the way is
+/// looked through (the member reads the referee's field); any other shape,
+/// including indexed steps, yields `None` so the caller keeps its sentinel.
+fn member_chain_type(
+    lowerer: &Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    state: &resolved::state::State,
+    place: ExpressionHandle,
+) -> Option<TypeReference> {
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
+    let ExpressionNode::Member(member) = expressions.expression(place) else {
+        return collection_type_reference(lowerer, attached_data, state, place);
+    };
+    if let ExpressionNode::Name(_) = expressions.expression(member.receiver) {
+        // `self.<field>` resolves against the attached data directly; a bare
+        // parameter or local root continues through its declared type below.
+        if let Some(field_type) = collection_type_reference(lowerer, attached_data, state, place) {
+            return Some(field_type);
+        }
+    }
+    let receiver_type = member_chain_type(lowerer, attached_data, state, member.receiver)?;
+    let data_name = named_data_of(lowerer.source_trees, &receiver_type)?;
+    attached_field_type(lowerer.source_trees, &data_name, member.member.as_str())
+}
+
+/// The data type a field member reads from, looking through references and
+/// domain/range constraints on the receiver's declared type.
+fn named_data_of(
+    source_trees: &resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Option<resolved::name::DiagnosticName> {
+    match type_reference {
+        TypeReference::Named { name, .. } => Some(name.clone()),
+        TypeReference::Reference(reference) => named_data_of(
+            source_trees,
+            source_trees.child_type_reference(reference.referee),
+        ),
+        TypeReference::Constrained(constrained) => named_data_of(
+            source_trees,
+            source_trees.child_type_reference(constrained.base_type),
+        ),
         _ => None,
     }
 }

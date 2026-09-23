@@ -356,6 +356,7 @@ pub(super) fn first_unsupported_statement(
                             .is_some()
                     })
                     || erased_locals.contains(&local.symbol)
+                    || is_record_pattern_marker(local)
             }
             _ => false,
         })
@@ -383,6 +384,14 @@ fn erased_alias_locals(
             .unwrap_or_default(),
     );
     erased
+}
+
+/// A record pattern's marker (`let __destructure#x#y = self.pair;`) carries
+/// only the spelled field set validation checks for exhaustiveness. The
+/// pattern's bindings are its per-field locals, each an ordinary re-read of
+/// the same place, so the marker declares no storage and plans no operation.
+fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> bool {
+    local.name.as_str().starts_with("__destructure#")
 }
 
 /// The statement position a prebuilt assignment store belongs to.
@@ -716,7 +725,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 {
                     return None;
                 }
-                if erased_locals.contains(&local.symbol) {
+                if erased_locals.contains(&local.symbol) || is_record_pattern_marker(local) {
                     continue;
                 }
                 // A local binding a selected boundary-operator application

@@ -92,9 +92,29 @@ pub(crate) fn lower_statement_node(
             // Resolution retains whether the binding had an annotation. A
             // source-authored `()` is not an inference sentinel; destructured
             // and proof-output bindings may have authored names but no type.
+            // A pattern marker that names a place (`let __destructure#x#y =
+            // self.pair;`, `__arm_destructure#V=.. = self.read`) carries
+            // compile-time facts about that place, not a runtime local:
+            // typing it as the place's type would read as a move out of it.
+            // It keeps the sentinel while the per-field locals it accompanies
+            // are inferred. A marker capturing a computed subject
+            // (`__transition_subject#.. = self.make()`) is real storage and
+            // is typed like any temp. `#` never occurs in an authored name.
+            let is_place_marker = local_data.name.as_str().contains('#')
+                && matches!(
+                    lowerer
+                        .source_trees
+                        .tables
+                        .bodies
+                        .expressions
+                        .expression(local_data.initial_value),
+                    resolved::expression::ExpressionNode::Member(_)
+                        | resolved::expression::ExpressionNode::Name(_)
+                );
             let type_reference = if declared_is_unit
                 && local_data.initial_value.is_valid()
                 && local_data.type_is_inferred
+                && !is_place_marker
             {
                 infer_hoist_temp_type(lowerer, attached_data, state, local_data.initial_value)?
             } else {

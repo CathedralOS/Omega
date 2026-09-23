@@ -448,6 +448,37 @@ fn construction_assignment_owner(
     Some(())
 }
 
+/// Validate every field store one authored assignment planned: a single
+/// field, or each member of a whole-record replacement as one roster.
+pub(crate) fn validate_assignment_stores(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    statement_index: u32,
+    assignment: &checked_trees::statement::TableAssignment,
+    stores: &[&checked_trees::CheckedStructuralScalarFieldStorePlan],
+) -> Result<(), LoweringError> {
+    match stores {
+        [] => unsupported("structural scalar store roster omits an authored assignment"),
+        [store] => validate_assignment(
+            checked,
+            machine,
+            state_symbol,
+            statement_index,
+            assignment,
+            store,
+        ),
+        stores => validate_record_stores(
+            checked,
+            machine,
+            state_symbol,
+            statement_index,
+            assignment,
+            &stores.iter().collect::<Vec<_>>(),
+        ),
+    }
+}
+
 pub(crate) fn validate_assignment(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -590,9 +621,9 @@ fn validate_record_stores(
         Some(statement_index as usize),
         assignment.target,
     )?;
-    if !source.path.is_empty() {
-        return unsupported("record store destination projected beyond its authored root");
-    }
+    // The literal may replace a whole root (`local = Pair { .. }`) or a
+    // projected record place (`self.pair = Pair { .. }`); either way every
+    // field store must write through exactly the authored target's path.
     let root = checked
         .facts
         .values
@@ -658,7 +689,7 @@ fn validate_record_stores(
                 symbol
             }
         };
-        if source.root != destination || !store.carrier_path.is_empty() {
+        if source.root != destination || store.carrier_path != source.path {
             return unsupported("record store destination drifted from its authored place");
         }
         let declaration = checked

@@ -761,3 +761,46 @@ fn scalar_result_reaches_one_projected_store_and_local_drift_rejects() {
         ))
     ));
 }
+
+/// A record pattern binds each field as an ordinary re-read of the place its
+/// marker names, and a whole-record literal assigned to a projected field
+/// (`self.pair = Pair { .. }`) lowers as one field store per member through
+/// that projection. Both compose in a single-state body and in a state graph
+/// whose branch reads the bound locals.
+#[test]
+fn record_patterns_and_projected_record_replacement_lower_in_either_body_route() {
+    for body in [
+        "self.pair = Pair { x: 30, y: 40 };
+         let { x, y as vertical } = self.pair;
+         self.out = x + vertical;",
+        "self.pair = Pair { x: 30, y: 40 };
+         let { x, y as vertical } = self.pair;
+         let total: i32 = x + vertical;
+         transition total == 70 { true -> good() _ -> bad() }
+         state good(&mut self) { self.out = 1; }
+         state bad(&mut self) { self.out = 2; }",
+    ] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Pair [copy] {{ x: i32 [0..=100]; y: i32 [0..=100]; }}
+             data Holder {{ pair: Pair; out: i32 [0..=200]; }}
+             machine Holder::run(&mut self) {{ {body} }}"
+        ));
+        let machine = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Holder::run")
+            .expect("authored machine")
+            .symbol;
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .omission_for_machine(machine),
+            None,
+            "the pattern marker declares no storage, so the Unit plan is not omitted"
+        );
+        lower_machine(&checked, TerminalMachineSelection::Name("Holder::run"))
+            .expect("the field stores and the pattern's reads lower");
+    }
+}

@@ -298,17 +298,16 @@ machine Main::main(&mut self) reaches Agg {{
             .and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_err();
         // The claim is that an aggregate boundary member is still refused, not
-        // which stage refuses it. `9a81cd687742` (write-only borrows lend result
-        // fields and replace whole records) decomposes a whole-record
-        // replacement into ordered field stores, and its root guard now fires
-        // in lowering before entry establishment is ever reached. Both stops
-        // are accepted so the pin survives that guard being lifted, and still
-        // fails loudly if the program stops being refused at all.
+        // which stage refuses it. `9a81cd687742` decomposes a whole-record
+        // replacement into ordered field stores; once lowering admitted those
+        // stores through a projected place, the refusal moved to the
+        // structural result's cleanup rejoin. Either stop is accepted, and the
+        // pin still fails loudly if the program stops being refused at all.
         assert!(
             diagnostics.iter().any(|diagnostic| {
                 let text = diagnostic.to_string();
                 text.contains("ProgramEntry establishment rejoins 0 Terminal attachment identities")
-                    || text.contains("record store destination projected beyond its authored root")
+                    || text.contains("Unit structural result cleanup disagrees with its final consuming use")
             }),
             "aggregate boundary member `{member}` must currently refuse Terminal entry establishment; diagnostics: {diagnostics:?}",
         );
