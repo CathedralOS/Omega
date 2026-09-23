@@ -1327,6 +1327,13 @@ pub(crate) fn validate_consumer(
                 else {
                     return unsupported("Unit structural result producer has no authored local");
                 };
+                // A `&T` producer keeps the authored reference on its local but
+                // joins the referent's carrier: compare the slice/record the
+                // view names, not the borrow shell.
+                let view_carrier = crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
+                    checked,
+                    local.type_reference,
+                );
                 if !local.symbol.is_valid()
                     || (result.multiplicity == Multiplicity::Unrestricted
                         && !(validation::is_closed_primitive_array_type(
@@ -1335,15 +1342,15 @@ pub(crate) fn validate_consumer(
                         ) || crate::expression_preparation::source_custody::structural::plain_record(
                             checked,
                             local.type_reference,
-                        )))
+                        ) || view_carrier.is_some()))
                     || checked
                         .typed
-                        .normalized_type_identity(
+                        .normalized_type_identity(view_carrier.unwrap_or(
                             crate::unit::attached_unit::parameters::structural_carrier_type(
                                 checked,
                                 local.type_reference,
                             )?,
-                        )
+                        ))
                         .into_string()
                         != result.type_identity
                 {
@@ -1360,10 +1367,14 @@ pub(crate) fn validate_consumer(
                     )
                 }) {
                     Some(Ok((root, path, access))) if root == local.symbol => {
-                        if path != argument.path
-                            || access.unwrap_or(checked_trees::CheckedStructuralAccess::Owned)
-                                != argument.access
-                        {
+                        // A borrowed-view local can only ever be lent shared;
+                        // its authored access names the view's only custody.
+                        let authored_access = access.unwrap_or(if view_carrier.is_some() {
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                        } else {
+                            checked_trees::CheckedStructuralAccess::Owned
+                        });
+                        if path != argument.path || authored_access != argument.access {
                             return unsupported(
                                 "Unit result projection disagrees with its authored path",
                             );
@@ -1445,7 +1456,27 @@ pub(crate) fn validate_consumer(
             if names_result
                 && producer_coordinate.call_ordinal == 0
                 && expression.is_none_or(|expression| {
-                    named_result_operand(checked, expression).1 != argument.access
+                    // The operand's authored access mirrors its source: a
+                    // borrowed-view local carries shared custody in its type,
+                    // not a borrow expression.
+                    let authored_access = named_result_operand(checked, expression).1;
+                    let authored_access =
+                        if authored_access == checked_trees::CheckedStructuralAccess::Owned
+                            && matches!(
+                                statements.get(result.statement_index as usize),
+                                Some(StatementNode::LocalData(local))
+                                    if crate::expression_preparation::source_custody::structural::borrowed_slice_view_referent(
+                                        checked,
+                                        local.type_reference,
+                                    )
+                                    .is_some()
+                            )
+                        {
+                            checked_trees::CheckedStructuralAccess::SharedBorrow
+                        } else {
+                            authored_access
+                        };
+                    authored_access != argument.access
                 })
             {
                 return unsupported(
@@ -1555,7 +1586,11 @@ pub(crate) fn validate_consumer(
                         | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                         | CheckedUnitEffectOperationPlan::StructuralCall { .. }
                 ) || !argument.path.is_empty()
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned))
+                    || !matches!(
+                        argument.access,
+                        checked_trees::CheckedStructuralAccess::Owned
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    )))
                 || (argument.path.is_empty() && argument.type_identity != result.type_identity)
                 || parameter.type_identity != argument.type_identity
                 || (!argument.path.is_empty()

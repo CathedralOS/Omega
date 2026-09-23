@@ -130,8 +130,16 @@ pub(crate) fn structural_computation_argument(
         });
     }
     if target_access == CheckedStructuralAccess::SharedBorrow
-        && let Some(argument) =
-            shared_slice_view_argument(program, borrow, machine, state, call, &place, name.symbol, target)
+        && let Some(argument) = shared_slice_view_argument(
+            program,
+            borrow,
+            machine,
+            state,
+            call,
+            &place,
+            name.symbol,
+            target,
+        )
     {
         return Some(argument);
     }
@@ -554,8 +562,9 @@ pub(crate) fn shared_slice_view_argument(
     borrowed_slice_view_element(program, target.type_reference, &[])?;
     let identity = borrowed_slice_view_type_identity(program, target.type_reference, &[], &[]);
     let parameters = program.state_parameters(state);
-    let (source, source_type) = if let Some(position) =
-        parameters.iter().position(|parameter| parameter.symbol == symbol)
+    let (source, source_type) = if let Some(position) = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)
     {
         let parameter = &parameters[position];
         if parameter.is_const || parameter.is_self {

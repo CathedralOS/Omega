@@ -289,6 +289,10 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
+        | OperationKind::EstablishElementView { .. }
+        | OperationKind::ElementViewLength { .. }
+        | OperationKind::ElementViewRead { .. }
+        | OperationKind::ElementViewSubslice { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }
         | OperationKind::IntegerEqual { .. }

@@ -121,6 +121,42 @@ pub enum AbstractOperation {
         result: AbstractResult,
         source: PlaceId,
     },
+    /// Establish one shared element view over a structural collection place.
+    /// The view is a descriptor loan, not an element copy.
+    EstablishElementView {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        destination: PlaceId,
+        source: StructuralArgument,
+        element: semantic_vocabulary::StructuralTypeId,
+    },
+    /// Observe the element count of one verifier-approved element view.
+    ElementViewLength {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+    },
+    /// Read one element with the verified same-view length and bounds
+    /// obligation.
+    ElementViewRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    /// Establish an immutable element window with the exact source, endpoints
+    /// and two-leg bounds proof.
+    ElementViewSubslice {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Zero-code declaration of one existential descriptor in the current
     /// function's runtime interface. Keeping the complete Terminal row in the
     /// entry block prevents an unused parameter from disappearing before a

@@ -260,9 +260,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
                         pending.push(source);
                     }
-                    checked_trees::CheckedStructuralValueKind::FixedArray {
-                        ref elements,
-                    } => {
+                    checked_trees::CheckedStructuralValueKind::FixedArray { ref elements } => {
                         pending.extend(elements.iter().copied());
                     }
                     checked_trees::CheckedStructuralValueKind::Reference { .. }

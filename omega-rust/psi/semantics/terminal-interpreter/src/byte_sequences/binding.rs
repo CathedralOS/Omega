@@ -136,6 +136,7 @@ pub(crate) struct StructuralCallArguments {
     pub(crate) byte_sequences: BTreeMap<PlaceId, ByteSequenceBinding>,
     pub(crate) scalar_arrays: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     pub(crate) scalar_cases: BTreeMap<PlaceId, TerminalScalarCaseValue>,
+    pub(crate) element_views: BTreeMap<PlaceId, crate::element_views::ElementView>,
 }
 
 impl TerminalExecution {
@@ -247,11 +248,14 @@ impl TerminalExecution {
         let values = self.resolve_reference_call_arguments(&opaque_arguments)?;
         let byte_sequences =
             self.bind_byte_sequence_arguments(&opaque_parameters, &opaque_arguments, &values)?;
+        let element_views =
+            self.bind_element_view_arguments(&opaque_parameters, &opaque_arguments, &values)?;
         Ok(StructuralCallArguments {
             values: bind_structural_arguments(&opaque_parameters, &values)?,
             byte_sequences,
             scalar_arrays,
             scalar_cases,
+            element_views,
         })
     }
 }

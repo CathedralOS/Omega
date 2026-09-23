@@ -99,6 +99,10 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::ByteSequenceRead { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceLength { .. }
+        | AbstractOperation::EstablishElementView { .. }
+        | AbstractOperation::ElementViewLength { .. }
+        | AbstractOperation::ElementViewRead { .. }
+        | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanNot { .. }

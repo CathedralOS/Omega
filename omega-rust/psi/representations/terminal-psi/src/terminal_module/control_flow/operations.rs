@@ -323,6 +323,42 @@ pub enum OperationKind {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// Establish one immutable borrowed element view over the contiguous
+    /// elements of a structural collection place. The result carries the
+    /// collection's own stored extent under a shared loan; no elements copy.
+    /// `source` names the collection root and projection under shared-borrow
+    /// access, and `element` is the view's declared element type, which must
+    /// equal the collection's own element type at the path end.
+    EstablishElementView {
+        destination: PlaceId,
+        source: StructuralArgument,
+        element: StructuralTypeId,
+    },
+    /// Observe the exact element count of one whole borrowed element view.
+    /// The result is unsigned 64-bit; the source place and its custody remain
+    /// unchanged.
+    ElementViewLength {
+        source: PlaceId,
+    },
+    /// Read one element using the exact source's dominating element-length
+    /// observation. The independent verifier reconstructs and checks
+    /// index < length; the result carries the view's scalar element type.
+    ElementViewRead {
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
+    /// Derive a borrowed element view for [start, end), with a certificate of
+    /// start <= end <= length counted in elements. Length must directly
+    /// observe the same source through `ElementViewLength`.
+    ElementViewSubslice {
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Establish one whole, claim-free affine empty-record local. This is a
     /// semantic ownership event, not an ABI input or a target storage choice.
     EstablishTrivialAffineLocal {
@@ -728,9 +764,16 @@ impl OperationKind {
             }
             Self::ByteSequenceSubslice {
                 start, end, length, ..
+            }
+            | Self::ElementViewSubslice {
+                start, end, length, ..
             } => {
                 *start = map(*start);
                 *end = map(*end);
+                *length = map(*length);
+            }
+            Self::ElementViewRead { index, length, .. } => {
+                *index = map(*index);
                 *length = map(*length);
             }
             Self::BooleanEqual { left, right }
@@ -792,6 +835,8 @@ impl OperationKind {
             | Self::StructuralCaseMembership { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::ByteSequenceLength { .. }
+            | Self::EstablishElementView { .. }
+            | Self::ElementViewLength { .. }
             | Self::StructuralByteSequenceFieldLength { .. }
             | Self::EstablishTrivialAffineLocal { .. }
             | Self::StoreDynamicDescriptor { .. }

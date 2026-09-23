@@ -92,10 +92,13 @@ pub(super) fn validate(
             CheckedUnitStructuralTypeShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(terminal_byte_sequence_carrier(*carrier))
             }
-            // Terminal Psi carries no runtime-length view descriptor, so a
-            // borrowed `&[T]` view rejects here instead of losing its extent.
-            CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => {
-                return unsupported("borrowed slice view has no Terminal descriptor");
+            CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                element_type_identity,
+            } => {
+                pending.push(element_type_identity);
+                StructuralTypeShape::ElementView {
+                    element: lookup_type_id(&type_ids, element_type_identity)?,
+                }
             }
             CheckedUnitStructuralTypeShape::Record { fields } => {
                 retain_fields(fields, &mut pending);

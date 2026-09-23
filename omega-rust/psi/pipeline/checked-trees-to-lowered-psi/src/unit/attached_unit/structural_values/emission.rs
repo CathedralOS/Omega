@@ -221,6 +221,17 @@ pub(crate) fn emit(
         && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
     {
         emission.direct_borrow(source)?
+    } else if emission.sources.is_empty()
+        && let CheckedStructuralValueKind::BorrowedSliceView { source } = &checked
+            .facts
+            .values
+            .structural_values
+            .nodes
+            .get(*value)
+            .kind
+        && source.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+    {
+        emission.direct_element_view(source)?
     } else {
         let place = emission.value(*value, None)?;
         if emission.sources.is_empty()
@@ -573,10 +584,84 @@ impl Emission<'_, '_, '_> {
             .get(value)
             .clone();
         match node.kind {
-            // Terminal Psi carries no runtime-length view descriptor, so a
-            // borrowed `&[T]` view rejects here instead of losing its extent.
-            CheckedStructuralValueKind::BorrowedSliceView { .. } => {
-                unsupported("borrowed slice view has no Terminal descriptor")
+            // A borrowed `&[T]` view lowers to `EstablishElementView`: the
+            // shared-borrow collection argument resolves against the current
+            // locals and signature parameters exactly as a `&T` leaf does, and
+            // the fresh view result joins the selection's block parameter.
+            CheckedStructuralValueKind::BorrowedSliceView { source } => {
+                let continuation = continuation.ok_or(LoweringError::Unsupported(
+                    "borrowed element view requires a structural continuation",
+                ))?;
+                let element = self
+                    .structural_types
+                    .iter()
+                    .find_map(|declaration| match declaration.shape {
+                        StructuralTypeShape::ElementView { element }
+                            if declaration.id == self.structural_type =>
+                        {
+                            Some(element)
+                        }
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "borrowed element view lost its element carrier",
+                    ))?;
+                let argument =
+                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                        .with_structural_parameters(&self.evaluation.structural_parameters)
+                        .with_structural_locals(&self.evaluation.structural_locals)
+                        .shared_structural_argument(
+                            &source,
+                            crate::expression_preparation::source_custody::authored_state(
+                                self.checked,
+                                self.state,
+                            )?
+                            .0,
+                            self.checked.state_parameters(
+                                crate::expression_preparation::source_custody::authored_state(
+                                    self.checked,
+                                    self.state,
+                                )?
+                                .1,
+                            ),
+                        )?;
+                let id = self.operations.allocate();
+                let place = place_id(allocate_dense(self.next_place)?);
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place,
+                        structural_type: self.structural_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishElementView {
+                        destination: place,
+                        source: argument,
+                        element,
+                    },
+                });
+                self.temporary_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: id,
+                        structural_type: self.structural_type,
+                    },
+                });
+                self.complete_borrowed(
+                    StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    continuation,
+                )?;
+                return Ok(continuation.place);
             }
             CheckedStructuralValueKind::Reference { source } => {
                 if source.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
@@ -597,7 +682,21 @@ impl Emission<'_, '_, '_> {
                     )
                     .with_structural_parameters(&self.evaluation.structural_parameters)
                     .with_structural_locals(&self.evaluation.structural_locals)
-                    .shared_structural_argument(&source)?;
+                    .shared_structural_argument(
+                        &source,
+                        crate::expression_preparation::source_custody::authored_state(
+                            self.checked,
+                            self.state,
+                        )?
+                        .0,
+                        self.checked.state_parameters(
+                            crate::expression_preparation::source_custody::authored_state(
+                                self.checked,
+                                self.state,
+                            )?
+                            .1,
+                        ),
+                    )?;
                     self.complete_borrowed(argument, continuation)?;
                     return Ok(continuation.place);
                 }
@@ -1211,7 +1310,21 @@ impl Emission<'_, '_, '_> {
             crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
                 .with_structural_parameters(&self.evaluation.structural_parameters)
                 .with_structural_locals(&self.evaluation.structural_locals)
-                .shared_structural_argument(source)?;
+                .shared_structural_argument(
+                    source,
+                    crate::expression_preparation::source_custody::authored_state(
+                        self.checked,
+                        self.state,
+                    )?
+                    .0,
+                    self.checked.state_parameters(
+                        crate::expression_preparation::source_custody::authored_state(
+                            self.checked,
+                            self.state,
+                        )?
+                        .1,
+                    ),
+                )?;
         let join = block_id(allocate_dense(self.next_block)?);
         let place = place_id(allocate_dense(self.next_place)?);
         let position = 0u32;
@@ -1256,6 +1369,77 @@ impl Emission<'_, '_, '_> {
         *self.values = continuation.parameters.clone();
         self.evaluation.parameters = continuation.parameters;
         self.evaluation.block_structural_parameters = continuation.structural_parameters;
+        Ok(place)
+    }
+
+    /// Establish one borrowed element view without a selection join: the op
+    /// result is itself the checked value, so the fresh place publishes
+    /// directly as this binding's completed operation result.
+    fn direct_element_view(
+        &mut self,
+        source: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    ) -> Result<PlaceId, LoweringError> {
+        let element = self
+            .structural_types
+            .iter()
+            .find_map(|declaration| match declaration.shape {
+                StructuralTypeShape::ElementView { element }
+                    if declaration.id == self.structural_type =>
+                {
+                    Some(element)
+                }
+                _ => None,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "borrowed element view lost its element carrier",
+            ))?;
+        let argument =
+            crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                .with_structural_parameters(&self.evaluation.structural_parameters)
+                .with_structural_locals(&self.evaluation.structural_locals)
+                .shared_structural_argument(
+                    source,
+                    crate::expression_preparation::source_custody::authored_state(
+                        self.checked,
+                        self.state,
+                    )?
+                    .0,
+                    self.checked.state_parameters(
+                        crate::expression_preparation::source_custody::authored_state(
+                            self.checked,
+                            self.state,
+                        )?
+                        .1,
+                    ),
+                )?;
+        let id = self.operations.allocate();
+        let place = place_id(allocate_dense(self.next_place)?);
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place,
+                structural_type: self.structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishElementView {
+                destination: place,
+                source: argument,
+                element,
+            },
+        });
+        self.temporary_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id,
+                structural_type: self.structural_type,
+            },
+        });
         Ok(place)
     }
 

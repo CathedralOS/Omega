@@ -66,8 +66,10 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
-        | LoweredDirectExpression::ByteSequenceFieldLength { .. } => Ok(()),
-        LoweredDirectExpression::ByteSequenceRead { index, .. } => {
+        | LoweredDirectExpression::ByteSequenceFieldLength { .. }
+        | LoweredDirectExpression::ElementViewLength { .. } => Ok(()),
+        LoweredDirectExpression::ByteSequenceRead { index, .. }
+        | LoweredDirectExpression::ElementViewRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)
         }
         LoweredDirectExpression::IntegerBinary { left, right, .. } => {

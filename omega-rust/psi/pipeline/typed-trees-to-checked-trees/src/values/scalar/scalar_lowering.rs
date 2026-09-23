@@ -412,9 +412,6 @@ pub(crate) fn lower_scalar_expression(
             }
         };
         let primitive_type = program.primitive_type_reference(element_type)?;
-        if primitive_type != PrimitiveType::U8 {
-            return None;
-        }
         let index =
             land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
                 .or_else(|| {

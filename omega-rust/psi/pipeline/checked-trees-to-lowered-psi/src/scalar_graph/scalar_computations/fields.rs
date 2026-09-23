@@ -165,6 +165,8 @@ pub(crate) fn prepare(
 pub(super) fn observation(
     fields: &[Binding],
     bindings: &storage::ScalarBindings,
+    machine: &checked_trees::machine::Machine,
+    parameters: &[checked_trees::signature::StateParameter],
     subject: &CheckedUnitStructuralArgumentPlan,
     field: symbols::SymbolHandle,
     primitive: PrimitiveType,
@@ -182,7 +184,9 @@ pub(super) fn observation(
     // The ordinary shared-argument join already resolves an exact live local
     // without transferring it. Field replay admits only StructuralLocal sources;
     // use that same current storage mapping instead of a parallel read map.
-    let source = bindings.shared_structural_argument(subject)?.place;
+    let source = bindings
+        .shared_structural_argument(subject, machine, parameters)?
+        .place;
     Ok(match scalar_type {
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {

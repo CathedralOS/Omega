@@ -314,3 +314,80 @@ pub(super) fn project_byte_sequence_read(
     };
     Ok(kind)
 }
+
+pub(super) fn project_element_view_read(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::ElementViewRead {
+        psi_operation,
+        source,
+        index,
+        length,
+        obligation,
+        ..
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_element_view_read")
+    };
+    let kind = {
+        let fact = unit
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *obligation
+            })
+            .ok_or(Error::SourceCustodyMismatch)?;
+        LegalizedScalarInstructionKind::ElementViewRead {
+            source: *source,
+            index: *index,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: fact.identity,
+        }
+    };
+    Ok(kind)
+}
+
+pub(super) fn project_element_view_subslice(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::ElementViewSubslice {
+        psi_operation,
+        result,
+        source,
+        start,
+        end,
+        length,
+        obligation,
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_element_view_subslice")
+    };
+    let kind = {
+        let fact = unit
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *obligation
+            })
+            .ok_or(Error::SourceCustodyMismatch)?;
+        LegalizedScalarInstructionKind::ElementViewSubslice {
+            result: result.clone(),
+            source: *source,
+            start: *start,
+            end: *end,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: fact.identity,
+        }
+    };
+    Ok(kind)
+}

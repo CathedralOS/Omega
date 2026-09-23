@@ -137,63 +137,195 @@ pub(super) fn validate(
             continue;
         }
         let row = &structural[structural_position];
-        let CheckedStructuralControlTransferSourcePlan::Parameter {
-            index: source_index,
-        } = row.source
-        else {
-            return unsupported("scalar successor requires a whole structural parameter");
-        };
-        let source_position = source_parameter_position(checked, source_parameters, *actual)?;
-        let source_parameter = &source_parameters[source_position];
-        let expected_source_index = source_parameters[..source_position]
-            .iter()
-            .filter(|parameter| {
-                // An `[erased]` binding occupies no position in this namespace.
-                !parameter.relevance.is_erased()
-                    && checked
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
-            })
-            .count();
-        let retained_source = source
-            .structural_parameters
-            .get(source_index as usize)
-            .ok_or(LoweringError::Unsupported(
-                "scalar successor structural source is absent",
-            ))?;
         let retained_target = &target.structural_parameters[structural_position];
-        if checked
-            .primitive_type_reference(source_parameter.type_reference)
-            .is_some()
-            || source_index as usize != expected_source_index
-            || retained_source.position as usize != source_position
-            || row.target_parameter_index as usize != structural_position
-            || retained_target.position as usize != argument_position
-            || retained_source.type_identity != retained_target.type_identity
-            || retained_source.access != retained_target.access
-            || retained_source.multiplicity != retained_target.multiplicity
-            || retained_source.qualifications != retained_target.qualifications
-            || checked.normalized_type_identity(source_parameter.type_reference)
-                != checked.normalized_type_identity(formal.type_reference)
-        {
-            return unsupported(
-                "scalar successor structural row changed its source, slot, or type",
-            );
-        }
-        if retained_source.access == CheckedStructuralAccess::Owned
-            && retained_source.multiplicity == Multiplicity::Affine
-        {
-            if affine_sources.contains(&source_index) {
-                return unsupported("scalar successor transfers an affine parameter twice");
+        match row.source {
+            CheckedStructuralControlTransferSourcePlan::Parameter {
+                index: source_index,
+            } => {
+                let source_position =
+                    source_parameter_position(checked, source_parameters, *actual)?;
+                let source_parameter = &source_parameters[source_position];
+                let expected_source_index = source_parameters[..source_position]
+                    .iter()
+                    .filter(|parameter| {
+                        // An `[erased]` binding occupies no position in this namespace.
+                        !parameter.relevance.is_erased()
+                            && checked
+                                .primitive_type_reference(parameter.type_reference)
+                                .is_none()
+                    })
+                    .count();
+                let retained_source = source
+                    .structural_parameters
+                    .get(source_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar successor structural source is absent",
+                    ))?;
+                if checked
+                    .primitive_type_reference(source_parameter.type_reference)
+                    .is_some()
+                    || source_index as usize != expected_source_index
+                    || retained_source.position as usize != source_position
+                    || row.target_parameter_index as usize != structural_position
+                    || retained_target.position as usize != argument_position
+                    || retained_source.type_identity != retained_target.type_identity
+                    || retained_source.access != retained_target.access
+                    || retained_source.multiplicity != retained_target.multiplicity
+                    || retained_source.qualifications != retained_target.qualifications
+                    || checked.normalized_type_identity(source_parameter.type_reference)
+                        != checked.normalized_type_identity(formal.type_reference)
+                {
+                    return unsupported(
+                        "scalar successor structural row changed its source, slot, or type",
+                    );
+                }
+                if retained_source.access == CheckedStructuralAccess::Owned
+                    && retained_source.multiplicity == Multiplicity::Affine
+                {
+                    if affine_sources.contains(&source_index) {
+                        return unsupported("scalar successor transfers an affine parameter twice");
+                    }
+                    affine_sources.push(source_index);
+                    validate_affine_permission(
+                        checked,
+                        machine.symbol,
+                        source_state,
+                        transition_permission_source(checked, machine.symbol, state, successor)?,
+                        source_parameter.symbol,
+                    )?;
+                }
             }
-            affine_sources.push(source_index);
-            validate_affine_permission(
-                checked,
-                machine.symbol,
-                source_state,
-                transition_permission_source(checked, machine.symbol, state, successor)?,
-                source_parameter.symbol,
-            )?;
+            CheckedStructuralControlTransferSourcePlan::ByteSequenceSubslice {
+                parameter_index: source_index,
+                expression,
+            }
+            | CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
+                parameter_index: source_index,
+                expression,
+            } => {
+                let retained_source = source
+                    .structural_parameters
+                    .get(source_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar successor structural source is absent",
+                    ))?;
+                let source_parameter = source_parameters
+                    .get(retained_source.position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar successor subslice lost its authored parameter",
+                    ))?;
+                if expression != *actual
+                    || row.target_parameter_index as usize != structural_position
+                    || retained_target.position as usize != argument_position
+                    || retained_source.type_identity != retained_target.type_identity
+                    || retained_source.access != retained_target.access
+                    || retained_source.access != CheckedStructuralAccess::SharedBorrow
+                    || retained_source.multiplicity != retained_target.multiplicity
+                    || retained_source.qualifications != retained_target.qualifications
+                    || checked.normalized_type_identity(source_parameter.type_reference)
+                        != checked.normalized_type_identity(formal.type_reference)
+                {
+                    return unsupported(
+                        "scalar successor subslice row changed its source, slot, or type",
+                    );
+                }
+                let ExpressionNode::Indexed(indexed) =
+                    checked.expression_table.expression(expression)
+                else {
+                    return unsupported("scalar successor subslice has no indexed source");
+                };
+                let ExpressionNode::Range(range) =
+                    checked.expression_table.expression(indexed.index)
+                else {
+                    return unsupported("scalar successor subslice has no authored range");
+                };
+                if range.end_inclusive
+                    || !matches!(
+                        checked.expression_table.expression(indexed.collection),
+                        ExpressionNode::Name(name)
+                            if name.symbol == source_parameter.symbol
+                                && name.head_symbol == source_parameter.symbol
+                                && checked
+                                    .expression_table
+                                    .name_path_members(name.members)
+                                    .len()
+                                    == 1
+                    )
+                {
+                    return unsupported(
+                        "scalar successor subslice lost its exclusive range or exact parameter",
+                    );
+                }
+                let spelling = language_core::OperatorSpelling::Range;
+                if checked.facts.operators.uses.iter().any(|(_, selected)| {
+                    selected.expression == expression
+                        && (selected.spelling != spelling
+                            || selected.selected_operator_symbol.is_valid()
+                            || selected.candidate_count != 0
+                            || !matches!(
+                                selected.status,
+                                checked_trees::CheckedOperatorResolutionStatus::Missing
+                                    | checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback
+                            ))
+                }) {
+                    return unsupported(
+                        "scalar successor subslice no longer selects builtin range meaning",
+                    );
+                }
+                if !validation::has_builtin_subslice_meaning(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    expression,
+                ) {
+                    return unsupported(
+                        "scalar successor subslice cannot replace an authored range operator",
+                    );
+                }
+                for (endpoint, role) in [
+                    (
+                        range.start,
+                        checked_trees::CheckedScalarExpressionRole::TransitionSubsliceStart {
+                            argument_ordinal: retained_target.position,
+                        },
+                    ),
+                    (
+                        range.end,
+                        checked_trees::CheckedScalarExpressionRole::TransitionSubsliceEnd {
+                            argument_ordinal: retained_target.position,
+                        },
+                    ),
+                ] {
+                    if !endpoint.is_valid() {
+                        continue;
+                    }
+                    let (binding, value) = checked
+                        .facts
+                        .values
+                        .scalar_expressions
+                        .bound_expression_at(source_state, successor.statement_ordinal, role)
+                        .ok_or(LoweringError::Unsupported(
+                            "scalar successor subslice endpoint has no checked binding",
+                        ))?;
+                    if binding.expression != endpoint
+                        || binding.destination.is_valid()
+                        || value.primitive_type()
+                            != Some(crate::expression_preparation::PrimitiveType::U64)
+                    {
+                        return unsupported("scalar successor subslice endpoint binding changed");
+                    }
+                    super::validate_pure(
+                        checked,
+                        binding,
+                        crate::emission::scalar_types::terminal_scalar_type(
+                            crate::expression_preparation::PrimitiveType::U64,
+                        )?,
+                    )?;
+                }
+            }
+            _ => {
+                return unsupported("scalar successor requires a whole structural parameter");
+            }
         }
         structural_position += 1;
     }

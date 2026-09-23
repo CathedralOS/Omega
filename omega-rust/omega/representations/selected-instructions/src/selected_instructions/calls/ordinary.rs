@@ -188,6 +188,15 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// Exactly one checked element read at the dynamic element index. The
+    /// element-to-byte scaling lives in the row's instruction sequence;
+    /// `index` and `length` are element units.
+    ReadElementView {
+        index: semantic_vocabulary::ValueId,
+        length: semantic_vocabulary::ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     ReadPlace,
     WritePlace,
     WriteLocal {

@@ -41,6 +41,15 @@ pub(crate) enum LoweredDirectExpression {
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
     },
+    ElementViewLength {
+        source: PlaceId,
+        scalar_type: ScalarType,
+    },
+    ElementViewRead {
+        source: PlaceId,
+        index: Box<LoweredDirectExpression>,
+        scalar_type: ScalarType,
+    },
     Parameter {
         position: usize,
         scalar_type: ScalarType,
@@ -126,6 +135,8 @@ impl LoweredDirectExpression {
             | Self::ByteSequenceLength { scalar_type, .. }
             | Self::ByteSequenceFieldLength { scalar_type, .. }
             | Self::ByteSequenceRead { scalar_type, .. }
+            | Self::ElementViewLength { scalar_type, .. }
+            | Self::ElementViewRead { scalar_type, .. }
             | Self::Local { scalar_type, .. }
             | Self::IntegerLiteral { scalar_type, .. }
             | Self::IntegerBinary { scalar_type, .. }
@@ -188,6 +199,34 @@ pub(crate) fn emit_byte_length(
         operations,
     );
     operations.byte_lengths.push((source, value));
+    value
+}
+
+pub(crate) fn emit_element_length(
+    source: PlaceId,
+    next_value_identity: &mut u64,
+    operations: &mut OperationBuffer,
+) -> ValueId {
+    // Immutable descriptor extent is unchanged on this emission path. Reuse
+    // its dominating observation so later bounds retain the selected guard's
+    // exact value identity; branch emitters scope this cache to their path.
+    if let Some(value) = operations
+        .element_lengths
+        .iter()
+        .rev()
+        .find_map(|(place, value)| (*place == source).then_some(*value))
+    {
+        return value;
+    }
+    let scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    let value = emit_scalar_leaf(
+        OperationKind::ElementViewLength { source },
+        scalar_type,
+        next_value_identity,
+        operations,
+    );
+    operations.element_lengths.push((source, value));
     value
 }
 
@@ -282,6 +321,42 @@ pub(crate) fn emit_direct_expression(
             );
             emit_scalar_leaf(
                 OperationKind::ByteSequenceRead {
+                    source: *source,
+                    index,
+                    length,
+                    obligation,
+                },
+                *scalar_type,
+                next_value_identity,
+                operations,
+            )
+        }
+        LoweredDirectExpression::ElementViewLength { source, .. } => {
+            emit_element_length(*source, next_value_identity, operations)
+        }
+        LoweredDirectExpression::ElementViewRead {
+            source,
+            index,
+            scalar_type,
+        } => {
+            let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            let length = operations
+                .element_lengths
+                .iter()
+                .rev()
+                .find_map(|(place, value)| (*place == *source).then_some(*value))
+                .unwrap_or_else(|| emit_element_length(*source, next_value_identity, operations));
+            // A missing dominating observation may still form a valid read
+            // shape. Its canonical bounds certificate must then be produced;
+            // constructing a fresh length does not prove the read is in bounds.
+            let obligation = obligation_id(
+                operations
+                    .next_identity
+                    .checked_add(1)
+                    .expect("read obligation follows its operation identity"),
+            );
+            emit_scalar_leaf(
+                OperationKind::ElementViewRead {
                     source: *source,
                     index,
                     length,

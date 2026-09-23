@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group. Scalar operation semantics used by the common control graph.
 
 pub(in crate::lowering) mod byte_views;
+pub(in crate::lowering) mod element_views;
 mod expressions;
 mod integer_binary;
 mod integer_operation;

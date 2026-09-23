@@ -203,7 +203,11 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::ByteSequenceRead { index, length, .. } => values.extend([*index, *length]),
         O::ByteSequenceSubslice {
             start, end, length, ..
+        }
+        | O::ElementViewSubslice {
+            start, end, length, ..
         } => values.extend([*start, *end, *length]),
+        O::ElementViewRead { index, length, .. } => values.extend([*index, *length]),
         O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }
@@ -217,6 +221,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
         | O::EstablishByteSequenceLiteral { .. }
+        | O::EstablishElementView { .. }
+        | O::ElementViewLength { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishReference { .. }
         | O::ReleaseReference { .. }

@@ -10,6 +10,8 @@ use super::super::{
 use super::{CheckedTrees, LoweringError, internal_calls};
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
+use checked_trees::expression::ExpressionNode;
+use checked_trees::statement::StatementNode;
 
 pub(crate) fn admit_dynamic_continuation<'a>(
     checked: &'a CheckedTrees,
@@ -625,16 +627,26 @@ fn retain_scalar_call(
             *target_state,
         )?;
     let target = CheckedScalarCallee::find_for_unit_call(checked, *target_machine)?;
-    // Structural operand custody rejoins through the ordinary caller's unit
-    // plan; a composed state cannot replay that validation yet.
+    // Claim custody still has no composed rejoiner. Structural actuals do join:
+    // the checked rows must name the exact authored operand at each structural
+    // formal position, and every shape the composed emitter cannot materialize
+    // stays unsupported.
     if matches!(
         target,
         CheckedScalarCallee::Boundary(_) | CheckedScalarCallee::Structural(_)
-    ) || !structural_arguments.is_empty()
-        || !claim_transfers.is_empty()
+    ) || !claim_transfers.is_empty()
     {
         return unsupported("composed Unit scalar call requires structural call custody");
     }
+    retain_scalar_call_structural_arguments(
+        checked,
+        machine,
+        state,
+        *coordinate,
+        *target_machine,
+        *target_state,
+        structural_arguments,
+    )?;
     let contract = checked
         .facts
         .contract_plans
@@ -776,6 +788,152 @@ pub(super) fn retain_exact_flow_call(
         || calls.next().is_some()
     {
         return unsupported("composed Unit boundary call drifted from checked flow");
+    }
+    Ok(())
+}
+
+/// Structural actuals on a composed scalar call rejoin the same checked
+/// custody the state-graph edge lane already proves: a completed result names
+/// its immutable authored local, a whole parameter names the ambient formal,
+/// and an established structural local names itself. Literal or subslice
+/// materialization has no composed evaluator yet and stays unsupported.
+fn retain_scalar_call_structural_arguments(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    target_machine: symbols::SymbolHandle,
+    target_state: symbols::SymbolHandle,
+    structural_arguments: &[checked_trees::CheckedUnitStructuralArgumentPlan],
+) -> Result<(), LoweringError> {
+    if structural_arguments.is_empty() {
+        return Ok(());
+    }
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state.state)?;
+    let call = crate::emission::call_source_custody::authored::locate(
+        checked,
+        machine,
+        state.state,
+        coordinate,
+        target_machine,
+        target_state,
+    )?;
+    let signature = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        machine,
+        call.source_target,
+    )?;
+    let positions = crate::emission::call_source_custody::literal_arguments::structural_positions(
+        checked,
+        &signature,
+        structural_arguments.len(),
+    )?;
+    for (argument, position) in structural_arguments.iter().zip(positions.iter().copied()) {
+        let expression = call
+            .structural_arguments
+            .iter()
+            .find_map(|(formal, expression)| (*formal == position).then_some(*expression))
+            .ok_or(LoweringError::Unsupported(
+                "composed scalar call structural actual lost its authored position",
+            ))?;
+        match argument.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } => {
+                let mut matching =
+                    state
+                        .operations
+                        .iter()
+                        .filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::StructuralCall {
+                                result,
+                                discard_result_on_return: false,
+                                ..
+                            }
+                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                result,
+                                discard_result_on_return: false,
+                                ..
+                            }
+                            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                                result,
+                                discard_result_on_return: false,
+                                ..
+                            } if result.binding_ordinal == binding_ordinal => Some(result),
+                            _ => None,
+                        });
+                let result = matching.next().ok_or(LoweringError::Unsupported(
+                    "composed scalar call result source is absent",
+                ))?;
+                if matching.next().is_some()
+                    || result.statement_index >= coordinate.statement_index
+                    || result.type_identity != argument.type_identity
+                    || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                    || !argument.path.is_empty()
+                {
+                    return unsupported("composed scalar call result source drifted");
+                }
+                let Some(StatementNode::LocalData(local)) = checked
+                    .statement_table
+                    .statements(authored.statement_nodes)
+                    .get(result.statement_index as usize)
+                else {
+                    return unsupported("composed scalar call result local is missing");
+                };
+                if local.is_mutable
+                    || !matches!(checked.expression_table.expression(expression), ExpressionNode::Name(name)
+                        if name.symbol == local.symbol && name.head_symbol == local.symbol
+                            && checked.expression_table.name_path_members(name.members).len() == 1)
+                {
+                    return unsupported("composed scalar call lost its authored view local");
+                }
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                let source = state
+                    .structural_parameters
+                    .get(parameter_index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "composed scalar call parameter source is absent",
+                    ))?;
+                let parameter = checked
+                    .state_parameters(authored)
+                    .get(source.position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "composed scalar call has no authored parameter",
+                    ))?;
+                let ExpressionNode::Name(name) = checked.expression_table.expression(expression)
+                else {
+                    return unsupported("composed scalar call parameter actual is not a name");
+                };
+                let members = checked.expression_table.name_path_members(name.members);
+                if name.symbol != parameter.symbol
+                    || name.head_symbol != parameter.symbol
+                    || members.len() != argument.path.len() + 1
+                    || members.first() != Some(&parameter.name)
+                    || members.iter().skip(1).zip(&argument.path).any(|(spelling, segment)| {
+                        !matches!(segment, checked_trees::CheckedUnitStructuralPathSegment::Field(field) if field == spelling.as_str())
+                    })
+                {
+                    return unsupported("composed scalar call parameter actual changed its root or path");
+                }
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
+                if !matches!(checked.expression_table.expression(expression), ExpressionNode::Name(name)
+                    if name.symbol == symbol && name.head_symbol == symbol
+                        && checked.expression_table.name_path_members(name.members).len() == 1)
+                {
+                    return unsupported("composed scalar call lost its authored local");
+                }
+            }
+            _ => {
+                return unsupported(
+                    "composed scalar call cannot materialize this structural actual",
+                );
+            }
+        }
     }
     Ok(())
 }

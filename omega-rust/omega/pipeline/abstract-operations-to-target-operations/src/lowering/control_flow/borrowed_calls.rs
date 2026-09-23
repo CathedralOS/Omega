@@ -130,7 +130,12 @@ pub(super) fn lower(
                     types,
                 );
             }
-            if crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types) {
+            if crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
+                || crate::lowering::scalar::element_views::is_element_view_parameter(
+                    declaration,
+                    types,
+                )
+            {
                 return self::byte_argument(
                     argument,
                     declaration,
@@ -339,64 +344,76 @@ fn byte_argument(
     let shared = argument.access == StructuralAccess::SharedBorrow;
     if !argument.path.is_empty()
         || argument.access != declaration.access
-        || !crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
+        || (!crate::lowering::scalar::byte_views::is_byte_parameter(declaration, types)
+            && !crate::lowering::scalar::element_views::is_element_view_parameter(
+                declaration,
+                types,
+            ))
         || destination.shape != ValueShape::borrowed_reference(16, 8)
     {
         return Err(invalid());
     }
-    let (identity, source) =
-        if shared && let Some((producer, structural_type)) = live.views.get(&argument.place) {
-            (
-                *structural_type,
+    let (identity, source) = if shared
+        && let Some((producer, structural_type)) = live.views.get(&argument.place)
+    {
+        (
+            *structural_type,
+            if crate::lowering::scalar::element_views::is_element_view_parameter(declaration, types)
+            {
+                target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation: *producer,
+                }
+            } else {
                 target_operations::TargetStructuralArgumentSource::EstablishedByteView {
                     psi_operation: *producer,
-                },
-            )
-        } else if live.block_views.contains(&argument.place) {
-            let (entry, parameter) = function
-                .block_entries
-                .iter()
-                .find_map(|entry| {
-                    entry
-                        .structural_parameters
-                        .iter()
-                        .find(|parameter| parameter.place == argument.place)
-                        .map(|parameter| (entry, parameter))
-                })
-                .ok_or_else(invalid)?;
-            // The root's own access authorizes the argument, exactly as an
-            // incoming machine parameter does: an exclusive block parameter
-            // lends shared, exclusive or write-only, a shared one only shared.
-            let allowed = match parameter.access {
-                StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
-                StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
-                StructuralAccess::WriteOnlyBorrow | StructuralAccess::Owned => false,
-            };
-            if !allowed {
-                return Err(invalid());
-            }
-            (
-                parameter.structural_type,
-                target_operations::TargetStructuralArgumentSource::BlockParameter {
-                    block: entry.block,
-                    place: parameter.place,
-                },
-            )
-        } else {
-            let source = prepared
-                .parameters
-                .iter()
-                .find(|source| source.place == argument.place)
-                .ok_or_else(invalid)?;
-            if source.access != argument.access
-                || source.multiplicity != declaration.multiplicity
-                || !source.projected_qualifications.is_empty()
-                || source.shape != destination.shape
-            {
-                return Err(invalid());
-            }
-            (source.structural_type, source.placement.clone().into())
+                }
+            },
+        )
+    } else if live.block_views.contains(&argument.place) {
+        let (entry, parameter) = function
+            .block_entries
+            .iter()
+            .find_map(|entry| {
+                entry
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == argument.place)
+                    .map(|parameter| (entry, parameter))
+            })
+            .ok_or_else(invalid)?;
+        // The root's own access authorizes the argument, exactly as an
+        // incoming machine parameter does: an exclusive block parameter
+        // lends shared, exclusive or write-only, a shared one only shared.
+        let allowed = match parameter.access {
+            StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
+            StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
+            StructuralAccess::WriteOnlyBorrow | StructuralAccess::Owned => false,
         };
+        if !allowed {
+            return Err(invalid());
+        }
+        (
+            parameter.structural_type,
+            target_operations::TargetStructuralArgumentSource::BlockParameter {
+                block: entry.block,
+                place: parameter.place,
+            },
+        )
+    } else {
+        let source = prepared
+            .parameters
+            .iter()
+            .find(|source| source.place == argument.place)
+            .ok_or_else(invalid)?;
+        if source.access != argument.access
+            || source.multiplicity != declaration.multiplicity
+            || !source.projected_qualifications.is_empty()
+            || source.shape != destination.shape
+        {
+            return Err(invalid());
+        }
+        (source.structural_type, source.placement.clone().into())
+    };
     if identity != declaration.structural_type {
         return Err(invalid());
     }

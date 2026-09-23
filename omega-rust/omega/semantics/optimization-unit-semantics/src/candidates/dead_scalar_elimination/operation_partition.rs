@@ -80,6 +80,10 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
+        | O::EstablishElementView { .. }
+        | O::ElementViewLength { .. }
+        | O::ElementViewRead { .. }
+        | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
         | O::EstablishReference { .. }

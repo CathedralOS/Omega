@@ -197,6 +197,7 @@ impl<'a> Expansion<'a> {
         target: usize,
         target_types: &[QualifiedScalarType],
         structural_arguments: &[StructuralArgument],
+        structural_effects: &[crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect],
     ) -> Result<Option<usize>, LoweringError> {
         let scalar_arguments = self
             .checked
@@ -231,6 +232,7 @@ impl<'a> Expansion<'a> {
             source_types,
             target,
             structural_arguments,
+            structural_effects,
         )
     }
 
@@ -254,6 +256,7 @@ impl<'a> Expansion<'a> {
             &[(role, result_type)],
             source_types,
             target,
+            &[],
             &[],
         )
     }
@@ -370,6 +373,7 @@ impl<'a> Expansion<'a> {
         source_types: &[QualifiedScalarType],
         target: usize,
         structural_arguments: &[StructuralArgument],
+        structural_effects: &[crate::scalar_graph::scalar_graph_lowering::prepared_graph::LoweredScalarEffect],
     ) -> Result<Option<usize>, LoweringError> {
         let plans = &self.checked.facts.values.scalar_computations;
         if structural_arguments.is_empty()
@@ -437,7 +441,7 @@ impl<'a> Expansion<'a> {
         completed_types.extend(&argument_types);
         let completion = self.push(LoweredScalarBranchState {
             structural_parameters: Vec::new(),
-            structural_effects: Vec::new(),
+            structural_effects: structural_effects.to_vec(),
             parameter_types: completed_types.clone(),
             erased_formal_types: Vec::new(),
             erased_proof_formals: Vec::new(),
@@ -565,9 +569,16 @@ impl<'a> Expansion<'a> {
         let node = plans.nodes.get(*handle).clone();
         let entry = match node.kind {
             CheckedScalarComputationKind::StructuralField { subject, field, .. } => {
+                let (site_machine, site_authored) =
+                    crate::expression_preparation::source_custody::authored_state(
+                        self.checked,
+                        site.state,
+                    )?;
                 let expression = fields::observation(
                     self.fields,
                     site.bindings,
+                    site_machine,
+                    self.checked.state_parameters(site_authored),
                     &subject,
                     field,
                     node.primitive_type,

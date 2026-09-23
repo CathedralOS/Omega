@@ -2,8 +2,8 @@
 
 use super::{KnownUnitInteger, LiveDefinitions};
 use crate::lowering::scalar::{
-    KnownInteger, KnownScalar, byte_views, equal_boolean, equal_integer, order_integer,
-    scalar_parameter_location,
+    KnownInteger, KnownScalar, byte_views, element_views, equal_boolean, equal_integer,
+    order_integer, scalar_parameter_location,
 };
 use crate::lowering::shared::*;
 #[cfg(test)]
@@ -46,6 +46,30 @@ pub(super) fn lower(
                 )?;
             }
         }
+        AbstractOperation::ElementViewLength { source, .. }
+        | AbstractOperation::ElementViewRead { source, .. }
+        | AbstractOperation::ElementViewSubslice { source, .. } => {
+            if !prepared
+                .parameters
+                .iter()
+                .any(|parameter| parameter.place == *source)
+                && !live.views.contains_key(source)
+                && !live.block_views.contains(source)
+            {
+                return Err(invalid());
+            }
+            if !matches!(operation, AbstractOperation::ElementViewSubslice { .. }) {
+                element_views::lower_element_observation_with_lengths(
+                    operation,
+                    function,
+                    structural_types,
+                    &prepared.parameters,
+                    &mut values,
+                    &live.lengths,
+                    &mut provenance.operations,
+                )?;
+            }
+        }
         _ => {}
     }
     if let AbstractOperation::ByteSequenceSubslice {
@@ -72,6 +96,35 @@ pub(super) fn lower(
         }
         provenance.operations.push(*psi_operation);
         operations.push(TargetUnitOperation::ByteSequenceSubslice {
+            result: result.clone(),
+            view,
+        });
+        return Ok(());
+    }
+    if let AbstractOperation::ElementViewSubslice {
+        psi_operation,
+        result,
+        ..
+    } = operation
+    {
+        let (view, _) = element_views::element_view_for_place(
+            function,
+            structural_types,
+            &prepared.parameters,
+            &values,
+            &live.lengths,
+            result.place,
+            &mut Vec::new(),
+        )?;
+        if live
+            .views
+            .insert(result.place, (*psi_operation, result.structural_type))
+            .is_some()
+        {
+            return Err(invalid());
+        }
+        provenance.operations.push(*psi_operation);
+        operations.push(TargetUnitOperation::ElementViewSubslice {
             result: result.clone(),
             view,
         });
@@ -290,7 +343,30 @@ pub(super) fn lower(
                 .into_expression(result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
+        AbstractOperation::ElementViewLength {
+            psi_operation,
+            result,
+            source,
+        } => {
+            live.lengths.insert(result.value, *source);
+            let expression = values
+                .remove(&result.value)
+                .ok_or_else(invalid)?
+                .into_expression(result.value)?;
+            (*psi_operation, result.value, result.scalar_type, expression)
+        }
         AbstractOperation::ByteSequenceRead {
+            psi_operation,
+            result,
+            ..
+        } => {
+            let expression = values
+                .remove(&result.value)
+                .ok_or_else(invalid)?
+                .into_expression(result.value)?;
+            (*psi_operation, result.value, result.scalar_type, expression)
+        }
+        AbstractOperation::ElementViewRead {
             psi_operation,
             result,
             ..

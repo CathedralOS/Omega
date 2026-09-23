@@ -323,6 +323,7 @@ impl Expansion<'_> {
             self.checked,
             target_machine,
             target_state,
+            site.state,
             structural,
             site.bindings,
             &self.arrays,

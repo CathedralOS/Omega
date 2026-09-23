@@ -36,6 +36,9 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::WriteOnlyPrimitiveStore { value, .. } => pending.push(value.value),
                 Instruction::ByteSequenceSubslice {
                     start, end, length, ..
+                }
+                | Instruction::ElementViewSubslice {
+                    start, end, length, ..
                 } => pending.extend([*start, *end, *length]),
                 Instruction::StructuralByteSequenceFieldStore { length, .. } => {
                     pending.push(*length)
@@ -52,7 +55,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                     length,
                     ..
                 } => pending.extend([*index, *value, *length]),
-                Instruction::ByteSequenceRead { index, length, .. } => {
+                Instruction::ByteSequenceRead { index, length, .. }
+                | Instruction::ElementViewRead { index, length, .. } => {
                     pending.extend([*index, *length])
                 }
                 Instruction::BooleanNot { operand }
@@ -112,6 +116,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::StructuralCaseMembership { .. }
                 | Instruction::EstablishByteSequenceLiteral { .. }
                 | Instruction::ByteSequenceLength { .. }
+                | Instruction::EstablishElementView { .. }
+                | Instruction::ElementViewLength { .. }
                 | Instruction::BoundarySettlement(_)
                 | Instruction::DynamicParameterCall(_) => {}
             }

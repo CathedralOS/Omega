@@ -300,6 +300,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ByteSequenceWrite { .. }
                 | AbstractOperation::ByteSequenceRead { .. }
                 | AbstractOperation::ByteSequenceSubslice { .. } => byte_operation_retained(operation, targeted),
+                AbstractOperation::EstablishElementView { .. }
+                | AbstractOperation::ElementViewLength { .. }
+                | AbstractOperation::ElementViewRead { .. }
+                | AbstractOperation::ElementViewSubslice { .. } => {
+                    element_operation_retained(operation, targeted)
+                }
                 AbstractOperation::Call {
                     psi_operation,
                     callee,
@@ -494,6 +500,80 @@ fn byte_operation_retained(
                 TargetUnitOperation::ByteSequenceSubslice {
                     view:
                         TargetByteView::Subslice {
+                            psi_operation: retained,
+                            ..
+                        },
+                    ..
+                },
+            ) => psi_operation == retained,
+            _ => false,
+        })
+        .count()
+        == 1
+}
+
+/// Element descriptors rejoin through the same one-row accounting: the view's
+/// retained operation identity is the accounting key for its establishment or
+/// derivation, and scalar reads/lengths keep their expression identity.
+fn element_operation_retained(
+    operation: &AbstractOperation,
+    target: &target_operations::TargetFunction,
+) -> bool {
+    use target_operations::{
+        TargetElementView, TargetIntegerExpression, TargetScalarExpression, TargetUnitOperation,
+    };
+    let graph = &target.graph;
+    graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|node| match (operation, node) {
+            (
+                AbstractOperation::EstablishElementView { psi_operation, .. },
+                TargetUnitOperation::EstablishElementView {
+                    view:
+                        TargetElementView::Established {
+                            psi_operation: retained,
+                            ..
+                        },
+                    ..
+                },
+            ) => psi_operation == retained,
+            (
+                AbstractOperation::ElementViewLength { psi_operation, .. },
+                TargetUnitOperation::ScalarDefinition {
+                    expression:
+                        TargetScalarExpression::Integer {
+                            expression:
+                                TargetIntegerExpression::ElementViewLength {
+                                    psi_operation: retained,
+                                    ..
+                                },
+                            ..
+                        },
+                    ..
+                },
+            )
+            | (
+                AbstractOperation::ElementViewRead { psi_operation, .. },
+                TargetUnitOperation::ScalarDefinition {
+                    expression:
+                        TargetScalarExpression::Integer {
+                            expression:
+                                TargetIntegerExpression::ElementViewRead {
+                                    psi_operation: retained,
+                                    ..
+                                },
+                            ..
+                        },
+                    ..
+                },
+            )
+            | (
+                AbstractOperation::ElementViewSubslice { psi_operation, .. },
+                TargetUnitOperation::ElementViewSubslice {
+                    view:
+                        TargetElementView::Subslice {
                             psi_operation: retained,
                             ..
                         },

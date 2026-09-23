@@ -86,6 +86,32 @@ pub(super) fn selection_role(
         })
 }
 
+/// A `&[T]` local: shared reference (through constraint shells) to a slice —
+/// the borrowed-view carrier the checked disposition roster spells peeled.
+fn is_borrowed_view_local(
+    checked: &CheckedTrees,
+    mut reference: checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    let mut borrowed = false;
+    loop {
+        match checked.typed.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            checked_trees::types::TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared,
+                referee,
+                ..
+            } if !borrowed => {
+                borrowed = true;
+                reference = *referee;
+            }
+            checked_trees::types::TypeReferenceNode::Slice { .. } => return borrowed,
+            _ => return false,
+        }
+    }
+}
+
 /// Validate the complete roster, not a requirement to transfer on every branch.
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -95,11 +121,24 @@ pub(super) fn validate(
     result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
 ) -> Result<(), LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    if checked.type_multiplicity(local.type_reference) != result.multiplicity
-        || checked
+    // A borrowed view's result binding carries the viewed `[T]` carrier
+    // identity with the reference and constraint shells peeled, exactly as the
+    // checked-side disposition roster spells it.
+    let expected_identity = if is_borrowed_view_local(checked, local.type_reference) {
+        validation::unwrapped_type_reference(&checked.typed, local.type_reference)
+            .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
+            .unwrap_or_else(|| {
+                checked
+                    .normalized_type_identity(local.type_reference)
+                    .into_string()
+            })
+    } else {
+        checked
             .normalized_type_identity(local.type_reference)
-            .as_str()
-            != result.type_identity
+            .into_string()
+    };
+    if checked.type_multiplicity(local.type_reference) != result.multiplicity
+        || expected_identity != result.type_identity
     {
         return unsupported("Unit graph local disposition type drifted");
     }

@@ -727,7 +727,11 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ByteSequenceLength { .. }
                     | OperationKind::ByteSequenceRead { .. }
                     | OperationKind::ByteSequenceWrite { .. }
-                    | OperationKind::ByteSequenceSubslice { .. } => {}
+                    | OperationKind::ByteSequenceSubslice { .. }
+                    | OperationKind::EstablishElementView { .. }
+                    | OperationKind::ElementViewLength { .. }
+                    | OperationKind::ElementViewRead { .. }
+                    | OperationKind::ElementViewSubslice { .. } => {}
                     OperationKind::IntegerConstant { .. }
                     | OperationKind::BooleanConstant { .. }
                     | OperationKind::IeeeFloatConstant { .. }

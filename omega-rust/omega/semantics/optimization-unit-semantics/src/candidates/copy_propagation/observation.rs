@@ -276,6 +276,10 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
+        | O::EstablishElementView { .. }
+        | O::ElementViewLength { .. }
+        | O::ElementViewRead { .. }
+        | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
         | O::EstablishReference { .. }

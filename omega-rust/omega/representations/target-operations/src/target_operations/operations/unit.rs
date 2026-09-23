@@ -116,6 +116,18 @@ pub enum TargetUnitOperation {
         result: StructuralOperationResult,
         view: crate::TargetByteView,
     },
+    /// Establish one checked element descriptor over a collection source
+    /// without copying its backing elements.
+    EstablishElementView {
+        result: StructuralOperationResult,
+        view: crate::TargetElementView,
+    },
+    /// Derive one checked element-range descriptor without copying its
+    /// backing elements.
+    ElementViewSubslice {
+        result: StructuralOperationResult,
+        view: crate::TargetElementView,
+    },
     /// Replace one initialized byte through the original mutable descriptor.
     /// Scalar origins and the exact same-view length proof remain independent.
     ByteSequenceWrite {

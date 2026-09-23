@@ -589,6 +589,7 @@ fn interferes(
         }
         SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
+        | SelectedMemoryAccessRole::ReadElementView { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. } => {
             matches!(moved.storage, SubjectStorage::Place)

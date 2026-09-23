@@ -171,6 +171,98 @@ pub(super) fn validate_byte_sequence_subslice(
     Ok(())
 }
 
+pub(super) fn validate_element_view_subslice(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::ElementViewSubslice {
+            result,
+            source,
+            start,
+            end,
+            length,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::ElementViewSubslice {
+            result: expected_result,
+            source: expected_source,
+            start: expected_start,
+            end: expected_end,
+            length: expected_length,
+            obligation: expected_obligation,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_element_view_subslice")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    if result != expected_result
+        || source != expected_source
+        || start != expected_start
+        || end != expected_end
+        || length != expected_length
+        || obligation != expected_obligation
+        || !unit.accepted_obligation_facts.iter().any(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == operation
+                && fact.obligation == *obligation
+                && fact.identity == *accepted_fact
+        })
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
+pub(super) fn validate_element_view_read(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::ElementViewRead {
+            source,
+            index,
+            length,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::ElementViewRead {
+            source: expected_source,
+            index: expected_index,
+            length: expected_length,
+            obligation: expected_obligation,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_element_view_read")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    if source != expected_source
+        || index != expected_index
+        || length != expected_length
+        || obligation != expected_obligation
+        || !unit.accepted_obligation_facts.iter().any(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == operation
+                && fact.obligation == *obligation
+                && fact.identity == *accepted_fact
+        })
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_byte_sequence_field_byte_store(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,

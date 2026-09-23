@@ -112,6 +112,9 @@ pub struct TerminalExecution {
     /// field loans, rebound to callee parameters. Opaque identities alone do
     /// not supply either byte contents or permission to mutate a field.
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
+    /// Shared immutable element views rebound to callee parameters, parallel
+    /// to `byte_sequence_values` for borrowed `&[T]` storage.
+    pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
     /// Exact claim-free affine ownership frontier. Opaque structural storage is
     /// root-addressed, so projected moves must be represented here rather than
     /// by unsoundly deleting their containing root.
@@ -147,6 +150,7 @@ pub(crate) struct SuspendedCall {
     pub(crate) scalar_case_values: BTreeMap<PlaceId, TerminalScalarCaseValue>,
     pub(crate) scalar_array_values: BTreeMap<PlaceId, TerminalScalarArrayValue>,
     pub(crate) byte_sequence_values: BTreeMap<PlaceId, ByteSequenceBinding>,
+    pub(crate) element_view_values: BTreeMap<PlaceId, crate::element_views::ElementView>,
     pub(crate) live_affine_frontier: BTreeSet<StructuralAffineDiscard>,
     pub(crate) live_claims: BTreeMap<ClaimId, LiveClaim>,
     pub(crate) dynamic_parameters: BTreeMap<u32, RuntimeDynamicDescriptor>,
@@ -454,6 +458,7 @@ impl TerminalExecution {
             scalar_case_values: BTreeMap::new(),
             scalar_array_values: BTreeMap::new(),
             byte_sequence_values: BTreeMap::new(),
+            element_view_values: BTreeMap::new(),
             live_affine_frontier,
             live_claims,
             placed_view_occurrences,
@@ -669,6 +674,19 @@ impl TerminalExecution {
                     }
                     OperationKind::IntegerStructuralField { .. } => {
                         self.execute_integer_structural_field(operation)?
+                    }
+                    OperationKind::EstablishElementView { .. } => {
+                        self.execute_establish_element_view(operation)?
+                    }
+                    OperationKind::ElementViewLength { .. } => {
+                        self.execute_element_view_length(operation)?
+                    }
+                    OperationKind::ElementViewRead { .. } => {
+                        self.execute_element_view_read(operation)?
+                    }
+                    OperationKind::ElementViewSubslice { .. } => {
+                        self.execute_element_view_subslice(operation)?;
+                        OperationFlow::Advance
                     }
                     OperationKind::ByteSequenceSubslice { .. } => {
                         self.execute_byte_sequence_subslice(operation)?;

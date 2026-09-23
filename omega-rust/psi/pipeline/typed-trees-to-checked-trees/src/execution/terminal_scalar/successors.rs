@@ -8,8 +8,8 @@ use checked_trees::{
     CheckedStructuralControlTransferPlan, CheckedStructuralControlTransferSourcePlan,
     CheckedStructuralScalarArgumentPlan, CheckedStructuralScalarArgumentSourcePlan,
 };
-use typed_trees::types::PrimitiveType;
 use language_semantics::{Multiplicity, PermissionEventSource};
+use typed_trees::types::PrimitiveType;
 use typed_trees::{
     TypedTrees,
     expression::ExpressionNode,
@@ -85,8 +85,9 @@ pub(super) fn retain(
         .states
         .iter()
         .flat_map(|source| {
-            iter(&source.terminator)
-                .map(move |successor| arguments(program, expressions, graph_view, source, successor))
+            iter(&source.terminator).map(move |successor| {
+                arguments(program, expressions, graph_view, source, successor)
+            })
         })
         .collect::<Option<Vec<_>>>()?;
     for (successor, rows) in graph
@@ -280,16 +281,15 @@ fn arguments(
             // keeps its source and evaluated endpoints as a subslice transfer,
             // matching the unit edge lane's admission; the replayed endpoint
             // bindings carry the range's builtin operator evidence.
-            let element_view =
-                super::super::terminal_unit::calls::element_subslice::shape(
-                    program,
-                    machine,
-                    source_state,
-                    &source.structural_parameters,
-                    formal.type_reference,
-                    *actual,
-                    successor.statement_ordinal as usize,
-                );
+            let element_view = super::super::terminal_unit::calls::element_subslice::shape(
+                program,
+                machine,
+                source_state,
+                &source.structural_parameters,
+                formal.type_reference,
+                *actual,
+                successor.statement_ordinal as usize,
+            );
             let is_element_view = element_view.is_some();
             let (parameter_index, type_identity) = element_view.or_else(|| {
                 super::super::terminal_unit::calls::byte_subslice::shape(

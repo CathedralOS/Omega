@@ -234,6 +234,10 @@ impl<'a> PrimitiveSnapshots<'a> {
                 | StructuralEffectAction::ReadByteSequenceLength
                 | StructuralEffectAction::ReadByteSequence
                 | StructuralEffectAction::EstablishByteSequenceSubslice
+                | StructuralEffectAction::EstablishElementView
+                | StructuralEffectAction::ReadElementViewLength
+                | StructuralEffectAction::ReadElementView
+                | StructuralEffectAction::EstablishElementViewSubslice
                 | StructuralEffectAction::ReadBooleanField
                 | StructuralEffectAction::ReadIntegerField
                 | StructuralEffectAction::EmitPortWrite

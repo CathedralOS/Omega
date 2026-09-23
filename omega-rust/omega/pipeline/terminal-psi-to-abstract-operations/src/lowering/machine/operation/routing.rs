@@ -219,6 +219,88 @@ pub(super) fn lower(
                 source: *source,
             })
         }
+        OperationKind::EstablishElementView {
+            destination,
+            source,
+            element,
+        } => {
+            let result = operation
+                .result
+                .structural()
+                .cloned()
+                .ok_or(LoweringError::InvalidElementViewEstablishment(operation.id))?;
+            if result.place != *destination {
+                return Err(LoweringError::InvalidElementViewEstablishment(operation.id));
+            }
+            Ok(AbstractOperation::EstablishElementView {
+                psi_operation: operation.id,
+                result,
+                destination: *destination,
+                source: source.clone(),
+                element: *element,
+            })
+        }
+        OperationKind::ElementViewLength { source } => {
+            let result = operation
+                .result
+                .scalar()
+                .ok_or(LoweringError::InvalidElementViewLength(operation.id))?;
+            if !matches!(result.scalar_type, ScalarType::Integer(integer) if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+            {
+                return Err(LoweringError::InvalidElementViewLength(operation.id));
+            }
+            Ok(AbstractOperation::ElementViewLength {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source: *source,
+            })
+        }
+        OperationKind::ElementViewRead {
+            source,
+            index,
+            length,
+            obligation,
+        } => {
+            let result = operation
+                .result
+                .scalar()
+                .ok_or(LoweringError::InvalidElementViewRead(operation.id))?;
+            Ok(AbstractOperation::ElementViewRead {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source: *source,
+                index: *index,
+                length: *length,
+                obligation: *obligation,
+            })
+        }
+        OperationKind::ElementViewSubslice {
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } => {
+            let result = operation
+                .result
+                .structural()
+                .ok_or(LoweringError::InvalidElementViewSubslice(operation.id))?;
+            Ok(AbstractOperation::ElementViewSubslice {
+                psi_operation: operation.id,
+                result: result.clone(),
+                source: *source,
+                start: *start,
+                end: *end,
+                length: *length,
+                obligation: *obligation,
+            })
+        }
         OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
             Ok(AbstractOperation::StoreDynamicDescriptor {
                 psi_operation: operation.id,
