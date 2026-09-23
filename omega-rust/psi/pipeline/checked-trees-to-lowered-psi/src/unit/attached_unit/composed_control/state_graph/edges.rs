@@ -52,17 +52,7 @@ pub(super) fn validate(
     edge: &CheckedStructuralControlSuccessorPlan,
     ordinal: usize,
 ) -> Result<(), LoweringError> {
-    validate_bindings(
-        checked,
-        plan,
-        source,
-        state,
-        transition,
-        edge,
-        ordinal,
-        &[],
-        None,
-    )?;
+    validate_bindings(checked, plan, source, state, transition, edge, ordinal, &[])?;
     validate_cleanup(checked, plan, source, state, edge)
 }
 
@@ -76,7 +66,6 @@ pub(super) fn validate_bindings(
     edge: &CheckedStructuralControlSuccessorPlan,
     ordinal: usize,
     payloads: &[checked_trees::CheckedClosedSumPayloadTransferPlan],
-    consumed_subject: Option<u32>,
 ) -> Result<(), LoweringError> {
     let TransitionTargetNode::Named {
         path, arguments, ..
@@ -103,10 +92,9 @@ pub(super) fn validate_bindings(
     // edge's transition moves none of it, and a closed-sum dispatch moves no
     // place: its arms read payloads out of the subject. Terminal ownership
     // accounts every owned obligation on an edge exactly once, and the case
-    // dispatch itself is the subject's explicit terminal consumption
-    // (emission removes the subject from each case edge's discards for the
-    // same reason), so the arm's no-code discards are the evidence without
-    // the subject. Naming it again would be a second disposition. The
+    // dispatch itself is the subject's explicit terminal consumption, so the
+    // producer's edge evidence omits it by construction. Naming it here again
+    // would be a second disposition. The
     // opposite reading, that the arm transfers the payload and discards the
     // shell, would need the dispatch to leave the subject live, which the
     // StructuralCase terminator does not.
@@ -120,7 +108,6 @@ pub(super) fn validate_bindings(
                 .trivial_affine_discard_parameter_positions
                 .iter()
                 .copied()
-                .filter(|position| Some(*position) != consumed_subject)
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default();
