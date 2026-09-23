@@ -2291,18 +2291,6 @@ syntax and other terminal services are not prerequisites.
   that statement's consumption there, then drop the subtraction in lowering
   so the two facts agree by construction. Keep the equality check itself.
 
-- **PARTIAL-AFFINE-REFUSAL-ORDER-DRIFT.** (new-scope)
-  `terminal-verifier::suite structural_unit::partial_affine_moves::direct_field_partial_affine_return_rejects_forged_conservation_shapes`
-  expects `InvalidPartialAffineCleanup` and now gets
-  `UnitReturnAffineDiscardsMismatch`. The forged shape still rejects, so this
-  is refusal-ordering drift rather than an admission hole. It passes at
-  `6e8cb1f85c` and fails at `49533e07d3`; the culprit is in that range and is
-  NOT the `598e3d4811..702e461755` batch, which was ruled out by measuring at
-  `49533e07d3` (already red) before that batch's first commit. Narrowing
-  further needs a bisect over ~2176 first-parent commits whose older points
-  require full rebuilds. Acceptance: the test names the refusal the verifier
-  should report first, and the verifier reports it.
-
 - **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT.** (new-scope) A borrowed-self
   record argument no longer lowers: `checked-trees-to-lowered-psi`'s
   `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`
