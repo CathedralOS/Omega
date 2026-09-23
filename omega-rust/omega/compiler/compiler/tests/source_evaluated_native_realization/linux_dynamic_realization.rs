@@ -307,7 +307,9 @@ machine Main::main(&mut self) reaches Agg {{
             diagnostics.iter().any(|diagnostic| {
                 let text = diagnostic.to_string();
                 text.contains("ProgramEntry establishment rejoins 0 Terminal attachment identities")
-                    || text.contains("Unit structural result cleanup disagrees with its final consuming use")
+                    || text.contains(
+                        "Unit structural result cleanup disagrees with its final consuming use",
+                    )
             }),
             "aggregate boundary member `{member}` must currently refuse Terminal entry establishment; diagnostics: {diagnostics:?}",
         );
