@@ -898,9 +898,6 @@ pub(super) fn collect_expression_call_written_paths(
                 return None;
             }
             let arguments = program.expression_table.expression_handles(call.arguments);
-            if origins.mentions_divergent(program, call.receiver) {
-                return None;
-            }
             let argument_types = super::call_targets::call_argument_types(
                 program,
                 current_machine,
