@@ -731,9 +731,12 @@ fn hex_decode(text: &str) -> Vec<u8> {
 
 /// `components.bin`: the owner-admitted component descriptions in canonical
 /// request-roster order — `{u32 count}` then `{u32 desc_len, canonical
-/// description bytes, admitting profile identity[32]}` per instance. The
-/// package recomputes every composition fact from these bytes; nothing here
-/// is a plan fragment.
+/// description bytes, admitting profile identity[32], u32 export_count,
+/// export_count × contract[32]}` per instance. The contracts are the ones the
+/// component verifier derived for each export surface, in the description's
+/// export roster order: an admitted fact the description bytes do not carry.
+/// The package recomputes every other composition fact from these bytes;
+/// nothing here is a plan fragment.
 pub fn components_input(components: &[impl Borrow<AdmittedComponent>]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(&(components.len() as u32).to_le_bytes());
@@ -745,6 +748,17 @@ pub fn components_input(components: &[impl Borrow<AdmittedComponent>]) -> Vec<u8
         out.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
         out.extend_from_slice(&bytes);
         out.extend_from_slice(&admission.request.profile_identity());
+        let exports = admission.component.exports();
+        out.extend_from_slice(&(exports.len() as u32).to_le_bytes());
+        for export in exports {
+            let contract = admission
+                .component
+                .export_contracts()
+                .iter()
+                .find(|contract| contract.identity == export.identity)
+                .expect("verification pairs every described export with its derived contract");
+            out.extend_from_slice(&contract.contract_identity);
+        }
     }
     out
 }

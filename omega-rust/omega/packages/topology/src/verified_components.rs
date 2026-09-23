@@ -27,9 +27,12 @@
 //! - `endpoints` is the verified inventory itself: each `ImportSlot`
 //!   becomes an `Import` endpoint on its own slot with its canonical
 //!   requirement-contract identity, and each `ExportSurface` becomes an
-//!   `Export` endpoint on its canonical roster position with the surface's
-//!   contract digest. Any extra or missing endpoint — an unaccounted
-//!   communication path or a hidden demand — diverges here.
+//!   `Export` endpoint on its canonical roster position with the contract
+//!   identity verification derived for that surface
+//!   (`VerifiedComponent::export_contracts`), the same structured identity
+//!   an importing slot names, so the demand/supply join compares contracts
+//!   rather than surface names. Any extra or missing endpoint — an
+//!   unaccounted communication path or a hidden demand — diverges here.
 //!
 //! An `ExternalParticipant` entry asserts the participant has no verified
 //! component description. When a supplied admission does verify its
@@ -48,10 +51,6 @@ use crate::deployment_plan::{
 /// Domain for reducing a component's semantic subject to its plan-level
 /// identity — distinct from the description, request, and plan digests.
 const COMPONENT_SUBJECT_DOMAIN: &[u8] = b"omega-topology-component-subject-v1";
-
-/// Domain for an export endpoint's contract identity — a digest of the
-/// export surface's canonical identity string, never parsed apart.
-const EXPORT_CONTRACT_DOMAIN: &[u8] = b"omega-topology-export-contract-v1";
 
 /// One component description admitted under a known consumer request.
 ///
@@ -88,14 +87,18 @@ pub fn component_subject_identity(subject: &TerminalPsiIdentity) -> Identity {
     digest.finalize().into()
 }
 
-/// The contract identity an export endpoint records: the digest of the
-/// export surface's canonical identity string. The string is compared
-/// whole, never parsed.
-fn export_contract_identity(export_identity: &str) -> Identity {
-    let mut digest = Sha256::new();
-    digest.update(EXPORT_CONTRACT_DOMAIN);
-    digest.update(export_identity.as_bytes());
-    digest.finalize().into()
+/// The contract identity an admitted component offers through the export
+/// surface named `export_identity`. Verification pairs every described export
+/// with exactly one derived contract in both directions (`check_exports`
+/// rejects a described export without one and a derived contract without a
+/// described export), so an admitted component always has it.
+fn export_contract_identity(component: &VerifiedComponent, export_identity: &str) -> Identity {
+    component
+        .export_contracts()
+        .iter()
+        .find(|contract| contract.identity == export_identity)
+        .map(|contract| contract.contract_identity)
+        .expect("verification pairs every described export with its derived contract")
 }
 
 /// Reconstruct the plan-side facts one admitted component establishes: the
@@ -127,7 +130,7 @@ pub fn verified_instance_facts(
         endpoints.push(Endpoint {
             slot: index as u32,
             direction: EndpointDirection::Export,
-            contract: export_contract_identity(&export.identity),
+            contract: export_contract_identity(&admission.component, &export.identity),
         });
     }
     endpoints.sort_by_key(|endpoint| (endpoint.slot, endpoint.direction));

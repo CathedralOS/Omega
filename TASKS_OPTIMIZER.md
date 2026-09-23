@@ -31,13 +31,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   physical recovery and retiring unused spill boundaries with their consumers.
 
   The semantic-wrapper object's records, composition, validation and codec
-  live in `native-artifact/src/semantic_wrapper_object` (`ef562278e7`); the
-  object stage in `native-realization/src/optimized_semantic_wrapper_object/`
-  keeps only settlement/source/encoding custody and replay. The encoding
-  stage (`optimized_semantic_wrapper_encoding/`) is still coordinator-owned;
-  move its remaining record/backend responsibilities without breaking
-  `native_realization/optimized_fragment_projection.rs`. UEFI/provider/ABI
-  gaps remain with their native owners, not another wrapper implementation.
+  live in `native-artifact/src/semantic_wrapper_object` (`ef562278e7`), and
+  the plan's x86-64 template selection and replay live beside its recipe in
+  `program-entry-plan/src/optimized_semantic_wrapper/encoding.rs`
+  (`676a1d11b3`); native-realization keeps only the object stage's
+  settlement/source/encoding custody join and replay. UEFI/provider/ABI gaps
+  remain with their native owners, not another wrapper implementation.
 
   Audit surviving public entrances using qualified identities and repository-wide
   consumers, including native-differential tests; a common name such as

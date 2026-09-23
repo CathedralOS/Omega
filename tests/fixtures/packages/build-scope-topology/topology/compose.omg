@@ -13,7 +13,9 @@
 // confinement suite):
 //   request.bin     — the canonical TopologyRequest bytes.
 //   components.bin  — {u32 n} + per-instance {u32 desc_len, desc bytes,
-//                     profile[32]}, in request-roster order.
+//                     profile[32], u32 export_n, export_n × contract[32]},
+//                     in request-roster order; each contract is the one the
+//                     component verifier derived for that export surface.
 //   bindings.bin    — {u32 n} + {ii,is,ei,es u32 + transport[32]}, canonical.
 
 module compose;
@@ -108,6 +110,7 @@ pub data Compose {
     imp_slot: [u64 in Wrapping; 64];
     imp_contract: [u8; 2048];
     exp_n: [u64 in Wrapping; 8];
+    derived_exp_n: [u64 in Wrapping; 8];
     exp_contract: [u8; 2048];
     ep_n: [u64 in Wrapping; 8];
     ep_slot: [u64 in Wrapping; 128];
@@ -1187,10 +1190,16 @@ machine Compose::analyze_desc(&mut self) {
             _ -> bad_09()
         }
     }
+    // The description names each export surface; its contract is the one
+    // the verifier derived for it, already read with the instance record.
+    // Both rosters list the same exports, so their counts must agree.
     state exp_set(&mut self) {
         self.exp_n[self.h0] = self.t64;
         self.jb = 0;
-        transition { _ -> exp_loop() }
+        transition self.t64 == self.derived_exp_n[self.h0] {
+            true -> exp_loop()
+            _ -> bad_11()
+        }
     }
     state exp_loop(&mut self) {
         self.h0 = self.i;
@@ -1208,82 +1217,9 @@ machine Compose::analyze_desc(&mut self) {
     state exp_str(&mut self) {
         self.rdstr();
         transition self.ok {
-            true -> exp_hash()
+            true -> exp_next()
             _ -> bad_10()
         }
-    }
-    // contract = sha256("omega-topology-export-contract-v1" || utf8 identity)
-    state exp_hash(&mut self) {
-        let domain: &[u8] = "omega-topology-export-contract-v1";
-        self.dig.msg_n = 33 + self.str_n;
-        self.k = 0;
-        transition { _ -> exp_dom() }
-    }
-    state exp_dom(&mut self) {
-        transition self.k < 33 {
-            true -> prep_ed()
-            _ -> exp_str_c()
-        }
-    }
-    state prep_ed(&mut self) {
-        self.h1 = self.k;
-        transition self.h1 < 33 && self.h1 < 8192 {
-            true -> do_ed()
-            _ -> bad_11()
-        }
-    }
-    state do_ed(&mut self) {
-        let domain: &[u8] = "omega-topology-export-contract-v1";
-        self.dig.msg[self.h1] = domain[self.h1];
-        self.k = self.k + 1;
-        transition { _ -> exp_dom() }
-    }
-    state exp_str_c(&mut self) {
-        self.k = 0;
-        transition { _ -> exp_sc_loop() }
-    }
-    state exp_sc_loop(&mut self) {
-        transition self.k < self.str_n && self.k < 256 {
-            true -> prep_es()
-            _ -> exp_run()
-        }
-    }
-    state prep_es(&mut self) {
-        self.h1 = 33 + self.k;
-        self.h2 = self.k;
-        transition self.h1 < 8192 && self.h2 < 256 {
-            true -> do_es()
-            _ -> bad_12()
-        }
-    }
-    state do_es(&mut self) {
-        self.dig.msg[self.h1] = self.strbuf[self.h2];
-        self.k = self.k + 1;
-        transition { _ -> exp_sc_loop() }
-    }
-    state exp_run(&mut self) {
-        self.dig.digest();
-        self.k = 0;
-        transition { _ -> exp_cp() }
-    }
-    state exp_cp(&mut self) {
-        transition self.k < 32 {
-            true -> prep_ec()
-            _ -> exp_next()
-        }
-    }
-    state prep_ec(&mut self) {
-        self.h2 = self.i * 256 + self.jb * 32 + self.k;
-        self.h3 = self.k;
-        transition self.h2 < 2048 && self.h3 < 32 {
-            true -> do_ec()
-            _ -> bad_13()
-        }
-    }
-    state do_ec(&mut self) {
-        self.exp_contract[self.h2] = self.dig.out32[self.h3];
-        self.k = self.k + 1;
-        transition { _ -> exp_cp() }
     }
     state exp_next(&mut self) {
         self.jb = self.jb + 1;
@@ -1794,32 +1730,6 @@ machine Compose::analyze_desc(&mut self) {
         self.errtag[3] = 49;
         transition { _ -> bad() }
     }
-    state bad_12(&mut self) {
-        transition self.errtag[0] == 63 {
-            true -> bad_12_s()
-            _ -> bad()
-        }
-    }
-    state bad_12_s(&mut self) {
-        self.errtag[0] = 65;
-        self.errtag[1] = 109;
-        self.errtag[2] = 49;
-        self.errtag[3] = 50;
-        transition { _ -> bad() }
-    }
-    state bad_13(&mut self) {
-        transition self.errtag[0] == 63 {
-            true -> bad_13_s()
-            _ -> bad()
-        }
-    }
-    state bad_13_s(&mut self) {
-        self.errtag[0] = 65;
-        self.errtag[1] = 110;
-        self.errtag[2] = 49;
-        self.errtag[3] = 51;
-        transition { _ -> bad() }
-    }
     state bad_14(&mut self) {
         transition self.errtag[0] == 63 {
             true -> bad_14_s()
@@ -2083,7 +1993,8 @@ machine Compose::analyze_desc(&mut self) {
 }
 
 // ---- components.bin decode ------------------------------------------------
-// {u32 n} then n × {u32 desc_len, desc bytes, profile[32]}. The desc bytes
+// {u32 n} then n × {u32 desc_len, desc bytes, profile[32], u32 export_n,
+// export_n × contract[32]}. The desc bytes
 // are hashed (identity), analyzed (endpoints+assumptions), and the verified
 // closure recomputed as sha256(closure-domain || desc_identity || profile).
 machine Compose::decode_meta(&mut self) {
@@ -2144,7 +2055,7 @@ machine Compose::decode_meta(&mut self) {
     state prof_cp(&mut self) {
         transition self.k < 32 {
             true -> prep_pc()
-            _ -> meta_end()
+            _ -> dc_count()
         }
     }
     state prep_pc(&mut self) {
@@ -2159,6 +2070,62 @@ machine Compose::decode_meta(&mut self) {
         self.profiles[self.h1] = self.ident[self.h2];
         self.k = self.k + 1;
         transition { _ -> prof_cp() }
+    }
+    // The verifier-derived export contracts, in the description's export
+    // roster order: an export endpoint carries this contract, never a
+    // digest of its surface name.
+    state dc_count(&mut self) {
+        self.ru32();
+        self.h0 = self.i;
+        transition self.w32 <= 8 && self.h0 < 8 && self.ok {
+            true -> dc_set()
+            _ -> bad_45()
+        }
+    }
+    state dc_set(&mut self) {
+        self.derived_exp_n[self.h0] = self.w32 as u64 in Wrapping;
+        self.jb = 0;
+        transition { _ -> dc_loop() }
+    }
+    state dc_loop(&mut self) {
+        self.h0 = self.i;
+        transition self.h0 < 8 {
+            true -> dc_row()
+            _ -> bad_45()
+        }
+    }
+    state dc_row(&mut self) {
+        transition self.jb < self.derived_exp_n[self.h0] && self.jb < 8 {
+            true -> dc_bytes()
+            _ -> meta_end()
+        }
+    }
+    state dc_bytes(&mut self) {
+        self.k = 0;
+        transition { _ -> dc_byte_loop() }
+    }
+    state dc_byte_loop(&mut self) {
+        transition self.k < 32 {
+            true -> dc_byte()
+            _ -> dc_next()
+        }
+    }
+    state dc_byte(&mut self) {
+        self.rd();
+        self.h2 = self.i * 256 + self.jb * 32 + self.k;
+        transition self.h2 < 2048 && self.ok {
+            true -> dc_store()
+            _ -> bad_46()
+        }
+    }
+    state dc_store(&mut self) {
+        self.exp_contract[self.h2] = self.b8;
+        self.k = self.k + 1;
+        transition { _ -> dc_byte_loop() }
+    }
+    state dc_next(&mut self) {
+        self.jb = self.jb + 1;
+        transition { _ -> dc_loop() }
     }
     state meta_end(&mut self) {
         // every instance record is consumed in roster order
@@ -2373,6 +2340,32 @@ machine Compose::decode_meta(&mut self) {
         transition { _ -> done() }
     }
     state done(&mut self) {
+    }
+    state bad_45(&mut self) {
+        transition self.errtag[0] == 63 {
+            true -> bad_45_s()
+            _ -> bad()
+        }
+    }
+    state bad_45_s(&mut self) {
+        self.errtag[0] = 66;
+        self.errtag[1] = 116;
+        self.errtag[2] = 52;
+        self.errtag[3] = 53;
+        transition { _ -> bad() }
+    }
+    state bad_46(&mut self) {
+        transition self.errtag[0] == 63 {
+            true -> bad_46_s()
+            _ -> bad()
+        }
+    }
+    state bad_46_s(&mut self) {
+        self.errtag[0] = 66;
+        self.errtag[1] = 117;
+        self.errtag[2] = 52;
+        self.errtag[3] = 54;
+        transition { _ -> bad() }
     }
     state bad_34(&mut self) {
         transition self.errtag[0] == 63 {

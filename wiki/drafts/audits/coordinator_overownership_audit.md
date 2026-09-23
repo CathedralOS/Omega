@@ -125,6 +125,8 @@ that should carry the moves; this audit fixes no code.
   `terminal_authority_permission_policy.rs`,
   `terminal_authority_permissions.rs`, and `terminal_authority_review{,.rs}`
   all still live in `native-realization`.
-- F4 stands: `optimized_semantic_wrapper_encoding/` and
-  `optimized_semantic_wrapper_object/` are still unrelocated — covered by
-  `WRAPPER-OBJECT-OWNERSHIP`/`DURABLE-CODEC-RELOCATION`.
+- F4 resolved: the wrapper object's records, composition, validation and
+  codec moved to `native-artifact/src/semantic_wrapper_object` (`ef562278e7`)
+  and the encoding stage to `program-entry-plan`'s
+  `optimized_semantic_wrapper/encoding.rs` (`676a1d11b3`);
+  `optimized_semantic_wrapper_object/` keeps only the stage's custody join.
