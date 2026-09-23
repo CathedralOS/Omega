@@ -741,22 +741,10 @@ fn walk_state_write_prefix_inner(
                 // borrowed arguments. The type-name receiver must never reach
                 // the ownership floor, which would poison it as a place.
                 let nested_writes = if wire_codecs::is_wire_codec_call(program, nested_call) {
-                    // A synthesized codec frames its borrowed arguments by
-                    // coarse place spelling; a divergent binding's name
-                    // cannot stand in for its referent set, so it stays
-                    // opaque rather than drop the write.
-                    if arguments.iter().any(|argument| {
-                        local_aliases::expression_mentions_place_roots(
-                            program,
-                            *argument,
-                            &divergent_alias_origins
-                                .iter()
-                                .map(|(name, _)| name.clone())
-                                .collect::<Vec<_>>(),
-                        )
-                    }) {
-                        return None;
-                    }
+                    // A divergent argument is resolved rather than refused:
+                    // the resolver below takes the candidate set and unions
+                    // every proven referent, and keeps an unproven binding
+                    // opaque on its own.
                     wire_codecs::known_wire_codec_call_written_paths(
                         program,
                         machine,

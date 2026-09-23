@@ -318,25 +318,12 @@ impl<'program> CallFrameResolver<'program> {
                             .expression_handles(call.arguments);
                         // A synthesized wire codec frames from its borrowed
                         // arguments; its type-name receiver is not a place the
-                        // ownership floor may poison. A divergent binding's name
-                        // cannot stand in for its referent set there, so a codec
-                        // argument touching one stays opaque.
+                        // ownership floor may poison. A divergent argument is
+                        // resolved rather than refused: the resolver takes the
+                        // candidate set and unions every proven referent, and
+                        // its own name arm keeps an UNPROVEN binding opaque, so
+                        // refusing here only discarded sets it could resolve.
                         if super::wire_codecs::is_wire_codec_call(self.program, call) {
-                            if !prefix.divergent.is_empty()
-                                && arguments.iter().any(|argument| {
-                                    super::local_aliases::expression_mentions_place_roots(
-                                        self.program,
-                                        *argument,
-                                        &prefix
-                                            .divergent
-                                            .iter()
-                                            .map(|(name, _)| name.clone())
-                                            .collect::<Vec<_>>(),
-                                    )
-                                })
-                            {
-                                return None;
-                            }
                             return super::wire_codecs::known_wire_codec_call_written_paths(
                                 self.program,
                                 current_machine,

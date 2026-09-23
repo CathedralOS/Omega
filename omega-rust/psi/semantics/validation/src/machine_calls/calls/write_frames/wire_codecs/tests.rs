@@ -4,7 +4,8 @@ use typed_trees::statement::StatementNode;
 const SCHEMA_PRELUDE: &str = "data PointMsg { #0 x: u32; #1 y: u32; } \
     data PointSample { x: u32; y: u32; } \
     data WireVerdict { case Invalid; case Sound; } \
-    data Main { buffer: [u8; 32]; written: u64; read: u64; verdict: WireVerdict; }";
+    data Main { buffer: [u8; 32]; written: u64; read: u64; verdict: WireVerdict; alt: WireVerdict; } \
+    machine pick_verdict(a: &mut WireVerdict, b: &mut WireVerdict, tag: u64) -> &mut WireVerdict { match tag { 0 -> a, _ -> b } }";
 
 fn main_state_frame(body: &str) -> Option<Vec<String>> {
     let program = crate::front_end::typed_program(&format!(
@@ -72,6 +73,26 @@ fn decode_call_frame_writes_through_a_bound_exclusive_reference_local() {
              PointMsg::decode(&mut d, &self.buffer, &mut self.read, v);"
         ),
         Some(vec!["self.read".to_owned(), "self.verdict".to_owned()]),
+    );
+}
+
+/// A codec argument bound to a divergent conditional result keeps its whole
+/// proven referent set. The resolver already takes the candidate set and
+/// unions every route; the demand and state walks used to refuse such an
+/// argument before it ran, which discarded sets they could resolve.
+#[test]
+fn decode_call_frame_unions_a_divergent_bound_reference() {
+    assert_eq!(
+        main_state_frame(
+            "let d: PointSample; d.x = 0; d.y = 0; \
+             let v: &mut WireVerdict = pick_verdict(&mut self.verdict, &mut self.alt, self.written); \
+             PointMsg::decode(&mut d, &self.buffer, &mut self.read, v);"
+        ),
+        Some(vec![
+            "self.alt".to_owned(),
+            "self.read".to_owned(),
+            "self.verdict".to_owned(),
+        ]),
     );
 }
 
