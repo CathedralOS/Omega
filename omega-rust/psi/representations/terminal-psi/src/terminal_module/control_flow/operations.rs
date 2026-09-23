@@ -286,6 +286,17 @@ pub enum OperationKind {
         path: Vec<StructuralPathSegment>,
         case: StructuralCaseId,
     },
+    /// Establish one owned copy of an `Unrestricted` leaf projected out of a
+    /// live root the machine may only read. The source stays fully intact:
+    /// copying observes contents like a scalar field read, so shared loans
+    /// admit it where a move would vacate borrowed storage. Only leaves whose
+    /// declaration carries `Unrestricted` multiplicity can be copied; any
+    /// other multiplicity needs the move/restoration contract instead.
+    StructuralLeafCopy {
+        source: PlaceId,
+        /// Ordered structural projection from the live whole root to the leaf.
+        path: Vec<StructuralPathSegment>,
+    },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.
     /// `qualifications` replay the domain memberships checking admitted on
@@ -838,6 +849,7 @@ impl OperationKind {
             | Self::MoveStructuralField { .. }
             | Self::StoreStructuralField { .. }
             | Self::StructuralCaseMembership { .. }
+            | Self::StructuralLeafCopy { .. }
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::ByteSequenceLength { .. }
             | Self::EstablishElementView { .. }

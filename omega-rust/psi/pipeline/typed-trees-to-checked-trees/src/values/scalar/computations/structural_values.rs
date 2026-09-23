@@ -428,6 +428,77 @@ pub(super) fn is_scalar_case_place_value(
         })
 }
 
+/// A copyable `Unrestricted` leaf of any structural shape: a named `data`
+/// under `Unrestricted` multiplicity. Copying its contents into a fresh
+/// owned place reproduces the read a `self.scan_compare_type`-shape member
+/// access needs where moving or case-fan-out cannot apply; anything affine
+/// still needs move semantics.
+fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> bool {
+    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+        return false;
+    };
+    if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
+        return false;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return false;
+    };
+    program
+        .data_definitions()
+        .iter()
+        .any(|data| data.symbol == *symbol)
+}
+
+/// `self.scan_compare_type`-shape admission: a member/fixed-index projection
+/// rooted at shared-borrowed storage whose leaf is a copyable `Unrestricted`
+/// named type. Same root/path contract as `is_scalar_case_place_value`, but
+/// for leaves whose contents cannot be reconstructed by case fan-out.
+pub(super) fn is_copied_place_value(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    if !copied_place_type(program, expected)
+        || is_scalar_case_place_value(program, state, statement_index, expression, expected)
+    {
+        return false;
+    }
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state,
+        statement_index,
+        expression,
+    ) else {
+        return false;
+    };
+    if place.segments.is_empty() || !canonical_place_is_borrowable(&place) {
+        return false;
+    }
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return false;
+    };
+    let Some(root) = symbol_declared_type(program, symbol) else {
+        return false;
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(root),
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            ..
+        }
+    ) {
+        return false;
+    }
+    crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
+        .is_some_and(|leaf| {
+            program.normalized_type_identity(leaf) == program.normalized_type_identity(expected)
+        })
+}
+
 /// The terminal expression carrying a projection's storage: the whole local
 /// name for an owned place source, or the producing call for a structural
 /// product source.
@@ -513,6 +584,8 @@ impl Builder<'_, '_> {
             CheckedStructuralValueKind::Call { source_call }
         } else if let Some(copy) = self.scalar_case_place(expression, expected) {
             copy
+        } else if let Some(copied) = self.copied_place(expression, expected) {
+            copied
         } else if let Some(projection) =
             self.projected_selection_place(expression, expected, values, pure)
         {
@@ -709,6 +782,42 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
+        Some(CheckedStructuralValueKind::ScalarCasePlace {
+            source: self.borrowed_leaf_argument(expression, expected)?,
+        })
+    }
+
+    /// One `Unrestricted` leaf copied out of shared-borrowed storage:
+    /// `self.scan_compare_type` reads the borrowed record's current contents
+    /// and copies the leaf into a fresh owned place, never moving a child
+    /// out of the loan.
+    fn copied_place(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        if !is_copied_place_value(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+            expected,
+        ) {
+            return None;
+        }
+        Some(CheckedStructuralValueKind::CopiedStructuralPlace {
+            source: self.borrowed_leaf_argument(expression, expected)?,
+        })
+    }
+
+    /// The `SharedBorrow` argument plan a borrowed leaf read produces: the
+    /// named root as a parameter/local/`self` source plus the canonical
+    /// member path, with `type_identity` naming the projected leaf.
+    fn borrowed_leaf_argument(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
         let place = crate::flow::canonical_place_from_expression_in_state(
             self.program,
             self.state,
@@ -756,16 +865,14 @@ impl Builder<'_, '_> {
         {
             return None;
         }
-        Some(CheckedStructuralValueKind::ScalarCasePlace {
-            source: checked_trees::CheckedUnitStructuralArgumentPlan {
-                source,
-                path,
-                type_identity: self
-                    .program
-                    .normalized_type_identity(projected)
-                    .into_string(),
-                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
-            },
+        Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+            source,
+            path,
+            type_identity: self
+                .program
+                .normalized_type_identity(projected)
+                .into_string(),
+            access: checked_trees::CheckedStructuralAccess::SharedBorrow,
         })
     }
 

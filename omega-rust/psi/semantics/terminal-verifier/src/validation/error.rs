@@ -1284,6 +1284,10 @@ pub enum ModuleError {
         source: PlaceId,
         case: semantic_vocabulary::StructuralCaseId,
     },
+    InvalidStructuralLeafCopy {
+        operation: OperationId,
+        source: PlaceId,
+    },
     InvalidBooleanStructuralField {
         operation: OperationId,
         source: PlaceId,

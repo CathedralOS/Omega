@@ -449,6 +449,23 @@ pub(super) fn validate_structural_case_membership(operation: &Operation) -> Resu
     Ok(())
 }
 
+pub(super) fn validate_structural_leaf_copy(operation: &Operation) -> Result<(), CodecError> {
+    let OperationKind::StructuralLeafCopy { .. } = &operation.kind else {
+        unreachable!("dispatched validate_structural_leaf_copy")
+    };
+    if operation.result.structural().is_none_or(|result| {
+        result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+    }) {
+        return malformed("leaf copy requires an unqualified Unrestricted structural result");
+    }
+    // Full module validation independently checks the source's readable
+    // access, the resolved leaf type, custody and liveness.
+    Ok(())
+}
+
 pub(super) fn validate_byte_sequence_read(operation: &Operation) -> Result<(), CodecError> {
     let OperationKind::ByteSequenceRead { .. } = &operation.kind else {
         unreachable!("dispatched validate_byte_sequence_read")

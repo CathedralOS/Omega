@@ -158,3 +158,5 @@ pub(super) const ELEMENT_VIEW_LENGTH: u8 = 80;
 pub(super) const ELEMENT_VIEW_READ: u8 = 81;
 /// `OperationKind::ElementViewSubslice`.
 pub(super) const ELEMENT_VIEW_SUBSLICE: u8 = 82;
+/// `OperationKind::StructuralLeafCopy`.
+pub(super) const STRUCTURAL_LEAF_COPY: u8 = 83;

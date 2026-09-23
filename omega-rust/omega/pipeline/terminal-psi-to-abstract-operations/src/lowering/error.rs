@@ -22,6 +22,10 @@ pub enum LoweringError {
     /// Terminal preserves the exact payloadless sum case, but Omega has no
     /// target-neutral abstract operation for realizing that structural value.
     UnsupportedPayloadlessCase(semantic_vocabulary::OperationId),
+    /// The leaf copy admits an owned duplicate of an `Unrestricted` subtree
+    /// under a shared loan; Omega has no abstract operation realizing that
+    /// copy yet, so the leg stops at verified Terminal-Psi.
+    UnsupportedStructuralLeafCopy(semantic_vocabulary::OperationId),
     /// Scalar-array establishment has no abstract storage realization yet.
     UnsupportedScalarArray(semantic_vocabulary::OperationId),
     /// Psi preserves exact byte-sequence literals, but native realization is

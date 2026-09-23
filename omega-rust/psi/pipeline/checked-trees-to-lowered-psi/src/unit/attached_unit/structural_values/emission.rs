@@ -834,6 +834,25 @@ impl Emission<'_, '_, '_> {
                         )?;
                 self.projected_case_place(&argument, continuation)
             }
+            CheckedStructuralValueKind::CopiedStructuralPlace { source } => {
+                if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
+                    return unsupported("copied place changed its leaf type");
+                }
+                let authored = crate::expression_preparation::source_custody::authored_state(
+                    self.checked,
+                    self.state,
+                )?;
+                let argument =
+                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                        .with_structural_parameters(&self.evaluation.structural_parameters)
+                        .with_structural_locals(&self.evaluation.structural_locals)
+                        .shared_structural_argument(
+                            &source,
+                            authored.0,
+                            self.checked.state_parameters(authored.1),
+                        )?;
+                self.copied_leaf_place(&argument, continuation)
+            }
             CheckedStructuralValueKind::Place(argument) => {
                 if self.sources.is_empty()
                     && continuation.is_none()
@@ -2085,6 +2104,52 @@ impl Emission<'_, '_, '_> {
                 self.rebind_local_cases()?;
             }
         }
+        Ok(continuation.place)
+    }
+
+    /// Copy an `Unrestricted` leaf out of a live root into the continuation's
+    /// owned place with one `StructuralLeafCopy`: the source subtree stays
+    /// fully intact, so shared loans admit the observation where a move
+    /// would vacate borrowed storage. Only the op-join path is needed — no
+    /// case fan-out, no residual bookkeeping.
+    fn copied_leaf_place(
+        &mut self,
+        argument: &StructuralArgument,
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let place = place_id(allocate_dense(self.next_place)?);
+        let operation = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place,
+                structural_type: self.structural_type,
+                multiplicity: self.multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::StructuralLeafCopy {
+                source: argument.place,
+                path: argument.path.clone(),
+            },
+        });
+        self.temporary_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: self.structural_type,
+            },
+        });
+        let Some(continuation) = continuation else {
+            // At the value root the fresh place publishes directly — the copy
+            // consumes nothing, so there is no custody edge to join.
+            return Ok(place);
+        };
+        self.complete_value(place, None, continuation)?;
         Ok(continuation.place)
     }
 

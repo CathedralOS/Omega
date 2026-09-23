@@ -593,6 +593,136 @@ impl TerminalExecution {
         self.structural_primitive_storage.extend(staged_primitives);
     }
 
+    /// Copy every runtime cell under `from` to the same subtree suffix under
+    /// `to`, leaving `from` intact. The `Unrestricted` leaf's cells duplicate
+    /// beneath the result's own opaque identity; nothing vacates.
+    fn clone_subtree(&mut self, from: &StructuralRuntimePlace, to: &StructuralRuntimePlace) {
+        let retarget = |parent: &StructuralRuntimePlace| {
+            (parent.opaque_identity == from.opaque_identity && parent.path.starts_with(&from.path))
+                .then(|| StructuralRuntimePlace {
+                    opaque_identity: to.opaque_identity,
+                    path: to
+                        .path
+                        .iter()
+                        .chain(&parent.path[from.path.len()..])
+                        .cloned()
+                        .collect(),
+                })
+        };
+        let staged_scalars: Vec<_> = self
+            .structural_scalar_fields
+            .iter()
+            .filter_map(|(cell, scalar)| {
+                retarget(&cell.parent).map(|parent| {
+                    (
+                        StructuralScalarRuntimeField {
+                            parent,
+                            field: cell.field,
+                        },
+                        *scalar,
+                    )
+                })
+            })
+            .collect();
+        let staged_byte_fields: Vec<_> = self
+            .structural_byte_sequence_fields
+            .iter()
+            .filter_map(|(cell, view)| {
+                retarget(&cell.parent).map(|parent| {
+                    (
+                        crate::values::StructuralByteSequenceRuntimeField {
+                            parent,
+                            field: cell.field,
+                        },
+                        view.clone(),
+                    )
+                })
+            })
+            .collect();
+        let staged_arrays: Vec<_> = self
+            .structural_byte_arrays
+            .iter()
+            .filter_map(|(carrier, view)| retarget(carrier).map(|place| (place, view.clone())))
+            .collect();
+        let staged_cases: Vec<_> = self
+            .structural_cases
+            .iter()
+            .filter_map(|(carrier, contents)| retarget(carrier).map(|place| (place, *contents)))
+            .collect();
+        let staged_referents: Vec<_> = self
+            .reference_referents
+            .iter()
+            .filter_map(|(carrier, referent)| {
+                retarget(carrier).map(|place| (place, referent.clone()))
+            })
+            .collect();
+        let staged_primitives: Vec<_> = self
+            .structural_primitive_storage
+            .iter()
+            .filter_map(|(carrier, scalar)| retarget(carrier).map(|place| (place, *scalar)))
+            .collect();
+        self.structural_scalar_fields.extend(staged_scalars);
+        self.structural_byte_sequence_fields
+            .extend(staged_byte_fields);
+        self.structural_byte_arrays.extend(staged_arrays);
+        self.structural_cases.extend(staged_cases);
+        self.reference_referents.extend(staged_referents);
+        self.structural_primitive_storage.extend(staged_primitives);
+    }
+
+    /// Project an `Unrestricted` leaf out of a live root into a fresh owned
+    /// place by copying its cells: the source subtree stays fully intact, so
+    /// shared loans admit the observation where a move would vacate borrowed
+    /// storage. The result's opaque identity is new; later writes to either
+    /// place cannot alias.
+    pub(crate) fn execute_structural_leaf_copy(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::StructuralLeafCopy {
+            source, ref path, ..
+        } = operation.kind
+        else {
+            unreachable!("dispatched execute_structural_leaf_copy")
+        };
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let result = operation.result.structural().ok_or_else(invalid)?;
+        if result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+        {
+            return Err(invalid());
+        }
+        let leaf = resolve_structural_arguments(
+            &self.structural_types,
+            &self.structural_values,
+            &[StructuralArgument {
+                place: source,
+                path: path.to_vec(),
+                access: StructuralAccess::SharedBorrow,
+            }],
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        if leaf.structural_type != result.structural_type {
+            return Err(invalid());
+        }
+        let copied = TerminalStructuralValue {
+            opaque_identity: self.local_structural_identities.allocate()?,
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        self.clone_subtree(
+            &StructuralRuntimePlace::from(&leaf),
+            &StructuralRuntimePlace::from(&copied),
+        );
+        self.structural_values.insert(result.place, copied);
+        Ok(OperationFlow::Advance)
+    }
+
     pub(crate) fn execute_structural_case_membership(
         &mut self,
         operation: &terminal_psi::Operation,

@@ -120,6 +120,26 @@ pub(super) fn decode_structural_case_membership(
     })
 }
 
+pub(super) fn encode_structural_leaf_copy(
+    writer: &mut Writer,
+    source: PlaceId,
+    path: Vec<StructuralPathSegment>,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::STRUCTURAL_LEAF_COPY);
+    writer.id(source);
+    encode_structural_path(writer, "leaf copy path", &path)?;
+    Ok(())
+}
+
+pub(super) fn decode_structural_leaf_copy(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::StructuralLeafCopy {
+        source: reader.id("PlaceId")?,
+        path: decode_structural_path(reader)?,
+    })
+}
+
 pub(super) fn encode_byte_sequence_subslice(
     writer: &mut Writer,
     source: PlaceId,
