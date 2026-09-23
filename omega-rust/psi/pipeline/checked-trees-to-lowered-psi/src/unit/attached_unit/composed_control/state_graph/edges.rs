@@ -216,6 +216,177 @@ pub(super) fn validate_bindings(
             result_custody::validate(checked, plan.machine, source, local, result)?;
             continue;
         }
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+            subject,
+            case_identity,
+            field_identity,
+            path: payload_path,
+        } = &transfer.source
+        {
+            // The edge's case test selects this case; the declared payload
+            // field feeds the target's owned custody with its own type and
+            // multiplicity, and the authored operand is the case-qualified
+            // member of that field on the very subject the guard tests.
+            if transfer.target_parameter_index as usize != position || !payload_path.is_empty() {
+                return unsupported("Unit graph case-payload transfer drifted");
+            }
+            let TransitionGuardNode::When(guard) = transition.guard else {
+                return unsupported("Unit graph case-payload edge lacks a case test");
+            };
+            let Some((tested, variant_symbol)) = super::cases::case_test(checked, guard) else {
+                return unsupported("Unit graph case-payload guard lost its case test");
+            };
+            let Some((_, variant)) = checked.data_definitions().iter().find_map(|data| {
+                checked.data_members(data).iter().find_map(|member| {
+                    let checked_trees::data::DataMember::Variant(variant) = member else {
+                        return None;
+                    };
+                    (variant.symbol == variant_symbol).then_some((data, variant))
+                })
+            }) else {
+                return unsupported("Unit graph case-payload case is missing");
+            };
+            if super::cases::identity(variant) != *case_identity {
+                return unsupported("Unit graph case-payload case identity drifted");
+            }
+            let Some(field) = checked.data_payload_fields(variant).iter().find(|field| {
+                field
+                    .identity
+                    .map(|identity| format!("#{identity}"))
+                    .unwrap_or_else(|| field.name.as_str().to_owned())
+                    == *field_identity
+            }) else {
+                return unsupported("Unit graph case-payload field is missing");
+            };
+            if checked
+                .normalized_type_identity(field.type_reference)
+                .into_string()
+                != target.type_identity
+                || checked.type_multiplicity(field.type_reference) != target.multiplicity
+                || target.access != checked_trees::CheckedStructuralAccess::Owned
+            {
+                return unsupported("Unit graph case-payload custody drifted");
+            }
+            // The subject resolves to a retained source parameter and a
+            // member path ending at the sum owning the selected case.
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } = subject.source
+            else {
+                return unsupported("Unit graph case-payload subject unsupported");
+            };
+            let source_parameter = state
+                .structural_parameters
+                .get(parameter_index as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph case-payload subject missing",
+                ))?;
+            if subject.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+                return unsupported("Unit graph case-payload subject custody drifted");
+            }
+            // The subject's member path walks from its own root type; borrows
+            // and constraint ascriptions peel away to the owned data shape.
+            fn nominal_owner(
+                checked: &CheckedTrees,
+                mut reference: checked_trees::types::TypeReferenceHandle,
+            ) -> Option<&checked_trees::data::DataDefinition> {
+                loop {
+                    match checked.type_reference_table.type_reference(reference) {
+                        checked_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                            reference = *referee;
+                        }
+                        checked_trees::types::TypeReferenceNode::Constrained {
+                            base_type, ..
+                        } => {
+                            reference = *base_type;
+                        }
+                        checked_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                            if let Some(data) = checked
+                                .data_definitions()
+                                .iter()
+                                .find(|data| data.symbol == *symbol)
+                            {
+                                return Some(data);
+                            }
+                            // `Self` resolves to the enclosing machine's
+                            // attachment, not the data declaration itself.
+                            return checked
+                                .machines()
+                                .iter()
+                                .find(|machine| machine.symbol == *symbol)
+                                .and_then(|machine| {
+                                    checked
+                                        .data_definitions()
+                                        .iter()
+                                        .find(|data| data.symbol == machine.attached_data_symbol)
+                                });
+                        }
+                        _ => return None,
+                    }
+                }
+            }
+            let mut reference = source_parameters
+                .get(source_parameter.position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph case-payload parameter missing",
+                ))?
+                .type_reference;
+            let Some(mut owner) = nominal_owner(checked, reference) else {
+                return unsupported("Unit graph case-payload subject is not nominal");
+            };
+            for segment in &subject.path {
+                let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
+                else {
+                    return unsupported("Unit graph case-payload path is not a member walk");
+                };
+                let Some(member) = checked.data_members(owner).iter().find_map(|member| {
+                    let checked_trees::data::DataMember::Field(field) = member else {
+                        return None;
+                    };
+                    (field
+                        .identity
+                        .map(|position| format!("#{position}"))
+                        .unwrap_or_else(|| field.name.as_str().to_owned())
+                        == *identity)
+                        .then_some(field)
+                }) else {
+                    return unsupported("Unit graph case-payload path field is missing");
+                };
+                reference = member.type_reference;
+                let Some(next) = nominal_owner(checked, reference) else {
+                    return unsupported("Unit graph case-payload path is not nominal");
+                };
+                owner = next;
+            }
+            if checked.normalized_type_identity(reference).into_string() != subject.type_identity
+                || !checked.data_members(owner).iter().any(|member| {
+                    matches!(
+                        member,
+                        checked_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == variant_symbol
+                    )
+                })
+            {
+                return unsupported("Unit graph case-payload subject is not the tested sum");
+            }
+            let argument_position = explicit_argument_position(target.position);
+            let expression = arguments
+                .get(argument_position)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph case-payload argument missing",
+                ))?;
+            match checked.expression_table.expression(*expression) {
+                ExpressionNode::Member(member)
+                    if member.member == field.name
+                        && member.case_variant.as_ref().map(|v| v.as_str())
+                            == Some(variant.name.as_str())
+                        && checked
+                            .expression_table
+                            .expressions_structurally_equal(tested, member.receiver) => {}
+                _ => return unsupported("Unit graph case-payload argument lost its binding"),
+            }
+            continue;
+        }
         let source_index = match transfer.source {
             checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult {
                 ..
@@ -229,6 +400,9 @@ pub(super) fn validate_bindings(
                 parameter_index,
                 ..
             } => parameter_index,
+            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
+                return unsupported("Unit graph case-payload was not independently rejoined");
+            }
         };
         let source = state
             .structural_parameters
@@ -276,6 +450,9 @@ pub(super) fn validate_bindings(
                 ..
             } => {
                 return unsupported("element view subslice transfer has no Terminal descriptor");
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
+                return unsupported("Unit graph case-payload was not independently rejoined");
             }
         }
     }

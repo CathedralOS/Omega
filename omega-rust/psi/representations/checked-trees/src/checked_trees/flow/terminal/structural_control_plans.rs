@@ -3,8 +3,8 @@
 
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralScalarParameterPlan, CheckedUnitPartialAffineDiscardPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypePlan,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedProofTerm;
 use symbols::SymbolHandle;
@@ -257,7 +257,7 @@ pub enum CheckedStructuralScalarArgumentSourcePlan {
     Expression,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralControlTransferPlan {
     pub source: CheckedStructuralControlTransferSourcePlan,
     pub target_parameter_index: u32,
@@ -272,7 +272,7 @@ impl Default for CheckedStructuralControlTransferPlan {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CheckedStructuralControlTransferSourcePlan {
     /// Exact earlier state-local call result; rejoined to its producing operation.
     StructuralResult {
@@ -280,6 +280,21 @@ pub enum CheckedStructuralControlTransferSourcePlan {
     },
     Parameter {
         index: u32,
+    },
+    /// One `[copy]` payload subtree out of the case this edge's guard
+    /// selected. `subject` is the case-test operand resolved to its
+    /// structural argument plan (a retained parameter or earlier result
+    /// plus the projection reaching the tested sum); `case_identity` and
+    /// `field_identity` name the selected case and its declared payload
+    /// field; `path` walks inside the payload field's own subtree (empty
+    /// when the whole field transfers). Proven case membership on the
+    /// edge authorizes the projection; reading a copyable subtree leaves
+    /// the borrowed subject's custody intact.
+    CasePayload {
+        subject: CheckedUnitStructuralArgumentPlan,
+        case_identity: String,
+        field_identity: String,
+        path: Vec<CheckedUnitStructuralPathSegment>,
     },
     /// Exclusive borrowed-byte range at the enclosing transition. Endpoint
     /// facts use its authored target argument position in the scalar plans.
