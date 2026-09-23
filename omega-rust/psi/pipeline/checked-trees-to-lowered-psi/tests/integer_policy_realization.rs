@@ -20,10 +20,20 @@
 //!   source value folds to `IntegerWiden` or the operand itself before the
 //!   refusal site, so same-width and widening `in Trapping` spellings compose.
 //! - Signed modular conversion: `IntegerWrappingCast` is retained for any
-//!   fixed-integer pair, but lowering composes only the unsigned narrowing
-//!   remainder. Any signed carrier on either side — narrowing, widening-free
-//!   same-width reinterpretation, or both — stops at the same
-//!   `Unsupported`, while the unsigned-to-unsigned neighbour composes.
+//!   fixed-integer pair, and lowering now composes every NARROWING pair whose
+//!   DESTINATION is unsigned, signed source included — `operand & (2^B - 1)`
+//!   is the modular image already inside the destination, and the bound
+//!   machinery carries an interval through the mask, so the exact cast that
+//!   receives it discharges. `signed_wrapping_conversion_values.rs` executes
+//!   those answers rather than asserting the composition. Two shapes remain,
+//!   and they stop for different reasons: a narrowing pair with a SIGNED
+//!   destination needs the upper half folded down,
+//!   `(masked ^ 2^(B-1)) - 2^(B-1)`, and no interval survives that fold, so
+//!   the cast has no available proof (neither `ExactSubtract` nor
+//!   `WrappingSubtract` changes this — the missing evidence is the fold's
+//!   range, not the subtraction's policy); a same-width or sign-widening pair
+//!   has no carrier to spell the mask in at all and keeps the original
+//!   refusal.
 //! - Trapping scalar operations: `checked_integer_binary_kind` carries
 //!   Trapping shifts only, so a Trapping `+` still gets no value fact and the
 //!   statement sequence stops before a plan exists.
@@ -44,7 +54,8 @@
 //! crash site", so a producer may not expand one into a guard and a `Crash`
 //! terminator — and the signed-modular control stays until signed narrowing
 //! or same-width sign reinterpretation has a runtime realization; widening
-//! conversions are already value-preserving and need no such operator.
+//! conversions are already value-preserving and need no such operator. The
+//! signed-modular control is now two controls, one per remaining reason.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
@@ -477,7 +488,28 @@ fn a_never_trapping_conversion_composes_without_a_trap_operation() {
 /// `Unsupported`, while the unsigned narrowing neighbour composes.
 #[test]
 fn signed_wrapping_conversions_stop_on_any_signed_carrier() {
-    for (source, target) in [("i16", "u8"), ("i16", "i8"), ("u16", "i16")] {
+    // The two remaining shapes, and they stop for DIFFERENT reasons now that a
+    // signed source narrowing to an unsigned destination composes
+    // (`signed_wrapping_conversion_values.rs` executes that one). A signed
+    // DESTINATION has a carrier but no bound for the fold that would reach it;
+    // a same-width pair has no narrowing carrier to spell the mask in at all.
+    for (source, target, reason) in [
+        (
+            "i16",
+            "i8",
+            "signed wrapping conversion target requires a folded modular bound",
+        ),
+        (
+            "u16",
+            "i16",
+            "signed wrapping conversion requires runtime policy realization",
+        ),
+        (
+            "i16",
+            "u16",
+            "signed wrapping conversion requires runtime policy realization",
+        ),
+    ] {
         let error = lowering_error(&format!(
             r#"
             data Main {{}}
@@ -489,9 +521,7 @@ fn signed_wrapping_conversions_stop_on_any_signed_carrier() {
         ));
         assert_eq!(
             error,
-            checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                "signed wrapping conversion requires runtime policy realization"
-            ),
+            checked_trees_to_lowered_psi::LoweringError::Unsupported(reason),
             "{source} -> {target} in Wrapping"
         );
     }
