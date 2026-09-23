@@ -353,7 +353,7 @@ fn nested_call_replay_rejects_an_equal_row_outside_the_owning_state() {
     let mut checked = crate::front_end::checked_program(
         "data Inner { value: u64; } data Outer { child: Inner; }
         machine make_child(value: u64) -> Inner { Inner { value: value } }
-        machine make() -> Outer { Outer { child: make_child(7) } }",
+        machine make() -> u64 { let outer: Outer = Outer { child: make_child(7) }; outer.child.value }",
     );
     let machine = checked
         .machines()
