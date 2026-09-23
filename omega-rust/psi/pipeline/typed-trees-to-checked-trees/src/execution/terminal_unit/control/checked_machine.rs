@@ -189,6 +189,7 @@ pub(crate) fn build_checked_machine_residual_parts(
     if !is_unit(program, state.return_type)
         && validation::reference_result_custody::parts(program, state.return_type).is_none()
         && !validation::reference_result_custody::is_reference_record(program, state.return_type)
+        && !crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type)
         && !validation::is_closed_primitive_array_type(program, state.return_type)
         && !validation::has_plain_owned_contents_with_numeric_constraints(
             program,
