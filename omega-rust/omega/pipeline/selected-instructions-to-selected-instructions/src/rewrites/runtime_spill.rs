@@ -45,11 +45,12 @@
 //! use-side tie onto a write to another register or a `UseDef` carrying its
 //! own tie stay rejected. An early-clobber flag on the tied `Def` is itself
 //! no hazard — the write can land only in the reload home its tie names — but
-//! it may complete before an unrelated operand's read, so it stays rejected
-//! only where an unpinned co-operand would read the same register: the use
-//! unpinned, an unpinned victim-reading co-operand present, and the block
-//! sharing one open reload. A pinned use or a private-pair block already
-//! leaves the write's register unshared and admits the pair. The origin
+//! it may complete before an unrelated operand's read, so where the block
+//! shares one open reload and an unpinned victim-reading co-operand could
+//! read that same register, the tied use takes a dedicated pair of its own:
+//! the write's tied home is then a register no other operand reads. A pinned
+//! use or a private-pair block already leaves the write's register unshared,
+//! so the flag alone never rejects. The origin
 //! definition still dominates every use, so on each path the last executed
 //! store is the register's reaching write.
 //! Original parameter bindings remain exact. Replacing the destination's uses

@@ -11,9 +11,10 @@
 //! fresh pair — under either span policy, including across a unit writer the
 //! crossing policy had kept open. An early-clobber flag on the tied `Def` is
 //! admitted while nothing else can read the register its tie names — the use
-//! pinned, or no unpinned co-operand sharing the block's open pair — since the
-//! flag only lets the write land before an unrelated operand's read of that
-//! same register completes.
+//! pinned, or no unpinned co-operand sharing the block's open pair — and where
+//! a co-reader would share that register, the tied use instead takes a
+//! dedicated pair of its own, since the flag only lets the write land before
+//! an unrelated operand's read of that same register completes.
 
 use super::{
     Arc, MachineId, NativeTarget, SelectedInstructionId, SelectedInstructionKind,
@@ -506,6 +507,202 @@ fn early_clobber_tied_writes_spill_while_the_reload_register_goes_unshared() {
     }
 }
 
+/// An unpinned co-reader that would share the block's open reload no longer
+/// rejects the early-clobber tie: the tied use takes a dedicated pair of its
+/// own, so the write's tied home is a register no other operand reads. The
+/// co-reader still names the block's open pair under either span policy, the
+/// write lands through the victim operand the `Def` kept, and a proposal
+/// sharing the tied use onto the open register mismatches the replay's
+/// independently derived dedicated choice.
+#[test]
+fn early_clobber_tied_write_with_a_shared_coreader_takes_a_dedicated_reload() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let victim_class = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap()
+            .operands[0]
+            .class;
+        // The zero-argument call between the earlier uses splits the bounded
+        // span; under either policy the co-reader still shares the pair open
+        // at the rewrite while the tied use goes dedicated.
+        for call in [false, true] {
+            let mut source = read_modify_write_fixture(target, false, call);
+            {
+                let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+                let rewriting = function.blocks[0]
+                    .instructions
+                    .iter_mut()
+                    .find(|instruction| instruction.id == SelectedInstructionId(6))
+                    .unwrap();
+                // An unpinned co-reader beside the tied use; the `Def`
+                // shifts to operand 2 and carries the flag.
+                rewriting.operands.insert(
+                    1,
+                    operand(
+                        1,
+                        VirtualRegisterId(1),
+                        RegisterOperandAccess::Use,
+                        victim_class,
+                    ),
+                );
+                rewriting.operands[2].operand = 2;
+                rewriting.operands[2].early_clobber = true;
+            }
+            let identity = selected_instruction_plan_identity(source.transformed());
+            source.receipt.source_selected = identity;
+            source.receipt.transformed_selected = identity;
+            let count_loads = |block: &selected_instructions::SelectedBlock| {
+                block
+                    .instructions
+                    .iter()
+                    .filter(|instruction| {
+                        matches!(instruction.kind, SelectedInstructionKind::Load64 { .. })
+                    })
+                    .count()
+            };
+            for policy in [
+                crate::RuntimeSpillSpanPolicy::UnitWriteBounded,
+                crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+            ] {
+                let result = crate::spill_selected_runtime_value_with_span_policy(
+                    &source,
+                    0,
+                    VirtualRegisterId(1),
+                    &environment,
+                    budget(),
+                    policy,
+                )
+                .unwrap_or_else(|error| panic!("{target:?} call={call} {policy:?}: {error}"));
+                let block = &result.transformed().functions[0].blocks[0];
+                let rewritten = block
+                    .instructions
+                    .iter()
+                    .position(|instruction| instruction.id == SelectedInstructionId(6))
+                    .unwrap();
+                let rewriting = &block.instructions[rewritten];
+                // The dedicated pair's own load sits immediately before the
+                // instruction — one load beyond the shape without a
+                // co-reader — and defines the tied use's register.
+                let dedicated = rewriting.operands[0].virtual_register;
+                assert!(matches!(
+                    block.instructions[rewritten - 1].kind,
+                    SelectedInstructionKind::Load64 { .. }
+                ));
+                assert_eq!(
+                    block.instructions[rewritten - 1].operands[1].virtual_register,
+                    dedicated
+                );
+                // The co-reader keeps the block's open pair — the register
+                // the previous use reloaded — which the dedicated register
+                // never names.
+                let open = rewriting.operands[1].virtual_register;
+                assert_eq!(open, reload_named_by(block, 3));
+                assert_ne!(dedicated, open);
+                // The write keeps the victim register, its tie, and the
+                // flag; the following store reads it.
+                let def = rewriting
+                    .operands
+                    .iter()
+                    .find(|operand| operand.access == RegisterOperandAccess::Def)
+                    .unwrap();
+                assert_eq!(def.virtual_register, VirtualRegisterId(1));
+                assert_eq!(def.tied_to, Some(0));
+                assert!(def.early_clobber);
+                assert!(matches!(
+                    block.instructions[rewritten + 1].kind,
+                    SelectedInstructionKind::Store64 { .. }
+                ));
+                assert_eq!(
+                    block.instructions[rewritten + 1].operands[0].virtual_register,
+                    VirtualRegisterId(1)
+                );
+                // One load beyond the same fixture's count without the
+                // co-reader: crossing holds two pairs plus the dedicated
+                // one; the bounded policy's call-split span adds one more.
+                let expected = match (policy, call) {
+                    (crate::RuntimeSpillSpanPolicy::UnitWriteBounded, true) => 4,
+                    _ => 3,
+                };
+                assert_eq!(
+                    count_loads(block),
+                    expected,
+                    "{target:?} call={call} {policy:?}"
+                );
+                assert!(
+                    crate::validate_runtime_spill_with_span_policy(
+                        &source,
+                        0,
+                        VirtualRegisterId(1),
+                        &environment,
+                        budget(),
+                        result.transformed().clone(),
+                        policy,
+                    )
+                    .is_ok(),
+                    "{target:?} call={call} {policy:?} replay"
+                );
+                for (mutation, proposed) in [
+                    // Sharing the tied use onto the open register is the
+                    // hazard the dedicated pair exists to avoid — the replay
+                    // never names that register for it.
+                    {
+                        let mut proposed = result.transformed().clone();
+                        let block = &mut proposed.functions[0].blocks[0];
+                        let rewriting = block
+                            .instructions
+                            .iter_mut()
+                            .find(|instruction| instruction.id == SelectedInstructionId(6))
+                            .unwrap();
+                        rewriting.operands[0].virtual_register =
+                            rewriting.operands[1].virtual_register;
+                        proposed
+                    },
+                    // Dropping the flag off the emitted `Def` forges a
+                    // different operand than the source carried.
+                    {
+                        let mut proposed = result.transformed().clone();
+                        proposed.functions[0].blocks[0]
+                            .instructions
+                            .iter_mut()
+                            .find(|instruction| instruction.id == SelectedInstructionId(6))
+                            .unwrap()
+                            .operands
+                            .iter_mut()
+                            .find(|operand| operand.access == RegisterOperandAccess::Def)
+                            .unwrap()
+                            .early_clobber = false;
+                        proposed
+                    },
+                ]
+                .into_iter()
+                .enumerate()
+                {
+                    assert_eq!(
+                        crate::validate_runtime_spill_with_span_policy(
+                            &source,
+                            0,
+                            VirtualRegisterId(1),
+                            &environment,
+                            budget(),
+                            proposed,
+                            policy,
+                        )
+                        .unwrap_err(),
+                        RuntimeSpillError::ReplayMismatch,
+                        "{target:?} call={call} {policy:?} forgery {mutation}"
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[test]
 fn a_parameter_victims_read_modify_write_stores_after_the_instruction() {
     for target in [
@@ -646,10 +843,11 @@ fn read_modify_write_forms_still_rejected() {
                         },
                     ],
                 ),
-                // An early-clobber write tied to the use could land before a
-                // co-operand's read of the same reload register — real only
-                // while the block's open pair is shared, so a second unpinned
-                // use on the same instruction is what keeps this rejected.
+                // The `UseDef` co-operand reads the victim like the unpinned
+                // co-reader an early-clobber tie now admits on a dedicated
+                // pair — but it also writes the victim, and a second victim
+                // write beside the tied `Def` leaves the slot without a
+                // defined last writer.
                 1 => rewriting(
                     function,
                     vec![
@@ -662,7 +860,7 @@ fn read_modify_write_forms_still_rejected() {
                         operand(
                             1,
                             VirtualRegisterId(1),
-                            RegisterOperandAccess::Use,
+                            RegisterOperandAccess::UseDef,
                             victim_class,
                         ),
                         {

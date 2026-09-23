@@ -42,6 +42,11 @@ pub(super) struct BlockUsePositions {
     pub unpinned: Vec<usize>,
     /// Instruction indices holding at least one admitted fixed-view use.
     pub pinned: Vec<usize>,
+    /// Instruction indices holding at least one use forced onto a private
+    /// pair by an early-clobber tied write: its reload reads the slot at
+    /// this position even when the block's shared pair serves the
+    /// instruction's other operand uses.
+    pub dedicated: Vec<usize>,
     /// At least one admitted use at the end-of-block position: a terminator
     /// operand or an outgoing-edge transport argument.
     pub end_of_block: bool,
@@ -379,7 +384,7 @@ fn loads_before(
     index: usize,
 ) -> bool {
     let positions = &uses[block_index];
-    if positions.pinned.contains(&index) {
+    if positions.pinned.contains(&index) || positions.dedicated.contains(&index) {
         return true;
     }
     if !positions.unpinned.contains(&index) {
