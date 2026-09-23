@@ -15,10 +15,12 @@ pub enum StructuralPathSegment {
     /// direct scalar parameter position of the calling machine: the value it
     /// names is `caller.parameters[selector].id`, a real scalar operand
     /// rather than a trusted byte offset. `minimum`/`maximum` restate the
-    /// inclusive bounds that selector's retained integer entry range
-    /// publishes. Verifiers replay the published row and re-prove
-    /// `0 <= minimum <= selector <= maximum < extent` against the resolved
-    /// container type instead of trusting this segment.
+    /// inclusive bounds the caller's published entry evidence proves: either
+    /// the scalar qualification catalog's integer entry range row or the
+    /// `requires` propositions the caller's contract carries, folded into the
+    /// same closed interval. Verifiers replay that published evidence and
+    /// re-prove `0 <= minimum <= selector <= maximum < extent` against the
+    /// resolved container type instead of trusting this segment.
     RuntimeIndex {
         selector: u32,
         minimum: IntegerValue,
