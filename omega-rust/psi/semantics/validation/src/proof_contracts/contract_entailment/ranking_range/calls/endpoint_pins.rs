@@ -791,6 +791,7 @@ fn endpoint_inputs<'program>(
                     | BinaryOperator::Divide
                     | BinaryOperator::Modulo
                     | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
             ) =>
         {
             // Conservation follows both operand dependencies, not the

@@ -271,6 +271,167 @@ fn runtime_shift_actuals_substitute_through_call_sites() {
     }
 }
 
+const SHIFT_RIGHT_ACTUAL: &str = r#"
+data Main { observed: u64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::first(&mut self, remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+terminates by remaining in 0..(cap / step + 6);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.second(cap, remaining - 1, step, cap >> step)
+        false -> remaining
+    }
+}
+
+machine Main::second(&mut self, limit: u64 [0..=20], pending: u64 [0..=5], width: u64 [1..=5], extra: u64)
+requires extra <= 10;
+terminates by pending in 0..(limit / width + 6);
+-> u64 {
+    transition pending > 0 {
+        true -> self.first(pending, limit, width, extra)
+        false -> pending
+    }
+}
+"#;
+
+#[test]
+fn runtime_shift_right_actuals_substitute_through_call_sites() {
+    // A right shift transports like a left shift: `cap >> step` keeps its
+    // exact operands, and the callee's `requires extra <= 10` discharges the
+    // shift's own live interval `[0, 20] >> [1, 5]` = `[0, 10]` -- not the
+    // operand's `[0, 20]` and not a `<<` growth bound.
+    prove(SHIFT_RIGHT_ACTUAL);
+    // Nested non-polynomial actuals transport innermost-first, including a
+    // `<<` operand inside the `>>` value: `(cap << step) >> step` carries
+    // `[0, 640] >> [1, 5]` = `[0, 320]`, discharging `<= 320` exactly at its
+    // corner and failing one tighter with both operations named.
+    prove(&SHIFT_RIGHT_ACTUAL.replace("cap >> step)", "(cap % step) >> step)"));
+    let nested = SHIFT_RIGHT_ACTUAL
+        .replace("cap >> step)", "(cap << step) >> step)")
+        .replace("requires extra <= 10;", "requires extra <= 320;");
+    prove(&nested);
+    let tightened = nested.replace("requires extra <= 320;", "requires extra <= 319;");
+    let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+        .expect_err(&tightened);
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("cannot prove requires")
+                && diagnostic.message.contains("cap << step >> step")
+        ),
+        "{tightened}\n{diagnostics:#?}"
+    );
+    // A spelled zero count is defined -- `value >> 0` is the value -- so
+    // the transported term then carries the operand's own `[0, 20]`.
+    prove(
+        &SHIFT_RIGHT_ACTUAL
+            .replace("cap >> step)", "cap >> (step - step))")
+            .replace("requires extra <= 10;", "requires extra <= 20;"),
+    );
+    // An out-of-width or unproven count never produces a value, exactly as
+    // for `<<`: the actual's own formation rejects it, independently of the
+    // call-range substitution it would have fed.
+    for source in [
+        SHIFT_RIGHT_ACTUAL.replace("cap >> step)", "cap >> 64)"),
+        SHIFT_RIGHT_ACTUAL.replace("cap >> step)", "cap >> (step - 6))"),
+        SHIFT_RIGHT_ACTUAL.replace("step: u64 [1..=5]", "step: u64 [1..=70]"),
+    ] {
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err(&source);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("shift count")),
+            "{source}\n{diagnostics:#?}"
+        );
+    }
+    // Transporting a shift into the endpoint-read `limit` slot changes the
+    // ceiling: `(cap >> step) / width` is not `cap / step`.
+    reject(&SHIFT_RIGHT_ACTUAL.replace(
+        "self.second(cap, remaining - 1, step, cap >> step)",
+        "self.second(cap >> step, remaining - 1, step, cap)",
+    ));
+    // The callee's requirement is discharged against the substituted
+    // actual: `cap >> step` proves `<= 10` where the operand alone would
+    // only prove `<= 20`, and a bound one tighter rejects with the
+    // transported term named.
+    for bound in ["requires extra <= 9;", "requires extra <= width - 1;"] {
+        let tightened = SHIFT_RIGHT_ACTUAL.replace("requires extra <= 10;", bound);
+        let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+            .expect_err(&tightened);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires")
+                && diagnostic.message.contains("cap >> step")),
+            "{tightened}\n{diagnostics:#?}"
+        );
+    }
+}
+
+const SHIFT_RIGHT_SIGNED: &str = r#"
+data Main { observed: i64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::first(&mut self, remaining: u64 [0..=5], level: i64 [-21..=20], step: u64 [1..=5], spare: i64)
+terminates by remaining in 0..(level + 30);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.second(level, remaining - 1, step, level >> step)
+        false -> remaining
+    }
+}
+
+machine Main::second(&mut self, depth: i64 [-21..=20], pending: u64 [0..=5], count: u64 [1..=5], extra: i64)
+requires extra >= -11;
+terminates by pending in 0..(depth + 30);
+-> u64 {
+    transition pending > 0 {
+        true -> self.first(pending, depth, count, extra)
+        false -> pending
+    }
+}
+"#;
+
+#[test]
+fn signed_shift_right_actuals_use_floor_division_through_call_sites() {
+    // `level >> step` on the signed `[-21, 20]` is floor division by
+    // `2^step`: `-21 >> 1` is `-11`, not the truncated quotient `-10`, so
+    // the transported interval `[-11, 10]` discharges `extra >= -11`.
+    prove(SHIFT_RIGHT_SIGNED);
+    // `extra >= -10` rejects: a truncating model would satisfy it, floor
+    // division's `-11` corner cannot -- and the diagnostic names the
+    // transported `level >> step` term.
+    let tightened = SHIFT_RIGHT_SIGNED.replace("requires extra >= -11;", "requires extra >= -10;");
+    let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+        .expect_err(&tightened);
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("cannot prove requires")
+                && diagnostic.message.contains("level >> step")
+        ),
+        "{tightened}\n{diagnostics:#?}"
+    );
+    // A signed count still must land inside the shifted carrier's width.
+    for source in [
+        SHIFT_RIGHT_SIGNED.replace("level >> step)", "level >> 64)"),
+        SHIFT_RIGHT_SIGNED.replace("step: u64 [1..=5]", "step: u64 [1..=70]"),
+    ] {
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err(&source);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("shift count")),
+            "{source}\n{diagnostics:#?}"
+        );
+    }
+    // The cycle still owes strict descent on its carried rank.
+    reject(&SHIFT_RIGHT_SIGNED.replace("remaining - 1", "remaining"));
+}
+
 const REMAINDER_LITERAL: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/termination/remainder_literal_call_component/main.omg"
@@ -361,6 +522,34 @@ fn record_literal_shift_leaves_discharge_field_requirements() {
     // `requires held.spare <= 640` is discharged against that transported
     // term through the record actual, not the destination formal's name.
     prove(SHIFT_LITERAL);
+    // A `>>` leaf transports the same way at its own tighter interval
+    // `[0, 10]`: `<= 10` discharges and `<= 9` rejects.
+    prove(
+        &SHIFT_LITERAL
+            .replace("limits.bound << limits.step", "limits.bound >> limits.step")
+            .replace("requires held.spare <= 640;", "requires held.spare <= 10;")
+            .replace(
+                "requires limits.spare <= 640;",
+                "requires limits.spare <= 10;",
+            ),
+    );
+    let right_tightened = SHIFT_LITERAL
+        .replace("limits.bound << limits.step", "limits.bound >> limits.step")
+        .replace("requires held.spare <= 640;", "requires held.spare <= 9;")
+        .replace(
+            "requires limits.spare <= 640;",
+            "requires limits.spare <= 9;",
+        );
+    let diagnostics =
+        lower_typed_trees(typed_program(&right_tightened), &CheckingRequest::settled())
+            .expect_err(&right_tightened);
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("cannot prove requires")
+                && diagnostic.message.contains("limits.bound >> limits.step")
+        ),
+        "{right_tightened}\n{diagnostics:#?}"
+    );
     // A requirement tighter than the shift's live interval rejects the same
     // way: `limits.bound << limits.step` only proves `<= 640`.
     let tightened =

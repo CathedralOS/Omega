@@ -122,12 +122,15 @@ pub(super) fn builtin(
         ExpressionNode::Binary(binary) => {
             let left = builtin(program, machine, state, binary.left, depth + 1)?;
             let right = builtin(program, machine, state, binary.right, depth + 1)?;
-            // `<<` names no overloadable spelling: a typed occurrence is the
-            // builtin operator. Its carrier is the shifted operand's own
+            // `<<`/`>>` name no overloadable spelling: a typed occurrence is
+            // the builtin operator. Its carrier is the shifted operand's own
             // type; the count is an independent integer operand whose
             // primitive need not agree with it. Carrier-less counts such as
             // a slice length remain admissible operands, as for division.
-            if binary.operator == BinaryOperator::ShiftLeft {
+            if matches!(
+                binary.operator,
+                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+            ) {
                 let integer_carrier = |carrier| {
                     program
                         .primitive_type_reference(carrier)
@@ -192,7 +195,7 @@ pub(super) fn builtin(
 /// Bind each Exact non-polynomial term admitted by this ranking query.
 /// The general strict arithmetic engine does not infer executable division
 /// or shifting from a token. Anonymous rational subtrees still fold as
-/// rationals; each landed quotient, remainder, or left shift retains both
+/// rationals; each landed quotient, remainder, or shift retains both
 /// operands for state transport. This is meaning, not formation: the range
 /// owner still checks every operation before using the endpoint, including
 /// an overflowing intermediate quotient or an out-of-width shift count.
@@ -220,7 +223,10 @@ pub(super) fn install_nonpolynomial_terms(
             }
             if matches!(
                 binary.operator,
-                BinaryOperator::Divide | BinaryOperator::Modulo | BinaryOperator::ShiftLeft
+                BinaryOperator::Divide
+                    | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
             ) {
                 if let Some(carrier) = builtin(program, machine, state, expression, 0)? {
                     let primitive = super::exact_integer_parameter(program, carrier)?;
@@ -231,12 +237,13 @@ pub(super) fn install_nonpolynomial_terms(
                         // The count's defined range is the shifted
                         // carrier's width (the F8 ruling), so the term mints
                         // with it rather than re-deriving a bound.
-                        BinaryOperator::ShiftLeft => engine.bind_strict_integer_shift_left(
-                            expression,
-                            crate::proof_contracts::arithmetic_domains::integer_bit_width(
-                                primitive,
-                            )? as u32,
-                        )?,
+                        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight => engine
+                            .bind_strict_integer_shift(
+                                expression,
+                                crate::proof_contracts::arithmetic_domains::integer_bit_width(
+                                    primitive,
+                                )? as u32,
+                            )?,
                         _ => return None,
                     }
                 } else if binary.operator != BinaryOperator::Modulo {

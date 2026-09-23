@@ -293,6 +293,19 @@ fn pow(base: &BigInt, power: u32) -> BigInt {
     result
 }
 
+/// `floor(value / 2^count)`: an exact `>>`'s mathematical value. The engine's
+/// `div_rem` truncates toward zero, so a negative nondivisible value drops
+/// one more -- `-3 >> 1` is `-2`, not the truncated quotient `-1`.
+fn floor_shift_right(value: &BigInt, count: u64) -> Option<BigInt> {
+    let divisor = BigInt::from_i64(1).shl_bits(count as usize);
+    let (quotient, remainder) = value.div_rem(&divisor)?;
+    Some(if remainder.is_negative() {
+        quotient.sub(&BigInt::from_i64(1))
+    } else {
+        quotient
+    })
+}
+
 /// The operands one opaque atom was minted from, retained so a later
 /// simultaneous substitution can re-mint the same shape under the
 /// transported operands rather than dropping the term.
@@ -317,6 +330,15 @@ enum OpaqueTerm {
     /// width: the count's defined range `[0, count_bits)` bounds the factor,
     /// and re-mints reuse the mint site's width rather than re-deriving it.
     ShiftLeft {
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    },
+    /// An exact right shift keeps the same inputs and width: the result is
+    /// `floor(value / 2^count)`, arithmetic (sign-filling) for a signed
+    /// value and logical for an unsigned one, so it never escapes the
+    /// shifted carrier. The F8 count obligation is identical to `<<`'s.
+    ShiftRight {
         value: Polynomial,
         count: Polynomial,
         count_bits: u32,
@@ -648,7 +670,7 @@ impl<'program> Engine<'program> {
     /// supplies the shifted carrier's width; the bound mathematical term does
     /// not excuse the endpoint's separate count-within-width and
     /// representability proofs.
-    pub(super) fn bind_strict_integer_shift_left(
+    pub(super) fn bind_strict_integer_shift(
         &mut self,
         expression: ExpressionHandle,
         count_bits: u32,
@@ -661,6 +683,7 @@ impl<'program> Engine<'program> {
         let count = self.normalize(binary.right)?;
         let value = match binary.operator {
             BinaryOperator::ShiftLeft => self.integer_shift_left(value, count, count_bits)?,
+            BinaryOperator::ShiftRight => self.integer_shift_right(value, count, count_bits)?,
             _ => return None,
         };
         self.bind_strict_occurrence(expression, value).then_some(())
@@ -937,6 +960,55 @@ impl<'program> Engine<'program> {
         })
     }
 
+    /// The interval an exact right-shift atom takes from its operands':
+    /// `floor(value / 2^count)` over the count's DEFINED range
+    /// `[0, count_bits)`. Floor division by a positive power of two is
+    /// monotone in the shifted value and monotone in the count for each
+    /// fixed value (falling for a nonnegative value, rising for a negative
+    /// one), so the rectangle's extrema sit at its corners. The F8 count
+    /// obligation is judged separately; this interval only covers
+    /// evaluations that produce one, and such a result never escapes the
+    /// shifted carrier.
+    fn shift_right_interval(
+        &self,
+        value: &Polynomial,
+        count: &Polynomial,
+        count_bits: u32,
+    ) -> Interval {
+        let value_interval = self.polynomial_interval(&self.substituted(value));
+        let count_interval = self.polynomial_interval(&self.substituted(count));
+        let maximum_count = BigInt::from_u64(u64::from(count_bits - 1));
+        let low_count = count_interval
+            .low
+            .unwrap_or_else(BigInt::zero)
+            .max(BigInt::zero());
+        let high_count = count_interval
+            .high
+            .unwrap_or_else(|| maximum_count.clone())
+            .min(maximum_count);
+        if low_count > high_count {
+            return Interval::unbounded();
+        }
+        // Both ends sit in [0, count_bits): the `u64` reads cannot fail.
+        let (Some(low_bits), Some(high_bits)) = (low_count.to_u64(), high_count.to_u64()) else {
+            return Interval::unbounded();
+        };
+        // An unbounded value end keeps its side unbounded: for any fixed
+        // count the result still extends to that infinity. A corner that
+        // cannot be evaluated fails closed the same way.
+        let low = value_interval.low.as_ref().and_then(|bound| {
+            floor_shift_right(bound, low_bits)
+                .zip(floor_shift_right(bound, high_bits))
+                .map(|(low_count, high_count)| low_count.min(high_count))
+        });
+        let high = value_interval.high.as_ref().and_then(|bound| {
+            floor_shift_right(bound, low_bits)
+                .zip(floor_shift_right(bound, high_bits))
+                .map(|(low_count, high_count)| low_count.max(high_count))
+        });
+        Interval { low, high }
+    }
+
     fn integer_remainder(
         &mut self,
         operand: Polynomial,
@@ -1032,6 +1104,43 @@ impl<'program> Engine<'program> {
         Some(Polynomial::atom(atom))
     }
 
+    /// Normalize an independently admitted exact integer right shift under
+    /// the same contract as [`Self::integer_shift_left`]: the caller owns
+    /// selected meaning and the F8 count obligation, and a spelled constant
+    /// count outside `[0, count_bits)` never produces a value. Unlike `<<`,
+    /// the floor-division result always lands inside the shifted carrier,
+    /// so no separate representability question attaches to the term.
+    fn integer_shift_right(
+        &mut self,
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    ) -> Option<Polynomial> {
+        if let Some(count) = count.constant_value() {
+            let in_range = count
+                .to_u64()
+                .is_some_and(|bits| bits < u64::from(count_bits));
+            if !in_range {
+                return None;
+            }
+            if let Some(value) = value.constant_value() {
+                return floor_shift_right(&value, count.to_u64()?).map(Polynomial::constant);
+            }
+        }
+        let interval = self.shift_right_interval(&value, &count, count_bits);
+        let atom = format!("\0integer-shift-right:{value:?}>>{count:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::ShiftRight {
+                value,
+                count,
+                count_bits,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
     /// Range queries mint endpoint terms before installing their hypotheses.
     /// Recompute dependent intervals in mint order once those facts are live:
     /// an inner quotient must tighten before an outer quotient reads it.
@@ -1055,6 +1164,11 @@ impl<'program> Engine<'program> {
                     count,
                     count_bits,
                 } => self.shift_left_interval(&value, &count, count_bits),
+                OpaqueTerm::ShiftRight {
+                    value,
+                    count,
+                    count_bits,
+                } => self.shift_right_interval(&value, &count, count_bits),
             };
             self.arithmetic_intervals.insert(atom, interval);
         }
@@ -1132,6 +1246,26 @@ impl<'program> Engine<'program> {
                     (
                         format!("\0integer-shift-left:{value:?}<<{count:?}"),
                         self.shift_left_interval(&value, &count, count_bits),
+                    )
+                }
+                OpaqueTerm::ShiftRight {
+                    value,
+                    count,
+                    count_bits,
+                } => {
+                    let Some(value) =
+                        super::inductive_judgment::apply_argument_map(&value, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(count) =
+                        super::inductive_judgment::apply_argument_map(&count, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-shift-right:{value:?}>>{count:?}"),
+                        self.shift_right_interval(&value, &count, count_bits),
                     )
                 }
             };
