@@ -284,8 +284,7 @@ the complete product bar; focused successes below do not establish that baseline
   the paragraph immediately below is now HISTORY, not a live subset: no member
   stops at `requires one exact selected program entry` any more. What is left
   outside the three large shapes is a tail of ten singletons, each its own
-  cause, none of them a cohort: `dependent/data_where_ranged_param_constructs`
-  and `dependent/data_where_callee_establishes` (default-domain proof),
+  cause, none of them a cohort:
   `control_flow/guarded_leaf_branch_expansion` and
   `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
   `capabilities/uses_caller_folder`, `capabilities/acquires_through_helper_return`,
@@ -325,7 +324,20 @@ the complete product bar; focused successes below do not establish that baseline
   compile, so its blast radius wants measuring before it is spent; the second
   widens what a build file may name and is a visibility-policy decision.
   Do not "fix" the fixture -- there is no spelling that works today.
-  `calls/nested_machine_continuation` was a tenth and is FIXED: its `Fused root
+  `dependent/data_where_ranged_param_constructs` and
+  `dependent/data_where_callee_establishes` are FIXED: a `data ... where` fact
+  is proved AT CONSTRUCTION, and the construction gate read only a literal
+  (a point) or a place with a DECLARED range, so the ordinary shape -- a plain
+  `i32` parameter the machine's own signature already constrains -- carried no
+  interval and could not construct from runtime data. The gate now folds the
+  constructing machine's `requires` clauses, which hold at every call site and
+  therefore throughout the body. Two-sided:
+  `validation/tests/construction_requires_intervals.rs` pins that
+  `requires 1 <= strength` opens the gate for `where health >= 1` while
+  `requires 0 <= strength` -- an interval that exists and does NOT decide the
+  fact -- still refuses, as does a ceiling-only clause and no clause at all.
+  The whole fail-canary corpus still rejects.
+  `calls/nested_machine_continuation` was another and is FIXED: its `Fused root
   establishments drifted from their selected ProgramEntry` was two consumers
   keying a service establishment on the field's LEAF NAME while the producer
   keys on the field ROUTE, so a nested `banner: Banner` binding named `console`

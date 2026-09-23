@@ -82,6 +82,10 @@ pub(super) fn value_bounds(
                 if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
                 {
                     bounds.symbol = path.symbol;
+                    if let Some(required) = requires_contract_bounds(program, machine, expression) {
+                        bounds.low = required.low;
+                        bounds.high = required.high;
+                    }
                     if let Some(local) = local_initializer_bounds(program, state, expression) {
                         bounds.low = local.low;
                         bounds.high = local.high;
@@ -104,6 +108,17 @@ pub(super) fn value_bounds(
                 };
             if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
                 bounds.symbol = path.symbol;
+                // A declared range, where there is one, already decided the
+                // interval above; a `requires` clause narrows a place that
+                // carries no declared range of its own, which is the ordinary
+                // shape for a plain `i32` parameter.
+                if bounds.low.is_none()
+                    && bounds.high.is_none()
+                    && let Some(required) = requires_contract_bounds(program, machine, expression)
+                {
+                    bounds.low = required.low;
+                    bounds.high = required.high;
+                }
                 if let Some(local) = local_initializer_bounds(program, state, expression) {
                     bounds.low = local.low;
                     bounds.high = local.high;
@@ -115,6 +130,121 @@ pub(super) fn value_bounds(
         }
         _ => Bounds::UNKNOWN,
     }
+}
+
+/// The interval a machine's own `requires` clauses pin on one named place.
+///
+/// A declared range always holds and needs no site reasoning, which is why it
+/// is consulted first. A `requires` clause holds too -- at every call site,
+/// because the caller discharges it -- so a parameter it bounds carries that
+/// interval THROUGHOUT the machine body, including at a construction gate.
+/// Only the literal-comparison shapes are read, one clause at a time, and
+/// several clauses narrow the same place: `requires 1 <= strength, strength
+/// <= 100` yields `[1, 100]`. A clause this does not recognize contributes
+/// nothing rather than widening anything, so the result stays sound.
+fn requires_contract_bounds(
+    program: &TypedTrees,
+    machine: &Machine,
+    expression: ExpressionHandle,
+) -> Option<Bounds> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let name = program
+        .expression_table
+        .name_path_members(path.members)
+        .last()?
+        .as_str()
+        .to_owned();
+    // A place is the same place as the clause's mention when the resolved
+    // symbols agree; the spelling is the fallback for an unresolved mention.
+    let names_the_place =
+        |candidate: ExpressionHandle| match program.expression_table.expression(candidate) {
+            ExpressionNode::Name(other) => {
+                (path.symbol.is_valid() && other.symbol == path.symbol)
+                    || program
+                        .expression_table
+                        .name_path_members(other.members)
+                        .last()
+                        .is_some_and(|member| member.as_str() == name)
+            }
+            _ => false,
+        };
+    let literal = |candidate: ExpressionHandle| match program.expression_table.expression(candidate)
+    {
+        ExpressionNode::Integer(value) => value.text().parse::<i64>().ok(),
+        _ => None,
+    };
+    let mut low: Option<i64> = None;
+    let mut high: Option<i64> = None;
+    let mut raise = |value: i64| low = Some(low.map_or(value, |current: i64| current.max(value)));
+    let mut lower = |value: i64| high = Some(high.map_or(value, |current: i64| current.min(value)));
+    for contract in program.signature_contracts.span_or_empty(machine.contracts) {
+        if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+            continue;
+        }
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let typed_trees::domain::ProofFact::Expression(clause) = fact else {
+                continue;
+            };
+            let ExpressionNode::Binary(binary) = program.expression_table.expression(*clause)
+            else {
+                continue;
+            };
+            let (left, right) = (binary.left, binary.right);
+            use typed_trees::expression::BinaryOperator;
+            match binary.operator {
+                // `bound <= place` and `bound < place` raise the floor;
+                // `place <= bound` and `place < bound` lower the ceiling.
+                BinaryOperator::LessOrEqual if names_the_place(right) => {
+                    if let Some(bound) = literal(left) {
+                        raise(bound);
+                    }
+                }
+                BinaryOperator::Less if names_the_place(right) => {
+                    if let Some(bound) = literal(left) {
+                        raise(bound.saturating_add(1));
+                    }
+                }
+                BinaryOperator::LessOrEqual if names_the_place(left) => {
+                    if let Some(bound) = literal(right) {
+                        lower(bound);
+                    }
+                }
+                BinaryOperator::Less if names_the_place(left) => {
+                    if let Some(bound) = literal(right) {
+                        lower(bound.saturating_sub(1));
+                    }
+                }
+                BinaryOperator::GreaterOrEqual if names_the_place(left) => {
+                    if let Some(bound) = literal(right) {
+                        raise(bound);
+                    }
+                }
+                BinaryOperator::Greater if names_the_place(left) => {
+                    if let Some(bound) = literal(right) {
+                        raise(bound.saturating_add(1));
+                    }
+                }
+                BinaryOperator::GreaterOrEqual if names_the_place(right) => {
+                    if let Some(bound) = literal(left) {
+                        lower(bound);
+                    }
+                }
+                BinaryOperator::Greater if names_the_place(right) => {
+                    if let Some(bound) = literal(left) {
+                        lower(bound.saturating_sub(1));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    (low.is_some() || high.is_some()).then_some(Bounds {
+        low,
+        high,
+        ..Bounds::UNKNOWN
+    })
 }
 
 fn local_initializer_bounds(
