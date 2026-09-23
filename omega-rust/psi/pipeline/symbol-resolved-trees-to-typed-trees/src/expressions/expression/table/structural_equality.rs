@@ -273,7 +273,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 return Ok(None);
             }
             return Err(Diagnostic::error(format!(
-                "cannot compare `{type_name}` values with `==`: structural equality is not synthesized for non-conforming types -- declare `{type_name} satisfies Equatable;` to synthesize structural equality"
+                "cannot compare `{type_name}` values with `==`: structural equality is not synthesized for non-conforming types -- declare `{type_name}Equatable: {type_name} satisfies Equatable;` to synthesize structural equality"
             )));
         }
 
