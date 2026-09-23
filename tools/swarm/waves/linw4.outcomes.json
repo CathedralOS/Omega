@@ -1,0 +1,75 @@
+{
+ "wave": "linw4",
+ "base": "5b48c7a65db5b8d056beb3c26c8292e264250c58",
+ "drained_at": "2026-09-23T02:30Z",
+ "drain_reason": "user-requested drain",
+ "tank_model": "6 concurrent local subagents + coordinator slot, paced resume-based refill via tools/swarm/fill.py ledger",
+ "slots": [
+  {
+   "slot": "spill-realization",
+   "agent_id": "a77788ae",
+   "result": "landed x2",
+   "commits": ["0cef396980", "37855d1ce2"],
+   "item_closed": false,
+   "notes": "early-clobber tied writes admitted when reload unshared; unshareable snapshot args take dedicated edge FrameAddress/Load64 reload. Remaining: foreign-class victims without IEEE transport pair, shared-reload early-clobber, entry-bound victim on edge-to-entry, composition admission, stack-demand acceptance"
+  },
+  {
+   "slot": "custody-mutation-coverage",
+   "agent_id": "223f665c",
+   "result": "landed",
+   "commits": ["3bb37ecf3a"],
+   "wip_preserved": ["4a241b82ae — superseded by the landed leg"],
+   "item_closed": false,
+   "notes": "TopologyRequest owner-request matrix migrated to shared driver (request_custody_fields.rs, 31-leg inventory). Died once on rate limiter; WIP-commit + resume produced the landing. Remaining: component-publication, executable-installation, Terminal codec matrices"
+  },
+  {
+   "slot": "top-level-boundary-requirements",
+   "agent_id": "8a706036",
+   "result": "landed",
+   "commits": ["b7ea53ff92"],
+   "wip_preserved": ["23ab31fe76 — superseded by the landed leg"],
+   "item_closed": false,
+   "notes": "shared-borrow &self top-level boundary requirements settle through receiver-place forwarding. Died once on rate limiter; WIP-commit + resume produced the landing. Remaining: family-row leg, external-provider leg"
+  },
+  {
+   "slot": "proof-kernel-core",
+   "agent_id": "d8876681",
+   "result": "landed",
+   "commits": ["4e1576578b"],
+   "item_closed": false,
+   "notes": "Boolean identity transport through checked caseTwo analysis for Id Two pairs differing by open not/equal over neutral atoms. Remaining: Int-carrier crossings (Id Two vs Id Int); source coverage belongs to PROOF-CONTRACT-MIGRATION"
+  },
+  {
+   "slot": "alias-aware-memory",
+   "agent_id": "e6ae097a",
+   "result": "landed",
+   "commits": ["f315e27e93"],
+   "item_closed": false,
+   "notes": "machine-scoped ownership_frontier_facts retained into LegalizedScalarFunction; fact identities encoded into plan v52->v53, graph v22->v23, validator v53->v54. Died once on rate limiter (no WIP); clean resume landed. Remaining: premise binding beyond storage roots, SelectedMemoryAccess receipt identities"
+  },
+  {
+   "slot": "structural-borrow-identity",
+   "agent_id": "2ad4fcf7",
+   "result": "landed x2, parked unlanded leg",
+   "commits": ["95a8faa03f", "d437abb32f"],
+   "unpublished": ["ecfdedb34b on swarm/linw4-structural-borrow-identity — explicit shared dynamic-indexed arguments retain bounded RuntimeIndex; finished commit, scoped checks unverified, needs rebase + land-or-discard"],
+   "item_closed": false,
+   "notes": "divergent receiver repair composition pin + RUNTIME-VALUE-GENERICS board note landed; final RuntimeIndex dynamic-indexed-args leg died mid-landing on provider outage. A rate-limit 'failed' resume actually started the agent — verify handle state before assuming a resume did not run"
+  },
+  {
+   "slot": "translation-validation",
+   "agent_id": "coordinator",
+   "result": "investigated, parked WIP",
+   "commits": [],
+   "unpublished": ["b9566d3148 on swarm/linw4-translation-validation — linw4_translation_probe.rs (self-authored boundary provider probe, physical_evidence_gap inspection)"],
+   "item_closed": false,
+   "notes": "installed-provider BoundaryCall witnessed covered (gap=None, 1 evidence child). All remaining fall-through families upstream-blocked on this base: f64 literals/fields fail record-literal + pure-initializer admission; f64 ops record computation roots with no checked scalar expression; Float::add unresolved; sqrt() flow-call omission; &dyn locals/args rejected. No physical span arm warranted until checked demand reaches Terminal"
+  }
+ ],
+ "friction": [
+  "provider outage killed 4 of 6 agents in one burst; every paced resume of a preserved handle produced a landing (5 for 5), including WIP-committed work",
+  "a resume reporting a rate-limit failure can still start the agent — 2ad4fcf7 claimed, landed two commits, and died again mid-landing; check claim/worktree state before retrying",
+  "fill.py 'spawn' action misreads live claimless agents still in exploration as done; verify handle liveness and worktree mtimes before refilling",
+  "corpus ProgramEntry admission walls enumerated precisely this wave: f64 literals/fields (record-literal + pure-initializer), f64 operators (root without checked expression), unresolved value calls, flow-call omissions, &dyn locals/args — all pre-existing on base, not wave-caused"
+ ]
+}
