@@ -56,21 +56,29 @@ impl PackagePolicyRecoveryLimits {
     }
 
     pub(in crate::encoding) fn bounded(self) -> Self {
+        let default = Self::default();
         Self::new(
-            self.maximum_bytes.min(4 * 1024 * 1024),
-            self.maximum_field_bytes.min(4 * 1024 * 1024),
-            self.maximum_sequence_elements.min(65_536),
-            self.maximum_owned_bytes.min(64 * 1024 * 1024),
-            self.maximum_depth.min(128),
+            self.maximum_bytes.min(default.maximum_bytes),
+            self.maximum_field_bytes.min(default.maximum_field_bytes),
+            self.maximum_sequence_elements
+                .min(default.maximum_sequence_elements),
+            self.maximum_owned_bytes.min(default.maximum_owned_bytes),
+            self.maximum_depth.min(default.maximum_depth),
         )
     }
 }
 
 impl Default for PackagePolicyRecoveryLimits {
     fn default() -> Self {
+        // The composed package policy is a per-package product on the same
+        // scale as the canonical review encoding (16 MiB): self-describing
+        // fields carrying full nominal identities, so size grows linearly
+        // with declaration and dependency counts. One sequence field (for
+        // example `semantic_dependencies`) legitimately carries most of the
+        // product, so the field cap matches the whole-product cap.
         Self::new(
-            4 * 1024 * 1024,
-            4 * 1024 * 1024,
+            16 * 1024 * 1024,
+            16 * 1024 * 1024,
             65_536,
             64 * 1024 * 1024,
             128,

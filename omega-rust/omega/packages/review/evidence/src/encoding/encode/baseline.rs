@@ -14,7 +14,8 @@ use super::{
     selected_providers, terminal_permissions, values,
 };
 use crate::encoding::{
-    PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION, PackageReviewEncodingError,
+    PACKAGE_POLICY_BASELINE_MAGIC, PACKAGE_POLICY_BASELINE_VERSION, PackagePolicyRecoveryLimits,
+    PackageReviewEncodingError,
 };
 
 impl PackagePolicyBaseline {
@@ -23,7 +24,9 @@ impl PackagePolicyBaseline {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
         self.validate_canonical_structure()
             .map_err(PackageReviewEncodingError::new)?;
-        let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
+        let mut encoder = Encoder::policy_bounded(
+            PackagePolicyRecoveryLimits::default().maximum_bytes,
+        );
         framed_policy(&mut encoder, self)?;
         encoder.finish()
     }
