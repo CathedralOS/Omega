@@ -710,7 +710,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 76);
+        assert_eq!(OperationSemanticRow::ALL.len(), 77);
         for (tag, identity) in [
             (
                 OperationSemanticTag::EstablishPrimitiveLocal,
@@ -764,7 +764,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            66
+            67
         );
         assert_eq!(
             OperationSemanticRow::ALL
