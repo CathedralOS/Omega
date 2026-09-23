@@ -17,7 +17,10 @@
 //! journal keep the requirement. An owned-`self` requirement settles the same
 //! route through a member call (`token.consume();`, or a projected receiver
 //! place like `holder.inner.token.consume();`): its row forwards the receiver
-//! place, which the rewrite splices in as the adapter's leading argument. A requirement
+//! place, which the rewrite splices in as the adapter's leading argument. A
+//! borrowed receiver requirement (`token.inspect();`, `token.mutate();`)
+//! forwards the same place inside a `Borrow` node of the declared access
+//! (`&place`/`&mut place`). A requirement
 //! satisfied by an external
 //! `via` leaf settles no dispatch row and is deliberately not rewritten:
 //! the call stays on the requirement, whose retained boundary seam is the
@@ -177,9 +180,10 @@ pub(super) fn plan_selected_requirement_rewrites(
         };
         // The requirement's declared `self` receiver decides how the member
         // call's receiver place forwards: an owned `self` splices the place
-        // itself as argument 0, a `&self` splices `&place`. Settlement
-        // admitted only those two receiver shapes on a forwarding row, so a
-        // `Reference` node here is the requirement's declared borrow access.
+        // itself as argument 0, a `&self`/`&mut self` splices
+        // `&place`/`&mut place`. Settlement admitted only those receiver
+        // shapes on a forwarding row, so a `Reference` node here is the
+        // requirement's declared borrow access.
         let receiver_access = if row.forward_receiver {
             typed
                 .machine_states(requirement)

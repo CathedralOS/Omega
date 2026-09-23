@@ -393,8 +393,14 @@ pub(crate) fn resolve_selected_adapter_row(
 /// (`Owner::name(&self, ...)`) admits the same forwarding shape with the
 /// adapter's leading parameter declared `&Owner`; the rewrite splices
 /// `&place` as argument zero so the borrow the requirement declared is the
-/// borrow the adapter receives. Mutating, write-only or qualified receivers
-/// stay closed: their custody and obligation transfer are a separate shape.
+/// borrow the adapter receives. A mutating `&mut self` requirement
+/// (`Owner::name(&mut self, ...)`) forwards the same way: the member call
+/// mutably borrows the receiver place for the call, checking already
+/// demanded a writable receiver source, and the rewrite splices `&mut
+/// place` for the adapter's leading `&mut Owner` parameter. Write-only and
+/// qualified receivers stay closed: a `&write self` or `self in Domain`
+/// receiver's custody and obligation transfer are separate shapes this row
+/// does not settle.
 /// Execution consumes the association while Terminal retains the
 /// requirement.
 fn resolve_top_level_requirement_adapter_row(
@@ -427,9 +433,12 @@ fn resolve_top_level_requirement_adapter_row(
     // shared `&self` borrows the receiver place for the duration of the
     // call, so it forwards `&place` to the adapter's leading `&Owner`
     // parameter -- the same member-call settlement an owned `self` uses,
-    // with the borrow recorded on the spliced argument. `&mut`, write-only
-    // and qualified receivers stay closed here: their custody and
-    // obligation transfer are separate shapes this row does not settle.
+    // with the borrow recorded on the spliced argument. A mutating `&mut
+    // self` takes the same forwarding shape: the member call mutably
+    // borrows the place, checking already required a writable receiver
+    // source, and the adapter's leading parameter must be `&mut Owner`.
+    // Write-only and qualified receivers stay closed here: their custody
+    // and obligation transfer are separate shapes this row does not settle.
     let self_receiver = typed
         .state_parameters(entry)
         .iter()
@@ -442,14 +451,16 @@ fn resolve_top_level_requirement_adapter_row(
             typed_trees::types::TypeReferenceNode::Named { .. } => None,
             typed_trees::types::TypeReferenceNode::Reference {
                 referee, access, ..
-            } if *access == language_core::ReferenceAccess::Shared
-                && named_type_symbol(typed, *referee).is_some() =>
+            } if matches!(
+                *access,
+                language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
+            ) && named_type_symbol(typed, *referee).is_some() =>
             {
-                Some(language_core::ReferenceAccess::Shared)
+                Some(*access)
             }
             _ => {
                 return Err(Diagnostic::error(format!(
-                    "selected top-level boundary requirement `{requirement_name}` takes a `&mut self`, write-only or qualified `self` receiver; only an owned `self` or shared `&self` receiver settles a direct-call dispatch row",
+                    "selected top-level boundary requirement `{requirement_name}` takes a write-only or qualified `self` receiver; only an owned `self`, shared `&self`, or mutable `&mut self` receiver settles a direct-call dispatch row",
                 )));
             }
         },
@@ -527,7 +538,7 @@ fn resolve_top_level_requirement_adapter_row(
     };
     if self_receiver.is_some() != forward_receiver {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` receiver shape does not match top-level boundary requirement `{}`: a `self`/`&self` requirement forwards the receiver place to a leading owner parameter of the same access, a receiver-free requirement takes the exact declared arity",
+            "selected checked adapter `{machine_identity}` receiver shape does not match top-level boundary requirement `{}`: a `self`/`&self`/`&mut self` requirement forwards the receiver place to a leading owner parameter of the same access, a receiver-free requirement takes the exact declared arity",
             method.requirement_identity,
         )));
     }
