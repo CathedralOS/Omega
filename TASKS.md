@@ -94,6 +94,13 @@ the complete product bar; focused successes below do not establish that baseline
   access. Follow the application's actual next missing operation rather than
   waiting for every related task to close.
 
+  The pinned win64 frontier is
+  `native_win64_write_byte_catalog_frontier`: the win64 x86-64 target package
+  carries no closed native catalog identity for byte emission, so
+  output-bearing sink providers cannot select a `write_byte` row there.
+  Result-writing sink paths must keep refusing on win64 until the target
+  catalog gains that identity; linux_x86_64 remains the native witness host.
+
   Preserve geometry acceptance on Windows and Linux ARM64, alignment parsing
   and refusal/error-text parity, `set_alignment` calls, native clone/serialization
   (including case-bearing alignment values), and token/named ordering agreement:
