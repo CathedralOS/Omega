@@ -151,6 +151,7 @@ fn guarded_division_obligation_retains_its_selected_arm_facts() {
         .expect("prepare");
     let lowered = build_scalar_graph_module(
         &prepared.states,
+        &prepared.state_symbols,
         prepared.result_type,
         qualifications.catalog(),
         prepared.contract,

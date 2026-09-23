@@ -315,8 +315,9 @@ pub(super) fn attach_checked_crash_calls(
                 call_site,
                 crate::semantic_calls::CallSite::TransitionNamed { .. }
             ) {
-                // A named transition transfers within the current machine; it
-                // is not an invocation of that machine's public crash ceiling.
+                // A named transition moves dispatch state inside the fused
+                // graph; it is not an invocation of a machine's public crash
+                // ceiling, so it keeps no refinement row here.
                 continue;
             }
             let arguments =

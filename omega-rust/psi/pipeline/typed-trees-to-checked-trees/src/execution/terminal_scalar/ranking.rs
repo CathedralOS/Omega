@@ -21,50 +21,71 @@ pub(super) fn plan(
         machine,
         call_frames,
     )?;
+    // A machine-local scan cannot see a cycle spelled through sibling machine
+    // successors; the fused row set is the SCC carrier in that shape.
+    let components = if components.is_empty() && graph.states.len() > 1 {
+        crate::checks::termination::proven_fused_nat_countdown_sccs_with_call_frames(
+            program,
+            &graph
+                .states
+                .iter()
+                .map(|state| state.state)
+                .collect::<Vec<_>>(),
+            call_frames,
+        )?
+    } else {
+        components
+    };
     if components.is_empty() {
         return Some(None);
     }
     let [component] = components.as_slice() else {
         return None;
     };
-    let [header] = graph.states.as_slice() else {
-        return None;
-    };
-    if header.state != component.header_state {
-        return None;
-    }
+    // The fused graph holds every state the SCC's edges can reach, so the
+    // header is the row carrying the component's header state rather than the
+    // graph's only row; each covered edge resolves its own source and target
+    // rows inside the same fused list.
+    let header = graph
+        .states
+        .iter()
+        .find(|state| state.state == component.header_state)?;
     let rank_scalar_parameter_index = header.scalar_parameters.iter().position(|parameter| {
         parameter.source_position == component.header_rank_parameter_position
             && parameter.primitive_type == component.rank_primitive_type
     })?;
     let mut edges = Vec::new();
     for edge in &component.covered_cyclic_edges {
-        if edge.source_state != header.state || edge.target_state != header.state {
-            return None;
-        }
-        let successor = super::successors::iter(&header.terminator).find(|successor| {
+        let source = graph
+            .states
+            .iter()
+            .find(|state| state.state == edge.source_state)?;
+        let target = graph
+            .states
+            .iter()
+            .find(|state| state.state == edge.target_state)?;
+        let successor = super::successors::iter(&source.terminator).find(|successor| {
             successor.statement_ordinal == edge.statement_ordinal
                 && successor.target == edge.target_state
                 && !successor.is_continuation
         })?;
         let source_scalar_parameter_index =
-            header.scalar_parameters.iter().position(|parameter| {
+            source.scalar_parameters.iter().position(|parameter| {
                 parameter.source_position == edge.source_rank_parameter_position
                     && parameter.primitive_type == component.rank_primitive_type
             })?;
         let target_scalar_parameter_index =
-            header.scalar_parameters.iter().position(|parameter| {
+            target.scalar_parameters.iter().position(|parameter| {
                 parameter.source_position == edge.target_rank_parameter_position
                     && parameter.primitive_type == component.rank_primitive_type
             })?;
         // The edge names authored formal positions, while the successor's
         // `argument_count` counts authored actuals — an ambient borrowed `self`
         // owns a formal position but no actual, so bound the coordinate against
-        // the target state's authored parameter count instead.
-        let target_state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == edge.target_state)?;
+        // the target state's authored parameter count instead. The target may
+        // live on a fused successor machine, so resolve its owner by state.
+        let (_, target_state) =
+            crate::semantic_calls::find_state_with_machine(program, edge.target_state)?;
         let target_parameters = program.state_parameters(target_state);
         if successor.argument_count as usize
             != target_parameters

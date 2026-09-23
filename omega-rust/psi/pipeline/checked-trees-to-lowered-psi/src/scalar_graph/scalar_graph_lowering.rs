@@ -71,6 +71,7 @@ pub(crate) fn lower_scalar_graph_machine(
     let requirement_counts = [(machine, prepared.contract.requirement_count())];
     let lowered = build_scalar_graph_module(
         &prepared.states,
+        &prepared.state_symbols,
         prepared.result_type,
         &prepared.scalar_qualifications,
         prepared.contract,
