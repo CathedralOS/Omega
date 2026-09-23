@@ -94,6 +94,14 @@ the complete product bar; focused successes below do not establish that baseline
   access. Follow the application's actual next missing operation rather than
   waiting for every related task to close.
 
+  Reproduce the port's reported foreign-package `Optional<T>` payload rejection
+  in state patterns (`ScanFunctionScalar` and `SnapshotRegionFilter`), then fix
+  any remaining resolution/lowering gap and restore the intended sum API.
+  Boolean-plus-payload and package-local sum substitutions are not proof of
+  parity. Migrate index bounds through **REMOVE-BRACKETED-RANGE-ANNOTATIONS**;
+  ordinary marker-data namespaces are an implementation choice, not an owner
+  decision. Port work stays with this customer through native acceptance.
+
   The pinned win64 frontier is
   `native_win64_write_byte_catalog_frontier`: the win64 x86-64 target package
   carries no closed native catalog identity for byte emission, so
