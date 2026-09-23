@@ -172,16 +172,25 @@ def audit(manifests: list[Path], steps_files: list[Path], root: Path) -> dict:
     findings: list[dict] = []
     member_count = 0
     step_count = 0
+    # Containment is decided on real paths. A declared root and a manifest
+    # location can spell the same directory differently when either side
+    # traverses a symlink -- on macOS a temporary directory is reached as
+    # `/var/...` and resolves to `/private/var/...` -- and comparing the two
+    # spellings reports every ordinary member as escaping its root. The `..`
+    # traversal this check exists to catch is rejected in `check_spelling`
+    # before it can reach here, so resolving both sides loses no coverage.
+    root = root.resolve()
     for manifest_path in manifests:
         if manifest_path.is_symlink() or not manifest_path.is_file():
             fail(f"manifest is not a regular file: {manifest_path}")
         spellings, _ = iter_manifest_members(manifest_path)
         member_count += len(spellings)
+        base = manifest_path.resolve().parent
         for spelling in spellings:
             relative = check_spelling(spelling, f"{manifest_path.name}:{spelling}", findings)
             if relative is None:
                 continue
-            resolved = manifest_path.parent.joinpath(*relative.parts)
+            resolved = base.joinpath(*relative.parts)
             try:
                 resolved.relative_to(root)
             except ValueError:
