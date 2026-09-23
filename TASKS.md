@@ -4380,6 +4380,30 @@ deliverable host runs, not four implementations of the gate.
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; Linux emission evidence cannot close this task.
 
+  One of the three gate commands is now measured on the matching host, which
+  this row had no reading of before. `cargo nextest run
+  -p omega-native-differential-test --all-targets --no-fail-fast` at
+  `0e64720850`: **1158 run, 1140 passed, 18 failed, 1 skipped**, 2498.6 s.
+  The 18 exact names and the one expected skip
+  (`source_custody_artifact product_semantics_observe_source_custody_fixture`,
+  `#[ignore = "run by the source-custody artifact gate with its exact
+  fixture"]`) are in
+  [known baseline failures](wiki/drafts/measurements/known_baseline_failures.md).
+  Read it as the lane's denominator, not as an attribution: no member is
+  bisected yet.
+
+  Why the row stays open, stated exactly rather than as a percentage: this is
+  one gate of three. RC-SOURCE-SEMANTICS (`-p compiler --all-targets`) and
+  RC-REPRESENTATIVE-PROGRAMS (`--test samples_compile`) are unmeasured here,
+  and no `macos_arm64` record exists under `tools/release/records/` because
+  the recorder writes a lane only with a passing `--native-execution`
+  observation. The observation this lane needs is the canary suite's
+  `_runs` family, which compiles for the native host and executes the emitted
+  Mach-O through `Command::new` (`assert_native_exit_code`) with no `cfg`
+  gate, so the lane IS recordable on this host — the Linux reading of that
+  same command was 143 passed / 770 failed in 110 minutes, so expect it to
+  leave the row open on its own evidence rather than close it.
+
 - **RC-NATIVE-MATRIX-WINDOWS-X64.** Run the complete native/source/sample
   gates on Windows x86-64, executing emitted PE products, including the
   hosted receiver. Procedure evidence is not an executed release row. Use
