@@ -411,7 +411,7 @@ pub(super) fn build_primitive_store_at(
                 SymbolHandle::invalid()
             }
         || crate::values::scalar_expression_type(value) != Some(primitive_type)
-        || !scalar_custody_is_exact(program, facts, state, binding, value, primitive_type)
+        || !scalar_store_value_is_exact(program, facts, state, binding, value, primitive_type)
     {
         return None;
     }
@@ -996,13 +996,15 @@ fn checked_unit_path(
         .collect()
 }
 
-pub(super) fn scalar_custody_is_exact(
+/// The scalar-binding closure both store custody proofs share: the binding
+/// must close over exactly the primitive parameters and the immutable
+/// primitive locals declared before its statement — nothing missing,
+/// nothing extra.
+fn scalar_binding_symbols_exact(
     program: &TypedTrees,
     facts: &CheckFacts,
     state: &typed_trees::state::State,
     binding: &checked_trees::CheckedScalarExpressionBindings,
-    value: &CheckedScalarExpression,
-    primitive_type: PrimitiveType,
 ) -> bool {
     let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
         return false;
@@ -1036,16 +1038,29 @@ pub(super) fn scalar_custody_is_exact(
                 _ => None,
             }
         }));
-    if !symbols.eq(facts
+    symbols.eq(facts
         .values
         .scalar_expressions
         .binding_symbols
         .span_or_empty(binding.symbols)
         .iter()
         .copied())
-    {
+}
+
+pub(super) fn scalar_custody_is_exact(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    binding: &checked_trees::CheckedScalarExpressionBindings,
+    value: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> bool {
+    if !scalar_binding_symbols_exact(program, facts, state, binding) {
         return false;
     }
+    let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
+        return false;
+    };
     crate::values::lower_unit_scalar_argument(
         program,
         &facts.operators,
@@ -1056,4 +1071,105 @@ pub(super) fn scalar_custody_is_exact(
     )
     .as_ref()
         == Some(value)
+}
+
+/// A store's scalar value is exact when its binding closes over precisely
+/// the scalar frame (as `scalar_custody_is_exact` demands) and the retained
+/// expression either re-lowers through the unit-argument vocabulary — as
+/// local custody requires — or simply cannot re-lower there at all. The
+/// scalar-expression table is itself the canonical lowering of this
+/// authored root; named-domain casts and other shapes the narrower
+/// argument lowerer cannot spell keep their retained value, as long as
+/// that value still lowers through the ordinary scalar vocabulary.
+fn scalar_store_value_is_exact(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+    binding: &checked_trees::CheckedScalarExpressionBindings,
+    value: &CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> bool {
+    if !scalar_binding_symbols_exact(program, facts, state, binding) {
+        return false;
+    }
+    let Ok(statement_index) = usize::try_from(binding.statement_ordinal) else {
+        return false;
+    };
+    match crate::values::lower_unit_scalar_argument(
+        program,
+        &facts.operators,
+        state,
+        statement_index,
+        binding.expression,
+        primitive_type,
+    ) {
+        Some(relowered) => relowered == *value,
+        None => scalar_expression_needs_no_bindings(value),
+    }
+}
+
+/// A retained scalar value stands on its own when every node lowers through
+/// the ordinary scalar vocabulary — parameters, locals, literals and their
+/// compositions. Structural field/indexed reads, storage reads, erased
+/// formals and trapping casts resolve through binding lists or runtime
+/// policy that the store's value lane does not carry, so a retained
+/// expression built from any of them must keep declining.
+fn scalar_expression_needs_no_bindings(
+    expression: &checked_trees::CheckedScalarExpression,
+) -> bool {
+    use checked_trees::CheckedScalarExpression;
+    match expression {
+        CheckedScalarExpression::Parameter { .. }
+        | CheckedScalarExpression::Local { .. }
+        | CheckedScalarExpression::IntegerLiteral { .. }
+        | CheckedScalarExpression::IeeeFloatLiteral { .. } => true,
+        CheckedScalarExpression::IntegerBinary { left, right, .. } => {
+            scalar_expression_needs_no_bindings(left) && scalar_expression_needs_no_bindings(right)
+        }
+        CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
+        | CheckedScalarExpression::IntegerWiden { operand, .. }
+        | CheckedScalarExpression::IntegerExactCast { operand, .. }
+        | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
+            scalar_expression_needs_no_bindings(operand)
+        }
+        CheckedScalarExpression::Boolean(expression) => {
+            boolean_expression_needs_no_bindings(expression)
+        }
+        CheckedScalarExpression::StructuralParameterByteLength { .. }
+        | CheckedScalarExpression::StorageRead { .. }
+        | CheckedScalarExpression::ErasedParameter { .. }
+        | CheckedScalarExpression::StructuralParameterField { .. }
+        | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+        | CheckedScalarExpression::IntegerTrappingCast { .. } => false,
+    }
+}
+
+fn boolean_expression_needs_no_bindings(
+    expression: &checked_trees::CheckedBooleanExpression,
+) -> bool {
+    use checked_trees::CheckedBooleanExpression;
+    match expression {
+        CheckedBooleanExpression::Constant(_)
+        | CheckedBooleanExpression::Parameter { .. }
+        | CheckedBooleanExpression::Local { .. } => true,
+        CheckedBooleanExpression::Not(operand) => boolean_expression_needs_no_bindings(operand),
+        CheckedBooleanExpression::Equal { left, right }
+        | CheckedBooleanExpression::And { left, right }
+        | CheckedBooleanExpression::Or { left, right } => {
+            boolean_expression_needs_no_bindings(left)
+                && boolean_expression_needs_no_bindings(right)
+        }
+        CheckedBooleanExpression::IntegerComparison { left, right, .. } => {
+            scalar_expression_needs_no_bindings(left) && scalar_expression_needs_no_bindings(right)
+        }
+        CheckedBooleanExpression::StorageRead { .. }
+        | CheckedBooleanExpression::ErasedParameter { .. }
+        | CheckedBooleanExpression::StructuralParameterField { .. }
+        | CheckedBooleanExpression::ScalarIeeeFloatComparison { .. }
+        | CheckedBooleanExpression::IeeeFloatComparison { .. }
+        | CheckedBooleanExpression::ByteSequenceEqual { .. }
+        | CheckedBooleanExpression::PayloadlessSumEqual { .. }
+        | CheckedBooleanExpression::StructuralCaseMembership { .. } => false,
+    }
 }
