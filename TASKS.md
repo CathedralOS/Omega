@@ -351,6 +351,20 @@ the complete product bar; focused successes below do not establish that baseline
   compile, so its blast radius wants measuring before it is spent; the second
   widens what a build file may name and is a visibility-policy decision.
   Do not "fix" the fixture -- there is no spelling that works today.
+  `capabilities/windows_provides_import_exit` stops at
+  `checked-trees-to-lowered-psi`'s `state_graph/body.rs::statement_continuations`
+  ("Unit graph continuation lost its producing statement"), which refuses an
+  operation that continues a statement other than the current one unless it is
+  a plain field store -- and a store of a CALL RESULT is excluded from that
+  exception. The fixture's shape is `self.m = self.beeper.beep(self.v)`, a
+  boundary-call result into a field. The same shape with an ORDINARY machine
+  (`self.m = twice(self.v)`) lowers, so the call kind is where to look.
+  Reproducing it needs the packaged compile: the `Binding<R>` carrier comes
+  from the toolchain, so the crate's own lowering harness cannot build the
+  program, and the fixture is `windows_x86_64` with an authored
+  `ForeignBinding` besides. Instrument the real fixture rather than trying to
+  reduce it in-crate.
+
   `dungeon/runtime_direct_boolean_conjunction_dispatch` is DIAGNOSED and
   REDUCED. Its `transition (self.current_room, self.fountain_used)` with arms
   `(1, true)` / `(1, false)` / `_` lowers each arm's pattern to a CONJUNCTION
