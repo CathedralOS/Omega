@@ -1,32 +1,34 @@
 // Funnel edges with DIFFERENT guards (`sp < 16` vs `sp < 32`): the wider edge
-// admits values outside `y: [0..=15]`, so the copy must reject (the proof
-// side accepts only equivalent guards; the validation join keeps the union
-// [0, 31], which does not fit either).
+// admits values outside `push`'s `v < 16` contract, so that edge's call must
+// reject (the proof side accepts only guards that independently establish the
+// contract; the validation join keeps the union [0, 31], which does not fit).
+// `sp` is a runtime parameter so both edges are live. (Was:
+// `y: i32 [0..=15]` field suffix.)
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
     sp: i32;
-    y: i32 [0..=15];
+    y: i32;
 }
 
-machine Main::main(&mut self) {
-    self.sp = 7;
+machine Main::main(&mut self, sp_in: i32) reaches Console {
+    self.sp = sp_in;
     transition self.sp >= 0 && self.sp < 16 {
-        true -> push()
+        true -> push(self.sp)
         false -> other()
     }
 
     state other(&mut self) {
         transition self.sp >= 0 && self.sp < 32 {
-            true -> push()
+            true -> push(self.sp)
             false -> bad()
         }
     }
 
-    state push(&mut self) {
-        self.y = self.sp;
+    state push(&mut self, v: i32) requires v >= 0 && v < 16 {
+        self.y = v;
         transition self.y == 7 { true -> m() false -> m() }
     }
     state m(&mut self) { self.console.exit_process(1); }

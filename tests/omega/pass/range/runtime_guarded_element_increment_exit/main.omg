@@ -1,25 +1,26 @@
-// The accumulate-into-array keystone: `tallies: [i32 [0..=16]; 4]` with the
-// dominating guard `tallies[1] < 16` proves the element increment
-// `tallies[1] = tallies[1] + 1` (guard fact + element range + the write
-// obligation compose). Needed the structural matcher to compare INDEXED
-// places (collection + index, literal leaves by value). The stability gate
-// carries: an intervening write into the collection drops the fact (fail
-// twin). RUNTIME-index increments stay conservatively rejected for now -- the
-// operand hoist renames the element read (`__hoist_N`), so the guard cannot
-// match it (documented follow-up). ZII tallies[1]=0 -> +1 -> exit 1.
+// The accumulate-into-array keystone: a plain `[i32; 4]` with the dominating
+// guard `tallies[1] < 16` admits the element value into `bump`'s bounded
+// contract, and `tallies[1] = t + 1` is exact under `t < 16`. The revoked
+// element suffix `[i32 [0..=16]; 4]` moved to `bump`'s requires, the checked
+// admission boundary. Needed the structural matcher to compare INDEXED places
+// (collection + index, literal leaves by value). The stability gate carries:
+// an intervening write into the collection drops the fact (fail twin).
+// RUNTIME-index increments stay conservatively rejected for now -- the operand
+// hoist renames the element read (`__hoist_N`), so the guard cannot match it
+// (documented follow-up). ZII tallies[1]=0 -> +1 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
     console: Binding<Console>;
-    tallies: [i32 [0..=16]; 4];
+    tallies: [i32; 4];
 }
 machine Main::main(&mut self) reaches Console {
     transition self.tallies[1] < 16 {
-        true -> bump()
+        true -> bump(self.tallies[1])
         false -> full()
     }
-    state bump(&mut self) {
-        self.tallies[1] = self.tallies[1] + 1;
+    state bump(&mut self, t: i32) requires t < 16 {
+        self.tallies[1] = t + 1;
         transition self.tallies[1] == 1 {
             true -> matched()
             false -> unmatched()

@@ -1,19 +1,27 @@
-// SOUNDNESS PIN for the arithmetic sum-payload-range narrowing (2026-07-08). The
-// payload operand's range is FOLDED, not blanket-trusted: `amount: [0..=10]`
-// gives `amount * 100` the range [0..=1000], which does NOT fit `apply`'s
-// `target: [0..=100]`, so the argument must stay unproven. If the narrowing ever
-// admitted the range without folding it (or clamped it to the target), this
-// would falsely compile. MUST reject with the expected fragment.
+// SOUNDNESS PIN for the arithmetic sum-payload narrowing (2026-07-08,
+// migrated off the revoked `[0..=10]`/`[0..=100]` suffixes). The payload
+// operand's domain is FOLDED, not blanket-trusted: `amount` in `Ten` gives
+// `a * 100` the interval [0..=1000], which does NOT fit `apply`'s
+// `target <= 100` contract, so the call must stay unproven. If the narrowing
+// ever admitted the bound without folding it (or clamped it to the target),
+// this would falsely compile. MUST reject with the expected fragment.
 use omega::language::std::console;
 use omega::language::core::service;
-data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
+domain i32::Ten requires 0 <= self && self <= 10;
+data Cmd { case Dim(amount: i32 in Ten); case Off; }
 data Main { console: Binding<Console>; c: Cmd; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.c = Cmd::Dim { amount: 3 };
     transition self.c {
-        Cmd::Dim { amount } -> apply(amount * 100)
+        Cmd::Dim { amount } -> scale(amount)
         Cmd::Off            -> apply(0)
     }
-    state apply(&mut self, target: i32 [0..=100]) { self.console.exit_process(target); }
+    state scale(&mut self, a: i32) requires a >= 0 && a <= 10 {
+        let scaled: i32 = a * 100;
+        transition { _ -> apply(scaled) }
+    }
+    state apply(&mut self, target: i32) requires 0 <= target && target <= 100 {
+        self.console.exit_process(target);
+    }
 }
 machine Main::run(&mut self) { self.main(); }

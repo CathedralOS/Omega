@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    CheckedUnitEffectOperationPlan, ShapeCollector, build_structural_scalar_field_store_sequence,
+    checked_program, machine_binders,
+};
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
 
 fn stores(source: &str, state_index: usize) -> Option<Vec<CheckedUnitEffectOperationPlan>> {

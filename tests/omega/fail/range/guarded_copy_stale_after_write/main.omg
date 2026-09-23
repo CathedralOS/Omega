@@ -1,27 +1,32 @@
 // The guarded-copy STABILITY twin: the edge guard establishes [0..=9] for
-// `self.yv`, but a write to `self.yv` INSIDE the guarded state invalidates
-// the fact before the copy -- the stability gate must drop the guard and the
-// store must reject (without the gate, `self.yv = 100; self.y = self.yv`
-// would "prove" through the stale guard).
+// `self.yv`, but a write to `self.yv` before the bounded call invalidates the
+// fact -- at `stale`'s call edge the re-read `w` is the fresh 100, so
+// `store`'s `v <= 9` requires must reject (without staleness,
+// `yv = 100; store(yv)` would "prove" through the stale guard). `yv` is a
+// runtime parameter so the guard's interval is what the guard edge sees.
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
     yv: i32;
-    y: i32 [0..=9];
+    y: i32;
 }
 
-machine Main::main(&mut self) {
-    self.yv = 7;
+machine Main::main(&mut self, yv_in: i32) reaches Console {
+    self.yv = yv_in;
     transition self.yv >= 0 && self.yv <= 9 {
-        true -> store()
+        true -> stale()
         false -> bad()
     }
 
-    state store(&mut self) {
+    state stale(&mut self) {
         self.yv = 100;
-        self.y = self.yv;
+        let w: i32 = self.yv;
+        transition { _ -> store(w) }
+    }
+    state store(&mut self, v: i32) requires v >= 0 && v <= 9 {
+        self.y = v;
         transition self.y == 7 { true -> m() false -> m() }
     }
     state m(&mut self) { self.console.exit_process(1); }

@@ -1,1 +1,1 @@
-cannot prove assignment value `self.tallies[1] + 1` satisfies bounded target
+cannot prove requires contract for call bump

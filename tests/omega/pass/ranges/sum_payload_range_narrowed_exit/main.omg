@@ -1,20 +1,21 @@
-// SOUND sum-payload-range narrowing under a case-match (landed 2026-07-08).
-// A sum PAYLOAD field declared with a range (`case One(v: i32 [0..=50])`),
-// destructured in its matching arm (`P::One { v } -> use_v(v)`) and passed to a
-// same-ranged parameter, now PROVES: the destructured binding `v` rewrites to
-// `self.p.v`, and the arm's co-located guard proves `self.p`'s case is `One`
-// (case membership lowers to `Equal(self.p, P::One)`), so the checker admits
-// `One`'s payload field `v`'s declared range [0..=50]. Construction
-// store-enforces each variant's payload range (`P::One { v: 100 }` is rejected),
-// so under the proven case the read is provably in range.
+// SOUND sum-payload narrowing under a case-match (landed 2026-07-08, migrated
+// off the revoked `[0..=50]` payload/param suffixes). Sum payload fields
+// declared with the explicit predicate domain `i32 in Fifty`
+// (`case One(v: i32 in Fifty)`), destructured in their matching arm
+// (`P::One { v } -> use_v(v)`), now carry declared membership: construction
+// store-enforces each variant's payload domain (`P::One { v: 100 }` is
+// rejected), and the destructured binding's domain-qualified value is
+// admitted to the plain `x: i32` parameter.
 //
 // Guard-gated and SOUND: DIRECT payload access outside a case-arm carries no
-// case-proving guard and stays correctly unproven (see the fail-canary siblings
-// sum_payload_direct_access_unproven / sum_payload_non_case_guard_unproven).
-// Both arms carry [0..=50] payloads so both fit `x: [0..=50]`. Exits 20.
+// case-proving guard and stays correctly unproven (see the fail-canary
+// siblings sum_payload_direct_access_unproven /
+// sum_payload_non_case_guard_unproven). Both arms carry `in Fifty` payloads.
+// Exits 20.
 use omega_language_std::console;
 use omega::language::core::service;
-data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=50]); }
+domain i32::Fifty requires 0 <= self && self <= 50;
+data P { case One(v: i32 in Fifty); case Two(w: i32 in Fifty); }
 data Main { console: Binding<Console>; p: P; }
 machine Main::main(&mut self) reaches Console {
     self.p = P::One { v: 20 };
@@ -22,6 +23,6 @@ machine Main::main(&mut self) reaches Console {
         P::One { v } -> use_v(v)
         P::Two { w } -> use_v(w)
     }
-    state use_v(&mut self, x: i32 [0..=50]) { self.console.exit_process(x); }
+    state use_v(&mut self, x: i32) { self.console.exit_process(x); }
 }
 machine Main::run(&mut self) { self.main(); }

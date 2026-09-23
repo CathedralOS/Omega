@@ -1,24 +1,27 @@
-// A guard whose established range does NOT fit the target: [0..=20] into
-// y: [0..=9] must still reject -- the guard narrows the copy, but only to
-// its own bounds.
+// A guard whose established range does NOT fit the callee's contract:
+// [0..=20] into `store`'s `v <= 9` requires must still reject -- the guard
+// narrows the copy, but only to its own bounds. `yv` is a runtime parameter
+// so the guard's interval (not a literal value) is what admission sees.
+// (Was: `y: i32 [0..=9]` field suffix; the bound now lives on the admission
+// contract.)
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
     yv: i32;
-    y: i32 [0..=9];
+    y: i32;
 }
 
-machine Main::main(&mut self) {
-    self.yv = 7;
+machine Main::main(&mut self, yv_in: i32) reaches Console {
+    self.yv = yv_in;
     transition self.yv >= 0 && self.yv <= 20 {
-        true -> store()
+        true -> store(self.yv)
         false -> bad()
     }
 
-    state store(&mut self) {
-        self.y = self.yv;
+    state store(&mut self, v: i32) requires v >= 0 && v <= 9 {
+        self.y = v;
         transition self.y == 7 { true -> m() false -> m() }
     }
     state m(&mut self) { self.console.exit_process(1); }

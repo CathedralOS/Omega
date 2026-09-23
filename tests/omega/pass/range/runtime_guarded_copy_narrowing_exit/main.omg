@@ -1,27 +1,29 @@
-// The guarded-COPY narrowing (keystone catalog item): an UNRANGED `yv` copied
-// into a ranged target under a dominating edge guard. `transition self.yv >= 0
-// && self.yv <= 9 { true -> store() }` establishes [0..=9] for the copy
-// `self.y = self.yv` -- the checker used to bail before consulting the guard
-// because the value had no declared range (guards could only REFINE an
-// existing range, never establish one). yv=7 -> exit 7.
+// The guarded-COPY narrowing (keystone catalog item): an UNBOUNDED `yv`
+// admitted to a bounded callee under a dominating edge guard. `transition
+// self.yv >= 0 && self.yv <= 9 { true -> store(self.yv) }` establishes [0..=9]
+// for the copy `self.y = v` -- the checker used to bail before consulting the
+// guard because the value had no declared bound (guards could only REFINE an
+// existing range, never establish one). The field's revoked `[0..=9]` suffix
+// moved to `store`'s requires contract, the checked admission boundary.
+// yv=7 -> exit 7.
 use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
     yv: i32;
-    y: i32 [0..=9];
+    y: i32;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.yv = 7;
     transition self.yv >= 0 && self.yv <= 9 {
-        true -> store()
+        true -> store(self.yv)
         false -> bad()
     }
 
-    state store(&mut self) {
-        self.y = self.yv;
+    state store(&mut self, v: i32) requires 0 <= v && v <= 9 {
+        self.y = v;
         transition self.y == 7 {
             true -> matched()
             false -> unmatched()

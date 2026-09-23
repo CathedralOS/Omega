@@ -1,28 +1,29 @@
 // The funnel agreement's soundness twin: one of the two edges into `push` is
-// UNGUARDED (`_ ->`), so no entry fact survives the join and the ranged copy
-// must reject.
+// UNGUARDED (`_ ->`), so `other`'s call cannot discharge the `v < 16`
+// requires -- the bound holds on only one incoming edge. `sp` is a runtime
+// parameter so both edges are live. (Was: `y: i32 [0..=15]` field suffix.)
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
     sp: i32;
-    y: i32 [0..=15];
+    y: i32;
 }
 
-machine Main::main(&mut self) {
-    self.sp = 7;
+machine Main::main(&mut self, sp_in: i32) reaches Console {
+    self.sp = sp_in;
     transition self.sp >= 0 && self.sp < 16 {
-        true -> push()
+        true -> push(self.sp)
         false -> other()
     }
 
     state other(&mut self) {
-        transition { _ -> push() }
+        transition { _ -> push(self.sp) }
     }
 
-    state push(&mut self) {
-        self.y = self.sp;
+    state push(&mut self, v: i32) requires v >= 0 && v < 16 {
+        self.y = v;
         transition self.y == 7 { true -> m() false -> m() }
     }
     state m(&mut self) { self.console.exit_process(1); }

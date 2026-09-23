@@ -1,18 +1,20 @@
 // The guarded element increment's soundness twin: a `< 17` guard admits 16,
-// and 16 + 1 = 17 exceeds the element range [0..=16] -- must reject.
+// and `bump`'s `v < 16` requires rejects the edge (16 + 1 = 17 used to exceed
+// the revoked element range [0..=16]; the bound now lives on the admission
+// contract).
 use omega::language::std::console;
 use omega::language::core::service;
 data Main {
     console: Binding<Console>;
-    tallies: [i32 [0..=16]; 4];
+    tallies: [i32; 4];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition self.tallies[1] < 17 {
-        true -> bump()
+        true -> bump(self.tallies[1])
         false -> full()
     }
-    state bump(&mut self) {
-        self.tallies[1] = self.tallies[1] + 1;
+    state bump(&mut self, t: i32) requires t < 16 {
+        self.tallies[1] = t + 1;
         transition self.tallies[1] == 1 {
             true -> matched()
             false -> unmatched()

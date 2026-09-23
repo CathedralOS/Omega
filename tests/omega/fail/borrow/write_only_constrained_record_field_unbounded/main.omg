@@ -1,14 +1,20 @@
-// FAIL canary: admitting a closed literal-ranged record field as a write-only
-// place does not relax the store's bounded-assignment obligation. A source
-// whose own upper bound exceeds the field's declared range cannot prove
-// containment, so the store is rejected like any other unproven store.
+// FAIL canary: admitting a contract-bounded value into a write-only record
+// place does not relax the admission obligation. A source whose own contract
+// is absent cannot prove containment in the callee's bound, so the call is
+// rejected like any other unproven store. (Was: the `u8 [0..=10]` field
+// suffix carried the bounded-assignment obligation; the bound now lives on
+// `replace`'s requires contract.)
 
 data Limited {
-    value: u8 [0..=10];
+    value: u8;
 }
 
-machine replace(limited: &write Limited, next: u8) {
+machine replace(limited: &write Limited, next: u8) requires next <= 10 {
     limited.value = next;
+}
+
+machine drive(limited: &write Limited, source: u8) {
+    replace(&write limited, source);
 }
 
 data Main {

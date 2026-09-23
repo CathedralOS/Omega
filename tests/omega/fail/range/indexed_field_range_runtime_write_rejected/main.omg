@@ -1,17 +1,22 @@
-// A range on a FIELD projected through a runtime-indexed record element is
-// still the destination's store-enforced invariant. The indexed projection
-// must not erase the field type and allow an out-of-range write.
+// A `where` invariant on a FIELD projected through a runtime-indexed record
+// element is still the destination's store-enforced invariant. The indexed
+// projection must not erase the field invariant and allow an out-of-range
+// write. (Was: `value: i32 [0..=7]` field suffix inside `Cell`; the bound now
+// lives on `Cell`'s where-facts.)
 use omega::language::std::console;
 use omega::language::core::service;
 
-data Cell {
-    value: i32 [0..=7];
+data Cell
+where
+    0 <= value && value <= 7,
+{
+    value: i32;
 }
 
 data Main {
     console: Binding<Console>;
     cells: [Cell; 4];
-    i: u64 [0..=3];
+    i: u64;
 }
 
 machine Main::main(&mut self) {

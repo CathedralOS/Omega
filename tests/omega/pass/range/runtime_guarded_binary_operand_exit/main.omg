@@ -1,31 +1,35 @@
-// A binary value with a GUARD-bounded operand: `self.y = self.p + self.dir`
-// where `p: [0..=8]` is declared and `dir` is bounded only by the sole
-// incoming edge guard `dir >= 0 && dir <= 1`. Two halves compose:
+// A binary value with a GUARD-bounded operand admitted through per-operand
+// requires contracts: `store(self.p, self.dir)` where `p`'s literal store
+// supplies [8..=8] and `dir` is bounded only by the sole incoming edge guard
+// `dir >= 0 && dir <= 1`. Two halves compose:
 // - VALIDATION seeds the target state's env from its sole incoming guarded
-//   transition (conjunction-splitting `&&`), so exact-overflow discharges;
-// - the PROOF side refolds the binary operand-wise, the guard filling in the
-//   operand the declaration leaves unbounded -> [0..=9] fits y.
-// p=8, dir=1 -> exit 9.
+//   transition (conjunction-splitting `&&`), so `0 <= d && d <= 1` discharges;
+// - the requires-bounded operands then prove `pv + d` exact inside `store`
+//   ([0..=8] + [0..=1] stays within i32) and land [8..=9] on `self.y`.
+// The revoked field suffixes (`p: [0..=8]`, `y: [0..=9]`) moved to plain
+// carriers plus the callee's requires contract; a binary expression cannot be
+// a single requires argument's folded bound, so the operands arrive
+// separately. p=8, dir=1 -> exit 9.
 use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
-    p: i32 [0..=8];
+    p: i32;
     dir: i32;
-    y: i32 [0..=9];
+    y: i32;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.p = 8;
     self.dir = 1;
     transition self.dir >= 0 && self.dir <= 1 {
-        true -> store()
+        true -> store(self.p, self.dir)
         false -> bad()
     }
 
-    state store(&mut self) {
-        self.y = self.p + self.dir;
+    state store(&mut self, pv: i32, d: i32) requires 0 <= pv && pv <= 8 && d >= 0 && d <= 1 {
+        self.y = pv + d;
         transition self.y == 9 {
             true -> matched()
             false -> unmatched()
