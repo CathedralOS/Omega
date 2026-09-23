@@ -1,3 +1,9 @@
+//! Optimizer module role: stage group. The stage's failure vocabulary.
+//!
+//! Every way `run_psi_optimization` can refuse: an invalid module, semantic,
+//! proof bundle, debug map or execution record on either side of the selected
+//! passes, and each pass's own refusal.
+
 use terminal_codec::{
     CodecError, DebugMapError, ProofCodecError, PsiOptimizationExecutionRecordError,
 };
