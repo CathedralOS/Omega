@@ -93,6 +93,12 @@ pub(super) fn validate_operation_operands(
         OperationKind::ByteSequenceRead { .. } => {
             storage_operands::validate_byte_sequence_read(operation, value_types, defined)
         }
+        OperationKind::ElementViewRead { .. } => {
+            storage_operands::validate_element_view_read(operation, value_types, defined)
+        }
+        OperationKind::ElementViewSubslice { .. } => {
+            storage_operands::validate_element_view_subslice(operation, value_types, defined)
+        }
         OperationKind::IeeeFloatCompare { .. } => {
             scalar_operands::validate_ieee_float_compare(operation, value_types, defined)
         }
