@@ -2352,9 +2352,23 @@ syntax and other terminal services are not prerequisites.
     operator interpreter or fallback arithmetic. These refusals are
     implementation boundaries, not new semantic prohibitions.
   - Finish per-law normalization coverage atop the explicit selected-conformance
-    route in `open_index_expressions.rs`. It currently records an algebra only
-    when both commutativity and associativity slots exist; reordering must need
-    only its commutativity law, while reassociation needs associativity.
+    route in `open_index_expressions.rs`. Reordering and reassociation are now
+    separate laws: `OpenIndexOperationSelection` carries
+    `commutativity_licensed`/`associativity_licensed`, a selection is recorded
+    as soon as the carrier declares either slot, and `collect_open_index_operands`
+    flattens a chain only under associativity and sorts operands only under
+    commutativity. A carrier declaring neither still selects nothing.
+    `validation/tests/open_index_algebra_laws.rs` pins what each carrier shape
+    records and `type_identity/tests.rs` pins what each recorded law then
+    licenses, both directions in each case. `normalizer_version` is 2 for the
+    canonical-form change this makes for single-law carriers.
+    Still open here: distributivity and zero/one identities each need their own
+    slot and their own consumer, and nothing yet carries per-law normalization
+    into a semantic domain NAME -- `declared_domain_identity` reads an interned
+    name fixed at lowering, which only
+    `monomorphization::refresh_closed_domain_instance_identities` rewrites, so a
+    source-rooted per-law fixture belongs with that pass rather than with
+    validation.
     Preserve missing/ambiguous selection, wrong-operation and unproved-law
     controls. Noncommutative operations remain usable without rewrites; AC
     grants neither zero identity nor integer-addition meaning.
