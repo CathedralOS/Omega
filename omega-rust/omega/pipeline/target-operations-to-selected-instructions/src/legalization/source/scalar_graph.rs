@@ -87,5 +87,15 @@ pub(super) fn derive(
         structural: scalar_graph_input::structural_contract(target, abstracted, optimized, plan),
         entry_block: optimized.entry,
         blocks,
+        // The unit's verifier-owned frontier catalog reaches the access-roster
+        // producer only through this projection: every fact covering this
+        // function's machine is retained byte-exact so the roster binding a
+        // later stage emits can name the same fact identities.
+        ownership_frontier_facts: unit
+            .ownership_frontier_facts
+            .iter()
+            .filter(|fact| fact.machine == target.machine)
+            .cloned()
+            .collect(),
     })
 }

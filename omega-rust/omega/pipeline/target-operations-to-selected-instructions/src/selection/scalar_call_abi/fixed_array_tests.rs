@@ -107,6 +107,7 @@ fn fixed_array_call(
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
         }),
+        ownership_frontier_facts: Vec::new(),
     };
     let call = LegalizedScalarCall {
         structural_result: None,

@@ -171,6 +171,7 @@ fn function(
         structural: None,
         entry_block: blocks[0].id,
         blocks,
+        ownership_frontier_facts: Vec::new(),
     }
 }
 fn retained_instruction(

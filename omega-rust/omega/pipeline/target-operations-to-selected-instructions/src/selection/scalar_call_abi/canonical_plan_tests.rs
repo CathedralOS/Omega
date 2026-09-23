@@ -60,6 +60,7 @@ fn scalar_call(
         structural: None,
         entry_block: block,
         blocks: Vec::new(),
+        ownership_frontier_facts: Vec::new(),
     };
     let result_placement = call_plan.result.clone();
     let call = LegalizedScalarCall {

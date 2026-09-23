@@ -22,6 +22,14 @@ pub struct LegalizedScalarFunction {
     pub structural: Option<crate::LegalizedStructuralContract>,
     pub entry_block: BlockId,
     pub blocks: Vec<LegalizedScalarBlock>,
+    /// The verifier-owned ownership-frontier facts covering this function's
+    /// machine, projected byte-exact from the source unit's retained catalog:
+    /// each row's site, live claims, owned places, and partial custody keep
+    /// the verifier's spelling beside its canonical fact identity. This is
+    /// the premise supply the access-roster producer binds when it justifies
+    /// distinct-place non-aliasing — retained evidence, not authority: the
+    /// catalog grants no custody and a site absent here retains no premise.
+    pub ownership_frontier_facts: Vec<optimization_unit::OwnershipFrontierFact>,
 }
 
 impl LegalizedScalarFunction {

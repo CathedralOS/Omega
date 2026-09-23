@@ -621,6 +621,14 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
         }
         encode_terminator(bytes, &block.terminator);
     }
+    // The retained frontier catalog binds by its canonical fact identities:
+    // each identity already names the verifier artifact, machine, site, and
+    // snapshot the row spells, so the bytes the roster replay binds are the
+    // same tokens the source unit retains.
+    encode_len(bytes, function.ownership_frontier_facts.len());
+    for fact in &function.ownership_frontier_facts {
+        bytes.extend_from_slice(&fact.identity.bytes());
+    }
 }
 
 fn encode_structural_source(bytes: &mut Vec<u8>, source: &crate::LegalizedStructuralCaseSource) {

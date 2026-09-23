@@ -152,6 +152,7 @@ fn fixture_with_integer(
                 ownership: Vec::new(),
             }),
         }],
+        ownership_frontier_facts: Vec::new(),
     }
 }
 
