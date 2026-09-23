@@ -5,7 +5,7 @@ use super::value_classification::{
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-use typed_trees::types::TypeReferenceHandle;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 /// Whether a value's SHAPE is an array (`Some(true)`), a non-array scalar/struct
 /// (`Some(false)`), or undeterminable here (`None` -> skipped): an array literal
@@ -128,4 +128,131 @@ pub(crate) fn report_scalar_data_shape_mismatch(
         return true;
     }
     false
+}
+
+/// The slice-view element a parameter declares: `&[T]` under any
+/// `Constrained`/`Reference` shells. Anything else has no element to check.
+fn slice_view_element(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let mut handle = type_reference;
+    loop {
+        match program.type_reference_table.type_reference(handle) {
+            TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => handle = *referee,
+            TypeReferenceNode::Slice { element_type } => return Some(*element_type),
+            _ => return None,
+        }
+    }
+}
+
+/// The element type a slice or fixed-array type reference supplies; a scalar,
+/// data, or unresolvable type has none.
+fn collection_element(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Slice { element_type }
+        | TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
+        _ => None,
+    }
+}
+
+/// The element type an ARGUMENT's declared collection type supplies: a view
+/// place (`s: &[i32]`), an owned array place (`self.arr: [u8; 4]`), a borrowed
+/// one (`&self.arr`), a range subslice (`s[1..]` — its type is the source
+/// collection's), or a call result declared with a collection return.
+/// Literals, element projections (`s[0]`), match arms, and anything that does
+/// not resolve to a concrete collection type return `None` and stay with plan
+/// admission, which already arbitrates them.
+fn argument_collection_element(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    argument: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let mut handle = argument;
+    while let ExpressionNode::Borrow(inner) = program.expression_table.expression(handle) {
+        handle = inner.target;
+    }
+    if let ExpressionNode::Indexed(indexed) = program.expression_table.expression(handle)
+        && matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        )
+    {
+        return crate::value_custody::places::declared_place_type(
+            program,
+            machine,
+            state,
+            indexed.collection,
+        )
+        .and_then(|type_reference| collection_element(program, type_reference));
+    }
+    crate::value_custody::places::declared_place_type(program, machine, state, handle)
+        .and_then(|type_reference| collection_element(program, type_reference))
+}
+
+/// An element type both sides can compare: concrete under `Constrained`
+/// shells. A type parameter, generic slot, or dynamic trait stays open for
+/// inference, so the call keeps its existing acceptance shape.
+fn element_is_concrete(program: &TypedTrees, element: TypeReferenceHandle) -> bool {
+    let mut handle = element;
+    while let TypeReferenceNode::Constrained { base_type, .. } =
+        program.type_reference_table.type_reference(handle)
+    {
+        handle = *base_type;
+    }
+    !matches!(
+        program.type_reference_table.type_reference(handle),
+        TypeReferenceNode::Named { symbol, .. }
+            if program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+    ) && !matches!(
+        program.type_reference_table.type_reference(handle),
+        TypeReferenceNode::Generic { .. } | TypeReferenceNode::DynamicTrait { .. }
+    )
+}
+
+/// Reject a call ARGUMENT whose declared collection element provably differs
+/// from the callee parameter's slice-view element: `let n =
+/// self.walker.walk(s)` binds `s: &[i32]` into a `&[u8]` parameter, and value
+/// calls skip the reference shape gate (text/byte/`addr` spellings make it a
+/// false-positive minefield), so the argument bound to nothing and the callee
+/// lowered with no admitted body. The element comparison is the same
+/// `normalized_type_identity` rule the argument binders apply: a fixed array
+/// lends its elements to a slice of the same element type, and every other
+/// shape only admits an exact element match. Both sides must resolve to a
+/// concrete element; a generic formal or an argument whose type cannot be
+/// resolved keeps the existing permissive shape.
+pub(crate) fn report_view_element_argument_mismatch(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: Option<&typed_trees::state::State>,
+    argument: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    slot_context: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some(required_element) = slice_view_element(program, target_type) else {
+        return false;
+    };
+    let Some(actual_element) = argument_collection_element(program, machine, state, argument)
+    else {
+        return false;
+    };
+    if !element_is_concrete(program, required_element)
+        || !element_is_concrete(program, actual_element)
+        || program.normalized_type_identity(actual_element)
+            == program.normalized_type_identity(required_element)
+    {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "{slot_context} expects element type `{}`, but the argument supplies `{}`",
+        program.display_type_reference_with_constraints(required_element),
+        program.display_type_reference_with_constraints(actual_element),
+    )));
+    true
 }
