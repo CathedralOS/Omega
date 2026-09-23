@@ -11,7 +11,10 @@
 //!
 //! The minted plan deliberately covers only the leaves the toolchain can bind
 //! honestly on that target: scalar-only requirements whose realization is one
-//! positional kernel syscall. A method whose signature carries `in Path`,
+//! positional kernel syscall, further narrowed to the methods the accepted
+//! service schema actually declares — a consumer-declared schema names its
+//! own demanded subset, and a leaf outside that subset has no requirement to
+//! realize. A method whose signature carries `in Path`,
 //! slice carriers, or host-dependent argument choreography is not guessable
 //! and earns no row. Demand-completeness never fabricates a broad union: a
 //! demanded leaf with no minted row still resolves to zero selected rows at
@@ -224,15 +227,16 @@ pub fn mint_canonical_filesystem_host_plan(
     let mut rows = Vec::with_capacity(leaves.len());
     let mut requirement_symbols = Vec::with_capacity(leaves.len());
     for leaf in leaves {
+        // A leaf absent from the accepted schema has no requirement to
+        // realize: consumer-declared schemas name their own demanded subset,
+        // and coverage stops there rather than demanding the canonical
+        // declaration's whole vocabulary.
         let Some(method) = schema
             .methods
             .iter()
             .find(|method| method.name == leaf.method)
         else {
-            return Err(vec![Diagnostic::error(format!(
-                "canonical `FilesystemHost` realization table names `{}`, which the accepted service schema does not declare",
-                leaf.method,
-            ))]);
+            continue;
         };
         let Some(signature) = signatures
             .iter()
@@ -252,6 +256,11 @@ pub fn mint_canonical_filesystem_host_plan(
                 number: leaf.number,
             },
         });
+    }
+    if rows.is_empty() {
+        // Nothing the schema demands has a toolchain-settled realization:
+        // no plan mints, the same as an unreviewed realization table.
+        return Ok(None);
     }
     let plan = ProviderPlan {
         name: provider_planning::satisfies_plan_name(
