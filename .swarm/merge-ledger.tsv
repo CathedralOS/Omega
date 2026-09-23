@@ -105,3 +105,5 @@ c97278c3da	omega	case-payload-observation	z5	StructuralLeafCopy op tag 84 (83 co
 2026-09-23T23:26:21Z	omega:leaf/vec-native-growth	d057f48b54	z6: ordinary Vec over caller-supplied backing, bounded capacity ladder + fused scalar graphs
 2026-09-23T23:26:21Z	omega:leaf/callee-crash-custody	122222e07e	z5: crash-declaring callees admitted to continuation custody rosters
 2026-09-23T23:26:21Z	squalr:leaf/unconsumed-nested-call	merge-check	z1: bind region counts before merge_from; drop stale squalr-tests lock
+2026-09-23T23:52:57Z	omega:leaf/call-structural-crash-roster	35842c2ab7	z5: crash rosters verbatim on structural-result calls + forged-roster rejection
+2026-09-23T23:52:57Z	omega:leaf/latebound-equality-guards	0baa8212d3	z4: named-state field-equality Conditional pinned; equality guards already admitted
