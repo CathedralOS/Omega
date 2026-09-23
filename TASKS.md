@@ -3596,15 +3596,17 @@ syntax and other terminal services are not prerequisites.
     after an earlier operand's write; do not reintroduce synthesized arm states.
     Delete superseded shape producers as their operations compose; a failed
     custody rejoin must never fall back to a weaker recognizer.
-  - Rejoin composed scalar calls with structural/boundary callees, structural
-    arguments and claim transfers before structural returns.
+  - Rejoin composed scalar calls with boundary callees and claim transfers
+    before structural returns.
     `unit/attached_unit/composed_control/admission.rs::retain_scalar_call`
-    still refuses this custody. Extend ordinary ordered operations, not a
-    fallback recognizer. Preserve
-    `owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`:
-    two borrowed-output writes precede the exact record return, finish at 73,
-    and survive fuel exhaustion without replay. Retain record/array/generic
-    return-substitution and affine-transfer rejection controls.
+    still refuses that custody; structural callees with borrowed parameter
+    actuals now compose
+    (`owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`
+    passes: two borrowed-output writes precede the exact record return,
+    finish at 73, and survive fuel exhaustion without replay). Extend
+    ordinary ordered operations, not a fallback recognizer. Retain
+    record/array/generic return-substitution and affine-transfer rejection
+    controls.
   - Complete structural/Unit control-flow composition with computed successor
     arguments, preserving owned values, loans and ordered operations through
     joins and calls. `unit/structural_unit_control.rs` still rejects checked

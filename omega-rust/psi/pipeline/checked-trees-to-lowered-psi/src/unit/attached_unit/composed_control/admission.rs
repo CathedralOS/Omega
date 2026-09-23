@@ -654,11 +654,7 @@ fn retain_scalar_call(
     // the checked rows must name the exact authored operand at each structural
     // formal position, and every shape the composed emitter cannot materialize
     // stays unsupported.
-    if matches!(
-        target,
-        CheckedScalarCallee::Boundary(_) | CheckedScalarCallee::Structural(_)
-    ) || !claim_transfers.is_empty()
-    {
+    if matches!(target, CheckedScalarCallee::Boundary(_)) || !claim_transfers.is_empty() {
         return unsupported("composed Unit scalar call requires structural call custody");
     }
     retain_scalar_call_structural_arguments(
@@ -927,8 +923,32 @@ fn retain_scalar_call_structural_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "composed scalar call has no authored parameter",
                     ))?;
-                let ExpressionNode::Name(name) = checked.expression_table.expression(expression)
-                else {
+                // An authored `&x` / `&mut x` names the same parameter place;
+                // its spelled access must be exactly the planned loan, so a
+                // shared spelling cannot stand in for a mutable one or back.
+                let named = match checked.expression_table.expression(expression) {
+                    ExpressionNode::Borrow(borrow) => {
+                        let spelled = match borrow.access {
+                            language_core::ReferenceAccess::Shared => {
+                                checked_trees::CheckedStructuralAccess::SharedBorrow
+                            }
+                            language_core::ReferenceAccess::Mutable => {
+                                checked_trees::CheckedStructuralAccess::MutableBorrow
+                            }
+                            language_core::ReferenceAccess::WriteOnly => {
+                                checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                            }
+                        };
+                        if spelled != argument.access {
+                            return unsupported(
+                                "composed scalar call borrow spells a different access",
+                            );
+                        }
+                        borrow.target
+                    }
+                    _ => expression,
+                };
+                let ExpressionNode::Name(name) = checked.expression_table.expression(named) else {
                     return unsupported("composed scalar call parameter actual is not a name");
                 };
                 let members = checked.expression_table.name_path_members(name.members);
