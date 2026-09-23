@@ -461,6 +461,16 @@ fn close_return_unit_partial_affine(
             block: block.id,
         });
     }
+    // The partially moved root's one disposition is the residual cleanup
+    // above. Naming it again as a whole no-code discard is a forged partial
+    // cleanup, not an ordinary roster mismatch, so it is refused as such
+    // before the remaining roster is compared.
+    if trivial_affine_discards.contains(&root_place) {
+        return Err(ModuleError::InvalidPartialAffineCleanup {
+            machine: machine.id,
+            block: block.id,
+        });
+    }
     let expected_affine_discards =
         expected_trivial_affine_discards(machine, parameter_order, &frontier);
     if *trivial_affine_discards != expected_affine_discards {
