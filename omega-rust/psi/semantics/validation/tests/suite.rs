@@ -21,6 +21,7 @@ mod local_dynamic_coercions;
 mod match_values;
 mod native_carrier_identity;
 mod nested_initializer_calls;
+mod open_index_algebra_laws;
 mod program_validation;
 mod quotient_terminal_bridge;
 mod rational_float_destinations;

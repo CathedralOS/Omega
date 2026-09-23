@@ -177,7 +177,13 @@ pub fn normalize_open_index_expressions(program: &mut TypedTrees) -> Result<(), 
             expression,
             index_type,
             operations,
-            normalizer_version: 1,
+            // Version 2 admits single-law algebras. Version 1 canonicalized
+            // an open index only when its carrier declared commutativity and
+            // associativity together, so a commutativity-only algebra reached
+            // the structural form; under version 2 its operands sort. That is
+            // a canonical-form change, which contracts.md makes an explicit
+            // compatibility event rather than a silent one.
+            normalizer_version: 2,
         });
     }
     if diagnostics.is_empty() {
@@ -380,11 +386,14 @@ fn normalize_open_index_expression_operations(
         trait_definition,
         requirement.name.as_str(),
     );
-    // The bound supplies the operation either way; only a carrier trait with
-    // both checked law slots licenses normalization. Without them the
-    // expression keeps its structural identity — the operation stays usable,
-    // the rewrites stay unauthorized.
-    if !laws.commutativity.is_empty() && !laws.associativity.is_empty() {
+    // The bound supplies the operation either way; the carrier trait's checked
+    // law slots decide which rewrites the selection authorizes. Commutativity
+    // licenses reordering and associativity licenses reassociation, and one
+    // never implies the other, so record the selection as soon as either slot
+    // is declared and carry both answers. With neither the expression keeps
+    // its structural identity — the operation stays usable, the rewrites stay
+    // unauthorized.
+    if !laws.commutativity.is_empty() || !laws.associativity.is_empty() {
         let subject = program.normalized_type_identity(index_type).into_string();
         // Evidence binders are ordered by declaration; the same position in a
         // specialization's `conformance_arguments` names the selected
@@ -420,6 +429,8 @@ fn normalize_open_index_expression_operations(
                 .and_then(|conformance| conformance.alias.as_ref())
                 .or(bound.binder_name.as_ref())
                 .map(|name| name.as_str().to_owned()),
+            commutativity_licensed: !laws.commutativity.is_empty(),
+            associativity_licensed: !laws.associativity.is_empty(),
         });
     }
     normalize_open_index_expression_operations(

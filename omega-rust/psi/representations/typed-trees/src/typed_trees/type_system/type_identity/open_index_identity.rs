@@ -88,9 +88,64 @@ fn same_open_index_ac_authority(
         && left.algebra_trait == right.algebra_trait
         && left.algebra_requirement == right.algebra_requirement
         && left.algebra_alias == right.algebra_alias
+        && left.commutativity_licensed == right.commutativity_licensed
+        && left.associativity_licensed == right.associativity_licensed
 }
 
-pub(crate) fn collect_licensed_ac_operands(
+/// Produces the operand list the canonical form is built over, consuming only
+/// the laws the selected algebra declares.
+///
+/// Associativity licenses flattening: a nested chain of the same operation
+/// under the same authority collapses into one operand list, so `(a + b) + c`
+/// and `a + (b + c)` reach the same form. Without it the two immediate
+/// operands stand as written and each nested operation keeps its own
+/// structure.
+///
+/// Commutativity licenses ordering: the operands sort, so `a + b` and `b + a`
+/// reach the same form. Without it the authored order is the canonical order.
+///
+/// A noncommutative, nonassociative operation is still usable — it simply
+/// keeps its structural identity, which is what the unlicensed path already
+/// produced before any algebra was selected.
+pub(crate) fn collect_open_index_operands(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    operator: BinaryOperator,
+    selection: &crate::typed_trees::OpenIndexOperationSelection,
+    context: &TypeIdentityContext<'_>,
+) -> Vec<String> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return vec![normalize_index_expression(program, expression, context)];
+    };
+    let mut operands = Vec::new();
+    if selection.associativity_licensed {
+        collect_licensed_ac_operands(
+            program,
+            binary.left,
+            operator,
+            selection,
+            context,
+            &mut operands,
+        );
+        collect_licensed_ac_operands(
+            program,
+            binary.right,
+            operator,
+            selection,
+            context,
+            &mut operands,
+        );
+    } else {
+        operands.push(normalize_index_expression(program, binary.left, context));
+        operands.push(normalize_index_expression(program, binary.right, context));
+    }
+    if selection.commutativity_licensed {
+        operands.sort();
+    }
+    operands
+}
+
+fn collect_licensed_ac_operands(
     program: &TypedTrees,
     expression: ExpressionHandle,
     operator: BinaryOperator,

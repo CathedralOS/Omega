@@ -177,6 +177,15 @@ pub struct OpenIndexOperationSelection {
     pub algebra_trait: symbols::SymbolHandle,
     pub algebra_requirement: String,
     pub algebra_alias: Option<String>,
+    /// Which checked law slots the selected algebra actually declares for
+    /// this requirement. Each rewrite consumes its own law and one never
+    /// implies the other: reordering operands consumes commutativity,
+    /// flattening a nested chain of the same operation consumes
+    /// associativity. A selection is therefore recorded whenever either slot
+    /// is declared, and every consumer consults the flag for the rewrite it
+    /// is about to perform rather than the presence of the selection.
+    pub commutativity_licensed: bool,
+    pub associativity_licensed: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

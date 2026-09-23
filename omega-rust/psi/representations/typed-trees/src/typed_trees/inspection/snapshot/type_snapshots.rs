@@ -100,6 +100,8 @@ pub struct OpenIndexOperationSnapshot {
     pub algebra_trait: String,
     pub algebra_requirement: String,
     pub algebra_alias: Option<String>,
+    pub commutativity_licensed: bool,
+    pub associativity_licensed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -283,6 +285,8 @@ pub(crate) fn type_reference_snapshot(
                                 .display_path(operation.algebra_trait, "::"),
                             algebra_requirement: operation.algebra_requirement.clone(),
                             algebra_alias: operation.algebra_alias.clone(),
+                            commutativity_licensed: operation.commutativity_licensed,
+                            associativity_licensed: operation.associativity_licensed,
                         })
                         .collect(),
                 }),
