@@ -72,6 +72,11 @@ pub(super) fn validate_block(
             operation,
             &available_structural,
         )?;
+        super::super::structural_leaf_copy::validate_available(
+            machine,
+            operation,
+            &available_structural,
+        )?;
         super::super::byte_sequence_subslice::validate_uses(
             module,
             machine,

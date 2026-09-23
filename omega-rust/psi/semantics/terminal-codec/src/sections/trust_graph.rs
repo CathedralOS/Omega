@@ -684,7 +684,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            38
+            39
         );
         assert_eq!(
             graph

@@ -125,6 +125,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::StructuralCaseMembership { source, path, case } => {
             storage_operations::encode_structural_case_membership(writer, source, path, case)?
         }
+        OperationKind::StructuralLeafCopy { source, path } => {
+            storage_operations::encode_structural_leaf_copy(writer, source, path)?
+        }
         OperationKind::ByteSequenceSubslice {
             source,
             start,
@@ -699,6 +702,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::STRUCTURAL_CASE_MEMBERSHIP => {
             storage_operations::decode_structural_case_membership(reader)?
+        }
+        operation_tags::STRUCTURAL_LEAF_COPY => {
+            storage_operations::decode_structural_leaf_copy(reader)?
         }
         operation_tags::WRITE_ONLY_PRIMITIVE_STORE => {
             storage_operations::decode_write_only_primitive_store(reader)?

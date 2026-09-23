@@ -334,5 +334,9 @@ pub(super) fn register_custody_operation(
         )?;
         return Ok(true);
     }
+    if let OperationKind::StructuralLeafCopy { source, path, .. } = &operation.kind {
+        super::super::structural_leaf_copy::validate(module, machine, operation, *source, path)?;
+        return Ok(true);
+    }
     Ok(false)
 }

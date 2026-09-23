@@ -111,6 +111,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::StoreDynamicDescriptor { .. }
         | OperationKind::MoveStructuralField { .. }
         | OperationKind::StoreStructuralField { .. }
+        | OperationKind::StructuralLeafCopy { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. } => {

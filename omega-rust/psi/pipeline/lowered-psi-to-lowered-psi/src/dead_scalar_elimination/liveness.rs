@@ -220,6 +220,7 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         // places only; they carry no scalar operands.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        | O::StructuralLeafCopy { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }

@@ -76,6 +76,14 @@ pub enum CheckedStructuralValueKind {
     ScalarCasePlace {
         source: crate::CheckedUnitStructuralArgumentPlan,
     },
+    /// An `Unrestricted` leaf read through shared-borrowed storage
+    /// (`self.scan_compare_type` on a `&self` receiver): the borrowed place's
+    /// contents are observed and copied into a fresh owned place, so no
+    /// child moves out of the loan. `source` is that lent place under shared
+    /// borrow, with `type_identity` naming the projected (leaf) type.
+    CopiedStructuralPlace {
+        source: crate::CheckedUnitStructuralArgumentPlan,
+    },
     /// An owned child projected out of `source` (a `Place` or `Call` node)
     /// along an exact field/fixed-index path. The untouched residual siblings
     /// die on the selected edge; `type_identity` is the normalized projected

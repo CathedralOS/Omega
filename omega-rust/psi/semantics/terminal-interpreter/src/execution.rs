@@ -672,6 +672,10 @@ impl TerminalExecution {
                     OperationKind::StructuralCaseMembership { .. } => {
                         self.execute_structural_case_membership(operation)?
                     }
+                    OperationKind::StructuralLeafCopy { .. } => {
+                        self.execute_structural_leaf_copy(operation)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::BooleanStructuralField { .. } => {
                         self.execute_boolean_structural_field(operation)?
                     }
