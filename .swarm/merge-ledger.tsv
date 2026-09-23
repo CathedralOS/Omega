@@ -1,0 +1,107 @@
+2026-09-22T13:05:00Z	z4	generic-returned-view-lifetimes	already-on-main ce9d959d07; verified 993/993; redispatched->borrow-establishment-replay
+2026-09-22T13:28:08Z	leaf/entry-activation-result-joins	ff50695ab7	z1: ensures <&mut-param> boundary routes end-to-end; 17/17,201/201,6/6; merged with borrow-seed ancestor
+2026-09-22T13:28:42Z	leaf/terminal-slice-view-vocabulary	37ff09705c lane-pushed	me: borrowed-self scalar-graph admit + slice-view arg plan + ESV custody + carrier admit + ElementView type emission; probe --check passes; omega run now reaches BorrowedSliceView value arm; tail=EstablishElementView+ElementView{Len,Read,Subslice} ops — continuation draft wiki/drafts/tsvv_element_view_lowering_continuation.md
+1790085148	leaf/borrow-establishment-replay\ta73d4daba5\t1cdd68cd2b\tmerged
+1790087155	leaf/borrow-projected-result-bounds	a836b4a08a	a836b4a08a24c6e558f78140ba8cd5ecc58ba258	merged
+1790088514	leaf/filesystem-timehost-fused-providers	3998d1a08c	merged
+1790089594 leaf/theorem-call-arg-premises e8d1652450 merged
+1790089889 leaf/entry-receiver-cleanup-occupancy b0bb7665cf merged
+1790090042 leaf/terminal-slice-view-vocabulary 2590cca7ab pushed-check-side
+1790090389 leaf/domain-membership-subjects 641a819642 merged
+1790091796 leaf/exclusive-member-actuals 056f30c4cd merged
+1790092820 leaf/exclusive-index-actuals 8c73470701 merged
+1790092846 leaf/exclusive-index-actuals 8c73470701 merged
+1790094778 leaf/multi-segment-storage-bounds c9d93ff505 merged
+1790098899 leaf/targets-enumeration-v2 7aac69d merged-squalr
+1790103514 squalr/fix-region-filter-equatable 6ae2ef1 merged-squalr
+1790104808 leaf/intra-statement-fact-contexts 377b7a9126 merged
+1790105453 leaf/projected-callresult-bounds 72f67dec6c merged
+leaf/terminal-slice-view-vocabulary	2590cca7ab	merged	2026-09-22T21:19Z	check-side: borrowed-self scalar-graph, slice-view arg plans, ESV custody, carrier admission, ElementView emission; 3 clerical import conflicts resolved; 6038/6038 lib tests
+2026-09-22T21:22:00Z	leaf/theorem-arg-premises	630c695cdc merged	me: CANARY-PACKAGE-MODE-SIGNAL — builder.package signals package identity for dep-free fixtures; provenance-only std edge removed; claim 84dd5049 released; gates: scoped canary+arch 605+pkg-mgr drift-only, workspace-lib running
+2026-09-22T22:20Z	05e5f52810	leaf/theorem-arg-premises	me-coordinator	merged: PKG-SUITE-FIXTURE-DRIFT roster reconciliation (proofs 17/14, calls 183/180, traits 35/30, host 23/23, providers 40/24, ownership 13); quotient_lift->builder.package; terminal_compile name+alias repair; 17/17 canary-declare + fmt green
+2026-09-22T22:40Z	88915ef	squalr/toolchain-pin-advance-2	me-coordinator	merged: omega-language-std pins 2a8edec522->104950e8fd across 5 manifests + upstream.json; swarm-binaries release refreshed with binary built at same rev
+2026-09-22T22:45Z	-	-	me-coordinator	suite residual: 250/253 on main; 2x opaque_boundary fixtures use absolute /source/library/std (upstream env breakage); semantic_binding_review FilesystemHost close-vs-accepted-schema drift = z4 OPTIONAL-STDLIB territory (canonical_filesystem_host.rs claimed)
+2026-09-22T23:35Z	-	-	me-coordinator	pin 104950e8fd verify: api 4.8s / tests 4min / targets-native 1.8min / session 18.1min cold (3.5min warm) all exit 0; check-mode post-Stage05 regression on FsHost-bound pkgs (4min->18min) handed to z4 as residual; cli stale lock, omega update in-flight
+2026-09-23T00:05Z	-	-	me-coordinator	pin 104950e8fd verified: all real packages exit 0 on main 88915ef (api 5s, targets-native 9.3min, session 18.1min, tests 4min); cli = empty shell pending z3 CLI-COMMANDS; post-Stage05 check regression filed to z4
+crash-route-admission	93489c3a05dfecf30f4b49e7ba57755ef743c0e7	2026-09-23T00:37Z	crash-exit admission: composed Crash terminator arm + scalar_control Crash returning_tail + completion skips transition tails; 5211+839 lib green; 2 relaxed_arrival regressions caught+fixed (PrimitiveScalar signature reverted — scalar machines stay scalar-graph owned)	coordinator
+2026-09-23T01:25:30Z	leaf/scalar-graph-self-reads	d28d773700a00ab177c46b01910dd6db00f605f8	Omega main	scalar graphs admit ambient borrowed-self field reads; get_element_count residual: MIXED-SCALAR-GRAPH-MULTI-STATE
+2026-09-23T01:46Z	leaf/entry-service-fused-binding	0e42b5f2a9	4a0e3d6db8d74b26112a10aea967df4461a82c28
+2026-09-23T01:55Z	leaf/entry-service-fused-binding	0e42b5f2a9	99cb90b794285cd9954eae7c5211f6c6a9805f7e
+2026-09-23T02:05Z	leaf/entry-service-fused-binding	0e42b5f2a9	8ce43b4a60
+2026-09-23T02:16Z	entry-custody-native-replay	a953c6d999	z1 entry-content-roots 4/4 COMPLETE: bound-service field routes through emitted binding + entry settlement; 773 merge-check tests
+2026-09-23T03:04:16Z	call-result-field-store	z4	e54284035f
+2026-09-23T03:07:10Z	call-result-field-store	z4	8bcff774a3
+2026-09-23T03:08:26Z	call-result-field-store	z4	b71925a5f1
+2026-09-23T03:45:58Z	fs-close-schema-declaration	z4	f279856c1e
+2026-09-23T04:48:12Z	guarded-pair-false-fallback	z4	7198a296ad	merge-check 5238/5240 ttctc lib (2 preexisting fixed_array_projections reds attributed verbatim on f279856c1e) + fmt clean
+2026-09-23T05:05:56Z	pointer-scan-plan-rules+kernels	z1	b7c1af0	Squalr: verify.py check exit 0 engine-api(64)+engine-scanning(47) @pin104950e8fd
+2026-09-23T05:28:38Z	case-pair-payload-transfer	z4	3a606017ff	merge-check 5241/5241 ttctc lib green + fmt clean
+2026-09-23T05:30:20Z	case-pair-payload-transfer	z4	594024829a	merge-check 5241/5241 ttctc lib green + fmt clean (re-merged after push race)
+2026-09-23T05:45:18Z	mixed-scalar-graph-multi-state	coordinator	906f03f41b	merge-check 5242/5242 ttctc + 943/943 ctlp+tv lib; witness+3 prior regressions green; real get_element_count lowers+verifies
+2026-09-23T05:53:31Z	cli-commands	z3	efdda13	engine-api check green at 104950e8fd; cli/tests lock republish + tests check blocked on z4 fused-service-binding (preexisting red on main)
+2026-09-23T06:11:26Z	leaf/direct-crash-trap-verdict	coordinator	df5ccd6212	behavior_exclusions 8/8 (incl. host-exec witness), fmt clean
+2026-09-23T06:29:44Z	leaf/pointer-scan-results	z1	HELD-66a7278-unpushed	engine-api review encoding > 16MiB cap — z1 dispatched leaf/review-encoding-headroom
+2026-09-23T07:00:31Z	leaf/sink-composition-native-custody	Sad Swarm (coordinator)	b5ac760ff4	merged: 271/271 crate lib, 34/34 exclusion tests (3-target native artifact + host empty-run + retained replay); ws-lib gate running
+2026-09-23T07:10:16Z	squalr/toolchain-pin-advance-3	Sad Swarm (coordinator)	2b0df5e	merged: pins→b5ac760ff4 + swarm-binaries refreshed; api --check exit 0 on clean main
+2026-09-23T07:33:02Z	probe: mut-self data-param entry-attachment gate	Sad Swarm (coordinator)	-	CLOSED at b5ac760ff4: &mut self + MemoryAlignment call site (local + self.field receivers) native exit 0; set_alignment has no ported callers
+2026-09-23T08:02:45Z	leaf/review-encoding-headroom (package policy byte ceiling scales w/ baseline)	z1	4675617d16	baseline+policy_recovery 39/39 nextest
+2026-09-23T08:10:31Z	leaf/loud-provider-verdicts (loud providers get distinct physical exclusion verdict + retained replay; win64 write_byte scoped out as catalog frontier)	coordinator	c28a21fee0	build_behavior_exclusions 29/29 @base + loud_sink 3/3 merge-check
+2026-09-23T08:10:31Z	check-mode post-Stage-05 ~4min→18min growth	z4	-	CLOSED blocked: endpoints equal across window 2a8edec522..104950e8fd — growth predates those merges; attributed not repaired
+2026-09-23T09:38:46Z	element-view-native-lowering	z5	e5ebea43c5	check-workspace-green;lib-7066/7075;8preexisting-base-reds;trust_graph-roster+4-fixed
+2026-09-23T09:55:35Z	pointer-scan-results	z1	b82730d	squalr-api-check-green(100f);dispatch-blocked:6-index-proof-reds-in-own-files
+e14c9e2849	leaf/element-arg-boundary-types	z5	merged	check-time element-type compat for view args; fail-canary rejects i32 arg to u8 view formal; 8 reds preexisting-on-base
+901000396c	leaf/bool-short-circuit	me	merged	emit_state Conditional arm routed composite Boolean guards through guard decisions; panic at boolean.rs:204 witnessed unfixed; test green
+705fdfdbf0	leaf/structural-call-arguments	Jarod(local)	merged	2026-09-23T10:55Z	t2c lib 5245/5245; race-catchup merge 0f68ea9309
+146c69e247	leaf/result-signature-gate	z3	merged	2026-09-23T11:05Z	member-call constructions lower end-to-end; sole red preexisting on merge-base (upstream fix landed during catch-up); 137-scoped+13-postrace green
+fe7b76f	leaf/pointer-scan-dispatch	z1	merged	2026-09-23T11:23Z	dispatch layer 2473 lines; bounds proofs satisfied; check-green on a951e7882a (~10min); boyer_moore saturating fix carried as 40ea8d6
+d05d4d9a2a	leaf/statement-kind-support	z5	merged	2026-09-23T12:15Z	payloadless member-case reads lower; 4/6 squalr machines verified; 238-scoped green; roster 13 declines 5 classes + ~77 dep-blocked on std pin
+e2bd15eb81	leaf/bound-pass-treadmill	z4	merged	2026-09-23T12:35Z	wall#4 fixed: whole_structural_sum admits FixedArray+PrimitiveScalar members; affine scalar-sum receivers; nested call-result minting; 244-scoped green
+17cbc064d7	omega	borrowed-view-admission	me	borrowed referents admitted via published unit shapes; 854+160 scoped green; residual: successor-custody on forwarded &mut (z5 domain)
+f3323bc	squalr	pointer-scan-executor	z1	results builder + executor task over collected-level pull driver; 939 lines; scanning check exit 0 @a951e7882a
+8a36b38	squalr	pin/a951e7882a	me	toolchain pin + Service→Binding respell (6 files) + saturating compact_step guard; api/targets/targets-native check exit 0; tests+cli blocked upstream (nested-call omission, queued to z4)
+f3323bc	squalr	pointer-scan-executor	z1	results builder + executor task; +939 lines; scanning check exit 0
+34a8e24f09	omega	return-terminator-payload	z3	case-payload construction at return; 7544/7544 13-crate lib; 1 clerical conflict (union || guards); residual: ~43 signature declines + terminator-target-state family (14) + EstablishStructuralCase native
+73283ae4ec	omega	return-terminator-payload	z3	case-payload construction at return; 7544/7544 13-crate lib; residual: ~43 sig declines, terminator-target-state family (14), EstablishStructuralCase native
+52e63955b8	omega	case-payload-observation	z5	StructuralLeafCopy op tag 84: Unrestricted leaf copies out of shared-borrowed roots; A1 class 6/6 closed; 6853 scoped green; next: A2 partial-record-literals
+c97278c3da	omega	case-payload-observation	z5	StructuralLeafCopy op tag 84 (83 collision resolved): Unrestricted leaf copies from shared-borrowed roots; A1 6/6 closed; api zero declines; 6853 scoped + 99 verifier green
+59e5477	squalr	pin-17cbc064d7	coordinator	omega pin a951e7882a→17cbc064d7 on 6 manifests; api+scanning+targets-native verify exit 0; workers now get borrowed-view-admission + return-terminator + case-payload-observation
+2c06247ffb	omega	leaf/successor-custody-forwarded-borrows	coordinator	ElementView &mut params seed mutable_availability; witnessed by non_byte_borrowed_view_admission flip; +3 ledger site registrations
+229481a442	omega	leaf/partial-record-literal-statements	z5	partial-record-literal admissions: ZeroedScalarArray per omission, c2l IntegerConstant leaf → EstablishScalarArray → EstablishRecord
+7ce3eb1a43	omega	leaf/forwarded-view-concrete-type	coordinator	element-view windows + shared-borrow record block params
+2026-09-23T15:33Z	skipped	omega	leaf/main-red-attribution	coordinator	superseded: retain_attached_data_type_reference + case-payload channel assertions already on main
+2026-09-23T15:37Z	f80c9043	omega	leaf/non-primitive-payload-case-literals	z5	D residual: structural_case_constructor for payload-bearing case literals
+2026-09-23T15:37Z	662ac08d	omega	coordinator-direct	coordinator	trust-graph roster constants 76->77, 66->67 for StructuralLeafCopy tag 84 (was preexisting red)
+2026-09-23T15:46Z	pin-adv	 squalr	pin/7ce3eb1a43	coordinator	omega 7ce3eb1a43 pins across 5 manifests + upstream.json; api+scanning verified exit 0 on new swarm-binaries build
+2026-09-23T16:18Z	37811e323d	omega	leaf/terminator-conditional-successor-target	z3	ConditionalReturn admits value arm beside named conditional successor
+2026-09-23T16:38Z	41adc87	squalr	pin/662ac08d26	coordinator	omega 662ac08d26 pins; api exit 0 on new binary; locks deferred (established procedure); scanning verify pending cold-cache
+2026-09-23T16:50Z	6bd514dbd3	omega	leaf/structural-leaf-copy-lowering	z5	StructuralLeafCopy abstract lowering — AbstractOperation variant + replay lowering (tag 84)
+2026-09-23T16:55Z	f135c47	squalr	leaf/targets-enumeration	z345(salvaged)	+3634 lines targets-native: linux process/memory query + module enumeration; ordering conflict resolved; verify exit 0
+2026-09-23T17:29Z	c8062738a8	omega	leaf/structural-leaf-copy-target-realization	z5	StructuralLeafCopy realizes to chunked Load/Store into fresh storage + legalization/validation replay
+2026-09-23T18:08Z	55665efd56	omega	leaf/leaf-copy-endpoint-kinds	z5	leaf copies for all endpoint kinds: scalar/byte-view/element-view/sum/mixed/fixed-array
+2026-09-23T18:19Z	79d782a	squalr	leaf/pointer-scan-validator	z1	validation-snapshot drain — PointerScanCollectedLevelSource (name-sorted statics, frontier rebuild per level); verify exit 0
+2026-09-23T18:22Z	a901103069	omega	leaf/structural-field-store-scalar-field-type	z3	declared-range indexed FixedArray stores admitted beyond entry state (42-family slice)
+2026-09-23T18:22Z	2a27fecb6d	omega	leaf/structural-field-store-scalar-field-type	z3	declared-range indexed FixedArray stores admitted beyond entry state (42-family slice)
+2026-09-23T18:39:02Z	51057b0b15	Omega	leaf/leaf-copy-runtime-index	zergling-z5	StructuralLeafCopy RuntimeIndex path segments (a2t+legalization+selection+replay)
+2026-09-23T18:56:57Z	35790b12fe	Omega	leaf/leaf-copy-multi-runtime-index	zergling-z5	StructuralLeafCopy every RuntimeIndex segment in a path
+2026-09-23T18:57:13Z	8000b84978	Omega	leaf/leaf-copy-multi-runtime-index	zergling-z5	StructuralLeafCopy every RuntimeIndex segment
+2026-09-23T19:26Z	f50497730a	Omega	leaf/leaf-copy-fragment-params	z5	fragment-backed owned-param leaf copies (WritePlace+Store per fragment; ElementView witnessed; 16/16)
+2026-09-23T19:42Z	6171c93d06	Omega	leaf/leaf-copy-index-scalars	z5	non-u64 index scalars (sign/zero-extend narrow selectors; 17/17)
+2026-09-23T19:46Z	6a25b23d9f	Omega	leaf/policy-permission-dedup	coordinator	dedup propagated permission rows — InvalidPolicy wall closed
+2026-09-23T19:59Z	cfd5c381f2	Omega	leaf/guard-bounded-indexed-stores	z3	edge-local index-range proof for non-entry stores; 27/42 advance
+2026-09-23T20:06Z	9cbfe2ca87	Omega	leaf/length-bound-saturation	coordinator	debug-overflow fix blocking omega update lock graph
+2026-09-23T20:30Z	ade626a9b8	Omega	leaf/store-field-shape-admission	z3	computed-RHS scalar stores admitted via retained row; 5261/5261
+2026-09-23T20:37Z	d17d6c0066	Omega	leaf/swarm-commit-hygiene	coordinator	commit hygiene rule: fmt folds into change commits
+2026-09-23T20:37Z	146ca62a5e	Omega	leaf/swarm-commit-hygiene	coordinator	commit hygiene rule: fmt folds into change commits
+2026-09-23T21:02Z	09d74579cd	Omega	leaf/enum-case-field-stores	z3	StructuralCaseFieldStore plan; closed pure-sum field admission; 6194/6194
+2026-09-23T21:12Z	8f076dce42	Omega	leaf/bound-pass-treadmill-2	z4	per-state self rejoin for guard rows; b7823e2d79 dropped (superseded by 7301305c47)
+2026-09-23T21:30Z	dropped	Omega	leaf/main-red-attribution	z1	superseded: 8 reds green on main via later lanes; tests pass w/o merge
+2026-09-23T21:32Z	8ac49de5d4	Omega	leaf/swarm-squash-hygiene	self	squash fixup chains before verdict; drop superseded commits
+2026-09-23T21:32Z	2a4d08510a	Omega	leaf/swarm-squash-hygiene	self	squash fixup chains before verdict; drop superseded commits
+2026-09-23T21:35Z	0589b3f143	Omega	leaf/self-state-rejoin-lowering	z4	self rejoin by state symbol in c2l case_membership; zone-routed inside z5 claim
+2026-09-23T21:58Z	745930f529	Omega	leaf/swarm-drain-dispatch	self	drain ends at running worker; sweep statuses when idle
+489f1e8d50	z3	leaf/lifetime-machine-binders	Omega	lifetime-declared machine binders admitted to shared graph custody
+4dbfc8b8fc	self	leaf/membership-encode-ceiling	Omega	membership re-encode bound raised 4MiB -> shared 16MiB recovery ceiling (true baseline 5.77MiB)
+2026-09-23T23:26:21Z	omega:leaf/ambient-self-call-plans	ad39f401ed	z1: borrowed-self receivers admitted to primitive-store scalar-return catalog
+2026-09-23T23:26:21Z	omega:leaf/vec-native-growth	d057f48b54	z6: ordinary Vec over caller-supplied backing, bounded capacity ladder + fused scalar graphs
+2026-09-23T23:26:21Z	omega:leaf/callee-crash-custody	122222e07e	z5: crash-declaring callees admitted to continuation custody rosters
+2026-09-23T23:26:21Z	squalr:leaf/unconsumed-nested-call	merge-check	z1: bind region counts before merge_from; drop stale squalr-tests lock
