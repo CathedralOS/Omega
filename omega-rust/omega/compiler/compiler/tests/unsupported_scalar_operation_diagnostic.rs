@@ -3,7 +3,7 @@
 //! the stage has no legalized scalar instruction for must surface that family
 //! by name — `UnsupportedScalarOperation` retaining the rejected operation —
 //! instead of collapsing into the `SourceCustodyMismatch` producer-defect
-//! spelling or aborting.
+//! spelling or aborting, on every bound target rather than only the host.
 //!
 //! The reachable witness is saturating multiplication: `SaturatingCarrier`
 //! covers every native fixed width, and saturating add/subtract/divide have
@@ -15,9 +15,12 @@
 //! signed saturating arithmetic; this test holds the diagnostic end to end
 //! through `compiler::compile` for a dedicated fixture rather than a sample.
 
-use compiler::{CompileOptions, CompileRequest, RequestedCompileProduct};
+use compiler::{
+    CompileOptions, CompileRequest, RequestedCompileProduct, TargetCompileConfiguration,
+};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use target::TargetProfile;
 
 static NEXT_PROJECT: AtomicU64 = AtomicU64::new(0);
 
@@ -53,28 +56,15 @@ const BUILD: &str = r#"machine build(builder: &mut Build) {
 }
 "#;
 
-fn native_hosted_target() -> &'static str {
-    #[cfg(windows)]
-    {
-        "windows_x86_64"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
-    {
-        "linux_x86_64"
-    }
-    #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
-    {
-        "linux_arm64"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-    {
-        "macos_arm64"
-    }
-    #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-    {
-        "macos_x86_64"
-    }
-}
+/// Every target the fixture's build machine binds. The refusal is exercised
+/// on each, so the pin does not depend on which host runs the test — and a
+/// `macos_x86_64` host, which binds no root here, is not special-cased.
+const BOUND_TARGETS: [&str; 4] = [
+    "windows_x86_64",
+    "linux_x86_64",
+    "linux_arm64",
+    "macos_arm64",
+];
 
 /// A unique scratch project: parallel test threads must not share a source
 /// dir or a build dir while the fixture is written and compiled.
@@ -106,19 +96,30 @@ impl Drop for Project {
     }
 }
 
-fn compile_native(
+fn compile_all_bound_targets(
     project_root: &Path,
-) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
+) -> Result<compiler::CompileOutcomes, Vec<diagnostics::Diagnostic>> {
     let build_dir = scratch_dir("build");
     let result = compiler::compile(
         CompileRequest::new(CompileOptions {
             root_path: project_root.join("main.omg"),
-            build_dir: Some(build_dir.clone()),
-            target_name: Some(native_hosted_target().to_owned()),
+            build_dir: None,
+            target_name: None,
         })
+        .with_target_configurations(
+            BOUND_TARGETS
+                .iter()
+                .map(|name| {
+                    TargetCompileConfiguration::new(
+                        TargetProfile::from_omega_target_name(Some(name))
+                            .expect("bound targets are canonical profile names"),
+                    )
+                    .with_build_dir(build_dir.join(name))
+                })
+                .collect(),
+        )
         .with_requested_product(RequestedCompileProduct::NativeArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report);
+    );
     let _ = std::fs::remove_dir_all(&build_dir);
     result
 }
@@ -134,16 +135,38 @@ fn messages(diagnostics: &[diagnostics::Diagnostic]) -> String {
 #[test]
 fn saturating_multiply_reports_its_family_instead_of_a_custody_mismatch() {
     let project = Project::write();
-    let Err(diagnostics) = compile_native(&project.0) else {
-        panic!("saturating multiply has no legalized scalar kind on any carrier");
-    };
-    let text = messages(&diagnostics);
-    assert!(
-        text.contains("SaturatingIntegerMultiply"),
-        "the diagnostic retains the rejected operation, got:\n{text}"
-    );
-    assert!(
-        !text.contains("SourceCustodyMismatch"),
-        "a well-formed unsupported family is not a producer/consumer defect:\n{text}"
-    );
+    // Per-target failures ride the outcome roster rather than rejecting the
+    // request, so every bound target must report its own named refusal.
+    let outcomes = compile_all_bound_targets(&project.0)
+        .expect("per-target failures are retained on the outcomes, not the request");
+    let mut covered = outcomes
+        .outcomes()
+        .iter()
+        .map(|outcome| {
+            outcome
+                .target_profile()
+                .expect("each configuration names its target")
+                .target_name()
+        })
+        .collect::<Vec<_>>();
+    covered.sort_unstable();
+    let mut expected = BOUND_TARGETS.to_vec();
+    expected.sort_unstable();
+    assert_eq!(covered, expected, "one outcome per bound target");
+    for outcome in outcomes.outcomes() {
+        let target = outcome.target_profile().unwrap().target_name();
+        let diagnostics = outcome.diagnostics().unwrap_or_else(|| {
+            panic!("saturating multiply has no legalized scalar kind on {target}")
+        });
+        let text = messages(diagnostics);
+        assert!(
+            text.contains("SaturatingIntegerMultiply"),
+            "the {target} diagnostic retains the rejected operation, got:\n{text}"
+        );
+        assert!(
+            !text.contains("SourceCustodyMismatch"),
+            "a well-formed unsupported family is not a producer/consumer \
+             defect on {target}:\n{text}"
+        );
+    }
 }
