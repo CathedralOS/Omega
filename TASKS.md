@@ -235,30 +235,6 @@ the complete product bar; focused successes below do not establish that baseline
   oracles to pass on the required hosted matrix. Record unavailable hosts;
   scoped reruns are not a complete baseline.
 
-- **CANARY-PACKAGE-MODE-SIGNAL.** Resolved — verified at `ab6047d012`, not
-  merely reported. `tests/omega/pass/proofs/quotient_define_managed_compile/build.omg`
-  declares `builder.package("quotient-define-managed-compile")` and two root
-  binds with NO std edge; the `provenance_only_edge` exception named below is
-  gone from `packages/manager/tests/repository_build_declarations.rs`; and
-  `dependency_free_fixture_package_inputs` ships and is used by
-  `samples_compile.rs`. Landed by `bea3720666`. Everything below is the
-  original scope, kept for its reasoning.
-
-  (new-scope) Let a fixture request package
-  identity with an empty dependency set. In `compiler/tests/canary_suite.rs`,
-  `repository_fixture_package_inputs` still returns `None` when
-  `fixture_path_dependencies` is empty; `quotient_define_managed_compile`
-  therefore retains an unused std edge solely for package provenance.
-  Its named exception remains in
-  `packages/manager/tests/repository_build_declarations.rs`.
-
-  Acceptance: remove that edge and exception while the managed quotient
-  fixture still checks with package identity. Keep intended standalone-source
-  fixtures standalone; solve harness input selection without a new Build
-  keyword. Preserve parsed dependency/alias projection, rejection of invalid
-  authored dependency paths and the non-std alloc-package consumer; those
-  routes already exist.
-
 - **CANARY-CORPUS.** Bring `tests/omega/{pass,fail,run}` and
   `compiler/tests/canary_suite/` to their promised checked/native stages.
   Use the [focused selectors](AGENTS.md#running-one-test); full closure is

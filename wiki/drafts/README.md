@@ -157,10 +157,6 @@ A proposed shape for work that has not landed.
   design for citing calls inside scalar contract clauses through Terminal;
   delete once cited-call transport lands and the reproducer's artifact
   verifies.
-- [Canary package-mode signal](designs/canary_package_mode_signal.md): design replacing
-  the harness's substring package-mode probe with a parsed build declaration;
-  delete once that read lands and the named build-declaration exception is
-  gone.
 - [Condition-fact equality roster](designs/condition_fact_equality_roster.md): sparse
   projection design for the cliff's open asymptotic centre; delete once the
   projection lands and that hotspot closes.
