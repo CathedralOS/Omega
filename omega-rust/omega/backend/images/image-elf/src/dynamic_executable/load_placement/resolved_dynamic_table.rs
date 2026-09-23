@@ -635,6 +635,7 @@ const fn encoded_value(value: ElfDynamicValue) -> u64 {
         ElfDynamicValue::NeededStringOffset(offset) => offset as u64,
         ElfDynamicValue::ProcedureRelocationByteCount(count)
         | ElfDynamicValue::GeneralRelocationByteCount(count)
+        | ElfDynamicValue::GeneralRelocationEntryByteCount(count)
         | ElfDynamicValue::DynamicStringByteCount(count)
         | ElfDynamicValue::DynamicSymbolEntryByteCount(count)
         | ElfDynamicValue::VersionRequirementRecordCount(count) => count,

@@ -26,7 +26,7 @@ use target::TargetProfile;
 const ELF64_DYNAMIC_SYMBOL_SIZE: u64 = 24;
 const ELF64_RELA_SIZE: usize = 24;
 const ELF64_DYN_VALUE_SIZE: u8 = 8;
-const FIXED_NON_NEEDED_ROW_COUNT: usize = 16;
+const FIXED_NON_NEEDED_ROW_COUNT: usize = 17;
 const ADDRESS_OBLIGATION_COUNT: usize = 9;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -138,6 +138,7 @@ pub(crate) enum ElfDynamicTag {
     DynamicSymbol = 6,
     Rela = 7,
     GeneralRelocationSize = 8,
+    GeneralRelocationEntrySize = 9,
     DynamicStringSize = 10,
     DynamicSymbolEntrySize = 11,
     ProcedureRelocationKind = 20,
@@ -153,6 +154,7 @@ pub(crate) enum ElfDynamicValue {
     NeededStringOffset(u32),
     ProcedureRelocationByteCount(u64),
     GeneralRelocationByteCount(u64),
+    GeneralRelocationEntryByteCount(u64),
     AddressPlaceholder,
     DynamicStringByteCount(u64),
     DynamicSymbolEntryByteCount(u64),
@@ -318,6 +320,13 @@ fn derive_contents(
         value: ElfDynamicValue::GeneralRelocationByteCount(checked_u64(
             descriptors.templates().general_relocation_byte_count(),
             "general relocation byte count",
+        )?),
+    });
+    rows.push(ElfDynamicSemanticRow {
+        tag: ElfDynamicTag::GeneralRelocationEntrySize,
+        value: ElfDynamicValue::GeneralRelocationEntryByteCount(checked_u64(
+            ELF64_RELA_SIZE,
+            "general relocation entry size",
         )?),
     });
     push_address_row(
@@ -556,6 +565,13 @@ fn validate_fixed_rows(
                 "validated general relocation size",
             )?),
         },
+        ElfDynamicSemanticRow {
+            tag: ElfDynamicTag::GeneralRelocationEntrySize,
+            value: ElfDynamicValue::GeneralRelocationEntryByteCount(checked_u64(
+                ELF64_RELA_SIZE,
+                "validated general relocation entry size",
+            )?),
+        },
         address_row(ElfDynamicTag::GnuSymbolVersion),
         address_row(ElfDynamicTag::GnuVersionRequirement),
         ElfDynamicSemanticRow {
@@ -744,6 +760,10 @@ fn non_authoritative_tag_compatibility_fingerprint(
             }
             ElfDynamicValue::GeneralRelocationByteCount(count) => {
                 hash.byte(9);
+                hash.bytes(&count.to_le_bytes());
+            }
+            ElfDynamicValue::GeneralRelocationEntryByteCount(count) => {
+                hash.byte(10);
                 hash.bytes(&count.to_le_bytes());
             }
             ElfDynamicValue::AddressPlaceholder => hash.byte(3),
