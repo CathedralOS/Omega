@@ -81,6 +81,53 @@ fn copy_record_result_feeds_a_call_statement_argument() {
 }
 
 #[test]
+fn affine_plain_owned_result_feeds_a_call_statement_argument() {
+    let operations = operations(
+        r#"
+        data Source { value: u64; }
+        machine Source::make(value: u64) -> Source {
+            Source { value: value }
+        }
+        data Holder { stored: u64; }
+        machine Holder::keep(&mut self, source: Source) {
+            let kept: u64 = source.value;
+        }
+        data Main { holder: Holder; }
+        machine Main::main(&mut self) {
+            self.holder.keep(Source::make(7));
+        }
+        "#,
+    );
+    let [
+        CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate: nested_coordinate,
+            result: nested_result,
+            ..
+        },
+        CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        },
+        ..,
+    ] = operations.as_slice()
+    else {
+        panic!("affine nested call feeding the consuming call: {operations:#?}")
+    };
+    assert_eq!(nested_coordinate.call_ordinal, 1);
+    assert_eq!(nested_result.binding_ordinal, 0);
+    assert_eq!(nested_result.multiplicity, super::Multiplicity::Affine);
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("one structural argument: {structural_arguments:#?}")
+    };
+    assert!(matches!(
+        argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+            binding_ordinal: 0
+        }
+    ));
+}
+
+#[test]
 fn scalar_result_still_feeds_a_scalar_argument() {
     let operations = operations(
         r#"
