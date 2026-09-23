@@ -1,13 +1,13 @@
 //! Optimizer module role: executable entrance.
 
 use super::StagedValidatedOptimizedProgramStorageSemanticWrapperObject;
-use crate::validate_optimized_program_storage_semantic_wrapper_encoding;
 use native_artifact::{
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
 };
 use object_file::validate_optimized_object_artifact;
+use program_entry_plan::validate_optimized_program_storage_semantic_wrapper_encoding;
 mod entry_contract;
 mod provider_continuation;
 

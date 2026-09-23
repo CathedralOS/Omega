@@ -1,9 +1,8 @@
-use crate::{
-    NativeProgramEntrySettlementError, OptimizedProgramStorageSemanticWrapperEncodingError,
-};
+use crate::NativeProgramEntrySettlementError;
 use isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
 use native_artifact::OptimizedProgramStorageSemanticWrapperObjectRecordError;
 use object_file::OptimizedObjectArtifactError;
+use program_entry_plan::OptimizedProgramStorageSemanticWrapperEncodingError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectError {

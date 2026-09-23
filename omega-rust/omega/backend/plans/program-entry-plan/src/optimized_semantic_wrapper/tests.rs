@@ -167,17 +167,17 @@ fn contract_with(
     .unwrap()
 }
 
-fn contract() -> OptimizedProgramStorageSemanticEntryContract {
+pub(super) fn contract() -> OptimizedProgramStorageSemanticEntryContract {
     contract_with(ProgramEntrySourceReceiverSignature::Free)
 }
 
-fn receiver_contract() -> OptimizedProgramStorageSemanticEntryContract {
+pub(super) fn receiver_contract() -> OptimizedProgramStorageSemanticEntryContract {
     contract_with(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
         normalized_type_identity: "ref-mut(named(name(Boot::launch)))".into(),
     })
 }
 
-const BOOT_LAYOUT: OptimizedProgramStorageSemanticReceiverLayout =
+pub(super) const BOOT_LAYOUT: OptimizedProgramStorageSemanticReceiverLayout =
     OptimizedProgramStorageSemanticReceiverLayout::new(8, 8);
 
 #[test]

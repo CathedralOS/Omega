@@ -5,14 +5,13 @@
 //! before the record owner composes and seals the plan.
 
 use super::error::OptimizedProgramStorageSemanticWrapperObjectError;
-use crate::{
-    StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
-};
+use crate::ValidatedNativeProgramEntrySettlement;
 use native_artifact::{
     OptimizedProgramStorageSemanticWrapperObjectPlan,
     compose_optimized_program_storage_semantic_wrapper_object,
 };
 use object_file::StagedValidatedOptimizedObjectArtifact;
+use program_entry_plan::StagedOptimizedProgramStorageSemanticWrapperEncoding;
 
 pub(crate) fn construct_object(
     settlement: &ValidatedNativeProgramEntrySettlement,

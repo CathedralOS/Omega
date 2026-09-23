@@ -122,7 +122,10 @@ pub(super) fn emit_optimized_fragments(
                     format!("semantic wrapper recipe rejected: {error:?}"),
                 )
             })?;
-            let encoding = crate::select_optimized_program_storage_semantic_wrapper_encoding(plan)
+            let encoding =
+                program_entry_plan::select_optimized_program_storage_semantic_wrapper_encoding(
+                    plan,
+                )
                 .map_err(|error| {
                     super::realization_diagnostics::realization_error(
                         "semantic entry wrapper encoding",

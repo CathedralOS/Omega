@@ -1,20 +1,20 @@
-use calling_conventions::MachineRegister;
-use isa_x86_64::{
-    X86_64SemanticUnitWrapperArgumentBinding, X86_64SemanticUnitWrapperCopy,
-    X86_64SemanticUnitWrapperEncodingPolicy, X86_64SemanticUnitWrapperEncodingRequest,
-    X86_64SemanticUnitWrapperReceiverSlot,
-};
-use program_entry_plan::{
+use crate::{
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperPlan,
     OptimizedProgramStorageSemanticWrapperRelocationKind,
     OptimizedProgramStorageSemanticWrapperStep,
 };
+use calling_conventions::MachineRegister;
+use isa_x86_64::{
+    X86_64SemanticUnitWrapperArgumentBinding, X86_64SemanticUnitWrapperCopy,
+    X86_64SemanticUnitWrapperEncodingPolicy, X86_64SemanticUnitWrapperEncodingRequest,
+    X86_64SemanticUnitWrapperReceiverSlot,
+};
 
-use super::error::OptimizedProgramStorageSemanticWrapperEncodingError;
+use super::OptimizedProgramStorageSemanticWrapperEncodingError;
 
-pub(crate) fn project_request(
+pub(super) fn project_request(
     source: &OptimizedProgramStorageSemanticWrapperPlan,
 ) -> Result<
     X86_64SemanticUnitWrapperEncodingRequest,
