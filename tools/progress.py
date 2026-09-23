@@ -480,11 +480,55 @@ def print_report(report: dict) -> None:
             if so["cohort_tests_failed"]:
                 print(f"  cohort tests failed: {', '.join(so['cohort_tests_failed'])}")
 
+    sec = report.get("sections")
+    if sec:
+        print("\n== spec sections by outcome ==")
+        print("  class      native  checked  gap  unexercised")
+        for klass in ("core", "typical", "advanced", "meta"):
+            t = sec["tally"].get(klass, {})
+            print(f"  {klass:9s} {t.get('native', 0):6d} {t.get('checked', 0):8d} {t.get('gap', 0):4d} {t.get('unexercised', 0):12d}")
+        for row in sec["rows"]:
+            if row["status"] in ("gap", "checked") and row["class"] in ("core", "typical"):
+                print(f"  {row['status'].upper():7s} {row['class']:8s} {row['spec']}: {row['heading']}  ({row['native_passing']}/{row['native_members']} native)")
+
     h = report.get("headline")
     if h:
         print("\n== headline ==")
         for key, value in h.items():
             print(f"  {key}: {value}")
+
+
+NATIVE_TIERS = {"active", "rooted_target", "cross_target", "windows_host"}
+
+
+def section_outcomes(report: dict) -> dict:
+    """Per spec section: how many of its groups' fixtures sit on a native tier
+    and how many of those pass. A section is 'native' when at least one does,
+    'checked' when its fixtures only ever check, and 'gap' when none pass."""
+    tier_of = report["corpus"]["tier_of"]
+    failed = report.get("outcomes", {}).get("pass", {}).get("failed_members", {})
+    by_group: dict[str, list[str]] = {}
+    for member in corpus_members("pass"):
+        by_group.setdefault(member.split("/", 1)[0], []).append(member)
+    rows = []
+    for row in report["spec"]["rows"]:
+        native = passing = checked_ok = 0
+        for group in row["groups"]:
+            for member in by_group.get(group, []):
+                tier = tier_of.get(member)
+                if tier in NATIVE_TIERS:
+                    native += 1
+                    if member not in failed:
+                        passing += 1
+                elif tier == "checked_only" and member not in failed:
+                    checked_ok += 1
+        status = "native" if passing else ("checked" if checked_ok else ("unexercised" if not row["groups"] else "gap"))
+        rows.append({**row, "native_members": native, "native_passing": passing, "status": status})
+    tally: dict[str, dict[str, int]] = {}
+    for row in rows:
+        bucket = tally.setdefault(row["class"], {})
+        bucket[row["status"]] = bucket.get(row["status"], 0) + 1
+    return {"rows": rows, "tally": tally}
 
 
 def headline(report: dict) -> dict:
@@ -493,6 +537,27 @@ def headline(report: dict) -> dict:
     arithmetic."""
     c, s, p = report["corpus"], report["spec"], report["pairs"]
     out = {}
+    if "sections" in report:
+        tally = report["sections"]["tally"]
+        def native(klass):
+            return tally.get(klass, {}).get("native", 0)
+        core_n, typ_n = native("core"), native("typical")
+        core_t = s["by_class"].get("core", {}).get("sections", 0)
+        typ_t = s["by_class"].get("typical", {}).get("sections", 0)
+        out["core+typical sections natively established"] = f"{core_n + typ_n}/{core_t + typ_t}"
+        out["all sections natively established"] = f"{sum(native(k) for k in tally)}/{s['sections']}"
+        # Depth: a section counts as established on one passing fixture, so
+        # also report how many distinct native fixtures under core+typical
+        # groups pass. A fixture in a group mapped to several sections is
+        # counted once.
+        groups = set()
+        for row in report["sections"]["rows"]:
+            if row["class"] in ("core", "typical"):
+                groups |= set(row["groups"])
+        tier_of = report["corpus"]["tier_of"]
+        failed = report.get("outcomes", {}).get("pass", {}).get("failed_members", {})
+        distinct = [m for m in corpus_members("pass") if m.split("/", 1)[0] in groups and tier_of.get(m) in NATIVE_TIERS]
+        out["core+typical native fixtures passing"] = f"{sum(1 for m in distinct if m not in failed)}/{len(distinct)}"
     out["spec sections exercised"] = f"{s['covered']}/{s['sections']}"
     core = s["by_class"].get("core", {"covered": 0, "sections": 0})
     typical = s["by_class"].get("typical", {"covered": 0, "sections": 0})
@@ -539,6 +604,8 @@ def main() -> int:
         outcomes["samples"] = parse_samples_log(args.samples_log)
     if outcomes:
         report["outcomes"] = outcomes
+        if "pass" in outcomes:
+            report["sections"] = section_outcomes(report)
     report["headline"] = headline(report)
     print_report(report)
     if args.json:
