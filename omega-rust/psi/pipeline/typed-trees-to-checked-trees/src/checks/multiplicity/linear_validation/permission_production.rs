@@ -178,6 +178,14 @@ pub(crate) fn apply_statement_permission_production(
             place.live = false;
         }
     }
+    temporary_results::append_constructed_argument_transfers(
+        program,
+        machine_symbol,
+        state_symbol,
+        statement_index,
+        &calls,
+        permission_events,
+    );
 
     for target in written_targets {
         let facts::PlaceRoot::Symbol(symbol) = target.root else {

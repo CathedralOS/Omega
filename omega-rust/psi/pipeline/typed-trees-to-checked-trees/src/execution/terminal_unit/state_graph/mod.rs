@@ -1477,13 +1477,15 @@ fn successor(
         source.symbol,
         ordinal,
     )?;
-    if cleanup.target_state != successor.target_state
-        || !cleanup
-            .trivial_affine_discard_parameter_positions
-            .is_empty()
-    {
+    if cleanup.target_state != successor.target_state {
         return None;
     }
+    // An owned parameter the target does not receive dies on this edge. The
+    // cleanup evidence names exactly those positions; the edge carries them
+    // so lowering disposes each where control leaves the state.
+    let mut successor = successor;
+    successor.trivial_affine_discard_parameter_positions =
+        cleanup.trivial_affine_discard_parameter_positions.clone();
     Some(successor)
 }
 

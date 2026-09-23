@@ -44,15 +44,16 @@ impl Builder<'_, '_> {
                 .program
                 .primitive_type_reference(parameter.type_reference)
             else {
-                // An inline case construction at a non-primitive position is
-                // still a structural value: retain it rooted at the authored
-                // argument expression so the Unit statement sequence can
-                // establish it as a state-local operand before the call.
-                // Payload fields are primitive by `scalar_case_constructor`,
-                // so the construction introduces no place custody.
+                // An inline case or record construction at a non-primitive
+                // position is still a structural value: retain it rooted at
+                // the authored argument expression so the Unit statement
+                // sequence can establish it as a state-local operand before
+                // the call, exactly as a `let` initializer is established.
+                // A record field that moves a place carries that custody in
+                // its value node; the sequence consumes it before the call.
                 if !parameter.is_self
                     && !parameter.is_const
-                    && validation::scalar_case_constructor(self.program, *argument).is_some_and(
+                    && (validation::scalar_case_constructor(self.program, *argument).is_some_and(
                         |constructor| {
                             self.program
                                 .normalized_type_identity(constructor.type_reference)
@@ -60,7 +61,11 @@ impl Builder<'_, '_> {
                                     .program
                                     .normalized_type_identity(parameter.type_reference)
                         },
-                    )
+                    ) || super::structural_values::is_record_value(
+                        self.program,
+                        *argument,
+                        parameter.type_reference,
+                    ))
                     && values
                         .root_for_expression(self.state, statement, *argument)
                         .is_none()

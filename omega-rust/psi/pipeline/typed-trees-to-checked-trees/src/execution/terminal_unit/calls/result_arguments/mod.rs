@@ -469,9 +469,9 @@ pub(super) fn argument(
                 return None;
             }
         }
-        // An inline case construction is established as a state-local value at
-        // the consuming statement itself; the binding replays like an
-        // anonymous result but carries no producer call.
+        // An inline case or record construction is established as a
+        // state-local value at the consuming statement itself; the binding
+        // replays like an anonymous result but carries no producer call.
         facts::PlaceRoot::Expression(source)
             if source == value_expression
                 && !projected
@@ -492,6 +492,7 @@ pub(super) fn argument(
                 || !matches!(
                     facts.values.structural_values.nodes.get(root.root).kind,
                     checked_trees::CheckedStructuralValueKind::Case(_)
+                        | checked_trees::CheckedStructuralValueKind::Record { .. }
                 )
                 || program
                     .normalized_type_identity(root.type_reference)

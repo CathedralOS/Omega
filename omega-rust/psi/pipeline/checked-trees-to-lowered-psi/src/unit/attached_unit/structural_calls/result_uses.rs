@@ -1221,8 +1221,8 @@ pub(crate) fn validate_consumer(
                 ..
             } = candidate
             {
-                // A case construction operand has no local symbol; its call
-                // occurrence and authored formal position own the
+                // A case or record construction operand has no local symbol;
+                // its call occurrence and authored formal position own the
                 // constructor, exactly like a literal array operand.
                 if !checked
                     .facts
@@ -1234,31 +1234,53 @@ pub(crate) fn validate_consumer(
                     return unsupported("case argument operand has a stale value handle");
                 }
                 let node = checked.facts.values.structural_values.nodes.get(*value);
-                let checked_trees::CheckedStructuralValueKind::Case(constructor) = &node.kind
-                else {
-                    return unsupported("case argument operand is not a case construction");
+                let (construction_expression, construction_type) = match &node.kind {
+                    checked_trees::CheckedStructuralValueKind::Case(constructor) => {
+                        (constructor.expression, constructor.type_reference)
+                    }
+                    checked_trees::CheckedStructuralValueKind::Record { .. } => (
+                        node.expression,
+                        checked
+                            .facts
+                            .values
+                            .structural_values
+                            .root_for_expression(
+                                caller.state,
+                                result.statement_index,
+                                node.expression,
+                            )
+                            .ok_or(LoweringError::Unsupported(
+                                "record argument operand lost its checked root",
+                            ))?
+                            .type_reference,
+                    ),
+                    _ => return unsupported("case argument operand is not a case construction"),
                 };
                 let names_result = result.statement_index == coordinate.statement_index
                     && *call_ordinal == coordinate.call_ordinal
                     && *parameter_position == parameter.position
-                    && expression == Some(constructor.expression);
+                    && expression == Some(construction_expression);
                 if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
                     return unsupported(
                         "case argument does not rejoin its exact constructor occurrence",
                     );
                 }
+                // The call takes the fresh value whole: unrestricted or affine
+                // plain contents (numeric domains allowed) need no cleanup
+                // beyond the transfer itself; linear values keep claim rules.
+                let whole_owned_contents = result.multiplicity != Multiplicity::Linear
+                    && validation::has_plain_owned_contents_with_numeric_constraints(
+                        &checked.typed,
+                        construction_type,
+                    );
                 if names_result
                     && (authored.boundary
                         || argument.access != checked_trees::CheckedStructuralAccess::Owned
                         || !argument.path.is_empty()
-                        || result.multiplicity != Multiplicity::Unrestricted
-                        || !validation::has_plain_owned_contents_with_numeric_constraints(
-                            &checked.typed,
-                            constructor.type_reference,
-                        )
+                        || !whole_owned_contents
                         || checked
                             .typed
-                            .normalized_type_identity(constructor.type_reference)
+                            .normalized_type_identity(construction_type)
                             .into_string()
                             != result.type_identity)
                 {

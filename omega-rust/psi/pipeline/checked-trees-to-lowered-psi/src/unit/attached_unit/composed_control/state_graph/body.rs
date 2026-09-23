@@ -75,11 +75,22 @@ pub(super) fn validate(
     // declares no storage and plans no operation; only its per-field locals
     // do. A whole-record replacement plans one field store per member, all at
     // its one assignment statement.
+    // An arm pattern's marker (`__arm_destructure#V=..`) is the same kind of
+    // compile-time carrier; a closed-sum terminator already rejoins and
+    // counts its markers in `validate_markers`, every other terminator
+    // counts them here.
+    let closed_sum = matches!(
+        state.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+    );
+    let is_marker = |statement: &StatementNode| {
+        is_record_pattern_marker(statement) || (!closed_sum && is_arm_pattern_marker(statement))
+    };
     let record_pattern_markers = statements
         .get(prefix..end)
         .unwrap_or_default()
         .iter()
-        .filter(|statement| is_record_pattern_marker(statement))
+        .filter(|statement| is_marker(statement))
         .count();
     let record_member_stores = record_member_stores(state);
     if prefix > end
@@ -193,7 +204,7 @@ pub(super) fn validate(
                 store.statement_index as usize
             }
             _ => {
-                while statements.get(cursor).is_some_and(is_record_pattern_marker) {
+                while statements.get(cursor).is_some_and(is_marker) {
                     cursor += 1;
                 }
                 let ordinal = cursor;
@@ -638,6 +649,11 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_store(
 fn is_record_pattern_marker(statement: &StatementNode) -> bool {
     matches!(statement, StatementNode::LocalData(local)
         if local.name.as_str().starts_with("__destructure#"))
+}
+
+fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
+    matches!(statement, StatementNode::LocalData(local)
+        if local.name.as_str().starts_with("__arm_destructure#"))
 }
 
 /// The field stores beyond the first at each assignment statement: a
