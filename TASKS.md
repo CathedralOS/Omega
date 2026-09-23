@@ -4219,15 +4219,32 @@ syntax and other terminal services are not prerequisites.
   forwarding and concrete evidence-binder fit already exist; do not rebuild
   them from the obsolete claim that refinements have no checked consumers.
 
-  Instantiate `refines.arguments`, including reordered/partially applied
-  heads, before comparing the selected conformance. Typed trait lowering retains
-  them, but `monomorphization/selection/refinement_fit.rs::resolve_bound_carrier`
-  keeps only the base symbol and `candidate_bounds.rs` compares the unexpanded
-  bound arguments. Targeted signature-free paths must resolve one exact
-  requirement, rejecting ambiguity instead of refining every same-named overload.
-  Also reconcile `covering_clause` and its targeted-replaces-wildcard test with
-  the specified rule that `machine *` applies to every base requirement; a
-  targeted clause must not silently discard those constraints.
+  **All three gaps this row named are closed, measured at `6e10ba077d`.**
+  `candidate_bounds.rs::conformance_application_arguments_match_candidate` now
+  instantiates `refines.arguments` -- it maps the bound's arguments,
+  substituted through the candidate bindings, onto the refinement's own type
+  parameters positionally and substitutes into the base head -- so a reordered
+  or partially applied head is compared after instantiation.
+  `refinement_fit.rs` carries `covering_clauses` (plural), returning the
+  wildcard and every targeted clause, and checking each in turn IS the
+  order-independent meet, so a targeted clause narrows alongside `machine *`
+  rather than replacing it. Targeted signature-free paths reject ambiguity at
+  the resolution site in
+  `symbol-resolved-trees-to-typed-trees/src/declarations/trait_definition.rs`,
+  which refuses a clause naming more than one overload of the base trait.
+
+  The acceptance list is covered by
+  `tests/generics/conformance_binders/refinement_binders.rs` (10 tests, all
+  passing): fitting and nonfitting parameterized applications, exact and
+  ambiguous targets, wildcard-plus-targeted narrowing, and a reordered head.
+  These are consumed-binder fixtures, not declaration-only ones -- each
+  instantiates its binder through a real call, which is what the row required.
+
+  Left open, and NOT established either way by the above: one binder
+  constrained by two DISTINCT refinement traits. The meet within a single
+  refinement is what the wildcard-plus-targeted test exercises; whether a
+  binder can name two refinements at once, and what their meet is, was not
+  determined here.
 
   Preserve structural-bound (not nominal-target) semantics, inherited axes,
   independent bounded rows, complete-contract fit and the order-independent
