@@ -449,7 +449,8 @@ pub(in crate::execution::terminal_unit) fn result(
         }
         if !owner.supply_mode.is_boundary_declaration() {
             if owner.supply_mode == MachineSupplyMode::CheckedBody
-                && validation::is_closed_primitive_array_type(program, return_type)
+                && program.type_multiplicity(return_type) == Multiplicity::Unrestricted
+                && validation::has_plain_owned_contents(program, return_type)
                 && machine_binders(program, owner).is_empty()
             {
                 return Some(CheckedStructuralResultPlan {
