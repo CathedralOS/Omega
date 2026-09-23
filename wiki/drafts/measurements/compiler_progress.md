@@ -28,20 +28,22 @@ at least one fixture exercising the section compiles to a native artifact and
 passes.** Across all 120 sections it is 92.
 
 That is breadth. Depth, counting fixtures rather than sections: of the distinct
-native-tier fixtures in groups that map to core or typical sections, 801 of
-944 pass. The two numbers together say the compiler reaches nearly every rule
+native-tier fixtures in groups that map to core or typical sections, 805 of
+936 pass. The two numbers together say the compiler reaches nearly every rule
 a real program needs, and fails about one fixture in seven along the way.
 
 | Measurement | Value | Reads as |
 | --- | --- | --- |
 | core+typical spec sections natively established | 60/66 | breadth over what real programs use |
 | all spec sections natively established | 92/120 | breadth over the whole language |
-| core+typical native fixtures passing | 801/944 | depth: distinct fixtures, not sections |
+| core+typical native fixtures passing | 805/936 | depth: distinct fixtures, not sections |
 | spec sections exercised by any pass fixture | 98/120 | the corpus's own coverage of the spec |
-| rostered pass fixtures that pass their tier | 1,558/1,755 | the umbrella suite's health |
-| fixtures that compile to a native artifact | 881/1,071 | the native tiers alone |
+| rostered pass fixtures that pass their tier | 1,588/1,761 | the umbrella suite's health, a ceiling: see the elided row |
+| fixtures the umbrella compiled itself that pass | 744/917 | the umbrella's own verdicts |
+| fixtures the umbrella elided for a dedicated owner | 844 | judged by `*_canary_runs` tests this record has not read yet |
+| fixtures that compile to a native artifact | 896/1,062 | the native tiers alone, same ceiling |
 | fail fixtures rejecting with their expected diagnostic | 1,156/1,156 | the compiler refuses what it should |
-| pass fixtures some roster runs | 2,029/2,059 | how much of the corpus is measured at all |
+| pass fixtures some roster runs | 2,029/2,059 | how much of the corpus is rostered at all |
 | construct pairs that matter, covered by a fixture | 31/31 | combinations real samples spell |
 
 "Natively established" is deliberately weak: one passing fixture establishes a
@@ -183,9 +185,13 @@ not that it exercises their interaction.
 - **Elided fixtures.** The pass umbrella does not compile every rostered
   active fixture: a fixture with a dedicated exact-native owner among the
   suite's `*_canary_runs` tests is elided from `pass_canaries_compile` and
-  judged only by that owner, which this instrument does not read. Such a
-  fixture appears here as rostered and not failing whether or not its owner is
-  green, so the umbrella counts above are a ceiling on the active tier, not
-  its verdict. The umbrella prints the elided counts under
-  `OMEGA_PASS_CANARY_REPORT_COUNTS=1`; the next full run records them here,
-  and reading the dedicated owners' verdicts is the instrument's next input.
+  judged only by that owner. At this revision the umbrella elided 844 of the
+  1,761 rostered fixtures (802 rooted, 4 direct, 35 cross-target, 3 rooted-
+  target) and compiled 917 itself, so the rostered row above is a ceiling and
+  the umbrella's own row is what this run verified. The umbrella writes its
+  owner index under `OMEGA_PASS_CANARY_OWNER_INDEX=<file>` and prints the
+  counts under `OMEGA_PASS_CANARY_REPORT_COUNTS=1`; `tools/progress.py
+  --owner-index <file> --suite-log <log>` joins a full `cargo test -p compiler
+  --test canary_suite` log to that index and gives each elided fixture its
+  owner's verdict. That full run is hour-scale in the dev profile on this host
+  and has not been folded into these numbers yet.

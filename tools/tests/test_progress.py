@@ -132,3 +132,40 @@ class CoverageLine(unittest.TestCase):
             log.write_text("test result: ok. 1 passed\n", encoding="utf-8")
             report = tool.parse_pass_log(log, {})
         self.assertEqual(report["coverage"], {})
+
+
+class OwnerVerdicts(unittest.TestCase):
+    """Elided fixtures take the verdict of their dedicated owner test."""
+
+    def test_owner_verdicts_join_the_index_to_the_suite_log(self):
+        import tempfile
+        tool = load_tool()
+        index = (
+            "rooted\tdata/a\t\ttopic::a_canary_runs\t70\n"
+            "rooted\tdata/b\t\ttopic::b_canary_runs\t70\n"
+            "direct\tdata/c\t\ttopic::c_canary_runs\t0\n"
+            "cross-target\tdata/d\tlinux_x86_64\ttopic::d_compiles\t\n"
+        )
+        log = (
+            "test topic::a_canary_runs ... ok\n"
+            "test topic::b_canary_runs ... FAILED\n"
+            "test topic::d_compiles ... ok\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            index_path = Path(directory) / "owners.tsv"
+            index_path.write_text(index, encoding="utf-8")
+            log_path = Path(directory) / "suite.log"
+            log_path.write_text(log, encoding="utf-8")
+            outcome = tool.owner_outcomes(tool.parse_owner_index(index_path), tool.parse_suite_log(log_path))
+        self.assertEqual(outcome["passing"], ["data/a"])
+        self.assertEqual(outcome["failing"], ["data/b"])
+        self.assertEqual(outcome["no_verdict"], ["data/c", "data/d"])
+
+    def test_a_failing_owner_counts_against_the_fixture_tier(self):
+        tool = load_tool()
+        pass_outcome = {"failed_members": {}, "per_tier": {"active": {"members": 2, "failed": 0}}}
+        tool.merge_owner_verdicts(pass_outcome, {"passing": ["x/p"], "failing": ["x/f"], "no_verdict": []}, {"x/f": "active", "x/p": "active"})
+        self.assertEqual(pass_outcome["failed_members"], {"x/f": "dedicated-owner"})
+        self.assertEqual(pass_outcome["per_tier"]["active"]["failed"], 1)
+        self.assertEqual(pass_outcome["owners"], {"passing": 1, "failing": 1, "no_verdict": 0})
+
