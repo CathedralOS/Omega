@@ -217,6 +217,18 @@ fn pass_canaries_compile() {
             }
         })
         .collect::<Vec<_>>();
+    // The owner index is the umbrella's own reason for eliding a fixture;
+    // written out, it lets the progress instrument join a full suite log's
+    // verdicts to those fixtures instead of counting them as unmeasured.
+    if let Some(path) = std::env::var_os("OMEGA_PASS_CANARY_OWNER_INDEX") {
+        let rows = exact_native_coverage.owner_rows();
+        std::fs::write(&path, rows.join("\n") + "\n").unwrap_or_else(|error| {
+            panic!(
+                "cannot write the owner index to {}: {error}",
+                std::path::Path::new(&path).display()
+            )
+        });
+    }
     if std::env::var_os("OMEGA_PASS_CANARY_REPORT_COUNTS").is_some() {
         eprintln!(
             "pass-canary coverage: selected-active={} rooted-exact-native-elided={} direct-exact-native-elided={} active-compiled={} cross-target-elided={} cross-target-compiled={} rooted-target-elided={} rooted-target-compiled={} source-files={} source-bytes={} scan-micros={}",
