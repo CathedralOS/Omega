@@ -426,6 +426,65 @@ pub(in crate::lowering) fn lower_structural_argument(
             destination: destination.clone(),
         });
     }
+    // Element views lend the whole fixed array's backing through the same
+    // call presentation; the element stride replaces the byte window's
+    // stride of 1, and the backing path is the argument's field path itself.
+    if let Some(length) = function.structural_parameters.iter().find_map(|source| {
+        terminal_semantics::fixed_element_array_extent(
+            structural_types.values().copied(),
+            source,
+            argument,
+            callee_parameter,
+        )
+    }) {
+        let (array_type, _array_shape, backing_offset) = resolve_structural_field_path(
+            source_structural_type,
+            &argument.path,
+            structural_types,
+            shape_cache,
+            active,
+        )?;
+        let Some(StructuralTypeShape::FixedArray { element, .. }) = structural_types
+            .get(&array_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                callee,
+                place: argument.place,
+            });
+        };
+        let element_shape = structural_shape(*element, structural_types, shape_cache, active)?;
+        let stride = checked_align_up_u32(
+            u32::from(element_shape.byte_size),
+            u32::from(element_shape.alignment),
+        )
+        .ok_or(LoweringError::StructuralTypeTooLarge(
+            source_structural_type,
+        ))?;
+        if shape != ValueShape::borrowed_reference(16, 8)
+            || u64::from(backing_offset)
+                .checked_add(u64::from(stride).saturating_mul(length))
+                .is_none_or(|end| end > u64::from(source_shape.byte_size))
+        {
+            return Err(LoweringError::StructuralCallArgumentTypeMismatch {
+                callee,
+                place: argument.place,
+            });
+        }
+        return Ok(TargetStructuralArgument {
+            place: argument.place,
+            access: argument.access,
+            path: argument.path.clone(),
+            root_structural_type: source_structural_type,
+            structural_type: callee_parameter.structural_type,
+            shape,
+            source_byte_offset: backing_offset,
+            fixed_array_length: Some(length),
+            element_stride: Some(stride),
+            source: source_placement.clone().into(),
+            destination: destination.clone(),
+        });
+    }
     // Borrowing selects the same original storage for every permitted access
     // attenuation. The existing resolver reconstructs each field/index hop.
     let exact_borrowed_projection = argument.access == callee_parameter.access

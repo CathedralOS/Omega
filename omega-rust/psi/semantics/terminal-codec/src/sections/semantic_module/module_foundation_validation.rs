@@ -690,13 +690,20 @@ fn validate_structural_arguments(
         // The canonical form retains the real array type at both ordinary and
         // boundary calls; the shared extent check recognizes the exact loan.
         if machine.structural_parameters.iter().any(|actual| {
-            terminal_semantics::fixed_byte_array_extent(
+            (terminal_semantics::fixed_byte_array_extent(
                 module.structural_types.iter(),
                 actual,
                 argument,
                 expected,
             )
             .is_some()
+                || terminal_semantics::fixed_element_array_extent(
+                    module.structural_types.iter(),
+                    actual,
+                    argument,
+                    expected,
+                )
+                .is_some())
                 && !machine
                     .entry_claims
                     .iter()

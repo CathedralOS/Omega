@@ -82,19 +82,30 @@ pub(super) fn argument(
         destination.structural_type,
         types,
     );
+    let element_view =
+        crate::structural_inputs::structural_reference_input::fixed_element_array_view(
+            source,
+            semantic,
+            destination.structural_type,
+            types,
+        );
     // A bounded inline byte field has no projected carrier identity; its own
     // record walk supplies the field offset and the destination supplies the
-    // borrowed-view type the descriptor presents.
-    let (structural_type, source_byte_offset) = match (projection, byte_field, byte_view) {
-        (_, None, Some((offset, _))) => (destination.structural_type, offset),
-        (Some((projected, offset)), None, None) => (projected, offset),
-        (None, Some((offset, _)), None) => (destination.structural_type, offset),
-        _ => return Err(invalid),
-    };
+    // borrowed-view type the descriptor presents. The same holds for a fixed
+    // array loaned through an element view.
+    let (structural_type, source_byte_offset) =
+        match (projection, byte_field, byte_view, element_view) {
+            (_, None, Some((offset, _)), None) | (_, None, None, Some((offset, _, _))) => {
+                (destination.structural_type, offset)
+            }
+            (Some((projected, offset)), None, None, None) => (projected, offset),
+            (None, Some((offset, _)), None, None) => (destination.structural_type, offset),
+            _ => return Err(invalid),
+        };
     let referent =
         crate::structural_inputs::structural_reference_input::shape(structural_type, types)
             .ok_or(invalid.clone())?;
-    let descriptor = byte_view.is_some() || byte_field.is_some();
+    let descriptor = byte_view.is_some() || byte_field.is_some() || element_view.is_some();
     let shape = if descriptor {
         ValueShape::borrowed_reference(16, 8)
     } else {
@@ -150,8 +161,12 @@ pub(super) fn argument(
         },
         shape,
         source_byte_offset,
-        fixed_array_length: byte_view.map(|(_, length)| length),
-        element_stride: byte_view.map(|_| 1),
+        fixed_array_length: byte_view
+            .map(|(_, length)| length)
+            .or_else(|| element_view.map(|(_, length, _)| length)),
+        element_stride: byte_view
+            .map(|_| 1)
+            .or_else(|| element_view.map(|(_, _, stride)| stride)),
         source: parameter.placement.clone().into(),
         destination: call.parameters[scalar_count].clone(),
     })
