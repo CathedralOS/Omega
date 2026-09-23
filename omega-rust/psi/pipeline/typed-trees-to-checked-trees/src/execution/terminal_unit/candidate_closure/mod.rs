@@ -345,6 +345,10 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                    // A borrowed reference binds storage already owned by the
+                    // frame; establish/release carry no callee dependency.
+                    | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                    | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                     // A borrowed-window move/restore pair carries no callee:
                     // the move's result binding and the restore's stored value

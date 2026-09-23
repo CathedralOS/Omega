@@ -2437,6 +2437,23 @@ pub(crate) fn borrowed_slice_view_element(
     }
 }
 
+/// A `&[T]` declared result type, either view family. The byte element's
+/// `BorrowedView` carrier and the non-byte element's identity share the same
+/// reference-peeling shape; an owned-view `&mut` result stays with the
+/// primitive reference-result custody family instead.
+pub(crate) fn borrowed_slice_view(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    structural_access_for_type_reference(program, type_reference)
+        == Some(CheckedStructuralAccess::SharedBorrow)
+        && (borrowed_slice_view_element(program, type_reference, &[]).is_some()
+            || matches!(
+                byte_sequence_carrier(program, type_reference, &[]),
+                Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView)
+            ))
+}
+
 /// The view's own identity is the borrowed `[T]` carrier, with the reference
 /// and constraint shells peeled exactly as the borrowed byte view peels them:
 /// borrow access belongs to the plan carrying the view, not to its shape.

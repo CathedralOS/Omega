@@ -150,15 +150,21 @@ pub(crate) fn checked_structural_result_type(
     }
     let multiplicity = crate::checks::type_multiplicity(program, result_type);
     let qualifications = parameter_qualifications(program, shapes, result_type, binders)?;
+    // Borrowed slice views belong to reference custody but share none of its
+    // owned-referent requirements: their contents live in the caller's frame.
+    let view_result =
+        crate::execution::terminal_unit::types::borrowed_slice_view(program, result_type);
     if is_unit(program, result_type)
         || program.primitive_type_reference(result_type).is_some()
-        || is_reference(program, result_type)
+        || (is_reference(program, result_type) && !view_result)
         || type_graph_requires_nominal_drop(program, result_type)
         || (multiplicity != Multiplicity::Linear
-            && (!(validation::has_plain_owned_contents_with_numeric_constraints(
-                program,
-                result_type,
-            ) || validation::is_closed_primitive_array_type(program, result_type)
+            && (!(view_result
+                || validation::has_plain_owned_contents_with_numeric_constraints(
+                    program,
+                    result_type,
+                )
+                || validation::is_closed_primitive_array_type(program, result_type)
                 || validation::reference_result_custody::is_reference_record(
                     program,
                     result_type,

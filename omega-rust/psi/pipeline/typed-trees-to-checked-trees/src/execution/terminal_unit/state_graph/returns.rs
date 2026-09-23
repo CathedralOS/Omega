@@ -17,7 +17,14 @@ use crate::execution::terminal_unit::types::{
 
 use crate::execution::terminal_unit::is_reference;
 
-use checked_trees::{CheckedControlResultPlan, CheckedScalarCaseFieldPlan};
+use crate::execution::terminal_unit::{
+    CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, ExpressionNode, PrimitiveType,
+};
+
+use checked_trees::{
+    CheckedByteSequenceCarrier, CheckedControlResultPlan, CheckedScalarCaseFieldPlan,
+};
 
 pub(in crate::execution::terminal_unit) fn signature(
     program: &TypedTrees,
@@ -29,13 +36,19 @@ pub(in crate::execution::terminal_unit) fn signature(
     }
     let multiplicity = crate::checks::type_multiplicity(program, reference);
     let qualifications = parameter_qualifications(program, shapes, reference, &[])?;
-    if is_reference(program, reference)
+    // Borrowed slice views are the reference family's other custody kind: a
+    // `&[T]` result borrows its carrier's storage rather than owning fresh
+    // contents, so the owned-contents and nominal-drop gates do not apply.
+    let view_result =
+        crate::execution::terminal_unit::types::borrowed_slice_view(program, reference);
+    if (is_reference(program, reference) && !view_result)
         || type_graph_requires_nominal_drop(program, reference)
         || (multiplicity != Multiplicity::Linear
             && (!qualifications.is_empty()
-                || !validation::has_plain_owned_contents_with_numeric_constraints(
-                    program, reference,
-                )))
+                || (!view_result
+                    && !validation::has_plain_owned_contents_with_numeric_constraints(
+                        program, reference,
+                    ))))
     {
         return None;
     }
@@ -59,6 +72,12 @@ pub(in crate::execution::terminal_unit) fn signature(
         CheckedUnitStructuralTypeShape::Sum { cases } => {
             !cases.is_empty() && cases.iter().all(|case| valid_fields(&case.fields))
         }
+        // Borrowed view results carry no payload fields; the reference's
+        // stored extent is their whole runtime shape.
+        CheckedUnitStructuralTypeShape::ByteSequence(
+            checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+        )
+        | CheckedUnitStructuralTypeShape::BorrowedSliceView { .. } => view_result,
         // By-value scalar results stay scalar-graph owned: their graph
         // carries the computation expansion and block-invariant machinery
         // the composed route does not model.
@@ -265,6 +284,7 @@ pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan])
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
                 Some(result.binding_ordinal)
             }
@@ -293,6 +313,19 @@ pub(super) fn return_value_operation(
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<CheckedUnitEffectOperationPlan> {
+    if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
+        return view_result_operation(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            parameters,
+            count,
+            statement_ordinal,
+            expression,
+        );
+    }
     let root = facts.values.structural_values.root_for_expression(
         state.symbol,
         statement_ordinal,
@@ -329,4 +362,179 @@ pub(super) fn return_value_operation(
         operand_source: None,
         discard_result_on_return: false,
     })
+}
+
+/// The `EstablishReference` producer for one authored `(place[a..b])` return
+/// target of a borrowed `&[u8]`/`&[T]` view result: the carrier is an
+/// immutable structural parameter — either the whole `&[T]` view itself or a
+/// record-field path reaching `[T; N]`/`[T]`/`&[T]` storage — whose element
+/// repeats the view's declared element, and both exclusive endpoints lower in
+/// the machine's scalar namespace. Unlike the call-argument subslice shapes,
+/// `parameter_index` names the owning carrier; the field projection stays in
+/// `expression`.
+#[allow(clippy::too_many_arguments)]
+fn view_result_operation(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    count: &mut usize,
+    statement_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let return_type = state.return_type;
+    let byte_view = matches!(
+        crate::execution::terminal_unit::types::byte_sequence_carrier(program, return_type, &[],),
+        Some(CheckedByteSequenceCarrier::BorrowedView)
+    );
+    if !byte_view
+        && crate::execution::terminal_unit::types::borrowed_slice_view_element(
+            program,
+            return_type,
+            &[],
+        )
+        .is_none()
+    {
+        return None;
+    }
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
+        return None;
+    };
+    if range.end_inclusive || !range.start.is_valid() || !range.end.is_valid() {
+        return None;
+    }
+    if !validation::has_builtin_subslice_meaning(program, machine, Some(state), expression) {
+        return None;
+    }
+    let statement_index = usize::try_from(statement_ordinal).ok()?;
+    let place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        indexed.collection,
+    )?;
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return None;
+    };
+    let authored = program.state_parameters(state);
+    let position = authored
+        .iter()
+        .position(|parameter| parameter.symbol == symbol)?;
+    let carrier = &authored[position];
+    if carrier.is_mutable
+        || !matches!(
+            crate::execution::terminal_unit::types::structural_access_for_type_reference(
+                program,
+                carrier.type_reference,
+            ),
+            Some(CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::Owned)
+        )
+    {
+        return None;
+    }
+    let parameter_index = parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    // Whole-view parameter (`param[a..b]`) or a record-field projection
+    // reaching slice/array storage (`self.field[a..b]`): each segment must be
+    // a named field and the resolved storage must hold the view's element.
+    let mut storage = carrier.type_reference;
+    for segment in &place.segments {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        storage = program.data_definitions().iter().find_map(|data| {
+            program.data_members(data).iter().find_map(|member| {
+                let DataMember::Field(field) = member else {
+                    return None;
+                };
+                (field.symbol == *symbol).then_some(field.type_reference)
+            })
+        })?;
+    }
+    if !view_storage_element_matches(program, storage, return_type, byte_view) {
+        return None;
+    }
+    let endpoint = |endpoint| {
+        crate::values::lower_unit_scalar_argument(
+            program,
+            &facts.operators,
+            state,
+            statement_index,
+            endpoint,
+            PrimitiveType::U64,
+        )
+    };
+    let start = Some(endpoint(range.start)?);
+    let end = Some(endpoint(range.end)?);
+    let parameter_index = u32::try_from(parameter_index).ok()?;
+    let source = if byte_view {
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
+            parameter_index,
+            expression,
+            start,
+            end,
+        }
+    } else {
+        CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            parameter_index,
+            expression,
+            start,
+            end,
+        }
+    };
+    let type_identity = shapes.add_type(return_type, &[], &[])?;
+    let result = CheckedUnitStructuralResultBindingPlan {
+        statement_index: statement_ordinal,
+        binding_ordinal: u32::try_from(*count).ok()?,
+        type_identity: type_identity.clone(),
+        multiplicity: program.type_multiplicity(return_type),
+    };
+    *count = count.checked_add(1)?;
+    Some(CheckedUnitEffectOperationPlan::EstablishReference {
+        result,
+        source: CheckedUnitStructuralArgumentPlan {
+            source,
+            path: Vec::new(),
+            type_identity,
+            access: CheckedStructuralAccess::SharedBorrow,
+        },
+    })
+}
+
+/// The element carried by the resolved slice/array storage must equal the
+/// `&[T]` view's declared element (or `u8` for byte views). Only reference,
+/// constraint, array and slice shells are peeled — named aliases stay
+/// unadmitted until they need their own resolution.
+fn view_storage_element_matches(
+    program: &TypedTrees,
+    mut storage: TypeReferenceHandle,
+    return_type: TypeReferenceHandle,
+    byte_view: bool,
+) -> bool {
+    let element = loop {
+        match program.type_reference_table.type_reference(storage) {
+            TypeReferenceNode::Constrained { base_type, .. } => storage = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => storage = *referee,
+            TypeReferenceNode::FixedArray { element_type, .. }
+            | TypeReferenceNode::Slice { element_type } => break element_type,
+            _ => return false,
+        }
+    };
+    if byte_view {
+        return program.primitive_type_reference(*element) == Some(PrimitiveType::U8);
+    }
+    let Some(target) = crate::execution::terminal_unit::types::borrowed_slice_view_element(
+        program,
+        return_type,
+        &[],
+    ) else {
+        return false;
+    };
+    program.normalized_type_identity(*element) == program.normalized_type_identity(target)
 }
