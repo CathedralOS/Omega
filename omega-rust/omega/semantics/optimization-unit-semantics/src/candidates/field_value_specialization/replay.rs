@@ -3,9 +3,11 @@
 //! Validation never trusts the candidate's field rows: it re-derives the
 //! claimed place's proof evidence — an `EstablishRecord` producer on an
 //! operation-result place at an empty path, an `EstablishScalarCase`
-//! producer whose `result_case` matches at a lone `Case` path, or a declared
-//! `BoundedInteger` singleton bound at the position each observation
-//! resolves to — replays the admissible observation set for that place,
+//! producer whose `result_case` matches at a lone `Case` path, the same two
+//! reached through `Field` descents across owned, complete structural
+//! children, or a declared `BoundedInteger` singleton bound at the position
+//! each observation resolves to — replays the admissible observation set
+//! for that place,
 //! requires the claimed rows to equal the replayed rows exactly, rebuilds
 //! the output itself, and reconstructs the exact node custody the resolved
 //! observations carry. A `Constant` row folds its read in place; a `Forward`
@@ -327,13 +329,15 @@ fn admit_field_node(
 /// The stored value the unit proves for `field` at `path` under `place`'s
 /// evidence, or `None` when no basis applies. An establishment basis — an
 /// `EstablishRecord` producer at an empty path or an `EstablishScalarCase`
-/// producer whose `result_case` matches a lone `Case` path — proves the
-/// field's initializer scalar directly: a same-function constant folds the
-/// read to a literal, while a nonconstant initializer forwards to the read's
-/// uses when the substitution lane covers every use site and the initializer
-/// dominates them all. A declared `BoundedInteger` singleton bound proves a
-/// literal at any resolvable path independently of producer and outranks a
-/// nonconstant initializer — the literal is strictly more resolved.
+/// producer whose `result_case` matches a lone `Case` path, or the same two
+/// reached through `Field` descents across owned, complete structural
+/// children — proves the field's initializer scalar directly: a
+/// same-function constant folds the read to a literal, while a nonconstant
+/// initializer forwards to the read's uses when the substitution lane
+/// covers every use site and the initializer dominates them all. A declared
+/// `BoundedInteger` singleton bound proves a literal at any resolvable path
+/// independently of producer and outranks a nonconstant initializer — the
+/// literal is strictly more resolved.
 fn proven_field_value(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
@@ -352,7 +356,7 @@ fn proven_field_value(
     if !matches_observed_kind(declaration, kind) {
         return None;
     }
-    let establishment = establishment_scalar(evidence, function, path, field);
+    let establishment = establishment_scalar(unit, evidence, function, path, field);
     if let Some((producer, initializer)) = establishment
         && let Some(value) = constant_definition(function, initializer)
         && matches_constant_kind(value, kind)
@@ -509,37 +513,75 @@ fn matches_observed_kind(
     )
 }
 
-/// The establishment basis: the place's producer proves the field's stored
-/// scalar by name. `Some((producer, initializer))` when the producer
-/// establishes the observed position and the field's initializer is a scalar;
-/// `None` when the producer does not establish the observed position. The
-/// caller decides what the initializer proves — a literal fold when it
-/// resolves to a same-function constant, a use substitution when it does
-/// not.
+/// The establishment basis: the chain of establishing producers along `path`
+/// proves the field's stored scalar by name. `Some((producer, initializer))`
+/// when the producer at the path's terminal position establishes the
+/// observed field and its initializer is a scalar; `None` when any step is
+/// not established. A `Field` descent crosses only into an `EstablishRecord`
+/// field stored as an owned, complete structural child place whose declared
+/// type is exactly the field's declared carrier — a pathed or borrowed
+/// argument, a non-operation-result place, and every other producer leave
+/// the nested position unproven. The caller decides what the initializer
+/// proves — a literal fold when it resolves to a same-function constant, a
+/// use substitution when it does not.
 fn establishment_scalar(
+    unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
 ) -> Option<(OperationId, ValueId)> {
-    match (evidence.root_producer, path) {
-        (RootProducer::Record(producer), []) => {
-            // An `EstablishRecord` proves its declaration-ordered field
-            // initializers: the observed field's scalar initializer fixes
-            // the stored value permanently.
-            record_initializer(function, producer, evidence, field)
-                .map(|initializer| (producer, initializer))
+    let mut place = evidence.declaration.id;
+    let mut producer = evidence.root_producer;
+    let mut declared = evidence.root_type;
+    let mut segments = path;
+    loop {
+        match (producer, segments) {
+            (RootProducer::Record(producer), []) => {
+                // An `EstablishRecord` proves its declaration-ordered field
+                // initializers: the observed field's scalar initializer fixes
+                // the stored value permanently.
+                return record_initializer(function, producer, place, field)
+                    .map(|initializer| (producer, initializer));
+            }
+            (
+                RootProducer::Variant(producer, result_case),
+                [CanonicalStructuralPathSegment::Case(observed_case)],
+            ) if result_case == *observed_case => {
+                // An `EstablishScalarCase` proves its scalar case-field
+                // initializers for exactly the case it establishes.
+                return case_field_initializer(function, producer, place, field)
+                    .map(|initializer| (producer, initializer));
+            }
+            (
+                RootProducer::Record(operation),
+                [CanonicalStructuralPathSegment::Field(identity), ..],
+            ) => {
+                // A `Field` segment descends into the nested carrier the
+                // record stores whole: the declared carrier must be exactly
+                // the child place's declared type, and the child must reach
+                // this producer's initializer as one owned, complete
+                // structural argument. A `FixedIndex` segment never crosses —
+                // an `EstablishScalarArray` element is not a placed child.
+                let Position::Type(next) = Position::Type(declared?).descend(unit, &segments[0])?
+                else {
+                    return None;
+                };
+                let child = structural_child(function, operation, place, *identity)?;
+                let declaration = function
+                    .structural_places
+                    .iter()
+                    .find(|declaration| declaration.id == child)?;
+                if declared_structural_type(function, declaration) != Some(next) {
+                    return None;
+                }
+                place = child;
+                producer = root_producer(function, declaration);
+                declared = Some(next);
+                segments = &segments[1..];
+            }
+            _ => return None,
         }
-        (
-            RootProducer::Variant(producer, result_case),
-            [CanonicalStructuralPathSegment::Case(observed_case)],
-        ) if result_case == *observed_case => {
-            // An `EstablishScalarCase` proves its scalar case-field
-            // initializers for exactly the case it establishes.
-            case_field_initializer(function, producer, evidence, field)
-                .map(|initializer| (producer, initializer))
-        }
-        _ => None,
     }
 }
 
@@ -662,15 +704,13 @@ fn forwarded_resolution(
     })
 }
 
-/// The `ValueId` the `EstablishRecord` producer stores into `field`, or
-/// `None` when the producer node is absent, is not an `EstablishRecord` on
-/// this place, or the initializer is not a scalar.
-fn record_initializer(
+/// The `EstablishRecord` node's field initializers when `producer` is that
+/// node on `place`, or `None` when no such node exists.
+fn establish_record_fields(
     function: &PsiOptimizationFunction,
     producer: OperationId,
-    evidence: &FieldEvidence<'_>,
-    field: StructuralFieldId,
-) -> Option<ValueId> {
+    place: PlaceId,
+) -> Option<&[terminal_psi::RecordFieldInitializer]> {
     function
         .blocks
         .iter()
@@ -680,13 +720,50 @@ fn record_initializer(
                 psi_operation,
                 result,
                 fields,
-            } if *psi_operation == producer && result.place == evidence.declaration.id => fields
-                .iter()
-                .find(|initializer| initializer.field == field)
-                .and_then(|initializer| match &initializer.value {
-                    RecordFieldValue::Scalar { value, .. } => Some(*value),
-                    _ => None,
-                }),
+            } if *psi_operation == producer && result.place == place => Some(fields.as_slice()),
+            _ => None,
+        })
+}
+
+/// The `ValueId` the `EstablishRecord` producer stores into `field`, or
+/// `None` when the producer node is absent, is not an `EstablishRecord` on
+/// this place, or the initializer is not a scalar.
+fn record_initializer(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+) -> Option<ValueId> {
+    establish_record_fields(function, producer, place)?
+        .iter()
+        .find(|initializer| initializer.field == field)
+        .and_then(|initializer| match &initializer.value {
+            RecordFieldValue::Scalar { value, .. } => Some(*value),
+            _ => None,
+        })
+}
+
+/// The child place the `EstablishRecord` producer stores whole into `field`,
+/// or `None` when the producer node is absent, is not an `EstablishRecord`
+/// on this place, or `field`'s initializer is not an owned, complete
+/// structural argument — a pathed argument or a borrow does not carry the
+/// child's own establishment.
+fn structural_child(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+) -> Option<PlaceId> {
+    establish_record_fields(function, producer, place)?
+        .iter()
+        .find(|initializer| initializer.field == field)
+        .and_then(|initializer| match &initializer.value {
+            RecordFieldValue::Structural(argument)
+                if argument.path.is_empty()
+                    && argument.access == terminal_psi::StructuralAccess::Owned =>
+            {
+                Some(argument.place)
+            }
             _ => None,
         })
 }
@@ -697,7 +774,7 @@ fn record_initializer(
 fn case_field_initializer(
     function: &PsiOptimizationFunction,
     producer: OperationId,
-    evidence: &FieldEvidence<'_>,
+    place: PlaceId,
     field: StructuralFieldId,
 ) -> Option<ValueId> {
     function
@@ -710,7 +787,7 @@ fn case_field_initializer(
                 result,
                 fields,
                 ..
-            } if *psi_operation == producer && result.place == evidence.declaration.id => fields
+            } if *psi_operation == producer && result.place == place => fields
                 .iter()
                 .find(|initializer| initializer.field == field)
                 .map(|initializer| initializer.value),
