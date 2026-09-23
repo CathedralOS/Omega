@@ -326,6 +326,83 @@ fn typed_unit_transfers_reject_owner_type_and_edge_substitution() {
 }
 
 #[test]
+fn crash_declaring_unit_calls_select_and_replay_their_continuation_roster() {
+    let native = NativeTarget::linux_x64();
+    let (mut source, _, _) = fixture(native, 64);
+    for operation in &mut source.functions[0].operations {
+        if let AbstractOperation::CallUnit {
+            crash_continuations,
+            ..
+        } = operation
+        {
+            *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+                cause: terminal_psi::CrashCause::Abort,
+                alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+            }];
+        }
+    }
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+    validate_legalized_operations(&target, &source, &unit, legal.plan().clone()).unwrap();
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let constraints = crate::selection_constraints(&legal, &environment);
+    let selected = select_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .unwrap();
+    validate_selected_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+        selected.plan().clone(),
+    )
+    .unwrap();
+    // The roster is correspondence custody: every replay level rejects an
+    // edited or dropped continuation, and substitution still rejects.
+    let mut widened = target.clone();
+    let TargetUnitOperation::Call {
+        crash_continuations,
+        ..
+    } = &mut widened.functions[0].graph.blocks[1].operations[0]
+    else {
+        panic!("call");
+    };
+    crash_continuations.clear();
+    assert!(legalize_target_operations(&widened, &source, &unit).is_err());
+    let mut changed = legal.plan().clone();
+    let changed_call = changed
+        .scalar_functions
+        .iter_mut()
+        .flat_map(|function| function.blocks.iter_mut())
+        .flat_map(|block| block.instructions.iter_mut())
+        .find_map(|instruction| {
+            if let legalized_operations::LegalizedScalarInstructionKind::Call(call) =
+                &mut instruction.kind
+            {
+                Some(call)
+            } else {
+                None
+            }
+        })
+        .expect("call instruction");
+    changed_call.crash_continuations.clear();
+    assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());
+}
+
+#[test]
 fn computed_comparison_branch_and_edge_arguments_retain_materialized_value() {
     let native = NativeTarget::linux_x64();
     let (mut source, _, _) = fixture(native, 64);
