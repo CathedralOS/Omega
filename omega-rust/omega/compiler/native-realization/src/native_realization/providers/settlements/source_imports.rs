@@ -289,6 +289,12 @@ fn settled_host_cohort_row(
         )
         .ok()
     })
+    .or_else(|| {
+        crate::native_realization::terminal_authority_policy::console_mechanism_row(
+            mechanism, method,
+        )
+        .ok()
+    })
 }
 
 /// Classify one demanded mechanism under the receiving policy's own keys.

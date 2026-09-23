@@ -746,8 +746,13 @@ fn boundary_row_shape(
         return Ok(false);
     };
     let realization_identity = realization_identity.identity();
-    let ProviderBinding::CompilerIntrinsic { machine } = &row.binding else {
-        unreachable!("caller already admitted only compiler-intrinsic rows");
+    // A hosted console leaf is either compiler-known (the intrinsic names the
+    // realization's own identity) or, on a target whose kernel entry is DLL
+    // linkage, an evaluated import the realization reaches through `via`.
+    let intrinsic_machine = match &row.binding {
+        ProviderBinding::CompilerIntrinsic { machine } => Some(machine),
+        ProviderBinding::Import { .. } => None,
+        _ => return Ok(false),
     };
     // The realization's published envelope must spell the same honest shape
     // as its requirement: the hosted byte-input leaf may occupy the worker
@@ -761,7 +766,7 @@ fn boundary_row_shape(
         return Ok(false);
     }
     if realization.name.as_str() != realization_name
-        || machine != &realization_identity
+        || intrinsic_machine.is_some_and(|machine| machine != &realization_identity)
         || !realization.lifetime_parameters.is_empty()
         || !typed.machine_type_parameters(realization).is_empty()
         || realization.body_is_present
@@ -780,7 +785,15 @@ fn boundary_row_shape(
         }
         _ => None,
     };
-    if !inferred_supply && (legacy_binding.is_none() || require_inferred_supply) {
+    let evaluated_import = intrinsic_machine.is_none()
+        && matches!(
+            realization.supply_mode,
+            MachineSupplyMode::ExternalRealization { .. }
+        );
+    if require_inferred_supply && !inferred_supply {
+        return Ok(false);
+    }
+    if !inferred_supply && legacy_binding.is_none() && !evaluated_import {
         return Ok(false);
     }
     let [entry] = typed.machine_states(realization) else {
@@ -804,7 +817,10 @@ fn boundary_row_shape(
                     || (!require_inferred_supply
                         && conformance.external_binding == legacy_binding
                         && !conformance.via_expression.is_valid()
-                        && conformance.external_binding_source_span.is_some()))
+                        && conformance.external_binding_source_span.is_some())
+                    || (evaluated_import
+                        && conformance.external_binding.is_none()
+                        && conformance.via_expression.is_valid()))
                 && typed_trees::machine::resolve_satisfied_declaration(
                     typed,
                     realization,

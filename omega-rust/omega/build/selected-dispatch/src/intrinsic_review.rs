@@ -149,6 +149,24 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 row.binding,
                 effects::provider_plan::ProviderBinding::CompilerIntrinsic { .. }
             ) {
+                // A hosted exit realized through the target's DLL linkage
+                // (Windows: kernel32 `ExitProcess`) consumes the accepted
+                // Console or ProcessExit binding exactly as an intrinsic
+                // exit row does; the binding names the requirement and the
+                // provider row, not the realization behind them.
+                accumulate_accepted_row_match(
+                    checked,
+                    plan,
+                    row,
+                    retained.provider.schema.symbol(),
+                    *requirement_symbol,
+                    *realization_symbol,
+                    accepted_console_binding,
+                    accepted_process_exit_binding,
+                    &mut console_accepted_matches,
+                    &mut process_exit_accepted_matches,
+                    &mut diagnostics,
+                );
                 rows.push(None);
                 continue;
             }

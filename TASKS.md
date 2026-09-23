@@ -904,10 +904,23 @@ Remaining work:
   must account for domain death without inventing a whole-process resource census.
 - Preserve exact `i32` semantic status and ordered output through provider
   conformance and native realization. Reuse `SelectedProcessExit` custody and the
-  canonical host canaries; the current hosted-exit target support excludes Windows.
-  Complete and exercise the missing supported-host realization; how it realizes
-  on Windows is owner question 10 (`windows-hosted-exit-realization`), which
-  blocks 180 owner-judged fixtures on a Windows host.
+  canonical host canaries. Owner rule (2026-09-22): a boundary-trait leaf
+  realizes through the target's DLL linkage, and as a direct syscall only on
+  an OS with a stable syscall ABI; on `windows_x86_64` the console and
+  process-exit leaves therefore bind kernel32 `ExitProcess` by `DllImport`
+  rather than a hosted intrinsic, and the accepted Console/ProcessExit
+  binding is consumed by that row whatever its realization. Landed so far:
+  the std spelling, intrinsic review consuming the accepted binding on an
+  import exit row, the row-shape check admitting an evaluated `via` import,
+  and a settled Console/ProcessExit cohort in the receiving policy
+  (`terminal_authority_policy/console_host.rs`: exit = ProcessTermination,
+  writers = ProcessOutput, readers = ProcessInput). Frontier: on Windows an
+  exit-only fixture now stops at "demanded source-evaluated import
+  `Console::exit_process` has no admitted native settlement"
+  (`providers/settlements/source_imports.rs`): the source-evaluated import
+  has no retained external implementation contract to settle against. The
+  umbrella's active tier is unchanged by the spelling; the 180 owner-judged
+  fixtures behind this wall (record) are the acceptance.
 
 Acceptance: source-produced unconditional and conditional/helper exits replay
 independently after serialization. Tampered identities, arguments, completion or
