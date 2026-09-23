@@ -420,6 +420,10 @@ pub(super) fn natural_component_geometry(
         let rank_bound = component_entry_rank_bound(machine, component, &blocks, rank_maximum)
             .map(|entry| entry.bound)
             .unwrap_or(rank_maximum);
+        // The interior's rank-bounded visit arithmetic is the component's
+        // own bound: when it cannot be represented, the report names this
+        // component with the unbounded-rank cause rather than a flat
+        // overflow.
         let interior = component_interior(
             component,
             index,
@@ -428,7 +432,11 @@ pub(super) fn natural_component_geometry(
             &visit_units_returned,
             &visit_units_crashed,
             rank_bound,
-        )?;
+        )
+        .map_err(|error| match error {
+            FixedFuelError::BoundOverflow => unbounded_rank_report(machine, component),
+            other => other,
+        })?;
         component_units_returned.push(interior.returned);
         component_units_crashed.push(interior.crashed);
     }
@@ -897,14 +905,7 @@ fn natural_condensed_bound_returned(
         return Ok(*bound);
     }
     if !active.insert(node) {
-        let cycle_block = match node {
-            NaturalGraphNode::Block(block) => block,
-            NaturalGraphNode::Component(index) => components
-                .get(index)
-                .and_then(|component| component.ranks.first())
-                .map_or(machine.entry, |rank| rank.block),
-        };
-        return Err(FixedFuelError::ControlCycle(cycle_block));
+        return Err(condensed_cycle_report(machine, node));
     }
     let bound = match node {
         NaturalGraphNode::Block(block) => {
@@ -965,6 +966,14 @@ fn natural_condensed_bound_returned(
                 memoized.insert(node, None);
                 return Ok(None);
             };
+            // The certificate's ceiling is a `u64` scalar: an interior the
+            // rank arithmetic derived but the ceiling cannot state means
+            // this component's rank supplies no publishable bound — the
+            // spec's unbounded-rank cause names this component, not a flat
+            // overflow.
+            if units > u128::from(u64::MAX) {
+                return Err(unbounded_rank_report(machine, component));
+            }
             // A returning walk leaves the component through an exit edge of
             // a member whose own visit returns, or ends inside on a
             // member's return-family terminator. Exits that ride a member
@@ -1063,14 +1072,7 @@ fn natural_condensed_bound_crashed(
         return Ok(*bound);
     }
     if !active.insert(node) {
-        let cycle_block = match node {
-            NaturalGraphNode::Block(block) => block,
-            NaturalGraphNode::Component(index) => components
-                .get(index)
-                .and_then(|component| component.ranks.first())
-                .map_or(machine.entry, |rank| rank.block),
-        };
-        return Err(FixedFuelError::ControlCycle(cycle_block));
+        return Err(condensed_cycle_report(machine, node));
     }
     let bound = match node {
         NaturalGraphNode::Block(block) => {
@@ -1133,6 +1135,12 @@ fn natural_condensed_bound_crashed(
                 .get(index)
                 .copied()
                 .ok_or(FixedFuelError::InvalidRankedScc(machine.id))?;
+            // The certificate's ceiling is a `u64` scalar: an interior the
+            // rank arithmetic derived but the ceiling cannot state means
+            // this component's rank supplies no publishable bound.
+            if interior.is_some_and(|units| units > u128::from(u64::MAX)) {
+                return Err(unbounded_rank_report(machine, component));
+            }
             let mut best = None;
             // Crash inside the component: the interior plus exactly one
             // crashing visit — the crash ends the walk, so the crashing
@@ -1431,6 +1439,34 @@ fn member_closure_error(
             }
         }
         other => other,
+    }
+}
+
+/// Directed absence-of-bound report for a condensed-graph revisit: an
+/// ordinary block the retained partition did not cover sits on an unranked
+/// cyclic component, so the report names that verifier-derived component
+/// with the `Unranked` cause. A revisited component node means the
+/// condensed graph itself cycles — the retained partition is malformed,
+/// not unbounded, so the report is the broken invariant instead.
+fn condensed_cycle_report(machine: &TerminalMachine, node: NaturalGraphNode) -> FixedFuelError {
+    match node {
+        NaturalGraphNode::Block(block) => unbounded_cycle_report(machine, block),
+        NaturalGraphNode::Component(_) => FixedFuelError::InvalidRankedScc(machine.id),
+    }
+}
+
+/// Directed absence-of-bound report for a ranked component whose
+/// rank-derived interior bound cannot be represented in the certificate's
+/// scalar ceiling — the spec's `unbounded rank` cause: the ranking row
+/// exists but the visit arithmetic it drives supplies no publishable bound.
+pub(super) fn unbounded_rank_report(
+    machine: &TerminalMachine,
+    component: &TerminalNaturalCycle,
+) -> FixedFuelError {
+    let members: Vec<BlockId> = component.ranks.iter().map(|rank| rank.block).collect();
+    FixedFuelError::UnboundedCycleComponent {
+        component: terminal_verifier::cyclic_component_identity(machine, &members),
+        cause: UnboundedCycleCause::UnboundedRank,
     }
 }
 

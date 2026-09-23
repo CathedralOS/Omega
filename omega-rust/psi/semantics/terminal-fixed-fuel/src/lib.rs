@@ -175,13 +175,18 @@ impl FixedEntryFuelCertificate {
 /// Directed cause in an absence-of-bound report for a cyclic component —
 /// the reason the component's visits cannot be charged a fixed ceiling.
 /// Spec §logical-work requires the report to carry this cause alongside the
-/// exact component identity; unbounded-rank and wait/foreign-edge causes
-/// arrive with the dependent-bound machinery that can express them.
+/// exact component identity; the wait/foreign-edge cause arrives with the
+/// dependent-bound machinery that can express it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UnboundedCycleCause {
     /// The component carries no ranking row: no producer bound binds its
     /// visit count, so no fixed ceiling can cover its cyclic topology.
     Unranked,
+    /// The component carries a ranking row, but the bound the rank derives
+    /// cannot be represented in the certificate's scalar ceiling — the
+    /// rank-bounded visit arithmetic exceeds it, so the ranking supplies no
+    /// publishable bound.
+    UnboundedRank,
     /// An operation inside the component receives its callee through the
     /// invocation's descriptor table — an open callee set no fixed ceiling
     /// covers. The report names the responsible operation alongside the
