@@ -2098,6 +2098,33 @@ syntax and other terminal services are not prerequisites.
   `BorrowedSliceView` shape the catalog below it already understands. Start
   there; do not erase extent or add a sample-specific recognizer.
 
+  The Unit-graph branch is TAKEN, at `1739bf1441a`: admission publishes the
+  referent's own shape rather than only byte slices (`Slice{non-u8}` ->
+  `BorrowedSliceView` with the element identity, `FixedArray` forwarding
+  element and length), edge arguments peel re-borrow wrappers, and
+  terminal-semantics grew `fixed_element_array_extent` beside
+  `fixed_byte_array_extent`. It landed without crate-level tests;
+  `checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs`
+  now pins it, all three failing against the pre-change tree.
+
+  Two corrections to what is written above. The roster comment naming `Unit
+  graph borrowed slice is not bytes` belongs to
+  `entry/service_borrowed_slice_call`, NOT to
+  `slices/callee_non_byte_view_len_index_subslice` -- that fixture is rostered
+  without a comment and stops much earlier, at `unsupported statement kind`
+  during local construction, both before and after this change. And the
+  admission site is reached only when a borrowed view parameter is FORWARDED
+  to a successor state; an empty callee body never gets there, so any probe
+  of this row must use the forwarding shape or it measures nothing.
+
+  The RESIDUAL, measured on the forwarding shape: a byte view now lowers end
+  to end (before the re-borrow peel even bytes stopped at `Unit graph
+  successor is not the retained parameter binding`), and a non-byte view
+  stops at `InvalidStructuralSuccessorArgument` in the successor-custody
+  verifier -- a forwarded `&mut` argument emits a fresh re-borrow place the
+  frontier cannot name. That is custody accounting, not element views: the
+  admission and the argument presentation are both past it. Take that next.
+
   Whether anything else refuses afterwards is UNMEASURED, and one obvious
   candidate is a red herring:
   `target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs`'s

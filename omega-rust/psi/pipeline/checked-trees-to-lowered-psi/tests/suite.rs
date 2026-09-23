@@ -57,6 +57,7 @@ mod nested_initializer_arguments_source;
 mod nested_member_store_calls;
 mod nested_scalar_store_calls;
 mod nominal_affine_source;
+mod non_byte_borrowed_view_admission;
 mod owned_match_state_residuals;
 mod owned_record_return_source;
 mod owned_scalar_cycles;
