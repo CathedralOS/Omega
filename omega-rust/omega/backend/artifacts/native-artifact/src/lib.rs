@@ -7,12 +7,15 @@
 //! It owns only canonical Terminal bytes, target artifacts, and the exact
 //! source-free identity projections needed to replay their joins.
 //!
-//! Start at `native_artifact.rs` for artifact construction and replay, or
-//! `callable_entry.rs` for validated callable-entry staging.
+//! Start at `native_artifact.rs` for artifact construction and replay,
+//! `callable_entry.rs` for validated callable-entry staging, or
+//! `semantic_wrapper_object.rs` for the optimized ProgramStorage
+//! semantic-wrapper object records and codec that native realization stages.
 
 mod callable_entry;
 mod native_artifact;
 mod physical;
+mod semantic_wrapper_object;
 
 pub use callable_entry::{
     OptimizedOrdinaryCallableEntryCustodyReceipt, OptimizedOrdinaryCallableEntryDecodeError,
@@ -43,4 +46,23 @@ pub use physical::{
     NormalizedForeignCallbackRelocation, NormalizedForeignCallbackRelocations,
     OptimizedBoundaryOccurrence, OptimizedOperatorOccurrence, PhysicalChildParent,
     PhysicalRelocationDisposition, ValidatedOptimizedNativePhysicalEvidenceScope,
+};
+pub use semantic_wrapper_object::{
+    OptimizedProgramStorageSemanticWrapperCallResolution,
+    OptimizedProgramStorageSemanticWrapperCallResolutionState,
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
+    OptimizedProgramStorageSemanticWrapperObjectStage,
+    OptimizedProgramStorageSemanticWrapperObjectSymbol,
+    OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
+    OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
+    ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
+    compose_optimized_program_storage_semantic_wrapper_object,
+    decode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
 };

@@ -1,16 +1,18 @@
-use super::codec::{
-    Cursor, decode_psi, decode_symbol_id, decode_target, encode_manifest_content,
-    encode_plan_content,
+//! Optimizer module role: representation entrance. Durable records of the optimized ProgramStorage semantic-wrapper object.
+//!
+//! The wrapper object is one compiler-owned composite: a resolved semantic
+//! wrapper prefixed to a validated relocation-free Terminal child. This file
+//! declares the plan, container, manifest, and custody receipt that outlive
+//! the native-realization stage which joins them to settlement and encoding
+//! custody. `composition` builds the sealed plan from the child object and the
+//! validated wrapper template, `validation` checks the plan's shape and its
+//! agreement with that template, `manifest` derives and replays the manifest,
+//! and `codec` owns the canonical wire forms.
+
+use isa_x86_64::{
+    ValidatedX86_64SemanticUnitWrapperTemplate, X86_64SemanticUnitWrapperResolutionError,
 };
-use super::error::{
-    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
-    OptimizedProgramStorageSemanticWrapperObjectError,
-};
-use super::object::valid_manifest_shape;
-use crate::{
-    StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
-};
-use object_file::{ObjectLocalSymbolId, StagedValidatedOptimizedObjectArtifact};
+use object_file::ObjectLocalSymbolId;
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
     OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
@@ -21,6 +23,22 @@ use optimization_core::{
 use semantic_vocabulary::MachineId;
 use target::NativeTarget;
 use terminal_psi::TerminalPsiIdentity;
+
+mod codec;
+mod composition;
+mod manifest;
+mod validation;
+
+pub use codec::{
+    decode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
+};
+pub use composition::compose_optimized_program_storage_semantic_wrapper_object;
+
+use codec::{decode_manifest, encode_manifest, encode_manifest_content, encode_plan_content};
+use manifest::{construct_manifest, validate_manifest};
+use validation::validate_object_preserving_seal;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
@@ -85,7 +103,7 @@ pub struct OptimizedProgramStorageSemanticWrapperObjectPlan {
 // Thread-local so parallel tests in one process cannot interleave counts.
 #[cfg(test)]
 thread_local! {
-    pub(crate) static TEST_PLAN_IDENTITY_RECOMPUTATIONS: std::cell::Cell<usize> =
+    static TEST_PLAN_IDENTITY_RECOMPUTATIONS: std::cell::Cell<usize> =
         const { std::cell::Cell::new(0) };
 }
 
@@ -94,13 +112,25 @@ impl OptimizedProgramStorageSemanticWrapperObjectPlan {
         &self,
     ) -> Result<
         OptimizedProgramStorageSemanticWrapperObjectIdentity,
-        OptimizedProgramStorageSemanticWrapperObjectError,
+        OptimizedProgramStorageSemanticWrapperObjectRecordError,
     > {
         #[cfg(test)]
         TEST_PLAN_IDENTITY_RECOMPUTATIONS.with(|count| count.set(count.get() + 1));
         let mut canonical = PLAN_SCHEMA.to_vec();
         canonical.extend_from_slice(&encode_plan_content(self)?);
         Ok(OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(&canonical))
+    }
+
+    /// The object check for a plan whose `identity` the caller assigned from
+    /// `recomputed_identity()` on this unchanged value (the stage's retained,
+    /// just-composed plan): the digest conjunct
+    /// cannot differ and is not reserialized; every shape and template check
+    /// still runs.
+    pub fn validate_preserving_seal(
+        &self,
+        template: &ValidatedX86_64SemanticUnitWrapperTemplate,
+    ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
+        validate_object_preserving_seal(self, template)
     }
 }
 
@@ -158,162 +188,77 @@ impl OptimizedProgramStorageSemanticWrapperObjectManifest {
     }
 
     pub fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(MANIFEST_MAGIC);
-        bytes.extend_from_slice(&CODEC_VERSION.to_le_bytes());
-        bytes.extend_from_slice(&self.identity.bytes());
-        encode_manifest_content(&mut bytes, self);
-        bytes
+        encode_manifest(self)
     }
 
     pub fn decode(
         bytes: &[u8],
     ) -> Result<Self, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
-        let mut cursor = Cursor::new(bytes);
-        if cursor.take(8)? != MANIFEST_MAGIC {
-            return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::WrongMagic);
-        }
-        let version = u32::from_le_bytes(cursor.array()?);
-        if version != CODEC_VERSION {
-            return Err(
-                OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnsupportedVersion(
-                    version,
-                ),
-            );
-        }
-        let identity = OptimizedProgramStorageSemanticWrapperObjectManifestIdentity::from_bytes(
-            cursor.array()?,
-        );
-        if cursor.byte()? != 1 {
-            return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag);
-        }
-        let object =
-            OptimizedProgramStorageSemanticWrapperObjectIdentity::from_bytes(cursor.array()?);
-        let container = OptimizedProgramStorageSemanticWrapperObjectContainerIdentity::from_bytes(
-            cursor.array()?,
-        );
-        let source_artifact = OptimizedObjectArtifactIdentity::from_bytes(cursor.array()?);
-        let source_artifact_manifest =
-            OptimizedObjectArtifactManifestIdentity::from_bytes(cursor.array()?);
-        let source_object = RelocationFreeObjectPlanIdentity::from_bytes(cursor.array()?);
-        let source_object_container =
-            RelocationFreeObjectContainerIdentity::from_bytes(cursor.array()?);
-        let source_signature = cursor.array()?;
-        let psi = decode_psi(&mut cursor)?;
-        let target = decode_target(&mut cursor)?;
-        let wrapper_symbol = decode_symbol_id(&mut cursor)?;
-        let continuation_symbol = decode_symbol_id(&mut cursor)?;
-        let text_byte_count = u64::from_le_bytes(cursor.array()?);
-        let symbol_count = u64::from_le_bytes(cursor.array()?);
-        let relocation_record_count = u64::from_le_bytes(cursor.array()?);
-        for _ in 0..4 {
-            if cursor.byte()? != 1 {
-                return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag);
-            }
-        }
-        if cursor.remaining() != 0 {
-            return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::TrailingBytes);
-        }
-        let unavailable = OptimizedProgramStorageSemanticWrapperObjectUnavailableData::Unavailable;
-        let manifest = Self {
-            identity,
-            stage: OptimizedProgramStorageSemanticWrapperObjectStage::ValidatedResolvedCompositeObjectV1,
-            object,
-            container,
-            source_artifact,
-            source_artifact_manifest,
-            source_object,
-            source_object_container,
-            source_signature,
-            psi,
-            target,
-            wrapper_symbol,
-            continuation_symbol,
-            text_byte_count,
-            symbol_count,
-            relocation_record_count,
-            physical_entry_bridge: unavailable,
-            executable_image: unavailable,
-            installation: unavailable,
-            publication: unavailable,
-        };
-        if !valid_manifest_shape(&manifest) || manifest.recomputed_identity() != identity {
-            return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch);
-        }
-        Ok(manifest)
+        decode_manifest(bytes)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
-    pub(crate) record: OptimizedProgramStorageSemanticWrapperObjectManifest,
+    record: OptimizedProgramStorageSemanticWrapperObjectManifest,
 }
 
 impl ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
+    /// Derives the manifest of one plan/container pair and checks its closed
+    /// shape; the only route to a validated manifest.
+    pub fn construct(
+        object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+        container: &OptimizedProgramStorageSemanticWrapperObjectContainer,
+    ) -> Result<Self, OptimizedProgramStorageSemanticWrapperObjectRecordError> {
+        Ok(Self {
+            record: construct_manifest(object, container)?,
+        })
+    }
+
+    /// Replays the retained manifest against an independently recomputed
+    /// plan/container pair through its wire round trip.
+    pub fn replay(
+        &self,
+        object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+        container: &OptimizedProgramStorageSemanticWrapperObjectContainer,
+    ) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
+        validate_manifest(object, container, &self.record)
+    }
+
     pub const fn record(&self) -> &OptimizedProgramStorageSemanticWrapperObjectManifest {
         &self.record
     }
 
     #[cfg(test)]
-    pub(crate) fn record_mut(
-        &mut self,
-    ) -> &mut OptimizedProgramStorageSemanticWrapperObjectManifest {
+    fn record_mut(&mut self) -> &mut OptimizedProgramStorageSemanticWrapperObjectManifest {
         &mut self.record
-    }
-}
-
-#[derive(Debug)]
-#[must_use = "semantic-wrapper object custody retains settlement, encoding, and Omega object sources"]
-pub struct StagedValidatedOptimizedProgramStorageSemanticWrapperObject {
-    pub(crate) settlement: ValidatedNativeProgramEntrySettlement,
-    pub(crate) source: StagedValidatedOptimizedObjectArtifact,
-    pub(crate) encoding: StagedOptimizedProgramStorageSemanticWrapperEncoding,
-    pub(crate) object: OptimizedProgramStorageSemanticWrapperObjectPlan,
-    pub(crate) container: OptimizedProgramStorageSemanticWrapperObjectContainer,
-    pub(crate) manifest: ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest,
-    pub(crate) custody: OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
-}
-
-impl StagedValidatedOptimizedProgramStorageSemanticWrapperObject {
-    pub const fn settlement(&self) -> &ValidatedNativeProgramEntrySettlement {
-        &self.settlement
-    }
-
-    pub const fn source(&self) -> &StagedValidatedOptimizedObjectArtifact {
-        &self.source
-    }
-
-    pub const fn encoding(&self) -> &StagedOptimizedProgramStorageSemanticWrapperEncoding {
-        &self.encoding
-    }
-
-    pub const fn object(&self) -> &OptimizedProgramStorageSemanticWrapperObjectPlan {
-        &self.object
-    }
-
-    pub const fn container(&self) -> &OptimizedProgramStorageSemanticWrapperObjectContainer {
-        &self.container
-    }
-
-    pub const fn manifest(&self) -> &ValidatedOptimizedProgramStorageSemanticWrapperObjectManifest {
-        &self.manifest
-    }
-
-    pub const fn custody(&self) -> OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
-        self.custody
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
-    pub(crate) source_artifact: OptimizedObjectArtifactIdentity,
-    pub(crate) source_signature: [u8; 32],
-    pub(crate) object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
-    pub(crate) container: OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
-    pub(crate) manifest: OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
+    pub(super) source_artifact: OptimizedObjectArtifactIdentity,
+    pub(super) source_signature: [u8; 32],
+    pub(super) object: OptimizedProgramStorageSemanticWrapperObjectIdentity,
+    pub(super) container: OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
+    pub(super) manifest: OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
 }
 
 impl OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
+    pub const fn from_records(
+        object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+        container: &OptimizedProgramStorageSemanticWrapperObjectContainer,
+        manifest: &OptimizedProgramStorageSemanticWrapperObjectManifest,
+    ) -> Self {
+        Self {
+            source_artifact: object.source_artifact,
+            source_signature: object.source_signature,
+            object: object.identity,
+            container: container.identity,
+            manifest: manifest.identity,
+        }
+    }
+
     pub const fn source_artifact(self) -> OptimizedObjectArtifactIdentity {
         self.source_artifact
     }
@@ -336,9 +281,61 @@ impl OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt {
 }
 
 // Wire identity of the wrapper object, its container, and its manifest.
-pub(crate) const PLAN_SCHEMA: &[u8] =
-    b"omega.optimized-program-storage-semantic-wrapper-object.v1\0";
-pub(crate) const CONTAINER_MAGIC: &[u8; 8] = b"OMGPSO\0\0";
-pub(crate) const MANIFEST_MAGIC: &[u8; 8] = b"OMGPSM\0\0";
-pub(crate) const CODEC_VERSION: u32 = 1;
-pub(crate) const WRAPPER_SYMBOL_NAME: &str = "__omega_program_entry_plan_semantic_wrapper_v1";
+const PLAN_SCHEMA: &[u8] = b"omega.optimized-program-storage-semantic-wrapper-object.v1\0";
+const CONTAINER_MAGIC: &[u8; 8] = b"OMGPSO\0\0";
+const MANIFEST_MAGIC: &[u8; 8] = b"OMGPSM\0\0";
+const CODEC_VERSION: u32 = 1;
+const WRAPPER_SYMBOL_NAME: &str = "__omega_program_entry_plan_semantic_wrapper_v1";
+
+/// Failures raised by the wrapper object's own record operations. The owning
+/// native-realization stage maps each onto its same-named stage variant.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OptimizedProgramStorageSemanticWrapperObjectRecordError {
+    LengthOverflow,
+    InvalidObject,
+    ManifestMismatch,
+    SourceObjectMismatch,
+    WrapperResolution(X86_64SemanticUnitWrapperResolutionError),
+}
+
+impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectRecordError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "optimized ProgramStorage semantic wrapper object record failed: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectRecordError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptimizedProgramStorageSemanticWrapperObjectDecodeError {
+    Truncated,
+    WrongMagic,
+    UnsupportedVersion(u32),
+    InvalidUtf8,
+    InvalidLength,
+    InvalidSymbol,
+    InvalidMachine,
+    InvalidVocabulary,
+    InvalidTarget,
+    UnknownTag,
+    IdentityMismatch,
+    InvalidObject,
+    TrailingBytes,
+}
+
+impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectDecodeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid optimized ProgramStorage wrapper object encoding: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectDecodeError {}
+
+#[cfg(test)]
+mod tests;

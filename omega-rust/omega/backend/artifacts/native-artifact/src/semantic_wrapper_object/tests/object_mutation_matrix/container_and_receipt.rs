@@ -8,14 +8,14 @@
 //! Every byte substitution of the canonical container is a non-canonical wire
 //! record: the embedded object identity covers the entire payload.
 use super::super::super::OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt;
+use super::super::custody;
 use super::super::{
-    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
     decode_optimized_program_storage_semantic_wrapper_object,
-    encode_optimized_program_storage_semantic_wrapper_object, encoding,
+    encode_optimized_program_storage_semantic_wrapper_object, template,
 };
 use super::fixture::staged_parts;
-use crate::optimized_semantic_wrapper_object::custody::custody;
-use crate::optimized_semantic_wrapper_object::object::validate_manifest;
+use crate::semantic_wrapper_object::manifest::validate_manifest;
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
     OptimizedProgramStorageSemanticWrapperObjectIdentity,
@@ -28,8 +28,7 @@ type ReceiptMutation = fn(&mut OptimizedProgramStorageSemanticWrapperObjectCusto
 fn wrapper_object_container_rejects_every_one_field_substitution() {
     let (object, container, manifest, _) = staged_parts();
     let expected_container =
-        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding().template())
-            .unwrap();
+        encode_optimized_program_storage_semantic_wrapper_object(&object, &template()).unwrap();
 
     // `container.object` substitution: the manifest does not bind this field,
     // so the join that rejects it is the staged whole-container comparison
@@ -54,7 +53,7 @@ fn wrapper_object_container_rejects_every_one_field_substitution() {
     assert_ne!(mutated, expected_container);
     assert_eq!(
         validate_manifest(&object, &mutated, &manifest),
-        Err(OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch),
+        Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch),
         "retained manifest replay must reject a substituted container identity",
     );
 
@@ -68,20 +67,20 @@ fn wrapper_object_container_rejects_every_one_field_substitution() {
     bad_payload.bytes[44] ^= 1;
     assert_eq!(
         decode_optimized_program_storage_semantic_wrapper_object(&bad_payload.bytes),
-        Err(crate::optimized_semantic_wrapper_object::OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch),
+        Err(crate::semantic_wrapper_object::OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch),
         "payload substitution must fail the embedded identity check",
     );
     let mut truncated = container.clone();
     truncated.bytes.pop();
     assert_eq!(
         decode_optimized_program_storage_semantic_wrapper_object(&truncated.bytes),
-        Err(crate::optimized_semantic_wrapper_object::OptimizedProgramStorageSemanticWrapperObjectDecodeError::Truncated),
+        Err(crate::semantic_wrapper_object::OptimizedProgramStorageSemanticWrapperObjectDecodeError::Truncated),
     );
     let mut extended = container.clone();
     extended.bytes.push(0);
     assert_eq!(
         decode_optimized_program_storage_semantic_wrapper_object(&extended.bytes),
-        Err(crate::optimized_semantic_wrapper_object::OptimizedProgramStorageSemanticWrapperObjectDecodeError::TrailingBytes),
+        Err(crate::semantic_wrapper_object::OptimizedProgramStorageSemanticWrapperObjectDecodeError::TrailingBytes),
     );
     for mutated in [bad_magic, bad_payload, truncated, extended] {
         assert_ne!(

@@ -1,20 +1,18 @@
 //! Optimizer module role: executable entrance.
+//!
+//! Binds the wrapper object's composition to the stage's retained custody:
+//! the settlement, source artifact, and child object must name one another
+//! before the record owner composes and seals the plan.
 
-use crate::optimized_semantic_wrapper_object::error::OptimizedProgramStorageSemanticWrapperObjectError;
-use crate::optimized_semantic_wrapper_object::model::OptimizedProgramStorageSemanticWrapperObjectPlan;
+use super::error::OptimizedProgramStorageSemanticWrapperObjectError;
 use crate::{
     StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
 };
-use object_file::StagedValidatedOptimizedObjectArtifact;
-mod composition;
-mod manifest;
-mod validation;
-
-pub(crate) use composition::compose_object;
-pub(crate) use manifest::{construct_manifest, valid_manifest_shape, validate_manifest};
-pub(crate) use validation::{
-    validate_object, validate_object_preserving_seal, validate_object_shape_content,
+use native_artifact::{
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    compose_optimized_program_storage_semantic_wrapper_object,
 };
+use object_file::StagedValidatedOptimizedObjectArtifact;
 
 pub(crate) fn construct_object(
     settlement: &ValidatedNativeProgramEntrySettlement,
@@ -36,12 +34,12 @@ pub(crate) fn construct_object(
     {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::SourceObjectMismatch);
     }
-    compose_object(
+    Ok(compose_optimized_program_storage_semantic_wrapper_object(
         settlement.source().identity().bytes(),
         source.artifact().identity,
         source.manifest().record().identity,
         child_stage.container().identity,
         child,
-        encoding,
-    )
+        encoding.template(),
+    )?)
 }

@@ -1,27 +1,33 @@
-use crate::optimized_semantic_wrapper_object::error::{
-    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
-    OptimizedProgramStorageSemanticWrapperObjectError,
+//! Canonical wire encoding for the wrapper object plan, its container, and
+//! its manifest. Decoding re-derives every identity from the wire and
+//! re-validates the plan's template-free shape before returning it.
+
+use super::manifest::valid_manifest_shape;
+use super::validation::{
+    validate_object, validate_object_preserving_seal, validate_object_shape_content,
 };
-use crate::optimized_semantic_wrapper_object::model::{CODEC_VERSION, CONTAINER_MAGIC};
-use crate::optimized_semantic_wrapper_object::model::{
+use super::{
+    CODEC_VERSION, CONTAINER_MAGIC, MANIFEST_MAGIC,
     OptimizedProgramStorageSemanticWrapperCallResolution,
     OptimizedProgramStorageSemanticWrapperCallResolutionState,
     OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
     OptimizedProgramStorageSemanticWrapperObjectManifest,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
+    OptimizedProgramStorageSemanticWrapperObjectStage,
     OptimizedProgramStorageSemanticWrapperObjectSymbol,
     OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
-};
-use crate::optimized_semantic_wrapper_object::object::{
-    validate_object, validate_object_preserving_seal, validate_object_shape_content,
+    OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
 };
 use isa_x86_64::ValidatedX86_64SemanticUnitWrapperTemplate;
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
     OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectIdentity, RelocationFreeObjectContainerIdentity,
-    RelocationFreeObjectPlanIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
 };
 use semantic_vocabulary::MachineId;
 use target::{NativeTarget, ObjectFormat};
@@ -32,7 +38,7 @@ pub fn encode_optimized_program_storage_semantic_wrapper_object(
     wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
 ) -> Result<
     OptimizedProgramStorageSemanticWrapperObjectContainer,
-    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
 > {
     validate_object(object, wrapper)?;
     encode_validated_container(object)
@@ -43,12 +49,12 @@ pub fn encode_optimized_program_storage_semantic_wrapper_object(
 /// value, so the digest conjunct cannot differ and is not reserialized;
 /// every other shape and template check still runs. The standalone encode
 /// above keeps the full recompute for caller-supplied objects.
-pub(crate) fn encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
+pub fn encode_optimized_program_storage_semantic_wrapper_object_preserving_seal(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
     wrapper: &ValidatedX86_64SemanticUnitWrapperTemplate,
 ) -> Result<
     OptimizedProgramStorageSemanticWrapperObjectContainer,
-    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
 > {
     validate_object_preserving_seal(object, wrapper)?;
     encode_validated_container(object)
@@ -58,7 +64,7 @@ fn encode_validated_container(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
 ) -> Result<
     OptimizedProgramStorageSemanticWrapperObjectContainer,
-    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
 > {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(CONTAINER_MAGIC);
@@ -105,9 +111,9 @@ pub fn decode_optimized_program_storage_semantic_wrapper_object(
     Ok(object)
 }
 
-pub(crate) fn encode_plan_content(
+pub(super) fn encode_plan_content(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
-) -> Result<Vec<u8>, OptimizedProgramStorageSemanticWrapperObjectError> {
+) -> Result<Vec<u8>, OptimizedProgramStorageSemanticWrapperObjectRecordError> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&object.source_artifact.bytes());
     bytes.extend_from_slice(&object.source_artifact_manifest.bytes());
@@ -121,7 +127,7 @@ pub(crate) fn encode_plan_content(
     encode_bytes(&mut bytes, &object.text_bytes)?;
     bytes.extend_from_slice(
         &u64::try_from(object.symbols.len())
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?
+            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::LengthOverflow)?
             .to_le_bytes(),
     );
     for symbol in &object.symbols {
@@ -270,7 +276,7 @@ fn decode_plan_content(
     Ok(object)
 }
 
-pub(crate) fn encode_manifest_content(
+pub(super) fn encode_manifest_content(
     bytes: &mut Vec<u8>,
     manifest: &OptimizedProgramStorageSemanticWrapperObjectManifest,
 ) {
@@ -292,12 +298,99 @@ pub(crate) fn encode_manifest_content(
     bytes.extend_from_slice(&[1, 1, 1, 1]);
 }
 
+pub(super) fn encode_manifest(
+    manifest: &OptimizedProgramStorageSemanticWrapperObjectManifest,
+) -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(MANIFEST_MAGIC);
+    bytes.extend_from_slice(&CODEC_VERSION.to_le_bytes());
+    bytes.extend_from_slice(&manifest.identity.bytes());
+    encode_manifest_content(&mut bytes, manifest);
+    bytes
+}
+
+pub(super) fn decode_manifest(
+    bytes: &[u8],
+) -> Result<
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectDecodeError,
+> {
+    let mut cursor = Cursor::new(bytes);
+    if cursor.take(8)? != MANIFEST_MAGIC {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::WrongMagic);
+    }
+    let version = u32::from_le_bytes(cursor.array()?);
+    if version != CODEC_VERSION {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnsupportedVersion(version),
+        );
+    }
+    let identity =
+        OptimizedProgramStorageSemanticWrapperObjectManifestIdentity::from_bytes(cursor.array()?);
+    if cursor.byte()? != 1 {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag);
+    }
+    let object = OptimizedProgramStorageSemanticWrapperObjectIdentity::from_bytes(cursor.array()?);
+    let container =
+        OptimizedProgramStorageSemanticWrapperObjectContainerIdentity::from_bytes(cursor.array()?);
+    let source_artifact = OptimizedObjectArtifactIdentity::from_bytes(cursor.array()?);
+    let source_artifact_manifest =
+        OptimizedObjectArtifactManifestIdentity::from_bytes(cursor.array()?);
+    let source_object = RelocationFreeObjectPlanIdentity::from_bytes(cursor.array()?);
+    let source_object_container =
+        RelocationFreeObjectContainerIdentity::from_bytes(cursor.array()?);
+    let source_signature = cursor.array()?;
+    let psi = decode_psi(&mut cursor)?;
+    let target = decode_target(&mut cursor)?;
+    let wrapper_symbol = decode_symbol_id(&mut cursor)?;
+    let continuation_symbol = decode_symbol_id(&mut cursor)?;
+    let text_byte_count = u64::from_le_bytes(cursor.array()?);
+    let symbol_count = u64::from_le_bytes(cursor.array()?);
+    let relocation_record_count = u64::from_le_bytes(cursor.array()?);
+    for _ in 0..4 {
+        if cursor.byte()? != 1 {
+            return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::UnknownTag);
+        }
+    }
+    if cursor.remaining() != 0 {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::TrailingBytes);
+    }
+    let unavailable = OptimizedProgramStorageSemanticWrapperObjectUnavailableData::Unavailable;
+    let manifest = OptimizedProgramStorageSemanticWrapperObjectManifest {
+        identity,
+        stage:
+            OptimizedProgramStorageSemanticWrapperObjectStage::ValidatedResolvedCompositeObjectV1,
+        object,
+        container,
+        source_artifact,
+        source_artifact_manifest,
+        source_object,
+        source_object_container,
+        source_signature,
+        psi,
+        target,
+        wrapper_symbol,
+        continuation_symbol,
+        text_byte_count,
+        symbol_count,
+        relocation_record_count,
+        physical_entry_bridge: unavailable,
+        executable_image: unavailable,
+        installation: unavailable,
+        publication: unavailable,
+    };
+    if !valid_manifest_shape(&manifest) || manifest.recomputed_identity() != identity {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch);
+    }
+    Ok(manifest)
+}
+
 fn encode_psi(bytes: &mut Vec<u8>, identity: TerminalPsiIdentity) {
     bytes.extend_from_slice(&identity.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(identity.program_fingerprint.as_bytes());
 }
 
-pub(crate) fn decode_psi(
+fn decode_psi(
     cursor: &mut Cursor<'_>,
 ) -> Result<TerminalPsiIdentity, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
     let marker = u16::from_le_bytes(cursor.array()?);
@@ -327,7 +420,7 @@ fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
     );
 }
 
-pub(crate) fn decode_target(
+fn decode_target(
     cursor: &mut Cursor<'_>,
 ) -> Result<NativeTarget, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
     let architecture = cursor.byte()?;
@@ -343,10 +436,10 @@ pub(crate) fn decode_target(
 fn encode_string(
     bytes: &mut Vec<u8>,
     value: &str,
-) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
     bytes.extend_from_slice(
         &u64::try_from(value.len())
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?
+            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::LengthOverflow)?
             .to_le_bytes(),
     );
     bytes.extend_from_slice(value.as_bytes());
@@ -356,34 +449,34 @@ fn encode_string(
 fn encode_bytes(
     output: &mut Vec<u8>,
     bytes: &[u8],
-) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
     output.extend_from_slice(
         &u64::try_from(bytes.len())
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?
+            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::LengthOverflow)?
             .to_le_bytes(),
     );
     output.extend_from_slice(bytes);
     Ok(())
 }
 
-pub(crate) fn decode_symbol_id(
+fn decode_symbol_id(
     cursor: &mut Cursor<'_>,
 ) -> Result<ObjectLocalSymbolId, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
     ObjectLocalSymbolId::new(u64::from_le_bytes(cursor.array()?))
         .ok_or(OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidSymbol)
 }
 
-pub(crate) struct Cursor<'a> {
+struct Cursor<'a> {
     bytes: &'a [u8],
     offset: usize,
 }
 
 impl<'a> Cursor<'a> {
-    pub(crate) const fn new(bytes: &'a [u8]) -> Self {
+    const fn new(bytes: &'a [u8]) -> Self {
         Self { bytes, offset: 0 }
     }
 
-    pub(crate) fn take(
+    fn take(
         &mut self,
         count: usize,
     ) -> Result<&'a [u8], OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
@@ -399,7 +492,7 @@ impl<'a> Cursor<'a> {
         Ok(bytes)
     }
 
-    pub(crate) fn array<const N: usize>(
+    fn array<const N: usize>(
         &mut self,
     ) -> Result<[u8; N], OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
         self.take(N)?
@@ -407,34 +500,30 @@ impl<'a> Cursor<'a> {
             .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::Truncated)
     }
 
-    pub(crate) fn byte(
-        &mut self,
-    ) -> Result<u8, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
+    fn byte(&mut self) -> Result<u8, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
         Ok(self.array::<1>()?[0])
     }
 
-    pub(crate) fn len(
-        &mut self,
-    ) -> Result<usize, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
+    fn len(&mut self) -> Result<usize, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
         usize::try_from(u64::from_le_bytes(self.array()?))
             .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidLength)
     }
 
-    pub(crate) fn bytes(
+    fn bytes(
         &mut self,
     ) -> Result<Vec<u8>, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
         let count = self.len()?;
         Ok(self.take(count)?.to_vec())
     }
 
-    pub(crate) fn string(
+    fn string(
         &mut self,
     ) -> Result<String, OptimizedProgramStorageSemanticWrapperObjectDecodeError> {
         String::from_utf8(self.bytes()?)
             .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidUtf8)
     }
 
-    pub(crate) const fn remaining(&self) -> usize {
+    const fn remaining(&self) -> usize {
         self.bytes.len() - self.offset
     }
 }

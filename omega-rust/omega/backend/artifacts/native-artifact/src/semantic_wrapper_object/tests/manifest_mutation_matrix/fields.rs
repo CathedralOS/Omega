@@ -1,10 +1,10 @@
 //! Reauthenticated logical-field mutations against canonical manifest replay.
 use super::super::{
-    OptimizedProgramStorageSemanticWrapperObjectError,
     OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
 };
 use super::fixture::manifest_fixture;
-use crate::optimized_semantic_wrapper_object::object::validate_manifest;
+use crate::semantic_wrapper_object::manifest::validate_manifest;
 use object_file::ObjectLocalSymbolId;
 use optimization_core::{
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
@@ -81,7 +81,7 @@ fn every_representable_manifest_field_rejects_after_reauthentication() {
         );
         assert_eq!(
             validate_manifest(&object, &container, &record),
-            Err(OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch),
+            Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch),
             "canonical producer replay must reject reauthenticated {field}",
         );
     }
@@ -119,7 +119,7 @@ fn every_representable_closed_shape_field_fails_before_authority() {
         );
         assert_eq!(
             validate_manifest(&object, &container, &record),
-            Err(OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch),
+            Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch),
         );
     }
 }
@@ -133,6 +133,6 @@ fn stale_manifest_identity_rejects_before_authority() {
         );
     assert_eq!(
         validate_manifest(&object, &container, &manifest),
-        Err(OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch),
+        Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch),
     );
 }
