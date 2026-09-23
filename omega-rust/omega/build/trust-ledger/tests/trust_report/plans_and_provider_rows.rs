@@ -1,5 +1,56 @@
 use super::compile;
-use compiler::{CheckedCompileRequest, CompileOptions, compile_to_checked};
+use compiler::{CheckedCompilation, CheckedCompileRequest, CompileOptions, compile_to_checked};
+
+/// `65dc530cef` stopped ordinary compilation from writing the trust Markdown,
+/// so these tests reconstruct the same report from the checked program the way
+/// `admit_checked_compilation` does. Each fact is unchanged; only its carrier
+/// is, and the rows are the structure the renderer used to print.
+fn trust_report(checked: &CheckedCompilation) -> artifacts::TrustReport {
+    trust_model::reconstruct_trust_report(
+        checked.terminal_production_trees(),
+        checked.root_grants(),
+        checked.provider_plans(),
+        checked.selected_provider_plans(),
+        checked.accepted_template_classifications(),
+    )
+    .expect("the trust report reconstructs from the checked program")
+}
+
+/// Checks the project's root and reconstructs its trust report in one step,
+/// for the tests that only ever compiled to reach the report.
+fn checked_trust_report(project: &std::path::Path, expectation: &str) -> artifacts::TrustReport {
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
+        .unwrap_or_else(|diagnostics| panic!("{expectation}: {diagnostics:?}"));
+    trust_report(&checked)
+}
+
+/// Commitment names in row order, for assertion messages that used to print the
+/// whole rendered document.
+fn commitments(report: &artifacts::TrustReport) -> Vec<&str> {
+    report
+        .rows
+        .iter()
+        .map(|row| row.commitment.as_str())
+        .collect()
+}
+
+/// One provider-requirement row selected by plan name and requirement method.
+fn requirement_row<'report>(
+    report: &'report artifacts::TrustReport,
+    provider_plan: &str,
+    method: &str,
+) -> &'report artifacts::TrustProviderRequirementRow {
+    report
+        .provider_requirements
+        .iter()
+        .find(|row| row.provider_plan == provider_plan && row.method == method)
+        .unwrap_or_else(|| {
+            panic!(
+                "no `{provider_plan}` requirement row for `{method}`:\n{:#?}",
+                report.provider_requirements
+            )
+        })
+}
 
 #[test]
 fn granted_plan_receipt_pins_the_fingerprint() {
@@ -84,53 +135,65 @@ machine Main::exercise(&mut self) reaches Console {
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("external-leaf project should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    assert!(
-        report.contains("provider plan: satisfies::Flags ["),
-        "expected the derived plan row with its fingerprint:\n{report}"
-    );
+    let report = checked_trust_report(&project, "external-leaf project should compile");
     let plan_row = report
-        .lines()
-        .find(|line| line.contains("provider plan: satisfies::Flags"))
-        .unwrap_or_default();
-    assert!(
-        plan_row.contains("own-package (dev-active)") && plan_row.contains("STANDING WARNING"),
-        "an ungranted plan is dev-active with the warning:\n{report}"
-    );
-    assert!(
-        report.contains("provider requirements: 1"),
-        "the claim-free plan must still publish its exact requirement blast radius:\n{report}"
-    );
-    assert!(report.contains("generic accepted instances: 0"));
-    let requirement_row = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::Flags -- plan report fingerprint:")
-                && line.contains("requirement identity:")
+        .rows
+        .iter()
+        .find(|row| {
+            row.commitment
+                .starts_with("provider plan: satisfies::Flags [")
         })
-        .expect("exact claim-free provider requirement row");
-    assert!(requirement_row.contains("requirement owner: Flags"));
-    assert!(requirement_row.contains("service schema: Flags"));
-    assert!(requirement_row.contains("provider type: <free external>"));
-    assert!(requirement_row.contains("target: <all>"));
-    assert!(requirement_row.contains("calling plan report fingerprint: <none>"));
-    assert!(requirement_row.contains("calling plan commitment: <none>"));
-    assert!(requirement_row.contains("parameter types: <none>"));
-    assert!(requirement_row.contains("result type: named(name(i32))"));
-    assert!(requirement_row.contains("named-callable(path(Flags::open_read)"));
-    assert!(requirement_row.contains("method: open_read"));
-    assert!(requirement_row.contains("realization: syscall 101"));
-    assert!(requirement_row.contains("grant selectors: none"));
-    assert!(requirement_row.contains("STANDING WARNING"));
+        .unwrap_or_else(|| {
+            panic!(
+                "expected the derived plan row:\n{:#?}",
+                report
+                    .rows
+                    .iter()
+                    .map(|row| &row.commitment)
+                    .collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(plan_row.provenance, "own-package (dev-active)");
+    assert!(
+        plan_row.standing_warning,
+        "an ungranted plan is dev-active with the warning"
+    );
+    assert_eq!(
+        report.provider_requirements.len(),
+        1,
+        "the claim-free plan must still publish its exact requirement blast radius:\n{:#?}",
+        report.provider_requirements
+    );
+    assert!(report.generic_accepted_instances.is_empty());
+    let requirement_row = requirement_row(&report, "satisfies::Flags", "open_read");
+    assert_eq!(requirement_row.requirement_owner, "Flags");
+    assert_eq!(requirement_row.service_schema, "Flags");
+    assert_eq!(
+        requirement_row.provider_type, "",
+        "an empty provider type denotes a free external leaf"
+    );
+    assert_eq!(
+        requirement_row.target, "",
+        "an empty target denotes all targets"
+    );
+    assert_eq!(requirement_row.calling_plan_report_fingerprint, None);
+    assert_eq!(requirement_row.calling_plan_commitment, None);
+    assert!(requirement_row.parameter_type_identities.is_empty());
+    assert_eq!(
+        requirement_row.result_type_identity.as_deref(),
+        Some("named(name(i32))")
+    );
+    assert!(
+        requirement_row
+            .requirement_identity
+            .contains("named-callable(path(Flags::open_read)")
+    );
+    assert_eq!(
+        requirement_row.realization,
+        artifacts::TrustProviderRealization::Syscall { number: 101 }
+    );
+    assert!(requirement_row.grant_selectors.is_empty());
+    assert!(requirement_row.standing_warning);
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -147,7 +210,7 @@ fn provider_requirement_rows_retain_exact_calling_plan_identity() {
         project.join("main.omg"),
         r#"use omega::language::std::calling;
 
-data NoResultPolicy {}
+pub data NoResultPolicy {}
 NoResultPolicyCallingPolicy: NoResultPolicy satisfies CallingPolicy;
 
 machine NoResultPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -200,30 +263,24 @@ machine Main::exercise(&mut self) {}
     assert!(method.parameter_type_identities.is_empty());
     assert_eq!(method.result_type_identity, None);
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("calling-policy provider should compile");
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    assert!(report.contains(&format!(
-        "selected provider closure report fingerprint: {expected_selected_closure:016x}"
-    )));
-    let requirement = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::Tick -- plan report fingerprint:")
-                && line.contains("requirement identity:")
-        })
-        .expect("Tick provider requirement row");
-    assert!(requirement.contains(&format!("calling plan report fingerprint: {expected:016x}")));
-    assert!(requirement.contains("calling plan commitment: 0x"));
-    assert!(requirement.contains("service schema: Tick"));
-    assert!(requirement.contains("parameter types: <none>"));
-    assert!(requirement.contains("result type: <none>"));
+    let report = trust_report(&checked);
+    assert_eq!(
+        report.selected_provider_closure_report_fingerprint,
+        expected_selected_closure
+    );
+    let requirement = requirement_row(&report, "satisfies::Tick", &method.name);
+    assert_eq!(
+        requirement.calling_plan_report_fingerprint,
+        Some(expected),
+        "the requirement row carries the evaluated calling contract"
+    );
+    assert!(
+        requirement.calling_plan_commitment.is_some(),
+        "an evaluated calling plan retains its strong commitment"
+    );
+    assert_eq!(requirement.service_schema, "Tick");
+    assert!(requirement.parameter_type_identities.is_empty());
+    assert_eq!(requirement.result_type_identity, None);
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -262,45 +319,26 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("operational provider schema should compile");
+    let report = checked_trust_report(&project, "operational provider schema should compile");
+    let effectful = requirement_row(&report, "satisfies::Pair", "effectful");
+    assert_eq!(effectful.provider_origin_package_identity, None);
+    assert_eq!(effectful.provenance, "own-package (dev-active)");
+    assert_eq!(effectful.service_reach, ["Callback", "Clock", "Pair"]);
+    assert_eq!(effectful.synchronous_invocations, ["Callback"]);
+    assert!(effectful.may_suspend);
+    assert!(effectful.may_block);
+    assert!(effectful.terminates_guarantee);
 
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    let effectful = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
-                && line.contains("method: effectful")
-        })
-        .expect("effectful provider requirement row");
-    assert!(effectful.contains("provider origin package: <none>"));
-    assert!(effectful.contains("own-package (dev-active)"));
-    assert!(effectful.contains("service reach: Callback, Clock, Pair"));
-    assert!(effectful.contains("synchronous invocations: Callback"));
-    assert!(effectful.contains("may suspend: yes"));
-    assert!(effectful.contains("may block: yes"));
-    assert!(effectful.contains("termination guarantee: yes"));
-
-    let quiet = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
-                && line.contains("method: quiet")
-        })
-        .expect("quiet provider requirement row");
-    assert!(quiet.contains("service reach: Pair"));
-    assert!(quiet.contains("synchronous invocations: none"));
-    assert!(quiet.contains("may suspend: no"));
-    assert!(quiet.contains("may block: no"));
-    assert!(quiet.contains("termination guarantee: no"));
-    assert!(!quiet.contains("Clock"));
-    assert!(!quiet.contains("Callback"));
+    let quiet = requirement_row(&report, "satisfies::Pair", "quiet");
+    assert_eq!(
+        quiet.service_reach,
+        ["Pair"],
+        "the quiet requirement's reach is its own, not its sibling's"
+    );
+    assert!(quiet.synchronous_invocations.is_empty());
+    assert!(!quiet.may_suspend);
+    assert!(!quiet.may_block);
+    assert!(!quiet.terminates_guarantee);
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -315,8 +353,8 @@ fn provider_requirement_rows_retain_public_progress_premise_schemas() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"data SchedulerHandle { id: u64; }
-domain SchedulerHandle::WeakFair
+        r#"pub data SchedulerHandle { id: u64; }
+pub domain SchedulerHandle::WeakFair
 satisfies ProgressProfile
 established by SchedulerAdmission::grant;
 
@@ -339,25 +377,20 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("progress-premised provider requirement should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    let requirement = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::SchedulerRuntime -- plan report fingerprint:")
-                && line.contains("method: wait")
-        })
-        .expect("wait provider requirement row");
-    assert!(requirement.contains("termination guarantee: yes"));
-    assert!(requirement.contains("progress premises: SchedulerHandle::WeakFair(parameter:0)"));
+    let report = checked_trust_report(
+        &project,
+        "progress-premised provider requirement should compile",
+    );
+    let requirement = requirement_row(&report, "satisfies::SchedulerRuntime", "wait");
+    assert!(requirement.terminates_guarantee);
+    assert_eq!(
+        requirement.termination_premises,
+        vec![artifacts::TrustProgressPremiseRow {
+            profile: "SchedulerHandle::WeakFair".to_owned(),
+            subject: artifacts::TrustProgressPremiseSubject::Parameter(0),
+            subject_projections: Vec::new(),
+        }]
+    );
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -372,13 +405,13 @@ fn routed_qualification_rows_retain_exact_plan_claims_and_provenance() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"data Token [linear] { id: u64; }
-domain Token::Granted
+        r#"pub data Token [linear] { id: u64; }
+pub domain Token::Granted
 requires
     self.id > 0
 established by StorageEntry::enter;
 
-domain Token::Issued
+pub domain Token::Issued
 established by Issuer::issue;
 
 pub boundary trait StorageEntry {
@@ -410,88 +443,99 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("routed provider plans should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    assert!(
-        report.contains("routed qualifications: 2"),
-        "one predicate-bearing entry claim and one bodyless result claim should be reported:\n{report}"
+    let report = checked_trust_report(&project, "routed provider plans should compile");
+    assert_eq!(
+        report.qualifications.len(),
+        2,
+        "one predicate-bearing entry claim and one bodyless result claim should be reported:\n{:#?}",
+        report.qualifications
     );
 
     let extent_plan = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: StorageEntryProvider::satisfies::StorageEntry [")
-                && line.contains("coverage")
+        .rows
+        .iter()
+        .find(|row| {
+            row.commitment
+                .starts_with("provider plan: StorageEntryProvider::satisfies::StorageEntry [")
         })
-        .expect("extent provider-plan commitment row");
-    let extent_fingerprint = extent_plan
-        .split('[')
-        .nth(1)
-        .and_then(|suffix| suffix.split(']').next())
-        .expect("provider-plan fingerprint");
-    assert!(extent_plan.contains("provider origin package: <none>"));
-    let extent_rows = report
-        .lines()
-        .filter(|line| {
-            line.contains(
-                "provider plan: StorageEntryProvider::satisfies::StorageEntry -- plan report fingerprint:",
+        .unwrap_or_else(|| {
+            panic!(
+                "extent provider-plan commitment row:\n{:#?}",
+                commitments(&report)
             )
-                && line.contains("subject: parameter:")
+        });
+    assert!(
+        extent_plan
+            .commitment
+            .contains("provider origin package: <none>"),
+        "{}",
+        extent_plan.commitment
+    );
+    let extent_rows = report
+        .qualifications
+        .iter()
+        .filter(|row| {
+            row.provider_plan == "StorageEntryProvider::satisfies::StorageEntry"
+                && row.subject.starts_with("parameter:")
         })
         .collect::<Vec<_>>();
     assert_eq!(
         extent_rows.len(),
         1,
-        "expected one routed parameter row:\n{report}"
+        "expected one routed parameter row:\n{:#?}",
+        report.qualifications
     );
     let entry_row = extent_rows[0];
-    assert!(entry_row.contains(&format!("plan report fingerprint: {extent_fingerprint}")));
-    assert!(entry_row.contains("provider type: StorageEntryProvider"));
-    assert!(entry_row.contains("target: <all>"));
-    assert!(entry_row.contains("provider origin package: <none>"));
-    assert!(entry_row.contains("service schema: StorageEntry"));
-    assert!(entry_row.contains("selected: yes"));
-    assert!(entry_row.contains("requirement owner: StorageEntry"));
-    assert!(entry_row.contains("requirement identity: named-callable(path(StorageEntry::enter)"));
-    assert!(entry_row.contains("subject: parameter:0"));
-    assert!(entry_row.contains("flow: accepts"));
-    assert!(entry_row.contains("domain: Token::Granted"));
+    assert_eq!(entry_row.provider_type, "StorageEntryProvider");
+    assert_eq!(entry_row.target, "");
+    assert_eq!(entry_row.provider_origin_package_identity, None);
+    assert_eq!(entry_row.service_schema, "StorageEntry");
+    assert!(entry_row.selected);
+    assert_eq!(entry_row.requirement_owner, "StorageEntry");
     assert!(
-        entry_row.contains(
-            "carry: carry(suspension: forbidden, cpu: same, thread: same, address: stable)"
-        )
+        entry_row
+            .requirement_identity
+            .contains("named-callable(path(StorageEntry::enter)")
     );
-    assert!(entry_row.contains("predicate discharge: required"));
-    assert!(entry_row.contains("own-package (dev-active)"));
-    assert!(entry_row.contains("grant selectors: none"));
-    assert!(entry_row.contains("STANDING WARNING"));
+    assert_eq!(entry_row.subject, "parameter:0");
+    assert_eq!(entry_row.authority_flow, "accepts");
+    assert_eq!(entry_row.domain, "Token::Granted");
+    assert_eq!(
+        entry_row.effective_carry,
+        "carry(suspension: forbidden, cpu: same, thread: same, address: stable)"
+    );
+    assert!(entry_row.predicate_discharge_required);
+    assert_eq!(entry_row.provenance, "own-package (dev-active)");
+    assert!(entry_row.grant_selectors.is_empty());
+    assert!(entry_row.standing_warning);
 
     let result_row = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::Issuer -- plan report fingerprint:")
-                && line.contains("subject: result")
-        })
-        .expect("routed result row");
-    assert!(result_row.contains("provider type: <free external>"));
-    assert!(result_row.contains("target: <all>"));
-    assert!(result_row.contains("provider origin package: <none>"));
-    assert!(result_row.contains("service schema: Issuer"));
-    assert!(result_row.contains("requirement owner: Issuer"));
-    assert!(result_row.contains("selected: yes"));
-    assert!(result_row.contains("requirement identity: named-callable(path(Issuer::issue)"));
-    assert!(result_row.contains("result-dispatch(declared:Token::Issued)"));
-    assert!(result_row.contains("flow: returns"));
-    assert!(result_row.contains("domain: Token::Issued"));
-    assert!(result_row.contains("predicate discharge: none"));
+        .qualifications
+        .iter()
+        .find(|row| row.provider_plan == "satisfies::Issuer" && row.subject == "result")
+        .unwrap_or_else(|| panic!("routed result row:\n{:#?}", report.qualifications));
+    assert_eq!(
+        result_row.provider_type, "",
+        "an empty provider type denotes a free external leaf"
+    );
+    assert_eq!(result_row.target, "");
+    assert_eq!(result_row.provider_origin_package_identity, None);
+    assert_eq!(result_row.service_schema, "Issuer");
+    assert_eq!(result_row.requirement_owner, "Issuer");
+    assert!(result_row.selected);
+    assert!(
+        result_row
+            .requirement_identity
+            .contains("named-callable(path(Issuer::issue)")
+    );
+    assert!(
+        result_row
+            .requirement_identity
+            .contains("result-dispatch(declared:Token::Issued)")
+    );
+    assert_eq!(result_row.authority_flow, "returns");
+    assert_eq!(result_row.domain, "Token::Issued");
+    assert!(!result_row.predicate_discharge_required);
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -515,8 +559,8 @@ fn routed_qualification_rows_retain_exact_root_grant_selectors() {
     .expect("write build.omg");
     std::fs::write(
         project.join("main.omg"),
-        r#"data Token [linear] { id: u64; }
-domain Token::Issued
+        r#"pub data Token [linear] { id: u64; }
+pub domain Token::Issued
 established by Issuer::issue;
 
 pub boundary trait Issuer {
@@ -535,26 +579,15 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("root-granted routed provider plan should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
+    let report = checked_trust_report(&project, "root-granted routed provider plan should compile");
     let row = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::Issuer -- plan report fingerprint:")
-                && line.contains("subject: result")
-        })
-        .expect("routed result row");
-    assert!(row.contains("root grant (build.omg)"));
-    assert!(row.contains("grant selectors: Issuer"));
-    assert!(!row.contains("STANDING WARNING"));
+        .qualifications
+        .iter()
+        .find(|row| row.provider_plan == "satisfies::Issuer" && row.subject == "result")
+        .unwrap_or_else(|| panic!("routed result row:\n{:#?}", report.qualifications));
+    assert_eq!(row.provenance, "root grant (build.omg)");
+    assert_eq!(row.grant_selectors, ["Issuer"]);
+    assert!(!row.standing_warning);
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -586,27 +619,24 @@ machine Main::exercise(&mut self) reaches Console {
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("satisfies-leaf project should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    assert!(
-        report.contains("provider plan: satisfies::Pair ["),
-        "expected the satisfies-derived plan row:\n{report}"
-    );
+    let report = checked_trust_report(&project, "satisfies-leaf project should compile");
     let row = report
-        .lines()
-        .find(|line| line.contains("provider plan: satisfies::Pair"))
-        .unwrap_or_default();
+        .rows
+        .iter()
+        .find(|row| {
+            row.commitment
+                .starts_with("provider plan: satisfies::Pair [")
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "expected the satisfies-derived plan row:\n{:#?}",
+                commitments(&report)
+            )
+        });
     assert!(
-        row.contains("coverage 1/2"),
-        "one of two requirements satisfied -> coverage 1/2:\n{report}"
+        row.commitment.contains("coverage 1/2"),
+        "one of two requirements satisfied -> coverage 1/2: {}",
+        row.commitment
     );
 
     let _ = std::fs::remove_dir_all(&project);
@@ -622,10 +652,10 @@ fn partial_provider_reports_only_bound_requirement_qualifications() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"data Token [linear] { id: u64; }
-domain Token::Bound
+        r#"pub data Token [linear] { id: u64; }
+pub domain Token::Bound
 established by Pair::bound;
-domain Token::Unbound
+pub domain Token::Unbound
 established by Pair::unbound;
 
 pub boundary trait Pair {
@@ -647,41 +677,56 @@ machine Main::exercise(&mut self) {}
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("partial routed provider candidate should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
+    let report = checked_trust_report(&project, "partial routed provider candidate should compile");
     let plan_row = report
-        .lines()
-        .find(|line| line.contains("provider plan: satisfies::Pair ["))
-        .expect("partial provider plan row");
-    assert!(plan_row.contains("coverage 1/2"));
-    assert!(plan_row.contains("selected: no"));
-    assert!(report.contains("provider requirements: 1"));
-    assert!(report.contains("routed qualifications: 1"));
-    let qualification = report
-        .lines()
-        .find(|line| {
-            line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
-                && line.contains("subject: result")
+        .rows
+        .iter()
+        .find(|row| {
+            row.commitment
+                .starts_with("provider plan: satisfies::Pair [")
         })
-        .expect("bound result qualification row");
-    assert!(qualification.contains("requirement identity: named-callable(path(Pair::bound)"));
-    assert!(qualification.contains("provider type: <free external>"));
-    assert!(qualification.contains("target: <all>"));
-    assert!(qualification.contains("selected: no"));
-    assert!(qualification.contains("domain: Token::Bound"));
-    assert!(!report.contains("subject: result -- flow: returns -- domain: Token::Unbound"));
-    assert!(!report.lines().any(|line| {
-        line.contains("provider plan: satisfies::Pair -- plan report fingerprint:")
-            && line.contains("requirement identity: named-callable(path(Pair::unbound)")
-    }));
+        .unwrap_or_else(|| panic!("partial provider plan row:\n{:#?}", commitments(&report)));
+    assert!(plan_row.commitment.contains("coverage 1/2"));
+    assert!(plan_row.commitment.contains("selected: no"));
+    assert_eq!(report.provider_requirements.len(), 1);
+    assert_eq!(report.qualifications.len(), 1);
+    let qualification = report
+        .qualifications
+        .iter()
+        .find(|row| row.provider_plan == "satisfies::Pair" && row.subject == "result")
+        .unwrap_or_else(|| {
+            panic!(
+                "bound result qualification row:\n{:#?}",
+                report.qualifications
+            )
+        });
+    assert!(
+        qualification
+            .requirement_identity
+            .contains("named-callable(path(Pair::bound)")
+    );
+    assert_eq!(
+        qualification.provider_type, "",
+        "an empty provider type denotes a free external leaf"
+    );
+    assert_eq!(qualification.target, "");
+    assert!(!qualification.selected);
+    assert_eq!(qualification.domain, "Token::Bound");
+    assert!(
+        report
+            .qualifications
+            .iter()
+            .all(|row| row.domain != "Token::Unbound"),
+        "the unbound requirement has no provider, so it routes nothing:\n{:#?}",
+        report.qualifications
+    );
+    assert!(
+        report.provider_requirements.iter().all(|row| !row
+            .requirement_identity
+            .contains("named-callable(path(Pair::unbound)")),
+        "an unbound requirement publishes no blast radius:\n{:#?}",
+        report.provider_requirements
+    );
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -720,25 +765,23 @@ machine Main::exercise(&mut self) reaches Console {
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("separate partial provider candidates should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
+    let report = checked_trust_report(
+        &project,
+        "separate partial provider candidates should compile",
+    );
     for provider in ["FirstProvider", "SecondProvider"] {
-        let needle = format!("provider plan: {provider}::satisfies::Pair");
+        let prefix = format!("provider plan: {provider}::satisfies::Pair [");
         let row = report
-            .lines()
-            .find(|line| line.contains(&needle))
-            .unwrap_or_else(|| panic!("missing {provider} candidate:\n{report}"));
+            .rows
+            .iter()
+            .find(|row| row.commitment.starts_with(&prefix))
+            .unwrap_or_else(|| {
+                panic!("missing {provider} candidate:\n{:#?}", commitments(&report))
+            });
         assert!(
-            row.contains("coverage 1/2"),
-            "{provider} must remain a half-provider:\n{report}"
+            row.commitment.contains("coverage 1/2"),
+            "{provider} must remain a half-provider: {}",
+            row.commitment
         );
     }
 
@@ -791,64 +834,73 @@ machine Main::exercise(&mut self) {}
     })
     .expect("explicitly selected granted provider should compile");
 
-    let report =
-        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
-    let first = report
-        .lines()
-        .find(|line| line.contains("provider plan: FirstProvider::satisfies::Pair ["))
-        .expect("first candidate row");
-    let second = report
-        .lines()
-        .find(|line| line.contains("provider plan: SecondProvider::satisfies::Pair ["))
-        .expect("second candidate row");
-    assert!(first.contains("own-package (dev-active)") && first.contains("STANDING WARNING"));
-    assert!(second.contains("root grant (build.omg)") && !second.contains("STANDING WARNING"));
-    assert!(first.contains("selected: no"));
-    assert!(second.contains("selected: yes"));
-    assert!(first.contains("provider type: FirstProvider"));
-    assert!(first.contains("target: <all>"));
-    assert!(second.contains("provider type: SecondProvider"));
-    assert!(second.contains("target: <all>"));
-    let first_requirement = report
-        .lines()
-        .find(|line| {
-            line.contains(
-                "provider plan: FirstProvider::satisfies::Pair -- plan report fingerprint:",
-            ) && line.contains("requirement identity:")
-        })
-        .expect("first candidate requirement row");
-    let second_requirement = report
-        .lines()
-        .find(|line| {
-            line.contains(
-                "provider plan: SecondProvider::satisfies::Pair -- plan report fingerprint:",
-            ) && line.contains("requirement identity:")
-        })
-        .expect("selected requirement row");
-    assert!(first_requirement.contains("requirement owner: Pair"));
-    assert!(first_requirement.contains("provider type: FirstProvider"));
-    assert!(first_requirement.contains("target: <all>"));
-    assert!(first_requirement.contains("selected: no"));
-    assert!(first_requirement.contains(
-        "realization: checked adapter `named-callable(path(FirstProvider::choose),parameters(),result-dispatch())`"
-    ));
-    assert!(first_requirement.contains("grant selectors: none"));
-    assert!(first_requirement.contains("STANDING WARNING"));
-    assert!(second_requirement.contains("requirement owner: Pair"));
-    assert!(second_requirement.contains("provider type: SecondProvider"));
-    assert!(second_requirement.contains("target: <all>"));
-    assert!(second_requirement.contains("selected: yes"));
-    assert!(second_requirement.contains(
-        "realization: checked adapter `named-callable(path(SecondProvider::choose),parameters(),result-dispatch())`"
-    ));
-    assert!(second_requirement.contains("grant selectors: Pair"));
-    assert!(second_requirement.contains("root grant (build.omg)"));
-    assert!(!second_requirement.contains("STANDING WARNING"));
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
+        .expect("explicitly selected granted provider should check");
+    let report = trust_report(&checked);
+    let plan = |provider: &str| {
+        let prefix = format!("provider plan: {provider}::satisfies::Pair [");
+        report
+            .rows
+            .iter()
+            .find(|row| row.commitment.starts_with(&prefix))
+            .unwrap_or_else(|| panic!("{provider} candidate row:\n{:#?}", commitments(&report)))
+    };
+    let first = plan("FirstProvider");
+    let second = plan("SecondProvider");
+    assert_eq!(first.provenance, "own-package (dev-active)");
+    assert!(first.standing_warning);
+    assert_eq!(second.provenance, "root grant (build.omg)");
+    assert!(!second.standing_warning);
+    assert!(first.commitment.contains("selected: no"));
+    assert!(second.commitment.contains("selected: yes"));
+    assert!(first.commitment.contains("provider type: FirstProvider"));
+    assert!(first.commitment.contains("target: <all>"));
+    assert!(second.commitment.contains("provider type: SecondProvider"));
+    assert!(second.commitment.contains("target: <all>"));
+
+    let requirement = |provider: &str| {
+        let plan = format!("{provider}::satisfies::Pair");
+        report
+            .provider_requirements
+            .iter()
+            .find(|row| row.provider_plan == plan)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{provider} requirement row:\n{:#?}",
+                    report.provider_requirements
+                )
+            })
+    };
+    let first_requirement = requirement("FirstProvider");
+    let second_requirement = requirement("SecondProvider");
+    let adapter = |provider: &str| artifacts::TrustProviderRealization::CheckedAdapter {
+        machine_identity: format!(
+            "named-callable(path({provider}::choose),parameters(),result-dispatch())"
+        ),
+        machine_package_identity: None,
+    };
+    assert_eq!(first_requirement.requirement_owner, "Pair");
+    assert_eq!(first_requirement.provider_type, "FirstProvider");
+    assert_eq!(first_requirement.target, "");
+    assert!(!first_requirement.selected);
+    assert_eq!(first_requirement.realization, adapter("FirstProvider"));
+    assert!(first_requirement.grant_selectors.is_empty());
+    assert!(first_requirement.standing_warning);
+    assert_eq!(second_requirement.requirement_owner, "Pair");
+    assert_eq!(second_requirement.provider_type, "SecondProvider");
+    assert_eq!(second_requirement.target, "");
+    assert!(second_requirement.selected);
+    assert_eq!(second_requirement.realization, adapter("SecondProvider"));
+    assert_eq!(second_requirement.grant_selectors, ["Pair"]);
+    assert_eq!(second_requirement.provenance, "root grant (build.omg)");
+    assert!(!second_requirement.standing_warning);
     assert!(
         !report
-            .lines()
-            .any(|line| line.starts_with("- accepted fact: Pair --")),
-        "the selected provider-slot grant must not be relabeled as a bare accepted fact:\n{report}"
+            .rows
+            .iter()
+            .any(|row| row.commitment.starts_with("accepted fact: Pair")),
+        "the selected provider-slot grant must not be relabeled as a bare accepted fact:\n{:#?}",
+        commitments(&report)
     );
 
     let lock =
