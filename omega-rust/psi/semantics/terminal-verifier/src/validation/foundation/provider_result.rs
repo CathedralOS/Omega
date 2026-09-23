@@ -57,8 +57,13 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
         ) => {
             // A linear requirement may publish minted claims and introduced
             // qualifications: the boundary route mints `result.claims` on the
-            // caller at resume, and the candidate's matching declared
-            // qualifications introduce the domains its return produces.
+            // caller at resume, and the candidate's declared qualifications
+            // introduce the domains its return produces. The boundary's
+            // `qualifications` fold the requirement's own `ensures` mints,
+            // which are replayed on the caller at the call site, so the
+            // candidate's signature carries only its authored result
+            // qualifications and may not declare a domain the boundary does
+            // not promise.
             required.structural_type == actual.structural_type
                 // A boundary route mints caller claims only at Linear custody
                 // (the boundary-call admissibility rule); Affine stays the
@@ -69,7 +74,10 @@ pub(super) fn matches(boundary: &BoundaryMachineDeclaration, candidate: &Termina
                     StructuralMultiplicity::Affine | StructuralMultiplicity::Linear
                 )
                 && actual.multiplicity == required.multiplicity
-                && actual.qualifications == required.qualifications
+                && actual
+                    .qualifications
+                    .iter()
+                    .all(|domain| required.qualifications.contains(domain))
                 && actual.projected_qualifications.is_empty()
                 && boundary.content_guarantees.is_empty()
                 && boundary.program_local_root_introductions.is_empty()

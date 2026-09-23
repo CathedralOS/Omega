@@ -286,7 +286,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         .flat_map(|block| &block.operations))
                 }
                 AbstractOperation::EstablishByteSequenceLiteral {
-                    psi_operation, place, structural_type, bytes,
+                    psi_operation, place, structural_type, bytes, qualifications,
                 } => {
                     // The mandatory object/source replay above checks storage and
                     // byte initialization. Account for the exact retained literal,
@@ -295,8 +295,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                             target_operations::TargetUnitOperation::EstablishByteSequenceLiteral {
                                 psi_operation: actual_operation, place: actual_place,
                                 structural_type: actual_type, bytes: actual_bytes,
+                                qualifications: actual_qualifications,
                             } if actual_operation == psi_operation && actual_place == place
                                 && actual_type == structural_type && actual_bytes == bytes
+                                && actual_qualifications == qualifications
                         )).count() == 1
                 }
                 AbstractOperation::ByteSequenceLength { .. }

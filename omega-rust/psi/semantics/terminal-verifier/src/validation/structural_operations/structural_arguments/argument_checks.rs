@@ -220,7 +220,8 @@ pub(super) fn validate_structural_argument(
                             structural_type,
                             StructuralMultiplicity::Unrestricted,
                             StructuralAccess::SharedBorrow,
-                            &[][..],
+                            super::literal_qualifications(caller, argument.place)
+                                .unwrap_or(&[][..]),
                             &[][..],
                         ))
                     }

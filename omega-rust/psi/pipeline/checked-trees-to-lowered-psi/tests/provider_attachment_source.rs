@@ -523,7 +523,7 @@ fn straight_line_console_projection_accepts_zero_one_two_and_sixteen_writes() {
                 let literal_place = PlaceId::new(4 + index as u64).unwrap();
                 assert!(matches!(
                     &operations[index].kind,
-                    OperationKind::EstablishByteSequenceLiteral { destination, bytes }
+                    OperationKind::EstablishByteSequenceLiteral { destination, bytes, .. }
                         if *destination == literal_place
                             && bytes == format!("line-{index:02}").as_bytes()
                 ));

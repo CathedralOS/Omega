@@ -143,6 +143,7 @@ fn scalar_graph_lowers_literal_descriptor_calls() {
             },
             structural_type: literal_type,
             bytes: vec![0, 0x80, 0xff],
+            qualifications: Vec::new(),
         },
     );
     for target in [

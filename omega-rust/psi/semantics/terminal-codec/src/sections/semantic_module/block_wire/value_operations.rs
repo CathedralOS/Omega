@@ -12,9 +12,11 @@ use crate::sections::semantic_module::structural_place_wire::{
     decode_structural_path, encode_structural_path,
 };
 use crate::sections::semantic_module::wire::{
-    decode_counted, decode_optional_id, encode_optional_id,
+    decode_counted, decode_ids, decode_optional_id, encode_optional_id,
 };
-use semantic_vocabulary::{IeeeFloatValue, IntegerValue, PlaceId, StructuralCaseId, ValueId};
+use semantic_vocabulary::{
+    IeeeFloatValue, IntegerValue, PlaceId, StructuralCaseId, StructuralDomainId, ValueId,
+};
 use terminal_psi::OperationKind;
 
 pub(super) fn encode_establish_primitive_local(
@@ -89,11 +91,16 @@ pub(super) fn encode_establish_byte_sequence_literal(
     writer: &mut Writer,
     destination: PlaceId,
     bytes: Vec<u8>,
+    qualifications: &[StructuralDomainId],
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_BYTE_SEQUENCE_LITERAL);
     writer.id(destination);
     writer.len("byte-sequence literal bytes", bytes.len())?;
     writer.bytes(&bytes);
+    writer.len("literal qualifications", qualifications.len())?;
+    for qualification in qualifications {
+        writer.id(*qualification);
+    }
     Ok(())
 }
 
@@ -106,6 +113,7 @@ pub(super) fn decode_establish_byte_sequence_literal(
             let len = usize::try_from(reader.count()?).map_err(|_| CodecError::UnexpectedEnd)?;
             reader.take(len)?.to_vec()
         },
+        qualifications: decode_ids(reader, "StructuralDomainId")?,
     })
 }
 

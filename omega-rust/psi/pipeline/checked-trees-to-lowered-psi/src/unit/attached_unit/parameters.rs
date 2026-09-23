@@ -591,12 +591,15 @@ pub(crate) fn validate_transfer_shape(
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. }
             )
         {
+            // The target's domain requirements are arg satisfaction checked at
+            // the call site and carried forward on the emitted boundary's
+            // `requires` rows; the literal/subsurface source's custody is the
+            // whole immutable borrowed view.
             if !argument.path.is_empty()
                 || argument.type_identity != target.type_identity
                 || argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow
                 || argument.access != target.access
                 || target.multiplicity != Multiplicity::Unrestricted
-                || !target.qualifications.is_empty()
             {
                 return unsupported("byte-sequence argument has invalid checked custody");
             }

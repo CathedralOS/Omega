@@ -208,6 +208,7 @@ fn block_module(select_first: bool, byte_index: u64) -> TerminalModule {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: place_id(8),
                 bytes: vec![0x17, 0xfe],
+                qualifications: Vec::new(),
             },
         },
     );

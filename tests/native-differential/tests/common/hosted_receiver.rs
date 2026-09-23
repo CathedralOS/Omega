@@ -257,6 +257,7 @@ pub(crate) fn bind_hosted_receiver(
         &physical_contract(profile),
         &[],
         &demand,
+        false,
     )
     .expect("the exact admitted bridge binds the emitted object");
 }

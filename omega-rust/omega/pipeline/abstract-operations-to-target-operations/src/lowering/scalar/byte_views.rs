@@ -39,6 +39,29 @@ pub(in crate::lowering) fn is_immutable_byte_parameter(
         && is_byte_parameter(parameter, structural_types)
 }
 
+/// The physical carrier check without the qualification roster guards: a
+/// declared-domain parameter like `&[u8] in Utf8` still transports the same
+/// borrowed-view descriptor. Callers must have already bound the parameter's
+/// roster to the source's roster by exact equality.
+pub(in crate::lowering) fn is_immutable_byte_carrier_parameter(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> bool {
+    !parameter.is_self
+        && parameter.access == StructuralAccess::SharedBorrow
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && structural_types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                    )
+                )
+            })
+}
+
 pub(in crate::lowering) fn is_byte_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,

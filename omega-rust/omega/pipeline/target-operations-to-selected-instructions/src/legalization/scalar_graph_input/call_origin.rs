@@ -240,8 +240,19 @@ pub(in crate::legalization) fn installed_operation(
             && candidate_result.structural_type == boundary_result.structural_type
             && result.multiplicity == boundary_result.multiplicity
             && candidate_result.multiplicity == boundary_result.multiplicity
-            && result.qualifications == boundary_result.qualifications
-            && candidate_result.qualifications == boundary_result.qualifications =>
+            // Requirement `ensures result in D` ensurances land on the
+            // boundary decl while the conformer's own result decl mints at
+            // return — coverage is proven by the `provider` conformance row
+            // checked above, not declaration equality. The caller's retained
+            // roster only has to stay inside the ensured set.
+            && result
+                .qualifications
+                .iter()
+                .all(|domain| boundary_result.qualifications.contains(domain))
+            && candidate_result
+                .qualifications
+                .iter()
+                .all(|domain| boundary_result.qualifications.contains(domain)) =>
         {
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,

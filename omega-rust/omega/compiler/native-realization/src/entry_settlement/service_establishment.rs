@@ -49,19 +49,46 @@ pub(super) fn validate_terminal_rows(
         return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
     }
     for row in rows {
-        let matching_fields = fields
-            .iter()
-            .filter(|field| field.identity == row.field_identity())
-            .collect::<Vec<_>>();
-        let [field] = matching_fields.as_slice() else {
-            return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
-        };
-        if !matches!(
-            &field.field_type,
-            terminal_psi::StructuralFieldType::Erased { type_identity }
-                if type_identity == row.carrier_type_identity()
-        ) {
-            return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+        // Each route rejoins by walking its own record-field path: every
+        // intermediate segment must stay an exact `Structural` record child,
+        // and the leaf must land on the erased carrier the row names.
+        let mut current_fields = fields.as_slice();
+        for (index, segment) in row.field_path().iter().enumerate() {
+            let matching_fields = current_fields
+                .iter()
+                .filter(|field| field.identity == *segment)
+                .collect::<Vec<_>>();
+            let [field] = matching_fields.as_slice() else {
+                return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+            };
+            if index + 1 == row.field_path().len() {
+                if !matches!(
+                    &field.field_type,
+                    terminal_psi::StructuralFieldType::Erased { type_identity }
+                        if type_identity == row.carrier_type_identity()
+                ) {
+                    return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+                }
+                break;
+            }
+            let terminal_psi::StructuralFieldType::Structural(child) = &field.field_type else {
+                return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+            };
+            let nested = module
+                .structural_types
+                .iter()
+                .filter(|declaration| declaration.id == *child)
+                .collect::<Vec<_>>();
+            let [nested_declaration] = nested.as_slice() else {
+                return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+            };
+            current_fields = match &nested_declaration.shape {
+                terminal_psi::StructuralTypeShape::Record { fields }
+                | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+                _ => {
+                    return Err(NativeProgramEntrySettlementError::FusedServiceEstablishmentDrift);
+                }
+            };
         }
     }
     Ok(())
@@ -116,6 +143,7 @@ mod tests {
             fixture_row.receiver_type_identity().into(),
             fixture_row.attachment_type_identity().into(),
             fixture_row.field_identity().into(),
+            vec![fixture_row.field_identity().into()],
             fixture_row.carrier_type_identity().into(),
             fixture_row.carrier_base_identity().into(),
             program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&plan.schema),

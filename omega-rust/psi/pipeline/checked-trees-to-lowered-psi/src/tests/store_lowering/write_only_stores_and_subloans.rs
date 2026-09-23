@@ -42,7 +42,7 @@ fn lowers_exact_raw_bytes_into_borrowed_boundary_argument() {
     };
     assert!(matches!(
         &establish.kind,
-        OperationKind::EstablishByteSequenceLiteral { destination, bytes }
+        OperationKind::EstablishByteSequenceLiteral { destination, bytes, .. }
             if *destination == literal_place && bytes == &[0x80, b'A']
     ));
     assert!(matches!(

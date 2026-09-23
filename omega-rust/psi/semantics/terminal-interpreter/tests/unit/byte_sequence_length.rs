@@ -276,6 +276,7 @@ fn nested_repeated_calls_measure_invocation_bytes_and_restore_caller() {
         kind: OperationKind::EstablishByteSequenceLiteral {
             destination: place_id(5),
             bytes: Vec::new(),
+            qualifications: Vec::new(),
         },
     });
     for (ordinal, source) in [(4, 1), (6, 5), (8, 1)] {

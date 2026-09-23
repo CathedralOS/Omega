@@ -70,7 +70,7 @@ pub(super) fn emit_optimized_fragments(
                 "bound placed-view establishments require the hosted entry boundary to lend each referent; this bridge does not carry them yet",
             ));
         }
-        if entry.target() == target::NativeTarget::uefi_x64() {
+        if entry.source().target_slot().owner == target::TargetProfile::UefiX64 {
             // The UEFI entry is the authored semantic-entry route: the
             // compiler-owned wrapper provisions `self` inside its own frame
             // and calls the semantic child by private symbol. Stage the whole

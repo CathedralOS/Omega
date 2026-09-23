@@ -214,12 +214,16 @@ fn replays_result(
                 && occurrence.multiplicity == StructuralMultiplicity::Affine
                 && boundary.multiplicity == StructuralMultiplicity::Affine
                 && candidate.multiplicity == StructuralMultiplicity::Affine
-                && occurrence.qualifications.is_empty()
+                // Route-authorized ensures mint caller-side result
+                // qualifications at the call occurrence; the mint must equal
+                // the boundary's declared result qualifications exactly. The
+                // provider covers them by conformance — a conformer's own
+                // ensures mint at its return, not on the signature's static
+                // result qualifications — joined above by the
+                // abstract/terminal equality.
+                && occurrence.qualifications == boundary.qualifications
                 && occurrence.projected_qualifications.is_empty()
                 && occurrence.claims.is_empty()
-                && boundary.qualifications.is_empty()
-                && candidate.qualifications.is_empty()
-                && candidate.projected_qualifications.is_empty()
         }
         _ => false,
     }

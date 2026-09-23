@@ -857,7 +857,7 @@ fn receiver_layout(
 ) -> Result<(u64, u64), Diagnostic> {
     use calling_conventions::CallingPolicy;
     use terminal_psi::{
-        StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,
+        StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
     };
     let invalid = || invalid(artifact.target);
     let (expected_policy, receiver_register) = match artifact.target {
@@ -942,6 +942,48 @@ fn receiver_layout(
     // design; admitting it would need a positive Psi-side witness that the
     // field carries no Bound domain, never a missing-row fallback.
     let mut erased = 0;
+    validate_receiver_fields(
+        &target.graph.structural_types,
+        fields,
+        source,
+        &receiver_identity,
+        &declaration.identity,
+        services,
+        &mut Vec::new(),
+        &mut vec![parameter.structural_type],
+        &mut erased,
+        &invalid,
+    )?;
+    if erased != services.len() || !native.shape.alignment.is_power_of_two() {
+        return Err(invalid());
+    }
+    Ok((
+        u64::from(native.shape.byte_size),
+        u64::from(native.shape.alignment),
+    ))
+}
+
+/// Replay the receiver's record-field tree against the exact Fused
+/// establishment rows. Every erased field — at the receiver root or under
+/// nested record fields — must rejoin exactly one row by its complete field
+/// route, and every non-erased leaf keeps the zero-valid judgment. Nested
+/// `Structural` record children extend the route; array elements and sum
+/// cases cannot name a route and keep the source-free nested-erased
+/// rejection inside `zero_valid_record_storage`.
+#[allow(clippy::too_many_arguments)]
+fn validate_receiver_fields(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    source: &SelectedProgramEntrySourceSignature,
+    receiver_identity: &str,
+    attachment_type_identity: &str,
+    services: &[ProgramEntryFusedServiceEstablishment],
+    field_path: &mut Vec<String>,
+    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+    erased: &mut usize,
+    invalid: &dyn Fn() -> Diagnostic,
+) -> Result<(), Diagnostic> {
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape};
     for field in fields {
         if field.relevance.is_erased()
             || matches!(field.field_type, StructuralFieldType::Erased { .. })
@@ -949,20 +991,28 @@ fn receiver_layout(
             let StructuralFieldType::Erased { type_identity } = &field.field_type else {
                 return Err(invalid());
             };
+            field_path.push(field.identity.clone());
             let mut matches = services
                 .iter()
-                .filter(|row| row.field_identity() == field.identity);
-            let row = matches.next().ok_or_else(invalid)?;
-            if matches.next().is_some()
-                || row.source_signature_identity() != source.identity()
-                || row.target_slot() != source.target_slot()
-                || row.receiver_type_identity() != receiver_identity
-                || row.attachment_type_identity() != declaration.identity
-                || row.carrier_type_identity() != type_identity
-            {
-                return Err(invalid());
-            }
-            erased += 1;
+                .filter(|row| row.field_path() == field_path.as_slice());
+            let outcome = match matches.next() {
+                None => Err(invalid()),
+                Some(row) if matches.next().is_some()
+                    || row.source_signature_identity() != source.identity()
+                    || row.target_slot() != source.target_slot()
+                    || row.receiver_type_identity() != receiver_identity
+                    || row.attachment_type_identity() != attachment_type_identity
+                    || row.carrier_type_identity() != type_identity =>
+                {
+                    Err(invalid())
+                }
+                Some(_) => {
+                    *erased += 1;
+                    Ok(())
+                }
+            };
+            field_path.pop();
+            outcome?;
         } else {
             match field.field_type {
                 // Zero-filled IEEE storage is the exact positive `0.0` of
@@ -984,23 +1034,59 @@ fn receiver_layout(
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                 ) => {}
-                StructuralFieldType::Structural(structural_type)
-                    if zero_valid_record_storage(
-                        &target.graph.structural_types,
-                        structural_type,
-                        &mut vec![parameter.structural_type],
-                    ) => {}
+                StructuralFieldType::Structural(structural_type) => {
+                    if visiting.contains(&structural_type) {
+                        return Err(invalid());
+                    }
+                    let nested = declarations
+                        .iter()
+                        .filter(|declaration| declaration.id == structural_type)
+                        .collect::<Vec<_>>();
+                    let [nested_declaration] = nested.as_slice() else {
+                        return Err(invalid());
+                    };
+                    match &nested_declaration.shape {
+                        StructuralTypeShape::Record {
+                            fields: nested_fields,
+                        }
+                        | StructuralTypeShape::Mixed {
+                            fields: nested_fields, ..
+                        } => {
+                            visiting.push(structural_type);
+                            field_path.push(field.identity.clone());
+                            let outcome = validate_receiver_fields(
+                                declarations,
+                                nested_fields,
+                                source,
+                                receiver_identity,
+                                attachment_type_identity,
+                                services,
+                                field_path,
+                                visiting,
+                                erased,
+                                invalid,
+                            );
+                            field_path.pop();
+                            visiting.pop();
+                            outcome?;
+                        }
+                        _ => {
+                            let valid = zero_valid_record_storage(
+                                declarations,
+                                structural_type,
+                                visiting,
+                            );
+                            if !valid {
+                                return Err(invalid());
+                            }
+                        }
+                    }
+                }
                 _ => return Err(invalid()),
             }
         }
     }
-    if erased != services.len() || !native.shape.alignment.is_power_of_two() {
-        return Err(invalid());
-    }
-    Ok((
-        u64::from(native.shape.byte_size),
-        u64::from(native.shape.alignment),
-    ))
+    Ok(())
 }
 
 /// Whether zero-filled storage is an established value of one nested

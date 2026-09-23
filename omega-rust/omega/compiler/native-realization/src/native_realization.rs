@@ -355,7 +355,7 @@ fn validate_emitted_receiver_binding(
             ))
         };
     };
-    if settlement.target() == target::NativeTarget::uefi_x64() {
+    if settlement.source().target_slot().owner == target::TargetProfile::UefiX64 {
         // The authored semantic entry binds through the staged wrapper object's
         // custody, not a hosted shim: the emitted object must stay
         // receiver-binding-free and the wrapper object must have been staged.

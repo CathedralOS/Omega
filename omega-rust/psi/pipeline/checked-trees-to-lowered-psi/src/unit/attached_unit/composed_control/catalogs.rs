@@ -6,8 +6,10 @@ use super::super::super::{
 use super::super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweredPsi, ScalarType,
-    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralPlaceDeclaration,
-    StructuralTypeId, ValueDeclaration, boundary_machine_id, dense_identity, lookup_type_id,
+    SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
+    StructuralPlaceDeclaration,
+    StructuralTypeId, ValueDeclaration, boundary_machine_id, dense_identity, lookup_domain_id,
+    lookup_type_id,
     lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_result,
     lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_root_service_reach,
     lower_unit_parameters, terminal_scalar_type, unsupported,
@@ -134,6 +136,9 @@ pub(crate) struct LoweredComposedBoundary {
         Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
     pub(crate) scalar_parameters: Vec<ScalarType>,
     pub(crate) result: BoundaryMachineResult,
+    /// The checked boundary's declared result domains in semantic form, kept so
+    /// emission can replay the caller-side establishment mint for each one.
+    pub(crate) result_domains: Vec<SemanticDomainId>,
 }
 
 pub(crate) fn lower_dynamic_catalogs(
@@ -264,12 +269,19 @@ fn lower_catalogs(
         .chain(
             boundaries
                 .iter()
-                .flat_map(|(boundary, _)| match &boundary.result {
-                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
-                        qualifications.as_slice()
-                    }
-                    CheckedBoundaryMachineResultPlan::Unit
-                    | CheckedBoundaryMachineResultPlan::Scalar(_) => &[],
+                .flat_map(|(boundary, _)| {
+                    boundary
+                        .structural_parameters
+                        .iter()
+                        .flat_map(|parameter| parameter.qualifications.iter())
+                        .chain(match &boundary.result {
+                            CheckedBoundaryMachineResultPlan::Structural {
+                                qualifications,
+                                ..
+                            } => qualifications.as_slice(),
+                            CheckedBoundaryMachineResultPlan::Unit
+                            | CheckedBoundaryMachineResultPlan::Scalar(_) => &[],
+                        })
                 }),
         )
         .copied()
@@ -312,6 +324,30 @@ fn lower_catalogs(
             &mut next_place,
         )?;
         let result = lower_boundary_result(&boundary.result, &type_ids, &domain_ids)?;
+        let mut requires = boundary
+            .domain_requirements
+            .iter()
+            .map(|requirement| {
+                if usize::try_from(requirement.argument_index)
+                    .ok()
+                    .is_none_or(|index| index >= structural_parameters.len())
+                {
+                    return Err(LoweringError::Unsupported(
+                        "boundary structural requirement has an invalid argument index",
+                    ));
+                }
+                Ok(StructuralDomainRequirement {
+                    argument_index: requirement.argument_index,
+                    domain: lookup_domain_id(&domain_ids, requirement.domain)?,
+                })
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        requires.sort();
+        let original_requirement_count = requires.len();
+        requires.dedup();
+        if requires.len() != original_requirement_count {
+            return unsupported("boundary structural requirements contain duplicates");
+        }
         boundary_machines.push(BoundaryMachineDeclaration {
             parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
                 &boundary.scalar_parameters,
@@ -328,7 +364,7 @@ fn lower_catalogs(
             crash_routes: lower_boundary_crash_routes(checked, boundary, &scalar_parameters)?,
             structural_parameters: structural_parameters.clone(),
             result: result.clone(),
-            requires: Vec::new(),
+            requires,
             program_local_root_introductions: lower_program_local_root_introductions(
                 checked,
                 boundary,
@@ -357,6 +393,13 @@ fn lower_catalogs(
             id,
             checked_structural_parameters: boundary.structural_parameters.clone(),
             scalar_parameters,
+            result_domains: match &boundary.result {
+                CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                    qualifications.clone()
+                }
+                CheckedBoundaryMachineResultPlan::Unit
+                | CheckedBoundaryMachineResultPlan::Scalar(_) => Vec::new(),
+            },
             result,
         });
     }

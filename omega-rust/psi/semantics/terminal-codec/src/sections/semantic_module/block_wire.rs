@@ -259,9 +259,16 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             result_case,
             fields,
         } => value_operations::encode_establish_scalar_case(writer, result_case, fields)?,
-        OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
-            value_operations::encode_establish_byte_sequence_literal(writer, destination, bytes)?
-        }
+        OperationKind::EstablishByteSequenceLiteral {
+            destination,
+            bytes,
+            qualifications,
+        } => value_operations::encode_establish_byte_sequence_literal(
+            writer,
+            destination,
+            bytes,
+            &qualifications,
+        )?,
         OperationKind::EstablishTrivialAffineLocal { destination } => {
             value_operations::encode_establish_trivial_affine_local(writer, destination)?
         }

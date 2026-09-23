@@ -6,9 +6,9 @@ use super::super::super::{
 };
 use super::super::bodies::UnitPlans;
 use super::super::{
-    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, ScalarType, SemanticDomainId,
-    StructuralDomainId, StructuralTypeId, TerminalMachine, ValueDeclaration, lookup_machine_id,
-    unique_unit_boundary,
+    BoundaryMachineDeclaration, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    ScalarType, SemanticDomainId, StructuralDomainId, StructuralTypeId, TerminalMachine,
+    ValueDeclaration, lookup_machine_id, unique_unit_boundary,
 };
 use super::{CheckedTrees, LoweringError, catalogs, scalar_calls, state_graph};
 use crate::unit::attached_unit::signatures::{self, MachineSignature};
@@ -99,6 +99,13 @@ pub(in crate::unit::attached_unit) fn emit(
                 id: *id,
                 checked_structural_parameters: source_plan.structural_parameters.clone(),
                 scalar_parameters: scalar_parameters.clone(),
+                result_domains: match &source_plan.result {
+                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                        qualifications.clone()
+                    }
+                    CheckedBoundaryMachineResultPlan::Unit
+                    | CheckedBoundaryMachineResultPlan::Scalar(_) => Vec::new(),
+                },
                 result: declaration.result.clone(),
             })
         })

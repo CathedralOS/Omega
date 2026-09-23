@@ -95,6 +95,34 @@ pub(crate) fn linear_call_result(
     .then_some((operation, result))
 }
 
+/// The qualification evidence a byte-sequence literal occurrence carries:
+/// its establishment operation replays the domains checking admitted on the
+/// literal's bytes. This is a static occurrence lookup — one literal place
+/// has exactly one establishment — so select by exact destination, never by
+/// a machine-wide search for the first establishment.
+pub(crate) fn literal_qualifications(
+    caller: &TerminalMachine,
+    place: PlaceId,
+) -> Option<&[StructuralDomainId]> {
+    let mut operations = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::EstablishByteSequenceLiteral {
+                destination,
+                qualifications,
+                ..
+            } if *destination == place => Some(qualifications.as_slice()),
+            _ => None,
+        });
+    let qualifications = operations.next()?;
+    if operations.next().is_some() {
+        return None;
+    }
+    Some(qualifications)
+}
+
 /// What the call's kind implies for every argument: the operation kind at
 /// the call site, whether it is a Unit call, a borrowed call, an ordinary
 /// call under the source policy, whether results may be projected, and
