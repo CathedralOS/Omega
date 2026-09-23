@@ -53,18 +53,18 @@ combining those sections compiles; that is the samples' job, below.
 
 ## Where it fails
 
-198 rostered pass fixtures fail. Grouped by the family of their first
-diagnostic, five families own 83% of them:
+173 rostered pass fixtures fail at 2195bd5203. Grouped by the family of
+their first diagnostic, five families own 87% of them:
 
 | Fixtures | Share | Family | Owner |
 | --- | --- | --- | --- |
-| 85 | 43% | `ProgramEntry establishment rejoins 0 Terminal attachment identities`: the machine's Unit plan was omitted at a structural field store | STATE-LOCAL-VALUE-FRONTIER |
-| 30 | 15% | `selected compiler intrinsic ... has no closed native catalog identity` | FLOAT-PROVIDERS, ARITHMETIC-POLICY-REALIZATION |
-| 18 | 9% | `Lowering(InvalidUnitMachinePlan ...)` from native Terminal production | GENERAL-CYCLIC-EXECUTION |
-| 17 | 9% | `native-artifact production requires one exact selected program entry` | corpus: nine take parameters and cannot be a program root; eight are EFI programs on the host tier |
-| 15 | 8% | `ProgramEntry Service field requires a selected Fused provider` | library: no provider exists for the boundary |
+| 72 | 42% | `ProgramEntry establishment rejoins 0 Terminal attachment identities`: the machine's Unit plan was omitted at local construction | STATE-LOCAL-VALUE-FRONTIER |
+| 29 | 17% | `ProgramEntry Binding field requires a selected Fused provider` | library: no provider exists for the boundary; establishment now walks nested fields, so 15 became 29 |
+| 29 | 17% | `selected compiler intrinsic ... has no closed native catalog identity` | FLOAT-PROVIDERS, ARITHMETIC-POLICY-REALIZATION |
+| 16 | 9% | `Lowering(InvalidUnitMachinePlan ...)` from native Terminal production | GENERAL-CYCLIC-EXECUTION |
+| 5 | 3% | `checked trapping conversion requires runtime policy realization` | ARITHMETIC-POLICY-REALIZATION |
 
-The first family is one mechanism at six sites, not eighty-five gaps. The
+The first family is one mechanism at a dozen sites, not seventy-two gaps. The
 Unit builder constructs a machine's plan site by site, and each site admits a
 fixed set of source shapes; when a statement's shape is outside its site's
 set, the plan is omitted and ProgramEntry cannot establish. The diagnostic
@@ -72,17 +72,27 @@ names the site:
 
 | Fixtures | Omitted at |
 | --- | --- |
-| 21 | structural field store: record literal field |
-| 20 | statement sequence: local data: structural call binding |
-| 16 | state graph: state signature: parameter signature: attached data shape |
-| 10 | statement sequence: call: call operation |
+| 21 | statement sequence: local data: structural call binding |
+| 12 | structural field store: pure source |
+| 12 | statement sequence: call: call operation |
+| 7 | structural field store: destination parameter |
 | 4 | statement sequence: local data: scalar local: pure initializer |
-| 2 | statement sequence: assignment: call source result type |
+| 4 | state graph: state signature: parameter signature: attached data shape |
+| 3 | state graph: terminator: conditional successors: guard expression |
+| 2 | structural field store: scalar field type |
+| 2 | state graph: terminator: jump successor: parameter transfer |
+| 5 | five sites with one fixture each |
 
-The field-store site (`structural_scalar_store/mod.rs`) refuses a floating
-computation, a payloadless sum case, a string literal, an indexed byte store
-or a call result stored into a field; `float` (9) and `recast` (5) hit it
-most. The class is not host-specific by construction rather than by probe:
+Until this revision the field-store sites were one 21-fixture bucket labelled
+`record literal field`, a trace artifact: the construction trace kept the last
+store route's entry label, and no fixture in the bucket had a record-literal
+field store. With the trace naming the route that got furthest, the bucket
+reads as its causes: no pure scalar source for the store (12: float
+arithmetic and float field reads, which the checked scalar vocabulary lacks;
+Trapping arithmetic; float-to-integer policy casts), a destination that is a
+local rather than a parameter (7: stores through recast reference locals), and
+a reference-typed leaf (2: a byte-slice literal into a `&[u8] in Utf8` field).
+The class is not host-specific by construction rather than by probe:
 every site is in `typed-trees-to-checked-trees`, the Psi stage, which the
 ownership firewall keeps target-neutral, so the plan is omitted before any
 target is chosen. A direct off-host compile could not confirm it — a full
@@ -92,26 +102,25 @@ prior fixture happened to need, where ordinary statement sequencing would
 admit them all; the product-compiler board item already flags the gate as
 advancing one statement shape per slice, and this is its measured size.
 
-Family four is roster placement, repaired at this revision: nine fixtures
-whose `Main::main` takes parameters were on the native tier, where no hosted
-entry can bind them, and now check; eight EFI programs authored in July sat on
-the host tier from before the cross-target tier existed, and now compile for
-`uefi_x86_64` beside their siblings.
+A roster-placement family of 17 at 117f2abc9c was repaired at 398b73a4f6:
+nine fixtures whose `Main::main` takes parameters were on the native tier,
+where no hosted entry can bind them, and now check; eight EFI programs
+authored in July sat on the host tier from before the cross-target tier
+existed, and now compile for `uefi_x86_64` beside their siblings.
 
-Family five is a library gap on the settled carrier. The compiler-known
+The second family is a library gap on the settled carrier. The compiler-known
 runtime carrier is `Binding<R>` ([entry roots](../../spec/build/entry_roots.md));
 the library, corpus, samples and the compiler's recognizers spell it so, and
-`ForeignBinding<...>` names the unrelated foreign locator. A direct
-entry-receiver field of that carrier
-demands a selected Fused provider for `R`, and `source/library/std` declares
-exactly three: `ConsoleNativeProvider`, `ProcessExitNativeProvider` and
-`UefiOsHandoffNativeProvider`. The fifteen fixtures declare the carrier over
-`FilesystemHost` (9), `TimeHost` (2), `Gui` (2) and `Input` (1) directly on
-`Main`, for which no provider exists, so the compiler's refusal is correct.
-The passing filesystem fixtures reach the host through std's `Filesystem`
-wrapper, whose own carrier field is established by the library rather than
-selected at the entry; a program that takes the raw host directly is blocked
-until a provider is authored.
+`ForeignBinding<...>` names the unrelated foreign locator. A field of that
+carrier at any depth under the entry receiver demands a selected Fused provider
+for `R` (establishment walks nested records since 5cc8422932), and
+`source/library/std` declares exactly three: `ConsoleNativeProvider`,
+`ProcessExitNativeProvider` and `UefiOsHandoffNativeProvider`. The twenty-nine
+fixtures reach `FilesystemHost`, `TimeHost`, `Gui` or `Input` either directly
+on `Main` or through std's `Filesystem` wrapper, whose own `host` field the
+walk now demands (filesystem 19, host 3, time 3, capabilities 2, two more);
+no provider exists for any of them, so the compiler's refusal is correct and
+the fixtures stall on the library, not the compiler.
 
 ## Spec gaps
 

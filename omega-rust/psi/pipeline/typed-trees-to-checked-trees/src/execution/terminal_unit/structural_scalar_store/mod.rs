@@ -238,6 +238,12 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             stores.push(store);
             continue;
         }
+        // Each remaining route names its own phases. A route that declines
+        // at its first precondition must not overwrite the one that reached
+        // the decisive requirement, so the trace returns to whichever route
+        // got furthest before the statement is reported.
+        let baseline = trace.mark();
+        let mut furthest = None;
         trace.phase("scalar field store sequence: structural field store");
         if let Some(store) = build_structural_field_store_at(
             program,
@@ -257,6 +263,8 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             stores.push(store);
             continue;
         }
+        furthest = trace.furthest(furthest, &baseline);
+        trace.restore(&baseline);
         trace.phase("scalar field store sequence: whole record store");
         if let Some(record_stores) = build_whole_record_store_sequence(
             program,
@@ -272,6 +280,8 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
             stores.extend(record_stores);
             continue;
         }
+        furthest = trace.furthest(furthest, &baseline);
+        trace.restore(&baseline);
         trace.phase("scalar field store sequence: record literal field store");
         if let Some(record_stores) = build_record_literal_field_store_sequence(
             program,
@@ -286,6 +296,10 @@ pub(super) fn build_structural_scalar_field_store_sequence_traced(
         ) {
             stores.extend(record_stores);
             continue;
+        }
+        if let Some(mark) = trace.furthest(furthest, &baseline) {
+            trace.restore(&mark);
+            trace.statement(Some(statement_index));
         }
         // An assignment whose source is this statement's own call has no
         // authored scalar expression to store. Its call operation is sequenced

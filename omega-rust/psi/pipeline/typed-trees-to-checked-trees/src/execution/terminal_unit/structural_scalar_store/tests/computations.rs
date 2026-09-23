@@ -291,12 +291,15 @@ fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
         )
         .is_none()
     );
+    // The trace names the route that got furthest: the field-store route
+    // reached its source guard at this statement, so the later record
+    // routes, which decline at their first precondition, do not overwrite it.
     assert_eq!(
         trace.stage(),
         checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "structural field store: record literal field",
+            phase: "structural field store: pure source",
             state_index: None,
-            statement_index: None,
+            statement_index: Some(1),
         }
     );
 }
