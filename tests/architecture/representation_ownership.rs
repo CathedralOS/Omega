@@ -1702,6 +1702,97 @@ fn semantic_wrapper_object_records_and_codec_belong_to_the_native_artifact() {
     }
 }
 
+/// The semantic wrapper plan names its own target obligation
+/// (`TargetEncodingRequiredV1`); the projection of its step grammar onto the
+/// x86-64 ISA request and the staged template belong beside the recipe that
+/// produces that grammar, not in the realization coordinator. The owner
+/// already depends on the ISA crate, so the move adds no edge.
+#[test]
+fn semantic_wrapper_encoding_belongs_to_the_program_entry_plan() {
+    let root = repository();
+    let owner = root.join("omega-rust/omega/backend/plans/program-entry-plan");
+    let wrapper = owner.join("src/optimized_semantic_wrapper");
+    let entrance = std::fs::read_to_string(wrapper.join("encoding.rs")).unwrap();
+    let projection = std::fs::read_to_string(wrapper.join("encoding/projection.rs")).unwrap();
+    let coordinator_root = root.join("omega-rust/omega/compiler/native-realization/src");
+    let coordinator = rust_source(&coordinator_root);
+    // The entrance declares the staged record and its error once, and owns
+    // both selection and the independent replay.
+    for definition in [
+        "pub struct StagedOptimizedProgramStorageSemanticWrapperEncoding {",
+        "pub enum OptimizedProgramStorageSemanticWrapperEncodingError {",
+        "pub fn select_optimized_program_storage_semantic_wrapper_encoding(",
+        "pub fn validate_optimized_program_storage_semantic_wrapper_encoding(",
+    ] {
+        assert_eq!(entrance.matches(definition).count(), 1, "{definition}");
+        assert!(
+            !coordinator.contains(definition),
+            "coordinator owns {definition}"
+        );
+    }
+    // Retained custody is read through accessors; no consumer rewrites it.
+    assert!(entrance.contains("    source: OptimizedProgramStorageSemanticWrapperPlan,"));
+    assert!(!entrance.contains("pub(crate) source:"));
+    for definition in [
+        "fn project_request(",
+        "fn project_copy(",
+        "fn project_binding(",
+    ] {
+        assert!(
+            projection.contains(definition),
+            "projection lacks {definition}"
+        );
+        assert!(
+            !coordinator.contains(definition),
+            "coordinator owns {definition}"
+        );
+    }
+    assert!(
+        !coordinator_root
+            .join("optimized_semantic_wrapper_encoding")
+            .exists(),
+        "coordinator retains the wrapper encoding stage"
+    );
+    // No backwards edge: the plan owner names neither the coordinator nor the
+    // object's representation owner, and the ISA owner does not name the plan.
+    let manifest = std::fs::read_to_string(owner.join("Cargo.toml")).unwrap();
+    for forbidden in ["native-realization", "native-artifact"] {
+        assert!(
+            !manifest.contains(forbidden),
+            "program-entry-plan depends on {forbidden}"
+        );
+    }
+    let owner_source = rust_source(&owner.join("src"));
+    assert!(!owner_source.contains("native_realization"));
+    assert!(!owner_source.contains("native_artifact"));
+    let isa_manifest = std::fs::read_to_string(
+        root.join("omega-rust/omega/backend/instruction_set_architectures/isa-x86_64/Cargo.toml"),
+    )
+    .unwrap();
+    assert!(!isa_manifest.contains("program-entry-plan"));
+    // The production route and the object stage read the owner directly; the
+    // coordinator does not republish it.
+    let route = std::fs::read_to_string(
+        coordinator_root.join("native_realization/optimized_fragment_projection.rs"),
+    )
+    .unwrap();
+    assert!(route.contains(
+        "program_entry_plan::select_optimized_program_storage_semantic_wrapper_encoding("
+    ));
+    let object_stage = rust_source(&coordinator_root.join("optimized_semantic_wrapper_object"));
+    assert!(object_stage.contains("use program_entry_plan::"));
+    assert!(object_stage.contains("StagedOptimizedProgramStorageSemanticWrapperEncoding"));
+    let crate_root = std::fs::read_to_string(coordinator_root.join("lib.rs")).unwrap();
+    for name in [
+        "StagedOptimizedProgramStorageSemanticWrapperEncoding",
+        "OptimizedProgramStorageSemanticWrapperEncodingError",
+        "select_optimized_program_storage_semantic_wrapper_encoding",
+        "validate_optimized_program_storage_semantic_wrapper_encoding",
+    ] {
+        assert!(!crate_root.contains(name), "coordinator republishes {name}");
+    }
+}
+
 #[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();

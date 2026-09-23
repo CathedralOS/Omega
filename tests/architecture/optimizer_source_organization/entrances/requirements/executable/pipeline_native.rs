@@ -186,7 +186,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn admit_native_providers",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_encoding/mod.rs",
+        path: "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/encoding.rs",
         coordination_marker: "pub fn select_optimized_program_storage_semantic_wrapper_encoding",
     },
     RequiredCoordinationEntrance {

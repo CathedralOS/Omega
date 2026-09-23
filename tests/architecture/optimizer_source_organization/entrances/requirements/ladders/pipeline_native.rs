@@ -50,6 +50,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/mod.rs",
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/recipe.rs",
             "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/validation.rs",
+            "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/encoding.rs",
+            "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper/encoding/projection.rs",
         ],
     },
     SemanticLadder {
