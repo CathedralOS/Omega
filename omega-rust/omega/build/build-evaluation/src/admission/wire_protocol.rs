@@ -197,12 +197,22 @@ fn build_wire_protocol_report(
         schema.realization_origin = Some(WireRealizationOrigin::Generated {
             generator: "Omega compiler compact_binary generator".to_owned(),
         });
-        // Trust class follows the codec spec's realization table: the
-        // generated body reports Derived when an independent check of the
-        // public requirement passes — either the authored
-        // `CompactBinary::plan` grammar policy agreeing with the codec
-        // walk, or the interpreter's generated-codec verification closing
-        // with no coverage gaps. A proven divergence never reports Derived.
+        // Trust class follows the codec spec's realization table: Derived is
+        // "authored or generated body independently checked against the
+        // public requirement", and "only a fully exercised requirement
+        // reports `Derived`" (spec, layouts/codecs.md).
+        //
+        // Only the interpreter's generated-codec verification closing with no
+        // coverage gaps establishes that. The authored `CompactBinary::plan`
+        // grammar policy does NOT: `policy_verified` records that the policy's
+        // PLACEMENTS agree with the codec's walk
+        // (`build-time-evaluation/src/layouts/wire_plans.rs`), which is a check
+        // on the plan, not on the body's `decode(encode(value)) == value`. Two
+        // independent derivations of a field layout agreeing is real evidence
+        // and is retained as such, but it is not the body check, so it leaves
+        // the realization compiler-admitted: "an unverified generated
+        // realization remains compiler-admitted". A proven divergence never
+        // reports Derived.
         let plan_evidence =
             "normalized compact_binary plan validated against the schema walk".to_owned();
         let policy_verified = typed.wire_schema_plan_policy_verified(source_schema.symbol);
@@ -232,13 +242,11 @@ fn build_wire_protocol_report(
             // grammar policy remains an independent check for the rest;
             // without it the uncovered portion stays generator-admitted.
             Some(Ok(verification)) => {
-                schema.trust_class = if policy_verified {
-                    Some(WireTrustClass::Derived)
-                } else {
-                    Some(WireTrustClass::Admitted {
-                        authority: "Omega compiler".to_owned(),
-                    })
-                };
+                // Partially exercised. The uncovered portion has no body
+                // check, and plan agreement cannot stand in for one.
+                schema.trust_class = Some(WireTrustClass::Admitted {
+                    authority: "Omega compiler".to_owned(),
+                });
                 // A schema the generator cannot realize at all exercises no
                 // check; claiming "independent verification passed" over an
                 // empty list would be evidence the run never produced.
@@ -277,13 +285,11 @@ fn build_wire_protocol_report(
                 ];
             }
             None => {
-                schema.trust_class = if policy_verified {
-                    Some(WireTrustClass::Derived)
-                } else {
-                    Some(WireTrustClass::Admitted {
-                        authority: "Omega compiler".to_owned(),
-                    })
-                };
+                // No body check ran at all; plan agreement alone never
+                // reaches Derived.
+                schema.trust_class = Some(WireTrustClass::Admitted {
+                    authority: "Omega compiler".to_owned(),
+                });
                 schema.realization_evidence = if policy_verified {
                     vec![
                         plan_evidence,
@@ -1666,10 +1672,13 @@ mod tests {
     }
 
     #[test]
-    fn policy_verified_generated_codec_reports_derived_trust() {
+    fn policy_agreement_alone_stays_compiler_admitted() {
         // The authored `CompactBinary::plan` grammar policy agreeing with the
-        // codec walk is the independent check of the public requirement; the
-        // generated body then reports Derived (codec spec realization table).
+        // codec walk is real evidence and is recorded, but it compares
+        // PLACEMENTS, not the body's `decode(encode(value)) == value`. The
+        // codec spec admits Derived only for a body "independently checked
+        // against the public requirement", and says "an unverified generated
+        // realization remains compiler-admitted".
         let report = wire_report(
             r#"
 data Packet { #1 seed: u64; #2 label: &[u8]; }
@@ -1705,14 +1714,20 @@ machine Main::main(&mut self) { }
             .expect("Packet schema row");
         assert_eq!(
             packet.trust_class,
-            Some(artifacts::WireTrustClass::Derived),
-            "the policy-verified generated codec is independently checked, not admitted"
+            Some(artifacts::WireTrustClass::Admitted {
+                authority: "Omega compiler".to_owned(),
+            }),
+            "plan agreement is not a body check, so the realization stays admitted"
         );
+        // The policy agreement is still recorded: downgrading the trust class
+        // must not lose the evidence that was actually established.
         assert!(
             packet
                 .realization_evidence
                 .iter()
-                .any(|line| line.contains("independently checked against the authored"))
+                .any(|line| line.contains("independently checked against the authored")),
+            "{:#?}",
+            packet.realization_evidence
         );
     }
 }
