@@ -152,11 +152,31 @@ pub(crate) fn publish_exact_file_bytes(path: &std::path::Path, bytes: &[u8]) -> 
     publish_exact_bytes(path, bytes, false)
 }
 
-fn publish_exact_bytes(
+/// One product file written and replayed beside its destination, not yet
+/// visible there.
+///
+/// Publication of a PAIR cannot be a sequence of single-file publications:
+/// "Publication must not associate a stale sidecar with newly written bytes"
+/// (spec, `proofs/publication.md`), and writing the artifact and then its
+/// companion leaves exactly that arrangement when the second write fails.
+/// Staging every member first, then installing them, means a write failure
+/// leaves the previous consistent pair untouched. The spec permits the
+/// residue: "Failure may leave diagnostic staging data".
+pub(crate) struct StagedProduct {
+    staged: std::path::PathBuf,
+    destination: std::path::PathBuf,
+    /// Retained for the post-install replay. Owned rather than borrowed so a
+    /// staged set can outlive the scopes that produced each member's bytes.
+    bytes: Vec<u8>,
+}
+
+/// Write `bytes` beside `path` and replay them, without making them visible
+/// at `path`.
+pub(crate) fn stage_exact_bytes(
     path: &std::path::Path,
     bytes: &[u8],
     executable: bool,
-) -> Result<(), String> {
+) -> Result<StagedProduct, String> {
     let parent = path
         .parent()
         .ok_or_else(|| "native publication path has no parent directory".to_owned())?;
@@ -178,14 +198,43 @@ fn publish_exact_bytes(
         let _ = std::fs::remove_file(&staged);
         return Err(error);
     }
-    install_staged(&staged, path)?;
-    let installed = std::fs::read(path)
-        .map_err(|error| format!("failed to replay {}: {error}", path.display()))?;
-    if installed != bytes {
-        let _ = std::fs::remove_file(path);
+    Ok(StagedProduct {
+        staged,
+        destination: path.to_path_buf(),
+        bytes: bytes.to_vec(),
+    })
+}
+
+/// Make one staged product visible at its destination and replay it there.
+pub(crate) fn install_staged_product(product: &StagedProduct) -> Result<(), String> {
+    install_staged(&product.staged, &product.destination)?;
+    let installed = std::fs::read(&product.destination).map_err(|error| {
+        format!(
+            "failed to replay {}: {error}",
+            product.destination.display()
+        )
+    })?;
+    if installed != product.bytes {
+        let _ = std::fs::remove_file(&product.destination);
         return Err("published native output bytes failed exact replay".to_owned());
     }
     Ok(())
+}
+
+/// Install every member of one requested set, or none of them.
+pub(crate) fn install_staged_products(products: &[StagedProduct]) -> Result<(), String> {
+    for product in products {
+        install_staged_product(product)?;
+    }
+    Ok(())
+}
+
+fn publish_exact_bytes(
+    path: &std::path::Path,
+    bytes: &[u8],
+    executable: bool,
+) -> Result<(), String> {
+    install_staged_product(&stage_exact_bytes(path, bytes, executable)?)
 }
 
 /// Install the staged file at its destination. Unix `rename` replaces an
@@ -503,14 +552,64 @@ mod tests {
     //! chain above this is covered by `compile_report/custody_tests.rs`.
     use super::{
         ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
-        publish_exact_executable_bytes, remove_stale_companion,
+        install_staged_products, publish_exact_executable_bytes, publish_exact_file_bytes,
+        remove_stale_companion, stage_exact_bytes,
     };
-    // Only the Unix permission-mode leg publishes a plain file here.
-    #[cfg(unix)]
-    use super::publish_exact_file_bytes;
     use std::path::{Path, PathBuf};
 
     /// A fresh per-test destination directory under the system temp root.
+
+    /// "Publication must not associate a stale sidecar with newly written
+    /// bytes" (spec, `proofs/publication.md`). The interruption this pins is a
+    /// failure BETWEEN pair members, which a sequence of single-file
+    /// publications cannot survive: the artifact lands, its companion does
+    /// not, and the previous run's `.proof` is left describing bytes nobody
+    /// proved.
+    #[test]
+    fn a_failed_pair_member_leaves_the_previous_pair_intact() {
+        let directory = TestDir::new("pair-interruption");
+        let artifact = directory.path("product.psi");
+        let companion = appended_file_name_path(&artifact, ".proof");
+
+        publish_exact_file_bytes(&artifact, b"first-artifact").expect("publish first artifact");
+        publish_exact_file_bytes(&companion, b"first-proof").expect("publish first companion");
+
+        // The second publication stages both members and one of them fails.
+        // Staging the companion into a path whose parent does not exist is
+        // that failure; the artifact was staged successfully first.
+        let staged_artifact =
+            stage_exact_bytes(&artifact, b"second-artifact", false).expect("stage artifact");
+        let unwritable = directory.path("absent-directory").join("product.psi.proof");
+        assert!(
+            stage_exact_bytes(&unwritable, b"second-proof", false).is_err(),
+            "staging into a missing directory must fail",
+        );
+
+        // Nothing was installed, so the first pair still agrees.
+        assert_eq!(
+            std::fs::read(&artifact).expect("read artifact"),
+            b"first-artifact",
+            "a failed pair member must not leave new artifact bytes behind",
+        );
+        assert_eq!(
+            std::fs::read(&companion).expect("read companion"),
+            b"first-proof",
+        );
+
+        // Installing the complete set replaces the pair together.
+        let staged_companion =
+            stage_exact_bytes(&companion, b"second-proof", false).expect("stage companion");
+        install_staged_products(&[staged_artifact, staged_companion]).expect("install pair");
+        assert_eq!(
+            std::fs::read(&artifact).expect("read artifact"),
+            b"second-artifact",
+        );
+        assert_eq!(
+            std::fs::read(&companion).expect("read companion"),
+            b"second-proof",
+        );
+    }
+
     struct TestDir(PathBuf);
 
     impl TestDir {

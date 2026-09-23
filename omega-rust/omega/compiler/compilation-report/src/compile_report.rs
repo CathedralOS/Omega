@@ -4,9 +4,10 @@
 
 use crate::executable_publication::{
     ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
-    executable_installation_evidence_digest, native_publication_certificate_digest,
-    native_publication_evidence_digest, publish_exact_executable_bytes, publish_exact_file_bytes,
-    remove_stale_companion, validate_native_pair, validate_psi_pair,
+    executable_installation_evidence_digest, install_staged_products,
+    native_publication_certificate_digest, native_publication_evidence_digest,
+    publish_exact_file_bytes, remove_stale_companion, stage_exact_bytes, validate_native_pair,
+    validate_psi_pair,
 };
 use crate::package;
 use crate::pcc::build_native_proof_sidecar;
@@ -430,10 +431,14 @@ impl CompileReport {
         } else {
             let output_path = build_dir.join(&output.file_name);
 
-            // Every requested artifact/companion pair is staged, validated and
-            // published before the executable itself becomes visible. A failed
-            // pair therefore never produces a certified-looking install, and a
-            // sidecar can never be left bound to bytes this report did not write.
+            // Every requested artifact/companion pair is staged and validated
+            // before ANY member becomes visible. Publishing them one at a time
+            // was the gap: a failure after the artifact and before its
+            // companion left new bytes beside the previous run's `.proof`, and
+            // "Publication must not associate a stale sidecar with newly
+            // written bytes" (spec, proofs/publication.md). Staging first means
+            // such a failure leaves the previous consistent pair untouched.
+            let mut staged_products = Vec::new();
             if self.pcc_requests.psi {
                 let psi_bytes = artifact.psi_artifact().to_bytes();
                 let psi_sidecar = terminal_codec::build_psi_proof_sidecar(
@@ -445,9 +450,13 @@ impl CompileReport {
                 let psi_sidecar_bytes = psi_sidecar.to_bytes();
                 validate_psi_pair(&psi_bytes, &psi_sidecar, &self.terminal_admission_profile)?;
                 let psi_path = appended_file_name_path(&output_path, ".psi");
-                publish_exact_file_bytes(&psi_path, &psi_bytes)?;
                 let psi_sidecar_path = appended_file_name_path(&psi_path, ".proof");
-                publish_exact_file_bytes(&psi_sidecar_path, &psi_sidecar_bytes)?;
+                staged_products.push(stage_exact_bytes(&psi_path, &psi_bytes, false)?);
+                staged_products.push(stage_exact_bytes(
+                    &psi_sidecar_path,
+                    &psi_sidecar_bytes,
+                    false,
+                )?);
                 pcc_publications.push(PccPublicationReceipt {
                     product: terminal_codec::PccProductKind::Psi,
                     artifact_path: psi_path,
@@ -467,7 +476,11 @@ impl CompileReport {
             }
             if let Some(native_sidecar_bytes) = &native_sidecar_bytes {
                 let native_sidecar_path = appended_file_name_path(&output_path, ".proof");
-                publish_exact_file_bytes(&native_sidecar_path, native_sidecar_bytes)?;
+                staged_products.push(stage_exact_bytes(
+                    &native_sidecar_path,
+                    native_sidecar_bytes,
+                    false,
+                )?);
                 pcc_publications.push(PccPublicationReceipt {
                     product: terminal_codec::PccProductKind::Native,
                     artifact_path: output_path.clone(),
@@ -480,7 +493,10 @@ impl CompileReport {
                 // survive beside executable bytes it does not commit to.
                 remove_stale_companion(&appended_file_name_path(&output_path, ".proof"))?;
             }
-            publish_exact_executable_bytes(&output_path, &output.bytes)?;
+            // The executable joins the same staged set, so its bytes and the
+            // companions committing to them become visible together.
+            staged_products.push(stage_exact_bytes(&output_path, &output.bytes, true)?);
+            install_staged_products(&staged_products)?;
             output_path
         };
 
