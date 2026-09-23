@@ -119,7 +119,16 @@ pub(super) fn known_wire_codec_call_written_paths(
             // Only this arm is added. A member or indexed spelling still falls
             // through: an interior reference load needs its own load evidence,
             // not the enclosing carrier's path.
-            ExpressionNode::Call(_) => {
+            // A match argument is the same finite set spelled inline instead of
+            // through a helper. The shared resolver's `Match` arm unions its
+            // arms and recurses per arm, so each arm gets the treatment its own
+            // spelling earns -- including `carried_reference_origin`, which
+            // resolves a member or indexed arm only when its ROOT is an owned
+            // carrier with a declared reference leaf and refuses a load behind
+            // another reference. That is the load evidence this leaf requires,
+            // so reaching it through the shared resolver is not a way around
+            // the exclusion below.
+            ExpressionNode::Call(_) | ExpressionNode::Match(_) => {
                 for origin in super::reference_origins::exclusive_reference_origins(
                     program,
                     current_machine,
