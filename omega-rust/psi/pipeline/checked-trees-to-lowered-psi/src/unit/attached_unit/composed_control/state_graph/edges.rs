@@ -637,10 +637,60 @@ pub(super) fn validate_fallback(
             unsupported("Unit graph branch labels inspect different source values")
         };
     }
-    if builtin_equality_complement(checked, true_expression, false_expression) {
+    if builtin_equality_complement(checked, true_expression, false_expression)
+        || closed_case_complement(checked, true_expression, false_expression)
+    {
         return Ok(());
     }
     unsupported("Unit graph fallback is not the inverse source label")
+}
+
+/// The producer side's closed-case mirror: `subject == A` paired with
+/// `subject == B` over one two-variant sum is the authored exhaustive split,
+/// so the second arm holds exactly where the first fails. A sum with more
+/// variants leaves cases the pair never names, and a repeated case splits
+/// nothing. The subject is re-read for the second guard, so it must
+/// re-evaluate to the value the first guard observed.
+fn closed_case_complement(
+    checked: &CheckedTrees,
+    true_expression: checked_trees::expression::ExpressionHandle,
+    false_expression: checked_trees::expression::ExpressionHandle,
+) -> bool {
+    let (Some((true_subject, true_case)), Some((false_subject, false_case))) = (
+        super::cases::case_test(checked, true_expression),
+        super::cases::case_test(checked, false_expression),
+    ) else {
+        return false;
+    };
+    if true_case == false_case
+        || !checked
+            .expression_table
+            .expressions_structurally_equal(true_subject, false_subject)
+        || !reevaluation_stable(checked, true_subject)
+    {
+        return false;
+    }
+    let variant_owner = |case| {
+        checked.data_definitions().iter().find(|definition| {
+            checked.data_members(definition).iter().any(|member| {
+                matches!(
+                    member,
+                    checked_trees::data::DataMember::Variant(variant) if variant.symbol == case
+                )
+            })
+        })
+    };
+    let (Some(owner), Some(other)) = (variant_owner(true_case), variant_owner(false_case)) else {
+        return false;
+    };
+    owner.symbol == other.symbol
+        && checked.data_members(owner).iter().all(|member| {
+            matches!(
+                member,
+                checked_trees::data::DataMember::Variant(variant)
+                    if variant.symbol == true_case || variant.symbol == false_case
+            )
+        })
 }
 
 /// The producer side's `exact_false_fallback` mirror: builtin `L == R` paired

@@ -3510,6 +3510,14 @@ syntax and other terminal services are not prerequisites.
   cross-target compile of these canaries; (c) borrowed-call scalar results
   into serviceful callees still refuse until a serviceful fixed-native
   scalar ABI exists.
+  A guarded pair over a two-variant sum whose selected arm forwards a
+  `[copy]` record payload (`state_graph/tests/case_payload_edges.rs`,
+  `OpenResult::Opened { info } -> have(info)`) now admits: lowering's
+  fallback check mirrors the checker's closed-case complement. It stops in
+  emission at "Unit graph case-payload transfer has no Terminal channel"
+  (`state_graph/emission/state.rs`, the `CasePayload` transfer source).
+  Next acceptance: emit the payload as a Terminal transfer out of the tested
+  case and lower `Root::run` through Terminal verification.
   Unread-`&mut self` roster defect, probed 2026-09-23: replacing the count
   comparison in the four store planners (`primitive_store.rs`,
   `structural_scalar_store/mod.rs`) with a position check that admits an
