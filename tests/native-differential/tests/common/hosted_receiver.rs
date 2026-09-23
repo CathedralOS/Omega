@@ -274,15 +274,14 @@ pub(crate) fn emit_receiver_image(
 }
 
 /// Write `bytes` to a private executable file and run it as a hosted process;
-/// returns the exit status code and captured standard streams. Hosts without a
-/// matching object format are expected to skip the calling leg instead.
-#[cfg(any(
-    all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ),
-    all(target_os = "macos", target_arch = "aarch64")
-))]
+/// returns the exit status code and captured standard streams.
+///
+/// Mounted on Linux x86-64 alone, which is where the one arrival check that
+/// calls it lives: that bridge is the only emitted container this suite
+/// launches as a process. The other hosts emit and validate their container
+/// without running it, and say so in their own skip branch, so declaring this
+/// for them would claim a leg none of them takes.
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 pub(crate) fn run_emitted_image(bytes: &[u8]) -> (Option<i32>, Vec<u8>, Vec<u8>) {
     use std::io::Write;
     use std::os::unix::fs::PermissionsExt;
@@ -309,22 +308,10 @@ pub(crate) fn run_emitted_image(bytes: &[u8]) -> (Option<i32>, Vec<u8>, Vec<u8>)
     (output.status.code(), output.stdout, output.stderr)
 }
 
-#[cfg(any(
-    all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ),
-    all(target_os = "macos", target_arch = "aarch64")
-))]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 struct ExecutableFile(std::path::PathBuf);
 
-#[cfg(any(
-    all(
-        target_os = "linux",
-        any(target_arch = "x86_64", target_arch = "aarch64")
-    ),
-    all(target_os = "macos", target_arch = "aarch64")
-))]
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 impl Drop for ExecutableFile {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.0);

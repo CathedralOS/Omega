@@ -11,9 +11,12 @@ mod runtime_value_calls;
 
 use crate::{
     Command, CompileReport, compile_reviewed_repository_fixture,
-    compile_rooted_backend_canary_without_output_for_target_and_permission_policy,
-    compile_rooted_canary_for_native_host, fs, pass_canary,
+    compile_rooted_backend_canary_without_output_for_target_and_permission_policy, pass_canary,
 };
+// The rooted native-host compilation and its build-directory cleanup belong to
+// the one Linux-gated leg below; the other hosts never reach them.
+#[cfg(target_os = "linux")]
+use crate::{compile_rooted_canary_for_native_host, fs};
 use compiler::CheckedCompileRequest;
 
 fn assert_native_exit_code(
