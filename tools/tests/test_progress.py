@@ -167,5 +167,51 @@ class OwnerVerdicts(unittest.TestCase):
         tool.merge_owner_verdicts(pass_outcome, {"passing": ["x/p"], "failing": ["x/f"], "no_verdict": []}, {"x/f": "active", "x/p": "active"})
         self.assertEqual(pass_outcome["failed_members"], {"x/f": "dedicated-owner"})
         self.assertEqual(pass_outcome["per_tier"]["active"]["failed"], 1)
-        self.assertEqual(pass_outcome["owners"], {"passing": 1, "failing": 1, "no_verdict": 0})
+        self.assertEqual(pass_outcome["owners"]["passing"], 1)
+        self.assertEqual(pass_outcome["owners"]["failing"], 1)
+        self.assertEqual(pass_outcome["owners"]["runs"], {"x/p"})
+
+
+class VerifiedLevels(unittest.TestCase):
+    """Fixtures and sections are reported at the strongest predicate a run
+    verified: runs, compiles, checks, fails or unmeasured."""
+
+    def test_failure_blocks_name_the_stage_and_family(self):
+        import tempfile
+        tool = load_tool()
+        text = (
+            "---- topic::a_canary_runs stdout ----\n"
+            "thread 'topic::a_canary_runs' panicked at x.rs:1:1:\n"
+            "a canary should compile: [Diagnostic { severity: Error, message: \"selected compiler intrinsic `x` has no closed native catalog identity\", source_span: None }]\n"
+            "\n"
+            "---- topic::b_canary_runs stdout ----\n"
+            "thread 'topic::b_canary_runs' panicked at x.rs:2:2:\n"
+            "b canary should exit 70: got 1\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "suite.log"
+            log.write_text(text, encoding="utf-8")
+            failures = tool.parse_suite_failures(log)
+        self.assertEqual(failures["topic::a_canary_runs"]["stage"], "compile")
+        self.assertEqual(failures["topic::a_canary_runs"]["family"], "selected compiler intrinsic `_` has no closed native catalog identity")
+        self.assertEqual(failures["topic::b_canary_runs"]["stage"], "run")
+
+    def test_levels_take_the_strongest_verified_predicate(self):
+        tool = load_tool()
+        members = ["g/runs", "g/compiles", "g/checks", "g/fails", "g/elided", "g/dark"]
+        original = tool.corpus_members
+        tool.corpus_members = lambda kind: members
+        try:
+            report = {
+                "corpus": {"tier_of": {"g/runs": "active", "g/compiles": "active", "g/checks": "checked_only", "g/fails": "active", "g/elided": "active"}},
+                "outcomes": {"pass": {"failed_members": {"g/fails": "active"}, "owners": {"runs": {"g/runs"}, "unjudged": {"g/elided"}}}},
+                "spec": {"rows": [{"spec_file": "s", "heading": "h", "class": "core", "groups": ["g"]}]},
+            }
+            levels = tool.fixture_levels(report)
+            self.assertEqual(levels, {"g/runs": "runs", "g/compiles": "compiles", "g/checks": "checks", "g/fails": "fails", "g/elided": "unmeasured", "g/dark": "unmeasured"})
+            sections = tool.section_levels(report, levels)
+            self.assertEqual(sections["rows"][0]["best"], "runs")
+            self.assertEqual(sections["tally"], {"core": {"runs": 1}})
+        finally:
+            tool.corpus_members = original
 

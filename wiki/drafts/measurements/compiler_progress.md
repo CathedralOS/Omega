@@ -23,33 +23,58 @@ python tools/progress.py --pass-log <pass.log> --fail-log <fail.log> --samples-l
 
 ## The number
 
-**60 of 66 core and typical language-spec sections are natively established:
-at least one fixture exercising the section compiles to a native artifact and
-passes.** Across all 120 sections it is 92.
+Every fixture and every spec section is reported at the strongest predicate
+some run actually verified. The three predicates, in order:
 
-That is breadth. Depth, counting fixtures rather than sections: of the distinct
-native-tier fixtures in groups that map to core or typical sections, 805 of
-936 pass. The two numbers together say the compiler reaches nearly every rule
-a real program needs, and fails about one fixture in seven along the way.
+- **runs**: a dedicated owner test compiled the fixture on the rooted native
+  route, executed it on this host, and saw the expected exit status. This is
+  the only verdict that means the feature works.
+- **compiles**: the pass umbrella produced a native artifact for it on its
+  tier's route; nothing executed it, and that route does not settle the rooted
+  entry the way an application's build does.
+- **checks**: it passes checked semantics (parse, resolve, type, check, proof)
+  and nothing native was attempted or succeeded.
+
+**4 of 66 core and typical language-spec sections have a fixture that runs;
+36 at best compile; 21 at best check; 1 has no verified fixture.** Across all
+120 sections: 8 run, 45 compile, 40 check, 27 have none.
+
+Of the 2,059 pass fixtures, 5 run, 90 compile, 690 check, 1,073 fail some run
+and 201 are judged by neither route. The five that run are
+`core/runtime_natural_termination_exit` and four `host/` console fixtures.
 
 | Measurement | Value | Reads as |
 | --- | --- | --- |
-| core+typical spec sections natively established | 60/66 | breadth over what real programs use |
-| all spec sections natively established | 92/120 | breadth over the whole language |
-| core+typical native fixtures passing | 805/936 | depth: distinct fixtures, not sections |
+| core+typical sections with a fixture that runs natively | 4/66 | the feature works end to end |
+| core+typical sections whose best fixture only compiles | 36/66 | a native artifact exists, never executed |
+| core+typical sections whose best fixture only checks | 21/66 | the language rule is understood, not realized |
+| all sections: runs / compiles / checks / none | 8 / 45 / 40 / 27 of 120 | breadth over the whole language |
+| pass fixtures: runs / compiles / checks / fails / unmeasured | 5 / 90 / 690 / 1,073 / 201 of 2,059 | depth: distinct fixtures |
+| elided fixtures judged by their dedicated owner: runs | 5/911 | the rooted native route with execution |
+| owner failures by stage | compile 896, other 7, run 3 | almost nothing reaches execution |
 | spec sections exercised by any pass fixture | 98/120 | the corpus's own coverage of the spec |
-| rostered pass fixtures that pass their tier | 1,588/1,761 | the umbrella suite's health, a ceiling: see the elided row |
-| fixtures the umbrella compiled itself that pass | 744/917 | the umbrella's own verdicts |
-| fixtures the umbrella elided for a dedicated owner | 844 | judged by `*_canary_runs` tests this record has not read yet |
-| fixtures that compile to a native artifact | 896/1,062 | the native tiers alone, same ceiling |
 | fail fixtures rejecting with their expected diagnostic | 1,156/1,156 | the compiler refuses what it should |
 | pass fixtures some roster runs | 2,029/2,059 | how much of the corpus is rostered at all |
 | construct pairs that matter, covered by a fixture | 31/31 | combinations real samples spell |
 
-"Natively established" is deliberately weak: one passing fixture establishes a
-section. A section whose only native fixture passes reads the same as one
-where fifty do. The depth row is the corrective. Neither says a real program
-combining those sections compiles; that is the samples' job, below.
+The distance, stated plainly: the compiler understands most of the language
+(690 fixtures check; 61 of 66 core and typical sections reach at least
+checking), produces a native artifact for about a tenth of the native corpus
+on the compile-only route, and runs 5 fixtures end to end on the route a real
+application takes. Of the 911 fixtures the owners judged, 896 fail at
+compile: 532 at the Unit-plan omission (the same mechanism the umbrella's own
+failures show, below), 181 because the selected compiler intrinsic for
+`Console::exit_process` on `windows_x86_64` has no closed native catalog
+identity, 58 in Terminal production, and the rest are proof and ownership
+refusals. Those two walls stand between the 90 that compile and running.
+
+Provenance: the owner verdicts are one release-profile run of the whole
+`canary_suite` (1,509 tests, 293 passed, 30 min on this host); three owners
+re-run in the dev profile fail with the same diagnostics, so the profile is
+not the cause. The dev-profile suite runs about three tests a minute here and
+was not completed. Earlier drafts of this record quoted "sections natively
+established"; that predicate counted an umbrella compile without execution
+and counted every elided fixture as passing, and is retired.
 
 ## Where it fails
 
@@ -202,5 +227,5 @@ not that it exercises their interaction.
   counts under `OMEGA_PASS_CANARY_REPORT_COUNTS=1`; `tools/progress.py
   --owner-index <file> --suite-log <log>` joins a full `cargo test -p compiler
   --test canary_suite` log to that index and gives each elided fixture its
-  owner's verdict. That full run is hour-scale in the dev profile on this host
-  and has not been folded into these numbers yet.
+  owner's verdict, which the numbers above now include (release profile, 30
+  min; the dev profile runs about three tests a minute here).
