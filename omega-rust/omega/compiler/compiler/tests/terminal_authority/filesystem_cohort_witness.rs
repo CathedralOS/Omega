@@ -48,6 +48,13 @@ struct Fixture {
 
 impl Fixture {
     fn new(label: &str) -> Self {
+        Self::calling(label, "self.files.set_len(self.fd, 0)")
+    }
+
+    /// `call` is one `Binding<FilesystemHost>` invocation on `self.files`
+    /// whose result type is `i32`, so the fixture demands exactly the leaf it
+    /// names.
+    fn calling(label: &str, call: &str) -> Self {
         let root = std::env::temp_dir().join(format!(
             "omega-filesystem-cohort-{label}-{}",
             std::process::id()
@@ -60,23 +67,25 @@ impl Fixture {
             .replace('\\', "/");
         std::fs::write(
             root.join("main.omg"),
-            r#"use omega_language_std::filesystem_host;
+            format!(
+                r#"use omega_language_std::filesystem_host;
 use omega::language::core::service;
 
-data Main {
+data Main {{
     files: Binding<FilesystemHost>;
     fd: i32;
     rc: i32;
-}
+}}
 
 machine Main::main(&mut self)
 reaches FilesystemHost
-{
+{{
     self.fd = 3;
-    let n: i32 = self.files.set_len(self.fd, 0);
+    let n: i32 = {call};
     self.rc = n;
-}
-"#,
+}}
+"#
+            ),
         )
         .expect("write filesystem cohort source");
         // The schema-binding preliminary cannot carry the Binding carrier
@@ -305,5 +314,30 @@ fn filesystem_cohort_emission_reports_the_boundary_settlement_blocker() {
                 && diagnostic.message.contains("MissingBoundarySettlement")
         }),
         "target lowering names the demanded leaf's missing settlement transport: {diagnostics:#?}"
+    );
+}
+
+/// A demanded leaf the reviewed realization table deliberately leaves
+/// uncovered never gains a minted row. `get_last_error` is all-scalar, but
+/// host error reading is not an honest positional kernel syscall, so
+/// provider settlement mints no `Syscall` row for it and the closure review
+/// rejects the requirement's zero selected rows — demand-completeness fails
+/// closed rather than inventing a transport or an unconstrained
+/// classification.
+#[test]
+fn unsupported_demanded_leaf_rejects_at_closure_review() {
+    let fixture = Fixture::calling("unsupported-leaf", "self.files.get_last_error()");
+    let diagnostics = realize(&fixture, native::current_terminal_authority_policy(), None)
+        .expect_err("a demanded leaf with no minted row cannot classify");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("terminal-authority closure review")
+                && diagnostic
+                    .message
+                    .contains("resolves to 0 selected provider rows")
+        }),
+        "closure review names the demanded leaf's absent selected row: {diagnostics:#?}"
     );
 }

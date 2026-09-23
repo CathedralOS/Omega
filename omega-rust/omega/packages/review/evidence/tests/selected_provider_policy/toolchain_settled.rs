@@ -1,6 +1,11 @@
 //! The toolchain-settled `FilesystemHost` plan replays its exact minted
 //! identity through provider-policy review instead of failing as an authored
 //! candidate, while ordinary authored plans in the same custody still replay.
+//! The negative legs pin the two substitutions the replay must refuse: a
+//! supplied typed program whose settled schema changed (the retained
+//! identity no longer re-mints) and a mutated authored
+//! `UniqueCoveringCandidate` plan (the settled exemption does not follow the
+//! shared provenance kind).
 
 use crate::support::*;
 use compiler::CheckedCompileRequest;
@@ -9,6 +14,7 @@ use package_evidence::encoding::PackagePolicyRecoveryLimits;
 use package_evidence::project_checked_selected_provider_policy;
 use package_evidence::record::*;
 use target::TargetProfile;
+use typed_trees::name::Identifier;
 
 const SOURCE: &str = r#"pub boundary trait FilesystemHost {
     machine close(fd: i32) -> i32 reaches FilesystemHost;
@@ -29,7 +35,17 @@ pub boundary trait Console {
 pub data ConsoleNativeProvider {}
 linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process;
-pub machine expose() reaches Console + FilesystemHost {}
+pub boundary trait Echo {
+    machine ping(value: u64) -> u64 reaches Echo;
+}
+pub data EchoProvider {}
+pub EchoProviderEcho: EchoProvider satisfies Echo;
+pub machine EchoProvider::ping(value: u64) -> u64
+    satisfies Echo::ping
+{
+    value
+}
+pub machine expose() reaches Console + FilesystemHost + Echo {}
 "#;
 
 const BUILD: &str = r#"machine build(builder: &mut Build) {
@@ -144,11 +160,12 @@ fn toolchain_settled_plan_replays_its_exact_settled_identity() {
         ));
     }
     // The authored `ConsoleNativeProvider` plan in the same custody still
-    // replays as an authored candidate with exact realization machines.
+    // replays as an authored candidate with exact realization machines,
+    // alongside the conformance-selected `Echo` plan.
     let authored = policy
         .plans()
         .iter()
-        .find(|plan| plan.provider_type_declaration().is_some())
+        .find(|plan| plan.provider_type().contains("ConsoleNativeProvider"))
         .expect("the authored plan still replays");
     assert_eq!(authored.realizing_package(), Some(package_identity()));
     assert!(
@@ -211,4 +228,92 @@ fn toolchain_settled_time_host_plan_replays_its_exact_settled_identity() {
         ]
     );
     assert_eq!(settled.methods().len(), settled.rows().len());
+}
+
+/// Rename one requirement signature inside the supplied typed program —
+/// the untrusted input package review replays against — leaving production
+/// custody untouched.
+fn rename_trait_requirement(fixture: &mut ReviewFixture, trait_path: &str, from: &str, to: &str) {
+    let machines = fixture
+        .typed
+        .traits()
+        .iter()
+        .find(|definition| {
+            fixture.typed.symbols.display_path(definition.symbol, "::") == trait_path
+        })
+        .map(|definition| definition.machines)
+        .expect("the fixture retains the named trait declaration");
+    let renamed = fixture
+        .typed
+        .trait_machine_signatures
+        .span_mut_or_empty(machines)
+        .iter_mut()
+        .filter(|signature| signature.name.as_str() == from)
+        .map(|signature| signature.name = Identifier::generated(to))
+        .count();
+    assert_eq!(renamed, 1, "exactly one `{from}` requirement renamed");
+}
+
+/// The retained settled identity is the mint of the consumed binding's
+/// normalized schema: renaming one `FilesystemHost` requirement in the
+/// supplied typed program changes that schema, the accepted
+/// `FilesystemHostService` binding resolves to zero exact declarations, and
+/// review rejects rather than forgiving the changed settlement.
+#[test]
+fn changed_settled_identity_rejects_at_replay() {
+    let (_package, mut changed) = checked_with_filesystem_binding();
+    rename_trait_requirement(&mut changed, "FilesystemHost", "set_len", "set_len_renamed");
+    let diagnostics = project_checked_selected_provider_policy(
+        &changed,
+        TargetProfile::LinuxX64,
+        package_identity(),
+    )
+    .expect_err("a changed settled schema cannot re-mint the retained identity");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("resolved to 0 exact package-owned boundary declarations instead of one")
+        }),
+        "the settled re-mint names the binding it can no longer resolve: {diagnostics:#?}"
+    );
+}
+
+/// A retained `UniqueCoveringCandidate` plan that is not toolchain-settled
+/// is an ordinary authored plan: renaming the requirement its conformance
+/// covered makes typed replay derive a different plan than custody
+/// retained, and review rejects the substitution even though the settled
+/// plan records the same `UniqueCoveringCandidate` provenance kind — the
+/// exemption follows exact settled membership, not the shared kind.
+#[test]
+fn authored_unique_covering_candidate_substitution_rejects_at_replay() {
+    let (_package, mut changed) = checked_with_filesystem_binding();
+    // The Echo conformance is the fixture's lone covering authored plan for
+    // its slot and retains `UniqueCoveringCandidate` — the same provenance
+    // kind the toolchain-settled plan records.
+    let echo = changed
+        .custody
+        .selected_provider_provenance()
+        .iter()
+        .find(|retained| retained.plan.schema.trait_name == "Echo")
+        .expect("the conformance-selected Echo plan is retained");
+    assert!(matches!(
+        echo.selected_by,
+        provider_planning::ProviderSelectionProvenance::UniqueCoveringCandidate
+    ));
+    rename_trait_requirement(&mut changed, "Echo", "ping", "ping_renamed");
+    let diagnostics = project_checked_selected_provider_policy(
+        &changed,
+        TargetProfile::LinuxX64,
+        package_identity(),
+    )
+    .expect_err("a substituted authored plan cannot reproduce typed replay");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("does not equal its exact provenance-selected typed schema")
+        }),
+        "authored replay names the substituted candidate plan: {diagnostics:#?}"
+    );
 }
