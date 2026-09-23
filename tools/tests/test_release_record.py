@@ -14,6 +14,7 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
+import re
 import unittest
 
 
@@ -125,6 +126,44 @@ class ManifestPinsContract(unittest.TestCase):
                 self.assertIn(
                     " ".join(command.split()), normalized,
                     "{} command drifted from the contract".format(name))
+
+    def test_every_contract_command_appears_in_a_gate(self):
+        """The reverse of the inclusion check above.
+
+        Checking only recorder-to-contract cannot catch a command the
+        contract REQUIRES and the recorder never runs: a gate that silently
+        drops one still reports a pass. Walk the contract's own command
+        sources -- the fenced gate blocks and the backticked commands in the
+        gate table -- and require each to appear in some recorded command.
+        """
+        contract = CONTRACT.read_text(encoding="utf-8")
+        required = set()
+        fenced = False
+        for line in contract.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("```"):
+                fenced = not fenced
+                continue
+            if fenced:
+                if stripped.startswith(("mbx ", "python tools/")):
+                    required.add(" ".join(stripped.split()))
+                continue
+            for span in re.findall(r"`([^`]+)`", line):
+                if span.startswith("mbx "):
+                    required.add(" ".join(span.split()))
+        self.assertTrue(required, "the contract names no commands")
+
+        recorded = [
+            " ".join(command.split())
+            for gate in release_record.GATES.values()
+            for command in gate["commands"]
+        ]
+        for command in sorted(required):
+            self.assertTrue(
+                any(command in candidate for candidate in recorded),
+                "the contract requires `{}` but no gate records it".format(
+                    command),
+            )
 
     def test_eight_named_gates(self):
         self.assertEqual(
