@@ -147,7 +147,10 @@ pub(super) fn validate_copied_place(
         return unsupported("copied place changed its planned access");
     }
     let (checked_path, root) = walk_exact_place(checked, machine, authored, expression)?;
-    if checked_path != argument.path || checked_path.is_empty() {
+    // A bare whole-root name walks to the empty path — the copied leaf is
+    // then the root's own declared `Unrestricted` type, which the leaf/type
+    // agreement below already pins exactly.
+    if checked_path != argument.path {
         return unsupported("copied place path does not match its projected path");
     }
     let leaf =
