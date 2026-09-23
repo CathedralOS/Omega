@@ -41,6 +41,7 @@ pub(crate) use operator_validation::{
 
 pub(crate) use shape_validation::{
     report_array_scalar_shape_mismatch, report_scalar_data_shape_mismatch,
+    report_view_element_argument_mismatch,
 };
 
 #[allow(unused_imports)]
