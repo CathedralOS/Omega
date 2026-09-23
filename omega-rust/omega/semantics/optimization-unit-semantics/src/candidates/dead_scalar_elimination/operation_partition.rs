@@ -92,6 +92,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         // dead-scalar rule may retire; the pair stays ineligible.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        | O::StructuralLeafCopy { .. }
         | O::Jump { .. }
         | O::Conditional { .. }
         | O::StructuralCase { .. }

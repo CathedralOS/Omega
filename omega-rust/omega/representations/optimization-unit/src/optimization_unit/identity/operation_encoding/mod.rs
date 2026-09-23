@@ -34,6 +34,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::ReleaseReference { .. }
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        | O::StructuralLeafCopy { .. }
         | O::EstablishRecord { .. } => structural::encode(bytes, operation),
 
         O::AtomicEvent { .. } => atomic::encode(bytes, operation),
