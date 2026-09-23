@@ -96,13 +96,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   remain. `derive_operator_physical_span` still returns `Ok(None)` — and the
   occurrence names `UnsupportedOperatorSpan` — for non-FMA/non-comparison
   `ExactCompilerIntrinsic` realizations and non-static-callee operations under
-  checked-body realizations; no end-to-end gap has been witnessed because
-  corpus fixtures currently omit unit plans upstream at ProgramEntry
-  establishment (structural field store / transition scalar-argument phases,
-  pre-existing on this base). Parked probe: branch
-  `swarm/linw3-translation-validation` (`tests/linw3_translation_probe.rs`
-  compiles a directed-float canary through package-input helpers and inspects
-  `physical_evidence_gap()`). Dynamic occurrence families and
+  checked-body realizations. The linw4 leg enumerated the fall-through and
+  attributed every remaining family to an upstream wall rather than a
+  witnessed physical-evidence gap: an installed-provider `BoundaryCall`
+  reached native realization with `physical_evidence_gap() == None` and one
+  evidence child, while float intrinsic families
+  (`PrimitiveFloatBinary`, `NamedFloatNegation`, `NamedFloatConversion`,
+  `BuiltinFunction`) cannot be produced from source — f64 literals/fields
+  fail record-literal and pure-initializer admission, f64 operators record
+  computation roots with no checked scalar expression, `Float::add` value
+  calls do not resolve, and `sqrt()` hits a flow-call unit-plan omission —
+  and register-indirect `CallDynamicParameter*` needs `&dyn` locals or
+  arguments, both rejected in entry closures (`unsupported statement kind`,
+  `call: call operation`). Parked probe: branch
+  `swarm/linw4-translation-validation` commit `b9566d3148`
+  (`tests/linw4_translation_probe.rs` compiles a self-authored boundary
+  trait/provider through package-input helpers and inspects
+  `physical_evidence_gap()`; branch `swarm/linw3-translation-validation`
+  retains the earlier directed-float probe). Dynamic occurrence families and
   multi-window relocation custody already exist; use their current tests and
   `physical_child_replay`, not the retired single-window model. Reproduce
   source customers and attribute any earlier refusal to its actual stage.
@@ -120,9 +131,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   matrices to `psi/foundation/mutation-matrix`'s inventory and substitution
   driver, preserving each family's independent checker.
   Remaining surfaces include component-publication tests, executable-installation
-  tests, topology custody substitutions, and Terminal codec artifact matrices
-  not yet using the driver. `optimization-core` re-exports the foundation
-  harness; Psi consumers use its foundation owner directly.
+  tests, and Terminal codec artifact matrices not yet using the driver —
+  `3bb37ecf3a` migrated the topology owner-request matrix to a shared-driver
+  `request_custody_fields.rs` (31-leg `custody_field_inventory!` plus
+  ReboundRejection legs for unrepresentable fields). `optimization-core`
+  re-exports the foundation harness; Psi consumers use its foundation owner
+  directly.
 
   Reuse `custody_field_inventory!`, `run_one_field_substitution_matrix`, and
   the `custody_mutation_matrix` architecture gate. Nested installation,
@@ -248,13 +262,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
     foreign-class IEEE scalar reaches its slot through the frame rows'
     shared carrier class: stores prepend `Float*ToBits`, reloads append
     `BitsToFloat*`, and a missing or impure conversion row keeps the victim
-    a candidate-local rejection. Still rejected: a foreign-class victim without
-    that transport pair (vector-class values,
-    non-IEEE scalars); an early-clobber write tied to a victim use; an
-    entry-bound victim when an edge targets the entry block; and a
-    multi-chunk stored snapshot whose chunk loads are pinned or separated by
-    a unit-writing instruction. Recovery then tries the next roster
-    candidate and fails when the roster is exhausted.
+    a candidate-local rejection. An early-clobber write tied to a victim use
+    is now admitted when its reload stays unshared (`0cef396980`), and a
+    stored snapshot whose chunk loads cannot name one register takes a
+    dedicated end-of-block `FrameAddress`/`Load64` reload (`37855d1ce2`).
+    Still rejected: a foreign-class victim without that transport pair
+    (vector-class values, non-IEEE scalars); an early-clobber tied write
+    whose reload is shared by an unpinned victim-reading co-operand; and an
+    entry-bound victim when an edge targets the entry block. Recovery then
+    tries the next roster candidate and fails when the roster is exhausted.
   - Slot assignment. Every victim declares a private eight-byte
     `LocalStorageSlotId::Spill` slot. `runtime_spill/slot.rs` shares an
     existing slot only for the zero-offset `Store64` or
@@ -482,7 +498,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   establish at the access-roster producer that the distinct places cannot
   overlap. Byte-view payload roster rows now bind the resolved backing storage
   root at the producer (`ByteViewHomes`), so subslice-view accesses charge the
-  root instead of mislabeling the view identity; extend that premise binding to
+  root instead of mislabeling the view identity. `f315e27e93` retains the
+  unit's machine-scoped `ownership_frontier_facts` into
+  `LegalizedScalarFunction` and encodes each fact identity into plan,
+  scalar-graph, and validator identities; extend that premise binding to
   retained fact identities beyond storage roots. SelectedMemoryAccess and
   rewrite receipts still do not carry the loan/compatibility/fact identities
   used to justify the general premise. Exclusive ownership alone does not

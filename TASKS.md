@@ -1488,9 +1488,11 @@ syntax and other terminal services are not prerequisites.
     checked derivations or explicitly justified checked rules, driven by real
     source obligations. Correlated multiply bounds and correlated forbidden
     roots now denote compositionally (checked affine-chain solving plus
-    dependent `Two` case split); remaining cases include nested
-    canonical identity reversal and
-    Boolean identities needing case analysis.
+    dependent `Two` case split), and `Id Two` premise/goal pairs differing
+    by open not/equal compositions over neutral Boolean atoms now denote
+    through `caseTwo` Boolean identity transport (`4e1576578b`); remaining
+    cases include nested canonical identity reversal and the Int-carrier
+    crossings (`Id Two` vs `Id Int`).
     **Cast bounds are no longer among them** -- measured at `b083b94a40`:
     `bounded_denotation/casts.rs` walks the cited definition equalities
     through the shared endpoint-substitution laws, and all three
@@ -1869,10 +1871,16 @@ syntax and other terminal services are not prerequisites.
   Static `Field`/`FixedIndex` shared receivers and explicit shared scalar-call
   arguments are supported, and a bounded `RuntimeIndex` structural-path
   segment now runs end-to-end (checked trees → lowering → Terminal Psi →
-  verifier replay → codecs → identity/hash → spec tag 5). Remaining
-  `src/tests/borrow/receiver_access.rs` pins cover local-rooted indexed
-  receivers and runtime-indexed parameter receivers/explicit shared arguments.
-  Coordinate those fixtures' bracketed-range migration with
+  verifier replay → codecs → identity/hash → spec tag 5), `95a8faa03f` pins
+  that the divergent receiver repair composes, and `d437abb32f` records that
+  RUNTIME-VALUE-GENERICS admits a program its own where clause forbids.
+  Remaining `src/tests/borrow/receiver_access.rs` pins cover local-rooted
+  indexed receivers and runtime-indexed parameter receivers/explicit shared
+  arguments. linw4 parked a finished but unlanded leg `ecfdedb34b` on
+  `swarm/linw4-structural-borrow-identity` (explicit shared dynamic-indexed
+  arguments retain bounded `RuntimeIndex`; its scoped checks are unverified) —
+  resume by rebasing, running the focused borrow tests, and landing or
+  discarding. Coordinate those fixtures' bracketed-range migration with
   REMOVE-BRACKETED-RANGE-ANNOTATIONS. Owned-root and construction-local admission
   remain separate obligations; reuse `terminal-semantics::static_path`.
 
@@ -3551,7 +3559,10 @@ syntax and other terminal services are not prerequisites.
   [requirement identity](wiki/spec/terminal-psi/boundary_calls.md#call-and-requirement-identity).
   Existing checked/intrinsic adapter routes cover value/statement calls and
   owned receivers; deeper projected receivers also have checked interpretation.
-  Reuse them without treating that result as native coverage of every shape.
+  `b7ea53ff92` settles shared-borrow `&self` requirements through a
+  receiver-place forwarding row; `&mut`/write-only/qualified self, family
+  rows, and external satisfiers stay closed. Reuse them without treating that
+  result as native coverage of every shape.
 
   Extend the selected-call mechanism to type/lifetime-parameterized
   requirements and borrowed receivers. Lifetime-parameterized direct
