@@ -11,6 +11,7 @@ use crate::expression_preparation::source_custody::structural::plain_record;
 mod emission;
 mod locals;
 pub(crate) mod record;
+mod structural_case;
 
 pub(crate) use emission::emit;
 pub(super) use locals::bind_local;

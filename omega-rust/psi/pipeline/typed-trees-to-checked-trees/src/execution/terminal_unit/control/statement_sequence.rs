@@ -2285,7 +2285,8 @@ fn consume_value_places(
                     )?;
                 }
             }
-            checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)? {
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
                         field.value

@@ -134,11 +134,37 @@ pub(super) fn decode_establish_trivial_affine_local(
     })
 }
 
+pub(super) fn encode_establish_structural_case(
+    writer: &mut Writer,
+    result_case: StructuralCaseId,
+    fields: Vec<terminal_psi::RecordFieldInitializer>,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ESTABLISH_STRUCTURAL_CASE);
+    writer.id(result_case);
+    encode_record_field_initializers(writer, fields)
+}
+
+pub(super) fn decode_establish_structural_case(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::EstablishStructuralCase {
+        result_case: reader.id("StructuralCaseId")?,
+        fields: decode_record_field_initializers(reader)?,
+    })
+}
+
 pub(super) fn encode_establish_record(
     writer: &mut Writer,
     fields: Vec<terminal_psi::RecordFieldInitializer>,
 ) -> Result<(), CodecError> {
     writer.u8(operation_tags::ESTABLISH_RECORD);
+    encode_record_field_initializers(writer, fields)
+}
+
+fn encode_record_field_initializers(
+    writer: &mut Writer,
+    fields: Vec<terminal_psi::RecordFieldInitializer>,
+) -> Result<(), CodecError> {
     writer.len("record fields", fields.len())?;
     for field in fields {
         writer.id(field.field);
@@ -169,24 +195,28 @@ pub(super) fn decode_establish_record(
     reader: &mut Reader<'_>,
 ) -> Result<OperationKind, CodecError> {
     Ok(OperationKind::EstablishRecord {
-        fields: decode_counted(reader, |reader| {
-            let field = reader.id("StructuralFieldId")?;
-            let value = match reader.u8()? {
-                1 => terminal_psi::RecordFieldValue::Scalar {
-                    value: reader.id("ValueId")?,
-                    range_obligation: decode_optional_id(reader, "ObligationId")?,
-                },
-                2 => terminal_psi::RecordFieldValue::Structural(terminal_psi::StructuralArgument {
-                    place: reader.id("PlaceId")?,
-                    access: super::super::structural_signature_wire::decode_structural_access(
-                        reader,
-                    )?,
-                    path: decode_structural_path(reader)?,
-                }),
-                tag => return Err(CodecError::InvalidTag("RecordFieldValue", tag)),
-            };
-            Ok(terminal_psi::RecordFieldInitializer { field, value })
-        })?,
+        fields: decode_record_field_initializers(reader)?,
+    })
+}
+
+fn decode_record_field_initializers(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<terminal_psi::RecordFieldInitializer>, CodecError> {
+    decode_counted(reader, |reader| {
+        let field = reader.id("StructuralFieldId")?;
+        let value = match reader.u8()? {
+            1 => terminal_psi::RecordFieldValue::Scalar {
+                value: reader.id("ValueId")?,
+                range_obligation: decode_optional_id(reader, "ObligationId")?,
+            },
+            2 => terminal_psi::RecordFieldValue::Structural(terminal_psi::StructuralArgument {
+                place: reader.id("PlaceId")?,
+                access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+                path: decode_structural_path(reader)?,
+            }),
+            tag => return Err(CodecError::InvalidTag("RecordFieldValue", tag)),
+        };
+        Ok(terminal_psi::RecordFieldInitializer { field, value })
     })
 }
 

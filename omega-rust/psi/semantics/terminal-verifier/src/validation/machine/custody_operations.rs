@@ -153,6 +153,22 @@ pub(super) fn register_custody_operation(
         }
         return Ok(true);
     }
+    if let OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind {
+        super::super::structural_case::fields(module, machine, operation)?;
+        for obligation in fields.iter().filter_map(|field| match field.value {
+            terminal_psi::RecordFieldValue::Scalar {
+                range_obligation, ..
+            } => range_obligation,
+            terminal_psi::RecordFieldValue::Structural(_) => None,
+        }) {
+            insert_unique(
+                &mut registry.obligations,
+                obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
+        return Ok(true);
+    }
     if let OperationKind::StructuralScalarFieldStore {
         range_obligation: Some(obligation),
         ..
@@ -167,6 +183,7 @@ pub(super) fn register_custody_operation(
     if matches!(
         operation.kind,
         OperationKind::EstablishRecord { .. }
+            | OperationKind::EstablishStructuralCase { .. }
             | OperationKind::EstablishReference { .. }
             | OperationKind::EstablishScalarArray { .. }
             | OperationKind::EstablishPrimitiveLocal { .. }

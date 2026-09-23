@@ -55,6 +55,7 @@ pub enum StructuralEffectCustody {
     ExactEmptyAffineLocal,
     ExactRecord,
     ExactScalarCase,
+    ExactStructuralCase,
     ExactScalarArray,
 }
 
@@ -86,6 +87,7 @@ pub enum StructuralEffectAction {
     EstablishAffinePlace,
     EstablishRecord,
     EstablishScalarCase,
+    EstablishStructuralCase,
     EstablishScalarArray,
 }
 
@@ -222,7 +224,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 28] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -434,6 +436,16 @@ impl StructuralEffectSemanticRow {
             ),
         },
         Self {
+            tag: OperationSemanticTag::EstablishStructuralCase,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactStructuralCase,
+                StructuralEffectAction::EstablishStructuralCase,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
+            ),
+        },
+        Self {
             tag: OperationSemanticTag::EstablishByteSequenceLiteral,
             schema: structural_effect_leaf(
                 StructuralEffectResultShape::Unit,
@@ -519,6 +531,7 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::StructuralByteSequenceFieldLength
             | OperationSemanticTag::StructuralByteSequenceFieldByteStore
             | OperationSemanticTag::EstablishScalarCase
+            | OperationSemanticTag::EstablishStructuralCase
             | OperationSemanticTag::EstablishScalarArray
             | OperationSemanticTag::EstablishByteSequenceLiteral
             | OperationSemanticTag::ByteSequenceLength
@@ -587,6 +600,7 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::StructuralByteSequenceFieldLength,
         OperationSemanticTag::StructuralByteSequenceFieldByteStore,
         OperationSemanticTag::EstablishScalarCase,
+        OperationSemanticTag::EstablishStructuralCase,
         OperationSemanticTag::EstablishScalarArray,
         OperationSemanticTag::EstablishByteSequenceLiteral,
         OperationSemanticTag::ByteSequenceLength,
@@ -761,6 +775,11 @@ pub enum StructuralEffectObservation {
         destination: PlaceId,
         fields: Vec<terminal_psi::RecordFieldInitializer>,
     },
+    StructuralCaseEstablished {
+        membership: Proposition,
+        destination: PlaceId,
+        fields: Vec<terminal_psi::RecordFieldInitializer>,
+    },
     ScalarCaseEstablished {
         membership: Proposition,
         fields: Vec<terminal_psi::ScalarCaseField>,
@@ -846,6 +865,10 @@ impl StructuralEffectObservation {
             | Self::ScalarCaseEstablished {
                 membership: proposition,
                 ..
+            }
+            | Self::StructuralCaseEstablished {
+                membership: proposition,
+                ..
             } => Some(proposition),
             Self::RecordEstablished { .. }
             | Self::ReferenceEstablished { .. }
@@ -928,6 +951,9 @@ fn validate_structural_effect_schema(
         }
         StructuralEffectAction::EstablishRecord => OperationSemanticTag::EstablishRecord,
         StructuralEffectAction::EstablishScalarCase => OperationSemanticTag::EstablishScalarCase,
+        StructuralEffectAction::EstablishStructuralCase => {
+            OperationSemanticTag::EstablishStructuralCase
+        }
         StructuralEffectAction::EstablishScalarArray => OperationSemanticTag::EstablishScalarArray,
     };
     let expected_goal = match schema.action {
@@ -1122,6 +1148,12 @@ fn validate_structural_effect_schema(
                         && schema.external_effect == StructuralEffectExternalEffect::None
                         && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
                 }
+                StructuralEffectAction::EstablishStructuralCase => schema.result
+                    == StructuralEffectResultShape::Structural
+                    && schema.custody == StructuralEffectCustody::ExactStructuralCase
+                    && schema.external_effect == StructuralEffectExternalEffect::None
+                    && schema.frontier
+                        == StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
                 StructuralEffectAction::EstablishScalarArray => {
                     schema.result == StructuralEffectResultShape::Structural
                         && schema.custody == StructuralEffectCustody::ExactScalarArray
@@ -1486,6 +1518,26 @@ pub fn structural_effect_leaf_observation_in(
                     subject: StructuralCaseSubject::new(result.place, Vec::new()),
                     case: *result_case,
                 },
+                fields: fields.clone(),
+            }
+        }
+        (
+            StructuralEffectAction::EstablishStructuralCase,
+            OperationKind::EstablishStructuralCase {
+                result_case,
+                fields,
+            },
+        ) => {
+            let result = operation
+                .result
+                .structural()
+                .expect("validated structural-case structural result");
+            StructuralEffectObservation::StructuralCaseEstablished {
+                membership: Proposition::StructuralCaseMembership {
+                    subject: StructuralCaseSubject::new(result.place, Vec::new()),
+                    case: *result_case,
+                },
+                destination: result.place,
                 fields: fields.clone(),
             }
         }
@@ -2028,7 +2080,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 27);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 28);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()
@@ -2055,6 +2107,7 @@ mod tests {
                 OperationSemanticTag::WriteOnlyIndexedPrimitiveStore,
                 OperationSemanticTag::StructuralScalarFieldStore,
                 OperationSemanticTag::EstablishScalarCase,
+                OperationSemanticTag::EstablishStructuralCase,
                 OperationSemanticTag::EstablishScalarArray,
                 OperationSemanticTag::EstablishByteSequenceLiteral,
                 OperationSemanticTag::BooleanStructuralField,

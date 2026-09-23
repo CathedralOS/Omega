@@ -243,7 +243,10 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         consumed.push(source_call);
                         structural.push(call);
                     }
-                    checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+                    checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+                    | checked_trees::CheckedStructuralValueKind::StructuralCase {
+                        fields, ..
+                    } => {
                         for field in plans.record_fields.span(fields)? {
                             if let checked_trees::CheckedStructuralRecordFieldValue::Structural(
                                 child,

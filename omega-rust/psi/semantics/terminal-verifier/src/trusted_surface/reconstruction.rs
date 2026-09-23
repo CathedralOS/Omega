@@ -28,6 +28,7 @@ const OP_FACTS_POLARITY: &str = "omega-rust/psi/semantics/terminal-verifier/src/
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/scalar_case.rs";
+const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/structural_case.rs";
 const TERMINATOR_FACTS: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/terminator_facts.rs";
 const CRASH_FIELD_ORIGINS: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/crash_field_origins.rs";
 const CRASH_PATHS: &str =
@@ -366,6 +367,24 @@ static FACT_SCALAR_CASE_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry
     soundness: TRUSTED,
 };
 
+static FACT_STRUCTURAL_CASE_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:structural-case-establishment",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "an EstablishStructuralCase operation over a validated structural case",
+    conclusion: "the case's membership and payload facts and its declared obligations",
+    dependencies: &[
+        "fact:semantic-axiom-roster",
+        "formation:operation-validation",
+    ],
+    implementation: &[
+        OP_FACTS_STRUCTURAL_CASE,
+        OPERATION_FACTS,
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:byte-extent-length",
     family: LedgerFamily::ReconstructedFactKind,
@@ -663,6 +682,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_SCALAR_CARRIER_BOUNDS,
     FACT_RECORD_ESTABLISHMENT,
     FACT_SCALAR_CASE_ESTABLISHMENT,
+    FACT_STRUCTURAL_CASE_ESTABLISHMENT,
     FACT_BYTE_EXTENT_LENGTH,
     FACT_ELEMENT_EXTENT_LENGTH,
     FACT_STRUCTURAL_EFFECT_OBSERVATION,

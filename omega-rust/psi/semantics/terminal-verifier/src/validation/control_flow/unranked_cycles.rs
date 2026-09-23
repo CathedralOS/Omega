@@ -190,7 +190,8 @@ fn operation_leaves_custody(
             source,
             ..
         } => clears(*destination) && clears(*source),
-        OperationKind::EstablishRecord { fields } => {
+        OperationKind::EstablishRecord { fields }
+        | OperationKind::EstablishStructuralCase { fields, .. } => {
             fields.iter().all(|field| match &field.value {
                 terminal_psi::RecordFieldValue::Structural(argument) => clears(argument.place),
                 _ => true,
@@ -411,6 +412,17 @@ fn cycle_operation_eligible(
                 result.multiplicity == StructuralMultiplicity::Unrestricted
                     || (result.multiplicity == StructuralMultiplicity::Affine && fields.is_empty())
             }) && super::super::record::fields(module, machine, operation).is_ok()
+        }
+        // An unrestricted case establishment re-arms like its record sibling:
+        // re-entering hands the place a fresh payload each traversal. Its
+        // affine form always carries non-scalar children, so the fence stays
+        // closed the way an affine record with fields does.
+        OperationKind::EstablishStructuralCase { .. } => {
+            operation
+                .result
+                .structural()
+                .is_some_and(|result| result.multiplicity == StructuralMultiplicity::Unrestricted)
+                && super::super::structural_case::fields(module, machine, operation).is_ok()
         }
         // A complete unrestricted scalar-array establishment is the record
         // arm's primitive-leaf sibling: `scalar_array::shape` proves the fresh

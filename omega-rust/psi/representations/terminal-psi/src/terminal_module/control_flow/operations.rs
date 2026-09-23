@@ -277,6 +277,17 @@ pub enum OperationKind {
         result_case: StructuralCaseId,
         fields: Vec<crate::ScalarCaseField>,
     },
+    /// Atomically establish one exact case of a declared sum whose payload
+    /// fields are not all scalar. The structural operation result supplies the
+    /// destination and type; `result_case` selects the discriminated tag, and
+    /// the declaration-ordered field roster holds exact scalar values or
+    /// completed whole owned children, already evaluated in authored order.
+    /// Bounded scalars require independent range evidence before atomic
+    /// establishment.
+    EstablishStructuralCase {
+        result_case: StructuralCaseId,
+        fields: Vec<crate::RecordFieldInitializer>,
+    },
     /// Observe a selected sum's active case without moving or refining its payload.
     /// The Boolean result is an observation, not a transfer or a reusable proof
     /// that the case remains unchanged after a later mutation.
@@ -724,6 +735,13 @@ impl OperationKind {
             Self::EstablishScalarCase { fields, .. } => {
                 for field in fields {
                     field.value = map(field.value);
+                }
+            }
+            Self::EstablishStructuralCase { fields, .. } => {
+                for field in fields {
+                    if let crate::RecordFieldValue::Scalar { value, .. } = &mut field.value {
+                        *value = map(*value);
+                    }
                 }
             }
             Self::EstablishRecord { fields } => {

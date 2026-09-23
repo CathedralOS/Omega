@@ -17,6 +17,15 @@ pub struct ScalarCaseConstructor {
     pub fields: Vec<(SymbolHandle, ExpressionHandle, PrimitiveType)>,
 }
 
+/// A case literal whose payload fields hold independently typed operands:
+/// each is a scalar computation or a nested structural value, mirroring record
+/// field composition. The selected case still supplies the discriminated tag.
+pub struct StructuralCaseConstructor {
+    pub type_reference: TypeReferenceHandle,
+    pub case: SymbolHandle,
+    pub fields: Vec<(SymbolHandle, ExpressionHandle, TypeReferenceHandle)>,
+}
+
 /// Classify before collecting scalar operand roots: a scalar/array match must
 /// not leave structural dispatch operands behind when its leaves are rejected.
 /// This checks destination identity, not field evaluation or match coverage.
@@ -119,10 +128,18 @@ pub fn scalar_case_value_source(
     Some(source)
 }
 
-pub fn scalar_case_constructor(
+/// One named case of a closed non-generic sum with every declared payload
+/// field authored exactly once. The resolver reports each field's declared
+/// type; the payload route — scalar operands or structural field values —
+/// decides what each caller may do with it.
+fn case_constructor_parts(
     program: &TypedTrees,
     expression: ExpressionHandle,
-) -> Option<ScalarCaseConstructor> {
+) -> Option<(
+    TypeReferenceHandle,
+    SymbolHandle,
+    Vec<(SymbolHandle, ExpressionHandle, TypeReferenceHandle, bool)>,
+)> {
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
@@ -166,7 +183,8 @@ pub fn scalar_case_constructor(
     if declarations.len() != fields.len() {
         return None;
     }
-    let mut operands = Vec::with_capacity(fields.len());
+    let mut operands: Vec<(SymbolHandle, ExpressionHandle, TypeReferenceHandle, bool)> =
+        Vec::with_capacity(fields.len());
     for field in fields {
         let declaration = declarations
             .iter()
@@ -174,7 +192,7 @@ pub fn scalar_case_constructor(
         if !field.field_symbol.is_valid()
             || operands
                 .iter()
-                .any(|(symbol, _, _)| *symbol == field.field_symbol)
+                .any(|(symbol, ..)| *symbol == field.field_symbol)
             || !program.expression_table.expression_is_valid(field.value)
         {
             return None;
@@ -182,12 +200,47 @@ pub fn scalar_case_constructor(
         operands.push((
             field.field_symbol,
             field.value,
-            program.primitive_type_reference(declaration.type_reference)?,
+            declaration.type_reference,
+            declaration.relevance.is_erased(),
         ));
+    }
+    Some((reference, selected, operands))
+}
+
+pub fn scalar_case_constructor(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ScalarCaseConstructor> {
+    let (reference, selected, operands) = case_constructor_parts(program, expression)?;
+    let mut fields = Vec::with_capacity(operands.len());
+    for (symbol, value, declared, ..) in operands {
+        fields.push((symbol, value, program.primitive_type_reference(declared)?));
     }
     Some(ScalarCaseConstructor {
         type_reference: reference,
         case: selected,
-        fields: operands,
+        fields,
+    })
+}
+
+/// The same closed-constructor recognition without the scalar-payload
+/// constraint. Erased members keep semantic content but no runtime storage, so
+/// a runtime construction cannot establish them.
+pub fn structural_case_constructor(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<StructuralCaseConstructor> {
+    let (reference, selected, operands) = case_constructor_parts(program, expression)?;
+    let mut fields = Vec::with_capacity(operands.len());
+    for (symbol, value, declared, erased) in operands {
+        if erased {
+            return None;
+        }
+        fields.push((symbol, value, declared));
+    }
+    Some(StructuralCaseConstructor {
+        type_reference: reference,
+        case: selected,
+        fields,
     })
 }

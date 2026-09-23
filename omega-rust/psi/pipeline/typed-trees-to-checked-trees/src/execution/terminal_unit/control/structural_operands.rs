@@ -60,6 +60,7 @@ fn constructed_value_root<'a>(
         || !matches!(
             facts.values.structural_values.nodes.get(root.root).kind,
             checked_trees::CheckedStructuralValueKind::Case(_)
+                | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
                 | checked_trees::CheckedStructuralValueKind::Record { .. }
         )
     {
@@ -141,7 +142,8 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                 )?);
                 *count = count.checked_add(1)?;
             }
-            checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)?.iter().rev() {
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
                         field.value
