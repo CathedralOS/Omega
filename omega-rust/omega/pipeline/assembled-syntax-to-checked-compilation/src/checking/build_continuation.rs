@@ -60,6 +60,7 @@ pub(super) fn evaluate_build_and_continue(
         // settlement; the caller extracts the discovery write target first.
         independent_component_discovery: _,
         restricted_build_grants,
+        permit_unsettled_fused_service_fields: _,
     } = child;
     // CLI aliases end at request admission. Every source, build, provider, and
     // artifact consumer below observes only the catalog's canonical spelling.

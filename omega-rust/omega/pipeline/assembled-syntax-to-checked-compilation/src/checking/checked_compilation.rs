@@ -664,6 +664,50 @@ impl CheckedCompilation {
         &mut self.timings
     }
 
+    /// Boundaries demanded by the selected ProgramEntry's attached `Service`
+    /// fields. A ProgramEntry is root-bound rather than a package callable,
+    /// so its service usage never surfaces in callable reach rows: the
+    /// attached field requirements are the consumer's own nomination
+    /// surface.
+    pub fn selected_program_entry_service_requirements(&self) -> Vec<symbols::SymbolHandle> {
+        let mut requirements = Vec::new();
+        let Some(entry) = self.execution.selected_program_entry.as_ref() else {
+            return requirements;
+        };
+        let program = &self.execution.settled.program;
+        let Some(machine) = program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == entry.source_signature().machine_symbol())
+        else {
+            return requirements;
+        };
+        let attached_symbol = machine.attached_data_symbol;
+        if !attached_symbol.is_valid() {
+            return requirements;
+        }
+        for owner in program
+            .data_definitions()
+            .iter()
+            .filter(|definition| definition.symbol == attached_symbol)
+        {
+            for member in program.data_members(owner) {
+                let checked_trees::data::DataMember::Field(field) = member else {
+                    continue;
+                };
+                if let Ok(Some(carrier)) =
+                    typed_trees::service::classify_exact_bound_service_carrier(
+                        program,
+                        field.type_reference,
+                    )
+                {
+                    requirements.push(carrier.requirement);
+                }
+            }
+        }
+        requirements
+    }
+
     pub fn into_program(self) -> CheckedTrees {
         Arc::try_unwrap(self.execution.settled.program).unwrap_or_else(|shared| (*shared).clone())
     }

@@ -344,24 +344,52 @@ pub(super) fn candidate_service_bindings(
     ];
     let mut bindings = Vec::new();
     for (path, role) in HOST_SERVICE_PATHS {
-        let referenced = projection
+        let all_refs = projection
             .callables()
             .iter()
             .flat_map(callable_service_references)
+            .collect::<Vec<_>>();
+        let referenced = all_refs
+            .into_iter()
             .filter(|service| {
                 service.path() == *path
                     && matches!(service.owner(), PackageReviewNominalOwner::Package(_))
             })
             .cloned()
             .collect::<BTreeSet<_>>();
-        let candidates = referenced
+        let mut candidate_packages = referenced
             .iter()
             .filter_map(|service| match service.owner() {
                 PackageReviewNominalOwner::Package(package) => Some(package),
                 _ => None,
             })
             .collect::<BTreeSet<_>>();
-        let candidates = candidates.iter().collect::<Vec<_>>();
+        // A root-bound ProgramEntry is not a package callable, so a
+        // consumer's own entry `Service` fields cannot nominate through
+        // callable reaches; the fields' requirements name the same
+        // boundaries directly.
+        for requirement in checked.selected_program_entry_service_requirements() {
+            let definitions = checked
+                .traits()
+                .iter()
+                .filter(|definition| {
+                    definition.symbol == requirement
+                        && definition.is_boundary
+                        && checked.typed.symbols.display_path(definition.symbol, "::") == *path
+                })
+                .collect::<Vec<_>>();
+            let [definition] = definitions.as_slice() else {
+                continue;
+            };
+            if let Some(package) = checked
+                .typed
+                .symbols
+                .symbol_package_identity(definition.symbol)
+            {
+                candidate_packages.insert(package);
+            }
+        }
+        let candidates = candidate_packages.iter().collect::<Vec<_>>();
         let [package] = candidates.as_slice() else {
             if candidates.is_empty() {
                 continue;
