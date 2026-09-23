@@ -31,10 +31,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   physical recovery and retiring unused spill boundaries with their consumers.
 
   The semantic-wrapper object's records, composition, validation and codec
-  live in `native-artifact/src/semantic_wrapper_object` (`ef562278e7`), and
+  live in `native-artifact/src/semantic_wrapper_object`, and
   the plan's x86-64 template selection and replay live beside its recipe in
-  `program-entry-plan/src/optimized_semantic_wrapper/encoding.rs`
-  (`676a1d11b3`); native-realization keeps only the object stage's
+  `program-entry-plan/src/optimized_semantic_wrapper/encoding.rs`;
+  native-realization keeps only the object stage's
   settlement/source/encoding custody join and replay. UEFI/provider/ABI gaps
   remain with their native owners, not another wrapper implementation.
 
@@ -115,10 +115,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   matrices to `psi/foundation/mutation-matrix`'s inventory and substitution
   driver, preserving each family's independent checker.
   Remaining surfaces include component-publication tests, executable-installation
-  tests, and Terminal codec artifact matrices not yet using the driver —
-  `3bb37ecf3a` migrated the topology owner-request matrix to a shared-driver
-  `request_custody_fields.rs` (31-leg `custody_field_inventory!` plus
-  ReboundRejection legs for unrepresentable fields). `optimization-core`
+  tests, and Terminal codec artifact matrices not yet using the driver.
+  The topology owner-request `request_custody_fields.rs` is an existing
+  shared-driver example, including unrepresentable-field rejection. `optimization-core`
   re-exports the foundation harness; Psi consumers use its foundation owner
   directly.
 
@@ -198,11 +197,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 
   Remaining boundaries:
   - Establishment/custody families not covered by current relocation.
-    `49468aee46` (macw4) added crash-continuation scalar calls: they relocate
+    Crash-continuation scalar calls already relocate
     through the authenticated shared-source preheader with the roster
     re-derived from the callee's verifier-owned contract via
-    `substitute_crash_routes` (also repaired the freeze replay's missing
-    `verified_contract` on the reconstructed seed). Still open:
+    `substitute_crash_routes`. Still open:
     copyable unrestricted whole-root Owned arguments are already supported;
     affine/linear argument transfers need custody the boundary cannot currently
     re-express. Plain unrestricted claim-free structural results already admit;
@@ -339,8 +337,7 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   do not depend on runtime-sized claims. Existing red-zone, probing, unwind,
   callee-save and call-alignment plans are not missing mechanisms.
 
-  Wave evidence (macw5): the upstream dependency is deeper than a missing
-  input. No claim roster reaches native lowering — no `ActivationClaim`/
+  No claim roster reaches native lowering: no `ActivationClaim`/
   claim-site field exists on `PostAllocationMachineFunction`, which is
   wire-versioned, so the durable roster shape is upstream's decision. The
   realization model is also unpinned: co-live claims must pack disjointly
@@ -443,17 +440,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **EXACT-MACHINE-SIMPLIFICATIONS.** Execute retained copy, extension, address,
   compare/test, and scheduling rewrites on compiler-produced selected programs.
   Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
-  `ad5cb24ec6` (macw4) connected the same-block copy-removal family through
-  exact-named selection from `optimize_analyzed_selected_instructions`
-  (`CopyRemovalIdentity`, repaired re-export `cb21535d0a`). `16e7050320`
-  (macw7) connected the redundant-extension family through a generalized
-  `PreAllocationPolicy` + joint catalog executor
-  (`SelectedRedundantExtensionRemovalV1` = tag 46); address, compare/test,
-  and scheduling families still run outside the public stage. Parked WIP:
-  branch `swarm/macw7-exact-machine-2` at `54435f01e0` holds an unvalidated
-  drain checkpoint on `SelectedAddressOffsetFoldV1` — resume by reviewing or
-  discarding; its acceptance test coverage lives under `tests/` paths held
-  by PACKAGE-NAME-UNDERSCORE-MIGRATION's claim at checkpoint time.
+  Same-block copy removal and redundant-extension removal already use the
+  public catalog executor. Complete address, compare/test, and scheduling
+  families through that same route; preserve the existing `PreAllocationPolicy`.
 
   Add exact selection names, ordered catalog descriptors, candidate discovery
   binding source/selection identities, and execution from
@@ -476,11 +465,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   DECLARATIVE-PEEPHOLES owns general nomination of retired literal folds and
   left-zero compare refinement; ALIAS-AWARE-MEMORY owns memory rewrites.
 
-  Wave evidence (macw8): parked WIP branch `swarm/macw8-exact-machine` at
-  `5b48da98e6a` promotes `unexecuted/address_fold` into an executed family
-  (`rewrites/address_fold{,.rs}` — staged renames plus admission, catalog
-  and lib wiring, +79/−21); the slot died to a rate-limit kill before
-  validation. Rebase and revalidate before trusting it.
+  Unvalidated address-fold candidates: `swarm/macw8-exact-machine` at
+  `5b48da98e6a` and `swarm/macw7-exact-machine-2` at `54435f01e0`.
+  Inspect their overlap with current main before reusing either; neither is
+  acceptance evidence or a live assignment.
 
   Acceptance: source-produced programs select each retained rule by exact name,
   execute on a supported host, and independently replay after publication.
@@ -541,12 +529,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   invent that input locally. Preserve the authenticated cyclic freeze unless a
   checked transformation reconstructs the affected evidence.
 
-  Wave evidence (macw8): parked WIP branch `swarm/macw8-rep-specialization`
-  at `9342ca6ee0e` carries unvalidated substitution-of-proven-nonconstant-
-  initializer work (+1312/−129 across `field_value_specialization`,
-  `representation_specialization` and the `case_membership`/`field_value`
-  replay legs); the slot died to a rate-limit kill before validation.
-  Rebase and revalidate before trusting it.
+  Unvalidated candidate: `swarm/macw8-rep-specialization` at `9342ca6ee0e`,
+  covering nonconstant initializer substitution and its field/case replay.
+  Inspect against current main and validate before reuse.
 
   Acceptance: exact-selected source-produced specialization publishes and
   independently replays. Stale/forged field/path/value evidence rejects,
@@ -611,13 +596,10 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   meaningful runtime behavior for an inert entry. A dependency-free subject
   is not inherently restricted to `--no-run`.
 
-  Wave evidence (macw8): parked WIP branch `swarm/macw8-benchmarks` at
-  `a8c9a8d254a` carries one recorded `standalone` linux_x86_64 measurement,
-  authored `build.omg` legs for `prime_counter`/`wrapping_square_sum`/
-  `standalone`, and a scratch macos_x86_64 probe whose package-review output
-  independently witnesses the admission walls recorded in
-  [macos_x64_host_profile](wiki/drafts/measurements/macos_x64_host_profile.md).
-  Unvalidated; the Intel macOS legs remain unmeasured.
+  Unvalidated candidate: `swarm/macw8-benchmarks` at `a8c9a8d254a`, containing
+  a `standalone` Linux measurement and subject-build changes. Intel macOS
+  remains unmeasured; its [profile record](wiki/drafts/measurements/macos_x64_host_profile.md)
+  is an attribution lead, not native execution evidence.
 
   Acceptance: use the existing prepare/measure/validate/matrix flow; records
   bind exact subject/compiler revision, authored enabled/disabled selection,

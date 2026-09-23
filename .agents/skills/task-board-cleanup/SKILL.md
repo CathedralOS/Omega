@@ -66,6 +66,14 @@ logs, expired claims, repeated rationale, test totals and copied repository rule
 Keep rationale that would change the next implementation decision. Do not erase
 a real dependency merely to make the item look immediately actionable.
 
+Diagnosis-only additions do not establish new work ownership. Fold distinct
+reproductions into the existing capability assignment, keeping its customer
+acceptance and integration owner. Rewrite "another agent should investigate"
+as the actual remaining repair or verification when supported by the evidence.
+Do not turn observations into one new task per failure, commit, or stage. Preserve
+unverified leads as such; neither deleting noise nor reducing line count proves
+that a feature is complete.
+
 ## Publish an audited batch
 
 Check the diff against the original items: no required acceptance disappeared,

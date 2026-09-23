@@ -102,19 +102,14 @@ prerequisite to every lower-rung milestone.
   Preserve exact tape bytes, I/O and stack behavior. Windows extent/runtime
   acceptance stays with ALPHA-WINDOWS-CONFORMANCE.
 
-  Measured at `b725fb771e` on macOS arm64 (Apple clang 17.0.0, CommandLineTools
-  SDK 15.5): the committed container is not a clang rebuild of its source even
-  modulo signature — besides the two `movz` immediates it differs in linker
-  encodings (e.g. padded function-start ULEBs), since
-  `macho_v5_transform.py` manufactured it. `clang -arch arm64 -Wl,-no_uuid` of
-  the corrected `alpha_arm64_macos.s`, output named `alpha_arm64_macos`, gives
-  a 16,942,368-byte linker-signed container with SHA-256
-  `ae2e0f8678e902eb205d1b7d331302a94fa5d7d51cf192cfa0a8f747bfde2031`. Run from
-  a scratch copy, `tests/alpha/bounds.py` passes 75 of 78 cases with it (the
-  three stack-end cases `ret-stack-exact`, `ret-stack-adjacent`,
-  `call-at-memory-end` die by SIGKILL on a loaded host) and 0 of 78 with the
-  committed seed (every case SIGKILL). Installing it replaces an audited trust
-  root, so the swap and repin wait on the owner's explicit approval.
+  The candidate clang rebuild also changes linker encodings, not just the two
+  startup immediates: the committed seed was produced by `macho_v5_transform.py`.
+  Reproduce with `clang -arch arm64 -Wl,-no_uuid`, Apple clang 17.0.0 and
+  CommandLineTools SDK 15.5. Candidate evidence is in `b725fb771e`; it does
+  not close `tests/alpha/bounds.py`'s `ret-stack-exact`, `ret-stack-adjacent`
+  and `call-at-memory-end` cases, which were killed on a loaded host.
+  Establish those results before repinning. Replacing this audited trust root
+  requires the owner's explicit approval; source cleanup alone cannot grant it.
 
 ## P1 - Gamma checker and first complete encoding proof
 
@@ -225,8 +220,8 @@ prerequisite to every lower-rung milestone.
   expose all admissions and contain no retired rung.
 
   Reuse the existing identity/source-closure/hygiene gates and seed execution
-  routes. Linux x86-64 now has a selected native seed and executable lower-rung
-  coverage; the old macOS/Windows-only diagnosis is obsolete. Windows PE runs
+  routes. Linux x86-64 has a selected native seed and executable lower-rung
+  coverage. Windows PE runs
   under Wine do not validate a Windows host.
 
   Remaining:

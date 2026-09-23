@@ -249,338 +249,79 @@ the complete product bar; focused successes below do not establish that baseline
   revision with filters unset. Keep detailed logs outside the board; do not
   migrate fixtures during a measured run.
 
-  Unfiltered census at `c109b93faf` (macOS arm64, `-E test(pass_canaries_compile)`,
-  1488s): **160 distinct members fail**, of 1470 selected. By diagnostic
-  shape, which is the useful split -- the directory split is not, since the
-  members spread across 14 of them (recast 22, filesystem 20, control_flow 17,
-  calls 17, float 14, targets 8, core 8, storage 6, then a long tail):
+  Prioritize the actual operation named by `omitted at local construction`,
+  not the downstream `rejoins 0 Terminal attachment identities` symptom.
+  Tight starting groups are structural-call bindings in `recast`, pure-source
+  field stores in `float`, and conditional guards/call operations in
+  `filesystem`. Their shared owner is
+  `typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
+  repair attached to its unchanged source-to-native customer.
 
-  | count | shape |
-  | --- | --- |
-  | 84 | `selected ProgramEntry establishment rejoins 0 Terminal attachment identities` |
-  | 25 | `native-artifact Terminal production failed` |
-  | 17 | `native-artifact production requires one exact selected program entry` |
-  | 15 | `selected ProgramEntry Service field ...` |
-  | 7 | `cannot transfer a non-copy value out of borrowed storage ...` |
-  | 2 | `data <D> literal cannot prove the default domain` |
-  | 2 | `domain [u8; N] ...` |
-
-  Re-measured unfiltered at `988aef22078` (macOS arm64, same command, 1474s):
-  **135 distinct members fail**, down from 160. Two whole cohorts are cleared
-  and the plurality is unmoved:
-
-  | c109b93faf | 988aef22078 | shape |
-  | --- | --- | --- |
-  | 84 | 88 | `selected ProgramEntry establishment rejoins 0 Terminal attachment identities` |
-  | 25 | 26 | `native-artifact Terminal production failed` |
-  | 17 | **0** | `native-artifact production requires one exact selected program entry` |
-  | 15 | 9 | `selected ProgramEntry Binding field ... requires a selected Fused provider` |
-  | 7 | **0** | `cannot transfer a non-copy value out of borrowed storage` |
-  | 2 | 2 | `data <D> literal cannot prove the default domain` |
-  | 2 | 2 | `domain [u8; N] ...` |
-
-  The borrowed-storage cohort going to zero confirms the fixture-debt reading
-  recorded further down this row. The entry-free cohort going to zero means
-  the paragraph immediately below is now HISTORY, not a live subset: no member
-  stops at `requires one exact selected program entry` any more. What is left
-  outside the three large shapes is a tail of ten singletons, each its own
-  cause, none of them a cohort:
+  Distinct remaining probes include
   `control_flow/guarded_leaf_branch_expansion` and
   `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
-  `capabilities/uses_caller_folder`, `capabilities/acquires_through_helper_return`,
+  `capabilities/uses_caller_folder`,
   `domains/explicit_domain_erasure`, `proofs/cauchy_predicates_compile`,
   `providers/external_leaf_dllimport_compile`,
   `control_flow/runtime_branching_helper_string` and
-  `core/extent_root_provider_adapter`.
+  `core/extent_root_provider_adapter`. Reproduce a selected customer on the
+  working base, repair its owning capability, and rerun the same outer command.
 
-  Re-measured unfiltered at `f918adbb15` + this change: **131 distinct members
-  fail**, from 135, and the difference is exactly the four fixed below with no
-  new member. The two large shapes are unmoved (88 `rejoins 0 Terminal
-  attachment identities`, 26 `native-artifact Terminal production failed`) and
-  `data <D> literal cannot prove the default domain` is now ZERO.
+  Concrete repair routes:
+  - `core/extent_root_provider_adapter`: establish a legitimate build-visible
+    selection route for a public core-owned boundary trait. In
+    `symbols::find_product_declaration_from_source`, an unqualified operand
+    fails `same_product_package_instance` against toolchain-injected core;
+    core has no package manifest for an authored dependency alternative.
+    Resolve that ownership/visibility route under the package contract, without
+    inventing fixture-local authority or weakening exact declaration selection.
+  - `capabilities/windows_provides_import_exit`: preserve the producing
+    statement for `self.m = self.beeper.beep(self.v)`. The packaged Windows
+    fixture reaches `checked-trees-to-lowered-psi/src/unit/attached_unit/composed_control/state_graph/body.rs::statement_continuations`,
+    which excludes call-result stores from its plain-field-store exception.
+    Keep the ordinary-machine assignment as a control and the actual
+    `Binding<R>`/`ForeignBinding` package inputs in the reproduction.
+  - `dungeon/runtime_direct_boolean_conjunction_dispatch`: extend the direct
+    boolean-decision route from `Conditional` to each ordered `GuardedJumps`
+    arm in `unit/attached_unit/composed_control/state_graph/emission/state.rs`.
+    One conjunction plus default works; two conjunction arms plus default
+    encounter the short-circuit refusal. Reuse
+    `emission::boolean_control::emit_inlined_boolean_guard_blocks` with true
+    targeting the selected successor and false targeting the next arm/fallback.
+    Carry a value or planned decision in each arm draft, including the first,
+    and preserve deterministic checked block/edge allocation. Do not merely
+    delete the refusal and materialize guards eagerly: the right operand of
+    `self.x == 2 && (self.y / self.z) == 1` must not execute when the left is
+    false, including `z == 0`. Pin this with native execution and an effectful
+    operand control when its upstream admission is available; no trap outcome
+    was established by the earlier lowering-only probe.
+  - `providers/external_leaf_dllimport_compile`: connect the checked per-call
+    authority derivation to ordinary native production. `NormalizedForeign`
+    needs an explicit policy row, while the ordinary policy has none outside
+    the settled Console/filesystem/time cohorts. Rejoin the program's own
+    checked-flow evidence before classification; adding a fixture permission
+    or another cohort without that derivation is not acceptance.
 
-  `capabilities/acquires_through_helper_return` is FIXED, and the cause was a
-  duplicate standard-library declaration rather than anything in the fixture:
-  `dab8767e424` renamed the routed-service carrier `Service<R>` to `Binding<R>`
-  and left `source/library/core/binding.omg` behind as a byte-identical second
-  declaration of `Binding<R>` (the two files differed in one comment word).
-  Both typed-trees' `is_exact_service_data_symbol` and symbol resolution's
-  `exact_service_carrier_data` recognize the carrier by EXACT source file, so a
-  program reaching the duplicate through `use omega::language::core::binding`
-  got a `Binding<Desktop>` that classified as no carrier at all, and a value
-  call on it could not resolve the boundary-trait method. 1807 files import
-  `core::service` and 4 imported `core::binding`; the duplicate is gone and
-  those 4 are repointed. The rename's other mechanical artifact went with it:
-  both tables carried a `"ForeignBinding" => binding.omg` row, but
-  `ForeignBinding` is the compile-time foreign LOCATOR in
-  `core/external_binding.omg` and is not `boundary data`, so that row could
-  never match.
-
-  // Note from owner: What the actual fuck is wrong with you? Rename it to binding. Fucking fix it. Stop reverting things to half implemented. Fucking retard.
-  // Fucking please rename this to fucking binding.omg and then go fix all the god damn fucked up namespace imports.
-  // Maybe in general consider doing work instead of crying like a bitch over the work that remains. Stop leaving things in a half state, for fucks sake.
-  NAMING IS LEFT AS IS deliberately: the surviving file is `service.omg` while
-  the carrier it declares is `Binding<R>`. Renaming the file is a 1807-importer
-  migration plus both source-identity tables, which is a deliberate change to
-  take on purpose rather than to fall into by leaving a duplicate.
-
-  `core/extent_root_provider_adapter` is DIAGNOSED end to end, and the cause is
-  structural rather than local to the fixture: a boundary trait owned by
-  `source/library/core` cannot be a provider-selection subject at all, by
-  either available route. Traced at `1d6c4a74d2f`:
-  `builder.select_provider<ExtentRootProvider, ExtentRootProviderImpl>` reaches
-  `resolve_product_operand`, which collects five boundary-trait candidates
-  including the right one, public, with an exactly matching display path; then
-  `symbols`' `find_product_declaration_from_source` drops it, because an
-  UNQUALIFIED path resolves no dependency alias and so demands
-  `same_product_package_instance(build-file occurrence, declaration)` --
-  false for a toolchain-injected declaration. The symbol comes back invalid and
-  `build-evaluation`'s `admission/declarations.rs` reports `does not resolve to
-  an exact boundary trait, top-level boundary requirement, or
-  boundary-operator family`, which reads like a naming mistake and is not one.
-  The QUALIFIED route is closed too, and this is the root fact:
-  **`source/library/core` is the only library with no `build.omg`** (`std`,
-  `alloc`, `blocking-executor` and `topology` all have one), so nothing
-  authored can name it in a `builder.depend` row -- attempting it fails with
-  `package build file is missing`. That is exactly why the passing siblings
-  work: `generics/runtime_nominal_machine_parameter_satisfaction_exit` selects
-  `Console` and `providers/checked_boundary_operator_const_application_selected_exit`
-  selects `Math::remainder`, both unqualified, both with an authored
-  `builder.depend` row on `source/library/std`; and
-  `core/carry_permission_provider_adapter` works only because it declares its
-  `ClaimProvider` locally.
-  Two candidate routes, neither taken here: give `core` a package manifest like
-  its four siblings, or let the build-file visibility test admit a public
-  toolchain-injected declaration. The first is uniform but injected into every
-  compile, so its blast radius wants measuring before it is spent; the second
-  widens what a build file may name and is a visibility-policy decision.
-  Do not "fix" the fixture -- there is no spelling that works today.
-  `capabilities/windows_provides_import_exit` stops at
-  `checked-trees-to-lowered-psi`'s `state_graph/body.rs::statement_continuations`
-  ("Unit graph continuation lost its producing statement"), which refuses an
-  operation that continues a statement other than the current one unless it is
-  a plain field store -- and a store of a CALL RESULT is excluded from that
-  exception. The fixture's shape is `self.m = self.beeper.beep(self.v)`, a
-  boundary-call result into a field. The same shape with an ORDINARY machine
-  (`self.m = twice(self.v)`) lowers, so the call kind is where to look.
-  Reproducing it needs the packaged compile: the `Binding<R>` carrier comes
-  from the toolchain, so the crate's own lowering harness cannot build the
-  program, and the fixture is `windows_x86_64` with an authored
-  `ForeignBinding` besides. Instrument the real fixture rather than trying to
-  reduce it in-crate.
-
-  `dungeon/runtime_direct_boolean_conjunction_dispatch` is DIAGNOSED and
-  REDUCED. Its `transition (self.current_room, self.fountain_used)` with arms
-  `(1, true)` / `(1, false)` / `_` lowers each arm's pattern to a CONJUNCTION
-  guard, and `state_graph/emission/state.rs` refuses it with `guarded jump
-  chain has a short-circuit guard`. The reduction, measured on four variants of
-  one program:
-
-  | guard shape | arms | result |
-  | --- | --- | --- |
-  | simple equality (`self.current_room`) | 2 + default | lowers |
-  | conjunction (`a == 1 && b`) | 1 + default | lowers |
-  | tuple pattern (a conjunction) | 1 + default | lowers |
-  | tuple pattern (a conjunction) | 2 + default | REFUSED |
-
-  So neither the conjunction nor the chain is the blocker on its own -- only
-  their combination is. One guarded arm plus a default is a `Conditional`
-  terminator, and that path already carries a DIRECT boolean guard: when
-  `branch_guard` returns an expression rather than a computation root, it sets
-  `condition = None` and `planned_guard` runs it through
-  `emission::boolean_control::lower_boolean_control_decision`, which the
-  terminator assembly consumes. Two guarded arms make it a `GuardedJumps`
-  chain, whose emission requires every guard to come back from `guard_value`
-  and refuses a direct one at both its first-arm and later-arm sites.
-  The work is therefore to give the chain the direct-guard route the
-  conditional already has, per arm -- not a new decision form. Assembly for
-  `planned_guard` is written for one condition; extending it to N ordered arms
-  is the actual task.
-
-  DO NOT take the cheap route, which looks available and is not.
-  `guard_value` already handles a guard with no computation root -- it falls
-  back to `CheckedCallScalarArgument::Pure` and materializes it -- so simply
-  deleting the two refusals makes the fixture lower. Measured, that also makes
-  this lower:
-
-      transition self.x == 2 && (self.y / self.z) == 1 { .. }   // z == 0
-
-  a conjunction whose RIGHT operand divides by zero on the path where the left
-  is false, which short-circuit semantics never evaluate. (Whether the
-  materialized form actually evaluates it eagerly was not verified -- the
-  program needs a receiver the crate harness does not supply -- so this is a
-  hazard flag, not a proven trap. It is enough to say the refusal is
-  load-bearing rather than merely conservative.) A call on the right operand
-  is stopped earlier, at checked local construction, so traps rather than
-  effects are the concern. The decision-tree route preserves short-circuit by
-  construction; eager materialization does not.
-
-  The ENABLER is already in place, which is the part that is not obvious:
-  `emission::boolean_control::emit_inlined_boolean_guard_blocks` takes its
-  TRUE and FALSE targets as arguments (`LoweredBooleanDecisionTarget`), so a
-  chain arm can expand its decision with true going to a jump block for that
-  arm's successor and false going to the NEXT arm's decision block, or to the
-  fallback for the last one. No new decision form is needed; the conditional
-  path just happens to pass a fixed pair of outcome blocks.
-  What the work costs is the staging around it. `guarded_drafts` is a 6-tuple
-  per later arm -- `(block, parameters, structural_parameters, operations,
-  guard VALUE id, namespace)` -- and the assembly turns each into one block
-  with `Terminator::Conditional { condition, .. }`. A direct guard makes an
-  arm several blocks instead of one, so the draft needs to carry a value id
-  OR a planned decision, the assembly needs to branch on which, and the first
-  arm (whose condition is the state's own terminator) needs the same
-  treatment. Block and edge identities are allocated densely with explicit
-  overflow guards, so the expansion has to keep that allocation deterministic.
-
-  `providers/external_leaf_dllimport_compile` is DIAGNOSED and is FAIL-CLOSED
-  BY POSTURE rather than broken. Its `satisfies Leaf::exit via leaf_binding()`
-  demands a `NormalizedForeign` mechanism, and
-  `native-realization`'s `terminal_authority_policy::classify` admits such a
-  mechanism only from an explicit policy ROW -- while
-  `current_terminal_authority_policy()` is constructed with `Vec::new()`, so
-  the ordinary compile path carries ZERO explicit rows and only the closed
-  compiler-intrinsic inventory classifies. The one escape,
-  `settled_host_cohort_row`, recognizes exactly three cohorts
-  (`console_mechanism_row`, `filesystem_mechanism_row`,
-  `time_host_mechanism_row`), which is why other foreign fixtures pass and this
-  one does not. `with_terminal_authority_policy` exists on both the compiler
-  request and the package manager but no non-test caller supplies rows.
-  This is ENGINEERING, not language design, and the code says what is missing:
-  "Release narrowing requires the program's own checked-flow derivation,
-  rejoined per call site; until it exists the conservative key classifies or
-  the demand fails closed." So the sequence is that derivation first, then
-  either a fourth cohort or an authoring surface for explicit rows -- not a
-  fixture edit, which cannot authorize anything.
-
-  `dependent/data_where_ranged_param_constructs` and
-  `dependent/data_where_callee_establishes` are FIXED: a `data ... where` fact
-  is proved AT CONSTRUCTION, and the construction gate read only a literal
-  (a point) or a place with a DECLARED range, so the ordinary shape -- a plain
-  `i32` parameter the machine's own signature already constrains -- carried no
-  interval and could not construct from runtime data. The gate now folds the
-  constructing machine's `requires` clauses, which hold at every call site and
-  therefore throughout the body. Two-sided:
-  `validation/tests/construction_requires_intervals.rs` pins that
-  `requires 1 <= strength` opens the gate for `where health >= 1` while
-  `requires 0 <= strength` -- an interval that exists and does NOT decide the
-  fact -- still refuses, as does a ceiling-only clause and no clause at all.
-  The whole fail-canary corpus still rejects.
-  `calls/nested_machine_continuation` was another and is FIXED: its `Fused root
-  establishments drifted from their selected ProgramEntry` was two consumers
-  keying a service establishment on the field's LEAF NAME while the producer
-  keys on the field ROUTE, so a nested `banner: Banner` binding named `console`
-  read as a repeat of the receiver's own `console`. It now compiles for the
-  native host.
-
-  The 88-member plurality is NOT one blocker. Every member carries an
-  `omitted at local construction at ...` site, and at `988aef22078` they fall
-  into fifteen distinct ones, four of which carry 61 of the 88 -- and each of
-  those four clusters into a directory, so they are bounded slices rather than
-  one wall:
-
-  | n | omission site | clusters in |
-  | --- | --- | --- |
-  | 19 | `statement sequence: local data: structural call binding` | `recast` (14 of 19) |
-  | 16 | `statement sequence: call: call operation` | spread; `filesystem` 5 |
-  | 13 | `state graph: terminator: conditional successors: guard expression` | `filesystem` (10 of 13) |
-  | 13 | `structural field store: pure source` | `float` (9 of 13) |
-  | 7 | `structural field store: destination parameter` | |
-  | 4 | `statement sequence: local data: scalar local: pure initializer` | |
-  | 4 | `state graph: state signature: parameter signature: attached data shape` | |
-  | 3 | `structural field store: scalar field type` | |
-  | 2 | `state graph: result signature` | |
-  | 2 | `state graph: terminator: jump successor: parameter transfer` | |
-  | 1 each | `signature`, `structural result shape`, `jump successor: scalar arguments`, `unsupported tail: transition chain`, `prefix initializers: bound expression` | |
-
-  Take one site, not the cohort. `recast` at structural call binding and
-  `float` at pure-source field store are the two tightest: a single directory
-  and a single site each, so a repair there is measurable against a set that
-  is already isolated.
-
-  All of these sites are phases of ONE crate --
-  `typed-trees-to-checked-trees/src/execution/terminal_unit/` (`control/
-  statement_sequence.rs`, `state_graph/mod.rs`,
-  `structural_scalar_store/mod.rs`) -- so the whole cohort belongs to whoever
-  holds that crate, and the sites above are the order to take them in, not
-  four independent lanes.
-
-  The 17 WERE exactly the entry-free subset this row describes below,
-  so that paragraph is corroborated rather than superseded. The 84-member
-  plurality is the same family recorded in
-  [the checking-cost record](wiki/drafts/checking_contract_exit_fact_cost.md):
-  its reported stage names the CALLER's reason, and `UnavailableCallee` now
-  chains to the callee's own recorded reason (`d782d2a5ee`), so re-read those
-  diagnostics before attributing them -- they name a different site than they
-  did when most of this row was written.
-
-  The 15 `selected ProgramEntry Binding field ... requires a selected Fused
-  provider` members were partly a harness bug: the canary harness never
-  accepted canonical `FilesystemHostService`/`TimeHostService` bindings,
-  because settlement mints their Fused plans only after acceptance
-  (`34f6e1a2a6` now accepts from the entry's `Binding<R>` fields, as consumer
-  review does). What remains on macOS/Windows is real provider absence, which
-  [entry roots](wiki/spec/build/entry_roots.md) requires rejecting:
+  Provider absence on macOS/Windows remains distinct from lowering:
   `toolchain_filesystem_leaves` and `toolchain_time_host_leaves` map only
   linux_x86_64 (darwin rows need an import with an injected argument, e.g.
   `clock_gettime_nsec_np(8)`, and a constant binding kind), and the
   fixture-local `Gui`/`Input`/`Console` boundaries in `host/*` and
-  `traits/boundary_trait_effects_host_call` have no provider on any target.
-  On a linux_x86_64 rooted-target probe,
-  `filesystem/runtime_local_host_result_dispatch_exit` reaches Terminal
-  production (`Unit graph reordered a source effect`); seven multi-target
-  members stop at their own Unit-plan omissions.
-  Entry service nomination now runs establishment's nested-record walk
-  (`selected_dispatch::program_entry_service_requirements`, `0ec519c5bb`), so
-  `fs: Filesystem`/`time: Time` receivers nominate their host bindings in
-  review and in the harness; the 19 wrapper-only fixtures still stop earlier
-  on macOS (7 at `rejoins 0 Terminal attachment identities`,
-  `filesystem/wrapper_open_with_exit` at `cannot transfer a non-copy value out
-  of borrowed storage`). Targetless `compile_reviewed_repository_fixture(..,
-  None)` has no selected entry and nominates no entry services.
-
-  The `cannot transfer a non-copy value out of borrowed storage` members
-  were fixture debt, not a checker gap: the checker enforces
-  [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
-  (`036d60d9c9`), and the fixtures are repaired to valid spellings of their
-  intent. `ownership/call_arg_move_in_struct_literal` and
-  `ownership/transition_value_owned_move` now compile;
-  `filesystem/wrapper_open_with_exit`,
-  `filesystem/windows_wrapper_create_new_exit` and
-  `collections/record_array_field_access` pass checking and stop at Unit-plan
-  omissions (`local data: structural call binding`, `call: call operation`,
-  `signature`). `capabilities/uses_caller_folder` waits on
-  `service-carrier-argument-multiplicity`; its option (b) lend spelling is
-  refused today by `fail/providers/service_borrowed_parameter_rejected`.
+  `traits/boundary_trait_effects_host_call` need their own exact providers.
+  Preserve nested service nomination through
+  `selected_dispatch::program_entry_service_requirements`; targetless checking
+  has no selected entry and cannot exercise that nomination. Keep
+  `filesystem/runtime_local_host_result_dispatch_exit` as the Linux
+  source-effect ordering probe. `capabilities/uses_caller_folder` also needs
+  service-carrier argument multiplicity; retain
+  `fail/providers/service_borrowed_parameter_rejected` until its borrowed
+  carrier contract is implemented, not bypassed.
 
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
   actual missing operation/facts, not just its phase label. The diagnostic route
   is covered by `checked-trees-to-lowered-psi/tests/unit_plan_omissions.rs`;
   another diagnostic-only change does not close corpus behavior.
-
-  Seventeen `ACTIVE_PASS_CANARIES` members author no hosted `ProgramEntry`
-  root, so host native-artifact production refuses them with `native-artifact
-  production requires one exact selected program entry` before any lowering
-  runs: `selected_program_entry_machine` returns `None` exactly when the
-  evaluated build harvested no `roots.bind` row
-  (`build-evaluation/src/admission/selection.rs`). This is a declared-stage
-  mismatch, not a missing lowering. `a591bc84b9` bound every hosted entry it
-  could and deliberately left value-returning, parameterized and UEFI-shaped
-  mains entry-free, but did not move them off the native roster. Nine have no
-  `build.omg` at all (`calls/runtime_call_enum_field_with_args`,
-  `calls/runtime_call_enum_field_with_mut_arg`, `calls/runtime_call_enum_sequence`,
-  `calls/runtime_transition_subject_call_guard`,
-  `control_flow/runtime_guarded_leaf_ordering_call`,
-  `storage/runtime_alias_field_binary`, `storage/runtime_alias_field_integer`,
-  `storage/runtime_alias_integer_write`, `targets/entry_run_args_bytes`);
-  eight declare a freestanding EFI build with no bound root
-  (`ownership/linear_boundary_entry_handoff` and `targets/efi_*`), whose
-  `-> i32` entries also meet the no-result rule every profile's
-  `required_root_slots` enforces, so their route depends on the entry contract
-  **UEFI-PHYSICAL-SEMANTIC-ENTRY** owns. Decide per fixture between a
-  `uefi_x86_64` cross-target route, an authored entry wrapper, and a declared
-  non-native stage; the acceptance below already forbids blanket-demoting them
-  to checked-only.
 
   Current integration targets:
   - `text/runtime_stdin_command_branch_exit`: owned `Command` result-to-field
@@ -620,10 +361,6 @@ the complete product bar; focused successes below do not establish that baseline
     encoding of `[u32; 4]` without a synthetic count sibling. Require seven
     bytes `00 00 04 01 02 03 04` and exit 70; retain the checked-interpreter
     oracle. Its dedicated native witness remains unwritten.
-  - `capabilities/acquires_through_helper_return`: **ENTRY-CONTENT-ROOTS**
-    owns the real nested-binding entry below; a checked flow report or empty
-    Probe entry does not close its native acceptance.
-
   Route other failures to **STATE-LOCAL-VALUE-FRONTIER**,
   **MATCH-SELECTIVE-LOWERING**, **GENERAL-CYCLIC-EXECUTION**,
   **NOMINAL-FIELD-FLOW**, **BORROW-PROOF-CONVERGENCE**,
@@ -1178,6 +915,13 @@ syntax and other terminal services are not prerequisites.
 - **ENTRY-CONTENT-ROOTS.** Finish intrinsic receiver activation/completion
   under [entry roots](wiki/spec/build/entry_roots.md) and
   [binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry).
+  Complete the owner-directed `Binding<R>` source naming migration: rename
+  `source/library/core/service.omg` to `binding.omg`, migrate its imports and
+  both source-identity consumers (`is_exact_service_data_symbol` and
+  `exact_service_carrier_data`), and keep exactly one carrier declaration.
+  `ForeignBinding` remains the distinct locator in `external_binding.omg`.
+  Verify the real CLI samples and nested-binding helper-return customer after
+  the rename; file-name mismatch is not an intentional compatibility policy.
   Owners: target package assembly, `program-entry-plan`, Psi
   `terminal-production`, Omega `compiler/native-realization`,
   `image-emission` and `external-roots`. Source names spell the carrier
@@ -2584,42 +2328,12 @@ syntax and other terminal services are not prerequisites.
   `parameter.is_self && parameter.access == Owned` and does NOT consult
   `multiplicity`, so an Affine owned receiver is removed from
   `frontier.owned_places` before `validate_scalar_cleanup_actions` runs.
- // NOTE FROM OWNER: Please shut the fuck up with these retarded board: xyz PRs that add fucking 0 impl and just endlessly expand tasks. Maybe consider fixing some of these issues? fuck you.
-  TWO MORE red tests live beside these, in
-  `terminal-psi-to-abstract-operations` (unclaimed), unboarded until now and
-  red at least since `c7bccfa6bce` (2026-09-18) though both tests date to
-  `1285562ca29` (2026-08-13) -- so they are long-standing, not a fresh
-  regression. They fail for DIFFERENT reasons, which is why they want separate
-  owners:
-
-  - `scalar_affine_cleanup::structural_return::omega_preserves_exact_singleton_structural_return_custody`
-    stops at `UnsupportedControlFlow`, raised by the entry-admission predicate
-    in `abstract-operations-to-target-operations`'s
-    `lowering/control_flow.rs`. Instrumented, the function it builds carries
-    `entry_claims = 1`, and that predicate ends `|| !function.entry_claims
-    .is_empty()`, so it is refused outright. Independently, its sole
-    structural parameter is `access = Owned, multiplicity = Linear` with
-    `unobserved_owned = false`, and the accepted owned set is Affine, or
-    `is_owned_parameter`, or Unrestricted over a Sum/Record -- Linear is in
-    none of them. Either fact alone refuses it.
-  - `partial_affine_call_results::continuations::source_continuations_retain_distinct_result_owners_and_ordered_residuals`
-    passes that same predicate (`entry_claims = 0`, both parameters Owned +
-    Affine) and stops later at `UnsupportedStructuralArray(StructuralTypeId(4))`.
-
-  Both refusals live in `abstract-operations-to-target-operations`, which is
-  claimed, so the repair belongs to that lane rather than to whoever finds the
-  red.
-
-  Measured: `git bisect` over ~4 days names `6e8cb1f85c` as the first bad
-  commit for `terminal-interpreter::unit affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
-  and `::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`,
-  which have been red on main since. Both build a receiver that
-  `tests/unit.rs`'s `structural_parameter` helper declares `is_self: true,
-  access: Owned`, set its multiplicity to `Affine`, and author an explicit
-  `DiscardRoot`. That discard is now rejected as
-  `ScalarReturnAffineDiscardsMismatch` because the place it names is already
-  gone, so no affine discard runs and none is charged — which is exactly what
-  those two tests exist to observe about edge-charge ordering.
+  The `terminal-interpreter --test unit` controls
+  `affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
+  and `affine_cleanups::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`
+  construct an Owned, Affine self receiver with explicit `DiscardRoot`.
+  They reject with `ScalarReturnAffineDiscardsMismatch` after implicit removal
+  of that root. Preserve their edge-charge and once-only-disposal observations.
 
   Why this is a meaning question and not a stale fixture:
   [Terminal ownership](wiki/spec/terminal-psi/ownership.md) says every incoming
@@ -3817,6 +3531,18 @@ syntax and other terminal services are not prerequisites.
 
   Remaining work:
 
+  - Close two distinct receiving cases in
+    `abstract-operations-to-target-operations`, exercised by
+    `terminal-psi-to-abstract-operations` integration tests:
+    `scalar_affine_cleanup::structural_return::omega_preserves_exact_singleton_structural_return_custody`
+    reaches `lowering/control_flow.rs`'s rejection of entry claims and an
+    observed Owned/Linear structural parameter. Preserve both authority
+    premises rather than dropping either check to admit it.
+    `partial_affine_call_results::continuations::source_continuations_retain_distinct_result_owners_and_ordered_residuals`
+    passes entry admission with Owned/Affine parameters but reaches
+    `UnsupportedStructuralArray`. Retain its distinct result owners and
+    ordered residuals through target lowering and native execution.
+
   - Replace competing whole-machine plans with ordinary evaluation/control
     operations. Cover effectful state arguments/returns, dynamic and
     borrowed/projected storage, mixed
@@ -4704,31 +4430,10 @@ but report the missing runtime leg explicitly; it does not close that host row.
   RC-PORTABLE-PSI gate passes and explicitly open closure; do not recreate the
   recorder or claim records are absent.
 
-  The contract-mapping defects this row listed are CLOSED; re-measured at
-  `3a23169788` before spending on them again. `release_record.py`'s
-  RC-BUILD-AND-PACKAGES carries all six compiler integration targets
-  (`build_config_granted`, `build_log_facet`, `build_target_activation`,
-  `checked_build_machine_identity`, `evaluated_via_binding`,
-  `package_compilation_inputs`); RC-DIAGNOSTICS carries the exact
-  `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
-  name; complete command coverage is required in both directions, because
-  `test_every_contract_command_appears_in_a_gate` now walks the contract's
-  own fenced blocks and backticked gate commands and fails on one the
-  recorder never runs; and the formatting leg is the portable
-  `python tools/fmt.py --check`. No host procedure draft references the
-  recorder at all, so the `--all`/`--native-execution` correction has nothing
-  left to correct: `--native-execution` is a required argument
-  (`release_record.py` refuses a runner row without it) and is documented in
-  `tools/release/README.md`.
-  `ce47803c97` closed the last of them on the other half of the tooling:
-  `release_matrix.py` still ran `cargo fmt --all -- --check` while the
-  recorder ran the portable route, so the two disagreed about what the
-  formatting gate is.
-
-  What remains is the evidence, not the mapping: `python3 -m unittest`
-  over `tools.tests.test_release_record` and `tools.tests.test_release_matrix`
-  is 41 tests OK, and the two committed records still contain only
-  RC-PORTABLE-PSI passes with closure explicitly open.
+  The remaining deliverable is complete same-commit evidence, not another
+  recorder implementation. Preserve bidirectional command-coverage checks in
+  `tools.tests.test_release_record` and `tools.tests.test_release_matrix`,
+  the portable formatting command, and required `--native-execution` input.
 
   Acceptance: recorder tests detect omitted commands, stale filters,
   incomplete runs and inconsistent closure. Produce and revalidate records
