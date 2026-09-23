@@ -290,16 +290,22 @@ pub(crate) fn build_structural_scalar_return_machine(
                 .map(|parameter| parameter.source_position),
         )
         .collect::<BTreeSet<_>>();
+    // A borrowed `self` is the machine's ambient receiver: it rides the
+    // attachment rather than a forwarded operand, so the roster's authored
+    // positions exclude the receiver slot.
+    let forwarded_parameter_positions = source_state_parameters
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| {
+            !parameter.relevance.is_erased()
+                && !(parameter.is_self && is_reference(program, parameter.type_reference))
+        })
+        .map(|(position, _)| u32::try_from(position).ok())
+        .collect::<Option<BTreeSet<_>>>()?;
     if structural_parameters.is_empty()
         || structural_parameters.len() + scalar_parameters.len()
-            != crate::execution::terminal_unit::types::abi_parameter_count(source_state_parameters)
-        || authored_parameter_positions.len()
-            != crate::execution::terminal_unit::types::abi_parameter_count(source_state_parameters)
-        || authored_parameter_positions
-            .iter()
-            .copied()
-            .enumerate()
-            .any(|(position, authored)| u32::try_from(position).ok() != Some(authored))
+            != forwarded_parameter_positions.len()
+        || authored_parameter_positions != forwarded_parameter_positions
         || scalar_parameters
             .windows(2)
             .any(|pair| pair[0].source_position >= pair[1].source_position)
