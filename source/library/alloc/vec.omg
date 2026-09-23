@@ -1,0 +1,240 @@
+// Ordinary `Vec<T>` — the growable vector for Squalr's scan results.
+//
+// `Vec` is a value record: no compiler vector special case, no infinitely
+// recursive inline record. The vector keeps the caller's current backing
+// rung INLINE inside the record (the indirection the allocator contract
+// requires is the record itself — every store is minted by the caller and
+// carried inside it). Growth adopts the caller's next rung and copies the
+// live prefix exactly once; close drains the record's custody markers
+// after the caller reads the resident store back out.
+//
+// `tag` selects the resident rung: 4, 8, or 16 elements. `len` counts the
+// elements in custody (`0..=tag`). Writes land only inside the current
+// rung; reads are bounded by the caller's in-range index proof.
+//
+// Ownership contract (allocator terms): backing records are caller-owned
+// stores minted on the caller's own `data` surface. Supply and return are
+// EXPLICIT: the caller stages backing contents into the resident rung's
+// store (`v.s8[i] = b8.e[i]`) before `grow`/`open`, and drains the
+// resident store back into a backing record (`out.e[i] = v.s16[i]`)
+// before `close`. A supply that cannot be adopted (a failed allocation
+// never mints a record at all) leaves the vector's contents untouched —
+// the caller never staged it. Every vector operation borrows only the
+// vector receiver and scalar arguments, so no loan survives the move it
+// funds and custody always crosses by named stores.
+pub data Vec {
+    tag: u64;
+    s4: [u32; 4];
+    s8: [u32; 8];
+    s16: [u32; 16];
+    len: u64;
+}
+
+// Caller-owned backing stores, one per rung. A backing record is minted
+// on the caller's own `data` surface and staged into the resident store
+// by explicit element writes; the vector never invents storage of its own.
+pub data Backing4 {
+    e: [u32; 4];
+}
+
+pub data Backing8 {
+    e: [u32; 8];
+}
+
+pub data Backing16 {
+    e: [u32; 16];
+}
+
+// Seed a fresh backing with zero elements — the allocation step under the
+// contract: the caller mints the store, the seed writes every element.
+pub machine Backing4::seed(&mut self) {
+    self.e[0] = 0;
+    self.e[1] = 0;
+    self.e[2] = 0;
+    self.e[3] = 0;
+}
+
+pub machine Backing8::seed(&mut self) {
+    self.e[0] = 0;
+    self.e[1] = 0;
+    self.e[2] = 0;
+    self.e[3] = 0;
+    self.e[4] = 0;
+    self.e[5] = 0;
+    self.e[6] = 0;
+    self.e[7] = 0;
+}
+
+pub machine Backing16::seed(&mut self) {
+    self.e[0] = 0;
+    self.e[1] = 0;
+    self.e[2] = 0;
+    self.e[3] = 0;
+    self.e[4] = 0;
+    self.e[5] = 0;
+    self.e[6] = 0;
+    self.e[7] = 0;
+    self.e[8] = 0;
+    self.e[9] = 0;
+    self.e[10] = 0;
+    self.e[11] = 0;
+    self.e[12] = 0;
+    self.e[13] = 0;
+    self.e[14] = 0;
+    self.e[15] = 0;
+}
+
+// Open a vector over the resident first rung: the caller has already
+// staged its backing's elements into `s4`; `open` adopts them, clears the
+// dormant rungs, and establishes the empty vector's custody markers.
+pub machine Vec::open(&mut self) {
+    self.tag = 4;
+    self.s8[0] = 0;
+    self.s8[1] = 0;
+    self.s8[2] = 0;
+    self.s8[3] = 0;
+    self.s8[4] = 0;
+    self.s8[5] = 0;
+    self.s8[6] = 0;
+    self.s8[7] = 0;
+    self.s16[0] = 0;
+    self.s16[1] = 0;
+    self.s16[2] = 0;
+    self.s16[3] = 0;
+    self.s16[4] = 0;
+    self.s16[5] = 0;
+    self.s16[6] = 0;
+    self.s16[7] = 0;
+    self.s16[8] = 0;
+    self.s16[9] = 0;
+    self.s16[10] = 0;
+    self.s16[11] = 0;
+    self.s16[12] = 0;
+    self.s16[13] = 0;
+    self.s16[14] = 0;
+    self.s16[15] = 0;
+    self.len = 0;
+}
+
+// Append within the current rung: the caller's in-range index is the
+// bounds proof, so `len` follows it exactly.
+pub machine Vec::push4(&mut self, index: u64 [0..=3], value: u32) {
+    self.s4[index] = value;
+    self.len = index + 1;
+}
+
+pub machine Vec::push8(&mut self, index: u64 [0..=7], value: u32) {
+    self.s8[index] = value;
+    self.len = index + 1;
+}
+
+pub machine Vec::push16(&mut self, index: u64 [0..=15], value: u32) {
+    self.s16[index] = value;
+    self.len = index + 1;
+}
+
+// The growth request's two legs, split by the caller's `tag` proof.
+// `grow*` is reached when the vector holds the previous rung: the live
+// prefix copies exactly once into the resident next rung (whose tail the
+// caller staged from the supplied backing beforehand), the retired rung
+// is zeroed (element custody transfers by value, not copy-on-the-side),
+// `tag` adopts the new rung, and the returned count reports how many
+// live elements crossed. `reject_grow*` is the allocation-failure arm on
+// any other resident state: the vector is identical, the caller's
+// backing was never staged, and `0` reports that nothing moved.
+pub machine Vec::grow4to8(&mut self) -> u64 {
+    self.s8[0] = self.s4[0];
+    self.s8[1] = self.s4[1];
+    self.s8[2] = self.s4[2];
+    self.s8[3] = self.s4[3];
+    self.s4[0] = 0;
+    self.s4[1] = 0;
+    self.s4[2] = 0;
+    self.s4[3] = 0;
+    self.tag = 8;
+    self.len
+}
+
+pub machine Vec::reject_grow4to8(&mut self) -> u64 {
+    0
+}
+
+pub machine Vec::grow8to16(&mut self) -> u64 {
+    self.s16[0] = self.s8[0];
+    self.s16[1] = self.s8[1];
+    self.s16[2] = self.s8[2];
+    self.s16[3] = self.s8[3];
+    self.s16[4] = self.s8[4];
+    self.s16[5] = self.s8[5];
+    self.s16[6] = self.s8[6];
+    self.s16[7] = self.s8[7];
+    self.s8[0] = 0;
+    self.s8[1] = 0;
+    self.s8[2] = 0;
+    self.s8[3] = 0;
+    self.s8[4] = 0;
+    self.s8[5] = 0;
+    self.s8[6] = 0;
+    self.s8[7] = 0;
+    self.tag = 16;
+    self.len
+}
+
+pub machine Vec::reject_grow8to16(&mut self) -> u64 {
+    0
+}
+
+// Read one element of the resident rung; the caller's index proof bounds
+// the access to the live prefix.
+pub machine Vec::read4(&mut self, index: u64 [0..=3]) -> u32 {
+    self.s4[index]
+}
+
+pub machine Vec::read8(&mut self, index: u64 [0..=7]) -> u32 {
+    self.s8[index]
+}
+
+pub machine Vec::read16(&mut self, index: u64 [0..=15]) -> u32 {
+    self.s16[index]
+}
+
+pub machine Vec::tag(&mut self) -> u64 {
+    self.tag
+}
+
+pub machine Vec::len(&mut self) -> u64 {
+    self.len
+}
+
+// Close the vector: the caller has already drained the resident store
+// into its own backing record, so `close` drops the custody markers —
+// the vector no longer names live storage. A duplicate close re-reads a
+// drained record whose custody already crossed and finds nothing to do.
+pub machine Vec::close4(&mut self) {
+    self.tag = 0;
+    self.len = 0;
+}
+
+pub machine Vec::close8(&mut self) {
+    self.tag = 0;
+    self.len = 0;
+}
+
+pub machine Vec::close16(&mut self) {
+    self.tag = 0;
+    self.len = 0;
+}
+
+// Read one element out of a backing record — the backing owner keeps
+// custody while the caller inspects the returned store.
+pub machine Backing4::read(&mut self, index: u64 [0..=3]) -> u32 {
+    self.e[index]
+}
+
+pub machine Backing8::read(&mut self, index: u64 [0..=7]) -> u32 {
+    self.e[index]
+}
+
+pub machine Backing16::read(&mut self, index: u64 [0..=15]) -> u32 {
+    self.e[index]
+}

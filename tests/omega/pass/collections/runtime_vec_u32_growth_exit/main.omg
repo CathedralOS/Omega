@@ -1,0 +1,154 @@
+use omega_language_std::console;
+use omega::language::core::service;
+use alloc::vec;
+
+// ALLOCATOR STORY STAGE 2 — growable `Vec<u32>` over caller-supplied
+// backing, the custody exercise `source/library/alloc/vec.omg` declares.
+//
+// RUN canary (exit 70). The witness keeps `main` as a single sequential
+// reaches body — the ordinary Unit admission route, so structural method
+// calls (`self.v.push4`, `self.eb.seed`, ...) lower natively. Verification
+// is folded into the exit code: each `flag` arm contributes a distinct bit,
+// so 70 means every check held and any other code names the first failed
+// pair (bits 1..12 in declaration order below).
+//
+// Composed multi-state machines admit no structural call targets yet
+// ("composed Unit scalar call requires structural call custody"), so the
+// verify chain lives in arithmetic, not successor states. `flag` itself is
+// the multi-state tail machine `Summer::sum` models.
+
+data Checker {}
+
+// `flag` converts a carried boolean to a weighted integer contribution.
+// Its body is the reaches-machine transition shape `sum` uses; callers are
+// single-state ordinary machines, which admit structural scalar callees.
+machine Checker::flag(&mut self, ok: bool) -> i32 in Wrapping {
+    transition ok {
+        true -> 0
+        false -> 1
+    }
+}
+
+data Main {
+    console: Service<Console>;
+    check: Checker;
+    eb: Backing4;
+    out4: Backing4;
+    b8: Backing8;
+    b16: Backing16;
+    ab8: Backing8;
+    out16: Backing16;
+    v: Vec;
+}
+
+machine Main::main(&mut self) reaches Console {
+    // ----- coverage: empty-cleanup -----
+    // A never-grown Vec on a seeded backing drains its empty backing and
+    // closes twice (duplicate cleanup). No elements ever moved.
+    self.eb.seed();
+    self.v.s4[0] = self.eb.e[0];
+    self.v.s4[1] = self.eb.e[1];
+    self.v.s4[2] = self.eb.e[2];
+    self.v.s4[3] = self.eb.e[3];
+    self.v.open();
+    self.out4.e[0] = self.v.s4[0];
+    self.out4.e[1] = self.v.s4[1];
+    self.out4.e[2] = self.v.s4[2];
+    self.out4.e[3] = self.v.s4[3];
+    self.v.close4();
+    self.v.close4();
+
+    // ----- coverage: appends through two growths -----
+    self.v.s4[0] = self.eb.e[0];
+    self.v.s4[1] = self.eb.e[1];
+    self.v.s4[2] = self.eb.e[2];
+    self.v.s4[3] = self.eb.e[3];
+    self.v.open();
+    self.v.push4(0, 1);
+    self.v.push4(1, 2);
+    self.v.push4(2, 3);
+    self.v.push4(3, 4);
+
+    // Growth one: caller supplies fresh Backing8 content by staging it into
+    // the dormant larger slot, then transfers the four resident elements.
+    self.b8.seed();
+    self.v.s8[4] = self.b8.e[4];
+    self.v.s8[5] = self.b8.e[5];
+    self.v.s8[6] = self.b8.e[6];
+    self.v.s8[7] = self.b8.e[7];
+    let moved1: u64 = self.v.grow4to8();
+
+    self.v.push8(4, 5);
+    self.v.push8(5, 6);
+    self.v.push8(6, 7);
+    self.v.push8(7, 8);
+
+    // Growth two: supply a fresh Backing16 the same way, transfer eight.
+    self.b16.seed();
+    self.v.s16[8] = self.b16.e[8];
+    self.v.s16[9] = self.b16.e[9];
+    self.v.s16[10] = self.b16.e[10];
+    self.v.s16[11] = self.b16.e[11];
+    self.v.s16[12] = self.b16.e[12];
+    self.v.s16[13] = self.b16.e[13];
+    self.v.s16[14] = self.b16.e[14];
+    self.v.s16[15] = self.b16.e[15];
+    let moved2: u64 = self.v.grow8to16();
+
+    // Two more appends land after the second growth: a preserved prefix
+    // (elements 0..8) plus new elements (9, 10).
+    self.v.push16(8, 9);
+    self.v.push16(9, 10);
+
+    // ----- coverage: allocation failure preserving contents -----
+    // `reject_grow4to8` stands for the allocation attempt returning the
+    // empty backing; the Vec must keep every element.
+    self.ab8.seed();
+    let rejected: u64 = self.v.reject_grow4to8();
+
+    // ----- coverage: explicit backing return -----
+    // Draining all sixteen elements into `out16` hands the old backing's
+    // slot back; `close16` retires the Vec. `out16` is what the caller
+    // would return under the allocator contract.
+    self.out16.e[0] = self.v.s16[0];
+    self.out16.e[1] = self.v.s16[1];
+    self.out16.e[2] = self.v.s16[2];
+    self.out16.e[3] = self.v.s16[3];
+    self.out16.e[4] = self.v.s16[4];
+    self.out16.e[5] = self.v.s16[5];
+    self.out16.e[6] = self.v.s16[6];
+    self.out16.e[7] = self.v.s16[7];
+    self.out16.e[8] = self.v.s16[8];
+    self.out16.e[9] = self.v.s16[9];
+    self.out16.e[10] = self.v.s16[10];
+    self.out16.e[11] = self.v.s16[11];
+    self.out16.e[12] = self.v.s16[12];
+    self.out16.e[13] = self.v.s16[13];
+    self.out16.e[14] = self.v.s16[14];
+    self.out16.e[15] = self.v.s16[15];
+    self.v.close16();
+    self.v.close16();
+
+    // ----- exit-code verdict -----
+    // Bit assignments (1,2,4,...) in declaration order; exit is
+    // 70 + sum of failing bits.
+    let f1: i32 in Wrapping = self.check.flag(moved1 == 4);
+    let f2: i32 in Wrapping = self.check.flag(moved2 == 8);
+    let f3: i32 in Wrapping = self.check.flag(rejected == 0);
+    let f4: i32 in Wrapping = self.check.flag(self.v.tag == 0);
+    let f5: i32 in Wrapping = self.check.flag(self.v.len == 0);
+    let f6: i32 in Wrapping = self.check.flag(self.out16.e[0] == 1);
+    let f7: i32 in Wrapping = self.check.flag(self.out16.e[3] == 4);
+    let f8: i32 in Wrapping = self.check.flag(self.out16.e[7] == 8);
+    let f9: i32 in Wrapping = self.check.flag(self.out16.e[8] == 9);
+    let f10: i32 in Wrapping = self.check.flag(self.out16.e[9] == 10);
+    let f11: i32 in Wrapping = self.check.flag(self.v.s4[0] == 0);
+    let f12: i32 in Wrapping = self.check.flag(self.v.s4[3] == 0);
+    let f13: i32 in Wrapping = self.check.flag(self.v.s8[0] == 0);
+    let f14: i32 in Wrapping = self.check.flag(self.out4.e[0] == 0);
+    let f15: i32 in Wrapping = self.check.flag(self.ab8.e[0] == 0);
+    let code: i32 in Wrapping = 70 + f1 + f2 * 2 + f3 * 4 + f4 * 8 + f5 * 16
+        + f6 * 32 + f7 * 64 + f8 * 128 + f9 * 256 + f10 * 512
+        + f11 * 1024 + f12 * 2048 + f13 * 4096 + f14 * 8192 + f15 * 16384;
+    self.console.exit_process(code as i32);
+}
