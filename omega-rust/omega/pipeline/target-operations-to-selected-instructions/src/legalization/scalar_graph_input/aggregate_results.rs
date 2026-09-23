@@ -42,6 +42,7 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::EstablishReference { .. }
                         | AbstractOperation::ReleaseReference { .. }
                         | AbstractOperation::EstablishScalarCase { .. }
+                        | AbstractOperation::StructuralLeafCopy { .. }
                         | AbstractOperation::CallStructural { .. }
                         | AbstractOperation::BoundaryCall { result: abstract_operations::AbstractBoundaryResult::Structural(_), .. }
                 ) || matches!(&node.operation,

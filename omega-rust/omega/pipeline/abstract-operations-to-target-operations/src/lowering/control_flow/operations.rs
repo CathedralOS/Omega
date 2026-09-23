@@ -352,6 +352,15 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::StructuralLeafCopy { .. } => super::leaf_copy::copy(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }

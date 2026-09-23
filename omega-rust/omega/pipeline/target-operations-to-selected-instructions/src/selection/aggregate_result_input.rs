@@ -42,6 +42,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::StructuralCaseMembership { source, path, .. } => *source == place && !path.is_empty(),
+            LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. } => *source == place,
             LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| {
                 matches!(argument, legalized_operations::LegalizedScalarArgument::Structural { semantic, .. }
                     if semantic.place == place && semantic.access != StructuralAccess::Owned)
