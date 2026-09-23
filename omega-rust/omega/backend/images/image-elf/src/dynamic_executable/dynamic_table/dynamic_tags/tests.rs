@@ -152,7 +152,7 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
             .expect("validated semantic dynamic tags");
         assert_eq!(plan.descriptors().descriptor_count(), 11);
         assert_eq!(plan.needed_row_count(), 2);
-        assert_eq!(plan.row_count(), 18);
+        assert_eq!(plan.row_count(), 19);
         assert_eq!(plan.address_obligation_count(), 9);
         assert_ne!(plan.non_authoritative_tag_compatibility_fingerprint(), 0);
 
@@ -191,6 +191,7 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
                 ElfDynamicTag::ProcedureRelocation,
                 ElfDynamicTag::Rela,
                 ElfDynamicTag::GeneralRelocationSize,
+                ElfDynamicTag::GeneralRelocationEntrySize,
                 ElfDynamicTag::GnuSymbolVersion,
                 ElfDynamicTag::GnuVersionRequirement,
                 ElfDynamicTag::GnuVersionRequirementCount,
@@ -236,12 +237,12 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
                     target: ElfDynamicAddressTarget::GeneralRelocation,
                 },
                 ElfDynamicAddressObligation {
-                    row_ordinal: 14,
+                    row_ordinal: 15,
                     byte_width: 8,
                     target: ElfDynamicAddressTarget::GnuSymbolVersion,
                 },
                 ElfDynamicAddressObligation {
-                    row_ordinal: 15,
+                    row_ordinal: 16,
                     byte_width: 8,
                     target: ElfDynamicAddressTarget::GnuVersionRequirement,
                 },
@@ -268,10 +269,14 @@ fn both_targets_plan_exact_needed_prefix_fixed_tags_and_address_obligations() {
             ElfDynamicValue::GeneralRelocationByteCount(0),
         );
         assert_eq!(
-            plan.contents.rows[16].value,
+            plan.contents.rows[14].value,
+            ElfDynamicValue::GeneralRelocationEntryByteCount(24),
+        );
+        assert_eq!(
+            plan.contents.rows[17].value,
             ElfDynamicValue::VersionRequirementRecordCount(2),
         );
-        assert_eq!(plan.contents.rows[17].value, ElfDynamicValue::Null);
+        assert_eq!(plan.contents.rows[18].value, ElfDynamicValue::Null);
         validate_contents(plan.descriptors(), &plan.contents)
             .expect("independent dynamic-tag replay");
     }
@@ -330,6 +335,14 @@ fn exact_tag_set_binds_general_relocation_and_omits_optional_policies() {
         plan.contents
             .rows
             .iter()
+            .filter(|row| row.tag == ElfDynamicTag::GeneralRelocationEntrySize)
+            .count(),
+        1,
+    );
+    assert_eq!(
+        plan.contents
+            .rows
+            .iter()
             .filter(|row| row.tag == ElfDynamicTag::Null)
             .count(),
         1,
@@ -345,7 +358,7 @@ fn independent_replay_rejects_every_value_family_order_and_identity_corruption()
         Box::new(|candidate| {
             candidate.contents.rows.pop();
         }),
-        Box::new(|candidate| candidate.contents.rows.push(candidate.contents.rows[17])),
+        Box::new(|candidate| candidate.contents.rows.push(candidate.contents.rows[18])),
         Box::new(|candidate| candidate.contents.rows[0].tag = ElfDynamicTag::Null),
         Box::new(|candidate| {
             candidate.contents.rows[0].value = ElfDynamicValue::NeededStringOffset(0)
@@ -364,10 +377,13 @@ fn independent_replay_rejects_every_value_family_order_and_identity_corruption()
             candidate.contents.rows[10].value = ElfDynamicValue::RelocationTag(ElfDynamicTag::Null)
         }),
         Box::new(|candidate| {
-            candidate.contents.rows[16].value = ElfDynamicValue::VersionRequirementRecordCount(1)
+            candidate.contents.rows[14].value = ElfDynamicValue::GeneralRelocationEntryByteCount(16)
         }),
         Box::new(|candidate| {
-            candidate.contents.rows[17].value = ElfDynamicValue::AddressPlaceholder
+            candidate.contents.rows[17].value = ElfDynamicValue::VersionRequirementRecordCount(1)
+        }),
+        Box::new(|candidate| {
+            candidate.contents.rows[18].value = ElfDynamicValue::AddressPlaceholder
         }),
         Box::new(|candidate| candidate.non_authoritative_tag_compatibility_fingerprint ^= 1),
     ];

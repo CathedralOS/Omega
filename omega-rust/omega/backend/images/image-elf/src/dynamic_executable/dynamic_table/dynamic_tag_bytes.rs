@@ -214,6 +214,7 @@ const fn encoded_value(value: ElfDynamicValue) -> u64 {
         ElfDynamicValue::NeededStringOffset(offset) => offset as u64,
         ElfDynamicValue::ProcedureRelocationByteCount(count)
         | ElfDynamicValue::GeneralRelocationByteCount(count)
+        | ElfDynamicValue::GeneralRelocationEntryByteCount(count)
         | ElfDynamicValue::DynamicStringByteCount(count)
         | ElfDynamicValue::DynamicSymbolEntryByteCount(count)
         | ElfDynamicValue::VersionRequirementRecordCount(count) => count,
@@ -595,8 +596,8 @@ mod tests {
         for target in [TargetProfile::LinuxX64, TargetProfile::LinuxArm64] {
             let payload = serialize_elf_dynamic_table(tag_plan(target, &IMPORTS))
                 .expect("validated dynamic payload");
-            assert_eq!(payload.row_count(), 18);
-            assert_eq!(payload.byte_count(), 288);
+            assert_eq!(payload.row_count(), 19);
+            assert_eq!(payload.byte_count(), 304);
             assert_eq!(payload.address_fixup_count(), 9);
             assert_ne!(
                 payload.non_authoritative_payload_compatibility_fingerprint(),
@@ -621,8 +622,12 @@ mod tests {
                 row(bytes, 13),
                 &[8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             );
-            assert_eq!(&row(bytes, 14)[..8], &[0xf0, 0xff, 0xff, 0x6f, 0, 0, 0, 0],);
-            assert_eq!(row(bytes, 17), &[0; 16]);
+            assert_eq!(
+                row(bytes, 14),
+                &[9, 0, 0, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0]
+            );
+            assert_eq!(&row(bytes, 15)[..8], &[0xf0, 0xff, 0xff, 0x6f, 0, 0, 0, 0],);
+            assert_eq!(row(bytes, 18), &[0; 16]);
             assert_eq!(
                 payload.contents.address_fixups,
                 [
@@ -676,15 +681,15 @@ mod tests {
                         target: ElfDynamicAddressTarget::GeneralRelocation,
                     },
                     ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 14,
-                        byte_offset: 232,
+                        row_ordinal: 15,
+                        byte_offset: 248,
                         byte_width: 8,
                         kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
                         target: ElfDynamicAddressTarget::GnuSymbolVersion,
                     },
                     ElfDynamicPayloadAddressFixup {
-                        row_ordinal: 15,
-                        byte_offset: 248,
+                        row_ordinal: 16,
+                        byte_offset: 264,
                         byte_width: 8,
                         kind: ElfDynamicPayloadFixupKind::Elf64AbsoluteAddress,
                         target: ElfDynamicAddressTarget::GnuVersionRequirement,
@@ -756,9 +761,10 @@ mod tests {
             Box::new(|candidate| candidate.contents.bytes[8 * 16 + 8] ^= 1),
             Box::new(|candidate| candidate.contents.bytes[9 * 16 + 8] ^= 1),
             Box::new(|candidate| candidate.contents.bytes[10 * 16 + 8] ^= 1),
-            Box::new(|candidate| candidate.contents.bytes[16 * 16 + 8] ^= 1),
-            Box::new(|candidate| candidate.contents.bytes[17 * 16] = 1),
-            Box::new(|candidate| candidate.contents.bytes[17 * 16 + 8] = 1),
+            Box::new(|candidate| candidate.contents.bytes[14 * 16 + 8] ^= 1),
+            Box::new(|candidate| candidate.contents.bytes[17 * 16 + 8] ^= 1),
+            Box::new(|candidate| candidate.contents.bytes[18 * 16] = 1),
+            Box::new(|candidate| candidate.contents.bytes[18 * 16 + 8] = 1),
             Box::new(|candidate| candidate.contents.bytes[12 * 16..12 * 16 + 8].reverse()),
             Box::new(|candidate| {
                 candidate.contents.bytes.pop();

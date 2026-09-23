@@ -583,7 +583,7 @@ mod tests {
                     name_offset: 113,
                     section_type: SHT_DYNAMIC,
                     flags: SHF_WRITE | SHF_ALLOC,
-                    payload_size: 288,
+                    payload_size: 304,
                     alignment: 8,
                     entry_size: 16,
                     link: Some(ElfDynamicSectionKind::DynamicString),

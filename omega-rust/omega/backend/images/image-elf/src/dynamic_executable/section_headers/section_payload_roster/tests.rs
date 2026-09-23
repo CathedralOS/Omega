@@ -154,7 +154,7 @@ fn both_targets_join_exact_fourteen_payloads_and_indexed_fixups() {
         assert!(plan.contents.rows[0].bytes.is_empty());
         assert_eq!(plan.contents.rows[7].bytes.len(), 36);
         assert_eq!(plan.contents.rows[11].bytes.len(), 0);
-        assert_eq!(plan.contents.rows[12].bytes.len(), 288);
+        assert_eq!(plan.contents.rows[12].bytes.len(), 304);
         assert_eq!(plan.contents.rows[13].bytes.len(), 122);
         for (index, row) in plan.contents.rows.iter().enumerate() {
             assert_eq!(row.index, index as u32);
