@@ -1,7 +1,12 @@
 //! Summary of typed findings. Evidence alone owns canonical policy syntax.
 
 use super::{CanonicalSourceClosureSubject, Name, Output};
-use package_evidence::record::*;
+use package_evidence::record::{
+    CheckedPackageReviewProjection, PackagePolicyBaseline, PackagePolicyCallable,
+    PackagePolicyRepresentation, PackagePolicySelectedProviders, PackagePolicyServiceMethod,
+    PackageReviewCallableContract, PackageReviewNominalIdentity,
+    PackageReviewSynchronousInvocation,
+};
 use std::fmt::{self, Write};
 
 mod callables;

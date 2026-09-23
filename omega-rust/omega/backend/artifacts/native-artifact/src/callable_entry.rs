@@ -49,7 +49,11 @@ const VERSION: u32 = 4;
 mod codec;
 mod reconstruction;
 
-use codec::*;
+use codec::{
+    Cursor, decode_disposition, decode_id, decode_psi, decode_record_content, decode_target,
+    encode_manifest_content, encode_record_content,
+};
+
 use reconstruction::{manifest, receipt, reconstruct};
 
 pub fn stage_validated_optimized_ordinary_callable_entry(
