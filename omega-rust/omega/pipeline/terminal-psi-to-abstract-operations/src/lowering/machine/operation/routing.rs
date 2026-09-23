@@ -356,6 +356,9 @@ pub(super) fn lower(
         OperationKind::MoveStructuralField { .. } | OperationKind::StoreStructuralField { .. } => {
             borrowed_windows::lower(operation, machine, structural_types)
         }
+        OperationKind::StructuralLeafCopy { .. } => {
+            Err(LoweringError::UnsupportedStructuralLeafCopy(operation.id))
+        }
         OperationKind::Call { .. } => calls::lower(
             operation,
             machine,

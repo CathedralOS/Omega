@@ -128,6 +128,56 @@ pub(super) fn validate_scalar_case_place(
     Ok(())
 }
 
+/// An `Unrestricted` leaf read through shared-borrowed storage
+/// (`self.scan_compare_type` on a `&self` receiver): same retained
+/// root/path contract as a scalar-case leaf read, but the leaf's contents
+/// are copied into a fresh owned place — payload-bearing leaves that a
+/// case fan-out cannot reconstruct are admitted here. The leaf must still
+/// be `Unrestricted`: an affine subtree can only ride the move contract.
+pub(super) fn validate_copied_place(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    authored: &checked_trees::state::State,
+    statement: u32,
+    expression: ExpressionHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
+    argument: &CheckedUnitStructuralArgumentPlan,
+) -> Result<(), LoweringError> {
+    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+        return unsupported("copied place changed its planned access");
+    }
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression)?;
+    if checked_path != argument.path || checked_path.is_empty() {
+        return unsupported("copied place path does not match its projected path");
+    }
+    let leaf =
+        validation::expression_result_type_reference(&checked.typed, machine, authored, expression)
+            .ok_or(LoweringError::Unsupported(
+                "copied place lost its leaf type",
+            ))?;
+    if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
+        || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(reference)
+    {
+        return unsupported("copied place does not project the result type");
+    }
+    let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
+        return unsupported("copied place lost its leaf type");
+    };
+    if checked.typed.type_multiplicity(unwrapped) != language_semantics::Multiplicity::Unrestricted
+    {
+        return unsupported("copied place leaf is not unrestricted");
+    }
+    validate_place_root(
+        checked,
+        machine,
+        authored,
+        statement,
+        root,
+        &argument.source,
+    )?;
+    Ok(())
+}
+
 /// The leaf type must be an unrestricted sum whose every case carries no
 /// payload field — observing the active case is then the whole read, and no
 /// borrowed payload needs a spelling the authored expression never offered.

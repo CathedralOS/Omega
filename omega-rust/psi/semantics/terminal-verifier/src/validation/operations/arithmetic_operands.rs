@@ -282,6 +282,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
+        | OperationKind::StructuralLeafCopy { .. }
         | OperationKind::IntegerStructuralField { .. }
         | OperationKind::MoveStructuralField { .. }
         | OperationKind::StoreStructuralField { .. }

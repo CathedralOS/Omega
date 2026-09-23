@@ -574,8 +574,6 @@ pub(super) fn validate_result_declaration(
                     }))
                 && !(result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
-                    && (super::super::scalar_case::plain_type(module, result.structural_type)
-                        || super::super::record::plain_type(module, result.structural_type))
                     && machine.blocks.iter().all(|block| match &block.terminator {
                         Terminator::ReturnStructural {
                             source,
@@ -583,13 +581,25 @@ pub(super) fn validate_result_declaration(
                             ..
                         } => {
                             returned_claims.is_empty()
-                                && (super::super::scalar_case::plain_return_source(
+                                && (((super::super::scalar_case::plain_type(
+                                    module,
+                                    result.structural_type,
+                                ) || super::super::record::plain_type(
+                                    module,
+                                    result.structural_type,
+                                )) && (super::super::scalar_case::plain_return_source(
                                     module, machine, *source,
                                 ) || super::super::record::plain_return_source(
                                     module, machine, *source,
                                 ) || super::super::block_views::plain_owned_return_source(
                                     module, machine, *source,
-                                ))
+                                )))
+                                    // A leaf copy is fresh owned storage by
+                                    // construction: an `Unrestricted` result
+                                    // may publish it whatever the leaf shape.
+                                    || super::super::structural_leaf_copy::copied_return_source(
+                                        machine, *source,
+                                    ))
                         }
                         _ => true,
                     }))

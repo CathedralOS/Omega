@@ -118,6 +118,11 @@ pub(super) fn append_operation(
         // No scalar equality or extra proof authority is asserted here.
         return Ok(());
     }
+    if matches!(operation.kind, OperationKind::StructuralLeafCopy { .. }) {
+        // A leaf copy publishes no scalar fact: freshness of the result and
+        // the exact selected leaf type are total validation judgments.
+        return Ok(());
+    }
     if let OperationKind::EstablishPrimitiveLocal { .. } = &operation.kind
         && let Some(result) = operation.result.structural()
     {
@@ -463,6 +468,7 @@ pub(super) fn append_operation(
         | OperationKind::PortWrite { .. }
         | OperationKind::BooleanStructuralField { .. }
         | OperationKind::StructuralCaseMembership { .. }
+        | OperationKind::StructuralLeafCopy { .. }
         | OperationKind::IntegerStructuralField { .. } => {
             unreachable!("structural/effect rows return before specialized reconstruction")
         }
