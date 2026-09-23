@@ -350,6 +350,9 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // lifted, so checked semantics admits the source.
     "constants/const_computed_initializer",
     "calls/nested_value_call_arg_compile",
+    // Element-view arguments whose element type agrees with the callee's
+    // declared parameter bind cleanly at the machine-call boundary.
+    "calls/value_call_element_view_arg_compile",
     "arithmetic/u64_literal_ordering_guard_compile",
     "float/exclusive_float_range_below_endpoint",
     "ranges/float_exclusive_supremum_discharges_finite",
@@ -2277,6 +2280,10 @@ const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
     "contracts/proof_fact_indexed_domain_application_arity",
     "contracts/proof_fact_indexed_domain_application_mismatch",
     "contracts/proof_fact_indexed_domain_application_unevidenced",
+    // A machine-call argument's element type must equal the callee's declared
+    // slice-view element: a `&[i32]` view bound into a `&[u8]` parameter
+    // rejects at check instead of silently dropping the call's plan.
+    "calls/element_view_argument_type_rejected",
 ];
 
 #[path = "canary_suite/entry_and_abi.rs"]

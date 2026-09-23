@@ -751,6 +751,7 @@ fn validate_call_arguments_with_type_correspondence(
 
         let expected_type =
             program.display_type_reference_with_constraints(parameter.type_reference);
+        let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
 
         if !type_matches(*argument, parameter.type_reference) {
             diagnostics.push(Diagnostic::error(format!(
@@ -760,7 +761,15 @@ fn validate_call_arguments_with_type_correspondence(
                 expected_type,
                 expression_type_name_handle(program, *argument)
             )));
-        } else if !report_cross_class_argument(
+        } else if !crate::value_custody::expression_types::report_view_element_argument_mismatch(
+            program,
+            current_machine,
+            current_state,
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            diagnostics,
+        ) && !report_cross_class_argument(
             program,
             current_machine,
             current_state,
@@ -808,7 +817,6 @@ fn validate_call_arguments_with_type_correspondence(
         // Reject when both parameter and argument resolve to concrete data types
         // that differ (every non-data form is skipped, so no false positive on
         // trait/generic parameters or computed arguments).
-        let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
         if quotient_lift.is_none() {
             report_data_type_conflict(
                 program,
@@ -1036,10 +1044,24 @@ fn validate_value_call_argument_classes_with_self_argument(
         {
             continue;
         }
+        let slot_context = format!(
+            "argument `{}` for state `{}::{}`",
+            parameter.name,
+            callee_machine.name,
+            callee_state.name.as_str()
+        );
         // Narrowing is checked only when the numeric classes agree, so a
         // cross-class argument is not reported twice. This matches the
         // statement/transition path in `validate_call_arguments_handles`.
-        if !report_cross_class_argument(
+        if !crate::value_custody::expression_types::report_view_element_argument_mismatch(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            diagnostics,
+        ) && !report_cross_class_argument(
             program,
             current_machine,
             Some(current_state),
@@ -1062,12 +1084,6 @@ fn validate_value_call_argument_classes_with_self_argument(
         // Nominal guard (value-position complement): `let r = self.take_foo(&self.bar)`
         // with a `&Foo` parameter is silently accepted -- the same wrong-data-type
         // hole the statement/transition path has.
-        let slot_context = format!(
-            "argument `{}` for state `{}::{}`",
-            parameter.name,
-            callee_machine.name,
-            callee_state.name.as_str()
-        );
         if quotient_lift.is_none() {
             report_data_type_conflict(
                 program,
