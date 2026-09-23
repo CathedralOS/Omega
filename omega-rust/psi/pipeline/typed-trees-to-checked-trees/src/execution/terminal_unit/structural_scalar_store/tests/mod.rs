@@ -13,6 +13,7 @@ mod byte_view_writes;
 mod call_results;
 mod closed_generic_records;
 mod computations;
+mod indexed_stores;
 mod local_float_fields;
 mod record_literal_fields;
 
