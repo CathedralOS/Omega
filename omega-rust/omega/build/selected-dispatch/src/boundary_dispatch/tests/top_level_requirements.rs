@@ -572,34 +572,335 @@ fn a_member_call_on_a_borrowed_self_requirement_forwards_a_borrow() {
     assert!(authored.discards_result);
 }
 
-/// A `&mut self` requirement is still closed at settlement: receiver
-/// custody and obligation transfer for a mutating borrow are a separate
-/// shape this row does not settle. The member call itself is already
-/// fenced at checking, so this fixture carries no call site.
+const MUTABLE_SELF_REQUIREMENT_SOURCE: &str = r#"
+    pub data Token {}
+    pub boundary requirement Token::mutate(&mut self) -> i32;
+
+    data TokenProvider {}
+    machine TokenProvider::mutate_impl(token: &mut Token) -> i32
+    satisfies Token::mutate
+    {
+        transition { _ -> (41) }
+    }
+
+    data Client {}
+    machine Client::run(&mut self, mut token: Token) -> i32 {
+        _ = token.mutate();
+        transition { _ -> (7) }
+    }
+    machine Client::value(&mut self, mut token: Token) -> i32 {
+        transition { _ -> (token.mutate()) }
+    }
+"#;
+
+/// A public `&mut self` requirement is called through a member receiver the
+/// same way an owned `self` or shared `&self` requirement is: the call
+/// mutably borrows the receiver place for its duration, so settlement keys
+/// one forwarding row on the place's own symbol. Checking already required
+/// the receiver place to be writable, so a `mut` parameter reaches
+/// settlement; the rewrite splices `&mut place` as the adapter's leading
+/// `&mut Token` argument.
 #[test]
-fn a_mutating_self_requirement_settles_no_direct_call_row() {
+fn a_mutating_self_requirement_settles_a_forwarding_row() {
+    let (checked, plans) = requirement_fixture(MUTABLE_SELF_REQUIREMENT_SOURCE);
+    assert_eq!(plans.len(), 1, "one derived `&mut self`-requirement plan");
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "Token::mutate");
+    let realization = entry_symbol(&checked, "TokenProvider::mutate_impl");
+    let token = entry_parameter_symbol(&checked, "Client::run", "token");
+
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("a member call on a mutating receiver settles");
+    let rows = &settled.facts.boundary_adapter_dispatch;
+    let row = rows
+        .iter()
+        .find(|row| row.receiver == token)
+        .expect("the `mut token` parameter receiver place");
+    assert_eq!(row.requirement, requirement);
+    assert_eq!(row.realization_state, realization);
+    assert!(row.forward_receiver && row.family_tuple.is_empty());
+}
+
+/// The statement member call `_ = token.mutate();` on a `&mut self`
+/// requirement redirects to the adapter entry with the place mutably
+/// borrowed as argument 0 — the settled program reads
+/// `mutate_impl(&mut token)` — and the journal restores the authored
+/// requirement call.
+#[test]
+fn a_member_call_on_a_mutating_self_requirement_forwards_a_mutable_borrow() {
+    let (checked, plans) = requirement_fixture(MUTABLE_SELF_REQUIREMENT_SOURCE);
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "Token::mutate");
+    let realization = entry_symbol(&checked, "TokenProvider::mutate_impl");
+    let token = entry_parameter_symbol(&checked, "Client::run", "token");
+    let statement = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .flat_map(|state| {
+            checked
+                .typed
+                .statement_table
+                .iter_statements(state.statement_nodes)
+        })
+        .find_map(|(handle, statement)| match statement {
+            typed_trees::statement::StatementNode::Call(call)
+                if call.target.as_str() == "mutate" =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        })
+        .expect("the statement member call");
+
+    let settled = Arc::new(checked);
+    let (settled, edits) = settle_selected_execution_dispatch_with_source_edits(settled, &selected)
+        .expect("a member call on a `&mut self` requirement settles");
+    let typed_trees::statement::StatementNode::Call(call) =
+        settled.typed.statement_table.statement(statement)
+    else {
+        panic!("the journaled statement call is still a call");
+    };
+    assert_eq!(call.target_symbol, realization);
+    assert_eq!(call.target.as_str(), "TokenProvider::mutate_impl");
+    assert!(
+        call.receiver.is_empty() && !call.receiver_symbol.is_valid(),
+        "the receiver moved into the argument list"
+    );
+    let arguments = settled
+        .typed
+        .statement_table
+        .expression_handles(call.arguments)
+        .to_vec();
+    assert_eq!(arguments.len(), 1, "the receiver is argument 0");
+    let ExpressionNode::Borrow(borrow) = settled.typed.expression_table.expression(arguments[0])
+    else {
+        panic!("the forwarded `&mut self` receiver is a borrow expression")
+    };
+    assert_eq!(borrow.access, language_core::ReferenceAccess::Mutable);
+    let ExpressionNode::Name(name) = settled.typed.expression_table.expression(borrow.target)
+    else {
+        panic!("the mutably borrowed receiver is a place name")
+    };
+    assert_eq!(name.symbol, token);
+    assert!(
+        settled
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .any(|(_, occurrence)| {
+                !occurrence.authored_expression.is_valid()
+                    && occurrence.target_symbol == realization
+                    && !occurrence.has_receiver
+            })
+    );
+    let source = edits
+        .source_trees(&settled.typed)
+        .expect("restore the journaled source");
+    let typed_trees::statement::StatementNode::Call(authored) =
+        source.statement_table.statement(statement)
+    else {
+        panic!("the restored statement is a call");
+    };
+    assert_eq!(authored.target_symbol, requirement);
+    assert_eq!(authored.target.as_str(), "mutate");
+    assert!(authored.receiver_symbol.is_valid());
+    assert!(authored.discards_result);
+}
+
+/// The value-position member call `token.mutate()` takes the same settled
+/// route: the authored receiver expression is spliced in as the adapter's
+/// leading `&mut Token` argument inside a `Borrow` node of mutable access.
+#[test]
+fn a_value_call_on_a_mutating_self_requirement_forwards_a_mutable_borrow() {
+    let (checked, plans) = requirement_fixture(MUTABLE_SELF_REQUIREMENT_SOURCE);
+    let selected = selected_all(&plans);
+    let realization = entry_symbol(&checked, "TokenProvider::mutate_impl");
+    let token = entry_parameter_symbol(&checked, "Client::value", "token");
+    let (expression, _) = checked
+        .typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(handle, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "mutate" => {
+                Some((handle, call.target_symbol))
+            }
+            _ => None,
+        })
+        .expect("the value-position member call");
+
+    let settled = Arc::new(checked);
+    let (settled, _) = settle_selected_execution_dispatch_with_source_edits(settled, &selected)
+        .expect("a value call on a `&mut self` requirement settles");
+    let ExpressionNode::Call(call) = settled.typed.expression_table.expression(expression) else {
+        panic!("the journaled value call is still a call")
+    };
+    assert_eq!(call.target_symbol, realization);
+    let arguments = settled
+        .typed
+        .expression_table
+        .expression_handles(call.arguments)
+        .to_vec();
+    assert_eq!(arguments.len(), 1, "the receiver is argument 0");
+    let ExpressionNode::Borrow(borrow) = settled.typed.expression_table.expression(arguments[0])
+    else {
+        panic!("the forwarded `&mut self` receiver is a borrow expression")
+    };
+    assert_eq!(borrow.access, language_core::ReferenceAccess::Mutable);
+    let ExpressionNode::Name(name) = settled.typed.expression_table.expression(borrow.target)
+    else {
+        panic!("the mutably borrowed receiver is a place name")
+    };
+    assert_eq!(name.symbol, token);
+}
+
+/// A `&mut self` member call on a receiver place that is not writable
+/// rejects at checking through the ordinary receiver-borrow conflict gate —
+/// the settlement row never sees a receiver it could not mutably borrow.
+#[test]
+fn a_mutating_self_requirement_rejects_an_unwritable_receiver() {
+    let source = MUTABLE_SELF_REQUIREMENT_SOURCE.replace("mut token: Token", "token: Token");
+    assert_ne!(source, MUTABLE_SELF_REQUIREMENT_SOURCE);
+    let tokens = source_files_to_tokens::Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("an immutable receiver cannot serve a `&mut self` requirement call");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("requires a mutable receiver, but its source is not writable in this state")),
+        "{diagnostics:?}"
+    );
+}
+
+/// A projected `self.field` receiver place settles the same forwarding row:
+/// the member call mutably borrows `self.token`, writable because the
+/// caller's own receiver is `&mut self`, and the rewrite splices
+/// `&mut self.token` as the adapter's leading argument.
+#[test]
+fn a_mutating_self_requirement_settles_a_projected_field_receiver() {
+    let source = r#"
+        pub data Token {}
+        pub boundary requirement Token::mutate(&mut self) -> i32;
+
+        data TokenProvider {}
+        machine TokenProvider::mutate_impl(token: &mut Token) -> i32
+        satisfies Token::mutate
+        {
+            transition { _ -> (41) }
+        }
+
+        data Client { token: Token }
+        machine Client::run(&mut self) -> i32 {
+            _ = self.token.mutate();
+            transition { _ -> (7) }
+        }
+    "#;
+    let (checked, plans) = requirement_fixture(source);
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "Token::mutate");
+    let realization = entry_symbol(&checked, "TokenProvider::mutate_impl");
+
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("a `self.field` member call on a mutating receiver settles");
+    let rows = &settled.facts.boundary_adapter_dispatch;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let row = &rows[0];
+    assert_eq!(row.requirement, requirement);
+    assert_eq!(row.realization_state, realization);
+    assert!(row.forward_receiver && row.family_tuple.is_empty());
+}
+
+/// A `&mut self` requirement's adapter must take the owner as a `&mut
+/// Owner` leading parameter: a shared `&Owner` leading parameter cannot
+/// receive the mutable borrow the member call declared, so the `satisfies`
+/// conformance check rejects it before settlement.
+#[test]
+fn a_mutating_self_requirement_rejects_a_shared_borrow_adapter() {
+    let source = MUTABLE_SELF_REQUIREMENT_SOURCE.replace(
+        "machine TokenProvider::mutate_impl(token: &mut Token) -> i32",
+        "machine TokenProvider::mutate_impl(token: &Token) -> i32",
+    );
+    assert_ne!(source, MUTABLE_SELF_REQUIREMENT_SOURCE);
+    let tokens = source_files_to_tokens::Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("a shared leading parameter cannot serve a `&mut self` requirement");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains(
+                "parameter 0 has shape `token: &Token`, but the requirement declares `&mut self`"
+            )),
+        "{diagnostics:?}"
+    );
+}
+
+/// A `&write self` requirement never reaches settlement: the write-only
+/// non-observation slice is proved only for checked Omega bodies, so a
+/// write-only receiver on a requirement declaration rejects at checking.
+#[test]
+fn a_write_only_self_requirement_stays_closed_at_checking() {
     let source = REQUIREMENT_SOURCE
         .replace(
             "pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32;",
-            "pub boundary requirement CheckedMath::offset_zero(&mut self, value: i32) -> i32;",
+            "pub boundary requirement CheckedMath::offset_zero(&write self, value: i32) -> i32;",
         )
         .replace(
             "machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32",
-            "machine CheckedMathProvider::offset_zero_impl(math: &mut CheckedMath, input: i32) -> i32",
+            "machine CheckedMathProvider::offset_zero_impl(math: &write CheckedMath, input: i32) -> i32",
         )
         .replace(
             "let selected: i32 = CheckedMath::offset_zero(35);\n        transition { _ -> (selected) }",
             "transition { _ -> (35) }",
         );
-    let (checked, plans) = requirement_fixture(&source);
-    let selected = selected_all(&plans);
-    let mut settled = Arc::new(checked);
-    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
-        .expect_err("a `&mut self` requirement has no direct-call dispatch row");
+    assert_ne!(source, REQUIREMENT_SOURCE);
+    let tokens = source_files_to_tokens::Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("a `&write self` requirement is not a checked-body declaration");
     assert!(
-        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
-            "takes a `&mut self`, write-only or qualified `self` receiver; only an owned `self` or shared `&self` receiver settles"
-        )),
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("declares `&write`, but the current milestone proves non-observation only for checked Omega bodies")),
         "{diagnostics:?}"
     );
 }

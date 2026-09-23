@@ -620,8 +620,20 @@ fn retire_rewritten_call_row(
 /// the settled body carries a derivable frame that the retained one no longer
 /// describes. Terminal store planning compares the retained frame with the one
 /// re-inferred from the settled body, so the retained facts follow the
-/// settled program. Every refreshed frame must equal the retained frame or
-/// refine a retained opaque frame; any other change is a settlement fault.
+/// settled program. Every refreshed frame must equal the retained frame,
+/// refine a retained opaque frame, or refine a retained complete frame to a
+/// path subset; any other change is a settlement fault.
+///
+/// A complete retained frame is still only the authored body's declared
+/// may-write bound: a `&mut self` requirement call frames its receiver place
+/// because the bodyless signature grants the realization exclusive reach,
+/// not because the selected adapter must exercise it. When settlement
+/// splices `&mut place` into an adapter whose body writes less than the
+/// requirement declared, the settled frame refines to the smaller precise
+/// set. A settled path the retained frame never contained remains a fault:
+/// settlement may narrow declared writes, never manufacture new ones, and an
+/// opaque refreshed frame against a complete retained one still faults as a
+/// precision regression.
 fn refresh_settled_state_write_frames(
     program: &mut CheckedTrees,
 ) -> Result<(), Vec<diagnostics::Diagnostic>> {
@@ -646,7 +658,14 @@ fn refresh_settled_state_write_frames(
         {
             let retained_opaque =
                 retained_state.frame.completeness() == facts::WriteFrameCompleteness::Opaque;
-            if retained_state.frame == refreshed_state.frame || retained_opaque {
+            let refines_retained = refreshed_state.frame.is_complete()
+                && refreshed_state
+                    .frame
+                    .paths()
+                    .iter()
+                    .all(|path| retained_state.frame.paths().contains(path));
+            if retained_state.frame == refreshed_state.frame || retained_opaque || refines_retained
+            {
                 continue;
             }
             diagnostics.push(diagnostics::Diagnostic::error(format!(
@@ -716,6 +735,54 @@ mod tests {
         plan.frame = facts::NormalizedWriteFrame::complete(vec!["self.drifted".to_owned()]);
         let diagnostics = refresh_settled_state_write_frames(&mut program)
             .expect_err("a retained complete frame the settled body does not derive is a fault");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("changed the complete write frame retained for state"),
+            "{:?}",
+            diagnostics[0].message
+        );
+    }
+
+    #[test]
+    fn write_frame_refresh_accepts_a_complete_subset_and_rejects_a_new_path() {
+        let mut program = checked_program(
+            "data Counter { value: u64 }
+             machine Counter::reset(&mut self) { self.value = 0u64; }",
+        );
+        // A `&mut self` requirement call retained the receiver place as the
+        // declared write bound; the settled adapter that writes less refines
+        // the frame to a subset. Every settled path the retained frame never
+        // held still faults as a manufactured write.
+        let plan = program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .flat_map(|machine| machine.state_write_frames.iter_mut())
+            .find(|plan| plan.frame.completeness() == facts::WriteFrameCompleteness::Complete)
+            .expect("a state with a complete retained frame");
+        let mut widened = plan.frame.paths().to_vec();
+        widened.push("self.declared_only".to_owned());
+        plan.frame = facts::NormalizedWriteFrame::complete(widened);
+        refresh_settled_state_write_frames(&mut program)
+            .expect("a settled frame inside the retained declared bound refines it");
+
+        let mut program = checked_program(
+            "data Counter { value: u64 }
+             machine Counter::reset(&mut self) { self.value = 0u64; }",
+        );
+        let plan = program
+            .facts
+            .mutation
+            .machines
+            .iter_mut()
+            .flat_map(|machine| machine.state_write_frames.iter_mut())
+            .find(|plan| plan.frame.completeness() == facts::WriteFrameCompleteness::Complete)
+            .expect("a state with a complete retained frame");
+        plan.frame = facts::NormalizedWriteFrame::complete(Vec::new());
+        let diagnostics = refresh_settled_state_write_frames(&mut program)
+            .expect_err("a settled path the retained frame never held is a fault");
         assert!(
             diagnostics[0]
                 .message
