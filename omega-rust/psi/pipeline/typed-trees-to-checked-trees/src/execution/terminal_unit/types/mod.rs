@@ -178,7 +178,6 @@ pub(super) fn return_unit_affine_discards(
             return None;
         };
         if parameter.access != CheckedStructuralAccess::Owned
-            || parameter.multiplicity != Multiplicity::Affine
             || !parameter.qualifications.is_empty()
         {
             return None;
@@ -197,6 +196,13 @@ pub(super) fn return_unit_affine_discards(
         if rows.is_empty() {
             continue;
         }
+        // Only an affine root may close a complement on the return edge.
+        // A linear root must be used exactly once, so an unmoved remainder
+        // is a program error rather than exit cleanup, and this edge has no
+        // vocabulary for it.
+        if parameter.multiplicity != Multiplicity::Affine {
+            return None;
+        }
         // The dedicated partial-affine terminator closes exactly one
         // partially moved root; a second root has no return-edge vocabulary.
         if !residual_roots.is_empty() {
@@ -205,13 +211,18 @@ pub(super) fn return_unit_affine_discards(
         residual_roots.insert(*parameter_index);
         residual_affine_discards = rows;
     }
-    // Any projected move out of an owned parameter keeps the body on the
-    // partial-affine carrier — even when the projections cover the root and
-    // owe no residual rows — so the root-only roster stays free of
-    // path-sensitive argument custody.
-    let has_projected_parameter_moves = moved_parameter_paths
-        .keys()
-        .any(|index| !transferred_parameters.contains(index));
+    // A projected move out of an owned affine parameter keeps the body on
+    // the partial-affine carrier — even when the projections cover the root
+    // and owe no residual rows — so the root-only roster stays free of
+    // affine argument custody the ordinary return edge cannot close. A
+    // linear root owes that edge nothing, so its projections leave it on the
+    // ordinary roster where the legacy indexed cohort already lives.
+    let has_projected_parameter_moves = moved_parameter_paths.keys().any(|index| {
+        !transferred_parameters.contains(index)
+            && structural_parameters
+                .get(*index as usize)
+                .is_some_and(|parameter| parameter.multiplicity == Multiplicity::Affine)
+    });
     let events = facts
         .flow
         .ownership

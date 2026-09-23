@@ -392,6 +392,11 @@ fn lower_general_partial_affine_unit_cleanup_machine(
     let mut moved_paths = Vec::<(&[CheckedUnitStructuralPathSegment], &str)>::new();
     let mut other_root_moves =
         std::collections::BTreeMap::<u32, Vec<(&[CheckedUnitStructuralPathSegment], &str)>>::new();
+    // A call coordinate names one authored call site, so no two retained
+    // operations may share it. Reconstructing the residual complement from
+    // the type plan cannot notice two rows that claim the same site, so the
+    // collision is checked here rather than inferred from the partition.
+    let mut call_coordinates = std::collections::BTreeSet::<(u32, u32)>::new();
     for operation in plan
         .operations
         .iter()
@@ -400,36 +405,49 @@ fn lower_general_partial_affine_unit_cleanup_machine(
         match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::ScalarCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::StructuralCall {
                 structural_arguments,
+                coordinate,
                 ..
             } => {
+                if !call_coordinates.insert((coordinate.statement_index, coordinate.call_ordinal)) {
+                    return unsupported(
+                        "partial affine Unit cleanup signature or coordinates drifted",
+                    );
+                }
                 for argument in structural_arguments {
                     if argument.access != CheckedStructuralAccess::Owned {
                         continue;
@@ -444,12 +462,21 @@ fn lower_general_partial_affine_unit_cleanup_machine(
                                 );
                             }
                         } else if parameter_index == Some(index) {
+                            if overlaps_an_earlier_move(&moved_paths, &argument.path) {
+                                return unsupported(
+                                    "partial affine Unit cleanup signature or coordinates drifted",
+                                );
+                            }
                             moved_paths
                                 .push((argument.path.as_slice(), argument.type_identity.as_str()));
                         } else {
-                            other_root_moves
-                                .entry(index)
-                                .or_default()
+                            let sibling = other_root_moves.entry(index).or_default();
+                            if overlaps_an_earlier_move(sibling, &argument.path) {
+                                return unsupported(
+                                    "partial affine Unit cleanup signature or coordinates drifted",
+                                );
+                            }
+                            sibling
                                 .push((argument.path.as_slice(), argument.type_identity.as_str()));
                         }
                     } else if !argument.path.is_empty()
@@ -612,6 +639,19 @@ fn lower_general_partial_affine_unit_cleanup_machine(
         residual_affine_discards,
     };
     Ok(source_mapped)
+}
+
+/// Two moves out of one root must name disjoint subtrees. A path that
+/// prefixes an earlier move — or repeats it — transfers the same storage
+/// twice, and the reconstructed complement cannot expose that: the residual
+/// partition it derives from the type plan is the same either way.
+fn overlaps_an_earlier_move(
+    moved_paths: &[(&[CheckedUnitStructuralPathSegment], &str)],
+    path: &[CheckedUnitStructuralPathSegment],
+) -> bool {
+    moved_paths
+        .iter()
+        .any(|(earlier, _)| earlier.starts_with(path) || path.starts_with(earlier))
 }
 
 pub(crate) fn checked_partial_affine_residuals(
