@@ -411,6 +411,57 @@ fn case_membership_receiver_rejoins_only_its_declaring_machine() {
 }
 
 #[test]
+fn case_membership_self_field_rejoins_inside_a_named_state() {
+    // `self.<field>` inside a declared `state` block: the receiver formal is
+    // authored on that state — a different declaration than the entry
+    // state's. The authored self rejoin accepts whichever machine state owns
+    // the parameter list, not only the entry state.
+    let checked = crate::front_end::checked_program(
+        "data OpenResult { case Opened(value: u32); case Failed; }
+         data Root { result: OpenResult; }
+         machine Root::run(&mut self) {
+             state open(&mut self) {
+                 let flag: bool = self.result in OpenResult::Opened;
+             }
+             state have(&mut self) { }
+         }",
+    );
+    let machine = &checked.machines()[0];
+    let open = &checked.machine_states(machine)[1];
+    let StatementNode::LocalData(local) =
+        &checked.statement_table.statements(open.statement_nodes)[0]
+    else {
+        panic!("flag initializer")
+    };
+    let membership = CheckedScalarExpression::Boolean(Box::new(
+        CheckedBooleanExpression::StructuralCaseMembership {
+            subject: checked_trees::CheckedStructuralParameterField {
+                parameter_position: 0,
+                path: vec![CheckedStructuralPredicatePathSegment::Field(
+                    "result".into(),
+                )],
+            },
+            case: "Opened".into(),
+        },
+    ));
+    assert!(
+        validate_expression(&checked, open.symbol, 0, local.initial_value, &membership).is_ok()
+    );
+    let forged = CheckedScalarExpression::Boolean(Box::new(
+        CheckedBooleanExpression::StructuralCaseMembership {
+            subject: checked_trees::CheckedStructuralParameterField {
+                parameter_position: 0,
+                path: vec![CheckedStructuralPredicatePathSegment::Field(
+                    "result".into(),
+                )],
+            },
+            case: "Failed".into(),
+        },
+    ));
+    assert!(validate_expression(&checked, open.symbol, 0, local.initial_value, &forged).is_err());
+}
+
+#[test]
 fn cast_wrapped_owned_field_keeps_its_source_occurrence() {
     let checked = fixture("limits.limit as u64", "u64");
     assert!(validate_return(&checked, &integer_field(1, "limit")).is_ok());
