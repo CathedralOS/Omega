@@ -176,3 +176,54 @@ fn a_match_arm_loading_behind_another_reference_stays_opaque() {
         "an interior load behind another reference has no own load evidence"
     );
 }
+
+/// The codec may sit in a NAMED STATE, reached by a transition, with its cursor
+/// arriving as a state parameter. The actual's origins substitute into the
+/// entry frame either way: a caller place directly, and a divergent helper
+/// result as the union of its candidates.
+#[test]
+fn a_codec_in_a_named_state_substitutes_its_transition_actual() {
+    fn entry_frame(source: &str) -> Option<Vec<String>> {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        let syntax = parse_syntax_trees(&tokens).expect("parse");
+        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+        caller_frame(&lower_symbol_resolved_trees(&resolved).expect("type"))
+    }
+
+    let program = |actual: &str, helpers: &str| {
+        format!(
+            r#"
+        data Blob {{ #0 value: u64; }}
+        data Main {{ value: u64; other: u64; tag: u64; buffer: [u8; 64]; }}
+        {helpers}
+        machine Main::run(&mut self) {{
+            transition {{ _ -> step({actual}) }}
+            state step(&mut self, cursor: &mut u64) {{
+                let sample: Blob = Blob {{ value: 7 }};
+                Blob::encode(&sample, &mut self.buffer, cursor);
+                transition {{ _ -> finish() }}
+            }}
+            state finish(&mut self) {{}}
+        }}
+        "#
+        )
+    };
+
+    assert_eq!(
+        entry_frame(&program("&mut self.value", "")),
+        Some(vec!["self.buffer".to_owned(), "self.value".to_owned()]),
+        "a caller place carried through the transition substitutes exactly"
+    );
+    assert_eq!(
+        entry_frame(&program(
+            "pick(&mut self.value, &mut self.other, self.tag)",
+            "machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 { match tag { 0 -> a, _ -> b } }",
+        )),
+        Some(vec![
+            "self.buffer".to_owned(),
+            "self.other".to_owned(),
+            "self.value".to_owned(),
+        ]),
+        "a divergent actual carries its whole candidate set across the transition"
+    );
+}
