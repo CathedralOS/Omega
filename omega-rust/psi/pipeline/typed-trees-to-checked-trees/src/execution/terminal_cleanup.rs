@@ -12,6 +12,7 @@ use language_semantics::{
 };
 use typed_trees::{
     TypedTrees,
+    expression::{BinaryOperator, ExpressionHandle, ExpressionNode},
     statement::{StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode},
 };
 
@@ -573,6 +574,17 @@ fn build_state_plan(
             }
             transferred.insert(*position);
         }
+        // A case dispatch on an owned parameter is the subject's own terminal
+        // consumption: the arm's guard only tests it, so the edge carries it
+        // as consumed rather than among the arm's no-code discards.
+        if let TransitionGuardNode::When(guard) = transition.guard
+            && let Some(root) = case_test_subject_root(program, guard)
+            && let Some((_, position)) = discard_parameters
+                .iter()
+                .find(|(candidate, _)| *candidate == root)
+        {
+            transferred.insert(*position);
+        }
         let trivial_affine_discard_parameter_positions = discard_parameters
             .iter()
             .filter_map(|(symbol, position)| {
@@ -603,6 +615,64 @@ fn build_state_plan(
         state: state.symbol,
         edges,
     })
+}
+
+/// The tested subject of a case guard (`subject == Variant`), peeled to its
+/// head parameter root. `true ==` wrappings are checker artifacts, not
+/// authored shape.
+fn case_test_subject_root(
+    program: &TypedTrees,
+    guard: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Equal {
+        return None;
+    }
+    if matches!(
+        program.expression_table.expression(binary.left),
+        ExpressionNode::Boolean(true)
+    ) {
+        return case_test_subject_root(program, binary.right);
+    }
+    if matches!(
+        program.expression_table.expression(binary.right),
+        ExpressionNode::Boolean(true)
+    ) {
+        return case_test_subject_root(program, binary.left);
+    }
+    for (subject, candidate) in [(binary.left, binary.right), (binary.right, binary.left)] {
+        if let ExpressionNode::Name(path) = program.expression_table.expression(candidate)
+            && program.data_definitions().iter().any(|definition| {
+                program.data_members(definition).iter().any(|member| {
+                    matches!(
+                        member,
+                        typed_trees::data::DataMember::Variant(variant)
+                            if variant.symbol == path.symbol
+                    )
+                })
+            })
+        {
+            return expression_head_root(program, subject);
+        }
+    }
+    None
+}
+
+fn expression_head_root(
+    program: &TypedTrees,
+    mut expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    loop {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::Cast(cast) => expression = cast.value,
+            ExpressionNode::Member(member) => expression = member.receiver,
+            ExpressionNode::Name(path) => return Some(path.head_symbol),
+            _ => return None,
+        }
+    }
 }
 
 pub(super) fn checked_whole_affine_discard_parameters(

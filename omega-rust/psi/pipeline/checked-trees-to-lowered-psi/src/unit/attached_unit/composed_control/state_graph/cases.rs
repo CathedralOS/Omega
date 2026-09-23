@@ -320,17 +320,6 @@ pub(super) fn validate(
     };
     let (result_symbol, declaration, expected_provenance) =
         result_source(checked, plan.machine, source, state)?;
-    // The authored position of a parameter subject: the dispatch consumes
-    // it, so no arm also discards it (see `edges::validate_bindings`).
-    let consumed_subject = match subject.source {
-        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            state
-                .structural_parameters
-                .get(parameter_index as usize)
-                .map(|parameter| parameter.position)
-        }
-        _ => None,
-    };
     if state.structural_parameters.iter().enumerate().any(|(index, parameter)| {
         !(matches!(subject.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } if parameter_index as usize == index)) && (parameter.multiplicity != Multiplicity::Unrestricted || !matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
     }) { return unsupported("Unit case has unrelated owned parameter cleanup"); }
@@ -577,7 +566,6 @@ pub(super) fn validate(
             &case.successor,
             case.successor.statement_ordinal as usize,
             &case.payloads,
-            consumed_subject,
         )?;
         super::result_custody::local_discards(
             checked,
