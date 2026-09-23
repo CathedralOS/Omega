@@ -123,6 +123,22 @@ fn omega_path(path: &Path) -> String {
     path.display().to_string().replace('\\', "/")
 }
 
+/// Every other test in this crate finds the repository by a marker rather than
+/// by counting ancestors, because a fixed count silently survives a directory
+/// move and then resolves somewhere outside the checkout. This one counted, and
+/// after the Rust tree moved to the repository root its seventh ancestor was
+/// the home directory, so the producer's build named a standard library that
+/// does not exist.
+fn repository_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .find(|ancestor| {
+            ancestor.join("Cargo.toml").is_file() && ancestor.join("source/omega").is_dir()
+        })
+        .expect("package-manager should live beneath the Omega repository")
+        .to_path_buf()
+}
+
 fn producer_build(standard_library: &Path) -> String {
     format!(
         r#"machine build(builder: &mut Build) {{
@@ -197,11 +213,7 @@ fn fixture(
     fs::create_dir_all(&producer).expect("create producer package");
     fs::create_dir_all(&consumer).expect("create consumer package");
     fs::write(producer.join("main.omg"), PRODUCER_SOURCE).expect("write producer source");
-    let standard_library = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .ancestors()
-        .nth(7)
-        .expect("repository root")
-        .join("source/library/std");
+    let standard_library = repository_root().join("source/library/std");
     fs::write(
         producer.join("build.omg"),
         producer_build(&standard_library),
