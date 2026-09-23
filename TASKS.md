@@ -2068,9 +2068,16 @@ syntax and other terminal services are not prerequisites.
   `&[T]` views: runtime length, element access and subslices with exact
   backing, extent, element identity and loan custody. Checked locals/formals
   already retain `BorrowedSliceView { element_type_identity }` and ordinary
-  sequencing forwards them; `slice_view_locals.rs` uses an empty callee,
-  not a view-consuming implementation. Lowering still rejects the shape as
-  lacking a Terminal descriptor.
+  sequencing forwards them; `slice_view_locals.rs` uses an empty callee
+  (`machine observe(view: &[i32 in Wrapping]) {}`), not a view-consuming
+  implementation -- that half is still true and is what this row now turns on.
+  ~~Lowering still rejects the shape as lacking a Terminal descriptor.~~ It
+  does not, measured at `8bc1e94443`: `04f2fdbb85` added
+  `StructuralTypeShape::ElementView { element }` and
+  `checked-trees-to-lowered-psi/src/unit/attached_unit/catalog.rs` maps
+  `BorrowedSliceView` onto it, with cleanup and state-graph edges carrying the
+  shape. The descriptor exists; what is missing is a callee that READS the
+  runtime length, indexes an element or takes a subslice.
   Extend the Terminal operation/type contract and independent checking rather
   than erasing extent or adding a sample-specific recognizer. Core
   `Slice::index<T [copy]>` already settles shared by-value element access.
