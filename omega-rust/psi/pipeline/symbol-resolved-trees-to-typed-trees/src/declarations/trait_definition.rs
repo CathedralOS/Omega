@@ -184,6 +184,21 @@ pub(crate) fn lower_trait_definition(
                             base.name.as_str(),
                         )));
                     }
+                    // "A targeted clause names one exact requirement"
+                    // (spec, conformances.md, Transparent refinements). A
+                    // bare name against same-named overloads selects several,
+                    // and refining all of them would narrow requirements the
+                    // author never named -- silently, since the axes would
+                    // simply appear on every overload.
+                    if matching.len() > 1 {
+                        return Err(Diagnostic::error(format!(
+                            "refinement clause `machine {}::{}` names {} overloads of base trait `{}`; name one exact requirement",
+                            base.name.as_str(),
+                            requirement.as_str(),
+                            matching.len(),
+                            base.name.as_str(),
+                        )));
+                    }
                     if !seen_named.insert(requirement.as_str().to_owned()) {
                         return Err(Diagnostic::error(format!(
                             "duplicate refinement clause for `{}`",
