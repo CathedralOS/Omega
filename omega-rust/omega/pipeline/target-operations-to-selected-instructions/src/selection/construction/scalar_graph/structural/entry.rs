@@ -30,7 +30,7 @@ pub(in crate::selection) fn entry(
         {
             Ok(())
         } else {
-            Err(SelectedInstructionError::UnsupportedSourceShape { function })
+            Err(SelectedInstructionError::unsupported_shape(function))
         };
     }
     let parameters = signature
@@ -48,7 +48,7 @@ pub(in crate::selection) fn entry(
         &parameters,
         &signature.structural_types,
     ) {
-        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+        return Err(SelectedInstructionError::unsupported_shape(function));
     }
     for (parameter_index, parameter) in signature.parameters.iter().enumerate() {
         let place = parameter.semantic.place;

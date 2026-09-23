@@ -79,8 +79,14 @@ impl SelectedInstructionValidationReceipt {
 pub enum SelectedInstructionError {
     SourceCustodyMismatch,
     TargetRegisterArchitectureMismatch,
+    /// No selection admits this source shape. `machine` and `operation`
+    /// name the legalized function and the instruction being selected when
+    /// the refusal was raised; `operation` is `None` for block- and
+    /// function-level shape checks outside any one instruction.
     UnsupportedSourceShape {
         function: usize,
+        machine: Option<semantic_vocabulary::MachineId>,
+        operation: Option<semantic_vocabulary::OperationId>,
     },
     AmbiguousSourceShape {
         function: usize,
@@ -149,6 +155,40 @@ pub enum SelectedInstructionError {
     ProvenancePartitionMismatch {
         function: usize,
     },
+}
+
+impl SelectedInstructionError {
+    /// A shape refusal raised inside `function`, before its entrance
+    /// attributes it to a machine and operation.
+    pub(crate) const fn unsupported_shape(function: usize) -> Self {
+        Self::UnsupportedSourceShape {
+            function,
+            machine: None,
+            operation: None,
+        }
+    }
+
+    /// Attach the machine and the instruction being selected to a shape
+    /// refusal that does not name them yet. Other refusals already carry
+    /// their own coordinates and pass through unchanged.
+    pub(crate) fn attributed(
+        self,
+        machine: semantic_vocabulary::MachineId,
+        operation: Option<semantic_vocabulary::OperationId>,
+    ) -> Self {
+        match self {
+            Self::UnsupportedSourceShape {
+                function,
+                machine: None,
+                operation: None,
+            } => Self::UnsupportedSourceShape {
+                function,
+                machine: Some(machine),
+                operation,
+            },
+            other => other,
+        }
+    }
 }
 
 impl std::fmt::Display for SelectedInstructionError {

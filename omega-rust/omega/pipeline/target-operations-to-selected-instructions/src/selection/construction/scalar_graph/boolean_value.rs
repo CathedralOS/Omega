@@ -110,7 +110,7 @@ pub(super) fn emit_branch_comparison(
     operation_index: usize,
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     let operation = &block.instructions[operation_index];
     let result = operation.result.ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;

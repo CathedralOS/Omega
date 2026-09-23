@@ -185,7 +185,7 @@ pub(crate) fn validate(
     constraint: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     let legalized_operations::LegalizedScalarInstructionKind::NormalizedForeignCall(call) =
         &instruction.kind
     else {

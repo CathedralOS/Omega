@@ -106,3 +106,54 @@ fn returned_fuel(source: &LegalizedScalarFunction) -> Vec<optimization_unit::Fue
     };
     returned.fuel.clone()
 }
+
+/// A shape refusal raised while selecting one instruction names that
+/// instruction's operation and its function's machine: an exit followed by
+/// more work is refused at the exit, so the diagnostic attributes it without
+/// a reader re-walking the function by index.
+#[test]
+fn a_misplaced_exit_is_refused_at_its_own_operation() {
+    let target = target::NativeTarget::linux_x64();
+    let mut source = fixture(target, 0);
+    source.attachment = None;
+    source.blocks[0].instructions.truncate(2);
+    source.provenance.operations.truncate(2);
+    let constant = &mut source.blocks[0].instructions[0];
+    constant.result.as_mut().unwrap().scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    constant.kind = LegalizedScalarInstructionKind::Constant(IntegerValue::Signed(255));
+    let trailing = source.blocks[0].instructions[0].clone();
+    let row = &mut source.blocks[0].instructions[1];
+    row.result = None;
+    row.ownership = vec![optimization_unit::OwnershipEvent::ClaimCompletion(
+        Vec::new(),
+    )];
+    row.kind = LegalizedScalarInstructionKind::HostedExitProcessI32 {
+        boundary: BoundaryMachineId::new(1).unwrap(),
+        source: ValueId::new(1).unwrap(),
+    };
+    let exit = row.operation;
+    source.blocks[0].instructions.push(trailing);
+    let environment = register_environment::baseline_target_register_environment(target).unwrap();
+    let constraints = SelectedSelectionConstraints {
+        keys: environment.selected_keys(),
+        fixed_inputs: Vec::new(),
+    };
+    let error = build(
+        0,
+        &source,
+        target,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .expect_err("an exit that is not its block's last instruction refuses");
+    assert_eq!(
+        error,
+        crate::selection::model::SelectedInstructionError::UnsupportedSourceShape {
+            function: 0,
+            machine: Some(source.machine),
+            operation: Some(exit),
+        }
+    );
+}

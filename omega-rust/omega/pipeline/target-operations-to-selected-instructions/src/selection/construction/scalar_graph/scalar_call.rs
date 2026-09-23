@@ -142,7 +142,7 @@ pub(super) fn emit(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     builder: &mut Builder<'_>,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     let LegalizedScalarInstructionKind::Call(call) = &operation.kind else {
         return Err(invalid());
     };
