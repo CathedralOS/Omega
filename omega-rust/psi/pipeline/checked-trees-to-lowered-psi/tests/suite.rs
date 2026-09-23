@@ -84,6 +84,7 @@ mod scalar_array_source;
 mod scalar_boundary_arguments;
 mod scalar_call_crash_substitution;
 mod scalar_empty_contract_custody;
+mod scalar_graph_byte_view_parameter;
 mod scalar_graph_mixed_forwarding;
 mod scalar_local_borrows;
 mod scalar_return_calls_source;

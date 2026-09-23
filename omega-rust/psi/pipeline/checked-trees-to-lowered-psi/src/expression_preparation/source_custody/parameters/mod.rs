@@ -231,15 +231,33 @@ fn validate_structural_parameter(
         let shape = shapes.next().ok_or(LoweringError::Unsupported(
             "scalar graph slice view shape is absent",
         ))?;
+        if shapes.next().is_some() {
+            return unsupported("scalar graph slice view shape differs from its source");
+        }
+        // A byte view is the same borrowed view under the carrier that names
+        // its element implicitly: `ByteSequence(BorrowedView)` has no element
+        // identity to join because the carrier already fixes `u8`. Checking
+        // the referee's own element instead keeps the element claim exact and
+        // leaves every other element type on the identity-joined route below.
+        if matches!(
+            &shape.shape,
+            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                checked_trees::CheckedByteSequenceCarrier::BorrowedView
+            )
+        ) {
+            if checked.primitive_type_reference(*element_type)
+                != Some(checked_trees::types::PrimitiveType::U8)
+            {
+                return unsupported("scalar graph byte view element is not a byte");
+            }
+            return Ok(());
+        }
         let checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
             element_type_identity,
         } = &shape.shape
         else {
             return unsupported("scalar graph slice view shape differs from its source");
         };
-        if shapes.next().is_some() {
-            return unsupported("scalar graph slice view shape differs from its source");
-        }
         // The element's own catalog row must be the primitive its constrained
         // handle resolves to — the authored `[i32 in Wrapping]` element joins
         // as `PrimitiveScalar(I32)`, not as a domain-carrying structural type.
