@@ -246,3 +246,53 @@ not that it exercises their interaction.
   --test canary_suite` log to that index and gives each elided fixture its
   owner's verdict, which the numbers above now include (release profile, 30
   min; the dev profile runs about three tests a minute here).
+
+## The same wall, measured over samples instead of fixtures
+
+`mbx nextest run -p compiler --test samples_compile --no-fail-fast` at
+`8b319c7ddf` (2026-09-23, macOS aarch64, cargo): **33 tests run, 11 passed,
+22 failed**, 9,338 s. Nearly every failure is the Unit-plan omission family
+above, reported through authored-entry selection:
+
+    selected ProgramEntry establishment rejoins 0 Terminal attachment
+    identities; expected one; the machine's unit plan was omitted at local
+    construction at `<site>`
+
+It is not target-specific: 75 to 79 occurrences on each of `linux_x86_64`,
+`linux_arm64`, `macos_arm64` and `windows_x86_64`, because the stop is in
+`typed-trees-to-checked-trees`, before a target is chosen.
+
+**The sites that block samples are not the sites that block fixtures**, so
+the fixture table above is the wrong guide for prioritizing this work.
+Deduplicated by sample (each fails on about four targets), 57 distinct
+samples stop at:
+
+| Samples | Omitted at |
+| --- | --- |
+| 15 | `state graph: operation custody: unit call arguments` |
+| 13 | `structural field store: scalar field type` |
+| 9 | `structural field store: pure source` |
+| 8 | `state graph: terminator: conditional successors: guard expression` |
+| 2 each | `statement sequence: call: call operation`, `state graph: state signature: parameter signature: attached data shape`, `state graph: result signature`, `statement sequence: local data: structural call binding`, `structural field store: byte sequence carrier` |
+| 1 each | `conditional successors: parameter transfer`, `prefix initializers: bound expression`, `local data: scalar local: pure initializer` |
+
+Read against the 72-fixture table above, the ranking inverts. The fixture
+corpus's largest bucket, `local data: structural call binding` at 21
+fixtures, blocks **2** samples. The samples' largest,
+`state graph: operation custody: unit call arguments` at 15 samples, does
+not appear in the fixture table at all, and neither does
+`structural field store: byte sequence carrier` or
+`state graph: result signature`. `structural field store: scalar field type`
+is 2 fixtures and 13 samples.
+
+That is what a corpus of one-rule fixtures cannot tell you: each fixture
+pins the rule someone was adding, so the corpus records which arrangements
+have been NEEDED, while the samples record which arrangements real programs
+actually write. Both are true; only the second predicts whether an
+application compiles.
+
+The four leading sites live in
+`typed-trees-to-checked-trees/src/execution/terminal_unit/`, in
+`state_graph/mod.rs` and `structural_scalar_store/mod.rs`. This entry is a
+reading, not an attribution: no site is bisected to a culprit here, and the
+diagnostic names the route that got furthest rather than a proven cause.
