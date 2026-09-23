@@ -456,13 +456,20 @@ pub(super) fn validate_structural_argument(
         || ordinary_call
         || source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals)
         && caller.structural_parameters.iter().any(|actual| {
-            terminal_semantics::fixed_byte_array_extent(
+            (terminal_semantics::fixed_byte_array_extent(
                 module.structural_types.iter(),
                 actual,
                 argument,
                 expected,
             )
             .is_some()
+                || terminal_semantics::fixed_element_array_extent(
+                    module.structural_types.iter(),
+                    actual,
+                    argument,
+                    expected,
+                )
+                .is_some())
                 && !caller
                     .entry_claims
                     .iter()

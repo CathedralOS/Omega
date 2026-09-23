@@ -333,12 +333,8 @@ const CROSS_TARGET_FAIL_CANARIES: &[(&str, &str)] = &[
 /// Pure checked-semantics canaries. These deliberately do not enter native
 /// lowering and therefore do not require a deployable `ProgramEntry` binding.
 const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
-    // Native production stops at `Lowering(Unsupported("Unit graph borrowed
-    // slice is not bytes"))`: the Unit graph admits a borrowed slice only as
-    // bytes, and this fixture lends a `[u64; 3]` field to a `&mut [u64]`
-    // parameter. Source checking admits it, which is what the fixture pins;
-    // promote once the Unit graph carries non-byte borrowed element views.
-    "entry/service_borrowed_slice_call",
+    // Native production requires one exact selected program entry; these
+    // fixtures deliberately carry no entry binding.
     "borrows/borrow_chained_premise_index_mut",
     "borrows/borrow_proposition_index_disequality_mut",
     "proofs/mathematical_call_premises",
@@ -346,6 +342,15 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/case_call_premises_forwarded_state",
     "proofs/signature_call_premises",
     "proofs/constructor_zero_fields",
+    // Native production requires one exact selected program entry; the
+    // fixture deliberately carries no entry binding.
+    "slices/callee_non_byte_view_len_index_subslice",
+    // Native production now reaches the successor-custody verifier:
+    // `InvalidStructuralSuccessorArgument` — a borrowed `&mut` argument
+    // forwarded on a state edge emits a fresh re-borrow place the frontier
+    // cannot name; admission + edge binding + element-view array presentation
+    // all pass. Promote when successor custody names forwarded borrows.
+    "entry/service_borrowed_slice_call",
     // Graduated from fail/: each pinned a checked-stage fence that has since
     // lifted, so checked semantics admits the source.
     "constants/const_computed_initializer",
@@ -508,7 +513,6 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "slices/guarded_slice_parameter_empty_false_index_compile",
     "slices/guarded_slice_parameter_empty_false_tail_compile",
     "slices/guarded_slice_parameter_bounded_subslice_compile",
-    "slices/callee_non_byte_view_len_index_subslice",
     "slices/guarded_slice_parameter_end_subslice_compile",
     "slices/guarded_slice_parameter_end_equals_len_subslice_compile",
     "slices/guarded_slice_parameter_index_compile",

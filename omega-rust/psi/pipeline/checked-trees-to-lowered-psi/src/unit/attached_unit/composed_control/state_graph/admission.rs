@@ -260,19 +260,51 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 }
                 checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive)
             } else {
-                let TypeReferenceNode::Slice { element_type } =
-                    checked.type_reference_table.type_reference(*referee)
-                else {
-                    return unsupported(
-                        "Unit graph borrowed parameter is not a primitive or byte slice",
-                    );
-                };
-                if checked.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
-                    return unsupported("Unit graph borrowed slice is not bytes");
+                match checked.type_reference_table.type_reference(*referee) {
+                    TypeReferenceNode::Slice { element_type } => {
+                        if checked.primitive_type_reference(*element_type)
+                            == Some(PrimitiveType::U8)
+                        {
+                            checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
+                                checked_trees::CheckedByteSequenceCarrier::BorrowedView,
+                            )
+                        } else {
+                            checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                                element_type_identity: checked
+                                    .normalized_type_identity(*element_type)
+                                    .into_string(),
+                            }
+                        }
+                    }
+                    TypeReferenceNode::FixedArray {
+                        element_type,
+                        length: checked_trees::types::FixedArrayLength::Literal(length),
+                    } => checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                        element_type_identity: checked
+                            .normalized_type_identity(*element_type)
+                            .into_string(),
+                        length: *length as u64,
+                    },
+                    _ => {
+                        let referent_identity =
+                            checked.normalized_type_identity(*referee).into_string();
+                        match checked
+                            .facts
+                            .flow
+                            .terminal_unit_effects
+                            .structural_types
+                            .iter()
+                            .find(|plan| plan.identity == referent_identity)
+                        {
+                            Some(plan) => plan.shape.clone(),
+                            None => {
+                                return unsupported(
+                                    "Unit graph borrowed referent has no published shape",
+                                );
+                            }
+                        }
+                    }
                 }
-                checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(
-                    checked_trees::CheckedByteSequenceCarrier::BorrowedView,
-                )
             };
             if !matches!(
                 *access,

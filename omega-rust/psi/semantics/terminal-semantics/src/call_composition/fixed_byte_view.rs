@@ -107,3 +107,59 @@ pub fn fixed_byte_array_window<'types, 'path>(
         _ => None,
     }
 }
+
+/// Rejoin a borrowed element-view argument to initialized fixed-array storage
+/// of the same element type — the array-to-slice presentation of the whole
+/// backing. Same custody rules as the byte window: the backing keeps its type
+/// and path, and the returned length grants neither storage nor resize.
+pub fn fixed_element_array_extent<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    actual: &StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> Option<u64> {
+    if actual.place != argument.place
+        || argument.access != expected.access
+        || !matches!(
+            (actual.access, argument.access),
+            (
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+            ) | (
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow
+            )
+        )
+        || [actual, expected].iter().any(|parameter| {
+            parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+        })
+        || !argument
+            .path
+            .iter()
+            .all(|segment| matches!(segment, StructuralPathSegment::Field(_)))
+    {
+        return None;
+    }
+    let Some(expected_element) = types.clone().find_map(|declaration| {
+        match (
+            declaration.id == expected.structural_type,
+            &declaration.shape,
+        ) {
+            (true, StructuralTypeShape::ElementView { element }) => Some(*element),
+            _ => None,
+        }
+    }) else {
+        return None;
+    };
+    let declaration =
+        runtime_structural_path_tip(types.clone(), actual.structural_type, &argument.path)?;
+    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        return None;
+    };
+    if length == 0 || element != expected_element {
+        return None;
+    }
+    Some(length)
+}
