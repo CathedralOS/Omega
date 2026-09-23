@@ -285,5 +285,8 @@ pub(super) fn validate_boolean_decision_parameter_types(
             validate_boolean_decision_parameter_types(when_true, parameter_types)?;
             validate_boolean_decision_parameter_types(when_false, parameter_types)
         }
+        LoweredBooleanDecision::CaseDispatch { .. } => Err(LoweringError::Unsupported(
+            "scalar returns do not plan guard case dispatch",
+        )),
     }
 }

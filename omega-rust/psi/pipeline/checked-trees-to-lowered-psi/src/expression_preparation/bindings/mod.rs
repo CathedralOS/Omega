@@ -270,6 +270,13 @@ impl ScalarBindings {
         self
     }
 
+    /// Guard lowering keeps case-qualified payload reads for the decision
+    /// lowering whose case dispatch binds them; every other context refuses.
+    pub(crate) fn with_deferred_case_payloads(mut self) -> Self {
+        structural_fields::defer_case_payloads(&mut self.structural_fields);
+        self
+    }
+
     pub(crate) fn for_computation_operands(offset: usize, count: usize) -> Self {
         Self {
             immutable: (offset..offset + count).map(Some).collect(),

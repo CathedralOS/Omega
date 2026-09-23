@@ -8,6 +8,7 @@ use crate::emission::operation_emission::integer::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_value, terminal_scalar_type,
 };
+use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::source_custody;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
@@ -15,6 +16,7 @@ use crate::expression_preparation::{
     LoweringError, PlaceId, PrimitiveType, ScalarType, StructuralAccess, StructuralMultiplicity,
     StructuralParameterDeclaration, unsupported,
 };
+use semantic_vocabulary::CanonicalStructuralPathSegment;
 
 pub(crate) fn lower_checked_scalar_expression_at(
     checked: &CheckedTrees,
@@ -174,6 +176,36 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             let scalar_type = terminal_scalar_type(*primitive_type)?;
             if !matches!(scalar_type, ScalarType::Integer(_)) {
                 return unsupported("runtime scalar field observation requires an integer field");
+            }
+            if matches!(
+                path.first(),
+                Some(checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                    _
+                ))
+            ) {
+                return Ok(
+                    match crate::expression_preparation::bindings::structural_fields::resolve_case_payload(
+                        structural_fields,
+                        *parameter_position,
+                        path,
+                        scalar_type,
+                    )? {
+                        CasePayloadRead::Deferred { source, case, field } => {
+                            LoweredDirectExpression::StructuralField {
+                                source,
+                                path: vec![CanonicalStructuralPathSegment::Case(case)],
+                                field,
+                                scalar_type,
+                            }
+                        }
+                        CasePayloadRead::Established { position } => {
+                            LoweredDirectExpression::Parameter {
+                                position,
+                                scalar_type,
+                            }
+                        }
+                    },
+                );
             }
             // A path ending at the index selects an inline primitive
             // element; one ending at a field is a record-field observation
@@ -557,6 +589,34 @@ fn lower_checked_boolean_expression_with_parameters(
             parameter_position,
             path,
         } => {
+            if !structural_fields.is_empty()
+                && matches!(
+                    path.first(),
+                    Some(checked_trees::CheckedStructuralPredicatePathSegment::Case(
+                        _
+                    ))
+                )
+            {
+                return Ok(
+                    match crate::expression_preparation::bindings::structural_fields::resolve_case_payload(
+                        structural_fields,
+                        *parameter_position,
+                        path,
+                        ScalarType::Boolean,
+                    )? {
+                        CasePayloadRead::Deferred { source, case, field } => {
+                            LoweredBooleanReturnExpression::StructuralField {
+                                source,
+                                path: vec![CanonicalStructuralPathSegment::Case(case)],
+                                field,
+                            }
+                        }
+                        CasePayloadRead::Established { position } => {
+                            LoweredBooleanReturnExpression::Parameter { position }
+                        }
+                    },
+                );
+            }
             if !structural_fields.is_empty() {
                 // Index-terminal paths read an inline primitive element;
                 // field-terminal paths observe a record field whose carrier
