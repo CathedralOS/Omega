@@ -44,6 +44,9 @@ pub(crate) fn assert_ordinary_graph_custody(staged: &StagedOptimizedSelectedInst
                             block,
                             ..
                         } => *block = BlockId::new(999_999).unwrap(),
+                        legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                            declaration,
+                        } => declaration.place = semantic_vocabulary::PlaceId::new(999_999).unwrap(),
                     }
                 }
                 legalized_operations::LegalizedScalarTerminator::Return(returned) => {

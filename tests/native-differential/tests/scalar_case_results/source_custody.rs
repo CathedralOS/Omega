@@ -544,6 +544,22 @@ fn case_dispatch_rejects_substituted_result_and_state_parameter_sources() {
                                         StructuralTypeId::new(999_999).unwrap()
                                 }
                             },
+                            // The function's own owned parameter: replay
+                            // rederives its row and layout, so a substituted
+                            // place, type or access cannot stand.
+                            LegalizedStructuralCaseSource::Parameter { declaration } => {
+                                match mutation {
+                                    0 => declaration.place = PlaceId::new(999_999).unwrap(),
+                                    1 => {
+                                        declaration.structural_type =
+                                            StructuralTypeId::new(999_999).unwrap()
+                                    }
+                                    _ => {
+                                        declaration.access =
+                                            terminal_psi::StructuralAccess::SharedBorrow
+                                    }
+                                }
+                            }
                         }
                         assert!(
                             validate(changed).is_err(),
