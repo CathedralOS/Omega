@@ -168,6 +168,20 @@ fn validate_record_fields(
             erasure,
         } = &checked_field.field_type
         else {
+            // Shape collection keeps a carrier field whose requirement has no
+            // selected provider as the unerased ProviderBacked shape, so the
+            // record keeps its plan and discovery can nominate the provider.
+            // No erasure happened there, so custody has nothing to rejoin;
+            // establishment owns rejecting a missing selection where one is
+            // required. A field whose selection exists but whose shape is not
+            // Fused has lost its settlement.
+            if matches!(
+                checked_field.field_type,
+                CheckedUnitStructuralFieldType::ProviderBacked { .. }
+            ) && checked.fused_service_erasure(carrier.requirement).is_none()
+            {
+                continue;
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "typed routed Binding field `{}::{}` lost its exact Fused erasure settlement",
                 owner.name, source_field.name,

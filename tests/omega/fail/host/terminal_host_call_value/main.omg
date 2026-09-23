@@ -3,8 +3,10 @@
 // its result slot read ZII 0 (the Filesystem::close fd-leak shape: rc 0
 // "success" while the fd stayed open). The emission fence that turned it
 // into a clean error was retired upstream; checked semantics now admits the
-// shape, and the native route still refuses it at the transitive Unit-plan
-// admission wall. The supported spelling binds to a `let` and returns the
+// shape, Unit planning keeps the plan, and entry establishment refuses the
+// missing Fused FilesystemHost provider (std declares none), which masks the
+// value-return premise until one exists. The supported spelling binds to a
+// `let` and returns the
 // local. (Free VALUE-MACHINE calls on ALWAYS arms auto-hoist into that
 // spelling since 2026-07-11 -- pass/calls/runtime_value_call_terminal_exit
 // -- but host calls stay manual: the receiver marks the boundary effect.)
