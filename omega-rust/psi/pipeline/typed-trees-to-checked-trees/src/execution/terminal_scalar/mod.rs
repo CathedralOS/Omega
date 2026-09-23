@@ -287,18 +287,6 @@ fn build_machine_graph(
             }) {
                 return None;
             }
-            // The ambient receiver owns no graph operand, so no scalar plan
-            // in this state may observe through its authored position. A body
-            // that still reads `self` keeps its ordinary body rather than
-            // publishing a graph whose receiver references would strand.
-            if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
-                let Ok(position) = u32::try_from(position) else {
-                    return None;
-                };
-                if state_reads_ambient_position(expressions, computations, state.symbol, position) {
-                    return None;
-                }
-            }
             // An erased parameter (a plain immutable binding after the
             // rejections above) owns no scalar entry and does not make the
             // signature mixed, whatever its type: a proof-only type such as
@@ -324,6 +312,18 @@ fn build_machine_graph(
                     return None;
                 }
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?
+            } else if state.symbol == source_states[0].symbol
+                && parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self && !parameter.is_mutable)
+            {
+                // The entry roster doubles as the machine's structural
+                // namespace, so a borrowed receiver lands there once: every
+                // state's reads resolve against that machine-level place
+                // while no edge ever forwards it.
+                crate::execution::terminal_unit::calls::ambient_self_scalar_graph_signature(
+                    program, machine, state,
+                )?
             } else {
                 (
                     Vec::new(),
@@ -493,6 +493,27 @@ fn build_machine_graph(
             ))
         })
         .collect::<Option<Vec<_>>>()?;
+    // The ambient receiver owns a graph operand only when the entry roster
+    // retained it; a state that still reads `self` otherwise keeps its
+    // ordinary body rather than publishing stranded receiver references.
+    if !states.iter().any(|(state, ..)| {
+        state
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+    }) {
+        for state in source_states {
+            let parameters = program.state_parameters(state);
+            if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
+                let Ok(position) = u32::try_from(position) else {
+                    return None;
+                };
+                if state_reads_ambient_position(expressions, computations, state.symbol, position) {
+                    return None;
+                }
+            }
+        }
+    }
     Some(CheckedScalarMachineGraph {
         machine: machine.symbol,
         ranked_scc: None,

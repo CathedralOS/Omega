@@ -31,10 +31,10 @@ pub(in crate::execution) use call_operations::ExpectedCallValueResult;
 pub(in crate::execution) use call_operations::build_call_operation;
 pub(crate) use computation_arguments::structural_computation_argument;
 pub(crate) use signatures::{
-    entry_claims, free_fused_service_scalar_signature, free_structural_scalar_signature,
-    free_structural_scalar_signature_traced, fused_service_scalar_signature,
-    partial_affine_structural_signature, structural_scalar_signature,
-    structural_scalar_signature_traced, structural_signature,
+    ambient_self_scalar_graph_signature, entry_claims, free_fused_service_scalar_signature,
+    free_structural_scalar_signature, free_structural_scalar_signature_traced,
+    fused_service_scalar_signature, partial_affine_structural_signature,
+    structural_scalar_signature, structural_scalar_signature_traced, structural_signature,
 };
 pub(crate) use structural_arguments::call_claim_transfers;
 /// Rejoin a bodyless compiler-intrinsic satisfier to the exact boundary-trait

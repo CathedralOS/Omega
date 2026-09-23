@@ -13,8 +13,8 @@ use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, state_flow};
 
 use crate::execution::terminal_unit::calls::{
-    call_claim_transfers, entry_claims, free_structural_scalar_signature,
-    structural_scalar_signature, structural_signature,
+    ambient_self_scalar_graph_signature, call_claim_transfers, entry_claims,
+    free_structural_scalar_signature, structural_scalar_signature, structural_signature,
 };
 
 use crate::execution::terminal_unit::structural_scalar_graph_signature;
@@ -68,7 +68,18 @@ pub(super) fn registered_structural_graph_target<'facts>(
     {
         return None;
     }
-    let (structural, scalar, shapes) = structural_scalar_graph_signature(program, state)?;
+    let (structural, scalar, shapes) = if retained
+        .structural_parameters
+        .iter()
+        .all(|parameter| parameter.is_self)
+    {
+        // An ambient borrowed receiver lives only on the entry roster, so the
+        // rejoin uses the retained-self signature rather than the forwarded
+        // structural form the ordinary graph signature reconstructs.
+        ambient_self_scalar_graph_signature(program, machine, state)?
+    } else {
+        structural_scalar_graph_signature(program, state)?
+    };
     if structural != retained.structural_parameters
         || scalar != retained.scalar_parameters
         || retained.parameter_types

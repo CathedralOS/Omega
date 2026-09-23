@@ -417,3 +417,38 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
     assert!(when_true.trivial_affine_discards.is_empty());
     assert!(when_false.trivial_affine_discards.is_empty());
 }
+
+/// A borrowed `self` lands once on the machine namespace and stays ambient:
+/// states read through the receiver place while no edge forwards it.
+#[test]
+fn scalar_graph_lowers_ambient_borrowed_self_field_reads() {
+    let checked = crate::front_end::checked_program(
+        "data Filter { width: u64; }
+         machine Filter::count(&self, alignment: u64) -> u64
+         crashes Abort
+         {
+             transition alignment > 0 {
+                 true -> divide(alignment)
+                 false -> violated(alignment)
+             }
+             state violated(&self, alignment: u64) -> u64 {
+                 crash Abort;
+             }
+             state divide(&self, alignment: u64) -> u64 {
+                 transition {
+                     _ -> (self.width / alignment)
+                 }
+             }
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Filter::count"))
+        .expect("ambient borrowed receiver should lower");
+    let machine = &lowered.semantic_module.machines[0];
+    assert!(
+        machine.structural_places.iter().any(|place| matches!(
+            place.kind,
+            semantic_vocabulary::StructuralPlaceKind::Parameter { is_self: true, .. }
+        )),
+        "ambient receiver keeps a machine-scope self place"
+    );
+}
