@@ -317,6 +317,37 @@ fn divergent_computed_receiver_unions_candidate_writes() {
     }
 }
 
+/// The divergent receiver repair composes: the candidate set survives an
+/// aggregate result standing between the binding and the call, and a rebind
+/// onto a second binding. Composition is where a candidate set is easiest to
+/// drop silently -- each hop that re-derives an origin can collapse the set to
+/// one route -- so both shapes assert the whole set rather than a member.
+#[test]
+fn divergent_receiver_candidates_survive_composition() {
+    for (name, helpers, body) in [
+        // An aggregate result stands between the binding and the receiver.
+        (
+            "aggregate_result",
+            "machine Cell::bump(&mut self) -> u64 { self.n = 1; 0 }\nmachine hold(c: &mut Cell) -> &mut Cell { c }",
+            "let chosen: &mut Cell = pick_cell(&mut self.c1, &mut self.c2, self.tag); let sink: u64 = hold(chosen).bump();",
+        ),
+        // The set crosses a second binding before the call.
+        (
+            "rebound_binding",
+            "machine Cell::bump(&mut self) -> u64 { self.n = 1; 0 }",
+            "let chosen: &mut Cell = pick_cell(&mut self.c1, &mut self.c2, self.tag); let again: &mut Cell = chosen; let sink: u64 = again.bump();",
+        ),
+    ] {
+        let program = probe_program_with_helpers(body, helpers);
+        let expected = vec!["self.c1.n".to_owned(), "self.c2.n".to_owned()];
+        assert_eq!(
+            caller_frames(&program),
+            [Some(expected.clone()), Some(expected)],
+            "{name}"
+        );
+    }
+}
+
 // Routes that cannot name every arm's provenance still fail closed: a
 // recursive helper, an arm landing on helper-private storage, a divergent
 // binding rebound to an unproven source, and an unproven interior reference
