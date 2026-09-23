@@ -1501,9 +1501,21 @@ syntax and other terminal services are not prerequisites.
     checked derivations or explicitly justified checked rules, driven by real
     source obligations. Correlated multiply bounds and correlated forbidden
     roots now denote compositionally (checked affine-chain solving plus
-    dependent `Two` case split); remaining cases include cast bounds, nested
+    dependent `Two` case split); remaining cases include nested
     canonical identity reversal and
-    Boolean identities needing case analysis. Preserve numeric policy and
+    Boolean identities needing case analysis.
+    **Cast bounds are no longer among them** -- measured at `b083b94a40`:
+    `bounded_denotation/casts.rs` walks the cited definition equalities
+    through the shared endpoint-substitution laws, and all three
+    `casts/tests.rs` shapes (single exact edge, truth-root tightest carrier,
+    multi-edge word in either direction) assert `rule_axioms == 0` and pass.
+    `rule_axiom` has exactly one caller, the generic `rule_instance`
+    fallback, which casts do not reach. The twelve `rule_instance` sites that
+    remain are `None =>` arms behind an attempted derivation -- among them
+    `EqualitySymmetry`, `EqualityTransitivity`, `PredicateDenotation`,
+    `ValueEqualityTransport` and the four integer-order rules -- so what is
+    left is per-instance residue on partially derived rules, not rules with
+    no derivation at all. Preserve numeric policy and
     exact operands. Unsupported arithmetic or construction-budget fallback
     must not be reported as independently proved merely because the kernel
     checks a term assuming its conclusion. Existing fixed integer laws also
