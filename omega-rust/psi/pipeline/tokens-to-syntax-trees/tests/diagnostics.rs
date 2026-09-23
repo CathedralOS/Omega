@@ -143,3 +143,19 @@ fn a_tokenless_trait_requirement_is_unaffected() {
         .expect("tokenize");
     parse_syntax_trees(&tokens).expect("a tokenless trait requirement parses");
 }
+
+/// A domain's token signature is an ordinary top-level declaration, and the
+/// `machine` head already carried its token -- with a body and bodyless alike.
+/// Pinned alongside the trait head above so the pair that OPERATOR-MACHINE-SUPPLY
+/// named together stays spelled the same way.
+#[test]
+fn a_domain_token_signature_takes_the_ordinary_machine_head() {
+    for source in [
+        "domain u32::Meters;\nmachine < Meters::before(a: u32 in Meters, b: u32 in Meters) -> bool { true }",
+        "domain u32::Meters;\nboundary machine < Meters::before(a: u32 in Meters, b: u32 in Meters) -> bool;",
+        "domain u32::Meters;\nboundary operator < Meters::before(a: u32 in Meters, b: u32 in Meters) -> bool;",
+    ] {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        parse_syntax_trees(&tokens).expect("a domain token signature parses");
+    }
+}
