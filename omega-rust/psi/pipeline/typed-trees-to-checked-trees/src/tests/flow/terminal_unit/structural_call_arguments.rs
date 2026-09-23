@@ -205,29 +205,29 @@ fn crash_return_with_structural_locals_and_conjunction_tail() {
 #[test]
 fn verify_page_shape_composes() {
     let source = r#"
-        data Command { case Ping; case Fetch(value: u64); }
-        data ListPage { count: u64; addr: u64 }
+        data ListRequest { page_index: u64; has_filters: bool }
+        data ScanResultsCommand { case List(request: ListRequest); }
+        data Command { case Scan(command: ScanResultsCommand); case Ping; }
+        data ScanResult { address: u64; tag: [u8; 8]; tag_len: u64 }
+        data ListPage { scan_results: [ScanResult; 4]; count: u64; addr: u64 }
         data ScanResultsResponse { case List(response: ListPage); }
         data Response { case Empty; case ScanResults(response: ScanResultsResponse); }
         machine Response::is_scan_results(&self) -> bool { true }
         machine Response::get_result_count(&self) -> u64 { 0 }
         machine Response::get_result_address(&self, index: u64) -> u64 { index }
+        machine Response::get_result_value(&self, index: u64) -> u64 { index }
         data Engine {}
-        machine Engine::dispatch_command(&mut self, command: Command) -> Response {
-            Response::Empty
+        machine Engine::dispatch_command(&mut self, command: Command, response: Response) -> Response {
+            response
         }
         data Driver { engine: Engine; }
-        machine Driver::list_command(&mut self) -> Command {
-            Command::Ping
-        }
-        machine Driver::verify_page(&mut self) -> bool crashes Abort {
-            let command: Command = self.list_command();
-            let response: Response = self.engine.dispatch_command(command);
+        machine Driver::verify_page(&mut self, command: Command, seed: Response) -> bool crashes Abort {
+            let response: Response = self.engine.dispatch_command(command, seed);
             let is_list: bool = response.is_scan_results();
             let count: u64 = response.get_result_count();
             is_list && count == 8
-                && response.get_result_address(0) == 4096
-                && response.get_result_address(1) == 4104
+                && response.get_result_address(0) == 4096 && response.get_result_value(0) == 0
+                && response.get_result_address(1) == 4104 && response.get_result_value(1) == 0
         }
         "#;
     let checked = checked(source);

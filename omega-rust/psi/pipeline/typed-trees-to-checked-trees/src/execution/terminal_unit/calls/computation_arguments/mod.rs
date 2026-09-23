@@ -1,6 +1,7 @@
 //! Structural parameters, projected shared operands, and primitive referents
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
+use super::super::CheckedUnitStructuralFieldPlan;
 use super::super::CheckedUnitStructuralFieldType;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
@@ -487,11 +488,33 @@ fn shared_nominal_argument(
     // the sum; its source declaration and dominating call result remain
     // separate evidence. Collecting the receiver's shape also collects every
     // type its transitive structural fields name, so the loan observes that
-    // whole closure in place: each collected type must be a record or a
-    // non-empty sum with only non-erased scalar/structural fields — the same
-    // admission the record fallback below grants whole records. A borrow
-    // projected into a payload keeps requiring its own channel.
-    let whole_structural_sum = path.is_empty()
+    // whole closure in place: the referent itself must be a record, a
+    // non-empty sum or mixed sum, or a fixed array, and each collected member
+    // type must be one of those or a primitive scalar leaf — scalar members
+    // carry no fields of their own, and the plain-owned-contents gate upstream
+    // refused reference, slice, and non-plain members before a shape was ever
+    // collected. A scalar root is not structural: it stays with the primitive
+    // scalar/local source plans below. A borrow projected into a payload
+    // keeps requiring its own channel.
+    let plain_field = |field: &CheckedUnitStructuralFieldPlan| {
+        !field.relevance.is_erased()
+            && matches!(
+                field.field_type,
+                CheckedUnitStructuralFieldType::Scalar(_)
+                    | CheckedUnitStructuralFieldType::Structural { .. }
+            )
+    };
+    let structural_root = shapes.types.get(&identity).is_some_and(|shape| {
+        matches!(
+            shape.shape,
+            CheckedUnitStructuralTypeShape::Sum { .. }
+                | CheckedUnitStructuralTypeShape::Mixed { .. }
+                | CheckedUnitStructuralTypeShape::Record { .. }
+                | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        )
+    });
+    let whole_structural_sum = structural_root
+        && path.is_empty()
         && matches!(
             program.type_multiplicity(reference),
             Multiplicity::Affine | Multiplicity::Unrestricted
@@ -499,25 +522,21 @@ fn shared_nominal_argument(
         && shapes.types.values().all(|shape| match &shape.shape {
             CheckedUnitStructuralTypeShape::Sum { cases } => {
                 !cases.is_empty()
-                    && cases.iter().all(|case| {
-                        case.fields.iter().all(|field| {
-                            !field.relevance.is_erased()
-                                && matches!(
-                                    field.field_type,
-                                    CheckedUnitStructuralFieldType::Scalar(_)
-                                        | CheckedUnitStructuralFieldType::Structural { .. }
-                                )
-                        })
-                    })
+                    && cases
+                        .iter()
+                        .flat_map(|case| case.fields.iter())
+                        .all(&plain_field)
             }
-            CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(|field| {
-                !field.relevance.is_erased()
-                    && matches!(
-                        field.field_type,
-                        CheckedUnitStructuralFieldType::Scalar(_)
-                            | CheckedUnitStructuralFieldType::Structural { .. }
-                    )
-            }),
+            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                !cases.is_empty()
+                    && fields
+                        .iter()
+                        .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                        .all(&plain_field)
+            }
+            CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(&plain_field),
+            CheckedUnitStructuralTypeShape::FixedArray { .. }
+            | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => true,
             _ => false,
         });
     // A whole primitive referent observes the same existing storage when the
