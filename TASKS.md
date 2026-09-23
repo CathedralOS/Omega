@@ -324,6 +324,26 @@ the complete product bar; focused successes below do not establish that baseline
   compile, so its blast radius wants measuring before it is spent; the second
   widens what a build file may name and is a visibility-policy decision.
   Do not "fix" the fixture -- there is no spelling that works today.
+  `providers/external_leaf_dllimport_compile` is DIAGNOSED and is FAIL-CLOSED
+  BY POSTURE rather than broken. Its `satisfies Leaf::exit via leaf_binding()`
+  demands a `NormalizedForeign` mechanism, and
+  `native-realization`'s `terminal_authority_policy::classify` admits such a
+  mechanism only from an explicit policy ROW -- while
+  `current_terminal_authority_policy()` is constructed with `Vec::new()`, so
+  the ordinary compile path carries ZERO explicit rows and only the closed
+  compiler-intrinsic inventory classifies. The one escape,
+  `settled_host_cohort_row`, recognizes exactly three cohorts
+  (`console_mechanism_row`, `filesystem_mechanism_row`,
+  `time_host_mechanism_row`), which is why other foreign fixtures pass and this
+  one does not. `with_terminal_authority_policy` exists on both the compiler
+  request and the package manager but no non-test caller supplies rows.
+  This is ENGINEERING, not language design, and the code says what is missing:
+  "Release narrowing requires the program's own checked-flow derivation,
+  rejoined per call site; until it exists the conservative key classifies or
+  the demand fails closed." So the sequence is that derivation first, then
+  either a fourth cohort or an authoring surface for explicit rows -- not a
+  fixture edit, which cannot authorize anything.
+
   `dependent/data_where_ranged_param_constructs` and
   `dependent/data_where_callee_establishes` are FIXED: a `data ... where` fact
   is proved AT CONSTRUCTION, and the construction gate read only a literal
