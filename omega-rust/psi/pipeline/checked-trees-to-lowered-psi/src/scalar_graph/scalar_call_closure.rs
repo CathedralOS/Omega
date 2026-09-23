@@ -400,6 +400,7 @@ pub(crate) fn lower_scalar_call_closure(
             ))?;
         let mut lowered = build_scalar_graph_module(
             &machine.states,
+            &machine.state_symbols,
             machine.result_type,
             &machine.scalar_qualifications,
             machine.contract,

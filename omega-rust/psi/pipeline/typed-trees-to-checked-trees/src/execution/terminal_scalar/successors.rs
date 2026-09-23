@@ -17,7 +17,7 @@ use typed_trees::{
     statement::{StatementNode, TransitionExit, TransitionTargetNode},
 };
 
-struct SuccessorArguments {
+pub(super) struct SuccessorArguments {
     structural: Vec<CheckedStructuralControlTransferPlan>,
     scalar: Vec<CheckedStructuralScalarArgumentPlan>,
     erased: Vec<CheckedStructuralScalarArgumentPlan>,
@@ -70,19 +70,17 @@ fn iter_mut(
     .flatten()
 }
 
-pub(super) fn retain(
+/// Resolve every edge's argument partition before any span mutates: a named
+/// cross-machine target reads its own machine's parameter partition, so the
+/// completed graph list stays immutable through resolution.
+pub(super) fn resolve_arguments(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
-    graph: &mut CheckedScalarMachineGraph,
-    structural: &mut Arena<CheckedStructuralControlTransferPlan>,
-    scalar: &mut Arena<CheckedStructuralScalarArgumentPlan>,
-    proof: &mut Arena<CheckedProofTerm>,
     proof_terms: &checked_trees::CheckedProofTerms,
-) -> Option<()> {
-    // Resolve all edges before mutating their spans. Working rows are private;
-    // only the completed argument partition enters the durable arenas.
-    let graph_view: &CheckedScalarMachineGraph = graph;
-    let rows = graph_view
+    graphs: &[CheckedScalarMachineGraph],
+    graph: &CheckedScalarMachineGraph,
+) -> Option<Vec<SuccessorArguments>> {
+    graph
         .states
         .iter()
         .flat_map(|source| {
@@ -91,13 +89,24 @@ pub(super) fn retain(
                     program,
                     expressions,
                     proof_terms,
-                    graph_view,
+                    graphs,
+                    graph,
                     source,
                     successor,
                 )
             })
         })
-        .collect::<Option<Vec<_>>>()?;
+        .collect()
+}
+
+/// Write resolved edge arguments into the durable arenas.
+pub(super) fn commit_arguments(
+    graph: &mut CheckedScalarMachineGraph,
+    rows: Vec<SuccessorArguments>,
+    structural: &mut Arena<CheckedStructuralControlTransferPlan>,
+    scalar: &mut Arena<CheckedStructuralScalarArgumentPlan>,
+    proof: &mut Arena<CheckedProofTerm>,
+) {
     for (successor, rows) in graph
         .states
         .iter_mut()
@@ -109,12 +118,12 @@ pub(super) fn retain(
         successor.erased_arguments = scalar.insert_many(rows.erased);
         successor.erased_proof_arguments = proof.insert_many(rows.proof);
     }
-    Some(())
 }
 
 pub(super) fn validate(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
+    graphs: &[CheckedScalarMachineGraph],
     graph: &CheckedScalarMachineGraph,
     structural: &Arena<CheckedStructuralControlTransferPlan>,
     scalar: &Arena<CheckedStructuralScalarArgumentPlan>,
@@ -123,7 +132,8 @@ pub(super) fn validate(
 ) -> Option<()> {
     for source in &graph.states {
         for successor in iter(&source.terminator) {
-            let expected = arguments(program, expressions, proof_terms, graph, source, successor)?;
+            let expected =
+                arguments(program, expressions, proof_terms, graphs, graph, source, successor)?;
             if structural.span(successor.structural_transfers)? != expected.structural
                 || scalar.span(successor.scalar_arguments)? != expected.scalar
                 || scalar.span(successor.erased_arguments)? != expected.erased
@@ -136,22 +146,52 @@ pub(super) fn validate(
     Some(())
 }
 
-fn arguments(
+fn arguments<'a>(
     program: &TypedTrees,
     expressions: &CheckedScalarExpressionPlans,
     proof_terms: &checked_trees::CheckedProofTerms,
-    graph: &CheckedScalarMachineGraph,
-    source: &CheckedScalarStateGraph,
-    successor: &CheckedScalarSuccessor,
+    graphs: &'a [CheckedScalarMachineGraph],
+    graph: &'a CheckedScalarMachineGraph,
+    source: &'a CheckedScalarStateGraph,
+    successor: &'a CheckedScalarSuccessor,
 ) -> Option<SuccessorArguments> {
     let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
     let states = program.machine_states(machine);
-    let source_state = states.iter().find(|state| state.symbol == source.state)?;
-    let target = graph
+    // A fused graph retains a sibling machine's states beside its own, so a
+    // retained state may be authored under another owner: resolve authored
+    // states through the whole-program owner lookup before reaching for the
+    // foreign call-signature shape.
+    let (source_machine, source_state) =
+        match states.iter().find(|state| state.symbol == source.state) {
+            Some(source_state) => (machine, source_state),
+            None => crate::semantic::calls::find_state_with_machine(program, source.state)?,
+        };
+    let (target_machine, target_state, target) = if let Some(target) = graph
         .states
         .iter()
-        .find(|state| state.state == successor.target)?;
-    let target_state = states.iter().find(|state| state.symbol == target.state)?;
+        .find(|state| state.state == successor.target)
+    {
+        let (target_machine, target_state) =
+            match states.iter().find(|state| state.symbol == target.state) {
+                Some(target_state) => (machine, target_state),
+                None => crate::semantic::calls::find_state_with_machine(program, target.state)?,
+            };
+        (target_machine, target_state, target)
+    } else {
+        // A successor spelling another machine's entry names that machine's
+        // first state; read its parameter partition through that machine's
+        // own graph.
+        let (target_machine, target_state) =
+            crate::semantic::calls::find_machine_by_entry_state(program, successor.target)?;
+        let target = graphs
+            .iter()
+            .find(|candidate| candidate.machine == target_machine.symbol)?
+            .states
+            .iter()
+            .find(|state| state.state == successor.target)?;
+        (target_machine, target_state, target)
+    };
+    let target_states = program.machine_states(target_machine);
     let source_parameters = program.state_parameters(source_state);
     let target_parameters = program.state_parameters(target_state);
     let forwarded = |state: &CheckedScalarStateGraph| {
@@ -166,9 +206,15 @@ fn arguments(
         // signature per state: the ambient `&self` stays on the entry roster
         // while each state's own structural formals forward on its incoming
         // edges. Other rosters keep the single-state bound.
-        let ambient_roster = |state: &CheckedScalarStateGraph| {
-            let typed_state = states.iter().find(|entry| entry.symbol == state.state)?;
-            if machine.attached_data.is_none()
+        // Rosters are authored per state owner: a fused or cross-machine edge
+        // resolves each side's signature under its own machine.
+        let ambient_roster = |owner_machine: &typed_trees::machine::Machine,
+                              owner_states: &[typed_trees::state::State],
+                              state: &CheckedScalarStateGraph| {
+            let typed_state = owner_states
+                .iter()
+                .find(|entry| entry.symbol == state.state)?;
+            if owner_machine.attached_data.is_none()
                 || program
                     .state_parameters(typed_state)
                     .iter()
@@ -179,18 +225,26 @@ fn arguments(
             let (structural, scalar, _) =
                 super::super::terminal_unit::calls::mixed_ambient_scalar_graph_signature(
                     program,
-                    machine,
+                    owner_machine,
                     typed_state,
-                    states.first()?.symbol,
+                    owner_states.first()?.symbol,
                 )?;
             Some((structural, scalar))
         };
-        let matches_roster = |state: &CheckedScalarStateGraph| {
-            ambient_roster(state).is_some_and(|(structural, scalar)| {
-                state.structural_parameters == structural && state.scalar_parameters == scalar
-            })
+        let matches_roster = |owner_machine: &typed_trees::machine::Machine,
+                              owner_states: &[typed_trees::state::State],
+                              state: &CheckedScalarStateGraph| {
+            ambient_roster(owner_machine, owner_states, state).is_some_and(
+                |(structural, scalar)| {
+                    state.structural_parameters == structural
+                        && state.scalar_parameters == scalar
+                },
+            )
         };
-        if !(matches_roster(source) && matches_roster(target)) {
+        let source_states = program.machine_states(source_machine);
+        if !(matches_roster(source_machine, source_states, source)
+            && matches_roster(target_machine, target_states, target))
+        {
             if states.len() != 1 || source.state != target.state {
                 return None;
             }
@@ -230,11 +284,27 @@ fn arguments(
         return None;
     };
     let arguments = program.statement_table.expression_handles(*arguments);
-    let target_index = crate::checks::termination::named_transition_target_state_index(
-        program,
-        machine,
-        path.symbol,
-    )?;
+    let target_index = if let Some(target_index) =
+        crate::checks::termination::named_transition_target_state_index(
+            program,
+            machine,
+            path.symbol,
+        ) {
+        if machine.symbol != target_machine.symbol {
+            return None;
+        }
+        target_index
+    } else {
+        // A cross-machine target spells the reached machine's entry state;
+        // `checked_successor` already retained it as the edge's target, so
+        // its owning machine must agree with the resolved destination.
+        let (entry_machine, _) =
+            crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)?;
+        if entry_machine.symbol != target_machine.symbol {
+            return None;
+        }
+        0
+    };
     // Authored actuals exclude an implicit `self`, and an ambient borrowed
     // receiver owns no graph parameter entry. Pair each actual with its
     // authored formal so ordinals keep the authored target position; an
@@ -244,7 +314,7 @@ fn arguments(
         .enumerate()
         .filter(|(_, parameter)| !parameter.is_self)
         .collect::<Vec<_>>();
-    if states.get(target_index)?.symbol != target.state
+    if target_states.get(target_index)?.symbol != target.state
         || arguments.len() != successor.argument_count as usize
         || arguments.len() != target_formals.len()
         || target_formals.len()
@@ -337,7 +407,7 @@ fn arguments(
             // bindings carry the range's builtin operator evidence.
             let element_view = super::super::terminal_unit::calls::element_subslice::shape(
                 program,
-                machine,
+                source_machine,
                 source_state,
                 &source.structural_parameters,
                 formal.type_reference,
@@ -348,7 +418,7 @@ fn arguments(
             let (parameter_index, type_identity) = element_view.or_else(|| {
                 super::super::terminal_unit::calls::byte_subslice::shape(
                     program,
-                    machine,
+                    source_machine,
                     source_state,
                     &source.structural_parameters,
                     formal.type_reference,

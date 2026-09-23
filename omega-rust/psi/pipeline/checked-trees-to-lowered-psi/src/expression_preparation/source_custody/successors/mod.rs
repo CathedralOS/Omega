@@ -63,7 +63,12 @@ pub(super) fn validate(
         .filter(|(_, parameter)| !parameter.is_self)
         .collect::<Vec<_>>();
     if normalize_machine_state_target(checked, machine, path.symbol)? != successor.target
-        || target_machine.symbol != machine.symbol
+        || (target_machine.symbol != machine.symbol
+            && checked
+                .machine_states(target_machine)
+                .first()
+                .map(|entry| entry.symbol)
+                != Some(successor.target))
         || usize::try_from(arguments.count()).ok() != Some(actuals.len())
         || actuals.len() != successor.argument_count as usize
         || actuals.len() != retained_formals.len()
@@ -83,13 +88,27 @@ pub(super) fn validate(
         return unsupported("scalar successor has ambiguous source machine graphs");
     }
     let source = graph_state(&graph.states, source_state)?;
-    let target = graph_state(&graph.states, successor.target)?;
+    // A successor reaching another machine resolves its parameter partition
+    // through that machine's own graph; an in-machine edge shares the
+    // source's.
+    let target_graph = if target_machine.symbol == machine.symbol {
+        graph
+    } else {
+        plans
+            .machines
+            .iter()
+            .find(|candidate| candidate.machine == target_machine.symbol)
+            .ok_or(LoweringError::Unsupported(
+                "scalar successor has no target machine graph",
+            ))?
+    };
+    let target = graph_state(&target_graph.states, successor.target)?;
     // Reuse the signature's independent typed-source checks, including the
     // numeric-constraint plain-owned classifier and nominal/catalog custody.
     // Matching two retained signatures cannot establish these facts.
     parameter_storage(checked, machine.symbol, source)?;
     if source_state != successor.target {
-        parameter_storage(checked, machine.symbol, target)?;
+        parameter_storage(checked, target_machine.symbol, target)?;
     }
     let structural = plans
         .structural_transfers
@@ -423,6 +442,18 @@ pub(crate) fn normalize_machine_state_target(
         if let [entry] = states {
             return Ok(entry.symbol);
         }
+    }
+    // A target spelling another machine's entry names that machine's first
+    // state outright — the same spelling the scalar call gates normalize.
+    if target.is_valid()
+        && checked
+            .typed
+            .machines()
+            .iter()
+            .filter_map(|owner| checked.machine_states(owner).first())
+            .any(|entry| entry.symbol == target)
+    {
+        return Ok(target);
     }
     unsupported("scalar successor has no exact machine/state target normalization")
 }

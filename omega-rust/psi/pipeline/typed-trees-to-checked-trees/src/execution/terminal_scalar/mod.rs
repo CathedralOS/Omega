@@ -130,21 +130,33 @@ pub(crate) fn build_checked_scalar_graph_plans_with_call_frames(
     let mut structural_transfers = arena::Arena::default();
     let mut scalar_arguments = arena::Arena::default();
     let mut erased_proof_arguments = arena::Arena::default();
+    // Resolve all edges before mutating spans or dropping machines: a named
+    // cross-machine target reads its own machine's parameter partition, so
+    // every graph in the completed list stays visible through resolution.
+    let resolved_arguments = machines
+        .iter()
+        .map(|graph| {
+            successors::resolve_arguments(program, expressions, proof_terms, &machines, graph)
+        })
+        .collect::<Vec<_>>();
+    let mut resolved_arguments = resolved_arguments.into_iter();
     machines.retain_mut(|graph| {
+        let rows = resolved_arguments.next().flatten();
         let Some(ranked_scc) = ranking::plan(program, graph, call_frames) else {
             return false;
         };
         graph.ranked_scc = ranked_scc;
-        successors::retain(
-            program,
-            expressions,
+        let Some(rows) = rows else {
+            return false;
+        };
+        successors::commit_arguments(
             graph,
+            rows,
             &mut structural_transfers,
             &mut scalar_arguments,
             &mut erased_proof_arguments,
-            proof_terms,
-        )
-        .is_some()
+        );
+        true
     });
     CheckedScalarGraphPlans {
         machines,
@@ -188,55 +200,66 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
-    plans.machines.retain(|graph| {
-        if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone()) {
-            return false;
-        }
-        if successors::validate(
-            program,
-            expressions,
-            graph,
-            &plans.structural_transfers,
-            &plans.scalar_arguments,
-            &plans.erased_proof_arguments,
-            proof_terms,
-        )
-        .is_none()
-        {
-            return false;
-        }
-        let Some(machine) = crate::lookup::machine_by_symbol(program, graph.machine) else {
-            return false;
-        };
-        graph.states.iter().all(|retained| {
-            let Some(state) = program
-                .machine_states(machine)
-                .iter()
-                .find(|state| state.symbol == retained.state)
-            else {
+// Validation reads each successor's own machine graph for cross-machine
+    // targets, so every graph is checked against the completed list before
+    // any machine is dropped.
+    let retained = plans
+        .machines
+        .iter()
+        .map(|graph| {
+            if ranking::plan(program, graph, call_frames) != Some(graph.ranked_scc.clone()) {
                 return false;
-            };
-            let Some(transfers) = successors::owned_transfers(
+            }
+            if successors::validate(
                 program,
-                graph.machine,
-                state,
-                retained,
+                expressions,
+                &plans.machines,
+                graph,
                 &plans.structural_transfers,
-            ) else {
-                return false;
-            };
-            owned_parameters::validate(
-                program,
-                ownership,
-                computations,
-                graph.machine,
-                state,
-                &retained.structural_parameters,
-                &transfers,
+                &plans.scalar_arguments,
+                &plans.erased_proof_arguments,
+                proof_terms,
             )
-            .is_some()
+            .is_none()
+            {
+                return false;
+            }
+            if crate::lookup::machine_by_symbol(program, graph.machine).is_none() {
+                return false;
+            }
+            graph.states.iter().all(|retained| {
+                // A fused graph may retain a state authored under a sibling
+                // machine — custody predicates keep answering through the
+                // state's own owner, not the dispatch machine.
+                let Some((owner, state)) =
+                    crate::semantic::calls::find_state_with_machine(program, retained.state)
+                else {
+                    return false;
+                };
+                let Some(transfers) = successors::owned_transfers(
+                    program,
+                    owner.symbol,
+                    state,
+                    retained,
+                    &plans.structural_transfers,
+                ) else {
+                    return false;
+                };
+                owned_parameters::validate(
+                    program,
+                    ownership,
+                    computations,
+                    owner.symbol,
+                    state,
+                    &retained.structural_parameters,
+                    &transfers,
+                )
+                .is_some()
+            })
         })
-    });
+        .collect::<Vec<_>>();
+    let mut retained = retained.into_iter();
+    plans.machines.retain(|_| retained.next().unwrap_or(false));
 }
 
 fn build_machine_graph(
@@ -255,9 +278,111 @@ fn build_machine_graph(
     if source_states.is_empty() {
         return None;
     }
-    let states = source_states
-        .iter()
-        .map(|state| {
+    // A tail arm spelling another machine's entry (`-> self.pong`) stays inside
+    // the one dispatch loop, so every state its edges can reach joins this
+    // graph: the worklist pulls the owning machine's whole state list whenever
+    // a successor names a foreign entry, transitively. States keep their own
+    // owning machine's parameters and contracts; only the edge list is fused.
+    let mut states = Vec::new();
+    let mut pending: Vec<(&typed_trees::machine::Machine, &typed_trees::state::State)> =
+        source_states.iter().map(|state| (machine, state)).collect();
+    let mut cursor = 0;
+    while let Some(&(owner, state)) = pending.get(cursor) {
+        cursor += 1;
+        if states
+            .iter()
+            .any(|(candidate, _, _): &(CheckedScalarStateGraph, _, _)| {
+                candidate.state == state.symbol
+            })
+        {
+            continue;
+        }
+        let owner_states = program.machine_states(owner);
+        let built = checked_state_graph(
+            program,
+            owner,
+            state,
+            owner_states.len(),
+            expressions,
+            computations,
+            structural_values,
+        )?;
+        for successor in successors::iter(&built.0.terminator) {
+            if pending
+                .iter()
+                .any(|(_, candidate)| candidate.symbol == successor.target)
+            {
+                continue;
+            }
+            let Some((target_owner, _)) =
+                crate::semantic::calls::find_machine_by_entry_state(program, successor.target)
+            else {
+                continue;
+            };
+            for owner_state in program.machine_states(target_owner) {
+                if !pending
+                    .iter()
+                    .any(|(_, candidate)| candidate.symbol == owner_state.symbol)
+                {
+                    pending.push((target_owner, owner_state));
+                }
+            }
+        }
+        states.push(built);
+    }
+    // The ambient receiver owns a graph operand only when the entry roster
+    // retained it; a state that still reads `self` otherwise keeps its
+    // ordinary body rather than publishing stranded receiver references.
+    if !states.iter().any(|(state, ..)| {
+        state
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+    }) {
+        for &(_, state) in &pending {
+            let parameters = program.state_parameters(state);
+            if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
+                let Ok(position) = u32::try_from(position) else {
+                    return None;
+                };
+                if state_reads_ambient_position(expressions, computations, state.symbol, position) {
+                    return None;
+                }
+            }
+        }
+    }
+    Some(CheckedScalarMachineGraph {
+        machine: machine.symbol,
+        ranked_scc: None,
+        // Commit storage rows only after the complete machine shape succeeds.
+        states: states
+            .into_iter()
+            .map(|(mut state, storage, shapes)| {
+                state.parameter_storage = parameter_storage.insert_many(storage);
+                for shape in shapes {
+                    structural_types.insert(shape.identity.clone(), shape);
+                }
+                state
+            })
+            .collect(),
+    })
+}
+
+fn checked_state_graph(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    owner_state_count: usize,
+    expressions: &checked_trees::CheckedScalarExpressionPlans,
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    structural_values: &checked_trees::CheckedStructuralValuePlans,
+) -> Option<(
+    CheckedScalarStateGraph,
+    Vec<CheckedScalarParameterStorage>,
+    Vec<checked_trees::CheckedUnitStructuralTypePlan>,
+)> {
+    {
+        {
             if !validation::scalar_state_contracts_are_qualifications(program, state) {
                 return None;
             }
@@ -299,6 +424,7 @@ fn build_machine_graph(
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
             });
+            let source_states = program.machine_states(machine);
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed
                 && machine.attached_data.is_some()
                 && !parameters
@@ -327,7 +453,7 @@ fn build_machine_graph(
                 // Whole structural forwarding for a free machine is bounded
                 // to the same authored state; additional state signatures
                 // remain a separate slice.
-                if source_states.len() != 1 {
+                if owner_state_count != 1 || machine.attached_data.is_some() {
                     return None;
                 }
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?
@@ -434,7 +560,7 @@ fn build_machine_graph(
                 &bindings,
             )?;
             if !primitive_locals.is_empty()
-                && (source_states.len() != 1 || machine.attached_data.is_some())
+                && (owner_state_count != 1 || machine.attached_data.is_some())
             {
                 return None;
             }
@@ -510,44 +636,8 @@ fn build_machine_graph(
                 storage,
                 shapes,
             ))
-        })
-        .collect::<Option<Vec<_>>>()?;
-    // The ambient receiver owns a graph operand only when the entry roster
-    // retained it; a state that still reads `self` otherwise keeps its
-    // ordinary body rather than publishing stranded receiver references.
-    if !states.iter().any(|(state, ..)| {
-        state
-            .structural_parameters
-            .iter()
-            .any(|parameter| parameter.is_self)
-    }) {
-        for state in source_states {
-            let parameters = program.state_parameters(state);
-            if let Some(position) = parameters.iter().position(|parameter| parameter.is_self) {
-                let Ok(position) = u32::try_from(position) else {
-                    return None;
-                };
-                if state_reads_ambient_position(expressions, computations, state.symbol, position) {
-                    return None;
-                }
-            }
         }
     }
-    Some(CheckedScalarMachineGraph {
-        machine: machine.symbol,
-        ranked_scc: None,
-        // Commit storage rows only after the complete machine shape succeeds.
-        states: states
-            .into_iter()
-            .map(|(mut state, storage, shapes)| {
-                state.parameter_storage = parameter_storage.insert_many(storage);
-                for shape in shapes {
-                    structural_types.insert(shape.identity.clone(), shape);
-                }
-                state
-            })
-            .collect(),
-    })
 }
 
 /// Retain the contiguous authored declaration/assignment prefix in the shared
@@ -764,12 +854,21 @@ fn checked_successor(
     };
     // An authored machine-name backedge denotes its entry child. Reuse the
     // same identity normalization as ranking and structural state forwarding.
-    let target_index = crate::checks::termination::named_transition_target_state_index(
-        program,
-        machine,
-        path.symbol,
-    )?;
-    let target = program.machine_states(machine).get(target_index)?.symbol;
+    let target = if let Some(target_index) =
+        crate::checks::termination::named_transition_target_state_index(
+            program,
+            machine,
+            path.symbol,
+        ) {
+        program.machine_states(machine).get(target_index)?.symbol
+    } else {
+        // A target spelling another machine's entry names that machine's
+        // first state outright (`-> self.pong` carries `pong`'s entry-state
+        // symbol): the same spelling the scalar call-lowering gates resolve
+        // through `find_machine_by_entry_state`.
+        crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)?.1
+            .symbol
+    };
     Some(CheckedScalarSuccessor {
         statement_ordinal,
         is_continuation,

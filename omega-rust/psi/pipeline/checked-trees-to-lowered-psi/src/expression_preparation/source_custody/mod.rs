@@ -503,8 +503,9 @@ pub(crate) fn locate(
                         argument_ordinal,
                     },
                 ) => program
-                    .machine_states(machine)
+                    .machines()
                     .iter()
+                    .flat_map(|owner| program.machine_states(owner))
                     .find(|target| {
                         successors::normalize_machine_state_target(checked, machine, path.symbol)
                             .ok()

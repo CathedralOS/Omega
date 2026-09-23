@@ -276,12 +276,12 @@ pub(crate) fn lower_scalar_graph_successor(
     LoweringError,
 > {
     source_custody::validate_successor(checked, source_state, successor)?;
-    let target = states
+    let Some(target) = states
         .iter()
         .position(|candidate| candidate.state == successor.target)
-        .ok_or(LoweringError::Unsupported(
-            "scalar graph successor must belong to the selected machine",
-        ))?;
+    else {
+        return unsupported("scalar graph successor must belong to the selected machine");
+    };
     let (target_parameter_types, _) =
         qualifications.scalar_state_types(checked, states[target].state)?;
     let plans = &checked.facts.flow.terminal_scalar_graphs;
@@ -581,3 +581,4 @@ pub(crate) fn lower_scalar_graph_successor(
         erased_proof_arguments,
     ))
 }
+
