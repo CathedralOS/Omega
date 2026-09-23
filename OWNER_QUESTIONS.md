@@ -563,6 +563,32 @@ ruling or at least a note so later legs make the same choice:
     Until decided, the Windows host measures this wall, not the compiler;
     the same owner suite on macOS arm64 or Linux measures the compiler.
 
+11. **Does a bare case name denote its case in value position?** (named
+    decision: `bare-case-value-names`). `tests/omega/pass/arithmetic/bare_name_scopes`
+    asserts `let signal: Light = On;` "must be accepted" for
+    `data Light { case Off; case On; }`, and resolution already folds the
+    qualified `Light::On`. The contracts checked are silent on the bare
+    spelling: [modules](wiki/spec/language/modules.md) lists bare-name
+    resolution as locals, state parameters, machine parameters, receiver
+    fields, imports, then qualified paths, with no case step;
+    [data and literals](wiki/spec/language/data_and_literals.md) says a case
+    "implicitly declares its same-named domain" so `Type::Case` denotes it,
+    and that cases share their carrier's member namespace;
+    [expressions](wiki/spec/language/expressions.md#operator-families) lets an
+    unqualified name establish a semantic home only for operator families.
+    Validation's `exact_case_reference_owner` refuses one-segment references,
+    so the Unit producer never reaches its `Case` route and the fixture stops
+    at `local data: structural call binding`.
+
+    Options: (a) a bare case name resolves against the expected type's
+    carrier only (contextual, like the declared type of the `let`), after
+    every lexical binding, and rejects without an expected carrier; (b) a
+    bare case name resolves like any imported declaration, visible when its
+    carrier is visible, with the modules collision rule; (c) bare case names
+    are not values; the fixture is rewritten to `Light::On`. (a) and (b)
+    change what a one-segment name means to proof narrowing and interpreter
+    equality, which today treat it as a binding only.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required

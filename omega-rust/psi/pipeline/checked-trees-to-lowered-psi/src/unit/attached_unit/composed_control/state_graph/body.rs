@@ -71,9 +71,24 @@ pub(super) fn validate(
             _ => false,
         })
         .count();
+    // A record pattern's marker statement (`let __destructure#x#y = place;`)
+    // declares no storage and plans no operation; only its per-field locals
+    // do. A whole-record replacement plans one field store per member, all at
+    // its one assignment statement.
+    let record_pattern_markers = statements
+        .get(prefix..end)
+        .unwrap_or_default()
+        .iter()
+        .filter(|statement| is_record_pattern_marker(statement))
+        .count();
+    let record_member_stores = record_member_stores(state);
     if prefix > end
-        || state.operations.len() + marker_count
-            != end - prefix + tail_value + continuation_count + shared_result_stores
+        || state.operations.len() + marker_count + record_pattern_markers
+            != end - prefix
+                + tail_value
+                + continuation_count
+                + shared_result_stores
+                + record_member_stores
     {
         return unsupported("Unit graph dropped or added a body effect");
     }
@@ -170,7 +185,17 @@ pub(super) fn validate(
             {
                 write.statement_index as usize
             }
+            // Every member store after a whole-record replacement's first
+            // rejoins that one assignment statement.
+            CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
+                if cursor > 0 && store.statement_index as usize == cursor - 1 =>
+            {
+                store.statement_index as usize
+            }
             _ => {
+                while statements.get(cursor).is_some_and(is_record_pattern_marker) {
+                    cursor += 1;
+                }
                 let ordinal = cursor;
                 cursor += 1;
                 ordinal
@@ -432,14 +457,34 @@ pub(super) fn validate(
                 if store.statement_index as usize != ordinal {
                     return unsupported("Unit graph reordered a field store");
                 }
-                crate::emission::structural_scalar_store_source::validate_assignment(
-                    checked,
-                    machine,
-                    state.state,
-                    store.statement_index,
-                    assignment,
-                    store,
-                )?;
+                // The statement's first store validates the whole roster the
+                // assignment planned: one field, or every member of a record
+                // literal; the rest were covered by that check.
+                let statement_stores = state
+                    .operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(other)
+                            if other.statement_index == store.statement_index =>
+                        {
+                            Some(other)
+                        }
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>();
+                if statement_stores
+                    .first()
+                    .is_some_and(|first| std::ptr::eq(*first, store))
+                {
+                    crate::emission::structural_scalar_store_source::validate_assignment_stores(
+                        checked,
+                        machine,
+                        state.state,
+                        store.statement_index,
+                        assignment,
+                        &statement_stores,
+                    )?;
+                }
             }
             (
                 CheckedUnitEffectOperationPlan::BoundaryCall {
@@ -588,4 +633,29 @@ pub(in crate::unit::attached_unit::composed_control) fn emit_store(
         )?,
     });
     Ok(())
+}
+
+fn is_record_pattern_marker(statement: &StatementNode) -> bool {
+    matches!(statement, StatementNode::LocalData(local)
+        if local.name.as_str().starts_with("__destructure#"))
+}
+
+/// The field stores beyond the first at each assignment statement: a
+/// whole-record replacement's other members share its one statement.
+fn record_member_stores(state: &CheckedComposedUnitControlStatePlan) -> usize {
+    let mut statement_stores = std::collections::BTreeMap::<u32, usize>::new();
+    for operation in &state.operations {
+        if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation
+            && !matches!(
+                store.value,
+                checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+            )
+        {
+            *statement_stores.entry(store.statement_index).or_default() += 1;
+        }
+    }
+    statement_stores
+        .values()
+        .map(|count| count.saturating_sub(1))
+        .sum()
 }

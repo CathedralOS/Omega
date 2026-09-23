@@ -291,6 +291,26 @@ the complete product bar; focused successes below do not establish that baseline
   diagnostics before attributing them -- they name a different site than they
   did when most of this row was written.
 
+  The 15 `selected ProgramEntry Binding field ... requires a selected Fused
+  provider` members were partly a harness bug: the canary harness never
+  accepted canonical `FilesystemHostService`/`TimeHostService` bindings,
+  because settlement mints their Fused plans only after acceptance
+  (`34f6e1a2a6` now accepts from the entry's `Binding<R>` fields, as consumer
+  review does). What remains on macOS/Windows is real provider absence, which
+  [entry roots](wiki/spec/build/entry_roots.md) requires rejecting:
+  `toolchain_filesystem_leaves` and `toolchain_time_host_leaves` map only
+  linux_x86_64 (darwin rows need an import with an injected argument, e.g.
+  `clock_gettime_nsec_np(8)`, and a constant binding kind), and the
+  fixture-local `Gui`/`Input`/`Console` boundaries in `host/*` and
+  `traits/boundary_trait_effects_host_call` have no provider on any target.
+  On a linux_x86_64 rooted-target probe,
+  `filesystem/runtime_local_host_result_dispatch_exit` reaches Terminal
+  production (`Unit graph reordered a source effect`); seven multi-target
+  members stop at their own Unit-plan omissions.
+  `selected_program_entry_service_requirements` walks only direct receiver
+  fields while establishment's `collect_service_fields` walks nested records,
+  so entries holding a service inside a nested record get no nomination.
+
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
   actual missing operation/facts, not just its phase label. The diagnostic route
@@ -3212,27 +3232,20 @@ syntax and other terminal services are not prerequisites.
   is omitted before a target is chosen and the class is host-neutral by
   construction. Each site is a recognizer for the arrangements earlier
   fixtures needed; the histogram is the size of the gate below. At the
-  structural-call-binding site, seven fixtures read with the crate's own
-  harness split into two recognizer gaps and real limits. Gaps: a bare case
-  name (`let signal: Light = On;`) never reaches the `Case` producer because
-  `validation::exact_case_reference_owner` refuses one-segment references
-  while resolution folds only `Light::On`; widening that classifier (carrier
-  = the case symbol's parent) is the one-shape fix, but it changes what a
-  bare name means to proof narrowing and interpreter equality, so it needs
-  the owner. The parser-minted `let __destructure#x#y = self.pair;` marker
-  and its per-field locals (`let x = self.pair.x`) all keep the inference
-  sentinel `()` in typed trees (`type_is_inferred`, no primitive reference;
-  probed 2026-09-22), so the Unit builder, which keys every local on its
-  `type_reference`, has nothing to plan: composing past the marker alone
-  moves the omission from statement 1 to statement 2. The general fix starts
-  in typing: materialize the inferred field type into each bound-field
-  local's `type_reference` as `infer_hoist_temp_type` does for `__hoist_N`
-  temps. Then the marker needs the transparent treatment the builder gives
-  `__arm_destructure#` markers (`erased_alias_locals` /
-  `first_unsupported_statement`) and lowering must stop using
-  `bindings.len()` as the binding prefix's statement end (`body.rs`,
-  `cases.rs`, `scalar_graph_lowering/bindings.rs`,
-  `returns/structural_scalar_return*`), counting marker statements instead.
+  structural-call-binding site, record patterns in `let` position now
+  compose: typing infers each per-field local from its field chain,
+  the Unit producer treats the `__destructure#` marker as declaration-free,
+  and both lowering routes admit a record literal stored through a projected
+  place (`self.pair = Pair { .. }`) as one field store per member
+  (`data/record_pattern_{let_exit,bind_all_exit,double_underscore_field}`
+  compile natively; `omega run` cannot execute them while the fresh
+  `omega-language-std` package review rejects `filesystem.omg`'s
+  `self.rdn_result` moves). A bare case name (`let signal: Light = On;`,
+  `arithmetic/bare_name_scopes`) waits on `bare-case-value-names` in
+  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md): validation's
+  `exact_case_reference_owner` refuses one-segment references, and widening
+  it changes what a bare name means to proof narrowing and interpreter
+  equality.
   The 21-fixture `record literal field` bucket was a trace artifact: the
   four store routes in `structural_scalar_store` each name their phases and
   the last route's precondition label overwrote the decisive one; the trace
