@@ -160,6 +160,7 @@ fn operations_land_under(
                     | BinaryOperator::Divide
                     | BinaryOperator::Modulo
                     | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
             ) =>
         {
             binary
@@ -184,10 +185,13 @@ fn operations_land_under(
     }
     let left = operand_primitive(program, machine, state, binary.left);
     let right = operand_primitive(program, machine, state, binary.right);
-    // A left shift's count is an independent integer operand: it never
+    // A shift's count is an independent integer operand: it never
     // selects or disputes the result carrier, which is the shifted value's
     // own primitive.
-    let shifting = binary.operator == BinaryOperator::ShiftLeft;
+    let shifting = matches!(
+        binary.operator,
+        BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+    );
     if !shifting
         && let (Some(left), Some(right)) = (left, right)
         && left != right
@@ -196,10 +200,11 @@ fn operations_land_under(
     }
     let primitive = if shifting { left } else { left.or(right) };
     if shifting {
-        // F8's count ruling at an endpoint: an exact `value << count` owes
-        // a provably in-width count under the same hypotheses, like a
-        // nonzero divisor. Result membership alone cannot establish count
-        // validity, and an anonymous shifted value selects no width at all.
+        // F8's count ruling at an endpoint: an exact `value << count` or
+        // `value >> count` owes a provably in-width count under the same
+        // hypotheses, like a nonzero divisor. Result membership alone
+        // cannot establish count validity, and an anonymous shifted value
+        // selects no width at all.
         let Some(width) =
             primitive.and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
         else {

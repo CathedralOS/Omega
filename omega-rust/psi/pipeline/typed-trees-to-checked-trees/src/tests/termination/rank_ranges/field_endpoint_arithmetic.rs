@@ -229,6 +229,78 @@ fn symbolic_shift_endpoint_preserves_value_and_count_at_named_arrivals() {
     rejects_named(&source.replace("[1..=5]", "[1..=70]"));
 }
 
+#[test]
+fn symbolic_shift_right_endpoint_preserves_value_and_count_at_named_arrivals() {
+    // An exact `>>` endpoint keeps the shifted operand AND its count as
+    // transported terms under the same F8 count ruling as `<<`; its result
+    // is `floor(value / 2^count)`, tightening the operand's interval rather
+    // than growing it.
+    let source = SYMBOLIC_QUOTIENT.replace("cap / divisor", "(cap >> divisor)");
+    accepts_named(&source);
+    for changed in [
+        source.replace("iterate(width, limit - 0", "iterate(1, limit - 0"),
+        source.replace("iterate(width, limit - 0", "iterate(width, 0"),
+        source.replace("pending - 1", "pending"),
+    ] {
+        rejects_named(&changed);
+    }
+    // The count's carrier is independent of the shifted operand's: a `u8`
+    // count beside a `u64` value is an ordinary exact shift.
+    accepts_named(
+        &source
+            .replace("divisor: u64 [1..=5]", "divisor: u8 [1..=5]")
+            .replace("width: u64 [1..=5]", "width: u8 [1..=5]"),
+    );
+    // A spelled zero count is defined (`value >> 0` is the value); nested
+    // non-polynomial endpoints transport innermost-first, including a `<<`
+    // operand inside the `>>` value.
+    accepts_named(&source.replace("(cap >> divisor)", "(cap >> 0)"));
+    accepts_named(&source.replace("(cap >> divisor)", "((cap % divisor) >> divisor)"));
+    accepts_named(&source.replace("(cap >> divisor)", "((cap << divisor) >> divisor)"));
+    // An anonymous shifted value selects no width, so only a typed
+    // carrier's shift mints an endpoint term.
+    rejects_named(&source.replace("(cap >> divisor)", "(20 >> divisor)"));
+    // Cancellation cannot hide the count: `x >> k - x >> k` still owes
+    // `k < width` at every constituent operation.
+    let canceled = source.replace(
+        "(cap >> divisor) + 6",
+        "(cap >> divisor) - (cap >> divisor) + 6",
+    );
+    accepts_named(&canceled);
+    rejects_named(&canceled.replace("[1..=5]", "[1..=70]"));
+    // Out-of-width counts reject: a spelled constant at the width fails
+    // its own formation, and a count interval reaching the width cannot
+    // prove `< 64` under the endpoint's hypotheses.
+    for endpoint in ["(cap >> 64)", "(cap >> (divisor + 60))"] {
+        let source = source.replace("(cap >> divisor)", endpoint);
+        lower_typed_trees(typed_program(&source), &CheckingRequest::settled()).expect_err(&source);
+    }
+    rejects_named(&source.replace("[1..=5]", "[1..=70]"));
+}
+
+#[test]
+fn signed_shift_right_endpoint_uses_floor_division() {
+    // `-21 >> 1` is `-11` -- floor division by `2^count`, one below the
+    // truncating quotient `-10`. The signed endpoint's interval keeps that
+    // floor corner through the named arrival, so `(cap >> divisor) + 17`
+    // lands the ceiling at `6`.
+    let signed = SYMBOLIC_QUOTIENT
+        .replace("cap: u64 [0..=20]", "cap: i8 [-21..=-21]")
+        .replace("limit: u64 [0..=20]", "limit: i8 [-21..=-21]")
+        .replace("u64 [1..=5]", "i8 [1..=1]")
+        .replace("cap / divisor + 6", "(cap >> divisor) + 17");
+    accepts_named(&signed);
+    // `+ 16` puts the ceiling at `5`, which `pending = 5` violates; a
+    // truncating model would reach `6` and accept, so this rejection is the
+    // floor-division witness.
+    rejects_named(&signed.replace("+ 17", "+ 16"));
+    // The named-state transport keeps the same floor corner: a
+    // nondecreasing cycle still rejects, and a count interval reaching the
+    // `i8` width cannot prove `< 8`.
+    rejects_named(&signed.replace("pending - 1", "pending"));
+    rejects_named(&signed.replace("i8 [1..=1]", "i8 [1..=9]"));
+}
+
 fn rejects_named(source: &str) {
     let Err(diagnostics) = lower_typed_trees(typed_program(source), &CheckingRequest::settled())
     else {
