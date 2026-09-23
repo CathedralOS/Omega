@@ -2680,7 +2680,12 @@ syntax and other terminal services are not prerequisites.
     declaration already used. `operator <` still parses, and
     `validation/tests/trait_token_heads.rs` checks the two heads agree past the
     parser -- both record the same spelling on the typed requirement through
-    resolution and validation. DOMAIN token signatures were not touched. Rejoin
+    resolution and validation. The DOMAIN half of this clause already worked: a
+    domain operator is an ordinary top-level declaration and the `machine` head
+    has always carried its token, bodied and bodyless alike, which
+    `tokens-to-syntax-trees/tests/diagnostics.rs` now pins beside the trait
+    head. So the ordinary grammar is available for both; what remains of this
+    bullet is migrating declarations onto it and removing the old consumers. Rejoin
     `SpelledOperator`, provider planning, selected build-time execution,
     package evidence and result-domain dispatch to the surviving declarations.
     Preserve semantic identities or explicitly reject stale schemas.
