@@ -1,16 +1,24 @@
-// Element-range WRITE enforcement (RUNTIME index): the element type governs the
-// target regardless of which element is written -- `self.cells[self.i] = 100`
-// must reject like the const-index face.
+// Bounded-admission WRITE enforcement (RUNTIME index): the revoked element
+// suffix `[i32 [0..=7]; 4]` governed every element write regardless of index
+// -- `self.cells[self.i] = 100` had to reject like the const-index face. The
+// checked boundary now lives on the consumer's requires contract:
+// `use_cell(self.i, 100)` admits the index (`i < 4` from its literal store)
+// but cannot prove `v <= 7` and must reject.
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
-    cells: [i32 [0..=7]; 4];
-    i: u64 [0..=3];
+    cells: [i32; 4];
+    i: u64;
 }
 
-machine Main::main(&mut self) {
-    self.cells[self.i] = 100;
-    self.console.exit_process(1);
+machine Main::main(&mut self) reaches Console {
+    self.i = 1;
+    transition { _ -> use_cell(self.i, 100) }
+
+    state use_cell(&mut self, ii: u64, v: i32) requires ii < 4, 0 <= v && v <= 7 {
+        self.cells[ii] = v;
+        self.console.exit_process(1);
+    }
 }

@@ -1,22 +1,28 @@
 // The runtime-index guarded increment's INDEX-stability twin: `self.k` is
-// reassigned between the guard and the increment, so the guard's fact about
-// `tallies[k-at-entry]` must not apply to `tallies[k-now]` -- reject.
+// reassigned between the guard and the bounded call, so the guard's fact
+// about `tallies[k-at-entry]` must not apply to `tallies[k-now]` -- `bump`'s
+// `v < 16` requires must reject at `interpose`'s edge.
 use omega::language::std::console;
 use omega::language::core::service;
 data Main {
     console: Binding<Console>;
-    tallies: [i32 [0..=16]; 4];
-    k: u64 [0..=3];
+    tallies: [i32; 4];
+    k: u64;
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.k = 2;
-    transition self.tallies[self.k] < 16 {
-        true -> bump()
+    let t: i32 = self.tallies[self.k];
+    transition t < 16 {
+        true -> interpose()
         false -> full()
     }
-    state bump(&mut self) {
+    state interpose(&mut self) {
         self.k = 3;
-        self.tallies[self.k] = self.tallies[self.k] + 1;
+        let u: i32 = self.tallies[self.k];
+        transition { _ -> bump(u, self.k) }
+    }
+    state bump(&mut self, v: i32, ki: u64) requires v < 16, ki < 4 {
+        self.tallies[ki] = v + 1;
         transition self.tallies[2] == 1 {
             true -> matched()
             false -> unmatched()

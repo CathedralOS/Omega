@@ -1,1 +1,1 @@
-cannot prove assignment value `100` satisfies bounded target `self.cells[2]`
+cannot prove requires contract for call use_cell

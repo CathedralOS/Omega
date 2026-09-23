@@ -1122,6 +1122,36 @@ syntax and other terminal services are not prerequisites.
   rejection and shared/disjoint admission. Run matching supported hosts or
   explicitly retain unavailable runtime legs.
 
+- **POST-HANDOFF-WRITER-OWNERSHIP.** (new-scope) Separate portable materialization
+  description from consumer implementation under the
+  [existing ownership rule](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership).
+  `psi/foundation/layout-plans/src/materialization/mod.rs::derive_post_handoff_writer`
+  and `src/post_handoff_writer/` currently mix portable input with generated
+  writer plans, private context ABI, fragment lowering, and execution. This is
+  implementation cleanup, not an owner question or a reason to weaken the firewall.
+
+  Move native writer derivation, plan/invocation carriers, `lower_reusable_fragment`,
+  `execute`, and `apply_post_handoff_writes_atomically` to cohesive Omega owners.
+  Update `program-entry-plan`, `isa-x86_64`, `isa-aarch64`,
+  `executable-installation`, `external-roots`, and `provider-planning` consumers.
+  Keep only genuine portable description and semantic validity in Psi; the
+  interpreter consumes portable operations through its own execution path, not
+  through native fragment lowering. Classify stored-integer write/fit helpers by
+  responsibility and share small semantic predicates without sharing the producer
+  derivation with its independent checker. Remove obsolete Psi exports, forwarding
+  wrappers, and duplicate orchestration; renaming directories alone is not closure.
+
+  Acceptance: a reader can follow portable input to the separate consumer
+  derivation, validation, and execution owners, with no Psi-to-Omega dependency.
+  Preserve nested field/index writes, exact source/placement/fit custody,
+  reusable-fragment identity, guard bytes, and atomic rejection before writes.
+  Move and run the relevant `layout-plans` writer/fragment controls with their
+  owners, `compiler --test layout_plans`'s `writer_lowering` cases, affected-crate
+  checks/Clippy, and architecture tests. Verify bytes and execution on available
+  matching hosts; keep **SYMBOLIC-MATERIALIZATION**'s missing Linux AArch64 runtime
+  evidence open until that host runs. Do not add a new IR or interpreter subsystem
+  merely to relocate the existing machinery.
+
 - **SYMBOLIC-MATERIALIZATION.** Obtain the missing matching-host Linux AArch64
   execution evidence for the existing recursive
   [derived consumer](wiki/spec/layouts/plans.md#derived-consumers).
@@ -3918,6 +3948,45 @@ but report the missing runtime leg explicitly; it does not close that host row.
   in `packages/manager/tests/support/named_workspace.rs` and exercise all four
   consumers, including `package_inspection`, `offline_package_commands`, and
   `source_diff_commands`.
+
+  THE WHOLE `-p compiler` TEST SURFACE IS UNGATED, and a complete sweep says
+  how much that has cost. `land_tight.sh` checks
+  `--workspace --all-targets --exclude omega-native-differential-test --exclude
+  compiler`, so nothing a landing runs ever executes these targets except
+  `canary_suite`. Swept at `869021cf9c7` on macOS arm64, twelve targets at a
+  time (an unscoped `-p compiler` links ~150 binaries and exhausts this host's
+  disk): of the 110 targets outside `canary_suite`, `samples_compile` and
+  `corpus_runner`, **23 carry 178 failing tests**.
+
+  | n | target | n | target |
+  | --- | --- | --- | --- |
+  | 89 | `native_filesystem_canaries` | 3 | `service_operational_contracts` |
+  | 17 | `recast_views` | 3 | `source_evaluated_native_realization` |
+  | 10 | `runtime_value_generics` | 3 | `subslice_runtime_end_bounds` |
+  | 9 | `plan_laid_repeated_runtime` | 2 | `callback_terminal_custody` |
+  | 7 | `build_target_activation` | 2 | `terminal_authority` |
+  | 7 | `optimizer_opt_in` | 1 | `build_named_inputs` |
+  | 6 | `build_snapshot_outputs` | 1 | `callable_entry_custody` |
+  | 4 | `private_joint_progress` | 1 | `joint_call_rankings` |
+  | 3 | `layout_plans` | 1 | `literal_dispatch_unit_plan_stops` |
+  | 3 | `module_machine_indices` | 1 | `no_selection_golden` |
+  | 3 | `pcc_publication` | 1 | `object_artifact_custody` |
+  | | | 1 | `object_container_custody` |
+
+  `native_filesystem_canaries` is half the total and fails UNIFORMLY -- 89 of
+  89, none passing -- so it is one cause, not eighty-nine. Sampled, it is a
+  visibility rejection rather than the macOS provider absence recorded
+  elsewhere: `public interface selects private domain [u8]::CString`, from
+  `validation/src/declarations/declaration_visibility.rs`. The domain is
+  declared `pub` at `source/library/std/macos_gui.omg:32`, so what the checker
+  reads as its visibility is not what the file says, and that contradiction is
+  the thing to chase -- closing it plausibly returns all 89 at once. It is the
+  same public-interface tightening that drifted the `calling_policy_plans`
+  canary, so look there for the change that moved.
+
+  `build_named_inputs`, `build_snapshot_outputs` and `build_target_activation`
+  are release-gate commands on this very row, so 14 of these sit directly
+  under release closure.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
   round-trip valid evidence, reject hostile/substituted evidence before

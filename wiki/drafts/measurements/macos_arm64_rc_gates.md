@@ -1,0 +1,1362 @@
+# macOS arm64 RC gate measurements at 04d2099ae110
+
+Host-run evidence for `RC-NATIVE-MATRIX-MACOS-ARM64` (TASKS.md). The
+recorder in `tools/release/README.md` writes a lane record only with a
+passing `--native-execution` observation; these gates are red, so the
+measurement lands here instead and the board row stays open on its own
+evidence, exactly as the item text predicts.
+
+Host: macOS AArch64. Base: `04d2099ae110572fd66a6e48f31a8ef90116ba27`.
+No canary/sample filters set; `--no-fail-fast`; retries disabled.
+
+## Gate readings
+
+| Gate | Command | Result | Wall |
+|---|---|---|---|
+| RC-NATIVE-MATRIX | `mbx nextest run -p omega-native-differential-test --all-targets --no-fail-fast` | 1158 run, 1140 passed, 18 failed, 1 skipped (measured earlier at `0e64720850`, see TASKS.md) | 2498.6s |
+| RC-SOURCE-SEMANTICS | `mbx nextest run -p compiler --all-targets --no-fail-fast` | 3281 run, 2014 passed, 1267 failed, 0 skipped | 22583.2s |
+| RC-REPRESENTATIVE-PROGRAMS | `mbx nextest run -p compiler --test samples_compile --no-fail-fast` | 33 run, 11 passed, 22 failed (read from inside the `--all-targets` run above; same binary, no filters) | — |
+
+Environmental caveat recorded for attribution: the pinned nightly emits
+`rust-objcopy ... libLLVM.dylib not loaded` SIGABRT warnings while
+stripping debug info during builds. The suite still ran to completion;
+no failure below is attributed to it without a reproducing witness.
+
+Dominant failure classes visible in the diagnostics:
+- `selected ProgramEntry establishment rejoins 0 Terminal attachment
+  identities; the machine's unit plan was omitted at local construction`
+  — the ProgramEntry/Terminal-attachment gap spans dozens of samples.
+- `Lowering(Unsupported("checked trapping conversion requires runtime
+  policy realization"))` and `UnsupportedScalarOperation` legalization
+  gaps (WrappingIntegerDivide, SaturatingIntegerMultiply) — the
+  ARITHMETIC-POLICY-REALIZATION frontier.
+- `cannot prove default-domain field requirement` and `in domain`
+  admission gaps — the bracketed-range migration frontier.
+
+## Failed tests by target binary (1215 unique names)
+
+### access_plans — 1 failed
+
+- `source_access_policies::direct_placed_view_input_survives_codec_and_native_replay`
+
+### application_type_equations — 13 failed
+
+- `boolean_attached_body_keeps_runtime_local_selection`
+- `boolean_constructor_equations_agree_at_repeated_nested_positions`
+- `boolean_constructor_equations_recover_exact_index_source_free`
+- `boolean_data_equation_negations_execute_natively`
+- `boolean_data_equations_attached_consumer_executes_native`
+- `data_equations_share_application_matching_and_reverse_construction`
+- `declared_application_recovers_element_and_capacity_natively`
+- `module_owned_array_equation_uses_its_declaring_constant_natively`
+- `reference_equations_data_instances_reuse_exact_argument_identity`
+- `reference_equations_inferred_element_drives_runtime_value_transport`
+- `reference_equations_reconstruct_access_and_nested_slice_types_natively`
+- `reference_equations_recover_array_elements_and_extents_natively`
+- `reference_equations_type_role_drives_scalar_and_slice_element_inference`
+
+### bounded_slice_selectors — 10 failed
+
+- `bounded_generic_endpoints_execute_after_source_removal`
+- `computed_structural_type_bound_precedes_endpoint_specialization_and_execution`
+- `data_field_computed_bound_drives_capacity_through_native_execution`
+- `data_field_nested_computed_bound_keeps_its_static_obligations`
+- `inferred_endpoint_type_drives_capacity_through_native_execution`
+- `partially_explicit_endpoint_keeps_its_selected_type_through_native_execution`
+- `policy_endpoint_values_preserve_each_operation_through_native_execution`
+- `structural_type_endpoint_keeps_its_caller_context_through_native_execution`
+- `transitive_computed_type_bound_precedes_helper_execution`
+- `typed_range_endpoint_drives_inferred_capacity_through_native_execution`
+
+### build_named_inputs — 1 failed
+
+- `captured_named_input_reaches_ordinary_completed_file_publication`
+
+### build_snapshot_outputs — 6 failed
+
+- `artifact_only_build_reaches_an_ordinary_compiler_product`
+- `ordinary_compilation_reads_only_the_requested_standalone_inventory`
+- `ordinary_native_product_publishes_its_completed_companion`
+- `ordinary_terminal_product_publishes_its_completed_companions`
+- `terminal_companions_cannot_publish_before_the_primary_product`
+- `terminal_product_check_failure_publishes_no_completed_companions`
+
+### build_target_activation — 1 failed
+
+- `x`
+
+### byte_field_replacement — 4 failed
+
+- `bounded_replacement_mutates_original_field_and_preserves_neighbors`
+- `indexed::cyclic_indexed_store_updates_original_backing_without_changing_extent`
+- `indexed::source_indexed_store_updates_original_backing_without_changing_extent`
+- `runtime_view_replacement_reads_only_live_bytes_and_preserves_source`
+
+### callable_entry_custody — 1 failed
+
+- `optimized_ordinary_callable_entry_custody_rejects_every_one_field_substitution`
+
+### callback_terminal_custody — 2 failed
+
+- `a_package_local_calling_copy_rejects_beside_the_standard_library_entry`
+- `direct_callback_relocation_resolves_to_its_private_function`
+
+### calling_policy_plans — 1 failed
+
+- `calling_vocabulary_and_callbacks::target_selected_callback_policy_consumes_two_closed_layout_demands`
+
+### canary_suite — 970 failed
+
+- `abi_runtime_values_and_strings::abi_imports_and_results::cross_aarch`
+- `abi_runtime_values_and_strings::abi_imports_and_results::cross_sysv_small_aggregate_import_reaches_elf_dynamic_binding_blocker`
+- `abi_runtime_values_and_strings::abi_imports_and_results::cross_win`
+- `abi_runtime_values_and_strings::abi_imports_and_results::float_operator_contracts_ignore_unrelated_private_free_machines`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_cross_callee_division_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_cross_callee_let_names_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_nested_value_call_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_post_entry_chained_let_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_post_entry_deep_chain_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_two_site_struct_result_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_value_call_entry_field_write_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_value_call_same_callee_sites_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::runtime_value_callee_post_entry_lets_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::value_machine_const_index_self_array_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::value_machine_self_array_local_index_exit_canary_runs`
+- `abi_runtime_values_and_strings::abi_imports_and_results::windows_external_import_canary_selects_evaluated_import_plan`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::bounded_carrier_regressions_compile_on_aarch`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::named_integer_conversion_filesystem_cross_targets_reach_checked_trees`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::native_dungeon_crawler_runs_stable_scripted_loop`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::native_dungeon_direct_movement_dispatch_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_call_argument_struct_string_field_slice_alias_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_large_lookup_struct_field_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_large_room_lookup_struct_field_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_local_struct_string_field_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_lookup_struct_field_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_machine_owned_indexed_integer_write_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_machine_owned_indexed_nested_exit_write_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_machine_owned_indexed_struct_copy_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_mutable_struct_string_field_copy_concat_write_line_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_nested_value_call_caller_local_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_ordered_room_dispatch_after_call_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_ordered_room_dispatch_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_ordered_room_dispatch_game_shape_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_ordered_room_dispatch_large_machine_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_ordered_room_dispatch_loop_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_ordered_room_dispatch_real_show_states_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_string_stored_suffix_exit_canary_runs`
+- `abi_runtime_values_and_strings::indexed_writes_and_loops::runtime_threaded_mut_arg_interrupt_soak_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::contained_health_loop_command_branch_carrier_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_branch_leaf_multiple_named_conversion_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_effectful_guard_local_and_self_terminal_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_enum_self_method_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_guarded_effectful_transition_argument_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_local_array_indexed_string_field_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_local_array_indexed_string_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_mutable_carrier_parameter_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_mutable_string_parameter_concat_write_line_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_mutable_string_parameter_wrapped_concat_write_line_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_mutable_struct_carrier_field_copy_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_pointee_string_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_slice_alias_indexed_string_field_concat_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_slice_fixed_indexed_string_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_slice_indexed_string_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_slice_machine_indexed_string_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_stderr_write_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_stdin_crlf_line_read_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_stdin_line_buffering_carrier_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_stdin_line_buffering_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_string_field_literal_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_text_storage_carrier_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_dispatch_results_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_guard_subject_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_literal_len_arm_guard_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_nested_entry_call_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_shared_payload_name_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_shared_slot_straight_line_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_struct_payload_cast_field_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_transition_args_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::runtime_value_call_transition_args_straight_line_exit_canary_runs`
+- `abi_runtime_values_and_strings::runtime_text_and_transitions::value_call_entry_host_state_payload_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::arithmetic_domain_saturating_div_mod_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::arithmetic_domain_saturating_mul_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::arithmetic_domain_saturating_mul_signed_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::arithmetic_domain_trapping_div_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::arithmetic_domain_trapping_mul_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::case_payload_shared_field_name_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::f`
+- `arithmetic_and_data::arithmetic_domains::float_array_binary_op_zero_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_cast_element_accumulator_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_cast_in_guard_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_float_local_arithmetic_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_guard_feature_composition_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_mixed_width_sign_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_multi_field_payload_arith_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_narrow_signed_divide_guard_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_parenthesized_guard_subjects_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_transition_arg_saturating_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_transition_value_guard_narrowing_exit_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::runtime_unsigned_high_bit_u`
+- `arithmetic_and_data::arithmetic_domains::sum_field_storage_roundtrip_canary_runs`
+- `arithmetic_and_data::arithmetic_domains::sum_mixed_width_payload_layout_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::arithmetic_domain_return_range_proven_exact_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::arithmetic_domain_trapping_const_fold_overflow_aborts`
+- `arithmetic_and_data::casts_and_narrowing::arithmetic_domain_trapping_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::arithmetic_domain_trapping_let_overflow_aborts`
+- `arithmetic_and_data::casts_and_narrowing::arithmetic_domain_trapping_mul_overflow_aborts`
+- `arithmetic_and_data::casts_and_narrowing::arithmetic_domain_trapping_overflow_aborts`
+- `arithmetic_and_data::casts_and_narrowing::constant_trapping_shift_value_overflow_aborts`
+- `arithmetic_and_data::casts_and_narrowing::dead_trapping_let_traps_aborts`
+- `arithmetic_and_data::casts_and_narrowing::f`
+- `arithmetic_and_data::casts_and_narrowing::no_payload_case_variant_after_payload_dispatch_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_flat_boolean_logic_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_float_compare_cast_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_float_operations_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_fnv`
+- `arithmetic_and_data::casts_and_narrowing::runtime_i`
+- `arithmetic_and_data::casts_and_narrowing::runtime_inferred_multipath_return_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_inferred_return_range_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_literal_source_cast_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_match_value_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_min_max_clamp_narrowing_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_payload_range_narrowing_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_provable_field_construction_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_struct_field_range_narrowing_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_sum_payload_range_arith_narrowed_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_sum_payload_range_narrowed_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::runtime_trapping_shift_count_canary_aborts`
+- `arithmetic_and_data::casts_and_narrowing::transition_arg_local_from_embedded_call_exit_canary_runs`
+- `arithmetic_and_data::casts_and_narrowing::value_call_embedded_in_binary_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::const_fold_saturating_narrow_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::const_fold_wrapping_narrow_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_erased_field_record_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_mixed_shape_equality_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_qualified_field_reference_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_record_equality_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_string_equality_guard_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_string_field_equality_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_string_not_equals_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::equatable_sum_payload_equality_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_comparison_value_signedness_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_conformance_item_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_enum_match_breadth_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_nested_named_conversion_alias_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_struct_value_copy_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_unsigned_min_max_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_unsigned_modulo_call_argument_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_unsigned_modulo_cast_operand_exit_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::runtime_whole_struct_mutation_copy_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::saturating_multiply_overflow_both_signs_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::saturating_signed_divide_min_by_neg_one_canary_runs`
+- `arithmetic_and_data::enum_and_comparison_canaries::wrapping_signed_divide_min_by_neg_one_canary_runs`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_bounded_buffer_source_append_footprints_reach_artifacts`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_cross_region_double_indexed_pair_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_cross_region_frame_base_indexed_write_footprints_reach_artifacts`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_cross_region_indexed_pair_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_direct_binary_write_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_direct_integer_write_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_frame_base_indexed_binary_write_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_frame_double_indexed_write_footprints_reach_both_artifacts`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_frame_indexed_binary_write_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_from_indexed_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_from_pointee_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_general_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_indexed_to_pointee_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_machine_double_indexed_binary_write_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_machine_double_indexed_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_machine_indexed_binary_write_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_machine_indexed_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_machine_indexed_pair_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_mixed_index_frame_pair_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_place_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_pointee_binary_write_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_pointee_pair_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_text_buffer_materialize_footprints_reach_artifacts`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_to_indexed_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_to_machine_double_indexed_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::compiler_body_to_machine_indexed_copy_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::place_guard_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::runtime_pointee_pair_copy_exit_canary_runs`
+- `artifact_footprints::pointee_and_indexed_copies::runtime_shared_ref_param_copy_exit_canary_runs`
+- `artifact_footprints::pointee_and_indexed_copies::runtime_text_guard_footprints_reach_x`
+- `artifact_footprints::pointee_and_indexed_copies::static_guard_footprints_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::aarch`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_bounded_buffer_literal_append_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_bounded_buffer_write_footprints_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_cross_region_frame_indexed_integer_write_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_double_indexed_integer_write_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_frame_base_indexed_integer_write_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_frame_base_indexed_text_assembly_footprints_reach_aarch`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_general_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_machine_indexed_convert_write_footprints_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_machine_indexed_integer_write_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_place_address_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_pointee_integer_write_footprints_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_storage_bit_field_write_footprints_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_storage_convert_write_footprints_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_string_write_footprints_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_text_literal_append_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_text_stored_append_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_text_stored_suffix_footprints_reach_artifacts`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_byte_slice_reads_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_expected_byte_reads_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_nested_bounds_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_ranged_scalar_reads_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_repeated_scalar_appends_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_repeated_scalar_reads_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_scalar_appends_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_scalar_slice_appends_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::compiler_body_wire_text_appends_reach_x`
+- `artifact_footprints::text_assembly_and_wire_reads::runtime_record_view_place_address_canary_runs`
+- `artifact_footprints::text_assembly_and_wire_reads::runtime_value_guard_footprints_reach_x`
+- `atomics_and_target_canaries::console_byte_field_target_rejected_canary_is_rejected`
+- `atomics_and_target_canaries::cross_console_byte_targets_emit_x`
+- `atomics_and_target_canaries::efi_out_param_call_marshals_addresses_and_stack_args`
+- `atomics_and_target_canaries::efi_two_table_function_leaves_cross_compile`
+- `atomics_and_target_canaries::efi_vtable_field_call_emits_indirect_dispatch`
+- `atomics_and_target_canaries::runtime_atomic_compare_exchange_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_atomic_fetch_add_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_atomic_fetch_and_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_atomic_fetch_or_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_atomic_fetch_sub_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_atomic_fetch_xor_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_atomic_load_store_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_atomic_swap_exit_canary_runs`
+- `atomics_and_target_canaries::runtime_dutch_flag_partition_exit_canary_runs`
+- `atomics_and_target_canaries::shared_receiver_atomic_store_canary_runs`
+- `atomics_and_target_canaries::sysv_vtable_field_call_emits_indirect_dispatch`
+- `content_text_and_carriers::domain_field_write_then_read_exit_canary_runs`
+- `content_text_and_carriers::extent_root_provider_adapter_compiles`
+- `content_text_and_carriers::runtime_base`
+- `content_text_and_carriers::runtime_binary_format_exit_canary_runs`
+- `content_text_and_carriers::runtime_bounded_carrier_byte_index_exit_canary_runs`
+- `content_text_and_carriers::runtime_bounded_carrier_byte_widen_exit_canary_runs`
+- `content_text_and_carriers::runtime_bounded_carrier_byte_write_exit_canary_runs`
+- `content_text_and_carriers::runtime_bounded_carrier_length_exit_canary_runs`
+- `content_text_and_carriers::runtime_bounded_carrier_length_field_exit_canary_runs`
+- `content_text_and_carriers::runtime_bounded_carrier_write_read_exit_canary_runs`
+- `content_text_and_carriers::runtime_carrier_byte_write_width_coercion_canary_runs`
+- `content_text_and_carriers::runtime_carrier_cipher_exit_canary_runs`
+- `content_text_and_carriers::runtime_carrier_fnv_loop_exit_canary_runs`
+- `content_text_and_carriers::runtime_carrier_indexed_const_write_exit_canary_runs`
+- `content_text_and_carriers::runtime_carrier_indexed_read_exit_canary_runs`
+- `content_text_and_carriers::runtime_carrier_indexed_read_operand_exit_canary_runs`
+- `content_text_and_carriers::runtime_carrier_indexed_write_exit_canary_runs`
+- `content_text_and_carriers::runtime_carrier_itoa_exit_canary_runs`
+- `content_text_and_carriers::runtime_crc`
+- `content_text_and_carriers::runtime_decimal_to_number_exit_canary_runs`
+- `content_text_and_carriers::runtime_mandelbrot_render_exit_canary_runs`
+- `content_text_and_carriers::runtime_number_to_decimal_exit_canary_runs`
+- `content_text_and_carriers::runtime_run_length_encode_exit_canary_runs`
+- `content_text_and_carriers::runtime_slice_length_field_exit_canary_runs`
+- `content_text_and_carriers::runtime_string_palindrome_exit_canary_runs`
+- `content_text_and_carriers::runtime_substring_search_exit_canary_runs`
+- `content_text_and_carriers::user_domain_literal_grant_canary_runs`
+- `content_text_and_carriers::utf`
+- `domains_control_and_structures::arithmetic_and_float_control::custom_ranking_field_countdown_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::custom_ranking_struct_view_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::float_literal_cast_proves_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::float_saturating_overflow_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::float_to_int_saturating_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::float_to_int_unsigned_narrow_saturating_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::float_trapping_divzero_traps_aborts`
+- `domains_control_and_structures::arithmetic_and_float_control::float_trapping_invalid_traps_aborts`
+- `domains_control_and_structures::arithmetic_and_float_control::float_trapping_overflow_traps_aborts`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_array_min_max_builtin_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_divide_min_edge_guard_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_dual_indexed_comparison_guard_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_float_nested_operand_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_indexed_guard_subject_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_indexed_rmw_temp_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_indexed_write_adjacent_field_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_join_meet_bound_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_local_array_element_value_operand_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_machine_array_element_fused_call_arg_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_nested_payload_range_narrowing_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_recursive_walk_call_with_return_canaries_run`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_sat_min_idiom_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_sat_unsigned_onedirection_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_saturating_array_element_guard_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_saturating_expression_domain_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_saturating_param_carry_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_saturating_wide_boundaries_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_shift_atwidth_indexed_targets_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_shl_saturating_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_shl_saturating_value_overflow_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_tick_count_monotonic_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::runtime_tick_paced_marquee_exit_canary_runs`
+- `domains_control_and_structures::arithmetic_and_float_control::trapping_float_to_int_cast_traps_aborts`
+- `domains_control_and_structures::arithmetic_and_float_control::trapping_float_to_narrow_int_cast_traps_aborts`
+- `domains_control_and_structures::arithmetic_and_float_control::trapping_shift_count_traps_aborts`
+- `domains_control_and_structures::arithmetic_and_float_control::u`
+- `domains_control_and_structures::domain_guards::boundary_operator_domain_ensures_flow_to_mutable_operand`
+- `domains_control_and_structures::domain_guards::case_payload_native_construction_canary_runs`
+- `domains_control_and_structures::domain_guards::rooted_residual_scalar_entry_cohort_runs`
+- `domains_control_and_structures::domain_guards::runtime_boolean_transition_argument_after_string_guard_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_call_value_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_case_member_dispatch_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_case_payload_guard_read_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_chained_string_append_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_direct_boolean_conjunction_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_local_boolean_conjunction_value_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_local_boolean_or_value_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_local_string_comparison_value_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_local_string_field_copy_through_mut_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_machine_owned_indexed_nested_room_copy_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_machine_string_append_in_place_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_record_field_value_pattern_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_string_append_in_place_exit_canary_runs`
+- `domains_control_and_structures::domain_guards::runtime_string_concat_two_fields_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::case_membership_union_guard_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::case_membership_value_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::match_exhaustive_by_case_union_domain_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::match_exhaustive_by_cases_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_array_element_struct_copy_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_array_indexed_read_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_array_literal_string_field_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_case_payload_domain_forward_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_case_reassignment_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_clear_carve_render_string_fields_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_computed_transition_args_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_copy_sum_array_receiver_exit_canary_interprets_and_establishes_its_entry`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_cross_machine_substate_name_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_dispatch_mutable_slice_element_write_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_entity_component_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_enum_classify_dispatch_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_enum_struct_payload_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_full_level_wrapper_lookup_string_field_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_indexed_struct_field_write_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_indexed_write_const_read_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_mixed_shape_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_mutable_slice_element_write_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_mutable_slice_element_write_straight_line_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_nested_struct_construction_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_nested_struct_value_semantics_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_option_value_call_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_param_domain_forward_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_particle_system_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_result_match_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_struct_array_literal_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_struct_by_value_param_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_struct_literal_string_field_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_struct_value_call_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_tuple_transition_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_value_call_composition_exit_canary_runs`
+- `domains_control_and_structures::structure_and_slice_canaries::runtime_value_call_to_array_element_exit_canary_runs`
+- `entry_and_abi::aarch`
+- `entry_and_abi::efi_entry_abi::constant_u`
+- `entry_and_abi::efi_entry_abi::efi_entry_arguments_prologue_unmarshals_rcx_rdx`
+- `entry_and_abi::efi_entry_abi::efi_fifth_entry_argument_unmarshals_from_the_ms_x`
+- `entry_and_abi::efi_entry_abi::efi_float_entry_argument_unmarshals_xmm`
+- `entry_and_abi::efi_entry_abi::efi_float_entry_result_round_trips_through_xmm`
+- `entry_and_abi::efi_entry_abi::efi_freestanding_skeleton_emits_importless_subsystem_`
+- `entry_and_abi::efi_entry_abi::efi_large_aggregate_entry_copies_from_rdx_pointer`
+- `entry_and_abi::efi_entry_abi::efi_large_aggregate_stack_entry_loads_pointer_after_shadow_space`
+- `entry_and_abi::efi_entry_abi::efi_large_result_entry_saves_rcx_shifts_argument_and_returns_pointer`
+- `entry_and_abi::efi_entry_abi::efi_small_aggregate_entry_uses_rcx_and_rax`
+- `entry_and_abi::efi_entry_abi::float_literal_entry_result_uses_native_vector_registers`
+- `entry_and_abi::efi_entry_abi::scalar_float_entry_result_uses_native_vector_registers_on_linux`
+- `entry_and_abi::hosted_receiver_linux::linux_hosted_receiver_number_guess_runs_to_documented_exit_`
+- `entry_and_abi::pass_canary_coverage::discovered_exact_native_coverage_is_consistent`
+- `entry_and_abi::pass_canary_coverage::pass_canaries_compile`
+- `entry_and_abi::program_entries_and_image_validation::catalog_checked_assembly_is_validated_against_final_image_bytes`
+- `entry_and_abi::program_entries_and_image_validation::migrated_main_entries_are_selected_only_through_their_target_root_bindings`
+- `entry_and_abi::program_entries_and_image_validation::structured_machine_control_envelopes_are_bound_in_final_image_validation`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::acquires_through_helper_return_original_main_entry_runs`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::efi_ref_param_call_arg_derefs_and_dispatches`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::efi_ref_param_direct_faces_deref_not_flat`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::entry_run_args_bytes_canary_runs`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::runtime_case_array_element_write_exit_canary_runs`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::runtime_utf`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::runtime_wire_policy_authored_nested_exit_canary_runs`
+- `entry_and_abi::runtime_canaries_and_efi_handoff::runtime_wire_policy_authored_plan_exit_canary_runs`
+- `entry_and_abi::sysv_entry_abi::sysv_erased_small_aggregate_entry_spreads_only_relevant_fields`
+- `entry_and_abi::sysv_entry_abi::sysv_hfa_entry_argument_packs_eightbytes_into_xmm_registers`
+- `entry_and_abi::sysv_entry_abi::sysv_hfa_result_entry_loads_xmm`
+- `entry_and_abi::sysv_entry_abi::sysv_large_aggregate_entry_copies_the_memory_class_stack_value`
+- `entry_and_abi::sysv_entry_abi::sysv_large_hfa_result_entry_remains_memory_class`
+- `entry_and_abi::sysv_entry_abi::sysv_large_result_entry_saves_and_uses_the_hidden_pointer`
+- `entry_and_abi::sysv_entry_abi::sysv_mixed_aggregate_entry_rolls_wholly_to_stack`
+- `entry_and_abi::sysv_entry_abi::sysv_mixed_aggregate_entry_uses_independent_register_banks`
+- `entry_and_abi::sysv_entry_abi::sysv_mixed_result_entry_loads_rax_and_xmm`
+- `entry_and_abi::sysv_entry_abi::sysv_small_aggregate_entry_rolls_wholly_to_stack`
+- `entry_and_abi::sysv_entry_abi::sysv_small_aggregate_entry_spreads_consecutive_gprs`
+- `entry_and_abi::sysv_entry_abi::sysv_small_result_entry_loads_rax_and_rdx`
+- `entry_and_abi::sysv_entry_abi::sysv_wide_aggregate_entry_uses_general_memory_classification`
+- `entry_and_abi::sysv_entry_abi::sysv_wrapped_float_entry_uses_xmm`
+- `float_plans_and_policies::directed_float_selections::float_policy_adapters_retain_differential_results`
+- `float_plans_and_policies::directed_float_selections::named_float_directed_add_selects_exact_plans_and_restores_control_state`
+- `float_plans_and_policies::directed_float_selections::named_float_directed_divide_selects_exact_plans_and_restores_control_state`
+- `float_plans_and_policies::directed_float_selections::named_float_directed_multiply_selects_exact_plans_and_restores_control_state`
+- `float_plans_and_policies::directed_float_selections::named_float_directed_square_root_selects_exact_plans_and_restores_control_state`
+- `float_plans_and_policies::directed_float_selections::named_float_directed_subtract_selects_exact_plans_and_restores_control_state`
+- `float_plans_and_policies::float_provider_identities::domain_operator_selection_records_signature_domain_meaning_as_evidence`
+- `float_plans_and_policies::float_provider_identities::float_operator_spellings_record_named_core_identities`
+- `float_plans_and_policies::float_provider_identities::float_provider_plan_identities_ignore_arena_and_display_perturbations`
+- `float_plans_and_policies::float_provider_identities::migrated_float_provider_plans_are_selected_for_every_native_target`
+- `float_plans_and_policies::float_provider_identities::named_float_format_conversion_requirements_execute_in_both_engines`
+- `float_plans_and_policies::float_provider_identities::named_float_to_integer_requirements_execute_in_both_engines`
+- `float_plans_and_policies::float_provider_identities::named_float_to_integer_trapping_requirements_trap_in_both_engines`
+- `float_plans_and_policies::float_provider_identities::named_integer_to_float_requirements_execute_in_both_engines`
+- `float_plans_and_policies::float_provider_identities::primitive_float_arithmetic_and_comparisons_execute_in_both_engines`
+- `float_plans_and_policies::named_float_rewrites::named_float_classification_predicates_select_and_execute`
+- `float_plans_and_policies::named_float_rewrites::named_float_classify_preserves_enum_layout_and_executes`
+- `float_plans_and_policies::named_float_rewrites::named_float_directed_fused_multiply_add_selects_aarch`
+- `float_plans_and_policies::named_float_rewrites::named_float_fused_multiply_add_selects_aarch`
+- `float_plans_and_policies::named_float_rewrites::named_float_multiply_then_add_preserves_two_roundings_and_executes`
+- `float_plans_and_policies::named_float_rewrites::named_float_negate_and_is_nan_preserve_selected_roots_and_execute`
+- `float_plans_and_policies::named_float_rewrites::named_float_provider_calls_rewrite_to_selected_builtins`
+- `generics_and_dependent_facts::generic_specializations::closed_indexed_domain_canaries`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_container_methods_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_array_length_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_expression_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_forwarded_length_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_machine_call_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_multiple_instances_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_named_value_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_symbolic_expression_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_const_data_where_fact_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_generic_enum_payload_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_generic_multiple_specializations_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_generic_trait_default_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_indexed_field_local_operand_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_indexed_guard_true_false_pair_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_indexed_local_bitwise_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_indexed_local_compare_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_inherited_trait_default_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_min_guard_true_false_pair_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_min_max_guard_subject_hoist_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_nominal_machine_parameter_satisfaction_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_signed_const_data_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::runtime_trait_default_dispatch_exit_canary_runs`
+- `generics_and_dependent_facts::generic_specializations::std_units_package_conversion_and_operator_canaries`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_array_max_and_sum_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_bounded_product_index_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_computed_indexed_write_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_depend_mapping_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_dependent_ordering_chain_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_dependent_param_range_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_dependent_product_index_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_dependent_subtract_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_generic_let_local_instantiations_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_hoisted_index_write_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_indexed_reduction_loop_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_indexed_rmw_loop_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_nested_const_product_index_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_requires_guarded_call_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_requires_subtract_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_sibling_len_index_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_sum_tuple_matrix_exhaustive_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_tuple_case_destructure_exit_canary_runs`
+- `generics_and_dependent_facts::local_instantiations_and_requires::runtime_tuple_matrix_exhaustive_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::aggregate_transition_args_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::case_literal_texteq_field_store_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::case_literal_texteq_terminal_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::deep_nested_write_paths_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::equatable_sum_stale_payload_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::recursive_result_bind_first_arg_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_branching_callee_chain_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_decreases_u`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_float_compare_bool_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_generic_param_position_inference_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_gui_window_blit_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_gui_window_lifecycle_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_owned_string_byte_view_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_recursive_result_roles_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_text_equals_boolean_operand_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_text_equals_value_positions_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_text_not_equals_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_trapping_guard_overflow_traps_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_trapping_overflow_traps_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::runtime_wrapping_operand_truncation_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::sum_payload_cast_operand_field_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::zii_default_composite_exit_canary_runs`
+- `generics_and_dependent_facts::range_inference_and_measures::zii_default_string_equality_exit_canary_runs`
+- `host_text_filesystem_and_abi::contained_loop_command_branch_carrier_canary_runs`
+- `host_text_filesystem_and_abi::cross_aarch`
+- `host_text_filesystem_and_abi::cross_win`
+- `host_text_filesystem_and_abi::cross_windows_general_imports_compile`
+- `host_text_filesystem_and_abi::native_fixed_arrays_classify_by_value_without_pointer_decay`
+- `host_text_filesystem_and_abi::native_wrapper_write_all_result_interpreter_oracle`
+- `host_text_filesystem_and_abi::runtime_qualified_case_value_exit_canary_runs`
+- `host_text_filesystem_and_abi::runtime_stdin_command_branch_exit_canary_runs`
+- `host_text_filesystem_and_abi::windows_canonicalize_canary_is_targetless_and_interprets`
+- `host_text_filesystem_and_abi::windows_canonicalize_failed_open_neither_queries_nor_closes`
+- `inline_asm::x`
+- `layouts_and_pending::arithmetic_domain_saturating_const_fold_exit_canary_runs`
+- `layouts_and_pending::distinct_closed_erased_generic_sums_run_with_exact_identities`
+- `layouts_and_pending::generic_erased_literals_use_exact_call_and_return_contexts`
+- `layouts_and_pending::mixed_closed_generic_erasure_runs_with_common_and_payload_fields`
+- `layouts_and_pending::nested_wire_erased_field_is_not_encoded`
+- `layouts_and_pending::plan_laid_compact_bits_exit_canary_runs_and_cross_compiles`
+- `layouts_and_pending::plan_laid_erased_field_is_semantic_but_not_physical`
+- `layouts_and_pending::plan_laid_fixed_array_mutable_view_exit_canary_runs`
+- `layouts_and_pending::plan_laid_fixed_array_record_view_exit_canary_runs`
+- `layouts_and_pending::plan_laid_fixed_record_array_mutable_view_exit_canary_runs`
+- `layouts_and_pending::plan_laid_integer_at_projection_exit_canary_runs_and_cross_compiles`
+- `layouts_and_pending::plan_laid_integer_at_proved_write_exit_canary_runs_and_cross_compiles`
+- `layouts_and_pending::plan_laid_integer_at_total_write_exit_canary_runs_and_cross_compiles`
+- `layouts_and_pending::plan_laid_mutable_record_view_exit_canary_runs`
+- `layouts_and_pending::plan_laid_nested_fixed_array_mutable_view_exit_canary_runs`
+- `layouts_and_pending::plan_laid_nested_record_mutable_view_exit_canary_runs`
+- `layouts_and_pending::plan_laid_record_view_exit_canary_runs`
+- `layouts_and_pending::plan_laid_value_by_value_param_exit_canary_runs`
+- `layouts_and_pending::plan_laid_value_field_exit_canary_runs`
+- `layouts_and_pending::runtime_f`
+- `layouts_and_pending::value_call_sequential_self_capture_exit_canary_runs`
+- `layouts_and_pending::wire_erased_field_is_semantic_but_not_encoded`
+- `proof_and_float_suites::float_semantic_twins::build_runtime_float_semantics_twins_agree`
+- `proof_and_float_suites::float_semantic_twins::linux_arm`
+- `proof_and_float_suites::float_semantic_twins::linux_x`
+- `proof_and_float_suites::float_semantic_twins::windows_x`
+- `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+- `proof_and_float_suites::proof_and_domain_canaries::range_gated_establishment_canaries_compile`
+- `proof_and_float_suites::proof_and_domain_canaries::runtime_ranked_accumulator_guarantee_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::float_saturating_arithmetic_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::float_to_int_exact_proofs_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::float_to_int_policy_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::float_to_int_trapping_canaries_abort`
+- `proof_and_float_suites::runtime_float_and_index_canaries::float_trapping_arithmetic_canaries_abort`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_argmax_index_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_bracket_matcher_stack_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_clamp_narrowing_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_cross_array_indexed_guard_compare_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_dual_indexed_guard_compare_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_dual_indexed_guard_equality_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_float_min_max_abs_clamp_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_float_running_min_max_fold_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_float_self_compare_nan_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_large_shared_ref_direct_assignment_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_negative_float_to_int_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_palindrome_two_pointer_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_shared_ref_param_large_deref_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_shared_ref_param_member_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_sqrt_builtin_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_sum_field_store_payload_exit_canary_runs`
+- `proof_and_float_suites::runtime_float_and_index_canaries::runtime_total_order_satisfiers_exit_canary_runs`
+- `providers_float_and_console::console_reader::selected_console_line_reader_callers_normalize_only_the_reported_prefix`
+- `providers_float_and_console::console_reader::selected_console_line_reader_migrated_fixtures_reach_checked_semantics`
+- `providers_float_and_console::console_reader::selected_console_line_reader_sample_callers_reach_checked_semantics`
+- `providers_float_and_console::console_writer::selected_console_adapters_use_only_requirement_arguments`
+- `providers_float_and_console::float_and_width_canaries::anonymous_exact_rat_const_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::bool_value_call_return_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::const_fold_cast_signedness_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::const_fold_unsigned_divide_arg_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::const_fold_unsigned_landed_ops_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::expansion_float_local_guard_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::f`
+- `providers_float_and_console::float_and_width_canaries::finite_core_domain_range_discharge_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::float_value_call_return_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::float_value_call_runtime_arg_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::mutual_cycle_tail_admitted_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::runtime_indexed_element_copy_write_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::runtime_std_is_finite_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::struct_literal_field_coercion_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::struct_literal_transition_arg_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::suffix_boundary_magnitudes_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::suffix_f`
+- `providers_float_and_console::float_and_width_canaries::suffix_landed_operand_position_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::unsigned_min_max_operand_position_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::unsigned_min_max_wrapping_local_canary_runs`
+- `providers_float_and_console::float_and_width_canaries::unsuffixed_f`
+- `providers_float_and_console::provider_adapters::checked_boundary_operator_physical_custody_canary_compiles`
+- `providers_float_and_console::provider_adapters::checked_fixed_operator_physical_custody_canary_compiles`
+- `providers_float_and_console::provider_adapters::checked_operator_fragment_publication_retains_complete_d`
+- `providers_float_and_console::provider_adapters::fused_service_erasure_rejoins_typed_source_and_selected_plan`
+- `providers_float_and_console::provider_adapters::nested_checked_boundary_operator_physical_custody_canary_compiles`
+- `providers_float_and_console::provider_adapters::runtime_adapter_dispatch_exit_canary_runs`
+- `providers_float_and_console::provider_adapters::runtime_result_domain_requirement_overload_exit_canary_runs`
+- `providers_float_and_console::provider_adapters::runtime_selected_provider_adapter_exit_canary_runs`
+- `providers_float_and_console::provider_adapters::specialized_structural_fixed_operator_terminal_custody_canary_compiles`
+- `providers_float_and_console::service_forwarding_and_policies::fused_service_parameter_moves_through_one_exact_internal_hop`
+- `providers_float_and_console::service_forwarding_and_policies::runtime_adapter_forwarding_exit_canary_runs`
+- `providers_float_and_console::service_forwarding_and_policies::runtime_boundary_capability_state_forwarding_exit_canary_runs`
+- `providers_float_and_console::service_forwarding_and_policies::runtime_console_byte_read_return_catalog_replays_supported_hosted_targets`
+- `providers_float_and_console::service_forwarding_and_policies::runtime_console_byte_replay_cross_target_canary_compiles`
+- `providers_float_and_console::service_forwarding_and_policies::runtime_console_line_replay_cross_target_canary_compiles`
+- `providers_float_and_console::service_forwarding_and_policies::runtime_import_call_argument_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::by_value_case_param_self_write_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_attached_machine_struct_arg_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_float_arithmetic_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_float_comparison_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_float_place_comparison_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_free_machine_looping_value_call_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_free_machine_struct_arg_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_free_machine_struct_return_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_free_machine_value_call_mut_arg_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_numeric_cast_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_record_forwarding_statement_call_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_value_position_branching_call_exit_canary_runs`
+- `ranges_storage_and_entries::bitwise_calls_and_conversions::runtime_xorshift_prng_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_bounded_carrier_pointee_guard_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_bounded_carrier_slice_field_write_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_bounded_carrier_write_line_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_captured_local_remutated_field_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_composite_initializer_local_arg_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_entry_cast_result_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_entry_computed_result_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_entry_nested_binary_result_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_entry_scalar_operation_results_exit_canaries_run`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_entry_unary_result_exit_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::runtime_text_builder_canary_runs`
+- `ranges_storage_and_entries::entry_results_and_carrier_writes::utf`
+- `ranges_storage_and_entries::frame_and_nested_indexing::constant_nested_index_guard_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_cross_region_double_indexed_pair_copy_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_cross_region_indexed_pair_copy_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_double_indexed_read_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_dual_frame_index_copy_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_dual_mixed_index_copy_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_frame_mixed_index_pair_copy_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_let_bound_computed_index_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_machine_frame_index_arg_operand_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_machine_frame_index_dual_frame_write_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_machine_frame_index_read_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_machine_frame_index_rmw_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_machine_frame_index_write_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_nested_const_row_indexed_read_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_nested_const_row_struct_field_write_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_nested_deep_const_prefix_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_nested_middle_index_`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_struct_field_operand_matrix_exit_canary_runs`
+- `ranges_storage_and_entries::frame_and_nested_indexing::runtime_struct_field_operand_param_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_declared_range_index_read_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_declared_range_index_write_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_element_range_dataflow_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_frame_indexed_byte_param_read_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_frame_indexed_local_read_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_frame_indexed_param_field_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_frame_indexed_param_operand_arg_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_frame_indexed_param_read_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_funnel_guard_agreement_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_guarded_element_increment_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_guarded_runtime_index_increment_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_indexed_struct_field_operand_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_indexed_struct_field_rmw_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_machine_indexed_arg_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_machine_indexed_struct_field_arg_exit_canary_runs`
+- `ranges_storage_and_entries::guarded_ranges_and_indexed_fields::runtime_value_machine_param_array_index_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::guard_fixed_array_len_operand_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_bounded_carrier_alias_concat_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_bounded_carrier_concat_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_bounded_carrier_local_source_concat_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_bounded_fixed_array_subslice_arg_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_constructor_computed_field_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_duration_constructors_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_end_fixed_array_subslice_element_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_end_fixed_array_subslice_local_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_linear_search_early_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_machine_bounded_subslice_local_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_member_arg_nested_read_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_nested_receiver_cast_argument_exit_canary_interprets_and_establishes_its_entry`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_slice_element_machine_roundtrip_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_slice_element_runtime_index_read_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_slice_length_local_binding_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_slice_length_local_param_binding_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_subslice_length_local_binding_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_subslice_start_pointer_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_value_call_slice_view_carrier_guard_exit_canary_runs`
+- `ranges_storage_and_entries::slices_subslices_and_carriers::runtime_value_call_slice_view_element_arg_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_case_membership_mixed_shape_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_const_array_length_bare_call_arm_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_const_array_length_transitive_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_version_migration_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_versioned_match_zii_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_versioned_three_era_match_zii_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_wire_decode_let_compare_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_wire_encode_repeated_then_string_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_wire_roundtrip_nested_and_repeated_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_wire_roundtrip_repeated_max_one_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_wire_roundtrip_utf`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_wire_schema_as_value_type_exit_canary_runs`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::runtime_wire_utf`
+- `ranges_storage_and_entries::versions_wire_and_const_lengths::wire_preserving_decode_relay_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_field_array_element_value_operand_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_local_aggregate_into_let_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_local_slice_len_comparison_value_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_nested_subslice_dynamic_index_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_nested_subslice_fixed_index_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_slice_fixed_index_guard_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_slice_index_transition_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_slice_iteration_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_subslice_bounded_dynamic_index_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_subslice_dynamic_index_exit_canary_runs`
+- `recursion_slices_and_conversions::dynamic_indices_and_slice_transitions::runtime_subslice_end_dynamic_index_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::recursive_subslice_element_accumulator_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_array_adjacent_index_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_array_indexed_loop_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_branched_index_bound_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_computed_array_fill_via_temp_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_decreasing_index_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_indexed_array_write_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_indexed_read_operand_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_loop_counter_init_hoisted_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_machine_field_subslice_arg_index_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_narrow_widen_cast_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_nested_decreasing_index_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_nested_loop_fill_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_signed_index_guarded_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_slice_index_read_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_slice_indexed_read_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_subslice_of_slice_param_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_two_pointer_reverse_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_two_pointer_sum_exit_canary_runs`
+- `recursion_slices_and_conversions::loops_and_indexed_arrays::runtime_write_first_loop_index_exit_canary_runs`
+- `recursion_slices_and_conversions::numeric_conversions::numeric_cross_signed_trapping_conversions_abort`
+- `recursion_slices_and_conversions::numeric_conversions::numeric_trapping_conversion_overflow_aborts`
+- `recursion_slices_and_conversions::numeric_conversions::runtime_numeric_conversion_surface_exit_canary_runs`
+- `recursion_slices_and_conversions::numeric_conversions::runtime_numeric_cross_signed_conversion_surface_exit_canary_runs`
+- `recursion_slices_and_conversions::numeric_conversions::runtime_numeric_signed_conversion_surface_exit_canary_runs`
+- `recursion_slices_and_conversions::recursion_and_declared_domains::runtime_computed_index_match_subject_exit_canary_runs`
+- `recursion_slices_and_conversions::recursion_and_declared_domains::runtime_const_measured_recursion_exit_canary_runs`
+- `recursion_slices_and_conversions::recursion_and_declared_domains::runtime_f`
+- `recursion_slices_and_conversions::recursion_and_declared_domains::runtime_result_domain_machine_overload_exit_canary_runs`
+- `recursion_slices_and_conversions::recursion_and_declared_domains::runtime_std_math_sin_cos_exit_canary_runs`
+- `recursion_slices_and_conversions::recursion_and_declared_domains::runtime_u`
+- `recursion_slices_and_conversions::recursion_and_declared_domains::runtime_value_call_terminal_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::mutable_local_parameter_write_loop_reaches_native_artifact`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_machine_owned_double_indexed_bounded_carrier_literal_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_machine_owned_double_indexed_string_field_concat_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_machine_owned_indexed_bounded_carrier_literal_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_machine_owned_indexed_string_field_concat_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_mutable_local_parameter_write_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_mutable_machine_owned_parameter_write_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_mutable_parameter_read_modify_write_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_string_concat_membership_exit_canary_runs`
+- `recursion_slices_and_conversions::string_concat_and_mutable_parameters::runtime_string_field_concat_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_frame_array_slice_parameter_alias_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_slice_index_copy_dispatch_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_slice_index_copy_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_slice_index_read_dispatch_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_slice_len_transition_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_bounded_range_len_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_len_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_nested_of_param_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_param_bounded_range_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_param_end_only_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_param_inclusive_end_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_param_local_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_range_len_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_range_pointer_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_runtime_end_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_runtime_start_exit_canary_runs`
+- `recursion_slices_and_conversions::subslice_parameters_and_ranges::runtime_subslice_runtime_start_over_local_exit_canary_runs`
+- `reports_and_capabilities::backend_report_preserves_direct_aggregate_state_result_mapping`
+- `reports_and_capabilities::backend_report_preserves_fresh_state_call_result_origin`
+- `reports_and_capabilities::backend_report_preserves_path_aligned_multi_claim_state_result`
+- `reports_and_capabilities::backend_report_realizes_linear_boundary_entry_from_prologue`
+- `reports_and_capabilities::backend_report_realizes_state_call_entry_at_call_site`
+- `reports_and_capabilities::backend_report_renders_ownership_summary_events`
+- `reports_and_capabilities::backend_report_renders_transparent_record_claim_paths`
+- `reports_and_capabilities::backend_report_separates_repeated_transition_call_ordinals`
+- `reports_and_capabilities::backend_report_separates_transition_and_nested_call_ordinals`
+- `reports_and_capabilities::capability_flows_retain_exact_direct_and_propagated_sites`
+- `reports_and_capabilities::checked_only_capability_canaries_compile_in_isolation`
+- `reports_and_capabilities::linear_obligation_survives_dispatched_call_continuation`
+- `reports_and_capabilities::signed_rat_metric_canaries_compile_in_isolation`
+- `structural_selected_operator::specialized_mixed_structural_fixed_operator_arguments_are_exact`
+- `structural_selected_operator::specialized_mixed_structural_fixed_operator_hosted_native_reaches_d`
+- `structural_selected_operator::specialized_mixed_structural_fixed_operator_rejects_argument_drift`
+- `structural_selected_operator::specialized_mixed_structural_result_operator_has_exact_checked_custody`
+- `structural_selected_operator::specialized_mixed_structural_result_operator_has_exact_terminal_custody`
+- `structural_selected_operator::specialized_mixed_structural_result_operator_hosted_native_reaches_d`
+- `structural_selected_operator::specialized_mixed_structural_result_operator_rejects_terminal_custody_drift`
+- `structural_selected_operator::specialized_structural_fixed_operator_hosted_local_transfer_is_exact`
+- `structural_selected_operator::specialized_structural_fixed_operator_hosted_local_transfer_rejects_drift`
+- `structural_selected_operator::specialized_structural_fixed_operator_hosted_native_canary_compiles`
+- `structural_selected_operator::specialized_structural_fixed_operator_unit_terminal_custody_canary_compiles`
+- `structural_selected_operator::specialized_structural_fixed_operator_unit_terminal_custody_rejects_drift`
+- `surface_and_targets::atomics_cross_platform_emits_real_atomics`
+- `surface_and_targets::effects_reach_syntax_is_retired_from_omega_sources`
+- `surface_and_targets::external_leaf_syscall_reaches_linux_x`
+- `surface_and_targets::linux_x`
+- `time_hosts_and_indexed_storage::authored_scalar_imports_compile_on_windows_and_darwin`
+- `time_hosts_and_indexed_storage::cross_darwin_time_host_compiles`
+- `time_hosts_and_indexed_storage::cross_linux_time_host_compiles_on_both_architectures`
+- `time_hosts_and_indexed_storage::cross_linux_value_syscalls_compile_on_both_architectures`
+- `time_hosts_and_indexed_storage::darwin_open_create_retains_its_variadic_adapter_footprint`
+- `time_hosts_and_indexed_storage::dereferenced_result_imports_compile_on_windows_and_darwin`
+- `time_hosts_and_indexed_storage::float_parameter_result_imports_compile_on_darwin`
+- `time_hosts_and_indexed_storage::integer_result_imports_compile_on_windows_and_darwin`
+- `time_hosts_and_indexed_storage::runtime_checked_time_arith_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_computed_index_direct_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_container_method_instances_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_container_setter_matrix_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_double_indexed_member_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_double_indexed_operand_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_double_indexed_rmw_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_double_indexed_write_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_dual_indexed_copy_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_dual_indexed_copy_in_loop_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_duration_core_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_duration_totals_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_frame_double_indexed_read_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_fs_mtime_system_time_interop_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_guarded_computed_index_operand_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_indexed_local_copy_chain_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_indexed_operand_transition_arg_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_indexed_write_frame_local_source_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_inplace_reverse_local_temp_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_instant_elapsed_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_scoped_const_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_shared_ref_param_guard_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_sleep_for_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_system_time_after_`
+- `time_hosts_and_indexed_storage::runtime_time_elapsed_since_exit_canary_runs`
+- `time_hosts_and_indexed_storage::runtime_time_host_native_darwin_exit_canary_runs`
+- `time_hosts_and_indexed_storage::storage_result_imports_compile_on_windows_and_darwin`
+- `top_level_requirement_lifetime_call::lifetime_call_requirement_executes_in_the_native_artifact`
+- `top_level_requirement_lifetime_call::lifetime_call_requirement_reaches_terminal_production`
+- `value_and_type_checks::computed_host_indexed_arg_exit_canary_runs`
+- `value_and_type_checks::value_call_as_host_arg_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::f`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_call_result_through_reference_field_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_deep_state_name_collision_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_helper_local_alias_add_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_local_index_binary_write_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_machine_array_slice_arg_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_result_alias_read_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_result_binary_terminal_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_result_enum_case_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_result_field_terminal_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_result_guard_subject_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_result_multi_arm_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_result_transition_arg_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatch_slice_element_terminal_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_dispatched_effectful_reentrant_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_local_slice_forward_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_main_source_builder_is_ordinary_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_multiarm_same_named_locals_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_multiarm_texteq_local_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_mut_ref_forward_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_mutable_local_indexed_parameter_write_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_mutable_machine_owned_local_indexed_parameter_write_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_nested_called_machine_loop_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_nested_field_terminal_second_instance_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_nested_guarded_reference_returned_slice_element_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_nested_local_terminal_second_instance_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_nonentry_inline_second_receiver_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_offset_string_call_results_through_reference_fields_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_param_forward_chain_second_receiver_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_param_receiver_second_instance_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_param_receiver_single_instance_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_pre_guard_texteq_local_arg_forward_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_pre_guard_texteq_local_guard_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_reference_returned_slice_element_through_param_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_reference_returned_slice_element_write_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_saturating_time_arith_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_slice_alias_indexed_field_write_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_slice_indexed_binary_rmw_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_state_loop_indexed_search_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_string_call_result_through_reference_field_exit_canary_runs`
+- `value_calls_and_dispatch::dispatch_and_slice_calls::runtime_two_string_call_results_through_reference_fields_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_alias_indexed_read_through_transition_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_alias_write_through_guarded_transition_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_call_in_inlined_substate_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_dispatch_binary_call_argument_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_dispatch_float_terminal_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_dispatch_result_field_binding_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_dispatch_second_receiver_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_dispatch_sibling_value_calls_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_dyn_two_impl_dispatch_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_dyn_two_impl_dispatch_swapped_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_inline_repeated_receiver_value_calls_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_boolean_pass_through_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_multi_hop_pass_through_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_mutable_boolean_pass_through_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_mutable_pass_through_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_mutable_projected_boolean_pass_through_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_rebound_direct_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_stored_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_stored_return_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_local_named_dyn_unit_multi_hop_return_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_nested_inline_chain_result_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_nested_receiver_same_type_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_nested_value_call_in_substate_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_nonentry_second_receiver_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_reference_param_forwarded_through_loop_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_selfcall_chain_second_receiver_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_trailing_state_mut_param_phase_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_value_call_through_alias_in_dispatch_exit_canary_runs`
+- `value_calls_and_dispatch::dynamic_and_receiver_calls::runtime_value_machine_receiver_field_postentry_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::borrow_carrying_data_field_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_addr_algebra_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_addr_field_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_addr_value_flow_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_assignment_call_post_mutation_value_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_call_result_after_splice_mutation_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_called_machine_loop_search_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_dyn_single_impl_dispatch_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_effectful_subject_single_evaluation_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_exit_code_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_explicit_discard_executes_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_indexed_copy_aggregate_handoff_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_local_named_dyn_devirtualized_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_local_named_dyn_pass_through_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_looping_cast_return_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_looping_value_return_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_mutable_call_before_transition_args_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_nonplace_record_pattern_single_evaluation_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_ref_param_method_dispatch_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_sleep_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_statement_call_single_execution_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_trailing_local_return_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_transition_subject_call_single_evaluation_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_typed_two_method_receivers_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_value_call_return_types_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_value_call_self_field_enum_match_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_value_call_single_execution_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_value_call_slice_len_guard_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_value_call_struct_literal_arms_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_value_call_struct_result_to_target_exit_canary_runs`
+- `value_calls_and_dispatch::runtime_value_calls::runtime_view_linked_input_unrelated_ref_write_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_call_result_binary_operand_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_cast_operand_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_cast_sign_zero_extension_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_f`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_fixed_vec_round_trip_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_float`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_float_nan_comparison_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_float_negative_ops_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_multi_arm_value_transition_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_saturating_domain_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_value_call_let_combine_exit_canary_runs`
+- `wire_and_algorithms::arithmetic_casts_and_floats::runtime_value_transition_unsigned_guard_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_`
+- `wire_and_algorithms::classic_algorithms::runtime_activity_selection_greedy_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_bfs_traversal_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_bubble_sort_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_coin_change_dp_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_hash_table_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_matrix_multiply_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_maze_pathfind_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_monte_carlo_pi_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_newton_sqrt_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_nqueens_backtracking_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_ring_buffer_queue_exit_canary_runs`
+- `wire_and_algorithms::classic_algorithms::runtime_rpn_evaluator_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::fixed_array_element_guard_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_binary_search_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_enum_grid_scan_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_fixed_array_field_value_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_indexed_read_then_guard_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_indexed_struct_write_loop_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_indexed_through_guard_chain_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_nested_array_const_index_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_nested_struct_array_field_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_row_const_column_write_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_rule`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_struct_field_temp_arith_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_two_indexed_reads_binary_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_two_pointer_palindrome_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_whole_array_value_copy_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::runtime_whole_struct_value_copy_exit_canary_runs`
+- `wire_and_algorithms::indexed_structures_and_guards::std_option_runtime_match_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::computed_range_wire_decoding_preserves_exact_endpoints_in_the_interpreter`
+- `wire_and_algorithms::wire_codecs_and_views::numbered_decoder_does_not_ignore_record_domain_obligations`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_method_view_write_after_last_use_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_shrinking_slice_recursion_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_view_of_view_chain_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_byte_slice_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_ranged_field_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_ranged_repeated_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_rejects_bad_nested_length_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_rejects_noncanonical_bool_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_rejects_noncanonical_varint_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_rejects_repeated_overflow_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_rejects_scalar_width_overflow_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decode_rejects_wrong_era_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decoded_byte_slice_index_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_decoded_byte_slice_len_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_encode_borrowed_scalar_slice_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_encode_byte_slice_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_encode_primitive_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_encode_string_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_roundtrip_nested_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_roundtrip_primitive_exit_canary_runs`
+- `wire_and_algorithms::wire_codecs_and_views::runtime_wire_roundtrip_repeated_exit_canary_runs`
+
+### composed_internal_unit_arguments — 3 failed
+
+- `composed_unit_arguments_reach_published_terminal_and_native_provider_custody`
+- `later_scalar_initializers_reach_published_terminal_and_native_provider_custody`
+- `trailing_unit_call_reaches_published_terminal_and_native_provider_custody`
+
+### constant_expression_casts — 1 failed
+
+- `converted_constant_executes_natively_after_source_removal`
+
+### constant_float_tables — 1 failed
+
+- `floating_tables_execute_after_source_removal`
+
+### cyclic_receiver_execution — 2 failed
+
+- `cyclic_provider_field_calls_execute_from_published_terminal_at_every_fuel_pause`
+- `cyclic_receiver_calls_execute_from_published_terminal_at_every_fuel_pause`
+
+### guarded_operator_execution — 2 failed
+
+- `guarded_operator_executes_after_source_removal`
+- `inferred_operator_ceiling_executes_through_wrapper_after_source_removal`
+
+### joint_call_rankings — 1 failed
+
+- `assignments_and_borrows_invalidate_entry_rank_lineage`
+
+### layout_plans — 17 failed
+
+- `callback_slots::c_layout_policy_plans_a_uefi_ish_schema`
+- `callback_slots::plan_laid_value_types_are_placed_by_their_plan`
+- `interrupt_descriptor_tables::authored_descriptor_table_materializes_through_checked_writer`
+- `plan_validation_and_bit_placements::effectful_policies_are_rejected_at_the_gate`
+- `writer_lowering::deeply_nested_symbolic_materialization_preserves_the_exact_path`
+- `writer_lowering::direct_sum_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::empty_array_children_preserve_live_sibling_writes_and_reject_every_index`
+- `writer_lowering::generic_instance_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::indexed_symbolic_materialization_preserves_the_exact_element_path`
+- `writer_lowering::mixed_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::nested_array_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::nested_indexed_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::nested_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::nested_symbolic_materialization_preserves_the_exact_member_path`
+- `writer_lowering::record_array_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::recursive_sum_array_symbolic_materialization_realizes_on_both_linux_isas`
+- `writer_lowering::recursive_sum_symbolic_materialization_realizes_on_both_linux_isas`
+
+### literal_dispatch_unit_plan_stops — 1 failed
+
+- `string_literal_dispatch_stops_at_record_literal_field_store`
+
+### machine_type_equations — 3 failed
+
+- `ordinary_static_helpers_compose_with_arguments_and_nested_calls`
+- `receiver_machine_equation_updates_the_original_record`
+- `static_attached_equations_execute_closed_tuples`
+
+### module_machine_indices — 17 failed
+
+- `indexed_domains::boolean_domain_indices_reject_false_unused_declarations`
+- `indexed_domains::computed_boolean_domain_indices_do_not_publish_placeholder_membership`
+- `indexed_domains::qualified_record_projection_rejects_unproven_constructor_membership`
+- `indexed_domains::same_leaf_domain_owners_do_not_hide_a_false_foreign_predicate`
+- `indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`
+- `indexed_domains::unused_carrier_polymorphic_constants_check_the_complete_application`
+- `indexed_domains::unused_nested_indexed_constants_reject_false_facts`
+- `machine_initializers::computed_table_selector_discharge_reaches_source_free_native_execution`
+- `machine_initializers::constant_helper_preconditions_reach_native_execution_after_source_removal`
+- `machine_initializers::exact_native_division_and_remainder_execute_after_source_removal`
+- `machine_initializers::exact_remainder_minus_one_executes_with_selected_rule_enabled`
+- `machine_initializers::indexed_constant_helper_discharge_reaches_source_free_execution`
+- `machine_initializers::signed_nonzero_call_preconditions_execute_after_source_removal`
+- `machine_initializers::widened_constant_helper_executes_natively_after_source_removal`
+- `machine_initializers::widened_helper_preconditions_reach_native_execution_after_source_removal`
+- `machine_initializers::widened_runtime_call_preconditions_execute_after_source_removal`
+- `rational::anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands`
+
+### native_crash_execution — 1 failed
+
+- `explicit_crashes_execute_after_source_removal`
+
+### native_filesystem_canaries — 89 failed
+
+- `gui_and_sample_apps::clock_sleep_poll_milliseconds_exits_`
+- `gui_and_sample_apps::event_pump_exits_`
+- `gui_and_sample_apps::gui_backend_valuecall_exits_`
+- `gui_and_sample_apps::gui_impl_through_field_exits_`
+- `gui_and_sample_apps::gui_provider_substitution_exits_`
+- `gui_and_sample_apps::gui_window_i`
+- `gui_and_sample_apps::input_provider_substitution_exits_`
+- `gui_and_sample_apps::macos_gui_module_exits_`
+- `gui_and_sample_apps::native_gui_loop_exits_`
+- `gui_and_sample_apps::sample_image_viewer_renders_natively`
+- `gui_and_sample_apps::sample_window_app_renders_natively`
+- `gui_and_sample_apps::sample_window_demo_runs_natively_exits_`
+- `gui_and_sample_apps::sample_windowed_calculator_renders_natively`
+- `gui_and_sample_apps::saturating_divide_native_exits_`
+- `native_filesystem_passes::dir_walk_wrappers_exit_runs`
+- `native_filesystem_passes::dirfd_reread_exit_runs`
+- `native_filesystem_passes::native_append_passes`
+- `native_filesystem_passes::native_at_ops_passes`
+- `native_filesystem_passes::native_at_runtime_name_passes`
+- `native_filesystem_passes::native_buffer_copy_passes`
+- `native_filesystem_passes::native_canonicalize_passes`
+- `native_filesystem_passes::native_chown_passes`
+- `native_filesystem_passes::native_close_still_compiles_and_runs`
+- `native_filesystem_passes::native_copy_preserve_passes`
+- `native_filesystem_passes::native_crud_still_passes`
+- `native_filesystem_passes::native_dirs_still_passes`
+- `native_filesystem_passes::native_enum_result_passes`
+- `native_filesystem_passes::native_errno_passes`
+- `native_filesystem_passes::native_exists_passes`
+- `native_filesystem_passes::native_fchmod_passes`
+- `native_filesystem_passes::native_filetype_passes`
+- `native_filesystem_passes::native_flock_still_passes`
+- `native_filesystem_passes::native_forwarded_slice_literal_passes`
+- `native_filesystem_passes::native_fs_workflow_passes`
+- `native_filesystem_passes::native_fstat_passes`
+- `native_filesystem_passes::native_hard_link_passes`
+- `native_filesystem_passes::native_metadata_blocks_passes`
+- `native_filesystem_passes::native_metadata_ctime_dev_passes`
+- `native_filesystem_passes::native_metadata_ino_passes`
+- `native_filesystem_passes::native_metadata_modified_passes`
+- `native_filesystem_passes::native_metadata_nlink_passes`
+- `native_filesystem_passes::native_metadata_readonly_passes`
+- `native_filesystem_passes::native_metadata_times_passes`
+- `native_filesystem_passes::native_open_create_passes`
+- `native_filesystem_passes::native_open_rw_passes`
+- `native_filesystem_passes::native_permissions_passes`
+- `native_filesystem_passes::native_positioned_io_passes`
+- `native_filesystem_passes::native_read_dir_iter_still_passes`
+- `native_filesystem_passes::native_read_dir_passes`
+- `native_filesystem_passes::native_rename_passes`
+- `native_filesystem_passes::native_seek_passes`
+- `native_filesystem_passes::native_set_len_passes`
+- `native_filesystem_passes::native_set_times_passes`
+- `native_filesystem_passes::native_stat_still_passes`
+- `native_filesystem_passes::native_subslice_copy_passes`
+- `native_filesystem_passes::native_symlink_metadata_passes`
+- `native_filesystem_passes::native_symlink_passes`
+- `native_filesystem_passes::native_sync_data_passes`
+- `native_filesystem_passes::native_sync_passes`
+- `native_filesystem_passes::native_try_clone_passes`
+- `native_filesystem_passes::native_try_exists_passes`
+- `native_filesystem_passes::native_value_call_guard_passes`
+- `native_filesystem_passes::native_value_call_let_chain_passes`
+- `native_filesystem_passes::native_value_call_literal_passes`
+- `native_filesystem_passes::native_value_call_local_passes`
+- `native_filesystem_passes::native_value_call_path_passes`
+- `native_filesystem_passes::native_wrapper_exists_passes`
+- `native_filesystem_passes::native_wrapper_metadata_passes`
+- `native_filesystem_passes::native_wrapper_try_exists_passes`
+- `native_filesystem_passes::native_wrapper_write_all_passes`
+- `native_filesystem_passes::native_wrapper_write_all_result_passes`
+- `native_filesystem_passes::posix_directory_wrappers_drain_multiple_native_fills`
+- `native_filesystem_passes::wrapper_lock_metadata_exit_runs`
+- `native_filesystem_passes::wrapper_times_owner_lstat_exit_runs`
+- `samples_floats_and_objc::cgimage_blit_exits_`
+- `samples_floats_and_objc::cgrect_hfa_exits_`
+- `samples_floats_and_objc::framework_classes_exits_`
+- `samples_floats_and_objc::native_float_arg_exits_`
+- `samples_floats_and_objc::native_float_return_exits_`
+- `samples_floats_and_objc::native_float_two_args_exits_`
+- `samples_floats_and_objc::nsstring_length_exits_`
+- `samples_floats_and_objc::nswindow_init_exits_`
+- `samples_floats_and_objc::objc_alloc_exits_`
+- `samples_floats_and_objc::objc_get_class_exits_`
+- `samples_floats_and_objc::objc_msgsend_scalar_exits_`
+- `samples_floats_and_objc::present_frame_exits_`
+- `samples_floats_and_objc::returning_foreign_call_restores_canonical_float_control_state`
+- `samples_floats_and_objc::sample_file_journal_exits_`
+- `samples_floats_and_objc::sample_note_vault_exits_`
+
+### no_selection_golden — 1 failed
+
+- `native_artifacts::retained_native_bytes_and_metadata_match_every_target_golden`
+
+### object_artifact_custody — 1 failed
+
+- `optimized_object_artifact_custody_rejects_every_one_field_substitution`
+
+### object_container_custody — 1 failed
+
+- `relocation_free_object_container_custody_rejects_every_one_field_substitution`
+
+### optimizer_opt_in — 2 failed
+
+- `product_pruning::terminal_product_eliminates_unused_block_parameters_and_edge_arguments`
+- `product_pruning::terminal_product_propagates_copies_through_block_parameters`
+
+### owned_case_state_transport — 1 failed
+
+- `owned_error_kind_state_transport_preserves_calls_and_every_fuel_pause`
+
+### package_compilation_inputs — 1 failed
+
+- `artifact_identities_and_entries::accepted_package_uefi_binding_selects_exact_ordinary_schema`
+
+### plan_laid_repeated_runtime — 9 failed
+
+- `gapped_nested_array_outer_array_interprets_runs_natively_and_cross_compiles`
+- `gapped_nested_array_outer_array_materializes_from_checked_owned_value`
+- `gapped_primitive_outer_array_interprets_runs_natively_and_cross_compiles`
+- `gapped_record_nested_array_materialization_is_exact_and_atomic`
+- `gapped_record_nested_array_outer_array_interprets_runs_natively_and_cross_compiles`
+- `gapped_record_outer_array_interprets_runs_natively_and_cross_compiles`
+- `gapped_record_outer_array_materializes_from_checked_owned_value`
+- `multiple_whole_aggregate_fields_interpret_run_natively_and_cross_compile`
+- `multiple_whole_aggregate_fields_materialize_by_key_and_reject_atomically`
+
+### private_joint_progress — 4 failed
+
+- `exact_external_premise_survives_private_cycle_propagation`
+- `independent_external_premises_converge_as_a_set`
+- `private_external_wrapper_can_be_solved_after_the_cycle`
+- `recursively_projected_requirements_do_not_become_a_finite_promise`
+
+### rank_remainder_endpoints — 1 failed
+
+- `runtime_remainder_endpoint_reaches_terminal_and_native_execution`
+
+### recast_views — 17 failed
+
+- `aggregate_slice_recasts_compose_leaf_representation_sets`
+- `fixed_array_recast_execution_and_fact_fence`
+- `float_range_recasts_require_same_carrier_interval_implication`
+- `flow_proven_recast_execution_canaries_run`
+- `interior_slice_congruent_runtime_offset_tiles`
+- `interior_slice_recasts_preserve_dynamic_tail_geometry`
+- `mutable_recast_accepts_bidirectionally_equivalent_domain_facts`
+- `mutable_recast_accepts_equal_integer_representation_sets`
+- `mutable_recast_accepts_equivalent_typed_record_representations`
+- `mutable_recast_execution_canaries_run`
+- `mutable_recasts_cross_compile`
+- `record_recast_execution_canaries_run`
+- `record_recasts_compose_same_carrier_float_leaf_intervals`
+- `scalar_and_interior_recast_execution_canaries_run`
+- `scalar_bool_recasts_follow_representation_set_implication`
+- `shared_domain_recasts_require_one_way_implication`
+- `slice_recast_execution_tiling_and_fact_fences`
+
+### samples_compile — 22 failed
+
+- `algorithm_samples_compile_from_authored_program_entry_bindings`
+- `all_samples_reach_checked_trees`
+- `arithmetic_samples_compile_from_authored_program_entry_bindings`
+- `basics_samples_compile_from_authored_program_entry_bindings`
+- `cli_mvp_preserves_both_lines_with_eof_and_enter`
+- `collection_samples_compile_from_authored_program_entry_bindings`
+- `fletcher_checksum_checks_its_slice_iteration`
+- `game_samples_compile_from_authored_program_entry_bindings`
+- `generic_counter_sample_reaches_terminal_psi`
+- `gui_samples_compile_from_authored_program_entry_bindings`
+- `interpreter_samples_compile_from_authored_program_entry_bindings`
+- `named_integer_conversion_samples_reach_checked_trees`
+- `native_acceptance::native_sample_console_acceptance_binds_the_exact_selected_target`
+- `probe_samples_compile_from_authored_program_entry_bindings`
+- `rendering_samples_compile_from_authored_program_entry_bindings`
+- `samples_with_documented_exit_run_correctly`
+- `simulation_samples_compile_from_authored_program_entry_bindings`
+- `system_samples_compile_from_authored_program_entry_bindings`
+- `temperature_sample_retains_exact_float_operator_evidence`
+- `text_padding_accepts_its_projected_text_argument`
+- `text_samples_compile_from_authored_program_entry_bindings`
+- `unit_closure::cli_mvp_retains_checked_entry_and_console_call_closure`
+
+### service_operational_contracts — 3 failed
+
+- `private_ranking_spelling_cannot_perturb_public_contract_identity`
+- `provider_keeps_service_and_operational_contract_axes_independent`
+- `synchronous_invocation_edges_survive_in_checked_contract_identity`
+
+### source_evaluated_native_realization — 1 failed
+
+- `scalar_native_arguments::mixed_foreign_scalars_execute_with_exact_argument_and_result_values`
+
+### subslice_runtime_end_bounds — 3 failed
+
+- `domained_runtime_end_subslice_materializes`
+- `domained_slice_len_guard_lowers`
+- `runtime_end_subslice_machine_field_bound_materializes`

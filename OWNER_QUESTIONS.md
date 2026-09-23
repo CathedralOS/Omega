@@ -140,31 +140,7 @@ Validate one real device sequence and one idle/external-entry sequence.
 - Tempting but wrong: replace hardware idle with interpreter pause, redefine
   instructions through provider names, or move OS policy into the compiler.
 
-### Q4 - Does Psi or Omega own post-handoff writer plans?
-
-Named decision: `post-handoff-writer-ownership`.
-
-**Context:** The [firewall](AGENTS.md#the-psiomega-ownership-firewall) gives Psi
-target-neutral semantics and Omega realization and execution. Psi's `layout-plans`
-currently derives, validates, and executes post-handoff writes; its consumers
-are in Omega.
-
-**Problem:** Execution belongs in Omega. The disputed part is whether writer-plan
-derivation is portable layout semantics or realization policy. That classification
-determines where the carriers and stored-integer validation belong.
-
-**Proposed solution:** Keep genuinely target-neutral plan derivation and validation
-in Psi; move execution, reusable-fragment ABI, and encoding to Omega. Use one
-validation owner rather than copies in each consumer.
-
-**Alternatives:**
-- Move the entire writer program to Omega, leaving Psi at `MaterializationAction`.
-  This groups the program with its consumers but requires a deliberate home for
-  the shared write/fit rules.
-- Tempting but wrong: rename consumer modules and call the ownership fixed, or
-  weaken the firewall merely to legitimize the current placement.
-
-### Q5 - Is passing a Binding by value a move or a copy?
+### Q4 - Is passing a Binding by value a move or a copy?
 
 Named decision: `service-carrier-argument-multiplicity`.
 
@@ -187,7 +163,7 @@ of borrowed storage, and close the stale escalation through the owning task.
 - Tempting but wrong: make Binding copyable only in argument position, or merely
   reclassify the pass fixture without preserving its legitimate borrowed-call use.
 
-### Q6 - What portable identity should a root without a package declaration have?
+### Q5 - What portable identity should a root without a package declaration have?
 
 Named decision: `unmanaged-root-package-identity`.
 
@@ -212,7 +188,7 @@ route. Keep ordinary local compilation separate from portable publication.
 - Tempting but wrong: use host paths or import order, exempt toolchain declarations,
   or assume distinct owner identities make competing visible names unambiguous.
 
-### Q7 - Should a bare case name resolve as a value?
+### Q6 - Should a bare case name resolve as a value?
 
 Named decision: `bare-case-value-names`.
 
@@ -237,7 +213,7 @@ solely to make it pass.
 - Tempting but wrong: choose the first matching case by import order or silently
   prefer a case over a local binding.
 
-### Q8 - Does normal completion consume an owned receiver, including an affine one?
+### Q7 - Does normal completion consume an owned receiver, including an affine one?
 
 Named decision: `owned-self-receiver-implicit-retirement`.
 

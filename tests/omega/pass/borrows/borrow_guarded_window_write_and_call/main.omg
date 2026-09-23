@@ -4,15 +4,21 @@ machine take(slot: &mut i32) {
     slot = 7;
 }
 
-machine Main::main(&mut self, index: u64 [0..=3], cut: u64 [0..=4]) -> u64 {
+machine Main::main(&mut self, index: u64, cut: u64) -> u64
+    requires index <= 3, cut <= 4;
+{
     transition {
         index < cut -> forward(cut, index)
         _ -> 0
     }
-    state forward(limit: u64 [0..=4], cursor: u64 [0..=3]) -> u64 {
+    state forward(limit: u64, cursor: u64) -> u64
+        requires limit <= 4, cursor <= 3;
+    {
         transition { _ -> separate(cursor, limit) }
     }
-    state separate(&mut self, position: u64 [0..=3], boundary: u64 [0..=4]) -> u64 {
+    state separate(&mut self, position: u64, boundary: u64) -> u64
+        requires position <= 3, boundary <= 4;
+    {
         let held: &mut [i32] = self.items[boundary..4];
         self.items[position] = 3;
         take(&mut self.items[position]);

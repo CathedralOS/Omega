@@ -1,17 +1,19 @@
-// SOUNDNESS PIN for the sum-payload-range narrowing (landed 2026-07-08). The
-// payload range is admitted ONLY under a case-proving guard (a transition arm).
-// DIRECT payload access outside a case-arm (`self.got = self.p.v`) has no such
-// guard -- the active case may not be the one that owns `v` -- so its "case is
-// active" obligation is UNDISCHARGED and the store must NOT be proven. Here
-// `p = Two{w:900}`, and `self.p.v` reads `One`'s payload field on a `Two`-active
-// value (a checked partial op: it traps at runtime). If the narrowing ever
-// leaks to direct access, `self.p.v` would falsely prove into `got: [0..=50]`.
-// MUST reject with the expected fragment.
+// SOUNDNESS PIN for the sum-payload narrowing (landed 2026-07-08, migrated
+// off the revoked `[0..=50]`/`[0..=1000]` suffixes). Payload membership in
+// `Fifty` is admitted ONLY under a case-proving guard (a transition arm).
+// DIRECT payload access outside a case-arm (`self.got = self.p.v`) has no
+// such guard -- the active case may not be the one that owns `v` -- so the
+// access is a checked partial op (here `p = Two{w:900}`, reading `One`'s
+// payload field on a `Two`-active value traps at runtime) and the read must
+// NOT be admitted. If the narrowing ever leaks to direct access, this would
+// falsely compile. MUST reject with the expected fragment.
 use omega::language::std::console;
 use omega::language::core::service;
-data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=1000]); }
-data Main { console: Binding<Console>; got: i32 [0..=50]; p: P; }
-machine Main::main(&mut self) {
+domain i32::Fifty requires 0 <= self && self <= 50;
+domain i32::Thousand requires 0 <= self && self <= 1000;
+data P { case One(v: i32 in Fifty); case Two(w: i32 in Thousand); }
+data Main { console: Binding<Console>; got: i32 in Fifty; p: P; }
+machine Main::main(&mut self) reaches Console {
     self.p = P::Two { w: 900 };
     self.got = self.p.v;
     self.console.exit_process(self.got);
