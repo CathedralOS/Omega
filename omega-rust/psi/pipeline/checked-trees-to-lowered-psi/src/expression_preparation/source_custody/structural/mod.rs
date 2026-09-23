@@ -1151,13 +1151,22 @@ pub(crate) fn operand_source(
         } = role
             && constructor == expression
         {
-            let source = validation::scalar_case_constructor(&checked.typed, expression).ok_or(
-                LoweringError::Unsupported("structural field lost its authored constructor"),
-            )?;
+            // The constructor may carry structural payload siblings, so the
+            // tolerant roster resolves first; the selected field still owes a
+            // primitive carrier.
+            let source = validation::structural_case_constructor(&checked.typed, expression)
+                .ok_or(LoweringError::Unsupported(
+                    "structural field lost its authored constructor",
+                ))?;
             return source
                 .fields
                 .get(field_ordinal as usize)
-                .map(|(_, expression, primitive)| (*expression, *primitive))
+                .map(|(_, expression, declared)| {
+                    checked
+                        .primitive_type_reference(*declared)
+                        .map(|primitive| (*expression, primitive))
+                })
+                .flatten()
                 .ok_or(LoweringError::Unsupported(
                     "structural field ordinal escaped its constructor",
                 ));
