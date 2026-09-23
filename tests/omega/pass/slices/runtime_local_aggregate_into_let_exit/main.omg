@@ -30,7 +30,7 @@ machine Main::dbl(&self, n: i32 in Wrapping) -> i32 in Wrapping {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let arr: [i32; 4] = [10, 20, 30, 40];
+    let arr: [i32 in Wrapping; 4] = [10, 20, 30, 40];
     let a1: i32 in Wrapping = arr[1];
     let a3: i32 in Wrapping = arr[3];
 

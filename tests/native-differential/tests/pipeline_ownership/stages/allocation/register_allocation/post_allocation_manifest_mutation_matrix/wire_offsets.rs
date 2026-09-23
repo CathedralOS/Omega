@@ -3,6 +3,7 @@ pub(super) struct WireOffsets {
     pub architecture: usize,
     pub object_format: usize,
     pub completion: usize,
+    pub pre_allocation_completion: usize,
     pub first_transformation: Option<usize>,
     pub spills: usize,
     pub frame: usize,
@@ -21,6 +22,15 @@ pub(super) fn locate(encoded: &[u8]) -> WireOffsets {
         1 => cursor += 32,
         tag => panic!("fixture has unknown completion tag {tag}"),
     }
+    // The pre-allocation completion (ad5cb24ec6) follows the selected-lowering
+    // completion with the same absent/present tag.
+    let pre_allocation_completion = cursor;
+    cursor += 1;
+    match encoded[pre_allocation_completion] {
+        0 => {}
+        1 => cursor += 32,
+        tag => panic!("fixture has unknown pre-allocation completion tag {tag}"),
+    }
     let transformation_count = read_length(encoded, &mut cursor);
     let first_transformation = (transformation_count != 0).then_some(cursor);
     cursor += transformation_count * 33;
@@ -35,6 +45,7 @@ pub(super) fn locate(encoded: &[u8]) -> WireOffsets {
         architecture,
         object_format,
         completion,
+        pre_allocation_completion,
         first_transformation,
         spills,
         frame,

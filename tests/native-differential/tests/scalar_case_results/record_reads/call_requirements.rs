@@ -78,21 +78,17 @@ fn receiver_scalar_call_rejects_unproved_requirement() {
 #[derive(Clone, Copy, Debug)]
 enum RequirementMutation {
     Remove,
-    Reorder,
     Duplicate,
     Substitute,
 }
 
 impl RequirementMutation {
     fn apply(self, obligations: &mut Vec<semantic_vocabulary::ObligationId>) {
-        assert_eq!(obligations.len(), 2);
-        assert_ne!(obligations[0], obligations[1]);
         match self {
             Self::Remove => {
                 obligations.pop();
             }
-            Self::Reorder => obligations.swap(0, 1),
-            Self::Duplicate => obligations[1] = obligations[0],
+            Self::Duplicate => obligations.push(obligations[0]),
             Self::Substitute => {
                 obligations[0] = semantic_vocabulary::ObligationId::new(999_999).unwrap();
             }
@@ -156,9 +152,11 @@ fn receiver_scalar_call_replay_preserves_exact_ordered_requirements() {
             environment.constraints(),
         )
         .unwrap();
+        // `Main::at` is a scalar-graph callee: it publishes its two authored
+        // clauses as one canonical conjunction, so each call owes exactly one
+        // obligation (see `unit/attached_unit.rs`'s requirement-count rule).
         for mutation in [
             RequirementMutation::Remove,
-            RequirementMutation::Reorder,
             RequirementMutation::Duplicate,
             RequirementMutation::Substitute,
         ] {
@@ -172,7 +170,7 @@ fn receiver_scalar_call_replay_preserves_exact_ordered_requirements() {
                     TargetUnitOperation::Call {
                         requirement_obligations,
                         ..
-                    } if requirement_obligations.len() == 2 => Some(requirement_obligations),
+                    } if requirement_obligations.len() == 1 => Some(requirement_obligations),
                     _ => None,
                 })
                 .expect("source-produced receiver call requirements");
@@ -195,7 +193,7 @@ fn receiver_scalar_call_replay_preserves_exact_ordered_requirements() {
                 .flat_map(|block| &mut block.instructions)
                 .find_map(|instruction| match &mut instruction.kind {
                     LegalizedScalarInstructionKind::Call(call)
-                        if call.requirement_obligations.len() == 2 =>
+                        if call.requirement_obligations.len() == 1 =>
                     {
                         Some(&mut call.requirement_obligations)
                     }
@@ -219,21 +217,40 @@ fn receiver_scalar_call_replay_preserves_exact_ordered_requirements() {
             for (change_contract, change_provenance) in [(true, false), (false, true), (true, true)]
             {
                 let mut proposed = selected.plan().clone();
+                // `put` owes one obligation too; select the scalar `at` call
+                // by its CallScalar instruction, not by the obligation count.
+                let is_scalar_call =
+                    |function: &selected_instructions::SelectedFunction, operation| {
+                        function
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.instructions)
+                            .any(|instruction| {
+                                matches!(
+                                    instruction.kind,
+                                    selected_instructions::SelectedInstructionKind::CallScalar { .. }
+                                ) && instruction.provenance.operations.contains(&operation)
+                            })
+                    };
                 let function = proposed
                     .functions
                     .iter_mut()
                     .find(|function| {
-                        function
-                            .calls
-                            .iter()
-                            .any(|record| record.call.requirement_obligations.len() == 2)
+                        function.calls.iter().any(|record| {
+                            record.call.requirement_obligations.len() == 1
+                                && is_scalar_call(function, record.operation)
+                        })
                     })
                     .unwrap();
-                let record = function
+                let position = function
                     .calls
-                    .iter_mut()
-                    .find(|record| record.call.requirement_obligations.len() == 2)
+                    .iter()
+                    .position(|record| {
+                        record.call.requirement_obligations.len() == 1
+                            && is_scalar_call(function, record.operation)
+                    })
                     .unwrap();
+                let record = &mut function.calls[position];
                 let operation = record.operation;
                 if change_contract {
                     mutation.apply(&mut record.call.requirement_obligations);

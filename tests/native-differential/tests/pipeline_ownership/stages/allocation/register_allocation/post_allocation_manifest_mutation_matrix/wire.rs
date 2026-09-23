@@ -60,6 +60,12 @@ fn every_closed_wire_tag_and_envelope_fails_with_its_exact_error() {
     );
     corrupt(
         &encoded,
+        offsets.pre_allocation_completion,
+        99,
+        PostAllocationOptimizationManifestDecodeError::UnknownCompletionStatus(99),
+    );
+    corrupt(
+        &encoded,
         offsets.spills,
         99,
         PostAllocationOptimizationManifestDecodeError::UnknownSpillStatus(99),
