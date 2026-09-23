@@ -47,7 +47,6 @@
 //!   **DECLARATIVE-PEEPHOLES**
 //! - `predecessor_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `predecessor_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `redundant_extension` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -94,7 +93,6 @@ pub mod peepholes;
 mod place_storage;
 mod predecessor_relocation;
 mod predecessor_run_relocation;
-mod redundant_extension;
 mod relocation;
 mod run_interchange;
 mod run_relocation;
@@ -230,10 +228,6 @@ pub use predecessor_run_relocation::{
     PredecessorRunRelocationError, PredecessorRunRelocationReceipt,
     ValidatedPredecessorRunRelocation, relocate_selected_run_into_predecessor,
     validate_predecessor_run_relocation,
-};
-pub use redundant_extension::{
-    RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension,
-    remove_selected_redundant_extension, validate_redundant_extension_removal,
 };
 pub use relocation::{
     MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation,

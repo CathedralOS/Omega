@@ -343,7 +343,7 @@ fn reconstruct<'source>(
 /// family publishes: one step per block plus one per instruction across the
 /// plan, then a second scan of the reconstructed function's instructions that
 /// locates and counts the input's producers.
-fn measured_steps(
+pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
 ) -> Result<u64, RedundantExtensionError> {
@@ -430,6 +430,8 @@ pub fn validate_redundant_extension_removal(
             transformed_selected: selected_instruction_plan_identity(&proposed),
             optimization_unit: source.optimization_unit_identity(),
             fuel_schedule: source.fuel_schedule_identity(),
+            function_index,
+            extension,
         },
         transformed: Arc::new(proposed),
     })
@@ -613,6 +615,8 @@ mod independence_tests {
                 transformed_selected: identity,
                 optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
                 fuel_schedule: plan.fuel_schedule,
+                function_index: 0,
+                extension: EXTENSION,
             },
             transformed: Arc::new(plan),
         };

@@ -20,7 +20,7 @@ pub use validation::{
 };
 
 use crate::{
-    OptimizedCopyRemovalCustodyError, OptimizedLiteralFoldCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
     StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,
     StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationCustodyReceipt,
 };
@@ -313,7 +313,7 @@ impl std::fmt::Display for OptimizedPostSelectedLoweringHomeCustodyError {
 impl std::error::Error for OptimizedPostSelectedLoweringHomeCustodyError {}
 
 /// Strict homes after a completed pre-allocation suite. The suite's
-/// completion identity is retained even when its copy-removal ledger is
+/// completion identity is retained even when its transformation ledger is
 /// empty because every candidate declined on the admitted source program.
 #[derive(Debug)]
 pub struct StagedOptimizedRegisterHomesAfterPreAllocation {
@@ -346,8 +346,8 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
         self.run.legality()
     }
     /// The register environment admitted with the run's source legality —
-    /// copy removal preserves it, so the source's environment is the
-    /// current one.
+    /// the pre-allocation families preserve it, so the source's environment
+    /// is the current one.
     pub const fn register_environment(
         &self,
     ) -> &register_environment::ValidatedTargetRegisterEnvironment {
@@ -414,7 +414,7 @@ impl StagedOptimizedPostPreAllocationHomeCustodyReceipt {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizedPostPreAllocationHomeCustodyError {
-    UpstreamPreAllocation(OptimizedCopyRemovalCustodyError),
+    UpstreamPreAllocation(OptimizedPreAllocationCustodyError),
     Assignment(RegisterHomeError),
     Manifest(PostAllocationOptimizationManifestError),
     ReceiptMismatch,

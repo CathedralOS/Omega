@@ -8,7 +8,9 @@
 //! executes the allocation-recovery slice through `fixed_view` (fixed-view
 //! copies and fixed precolored segment homes) and the pressure
 //! rematerialization it owns; `pre_allocation` executes the pre-allocation
-//! slice through `copy_removal` (same-block copy removal);
+//! slice through `copy_removal` (same-block copy removal) and
+//! `redundant_extension` (carrier extensions whose producer already
+//! normalizes);
 //! `runtime_spill` and `runtime_rematerialization`
 //! are the recovery rewrites register assignment replays. `block_edges` and
 //! `window_hazards` are the block-boundary and hazard vocabulary those and
@@ -28,6 +30,7 @@ mod literal_folds;
 #[cfg(test)]
 mod module_catalog;
 mod pre_allocation;
+mod redundant_extension;
 mod runtime_rematerialization;
 mod runtime_spill;
 mod selected_lowering;
@@ -59,7 +62,9 @@ pub use catalog::{
 #[allow(unused_imports)]
 pub(crate) use catalog::{selected_stage_catalog_contains, selected_stage_rule_rows};
 pub use copy_removal::{CopyRemovalError, CopyRemovalReceipt, ValidatedCopyRemoval};
-pub(crate) use copy_removal::{measured_steps, remove_selected_copy};
+pub(crate) use copy_removal::{
+    measured_steps as copy_removal_measured_steps, remove_selected_copy,
+};
 pub use fixed_view::{
     FixedPrecoloredSegmentHomeDecline, OptimizedFixedPrecoloredSegmentHomeCustodyError,
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
@@ -90,13 +95,20 @@ pub use literal_folds::{
 #[cfg(any(test, feature = "test-support"))]
 pub use pre_allocation::PreAllocationOptimizationCustodyFieldForTest;
 pub use pre_allocation::{
-    CopyRemovalPolicy, ORDERED_PRE_ALLOCATION_RULES, OptimizedCopyRemovalCustodyError,
-    PRE_ALLOCATION_RULE_CATALOG, PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError,
-    PreAllocationRuleCatalogPayload, StagedOptimizedCopyRemovalAttempt,
-    StagedOptimizedCopyRemovalAttemptReceipt, StagedOptimizedCopyRemovalIterationReceipt,
-    StagedOptimizedCopyRemovalStep, StagedPreAllocationOptimizationCustodyReceipt,
-    StagedPreAllocationOptimizationRun, resolve_pre_allocation_rules,
+    ORDERED_PRE_ALLOCATION_RULES, OptimizedPreAllocationCustodyError, PRE_ALLOCATION_RULE_CATALOG,
+    PreAllocationPolicy, PreAllocationRuleCatalogEntry, PreAllocationRuleCatalogError,
+    PreAllocationRuleCatalogPayload, PreAllocationTransformationIdentity,
+    StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
+    StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
+    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
+    ValidatedPreAllocationTransformation, resolve_pre_allocation_rules,
     run_pre_allocation_optimizations, validate_pre_allocation_optimization_custody,
+};
+pub use redundant_extension::{
+    RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension,
+};
+pub(crate) use redundant_extension::{
+    measured_steps as redundant_extension_measured_steps, remove_selected_redundant_extension,
 };
 pub use runtime_rematerialization::{
     RuntimeRematerializationError, RuntimeRematerializationReceipt,

@@ -56,11 +56,14 @@ mod validation;
 use std::sync::Arc;
 
 use optimization_core::OptimizationUnitIdentity;
-use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    RedundantExtensionIdentity, SelectedInstructionId, SelectedInstructionPlan,
+    SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::FuelScheduleIdentity;
 
-pub use rewrite::remove_selected_redundant_extension;
-pub use validation::validate_redundant_extension_removal;
+pub(crate) use rewrite::remove_selected_redundant_extension;
+pub(crate) use validation::{measured_steps, validate_redundant_extension_removal};
 
 #[cfg(test)]
 mod tests;
@@ -92,6 +95,8 @@ pub struct RedundantExtensionReceipt {
     transformed_selected: SelectedInstructionPlanIdentity,
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
+    function_index: usize,
+    extension: SelectedInstructionId,
 }
 
 impl RedundantExtensionReceipt {
@@ -107,6 +112,42 @@ impl RedundantExtensionReceipt {
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
         self.fuel_schedule
     }
+    /// The function the redundant extension was rewritten in.
+    pub const fn function_index(&self) -> usize {
+        self.function_index
+    }
+    /// The rewritten extension instruction's source-side identity.
+    pub const fn extension(&self) -> SelectedInstructionId {
+        self.extension
+    }
+    /// The durable transformation identity the post-allocation manifest
+    /// ledger records: the receipt's exact fields under the
+    /// redundant-extension domain separator.
+    pub fn identity(&self) -> RedundantExtensionIdentity {
+        redundant_extension_identity(self)
+    }
+}
+
+/// Canonical identity of one validated redundant-extension removal: every
+/// receipt field — the coordinate, both plan identities, and the proof
+/// inputs — is part of the durable record, so two removals of the same
+/// instruction under different sources stay distinct transformations.
+pub(crate) fn redundant_extension_identity(
+    receipt: &RedundantExtensionReceipt,
+) -> RedundantExtensionIdentity {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"omega.terminal-redundant-extension-removal.v1\0");
+    bytes.extend_from_slice(&receipt.source_selected.bytes());
+    bytes.extend_from_slice(&receipt.transformed_selected.bytes());
+    bytes.extend_from_slice(&receipt.optimization_unit.bytes());
+    bytes.extend_from_slice(&receipt.fuel_schedule.marker().to_le_bytes());
+    bytes.extend_from_slice(
+        &u64::try_from(receipt.function_index)
+            .expect("redundant-extension function index fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&receipt.extension.0.to_le_bytes());
+    RedundantExtensionIdentity::from_canonical_bytes(&bytes)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

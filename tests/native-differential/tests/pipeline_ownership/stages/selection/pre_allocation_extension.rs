@@ -1,18 +1,21 @@
-//! Same-block `CopyI64` removal through the pre-allocation executor and the
-//! `optimize_selected_instructions` entrance, on compiler-produced selected
-//! plans. `staged_u64_equal_conditional_with_selections` selects two
-//! admissible parameter-normalization copies beside two constrained return
-//! copies; `staged_forwarded_conditional_with_selections` selects only
-//! declining candidates.
+//! Redundant carrier-extension removal through the pre-allocation executor
+//! and the `optimize_selected_instructions` entrance, on compiler-produced
+//! selected plans. `staged_widened_u8_parameter_with_selections` selects a
+//! `ZeroExtendU8` chain — the parameter's ABI normalization then the
+//! `IntegerWiden` — whose second instruction is the admissible redundant
+//! extension; `staged_widened_u8_exact_add_conditional_with_selections`
+//! selects `ZeroExtendU8`s over narrow arithmetic, which decline.
 
 use crate::tests::{
     NativeTarget, Optimization, OptimizationSelections, OptimizedPreAllocationCustodyError,
-    PreAllocationOptimizationCustodyFieldForTest, PreAllocationPolicy, SelectedInstructionKind,
+    PostAllocationSelectedTransformation, PreAllocationOptimizationCustodyFieldForTest,
+    PreAllocationPolicy, PreAllocationTransformationIdentity, SelectedInstructionKind,
     StagedOptimizedAllocationLegality, StagedPreAllocationOptimizationRun,
     optimize_selected_instructions, run_pre_allocation_optimizations,
     stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
-    staged_forwarded_conditional, staged_forwarded_conditional_with_selections,
-    staged_u64_equal_conditional_with_selections, validate_pre_allocation_optimization_custody,
+    stage_optimized_register_homes_after_pre_allocation,
+    staged_widened_u8_exact_add_conditional_with_selections,
+    staged_widened_u8_parameter_with_selections, validate_pre_allocation_optimization_custody,
 };
 use optimization_core::OptimizationWorkBudget;
 use selected_instructions_to_register_homes::{
@@ -20,10 +23,19 @@ use selected_instructions_to_register_homes::{
     ValidatedSelectedAnalysis,
 };
 
-fn copy_removal_suite() -> OptimizationSelections {
+fn extension_suite() -> OptimizationSelections {
+    OptimizationSelections::new([
+        Optimization::CopyPropagation,
+        Optimization::SelectedRedundantExtensionRemovalV1,
+    ])
+    .unwrap()
+}
+
+fn both_suites() -> OptimizationSelections {
     OptimizationSelections::new([
         Optimization::CopyPropagation,
         Optimization::SelectedSameBlockCopyI64RemovalV1,
+        Optimization::SelectedRedundantExtensionRemovalV1,
     ])
     .unwrap()
 }
@@ -37,42 +49,52 @@ fn legality(
     .unwrap()
 }
 
-fn equal_conditional_legality(target: NativeTarget) -> StagedOptimizedAllocationLegality {
-    legality(staged_u64_equal_conditional_with_selections(
+fn widened_parameter_legality(target: NativeTarget) -> StagedOptimizedAllocationLegality {
+    legality(staged_widened_u8_parameter_with_selections(
         target,
-        copy_removal_suite(),
+        extension_suite(),
         crate::tests::selected_lowering_budget(),
     ))
 }
 
-fn copy_count(run: &StagedPreAllocationOptimizationRun) -> usize {
+fn kind_count(run: &StagedPreAllocationOptimizationRun, kind: SelectedInstructionKind) -> usize {
     run.current()
         .selected_plan()
         .functions
         .iter()
         .flat_map(|function| &function.blocks)
         .flat_map(|block| &block.instructions)
-        .filter(|instruction| instruction.kind == SelectedInstructionKind::CopyI64)
+        .filter(|instruction| instruction.kind == kind)
         .count()
 }
 
-/// Both parameter-normalization copies commit — one per predecessor-free
-/// entry scan — while each leaf's constrained return copy declines.
+/// The `IntegerWiden`'s `ZeroExtendU8` commits to `CopyI64` — its producer is
+/// the parameter's own zero-normalizing extension — while the ABI-boundary
+/// extension has no instruction producer and stays. The run publishes the
+/// validated step plus a terminal clean sweep.
 #[test]
-fn positive_removes_every_admissible_normalization_copy() {
+fn positive_removes_the_extension_over_a_zero_normalized_producer() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let run = run_pre_allocation_optimizations(equal_conditional_legality(target)).unwrap();
-        assert_eq!(run.steps().len(), 2, "{target:?}");
+        let run = run_pre_allocation_optimizations(widened_parameter_legality(target)).unwrap();
+        assert_eq!(run.steps().len(), 1, "{target:?}");
         assert_eq!(
             run.policy(),
-            PreAllocationPolicy::SAME_BLOCK_COPY_I64_V1,
+            PreAllocationPolicy::REDUNDANT_EXTENSION_V1,
             "{target:?}"
         );
-        // The terminal clean pass still found the two constrained return
-        // copies and declined them.
-        assert_eq!(run.attempt().candidates(), 2, "{target:?}");
-        assert_eq!(run.attempt().declined(), 2, "{target:?}");
-        assert_eq!(copy_count(&run), 2, "{target:?}");
+        assert!(matches!(
+            run.custody().iterations()[0].transformation(),
+            PreAllocationTransformationIdentity::RedundantExtension(_),
+        ));
+        // The parameter-normalization extension has no instruction producer
+        // and declines on the terminal sweep.
+        assert_eq!(run.attempt().candidates(), 1, "{target:?}");
+        assert_eq!(run.attempt().declined(), 1, "{target:?}");
+        assert_eq!(
+            kind_count(&run, SelectedInstructionKind::ZeroExtendU8),
+            1,
+            "{target:?}"
+        );
         assert_eq!(
             validate_pre_allocation_optimization_custody(&run).unwrap(),
             *run.custody(),
@@ -81,14 +103,14 @@ fn positive_removes_every_admissible_normalization_copy() {
     }
 }
 
-/// Every `CopyI64` the forwarded-parameter diamond selects is inadmissible:
-/// the normalization copy's readers live in other blocks and the return
-/// copies feed fixed-view terminators. The run still publishes — a clean
-/// pass with no commits and the unchanged program.
+/// Every `ZeroExtendU8` the widened-arithmetic diamond selects reads a narrow
+/// add's result — a producer whose contract promises nothing about the high
+/// bits — so all of them decline and the run publishes the unchanged program.
 #[test]
 fn negative_declines_every_candidate_and_publishes_unchanged() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let selected = staged_forwarded_conditional_with_selections(target, copy_removal_suite());
+        let selected =
+            staged_widened_u8_exact_add_conditional_with_selections(target, extension_suite());
         let before = selected.selected().plan().clone();
         let run = run_pre_allocation_optimizations(legality(selected)).unwrap();
         assert!(run.steps().is_empty(), "{target:?}");
@@ -112,7 +134,7 @@ fn negative_declines_every_candidate_and_publishes_unchanged() {
 #[test]
 fn measured_budget_admits_exact_usage_and_refuses_one_less() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let run = run_pre_allocation_optimizations(equal_conditional_legality(target)).unwrap();
+        let run = run_pre_allocation_optimizations(widened_parameter_legality(target)).unwrap();
         let usage = run.custody().usage();
         let exact = OptimizationWorkBudget::new(
             usage.rule_evaluations,
@@ -122,9 +144,9 @@ fn measured_budget_admits_exact_usage_and_refuses_one_less() {
             usage.iterations,
         )
         .unwrap();
-        run_pre_allocation_optimizations(legality(staged_u64_equal_conditional_with_selections(
+        run_pre_allocation_optimizations(legality(staged_widened_u8_parameter_with_selections(
             target,
-            copy_removal_suite(),
+            extension_suite(),
             exact,
         )))
         .unwrap();
@@ -139,16 +161,12 @@ fn measured_budget_admits_exact_usage_and_refuses_one_less() {
         assert!(
             matches!(
                 run_pre_allocation_optimizations(legality(
-                    staged_u64_equal_conditional_with_selections(
-                        target,
-                        copy_removal_suite(),
-                        short
-                    ),
+                    staged_widened_u8_parameter_with_selections(target, extension_suite(), short),
                 )),
                 Err(
                     OptimizedPreAllocationCustodyError::PreAllocationBudgetExceeded { .. }
-                        | OptimizedPreAllocationCustodyError::CopyRemoval(
-                            crate::tests::CopyRemovalError::WorkBudgetExceeded
+                        | OptimizedPreAllocationCustodyError::RedundantExtension(
+                            crate::tests::RedundantExtensionError::WorkBudgetExceeded
                         )
                 )
             ),
@@ -158,11 +176,12 @@ fn measured_budget_admits_exact_usage_and_refuses_one_less() {
 }
 
 /// Without the selection the suite carries no executed pre-allocation phase,
-/// so the entrance publishes identity evidence and the plan keeps its copies.
+/// so the entrance publishes identity evidence and the plan keeps both
+/// chained extensions.
 #[test]
 fn disabled_selection_leaves_the_plan_untouched() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let selected = staged_u64_equal_conditional_with_selections(
+        let selected = staged_widened_u8_parameter_with_selections(
             target,
             OptimizationSelections::new([Optimization::CopyPropagation]).unwrap(),
             crate::tests::selected_lowering_budget(),
@@ -170,6 +189,19 @@ fn disabled_selection_leaves_the_plan_untouched() {
         let before = selected.selected().plan().clone();
         let output = optimize_selected_instructions(selected).unwrap();
         assert_eq!(output.program().selected_plan(), &before, "{target:?}");
+        assert_eq!(
+            output
+                .program()
+                .selected_plan()
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .filter(|instruction| instruction.kind == SelectedInstructionKind::ZeroExtendU8)
+                .count(),
+            2,
+            "{target:?}"
+        );
         assert!(matches!(
             output.into_replayed_evidence().unwrap(),
             SelectedInstructionOptimizationEvidence::Identity(_),
@@ -182,8 +214,8 @@ fn disabled_selection_leaves_the_plan_untouched() {
 #[test]
 fn repeated_runs_are_deterministic() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let first = run_pre_allocation_optimizations(equal_conditional_legality(target)).unwrap();
-        let second = run_pre_allocation_optimizations(equal_conditional_legality(target)).unwrap();
+        let first = run_pre_allocation_optimizations(widened_parameter_legality(target)).unwrap();
+        let second = run_pre_allocation_optimizations(widened_parameter_legality(target)).unwrap();
         assert_eq!(first.custody(), second.custody(), "{target:?}");
         assert_eq!(first.steps(), second.steps(), "{target:?}");
         assert_eq!(first.attempt(), second.attempt(), "{target:?}");
@@ -195,13 +227,13 @@ fn repeated_runs_are_deterministic() {
     }
 }
 
-/// The run ends only when a discovery pass declines everything left: the
+/// The run ends only when a discovery sweep declines everything left: the
 /// published program is itself a legal input whose next scan finds no
 /// admissible candidate, which the retained terminal attempt records.
 #[test]
 fn published_run_is_a_clean_fixed_point() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let run = run_pre_allocation_optimizations(equal_conditional_legality(target)).unwrap();
+        let run = run_pre_allocation_optimizations(widened_parameter_legality(target)).unwrap();
         assert_eq!(
             run.attempt().candidates(),
             run.attempt().declined(),
@@ -209,6 +241,55 @@ fn published_run_is_a_clean_fixed_point() {
         );
         // Independent replay re-derives the whole iteration chain and the
         // terminal attempt from the source, not from the retained steps.
+        assert_eq!(
+            validate_pre_allocation_optimization_custody(&run).unwrap(),
+            *run.custody(),
+            "{target:?}"
+        );
+    }
+}
+
+/// Selecting both pre-allocation families sweeps them jointly: the extension
+/// commits to `CopyI64` — catalog order — and the published copy then joins
+/// the copy-removal pass's candidate surface on the next sweep. Its readers
+/// sit behind the fixed-view return boundary, so the copy declines; both
+/// families' remaining candidates appear declined in the terminal attempt.
+#[test]
+fn joint_sweep_feeds_the_published_copy_to_the_copy_pass() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let legality = legality(staged_widened_u8_parameter_with_selections(
+            target,
+            both_suites(),
+            crate::tests::selected_lowering_budget(),
+        ));
+        let run = run_pre_allocation_optimizations(legality).unwrap();
+        assert_eq!(
+            run.policy(),
+            PreAllocationPolicy::SAME_BLOCK_COPY_I64_V1
+                .union(PreAllocationPolicy::REDUNDANT_EXTENSION_V1),
+            "{target:?}"
+        );
+        assert_eq!(run.steps().len(), 1, "{target:?}");
+        assert!(matches!(
+            run.custody().iterations()[0].transformation(),
+            PreAllocationTransformationIdentity::RedundantExtension(_),
+        ));
+        // The terminal sweep reaches the published `CopyI64` beside the
+        // surviving parameter-normalization extension and declines both.
+        assert!(
+            run.attempt().candidates() >= 2,
+            "{target:?}: the extension's copy and the remaining extension must both be candidates"
+        );
+        assert_eq!(
+            run.attempt().candidates(),
+            run.attempt().declined(),
+            "{target:?}"
+        );
+        assert_eq!(
+            kind_count(&run, SelectedInstructionKind::ZeroExtendU8),
+            1,
+            "{target:?}"
+        );
         assert_eq!(
             validate_pre_allocation_optimization_custody(&run).unwrap(),
             *run.custody(),
@@ -261,7 +342,7 @@ fn custody_rejects_every_one_field_substitution() {
     ];
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let build = |target: NativeTarget| {
-            run_pre_allocation_optimizations(equal_conditional_legality(target)).unwrap()
+            run_pre_allocation_optimizations(widened_parameter_legality(target)).unwrap()
         };
         let donor = build(match target.architecture {
             target::Architecture::X86_64 => NativeTarget::linux_arm64(),
@@ -296,25 +377,28 @@ fn custody_rejects_every_one_field_substitution() {
 #[test]
 fn entrance_publishes_pre_allocation_evidence() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let selected = staged_u64_equal_conditional_with_selections(
+        let selected = staged_widened_u8_parameter_with_selections(
             target,
-            copy_removal_suite(),
+            extension_suite(),
             crate::tests::selected_lowering_budget(),
         );
         let output = optimize_selected_instructions(selected).unwrap();
-        let copies = output
-            .program()
-            .selected_plan()
-            .functions
-            .iter()
-            .flat_map(|function| &function.blocks)
-            .flat_map(|block| &block.instructions)
-            .filter(|instruction| instruction.kind == SelectedInstructionKind::CopyI64)
-            .count();
-        assert_eq!(copies, 2, "{target:?}");
+        assert_eq!(
+            output
+                .program()
+                .selected_plan()
+                .functions
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .filter(|instruction| instruction.kind == SelectedInstructionKind::ZeroExtendU8)
+                .count(),
+            1,
+            "{target:?}"
+        );
         match output.into_replayed_evidence().unwrap() {
             SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
-                assert_eq!(run.steps().len(), 2, "{target:?}");
+                assert_eq!(run.steps().len(), 1, "{target:?}");
             }
             _ => panic!("{target:?}: expected pre-allocation evidence"),
         }
@@ -327,11 +411,11 @@ fn entrance_publishes_pre_allocation_evidence() {
 #[test]
 fn mixed_executed_slices_are_an_unsupported_composition() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let selected = staged_u64_equal_conditional_with_selections(
+        let selected = staged_widened_u8_parameter_with_selections(
             target,
             OptimizationSelections::new([
                 Optimization::CopyPropagation,
-                Optimization::SelectedSameBlockCopyI64RemovalV1,
+                Optimization::SelectedRedundantExtensionRemovalV1,
                 Optimization::SelectedIncomingU12ExactAddImmediate,
             ])
             .unwrap(),
@@ -345,16 +429,23 @@ fn mixed_executed_slices_are_an_unsupported_composition() {
     }
 }
 
-/// The executor resolves its rules through the catalog: a suite with no
-/// pre-allocation member is a missing-selection catalog error, not a run.
+/// The optimized run feeds strict homes downstream: the post-allocation
+/// manifest ledger records the committed transformation under its exact
+/// redundant-extension family identity, in order, beside the analyses and
+/// home identities it governs.
 #[test]
-fn executor_rejects_a_suite_without_a_pre_allocation_selection() {
+fn downstream_homes_publish_the_redundant_extension_transformation() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
-        let legality = legality(staged_forwarded_conditional(target));
-        assert_eq!(
-            run_pre_allocation_optimizations(legality).unwrap_err(),
-            OptimizedPreAllocationCustodyError::MissingPreAllocationOptimization,
-            "{target:?}"
-        );
+        let run = run_pre_allocation_optimizations(widened_parameter_legality(target)).unwrap();
+        let homes = stage_optimized_register_homes_after_pre_allocation(run).unwrap();
+        let transformations = &homes
+            .post_allocation_manifest()
+            .record()
+            .selected_transformations;
+        assert_eq!(transformations.len(), 1, "{target:?}");
+        assert!(matches!(
+            transformations[0],
+            PostAllocationSelectedTransformation::RedundantExtension(_),
+        ));
     }
 }

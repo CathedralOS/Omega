@@ -7,7 +7,8 @@ use optimization_core::{
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
     CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
-    LivenessIdentity, PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+    LivenessIdentity, PressureRematerializationIdentity, RedundantExtensionIdentity,
+    SelectedInstructionPlanIdentity,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -98,6 +99,9 @@ impl PostAllocationOptimizationManifest {
                 ),
                 6 => PostAllocationSelectedTransformation::CopyRemoval(
                     CopyRemovalIdentity::from_bytes(cursor.array()?),
+                ),
+                7 => PostAllocationSelectedTransformation::RedundantExtension(
+                    RedundantExtensionIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -213,6 +217,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::CopyRemoval(identity) => {
                 canonical.push(6);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::RedundantExtension(identity) => {
+                canonical.push(7);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

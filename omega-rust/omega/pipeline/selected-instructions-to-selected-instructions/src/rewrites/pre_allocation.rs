@@ -2,7 +2,8 @@
 //!
 //! [`PRE_ALLOCATION_RULE_CATALOG`] is the only enable/order declaration for
 //! this phase. Catalog rows compose their exact payloads; the copy-removal
-//! family owns candidate admission and independent validation.
+//! and redundant-extension families own candidate admission and independent
+//! validation, and the executor sweeps them to one joint fixed point.
 
 mod catalog;
 mod execution;
@@ -23,15 +24,16 @@ pub use catalog::{
 };
 pub use execution::validate_pre_allocation_optimization_custody;
 pub use model::{
-    CopyRemovalPolicy, OptimizedCopyRemovalCustodyError, StagedOptimizedCopyRemovalAttempt,
-    StagedOptimizedCopyRemovalAttemptReceipt, StagedOptimizedCopyRemovalIterationReceipt,
-    StagedOptimizedCopyRemovalStep, StagedPreAllocationOptimizationCustodyReceipt,
-    StagedPreAllocationOptimizationRun,
+    OptimizedPreAllocationCustodyError, PreAllocationPolicy, PreAllocationTransformationIdentity,
+    StagedOptimizedPreAllocationAttempt, StagedOptimizedPreAllocationAttemptReceipt,
+    StagedOptimizedPreAllocationIterationReceipt, StagedOptimizedPreAllocationStep,
+    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
+    ValidatedPreAllocationTransformation,
 };
 #[cfg(any(test, feature = "test-support"))]
 pub use test_support::PreAllocationOptimizationCustodyFieldForTest;
 
-impl From<PreAllocationRuleCatalogError> for OptimizedCopyRemovalCustodyError {
+impl From<PreAllocationRuleCatalogError> for OptimizedPreAllocationCustodyError {
     fn from(error: PreAllocationRuleCatalogError) -> Self {
         match error {
             PreAllocationRuleCatalogError::WrongPhase(_) => Self::SelectionProjectionMismatch,
@@ -52,7 +54,7 @@ impl From<PreAllocationRuleCatalogError> for OptimizedCopyRemovalCustodyError {
 /// explicit payload and cannot fall through an old whole-catalog special case.
 pub fn resolve_pre_allocation_rules(
     selections: &OptimizationPhaseSelections,
-) -> Result<(OptimizationSelections, CopyRemovalPolicy), PreAllocationRuleCatalogError> {
+) -> Result<(OptimizationSelections, PreAllocationPolicy), PreAllocationRuleCatalogError> {
     let phase = selections
         .require_phase(OptimizationExecutionPhase::PreAllocation)
         .map_err(PreAllocationRuleCatalogError::WrongPhase)?;
@@ -69,16 +71,17 @@ pub fn resolve_pre_allocation_rules(
     let policy = PRE_ALLOCATION_RULE_CATALOG
         .iter()
         .filter(|entry| phase.contains(entry.optimization()))
-        .fold(CopyRemovalPolicy::empty(), |policy, entry| {
+        .fold(PreAllocationPolicy::empty(), |policy, entry| {
             policy.union(entry.payload().policy())
         });
     Ok((phase.clone(), policy))
 }
 
-/// Execute the exact pre-allocation projection to a validated fixed point.
+/// Execute the exact pre-allocation projection to a validated joint fixed
+/// point.
 pub fn run_pre_allocation_optimizations(
     source: StagedOptimizedAllocationLegality,
-) -> Result<StagedPreAllocationOptimizationRun, OptimizedCopyRemovalCustodyError> {
+) -> Result<StagedPreAllocationOptimizationRun, OptimizedPreAllocationCustodyError> {
     let selections = source.selections().clone();
     let pre_allocation = selections.project_phase(OptimizationExecutionPhase::PreAllocation);
     let (selected, policy) = resolve_pre_allocation_rules(&pre_allocation)?;

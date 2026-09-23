@@ -20,13 +20,13 @@ use crate::rewrites::unexecuted::{
     ValidatedInflowRelocation, ValidatedJoinRelocation, ValidatedLocalRelocation,
     ValidatedLocalSchedule, ValidatedMemberRunInterchange, ValidatedMemberRunRelocation,
     ValidatedPredecessorRelocation, ValidatedPredecessorRunRelocation, ValidatedRedundantCompare,
-    ValidatedRedundantExtension, ValidatedRunInterchange, ValidatedRunRelocation,
-    ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
-    ValidatedTriangleRelocation,
+    ValidatedRunInterchange, ValidatedRunRelocation, ValidatedScheduledRelocation,
+    ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding, ValidatedTriangleRelocation,
 };
 use crate::{
     ValidatedCopyRemoval, ValidatedFixedViewCopies, ValidatedLiteralFold,
-    ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedPreAllocationTransformation, ValidatedPressureRematerialization,
+    ValidatedRedundantExtension, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
 };
 
 mod sealed {
@@ -390,6 +390,29 @@ impl ValidatedSelectedAnalysis for ValidatedRedundantExtension {
     }
     fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
         self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedPreAllocationTransformation {}
+
+/// The pre-allocation joint fixed point's current program: whichever exact
+/// family committed the last step, its transformed plan is the next sweep's
+/// discovery source.
+impl ValidatedSelectedAnalysis for ValidatedPreAllocationTransformation {
+    fn selected_plan(&self) -> &SelectedInstructionPlan {
+        self.transformed()
+    }
+    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
+        self.shared_transformed()
+    }
+    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
+        self.transformed_selected()
+    }
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.optimization_unit()
+    }
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.fuel_schedule()
     }
 }
 

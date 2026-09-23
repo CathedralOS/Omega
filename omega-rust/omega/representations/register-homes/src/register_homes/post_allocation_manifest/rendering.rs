@@ -67,6 +67,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::CopyRemoval(identity) => {
                     ("copy-removal", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::RedundantExtension(identity) => {
+                    ("redundant-extension", identity.bytes())
+                }
             };
             writeln!(
                 output,

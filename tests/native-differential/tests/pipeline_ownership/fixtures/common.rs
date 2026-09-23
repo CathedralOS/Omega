@@ -840,6 +840,130 @@ pub(crate) fn staged_conditional(target: NativeTarget) -> StagedOptimizedSelecte
     stage_optimized_instruction_selection(target).unwrap()
 }
 
+/// A `u8` parameter widened to the `u64` result carrier: the parameter's ABI
+/// normalization already selects one `ZeroExtendU8`, and the `IntegerWiden`
+/// operation selects a second over the normalized register. The first has no
+/// instruction producer and declines; the second's producer is exactly the
+/// zero-normalizing extension, so the redundant-extension rule rewrites it to
+/// `CopyI64`.
+pub(crate) fn widened_u8_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
+    let machine = MachineId::new(21_001).unwrap();
+    let entry = BlockId::new(21_002).unwrap();
+    let operand = ValueId::new(21_003).unwrap();
+    let wide = ValueId::new(21_004).unwrap();
+    let result = ValueId::new(21_005).unwrap();
+    let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+    let u64_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let declaration = |id, scalar_type| ValueDeclaration {
+        qualifications: Default::default(),
+        id,
+        scalar_type,
+    };
+    let module = TerminalModule {
+        scalar_qualifications: Default::default(),
+        scalar_block_invariants: Vec::new(),
+        operation_crash_contracts: Vec::new(),
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        entry: machine,
+        structural_types: Vec::new(),
+        structural_domains: Vec::new(),
+        services: Vec::new(),
+        root_service_reach: Default::default(),
+        placed_view_inputs: Vec::new(),
+        reborrow_root_handoffs: Vec::new(),
+        reborrow_restored_call_uses: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        float_meaning_projections: Vec::new(),
+        float_meaning_equalities: Vec::new(),
+        proposition_declarations: Vec::new(),
+        proposition_applications: Vec::new(),
+        evidence_terms: Vec::new(),
+        proof_output_calls: Vec::new(),
+        proof_recursive_components: Vec::new(),
+        evidence_contract_lanes: Vec::new(),
+        closed_conformance_applications: Vec::new(),
+        dynamic_dispatch: Default::default(),
+        suspension_call_plan_count: 0,
+        suspension_call_sites: Vec::new(),
+        suspension_call_plans: Vec::new(),
+        quotient_correspondences: Vec::new(),
+        machines: vec![TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: machine,
+            attachment: None,
+            parameters: vec![declaration(operand, u8_type)],
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Scalar(declaration(result, u64_type)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks: vec![Block {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: Vec::new(),
+                id: entry,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: OperationId::new(21_006).unwrap(),
+                    result: OperationResult::Scalar(declaration(wide, u64_type)),
+                    kind: OperationKind::IntegerWiden { operand },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(21_007).unwrap(),
+                    value: wide,
+                    cleanup_actions: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                id: ContractId::new(21_008).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }],
+    };
+    let proof = operation_proof_bundle(&module);
+    (
+        terminal_codec::encode_module(&module).unwrap(),
+        terminal_codec::encode_proof_section(&module, &proof).unwrap(),
+    )
+}
+
+/// The widened-parameter artifact under an authored suite, lowered and
+/// selected for `target` with `budget` as the per-pass work budget.
+pub(crate) fn staged_widened_u8_parameter_with_selections(
+    target: NativeTarget,
+    selections: OptimizationSelections,
+    budget: OptimizationWorkBudget,
+) -> StagedOptimizedSelectedInstructions {
+    let (semantic, proof) = widened_u8_parameter_artifact();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(selections, budget).unwrap(),
+    )
+    .unwrap();
+    let target = lower_optimized_to_target_operations(
+        optimized,
+        OptimizedTargetLoweringRequest::new(target),
+    )
+    .unwrap();
+    stage_optimized_instruction_selection(target).unwrap()
+}
+
 /// The two-`u64`-parameter equality diamond under an authored suite: each
 /// parameter's carrier normalization selects a `CopyI64` in the entry block
 /// whose only readers are the compare's plain uses — the admissible

@@ -63,8 +63,8 @@ pub use effects::{
 };
 pub use identity::{
     CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
-    PressureRematerializationIdentity, SelectedBlockId, SelectedInstructionId,
-    SelectedInstructionPlanIdentity, VirtualRegisterId,
+    PressureRematerializationIdentity, RedundantExtensionIdentity, SelectedBlockId,
+    SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 pub use instructions::{SelectedInstruction, SelectedInstructionKind};
 pub use legalized_operations::{SaturatingCarrier, SaturatingOperation};

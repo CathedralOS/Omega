@@ -1,45 +1,92 @@
-//! Copy-removal execution, fixed-point iteration, and independent replay.
+//! Joint pre-allocation execution, fixed-point iteration, and independent
+//! replay.
+//!
+//! One sweep walks [`PRE_ALLOCATION_RULE_CATALOG`] in canonical descriptor
+//! order, running each enabled family's discovery pass over the current
+//! program. The first admissible candidate commits and the whole sweep
+//! restarts over the transformed plan: an extension removal publishes a
+//! `CopyI64` the copy-removal pass then owns, so families share the joint
+//! fixed point rather than each converging alone.
 use crate::CopyRemovalError;
-use crate::CopyRemovalPolicy;
-use crate::OptimizedCopyRemovalCustodyError;
+use crate::OptimizedPreAllocationCustodyError;
+use crate::PreAllocationPolicy;
+use crate::RedundantExtensionError;
 use crate::SelectedProgramRef;
 use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
-use crate::StagedOptimizedCopyRemovalAttempt;
-use crate::StagedOptimizedCopyRemovalAttemptReceipt;
-use crate::StagedOptimizedCopyRemovalIterationReceipt;
-use crate::StagedOptimizedCopyRemovalStep;
+use crate::StagedOptimizedPreAllocationAttempt;
+use crate::StagedOptimizedPreAllocationAttemptReceipt;
+use crate::StagedOptimizedPreAllocationIterationReceipt;
+use crate::StagedOptimizedPreAllocationStep;
 use crate::StagedPreAllocationOptimizationCustodyReceipt;
 use crate::StagedPreAllocationOptimizationRun;
-use crate::ValidatedCopyRemoval;
+use crate::ValidatedPreAllocationTransformation;
 use crate::ValidatedSelectedAnalysis;
 use crate::analyze_allocation_legality;
 use crate::analyze_live_ranges;
 use crate::analyze_liveness;
 use crate::resolve_pre_allocation_rules;
-use crate::rewrites::{measured_steps, remove_selected_copy};
+use crate::rewrites::{
+    copy_removal_measured_steps, redundant_extension_measured_steps, remove_selected_copy,
+    remove_selected_redundant_extension,
+};
 use crate::validate_optimized_allocation_legality_custody;
 use optimization_core::{
-    OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
+    Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     PreAllocationOptimizationCompletionIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions::SelectedInstructionKind;
+use selected_instructions::{SelectedInstructionKind, SelectedInstructionPlan};
+
+use super::PRE_ALLOCATION_RULE_CATALOG;
 
 /// One discovery pass's outcome: either the first admissible candidate
 /// committed, or every candidate in the plan declined.
-enum CopyRemovalPass {
+enum PreAllocationPass {
     Clean {
         candidates: usize,
         declined: usize,
         validation_steps: u64,
     },
     Applied {
-        removal: ValidatedCopyRemoval,
+        transformation: ValidatedPreAllocationTransformation,
         declined: usize,
         evaluated: usize,
         validation_steps: u64,
     },
+}
+
+/// Whether the instruction kind is one of the carrier extensions the
+/// redundant-extension family considers: `ZeroExtend*`/`SignExtend*`.
+/// Admission decides redundancy; this is only the source-bound candidate
+/// surface, scanned in plan order.
+fn is_extension_candidate(kind: SelectedInstructionKind) -> bool {
+    matches!(
+        kind,
+        SelectedInstructionKind::ZeroExtendU8
+            | SelectedInstructionKind::ZeroExtendU16
+            | SelectedInstructionKind::ZeroExtendU32
+            | SelectedInstructionKind::SignExtendI8
+            | SelectedInstructionKind::SignExtendI16
+            | SelectedInstructionKind::SignExtendI32
+    )
+}
+
+/// The joint measure a committed step must drop by exactly one: the plan's
+/// virtual registers plus its remaining extension candidates. A copy removal
+/// drops the copy and its destination's roster row; an extension removal
+/// retires one extension while keeping every register.
+fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
+    let extensions = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.instructions)
+        .filter(|instruction| is_extension_candidate(instruction.kind))
+        .count();
+    virtual_registers
+        .checked_add(extensions)
+        .expect("pre-allocation measure fits usize")
 }
 
 /// Source-bound candidate discovery: every `CopyI64` instruction in the
@@ -57,13 +104,13 @@ fn copy_removal_pass(
     current: SelectedProgramRef<'_>,
     environment: &ValidatedTargetRegisterEnvironment,
     budget: OptimizationWorkBudget,
-) -> Result<CopyRemovalPass, OptimizedCopyRemovalCustodyError> {
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
     let mut evaluated = 0usize;
     let mut declined = 0usize;
     let mut validation_steps = 0u64;
     for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
-        let audit_cost = measured_steps(current.selected_plan(), function)
-            .map_err(OptimizedCopyRemovalCustodyError::CopyRemoval)?;
+        let audit_cost = copy_removal_measured_steps(current.selected_plan(), function)
+            .map_err(OptimizedPreAllocationCustodyError::CopyRemoval)?;
         for block in &function.blocks {
             for instruction in &block.instructions {
                 if instruction.kind != SelectedInstructionKind::CopyI64 {
@@ -72,7 +119,7 @@ fn copy_removal_pass(
                 evaluated += 1;
                 validation_steps = validation_steps
                     .checked_add(audit_cost)
-                    .ok_or(OptimizedCopyRemovalCustodyError::WorkOverflow)?;
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
                 match remove_selected_copy(
                     &current,
                     function_index,
@@ -83,9 +130,11 @@ fn copy_removal_pass(
                     Ok(removal) => {
                         validation_steps = validation_steps
                             .checked_add(audit_cost)
-                            .ok_or(OptimizedCopyRemovalCustodyError::WorkOverflow)?;
-                        return Ok(CopyRemovalPass::Applied {
-                            removal,
+                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        return Ok(PreAllocationPass::Applied {
+                            transformation: ValidatedPreAllocationTransformation::CopyRemoval(
+                                removal,
+                            ),
                             declined,
                             evaluated,
                             validation_steps,
@@ -96,14 +145,79 @@ fn copy_removal_pass(
                         | CopyRemovalError::IdentityOverflow
                         | CopyRemovalError::ReplayMismatch),
                     ) => {
-                        return Err(OptimizedCopyRemovalCustodyError::CopyRemoval(error));
+                        return Err(OptimizedPreAllocationCustodyError::CopyRemoval(error));
                     }
                     Err(_) => declined += 1,
                 }
             }
         }
     }
-    Ok(CopyRemovalPass::Clean {
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
+/// Source-bound candidate discovery for the redundant-extension family:
+/// every `ZeroExtend*`/`SignExtend*` in the current validated plan, in
+/// function/block/instruction order, evaluated until the first admissible
+/// one commits. Declines and hard failures follow the copy pass's contract
+/// exactly, and the measured-step contract is the extension family's own.
+fn extension_removal_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        let audit_cost = redundant_extension_measured_steps(current.selected_plan(), function)
+            .map_err(OptimizedPreAllocationCustodyError::RedundantExtension)?;
+        for block in &function.blocks {
+            for instruction in &block.instructions {
+                if !is_extension_candidate(instruction.kind) {
+                    continue;
+                }
+                evaluated += 1;
+                validation_steps = validation_steps
+                    .checked_add(audit_cost)
+                    .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                match remove_selected_redundant_extension(
+                    &current,
+                    function_index,
+                    instruction.id,
+                    environment,
+                    budget,
+                ) {
+                    Ok(removal) => {
+                        validation_steps = validation_steps
+                            .checked_add(audit_cost)
+                            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                        return Ok(PreAllocationPass::Applied {
+                            transformation:
+                                ValidatedPreAllocationTransformation::RedundantExtension(removal),
+                            declined,
+                            evaluated,
+                            validation_steps,
+                        });
+                    }
+                    Err(
+                        error @ (RedundantExtensionError::WorkBudgetExceeded
+                        | RedundantExtensionError::IdentityOverflow
+                        | RedundantExtensionError::ReplayMismatch),
+                    ) => {
+                        return Err(OptimizedPreAllocationCustodyError::RedundantExtension(
+                            error,
+                        ));
+                    }
+                    Err(_) => declined += 1,
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
         candidates: evaluated,
         declined,
         validation_steps,
@@ -119,9 +233,9 @@ fn pass_usage(
     evaluated: usize,
     validation_steps: u64,
     commits: usize,
-) -> Result<OptimizationWorkUsage, OptimizedCopyRemovalCustodyError> {
+) -> Result<OptimizationWorkUsage, OptimizedPreAllocationCustodyError> {
     let count = |value: usize| {
-        u64::try_from(value).map_err(|_| OptimizedCopyRemovalCustodyError::WorkOverflow)
+        u64::try_from(value).map_err(|_| OptimizedPreAllocationCustodyError::WorkOverflow)
     };
     Ok(OptimizationWorkUsage {
         rule_evaluations: count(evaluated)?,
@@ -135,40 +249,40 @@ fn pass_usage(
 pub(super) fn add_usage(
     left: OptimizationWorkUsage,
     right: OptimizationWorkUsage,
-) -> Result<OptimizationWorkUsage, OptimizedCopyRemovalCustodyError> {
+) -> Result<OptimizationWorkUsage, OptimizedPreAllocationCustodyError> {
     Ok(OptimizationWorkUsage {
         rule_evaluations: left
             .rule_evaluations
             .checked_add(right.rule_evaluations)
-            .ok_or(OptimizedCopyRemovalCustodyError::WorkOverflow)?,
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
         candidates: left
             .candidates
             .checked_add(right.candidates)
-            .ok_or(OptimizedCopyRemovalCustodyError::WorkOverflow)?,
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
         validation_steps: left
             .validation_steps
             .checked_add(right.validation_steps)
-            .ok_or(OptimizedCopyRemovalCustodyError::WorkOverflow)?,
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
         commits: left
             .commits
             .checked_add(right.commits)
-            .ok_or(OptimizedCopyRemovalCustodyError::WorkOverflow)?,
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
         iterations: left
             .iterations
             .checked_add(right.iterations)
-            .ok_or(OptimizedCopyRemovalCustodyError::WorkOverflow)?,
+            .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?,
     })
 }
 
 pub(super) fn ensure_pre_allocation_budget(
     usage: OptimizationWorkUsage,
     budget: OptimizationWorkBudget,
-) -> Result<(), OptimizedCopyRemovalCustodyError> {
+) -> Result<(), OptimizedPreAllocationCustodyError> {
     if usage.within(budget) {
         Ok(())
     } else {
         Err(
-            OptimizedCopyRemovalCustodyError::PreAllocationBudgetExceeded {
+            OptimizedPreAllocationCustodyError::PreAllocationBudgetExceeded {
                 required: usage,
                 budget,
             },
@@ -176,20 +290,20 @@ pub(super) fn ensure_pre_allocation_budget(
     }
 }
 
-/// Rebuild the analyses the committed step must carry: a removal may not
-/// leave an illegal program behind, so the transformed plan re-stages
+/// Rebuild the analyses the committed step must carry: a transformation may
+/// not leave an illegal program behind, so the transformed plan re-stages
 /// liveness, ranges, and legality before the step is admitted.
-fn complete_removal(
-    removal: ValidatedCopyRemoval,
+fn complete_transformation(
+    transformation: ValidatedPreAllocationTransformation,
     declined: usize,
     evaluated: usize,
     source: &StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedCopyRemovalStep, OptimizedCopyRemovalCustodyError> {
+) -> Result<StagedOptimizedPreAllocationStep, OptimizedPreAllocationCustodyError> {
     let environment = source.register_environment();
     let liveness =
-        analyze_liveness(&removal).map_err(OptimizedCopyRemovalCustodyError::Liveness)?;
-    let ranges = analyze_live_ranges(&removal, &liveness)
-        .map_err(OptimizedCopyRemovalCustodyError::LiveRanges)?;
+        analyze_liveness(&transformation).map_err(OptimizedPreAllocationCustodyError::Liveness)?;
+    let ranges = analyze_live_ranges(&transformation, &liveness)
+        .map_err(OptimizedPreAllocationCustodyError::LiveRanges)?;
     let legality = analyze_allocation_legality(
         &ranges,
         source.allocator_availability(),
@@ -199,15 +313,15 @@ fn complete_removal(
         environment.reservations(),
         &environment.allocation_constraint_keys(),
     )
-    .map_err(OptimizedCopyRemovalCustodyError::AllocationLegality)?;
+    .map_err(OptimizedPreAllocationCustodyError::AllocationLegality)?;
     let transition_count = legality.receipt().entry_transition_count();
     if transition_count != 0 {
-        return Err(OptimizedCopyRemovalCustodyError::RemainingTransitions {
+        return Err(OptimizedPreAllocationCustodyError::RemainingTransitions {
             count: transition_count,
         });
     }
-    Ok(StagedOptimizedCopyRemovalStep {
-        removal,
+    Ok(StagedOptimizedPreAllocationStep {
+        transformation,
         liveness,
         ranges,
         legality,
@@ -216,19 +330,20 @@ fn complete_removal(
     })
 }
 
-/// Run discovery passes to the fixed point over `source`'s admitted plan.
-/// Both the executor and the custody replay call this; neither accepts the
-/// other's steps as authority.
+/// Run discovery sweeps to the joint fixed point over `source`'s admitted
+/// plan. Both the executor and the custody replay call this; neither accepts
+/// the other's steps as authority.
 fn run_passes(
     source: &StagedOptimizedAllocationLegality,
+    policy: PreAllocationPolicy,
     iteration_bound: usize,
 ) -> Result<
     (
-        Vec<StagedOptimizedCopyRemovalStep>,
-        StagedOptimizedCopyRemovalAttempt,
+        Vec<StagedOptimizedPreAllocationStep>,
+        StagedOptimizedPreAllocationAttempt,
         OptimizationWorkUsage,
     ),
-    OptimizedCopyRemovalCustodyError,
+    OptimizedPreAllocationCustodyError,
 > {
     let budget = source.budget_per_pass();
     let environment = source.register_environment();
@@ -237,54 +352,87 @@ fn run_passes(
     let mut previous_measure = iteration_bound;
     let mut current = SelectedProgramRef::new(source.selected());
     let attempt = loop {
-        match copy_removal_pass(current, environment, budget)? {
-            CopyRemovalPass::Clean {
-                candidates,
-                declined,
-                validation_steps,
-            } => {
-                usage = add_usage(usage, pass_usage(candidates, 0, validation_steps, 0)?)?;
-                ensure_pre_allocation_budget(usage, budget)?;
-                break StagedOptimizedCopyRemovalAttempt {
-                    source_selected: current.selected_identity(),
+        // The terminal attempt records only the final complete sweep's
+        // totals; a mid-sweep commit discards the partial scan and restarts.
+        let mut sweep_candidates = 0usize;
+        let mut sweep_declined = 0usize;
+        let mut committed = false;
+        for row in PRE_ALLOCATION_RULE_CATALOG {
+            if !policy.contains(row.payload().policy()) {
+                continue;
+            }
+            let pass = match row.optimization() {
+                Optimization::SelectedSameBlockCopyI64RemovalV1 => {
+                    copy_removal_pass(current, environment, budget)?
+                }
+                Optimization::SelectedRedundantExtensionRemovalV1 => {
+                    extension_removal_pass(current, environment, budget)?
+                }
+                // The catalog is closed over this phase's owned rules.
+                _ => continue,
+            };
+            match pass {
+                PreAllocationPass::Clean {
                     candidates,
                     declined,
-                };
-            }
-            CopyRemovalPass::Applied {
-                removal,
-                declined,
-                evaluated,
-                validation_steps,
-            } => {
-                if steps.len() >= iteration_bound {
-                    return Err(
-                        OptimizedCopyRemovalCustodyError::PreAllocationIterationBoundExceeded {
-                            bound: iteration_bound,
-                        },
-                    );
+                    validation_steps,
+                } => {
+                    usage = add_usage(usage, pass_usage(candidates, 0, validation_steps, 0)?)?;
+                    ensure_pre_allocation_budget(usage, budget)?;
+                    sweep_candidates += candidates;
+                    sweep_declined += declined;
                 }
-                usage = add_usage(
-                    usage,
-                    pass_usage(evaluated, evaluated, validation_steps, 1)?,
-                )?;
-                ensure_pre_allocation_budget(usage, budget)?;
-                let step = complete_removal(removal, declined, evaluated, source)?;
-                // The measure must drop by exactly one: the copy and the
-                // destination's roster row leave together, nothing else.
-                let current_measure = step.legality.receipt().virtual_register_count();
-                if previous_measure.checked_sub(1) != Some(current_measure) {
-                    return Err(
-                        OptimizedCopyRemovalCustodyError::CopyRemovalMeasureMismatch {
-                            previous: previous_measure,
-                            current: current_measure,
-                        },
+                PreAllocationPass::Applied {
+                    transformation,
+                    declined,
+                    evaluated,
+                    validation_steps,
+                } => {
+                    if steps.len() >= iteration_bound {
+                        return Err(
+                            OptimizedPreAllocationCustodyError::PreAllocationIterationBoundExceeded {
+                                bound: iteration_bound,
+                            },
+                        );
+                    }
+                    usage = add_usage(
+                        usage,
+                        pass_usage(evaluated, evaluated, validation_steps, 1)?,
+                    )?;
+                    ensure_pre_allocation_budget(usage, budget)?;
+                    let step =
+                        complete_transformation(transformation, declined, evaluated, source)?;
+                    // The joint measure must drop by exactly one: a copy and
+                    // its destination's roster row leave together, or one
+                    // extension retires into a copy.
+                    let current_measure = measure(
+                        step.transformation.transformed(),
+                        step.legality.receipt().virtual_register_count(),
                     );
+                    if previous_measure.checked_sub(1) != Some(current_measure) {
+                        return Err(
+                            OptimizedPreAllocationCustodyError::PreAllocationMeasureMismatch {
+                                previous: previous_measure,
+                                current: current_measure,
+                            },
+                        );
+                    }
+                    previous_measure = current_measure;
+                    steps.push(step);
+                    current = SelectedProgramRef::new(
+                        &steps.last().expect("applied step").transformation,
+                    );
+                    committed = true;
+                    break;
                 }
-                previous_measure = current_measure;
-                steps.push(step);
-                current = SelectedProgramRef::new(&steps.last().expect("applied step").removal);
             }
+        }
+        if !committed {
+            break StagedOptimizedPreAllocationAttempt {
+                source_selected: current.selected_identity(),
+                candidates: sweep_candidates,
+                declined: sweep_declined,
+            };
         }
     };
     Ok((steps, attempt, usage))
@@ -294,12 +442,15 @@ pub(super) fn execute_pre_allocation_optimizations(
     source: StagedOptimizedAllocationLegality,
     selections: OptimizationSelections,
     pre_allocation_selections: OptimizationSelections,
-    policy: CopyRemovalPolicy,
-) -> Result<StagedPreAllocationOptimizationRun, OptimizedCopyRemovalCustodyError> {
+    policy: PreAllocationPolicy,
+) -> Result<StagedPreAllocationOptimizationRun, OptimizedPreAllocationCustodyError> {
     let upstream = validate_source(&source)?;
     let budget = source.budget_per_pass();
-    let iteration_bound = source.legality().receipt().virtual_register_count();
-    let (steps, attempt, usage) = run_passes(&source, iteration_bound)?;
+    let iteration_bound = measure(
+        source.selected().selected_plan(),
+        source.legality().receipt().virtual_register_count(),
+    );
+    let (steps, attempt, usage) = run_passes(&source, policy, iteration_bound)?;
     let custody = pre_allocation_custody_receipt(
         upstream,
         &selections,
@@ -329,7 +480,7 @@ pub(super) fn execute_pre_allocation_optimizations(
 /// receipt to equal the retained ones field for field.
 pub fn validate_pre_allocation_optimization_custody(
     run: &StagedPreAllocationOptimizationRun,
-) -> Result<StagedPreAllocationOptimizationCustodyReceipt, OptimizedCopyRemovalCustodyError> {
+) -> Result<StagedPreAllocationOptimizationCustodyReceipt, OptimizedPreAllocationCustodyError> {
     let upstream = validate_source(&run.source)?;
     let expected_budget = run.source.budget_per_pass();
     let pre_allocation = run
@@ -340,22 +491,25 @@ pub fn validate_pre_allocation_optimization_custody(
         || run.custody.selections != run.source.selections().identity()
         || run.custody.budget != expected_budget
     {
-        return Err(OptimizedCopyRemovalCustodyError::SelectionProjectionMismatch);
+        return Err(OptimizedPreAllocationCustodyError::SelectionProjectionMismatch);
     }
     if projected != run.pre_allocation_selections
         || policy != run.policy
         || run.custody.policy != policy
         || run.custody.pre_allocation_selections != run.pre_allocation_selections.identity()
     {
-        return Err(OptimizedCopyRemovalCustodyError::SelectionProjectionMismatch);
+        return Err(OptimizedPreAllocationCustodyError::SelectionProjectionMismatch);
     }
-    let iteration_bound = run.source.legality().receipt().virtual_register_count();
-    let (replayed, terminal, usage) = run_passes(&run.source, iteration_bound)?;
+    let iteration_bound = measure(
+        run.source.selected().selected_plan(),
+        run.source.legality().receipt().virtual_register_count(),
+    );
+    let (replayed, terminal, usage) = run_passes(&run.source, policy, iteration_bound)?;
     if replayed != run.steps {
-        return Err(OptimizedCopyRemovalCustodyError::StepMismatch { step: 0 });
+        return Err(OptimizedPreAllocationCustodyError::StepMismatch { step: 0 });
     }
     if terminal != run.attempt {
-        return Err(OptimizedCopyRemovalCustodyError::TerminalAttemptMismatch);
+        return Err(OptimizedPreAllocationCustodyError::TerminalAttemptMismatch);
     }
     let receipt = pre_allocation_custody_receipt(
         upstream,
@@ -370,20 +524,20 @@ pub fn validate_pre_allocation_optimization_custody(
         iteration_bound,
     );
     if receipt != run.custody {
-        return Err(OptimizedCopyRemovalCustodyError::ReceiptMismatch);
+        return Err(OptimizedPreAllocationCustodyError::ReceiptMismatch);
     }
     Ok(receipt)
 }
 
 fn validate_source(
     source: &StagedOptimizedAllocationLegality,
-) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedCopyRemovalCustodyError> {
+) -> Result<StagedOptimizedAllocationLegalityCustodyReceipt, OptimizedPreAllocationCustodyError> {
     validate_optimized_allocation_legality_custody(
         source.live_range_stage(),
         source.allocator_availability(),
         source.legality(),
     )
-    .map_err(OptimizedCopyRemovalCustodyError::UpstreamLegality)
+    .map_err(OptimizedPreAllocationCustodyError::UpstreamLegality)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -391,10 +545,10 @@ fn pre_allocation_custody_receipt(
     source_receipt: StagedOptimizedAllocationLegalityCustodyReceipt,
     selections: &OptimizationSelections,
     pre_allocation_selections: &OptimizationSelections,
-    policy: CopyRemovalPolicy,
+    policy: PreAllocationPolicy,
     source: &StagedOptimizedAllocationLegality,
-    steps: &[StagedOptimizedCopyRemovalStep],
-    attempt: &StagedOptimizedCopyRemovalAttempt,
+    steps: &[StagedOptimizedPreAllocationStep],
+    attempt: &StagedOptimizedPreAllocationAttempt,
     budget: OptimizationWorkBudget,
     usage: OptimizationWorkUsage,
     iteration_bound: usize,
@@ -402,7 +556,7 @@ fn pre_allocation_custody_receipt(
     let (final_selected, final_liveness, final_ranges, final_legality, final_vregs) =
         match steps.last() {
             Some(step) => (
-                step.removal.receipt().transformed_selected(),
+                step.transformation.transformed_selected(),
                 step.liveness.receipt().identity(),
                 step.ranges.receipt().identity(),
                 step.legality.receipt().identity(),
@@ -440,14 +594,14 @@ fn pre_allocation_custody_receipt(
 }
 
 fn iteration_receipt(
-    step: &StagedOptimizedCopyRemovalStep,
-) -> StagedOptimizedCopyRemovalIterationReceipt {
-    StagedOptimizedCopyRemovalIterationReceipt {
-        source_selected: step.removal.receipt().source_selected(),
-        copy_removal: step.removal.receipt().identity(),
-        function_index: step.removal.receipt().function_index(),
-        copy: step.removal.receipt().copy(),
-        transformed_selected: step.removal.receipt().transformed_selected(),
+    step: &StagedOptimizedPreAllocationStep,
+) -> StagedOptimizedPreAllocationIterationReceipt {
+    StagedOptimizedPreAllocationIterationReceipt {
+        source_selected: step.transformation.source_selected(),
+        transformation: step.transformation.identity(),
+        function_index: step.transformation.function_index(),
+        instruction: step.transformation.instruction(),
+        transformed_selected: step.transformation.transformed_selected(),
         fresh_liveness: step.liveness.receipt().identity(),
         fresh_ranges: step.ranges.receipt().identity(),
         fresh_legality: step.legality.receipt().identity(),
@@ -457,9 +611,9 @@ fn iteration_receipt(
 }
 
 fn attempt_receipt(
-    attempt: &StagedOptimizedCopyRemovalAttempt,
-) -> StagedOptimizedCopyRemovalAttemptReceipt {
-    StagedOptimizedCopyRemovalAttemptReceipt {
+    attempt: &StagedOptimizedPreAllocationAttempt,
+) -> StagedOptimizedPreAllocationAttemptReceipt {
+    StagedOptimizedPreAllocationAttemptReceipt {
         source_selected: attempt.source_selected,
         candidates: attempt.candidates,
         declined: attempt.declined,
@@ -468,13 +622,14 @@ fn attempt_receipt(
 
 /// Canonical identity of the completed pre-allocation run: the upstream
 /// custody chain, both selection identities, the admitted policy, measured
-/// work, every iteration receipt, the terminal clean pass, and the final
-/// analysis identities are all part of the durable record.
+/// work, every iteration receipt — including the exact transformation family
+/// — the terminal clean sweep, and the final analysis identities are all
+/// part of the durable record.
 fn pre_allocation_completion_identity(
     receipt: &StagedPreAllocationOptimizationCustodyReceipt,
 ) -> PreAllocationOptimizationCompletionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v1\0");
+    canonical.extend_from_slice(b"omega.pre-allocation-optimization-completion.v2\0");
     let source = receipt.source;
     for identity in [
         source.optimization().bytes(),
@@ -503,9 +658,18 @@ fn pre_allocation_completion_identity(
     }
     for iteration in &receipt.iterations {
         canonical.extend_from_slice(&iteration.source_selected().bytes());
-        canonical.extend_from_slice(&iteration.copy_removal().bytes());
+        match iteration.transformation() {
+            crate::PreAllocationTransformationIdentity::CopyRemoval(identity) => {
+                canonical.push(1);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::RedundantExtension(identity) => {
+                canonical.push(2);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+        }
         encode_count(&mut canonical, iteration.function_index());
-        canonical.extend_from_slice(&iteration.copy().0.to_le_bytes());
+        canonical.extend_from_slice(&iteration.instruction().0.to_le_bytes());
         canonical.extend_from_slice(&iteration.transformed_selected().bytes());
         canonical.extend_from_slice(&iteration.fresh_liveness().bytes());
         canonical.extend_from_slice(&iteration.fresh_ranges().bytes());
