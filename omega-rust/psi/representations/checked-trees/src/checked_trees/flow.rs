@@ -85,8 +85,8 @@ pub use dynamic_scalar_calls::{
     CheckedDynamicScalarCallOrigin, CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan,
     CheckedDynamicSelectionPlan, CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin,
     CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan,
-    CheckedStructuralScalarFieldStoreDestination, CheckedStructuralScalarFieldStorePlan,
-    CheckedStructuralScalarFieldStoreValue,
+    CheckedStructuralCaseFieldStorePlan, CheckedStructuralScalarFieldStoreDestination,
+    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarFieldStoreValue,
 };
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operator_operand::{FlowOperandReferent, FlowOperatorOperandFact};

@@ -3,8 +3,8 @@ use symbols::SymbolHandle;
 
 use crate::{
     CheckedComposedUnitControlStatePlan, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarExpression, CheckedStructuralControlSuccessorPlan, DynamicConformanceBindingFact,
-    MachineContractCommitment,
+    CheckedScalarExpression, CheckedStructuralControlSuccessorPlan,
+    CheckedUnitStructuralArgumentPlan, DynamicConformanceBindingFact, MachineContractCommitment,
 };
 
 use super::{
@@ -699,4 +699,22 @@ pub struct CheckedStructuralScalarFieldStorePlan {
     pub field_identity: String,
     pub primitive_type: typed_trees::types::PrimitiveType,
     pub value: CheckedStructuralScalarFieldStoreValue,
+}
+
+/// Checked custody for one replacement of an exact unrestricted-sum field.
+/// The destination carries the same root, path and write-frame custody a
+/// scalar field store proves; the stored value is a whole owned place of the
+/// field's declared sum type, so replacement copies every bit and moves
+/// nothing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralCaseFieldStorePlan {
+    pub statement_index: u32,
+    pub destination: CheckedStructuralScalarFieldStoreDestination,
+    /// Exact structural path from the destination root to the carrier;
+    /// the final sum-typed field is retained separately below.
+    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+    pub field_identity: String,
+    /// Whole owned place supplying the stored value; its checked type is the
+    /// field's declared unrestricted sum type.
+    pub value: CheckedUnitStructuralArgumentPlan,
 }
