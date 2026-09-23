@@ -77,7 +77,10 @@ pub fn accepted_terminal_authority_permission_policy(
         left.service_schema()
             .as_bytes()
             .cmp(right.service_schema().as_bytes())
-            .then_with(|| left.requirement_identity().cmp(right.requirement_identity()))
+            .then_with(|| {
+                left.requirement_identity()
+                    .cmp(right.requirement_identity())
+            })
     });
     rows.dedup();
     terminal_authority_permission_policy_with_rows(rows)
