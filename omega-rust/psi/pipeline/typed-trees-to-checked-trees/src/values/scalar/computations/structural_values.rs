@@ -478,7 +478,9 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
 /// `self.scan_compare_type`-shape admission: a member/fixed-index projection
 /// rooted at shared-borrowed storage whose leaf is a copyable `Unrestricted`
 /// named type. Same root/path contract as `is_scalar_case_place_value`, but
-/// for leaves whose contents cannot be reconstructed by case fan-out.
+/// for leaves whose contents cannot be reconstructed by case fan-out. A bare
+/// whole-root name is the degenerate path: an owned root's `Unrestricted`
+/// contents copy out whole, no loan involved.
 pub(super) fn is_copied_place_value(
     program: &TypedTrees,
     state: SymbolHandle,
@@ -499,7 +501,7 @@ pub(super) fn is_copied_place_value(
     ) else {
         return false;
     };
-    if place.segments.is_empty() || !canonical_place_is_borrowable(&place) {
+    if !canonical_place_is_borrowable(&place) {
         return false;
     }
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
@@ -508,7 +510,17 @@ pub(super) fn is_copied_place_value(
     let Some(root) = symbol_declared_type(program, symbol) else {
         return false;
     };
-    if !matches!(
+    if place.segments.is_empty() {
+        // A whole owned root reads its declared contents directly: any
+        // reference carrier stays on the borrowed-leaf lane below, while an
+        // owned `[copy]` root copies into a fresh result with an empty path.
+        if matches!(
+            program.type_reference_table.type_reference(root),
+            TypeReferenceNode::Reference { .. }
+        ) {
+            return false;
+        }
+    } else if !matches!(
         program.type_reference_table.type_reference(root),
         TypeReferenceNode::Reference {
             access: language_semantics::ReferenceAccess::Shared,
@@ -521,6 +533,70 @@ pub(super) fn is_copied_place_value(
         .is_some_and(|leaf| {
             program.normalized_type_identity(leaf) == program.normalized_type_identity(expected)
         })
+}
+
+/// An omitted runtime field's zero value is admitted only for a
+/// `[scalar; N]` leaf: a literal-length fixed array whose element resolves
+/// to one plain integer primitive. Anything else — borrowed carriers,
+/// bounded integers, nested composites — has no authored zero spelling to
+/// synthesize, so the field must stay authored.
+fn zeroed_scalar_array_parts(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<(PrimitiveType, u64)> {
+    let reference = validation::unwrapped_type_reference(program, type_reference)?;
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    let primitive_type = program.primitive_type_reference(*element_type)?;
+    if !matches!(
+        primitive_type,
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+    ) {
+        return None;
+    }
+    Some((primitive_type, u64::try_from(*length).ok()?))
+}
+
+/// The checked literal-zero computation one synthesized zeroed field
+/// element contributes: a landed `0` in the declared element carrier.
+fn zeroed_integer_literal(
+    primitive_type: PrimitiveType,
+) -> Option<checked_trees::CheckedScalarExpression> {
+    let landed_type = match primitive_type {
+        PrimitiveType::I8 => numerics::literals::LandedIntegerType::I8,
+        PrimitiveType::I16 => numerics::literals::LandedIntegerType::I16,
+        PrimitiveType::I32 => numerics::literals::LandedIntegerType::I32,
+        PrimitiveType::I64 => numerics::literals::LandedIntegerType::I64,
+        PrimitiveType::U8 => numerics::literals::LandedIntegerType::U8,
+        PrimitiveType::U16 => numerics::literals::LandedIntegerType::U16,
+        PrimitiveType::U32 => numerics::literals::LandedIntegerType::U32,
+        PrimitiveType::U64 => numerics::literals::LandedIntegerType::U64,
+        _ => return None,
+    };
+    Some(checked_trees::CheckedScalarExpression::IntegerLiteral {
+        literal: numerics::literals::IntegerLiteral::from_parts(
+            false,
+            numerics::literals::IntegerRadix::Decimal,
+            "0",
+        )
+        .ok()?
+        .with_landing(numerics::literals::IntegerLanding {
+            landed_type,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+        }),
+    })
 }
 
 /// The terminal expression carrying a projection's storage: the whole local
@@ -1383,7 +1459,33 @@ impl Builder<'_, '_> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if authored.len() != relevant.len() + erased.len() {
+        // An ordinary runtime field may be omitted only when its zero value
+        // satisfies the declared carrier — today that means a `[scalar; N]`
+        // leaf whose element is a plain integer primitive. Every authored
+        // initializer must still name a declared member exactly once.
+        let omitted = relevant
+            .iter()
+            .filter(|field| {
+                authored
+                    .iter()
+                    .all(|initializer| initializer.field_symbol != field.symbol)
+            })
+            .copied()
+            .collect::<Vec<_>>();
+        if authored.len() != relevant.len() + erased.len()
+            && (authored.len() > relevant.len() + erased.len()
+                || authored.iter().any(|initializer| {
+                    declared.iter().all(|member| match member {
+                        typed_trees::data::DataMember::Field(field) => {
+                            field.symbol != initializer.field_symbol
+                        }
+                        _ => true,
+                    })
+                })
+                || omitted.iter().any(|field| {
+                    zeroed_scalar_array_parts(self.program, field.type_reference).is_none()
+                }))
+        {
             return None;
         }
         let mut fields = Vec::new();
@@ -1465,6 +1567,48 @@ impl Builder<'_, '_> {
                 expression: initializer.value,
                 type_reference: field.type_reference,
                 value,
+            });
+        }
+        for field in omitted {
+            let Some((primitive_type, element_count)) =
+                zeroed_scalar_array_parts(self.program, field.type_reference)
+            else {
+                return None;
+            };
+            let Some(zero) = zeroed_integer_literal(primitive_type) else {
+                return None;
+            };
+            let element = self
+                .plans
+                .nodes
+                .append(checked_trees::CheckedScalarComputation {
+                    authored_root: ExpressionHandle::invalid(),
+                    value_source: ExpressionHandle::invalid(),
+                    primitive_type,
+                    kind: checked_trees::CheckedScalarComputationKind::Value(zero),
+                });
+            self.plans.roots.append(CheckedScalarComputationRoot {
+                machine: self.machine,
+                state: self.state,
+                statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                role: CheckedScalarExpressionRole::RecordField {
+                    expression,
+                    field_ordinal: u32::try_from(fields.len()).ok()?,
+                },
+                root: element,
+            });
+            let node = values.nodes.append(CheckedStructuralValue {
+                expression,
+                kind: CheckedStructuralValueKind::ZeroedScalarArray {
+                    element,
+                    element_count,
+                },
+            });
+            fields.push(checked_trees::CheckedStructuralRecordField {
+                field: field.symbol,
+                expression,
+                type_reference: field.type_reference,
+                value: checked_trees::CheckedStructuralRecordFieldValue::Structural(node),
             });
         }
         Some(CheckedStructuralValueKind::Record {

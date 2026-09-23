@@ -12,6 +12,7 @@ use super::super::{
 use super::CheckedTrees;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
 use crate::expression_preparation::source_custody::structural as source_custody;
 use checked_trees::{CheckedStructuralValueHandle, CheckedStructuralValueKind};
@@ -852,6 +853,78 @@ impl Emission<'_, '_, '_> {
                             self.checked.state_parameters(authored.1),
                         )?;
                 self.copied_leaf_place(&argument, continuation)
+            }
+            CheckedStructuralValueKind::ZeroedScalarArray {
+                element,
+                element_count,
+            } => {
+                // The planner's synthesized zero has no authored operand to
+                // replay — emit the verified literal leaf directly.
+                let computation = self
+                    .checked
+                    .facts
+                    .values
+                    .scalar_computations
+                    .nodes
+                    .get(element);
+                let checked_trees::CheckedScalarComputationKind::Value(
+                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                ) = &computation.kind
+                else {
+                    return unsupported("zeroed scalar array element is not a literal zero");
+                };
+                let scalar_type = crate::emission::scalar_types::terminal_scalar_type(
+                    computation.primitive_type,
+                )?;
+                let value = crate::emission::scalar_types::integer_value(literal, scalar_type)?;
+                let zero = emit_scalar_leaf(
+                    OperationKind::IntegerConstant { value },
+                    scalar_type,
+                    &mut self.next_value,
+                    self.operations,
+                );
+                self.values.push(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: zero,
+                    scalar_type,
+                });
+                let place = place_id(allocate_dense(self.next_place)?);
+                let operation = self.operations.allocate();
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: operation,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place,
+                        structural_type: self.structural_type,
+                        multiplicity: self.multiplicity,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishScalarArray {
+                        elements: vec![
+                            zero;
+                            usize::try_from(element_count).map_err(|_| {
+                                LoweringError::Unsupported(
+                                    "zeroed scalar array leaf count exceeds usize",
+                                )
+                            })?
+                        ],
+                    },
+                });
+                self.temporary_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: self.structural_type,
+                    },
+                });
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, None, continuation)?;
+                }
+                Ok(place)
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if self.sources.is_empty()

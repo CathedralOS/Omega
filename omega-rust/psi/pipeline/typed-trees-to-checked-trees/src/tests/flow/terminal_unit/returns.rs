@@ -486,7 +486,7 @@ fn structural_payload_sum_result_keeps_composed_plan() {
 }
 
 #[test]
-fn byte_sequence_field_record_result_still_declines_composed() {
+fn scalar_array_field_record_result_composes_with_zeroed_omission() {
     let checked = checked(
         r#"
         data Framed { bytes: [u8; 4]; tag: u64; }
@@ -506,7 +506,34 @@ fn byte_sequence_field_record_result_still_declines_composed() {
             .flow
             .terminal_unit_effects
             .composed_for_machine(machine_named(&checked, "choose_framed"))
+            .is_some(),
+        "an omitted scalar-array field composes through the zeroed fill"
+    );
+}
+
+#[test]
+fn nested_record_field_record_result_still_declines_composed() {
+    let checked = checked(
+        r#"
+        data Inner { value: u64; }
+        data Framed { inner: Inner; tag: u64; }
+        machine choose_framed(pick_left: bool) -> Framed {
+            transition pick_left {
+                true -> left()
+                _ -> right()
+            }
+            state left() -> Framed { Framed { tag: 1 } }
+            state right() -> Framed { Framed { tag: 2 } }
+        }
+    "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine_named(&checked, "choose_framed"))
             .is_none(),
-        "a byte-sequence field stays outside the composed result signature"
+        "an omitted non-scalar structural field stays outside the composed result signature"
     );
 }
