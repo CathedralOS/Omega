@@ -229,7 +229,16 @@ the complete product bar; focused successes below do not establish that baseline
   oracles to pass on the required hosted matrix. Record unavailable hosts;
   scoped reruns are not a complete baseline.
 
-- **CANARY-PACKAGE-MODE-SIGNAL.** (new-scope) Let a fixture request package
+- **CANARY-PACKAGE-MODE-SIGNAL.** Resolved — verified at `ab6047d012`, not
+  merely reported. `tests/omega/pass/proofs/quotient_define_managed_compile/build.omg`
+  declares `builder.package("quotient-define-managed-compile")` and two root
+  binds with NO std edge; the `provenance_only_edge` exception named below is
+  gone from `packages/manager/tests/repository_build_declarations.rs`; and
+  `dependency_free_fixture_package_inputs` ships and is used by
+  `samples_compile.rs`. Landed by `bea3720666`. Everything below is the
+  original scope, kept for its reasoning.
+
+  (new-scope) Let a fixture request package
   identity with an empty dependency set. In `compiler/tests/canary_suite.rs`,
   `repository_fixture_package_inputs` still returns `None` when
   `fixture_path_dependencies` is empty; `quotient_define_managed_compile`
@@ -1680,7 +1689,23 @@ syntax and other terminal services are not prerequisites.
   layout-dependent-erasure rejection. Do not relax semantically invalid
   qualifier combinations merely to remove an implementation fence.
 
-- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Finish the bounded
+- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Audited at `e4f9dd8212`; see
+  [the record](wiki/drafts/backend_vocabulary_rejection_audit.md). Admission
+  has three routes, not two — 83 families split 63 body-admitted / 7
+  terminator (split off before `admit` ever runs) / 13 named rejection — and
+  `admission_vocabulary_tests.rs` now pins that with a wildcard-free match, so
+  a new family cannot be silently omitted. The first acceptance clause holds
+  structurally: selection's per-instruction dispatch has no wildcard arm, so
+  every legalized kind is guaranteed an arm at build time.
+
+  ONE residual: selection's refusals carry no operation or target, although
+  `LegalizedScalarInstruction` holds `operation` and `LegalizedScalarFunction`
+  holds `machine` where they are raised, so attribution means reading the
+  function back by index. `UnsupportedSourceShape` appears at 12 construction
+  sites, so a `{ function, machine, operation }` variant is bounded work. Not
+  done here because ALIAS-AWARE-MEMORY holds that whole crate.
+
+  Original scope: finish the bounded
   legalization-to-selection refusal audit in `target-operations-to-selected-instructions`.
   Existing admission tests classify unsupported families and preserve operation
   identity in `UnsupportedScalarOperation`; they do not establish that every
@@ -1970,7 +1995,18 @@ syntax and other terminal services are not prerequisites.
   `retained_content_custody` and `retention/retained_borrow_custody` controls.
   Registration-specific lease custody remains REGISTERED-CALLBACK-LIFETIME.
 
-- **GENERIC-RETURNED-VIEW-LIFETIMES.** Complete caller-side attribution of
+- **GENERIC-RETURNED-VIEW-LIFETIMES.** Resolved — every acceptance clause is
+  covered by the named test, checked clause by clause at `ab6047d012` rather
+  than taken on report.
+  `generic_frontiers/static_calls.rs::exact_static_callable_substitution_allows_only_closed_view_free_results`
+  now drives the view-bearing `Outcome<i32, Job>` customer and asserts the
+  loan's original backing (`root_symbol == job`), path
+  (`["Rejected", "arguments", "value"]`) and shared access; writes to the live
+  source reject while an unrelated backing write passes; a conflicting callable
+  substitution rejects; and an unresolved frontier rejects. It passes at this
+  commit. Landed by `00ab30ee5d`. Everything below is the original scope.
+
+  Complete caller-side attribution of
   generic returned views under
   [returned views](wiki/spec/language/lifetimes.md#returned-views).
   Exact selected callable/argument substitution currently admits template-dependent
