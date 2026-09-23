@@ -345,14 +345,6 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // Native production requires one exact selected program entry; the
     // fixture deliberately carries no entry binding.
     "slices/callee_non_byte_view_len_index_subslice",
-    // Successor custody names forwarded borrows now: the `&mut` slice-view
-    // argument binds the machine parameter's place and verifies end-to-end.
-    // Native production then fails one stage later at
-    // `MalformedStructuralFoundation("structural argument has the wrong
-    // concrete type")` — an argument concrete-type mismatch between the
-    // forwarded slice view and the callee's parameter. Promote when the
-    // forwarded-view concrete type agrees downstream.
-    "entry/service_borrowed_slice_call",
     // Graduated from fail/: each pinned a checked-stage fence that has since
     // lifted, so checked semantics admits the source.
     "constants/const_computed_initializer",
@@ -5025,6 +5017,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     // Intrinsic `Binding<R>` carriers (no authored `in Bound`) keep exact Fused
     // establishment on the selected attached root through native settlement.
     "entry/service_intrinsic_carrier_establishment",
+    // Forwarded `&mut [u64]` slice views: mutable-view custody names the
+    // argument's place and the element-view extent loan satisfies the codec's
+    // concrete-type gate through native production.
+    "entry/service_borrowed_slice_call",
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
