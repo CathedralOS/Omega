@@ -524,6 +524,45 @@ ruling or at least a note so later legs make the same choice:
    structural call binding`, `structural call binding`) and the affected
    fixtures stay on their measured-stage rosters.
 
+10. **How does `Console::exit_process` (and `ProcessExit::exit_process`)
+    realize on `windows_x86_64`?** (named decision:
+    `windows-hosted-exit-realization`). Every rooted-route fixture that
+    exits through the console fails on a Windows host with "selected
+    compiler intrinsic ... has no closed native catalog identity": std's
+    `windows_x86_64` bundle spells the three console leaves
+    `via ForeignBinding::CompilerIntrinsic`, but `target::HostedIntrinsicBundle`
+    admits only the three targets whose hosted exit is a kernel syscall the
+    x86-64/aarch64 encoders emit relocation-free (`mov eax, 231; syscall`,
+    `exit_group`). Windows has no stable syscall; termination is kernel32
+    `ExitProcess` through an import slot. Measured 2026-09-22: 180 of the
+    911 owner-judged fixtures stop here (record: compiler_progress.md). The
+    routes each cross a settled rule, so none is mine to pick:
+    - (a) A Windows selected form for `HostedExitProcessI32` carrying one
+      import relocation (`mov ecx, r; and rsp, -16; sub rsp, 32;
+      call [rip+__imp_ExitProcess]; ud2`). The hosted-exit form is a
+      relocation-free family today (`text_placement/source/relocation.rs`
+      proves none); the relocation would have to be declared through
+      `ForeignCallRelocation`, whose replay validators require a provider
+      execution record, a boundary entry plan and a call plan the
+      intrinsic does not have. Synthesizing them is forging provider
+      evidence; giving the family its own relocation shape is a new
+      contract across text placement, object relocations and replay.
+    - (b) Spell the Windows leaves as import rows (kernel32 `ExitProcess`,
+      `WriteFile`, `ReadFile`) so the existing normalized-foreign-call
+      route realizes them. The Process-exit contract says not to encode
+      exit as an ordinary call, the accepted Console binding is consumed
+      only by an intrinsic exit row (`intrinsic_review.rs`
+      `accumulate_accepted_row_match`), and std's Windows bundle has no
+      `DllImport` producer convention (its filesystem reaches kernel32
+      through the designed seam), so this also changes what the harness
+      and package review accept.
+    - (c) Realize the exit through the Windows entry receiver's own exit
+      path (it returns the status to `RtlUserThreadStart`): needs the
+      saved stack pointer reachable without a relocation, which no ABI
+      register or TEB field provides.
+    Until decided, the Windows host measures this wall, not the compiler;
+    the same owner suite on macOS arm64 or Linux measures the compiler.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required
