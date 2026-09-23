@@ -432,6 +432,130 @@ fn signed_shift_right_actuals_use_floor_division_through_call_sites() {
     reject(&SHIFT_RIGHT_SIGNED.replace("remaining - 1", "remaining"));
 }
 
+const BITWISE_AND_ACTUAL: &str = r#"
+data Main { observed: u64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::first(&mut self, remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+terminates by remaining in 0..(cap / step + 6);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.second(cap, remaining - 1, step, cap & step)
+        false -> remaining
+    }
+}
+
+machine Main::second(&mut self, limit: u64 [0..=20], pending: u64 [0..=5], width: u64 [1..=5], extra: u64)
+requires extra <= 5;
+terminates by pending in 0..(limit / width + 6);
+-> u64 {
+    transition pending > 0 {
+        true -> self.first(pending, limit, width, extra)
+        false -> pending
+    }
+}
+"#;
+
+#[test]
+fn runtime_bitwise_and_actuals_substitute_through_call_sites() {
+    // A bitwise AND transports like division: `spare` rides outside every
+    // endpoint atom while `cap & step` keeps its exact operands, and the
+    // callee's `requires extra <= 5` discharges the term's own live
+    // interval `[0, 20] & [1, 5]` = `[0, 5]` -- tighter than the `cap`
+    // operand's `[0, 20]` alone.
+    prove(BITWISE_AND_ACTUAL);
+    // Nested non-polynomial actuals transport innermost-first, including a
+    // `<<` operand inside the `&`: `(cap << step) & step` carries
+    // `[0, 640] & [1, 5]` = `[0, 5]`, and a literal mask folds against the
+    // shared carrier the same way.
+    prove(&BITWISE_AND_ACTUAL.replace("cap & step)", "(cap % step) & step)"));
+    prove(&BITWISE_AND_ACTUAL.replace("cap & step)", "(cap << step) & step)"));
+    prove(&BITWISE_AND_ACTUAL.replace("cap & step)", "cap & 5)"));
+    // `&` is total, so a spelled zero mask is a defined value -- `x & 0`
+    // is `0` -- where the same spelled expression as a modulus would
+    // reject.
+    prove(
+        &BITWISE_AND_ACTUAL
+            .replace("cap & step)", "cap & (step - step))")
+            .replace("requires extra <= 5;", "requires extra <= 0;"),
+    );
+    // Transporting the `&` term into the endpoint-read `limit` slot moves
+    // the masked value under the ceiling while `cap` as `spare` misses
+    // `extra <= 5`.
+    reject(&BITWISE_AND_ACTUAL.replace(
+        "self.second(cap, remaining - 1, step, cap & step)",
+        "self.second(cap & step, remaining - 1, step, cap)",
+    ));
+    // The callee's requirement is a real obligation discharged against the
+    // substituted actual, not the formal name: `cap & step` proves `<= 5`
+    // where the operand alone proves only `<= 20`, and a bound one tighter
+    // rejects with the transported `cap & step` term named.
+    for bound in ["requires extra <= 4;", "requires extra <= width - 1;"] {
+        let tightened = BITWISE_AND_ACTUAL.replace("requires extra <= 5;", bound);
+        let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+            .expect_err(&tightened);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires")
+                && diagnostic.message.contains("cap & step")),
+            "{tightened}\n{diagnostics:#?}"
+        );
+    }
+}
+
+const BITWISE_AND_SIGNED: &str = r#"
+data Main { observed: i64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::first(&mut self, remaining: u64 [0..=5], level: i64 [-21..=-1], mask: i64 [1..=5], spare: i64)
+terminates by remaining in 0..(level + 30);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.second(level, remaining - 1, mask, level & mask)
+        false -> remaining
+    }
+}
+
+machine Main::second(&mut self, depth: i64 [-21..=-1], pending: u64 [0..=5], wall: i64 [1..=5], extra: i64)
+requires extra >= 0 && extra <= 5;
+terminates by pending in 0..(depth + 30);
+-> u64 {
+    transition pending > 0 {
+        true -> self.first(pending, depth, wall, extra)
+        false -> pending
+    }
+}
+"#;
+
+#[test]
+fn signed_bitwise_and_actuals_use_mask_sign_bounds_through_call_sites() {
+    // `level & mask` with `level` provably negative and `mask` provably
+    // nonnegative lands `[0, 5]`: the mask's clear sign bit bounds the
+    // result below itself and above zero, so `extra >= 0` discharges where
+    // the transported `level` alone never could.
+    prove(BITWISE_AND_SIGNED);
+    // Either tightened side rejects against the transported term: the mask
+    // quadrant leaves `0` reachable below `>= 1` and `5` above `<= 4`, and
+    // each diagnostic names the `level & mask` actual.
+    for bound in ["requires extra >= 1;", "requires extra <= 4;"] {
+        let tightened = BITWISE_AND_SIGNED.replace("requires extra >= 0 && extra <= 5;", bound);
+        let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+            .expect_err(&tightened);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires")
+                && diagnostic.message.contains("level & mask")),
+            "{tightened}\n{diagnostics:#?}"
+        );
+    }
+    // The cycle still owes strict descent on its carried rank.
+    reject(&BITWISE_AND_SIGNED.replace("remaining - 1", "remaining"));
+}
+
 const REMAINDER_LITERAL: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/termination/remainder_literal_call_component/main.omg"
