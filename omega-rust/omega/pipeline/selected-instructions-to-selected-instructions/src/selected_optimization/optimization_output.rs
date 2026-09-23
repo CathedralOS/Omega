@@ -2,8 +2,8 @@
 
 use crate::{
     AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
-    OptimizedCopyRemovalCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError, OwnedSelectedProgram,
+    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
+    OptimizedLivenessCustodyError, OptimizedPreAllocationCustodyError, OwnedSelectedProgram,
     StagedOptimizedLiveRanges, StagedPreAllocationOptimizationRun,
     StagedSelectedLoweringOptimizationRun, validate_optimized_live_range_custody,
     validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
@@ -77,8 +77,9 @@ impl SelectedInstructionOptimizationEvidence {
             Self::PreAllocation(run) => {
                 validate_pre_allocation_optimization_custody(run)
                     .map_err(SelectedInstructionOptimizationError::PreAllocation)?;
-                // The terminal clean discovery pass is the checked
-                // fixed-point output, including when no copy was admissible.
+                // The terminal clean discovery sweep is the checked joint
+                // fixed-point output, including when no candidate was
+                // admissible.
                 Ok(OwnedSelectedProgram::retain(&run.current()))
             }
         }
@@ -91,7 +92,7 @@ pub enum SelectedInstructionOptimizationError {
     LiveRanges(OptimizedLiveRangeCustodyError),
     Legality(OptimizedAllocationLegalityCustodyError),
     Rewrite(OptimizedLiteralFoldCustodyError),
-    PreAllocation(OptimizedCopyRemovalCustodyError),
+    PreAllocation(OptimizedPreAllocationCustodyError),
     RecoveryCatalog(AllocationRecoveryRuleCatalogError),
     UnsupportedComposition,
     CurrentProgramMismatch,

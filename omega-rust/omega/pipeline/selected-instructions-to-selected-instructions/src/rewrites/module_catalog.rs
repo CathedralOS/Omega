@@ -104,6 +104,16 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
+        module: "redundant_extension",
+        // The pre-allocation executor: its discovery pass calls
+        // `remove_selected_redundant_extension` for the exact rule the
+        // catalog admits.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            evidence: "remove_selected_redundant_extension",
+        },
+    },
+    RewriteModuleRow {
         module: "runtime_rematerialization",
         // Register allocation replays `rematerialize_selected_runtime_value`
         // through its runtime-spill route.
@@ -289,10 +299,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     },
     RewriteModuleRow {
         module: "predecessor_run_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "redundant_extension",
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {

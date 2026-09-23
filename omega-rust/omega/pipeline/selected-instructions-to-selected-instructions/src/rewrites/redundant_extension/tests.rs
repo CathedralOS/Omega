@@ -1,10 +1,9 @@
+use super::{
+    RedundantExtensionError, RedundantExtensionReceipt, ValidatedRedundantExtension,
+    remove_selected_redundant_extension, validate_redundant_extension_removal,
+};
 use crate::ValidatedSelectedAnalysis;
 use crate::rewrites::test_support::{budget, instruction, measured_step_budget};
-use crate::rewrites::unexecuted::RedundantExtensionError;
-use crate::rewrites::unexecuted::RedundantExtensionReceipt;
-use crate::rewrites::unexecuted::ValidatedRedundantExtension;
-use crate::rewrites::unexecuted::remove_selected_redundant_extension;
-use crate::rewrites::unexecuted::validate_redundant_extension_removal;
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
@@ -175,6 +174,8 @@ fn fixture(
             transformed_selected: identity,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
+            function_index: 0,
+            extension: EXTENSION,
         },
         transformed: std::sync::Arc::new(plan),
     }

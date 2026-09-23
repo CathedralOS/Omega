@@ -41,6 +41,9 @@ pub(super) fn expected_record(
                 (5_u8, identity.bytes())
             }
             PostAllocationSelectedTransformation::CopyRemoval(identity) => (6_u8, identity.bytes()),
+            PostAllocationSelectedTransformation::RedundantExtension(identity) => {
+                (7_u8, identity.bytes())
+            }
         };
         !unique_transformations.insert(key)
     }) {

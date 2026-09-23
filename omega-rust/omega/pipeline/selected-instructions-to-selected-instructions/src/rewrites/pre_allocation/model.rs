@@ -1,41 +1,54 @@
 //! Pre-allocation carriers, receipts, schedules, and errors.
+use std::sync::Arc;
+
 use crate::AllocationLegalityError;
 use crate::CopyRemovalError;
 use crate::LiveRangeError;
 use crate::LivenessError;
 use crate::OptimizedAllocationLegalityCustodyError;
+use crate::RedundantExtensionError;
 use crate::StagedOptimizedAllocationLegality;
 use crate::StagedOptimizedAllocationLegalityCustodyReceipt;
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedCopyRemoval;
 use crate::ValidatedLiveRanges;
 use crate::ValidatedLiveness;
+use crate::ValidatedRedundantExtension;
 use optimization_core::{
     Optimization, OptimizationSelectionIdentity, OptimizationSelections, OptimizationWorkBudget,
     OptimizationWorkUsage, PreAllocationOptimizationCompletionIdentity,
 };
 use selected_instructions::{
-    CopyRemovalIdentity, LiveRangeIdentity, LivenessIdentity, SelectedInstructionId,
-    SelectedInstructionPlanIdentity,
+    CopyRemovalIdentity, LiveRangeIdentity, LivenessIdentity, RedundantExtensionIdentity,
+    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
 };
 
-/// Narrow copy-removal admission set: which exact catalog payloads the
+/// Narrow pre-allocation admission set: which exact catalog payloads the
 /// selected pre-allocation rules enable. This is not an opt level or a
 /// generic instruction-combining grant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CopyRemovalPolicy {
+pub struct PreAllocationPolicy {
     enabled: u32,
 }
 
-impl CopyRemovalPolicy {
+impl PreAllocationPolicy {
     const SAME_BLOCK_COPY_I64_V1_BIT: u32 = 1 << 0;
-    const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT;
+    const REDUNDANT_EXTENSION_V1_BIT: u32 = 1 << 1;
+    const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT | Self::REDUNDANT_EXTENSION_V1_BIT;
 
     /// Rebind every admissible same-block use of one `CopyI64` destination
     /// to the copied source register, dropping the copy and the
     /// destination's roster row.
     pub const SAME_BLOCK_COPY_I64_V1: Self = Self {
         enabled: Self::SAME_BLOCK_COPY_I64_V1_BIT,
+    };
+
+    /// Replace an admitted `ZeroExtend*`/`SignExtend*` whose input's producer
+    /// already guarantees the same normalization with a `CopyI64` allocation
+    /// can coalesce, keeping the extension's result register and instruction
+    /// identity.
+    pub const REDUNDANT_EXTENSION_V1: Self = Self {
+        enabled: Self::REDUNDANT_EXTENSION_V1_BIT,
     };
 
     pub const fn empty() -> Self {
@@ -65,25 +78,121 @@ impl CopyRemovalPolicy {
     }
 }
 
-/// One independently validated copy removal plus the rebuilt analyses over
-/// its transformed program. No source analysis fact crosses the transformed
-/// selected-CFG boundary.
+/// One committed pre-allocation step's validated transformation, by exact
+/// rewrite family. Both variants implement `ValidatedSelectedAnalysis`, so
+/// the step's transformed program re-enters discovery as the next sweep's
+/// source — an extension removal publishes a `CopyI64` the copy-removal
+/// pass then owns.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedCopyRemovalStep {
-    pub(super) removal: ValidatedCopyRemoval,
+pub enum ValidatedPreAllocationTransformation {
+    CopyRemoval(ValidatedCopyRemoval),
+    RedundantExtension(ValidatedRedundantExtension),
+}
+
+impl ValidatedPreAllocationTransformation {
+    pub fn transformed(&self) -> &SelectedInstructionPlan {
+        match self {
+            Self::CopyRemoval(removal) => removal.transformed(),
+            Self::RedundantExtension(removal) => removal.transformed(),
+        }
+    }
+
+    pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
+        match self {
+            Self::CopyRemoval(removal) => removal.shared_transformed(),
+            Self::RedundantExtension(removal) => removal.shared_transformed(),
+        }
+    }
+
+    pub fn source_selected(&self) -> SelectedInstructionPlanIdentity {
+        match self {
+            Self::CopyRemoval(removal) => removal.receipt().source_selected(),
+            Self::RedundantExtension(removal) => removal.receipt().source_selected(),
+        }
+    }
+
+    pub fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
+        match self {
+            Self::CopyRemoval(removal) => removal.receipt().transformed_selected(),
+            Self::RedundantExtension(removal) => removal.receipt().transformed_selected(),
+        }
+    }
+
+    pub fn optimization_unit(&self) -> optimization_core::OptimizationUnitIdentity {
+        match self {
+            Self::CopyRemoval(removal) => removal.receipt().optimization_unit(),
+            Self::RedundantExtension(removal) => removal.receipt().optimization_unit(),
+        }
+    }
+
+    pub fn fuel_schedule(&self) -> semantic_vocabulary::FuelScheduleIdentity {
+        match self {
+            Self::CopyRemoval(removal) => removal.receipt().fuel_schedule(),
+            Self::RedundantExtension(removal) => removal.receipt().fuel_schedule(),
+        }
+    }
+
+    /// The function the committed transformation rewrote.
+    pub fn function_index(&self) -> usize {
+        match self {
+            Self::CopyRemoval(removal) => removal.receipt().function_index(),
+            Self::RedundantExtension(removal) => removal.receipt().function_index(),
+        }
+    }
+
+    /// The source-side identity of the instruction the transformation
+    /// rewrote: the removed `CopyI64`, or the extension that became one.
+    pub fn instruction(&self) -> SelectedInstructionId {
+        match self {
+            Self::CopyRemoval(removal) => removal.receipt().copy(),
+            Self::RedundantExtension(removal) => removal.receipt().extension(),
+        }
+    }
+
+    /// The durable transformation identity the iteration receipt and the
+    /// post-allocation manifest ledger record.
+    pub fn identity(&self) -> PreAllocationTransformationIdentity {
+        match self {
+            Self::CopyRemoval(removal) => {
+                PreAllocationTransformationIdentity::CopyRemoval(removal.receipt().identity())
+            }
+            Self::RedundantExtension(removal) => {
+                PreAllocationTransformationIdentity::RedundantExtension(
+                    removal.receipt().identity(),
+                )
+            }
+        }
+    }
+}
+
+/// The committed transformation a pre-allocation iteration receipt records,
+/// by exact rewrite family. The manifest ledger cannot reorder or reforge a
+/// step without changing this field's replayed value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PreAllocationTransformationIdentity {
+    CopyRemoval(CopyRemovalIdentity),
+    RedundantExtension(RedundantExtensionIdentity),
+}
+
+/// One independently validated pre-allocation transformation plus the
+/// rebuilt analyses over its transformed program. No source analysis fact
+/// crosses the transformed selected-CFG boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedOptimizedPreAllocationStep {
+    pub(super) transformation: ValidatedPreAllocationTransformation,
     pub(super) liveness: ValidatedLiveness,
     pub(super) ranges: ValidatedLiveRanges,
     pub(super) legality: ValidatedAllocationLegality,
-    /// Candidates the pass evaluated and declined before this removal
-    /// committed, in the pass's deterministic scan order.
+    /// Candidates the owning pass evaluated and declined before this
+    /// transformation committed, in the pass's deterministic scan order.
     pub(super) declined: usize,
     /// Candidates the pass evaluated in total, this commit included.
     pub(super) evaluated: usize,
 }
 
-impl StagedOptimizedCopyRemovalStep {
-    pub const fn removal(&self) -> &ValidatedCopyRemoval {
-        &self.removal
+impl StagedOptimizedPreAllocationStep {
+    pub const fn transformation(&self) -> &ValidatedPreAllocationTransformation {
+        &self.transformation
     }
     pub const fn liveness(&self) -> &ValidatedLiveness {
         &self.liveness
@@ -102,17 +211,17 @@ impl StagedOptimizedCopyRemovalStep {
     }
 }
 
-/// The terminal no-change discovery pass: every remaining `CopyI64`
-/// candidate was evaluated and declined, proving the run reached the
-/// admission fixed point on the final program.
+/// The terminal no-change discovery sweep: every enabled family pass
+/// evaluated its remaining candidates and declined them, proving the run
+/// reached the joint admission fixed point on the final program.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedCopyRemovalAttempt {
+pub struct StagedOptimizedPreAllocationAttempt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
     pub(super) candidates: usize,
     pub(super) declined: usize,
 }
 
-impl StagedOptimizedCopyRemovalAttempt {
+impl StagedOptimizedPreAllocationAttempt {
     pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
@@ -126,15 +235,15 @@ impl StagedOptimizedCopyRemovalAttempt {
 
 /// Completed execution of the pre-allocation projection of one exact
 /// source-visible suite. Applied steps are followed by one clean discovery
-/// pass, so an empty `steps` vector is still an evidenced successful run.
+/// sweep, so an empty `steps` vector is still an evidenced successful run.
 #[derive(Debug)]
 pub struct StagedPreAllocationOptimizationRun {
     pub(super) source: StagedOptimizedAllocationLegality,
     pub(super) selections: OptimizationSelections,
     pub(super) pre_allocation_selections: OptimizationSelections,
-    pub(super) policy: CopyRemovalPolicy,
-    pub(super) steps: Vec<StagedOptimizedCopyRemovalStep>,
-    pub(super) attempt: StagedOptimizedCopyRemovalAttempt,
+    pub(super) policy: PreAllocationPolicy,
+    pub(super) steps: Vec<StagedOptimizedPreAllocationStep>,
+    pub(super) attempt: StagedOptimizedPreAllocationAttempt,
     pub(super) custody: StagedPreAllocationOptimizationCustodyReceipt,
 }
 
@@ -150,28 +259,29 @@ impl StagedPreAllocationOptimizationRun {
     pub const fn pre_allocation_selections(&self) -> &OptimizationSelections {
         &self.pre_allocation_selections
     }
-    pub const fn policy(&self) -> CopyRemovalPolicy {
+    pub const fn policy(&self) -> PreAllocationPolicy {
         self.policy
     }
-    pub fn steps(&self) -> &[StagedOptimizedCopyRemovalStep] {
+    pub fn steps(&self) -> &[StagedOptimizedPreAllocationStep] {
         &self.steps
     }
-    pub const fn attempt(&self) -> &StagedOptimizedCopyRemovalAttempt {
+    pub const fn attempt(&self) -> &StagedOptimizedPreAllocationAttempt {
         &self.attempt
     }
     pub const fn custody(&self) -> &StagedPreAllocationOptimizationCustodyReceipt {
         &self.custody
     }
     /// The program this run publishes: the last step's transformed plan when
-    /// a removal committed, otherwise the unchanged admitted source plan.
+    /// a transformation committed, otherwise the unchanged admitted source
+    /// plan.
     pub fn current(&self) -> crate::SelectedProgramRef<'_> {
         match self.steps.last() {
-            Some(step) => crate::SelectedProgramRef::new(&step.removal),
+            Some(step) => crate::SelectedProgramRef::new(&step.transformation),
             None => crate::SelectedProgramRef::new(self.source.selected()),
         }
     }
     /// The facts over the current program: the last step's rebuilt analyses,
-    /// or the run's admitted analyses when no copy was admissible.
+    /// or the run's admitted analyses when no candidate was admissible.
     pub fn liveness(&self) -> &ValidatedLiveness {
         match self.steps.last() {
             Some(step) => step.liveness(),
@@ -198,14 +308,14 @@ pub struct StagedPreAllocationOptimizationCustodyReceipt {
     pub(super) source: StagedOptimizedAllocationLegalityCustodyReceipt,
     pub(super) selections: OptimizationSelectionIdentity,
     pub(super) pre_allocation_selections: OptimizationSelectionIdentity,
-    pub(super) policy: CopyRemovalPolicy,
+    pub(super) policy: PreAllocationPolicy,
     pub(super) budget: OptimizationWorkBudget,
     pub(super) usage: OptimizationWorkUsage,
     pub(super) iteration_bound: usize,
     pub(super) removal_count: usize,
     pub(super) initial_virtual_register_count: usize,
-    pub(super) iterations: Vec<StagedOptimizedCopyRemovalIterationReceipt>,
-    pub(super) attempt: StagedOptimizedCopyRemovalAttemptReceipt,
+    pub(super) iterations: Vec<StagedOptimizedPreAllocationIterationReceipt>,
+    pub(super) attempt: StagedOptimizedPreAllocationAttemptReceipt,
     pub(super) final_selected: SelectedInstructionPlanIdentity,
     pub(super) final_liveness: LivenessIdentity,
     pub(super) final_ranges: LiveRangeIdentity,
@@ -226,7 +336,7 @@ impl StagedPreAllocationOptimizationCustodyReceipt {
     pub const fn pre_allocation_selections(&self) -> OptimizationSelectionIdentity {
         self.pre_allocation_selections
     }
-    pub const fn policy(&self) -> CopyRemovalPolicy {
+    pub const fn policy(&self) -> PreAllocationPolicy {
         self.policy
     }
     pub const fn budget(&self) -> OptimizationWorkBudget {
@@ -244,10 +354,10 @@ impl StagedPreAllocationOptimizationCustodyReceipt {
     pub const fn initial_virtual_register_count(&self) -> usize {
         self.initial_virtual_register_count
     }
-    pub fn iterations(&self) -> &[StagedOptimizedCopyRemovalIterationReceipt] {
+    pub fn iterations(&self) -> &[StagedOptimizedPreAllocationIterationReceipt] {
         &self.iterations
     }
-    pub const fn attempt(&self) -> StagedOptimizedCopyRemovalAttemptReceipt {
+    pub const fn attempt(&self) -> StagedOptimizedPreAllocationAttemptReceipt {
         self.attempt
     }
     pub const fn final_selected(&self) -> SelectedInstructionPlanIdentity {
@@ -268,11 +378,11 @@ impl StagedPreAllocationOptimizationCustodyReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedCopyRemovalIterationReceipt {
+pub struct StagedOptimizedPreAllocationIterationReceipt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
-    pub(super) copy_removal: CopyRemovalIdentity,
+    pub(super) transformation: PreAllocationTransformationIdentity,
     pub(super) function_index: usize,
-    pub(super) copy: SelectedInstructionId,
+    pub(super) instruction: SelectedInstructionId,
     pub(super) transformed_selected: SelectedInstructionPlanIdentity,
     pub(super) fresh_liveness: LivenessIdentity,
     pub(super) fresh_ranges: LiveRangeIdentity,
@@ -281,18 +391,19 @@ pub struct StagedOptimizedCopyRemovalIterationReceipt {
     pub(super) evaluated: usize,
 }
 
-impl StagedOptimizedCopyRemovalIterationReceipt {
+impl StagedOptimizedPreAllocationIterationReceipt {
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
-    pub const fn copy_removal(self) -> CopyRemovalIdentity {
-        self.copy_removal
+    pub const fn transformation(self) -> PreAllocationTransformationIdentity {
+        self.transformation
     }
     pub const fn function_index(self) -> usize {
         self.function_index
     }
-    pub const fn copy(self) -> SelectedInstructionId {
-        self.copy
+    /// The source-side identity of the instruction the step rewrote.
+    pub const fn instruction(self) -> SelectedInstructionId {
+        self.instruction
     }
     pub const fn transformed_selected(self) -> SelectedInstructionPlanIdentity {
         self.transformed_selected
@@ -315,13 +426,13 @@ impl StagedOptimizedCopyRemovalIterationReceipt {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StagedOptimizedCopyRemovalAttemptReceipt {
+pub struct StagedOptimizedPreAllocationAttemptReceipt {
     pub(super) source_selected: SelectedInstructionPlanIdentity,
     pub(super) candidates: usize,
     pub(super) declined: usize,
 }
 
-impl StagedOptimizedCopyRemovalAttemptReceipt {
+impl StagedOptimizedPreAllocationAttemptReceipt {
     pub const fn source_selected(self) -> SelectedInstructionPlanIdentity {
         self.source_selected
     }
@@ -334,9 +445,10 @@ impl StagedOptimizedCopyRemovalAttemptReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OptimizedCopyRemovalCustodyError {
+pub enum OptimizedPreAllocationCustodyError {
     UpstreamLegality(OptimizedAllocationLegalityCustodyError),
     CopyRemoval(CopyRemovalError),
+    RedundantExtension(RedundantExtensionError),
     Liveness(LivenessError),
     LiveRanges(LiveRangeError),
     AllocationLegality(AllocationLegalityError),
@@ -350,9 +462,12 @@ pub enum OptimizedCopyRemovalCustodyError {
     ReceiptMismatch,
     MissingPreAllocationOptimization,
     UnsupportedPreAllocationOptimization(Optimization),
-    /// Every applied step must drop the virtual-register measure by exactly
-    /// one: the copy and its destination's roster row leave together.
-    CopyRemovalMeasureMismatch {
+    /// Every applied step must drop the joint measure — the plan's virtual
+    /// registers plus its remaining extension instructions — by exactly
+    /// one: a copy removal drops the copy and its destination's roster row;
+    /// an extension removal turns the extension into a copy and removes no
+    /// register.
+    PreAllocationMeasureMismatch {
         previous: usize,
         current: usize,
     },
@@ -367,10 +482,13 @@ pub enum OptimizedCopyRemovalCustodyError {
     },
 }
 
-impl std::fmt::Display for OptimizedCopyRemovalCustodyError {
+impl std::fmt::Display for OptimizedPreAllocationCustodyError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(formatter, "optimized copy-removal staging failed: {self:?}")
+        write!(
+            formatter,
+            "optimized pre-allocation staging failed: {self:?}"
+        )
     }
 }
 
-impl std::error::Error for OptimizedCopyRemovalCustodyError {}
+impl std::error::Error for OptimizedPreAllocationCustodyError {}

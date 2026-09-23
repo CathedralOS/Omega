@@ -57,8 +57,13 @@ pub(super) fn pre_allocation_transformations(
     source
         .iterations()
         .iter()
-        .map(|iteration| {
-            PostAllocationSelectedTransformation::CopyRemoval(iteration.copy_removal())
+        .map(|iteration| match iteration.transformation() {
+            selected_instructions_to_selected_instructions::PreAllocationTransformationIdentity::CopyRemoval(identity) => {
+                PostAllocationSelectedTransformation::CopyRemoval(identity)
+            }
+            selected_instructions_to_selected_instructions::PreAllocationTransformationIdentity::RedundantExtension(identity) => {
+                PostAllocationSelectedTransformation::RedundantExtension(identity)
+            }
         })
         .collect()
 }

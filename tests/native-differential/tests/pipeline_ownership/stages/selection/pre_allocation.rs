@@ -6,9 +6,9 @@
 //! declining candidates.
 
 use crate::tests::{
-    CopyRemovalPolicy, NativeTarget, Optimization, OptimizationSelections,
-    OptimizedCopyRemovalCustodyError, PreAllocationOptimizationCustodyFieldForTest,
-    SelectedInstructionKind, StagedOptimizedAllocationLegality, StagedPreAllocationOptimizationRun,
+    NativeTarget, Optimization, OptimizationSelections, OptimizedPreAllocationCustodyError,
+    PreAllocationOptimizationCustodyFieldForTest, PreAllocationPolicy, SelectedInstructionKind,
+    StagedOptimizedAllocationLegality, StagedPreAllocationOptimizationRun,
     optimize_selected_instructions, run_pre_allocation_optimizations,
     stage_optimized_allocation_legality, stage_optimized_live_ranges, stage_optimized_liveness,
     staged_forwarded_conditional, staged_forwarded_conditional_with_selections,
@@ -65,7 +65,7 @@ fn positive_removes_every_admissible_normalization_copy() {
         assert_eq!(run.steps().len(), 2, "{target:?}");
         assert_eq!(
             run.policy(),
-            CopyRemovalPolicy::SAME_BLOCK_COPY_I64_V1,
+            PreAllocationPolicy::SAME_BLOCK_COPY_I64_V1,
             "{target:?}"
         );
         // The terminal clean pass still found the two constrained return
@@ -146,8 +146,8 @@ fn measured_budget_admits_exact_usage_and_refuses_one_less() {
                     ),
                 )),
                 Err(
-                    OptimizedCopyRemovalCustodyError::PreAllocationBudgetExceeded { .. }
-                        | OptimizedCopyRemovalCustodyError::CopyRemoval(
+                    OptimizedPreAllocationCustodyError::PreAllocationBudgetExceeded { .. }
+                        | OptimizedPreAllocationCustodyError::CopyRemoval(
                             crate::tests::CopyRemovalError::WorkBudgetExceeded
                         )
                 )
@@ -222,12 +222,12 @@ fn published_run_is_a_clean_fixed_point() {
 /// authentic run.
 #[test]
 fn custody_rejects_every_one_field_substitution() {
-    use OptimizedCopyRemovalCustodyError::{ReceiptMismatch, SelectionProjectionMismatch};
+    use OptimizedPreAllocationCustodyError::{ReceiptMismatch, SelectionProjectionMismatch};
     use PreAllocationOptimizationCustodyFieldForTest::*;
     let fields: [(
         &str,
         PreAllocationOptimizationCustodyFieldForTest,
-        OptimizedCopyRemovalCustodyError,
+        OptimizedPreAllocationCustodyError,
     ); 17] = [
         ("identity", Identity, ReceiptMismatch),
         ("source", Source, ReceiptMismatch),
@@ -353,7 +353,7 @@ fn executor_rejects_a_suite_without_a_pre_allocation_selection() {
         let legality = legality(staged_forwarded_conditional(target));
         assert_eq!(
             run_pre_allocation_optimizations(legality).unwrap_err(),
-            OptimizedCopyRemovalCustodyError::MissingPreAllocationOptimization,
+            OptimizedPreAllocationCustodyError::MissingPreAllocationOptimization,
             "{target:?}"
         );
     }

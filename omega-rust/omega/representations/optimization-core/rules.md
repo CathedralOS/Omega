@@ -46,6 +46,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `StateSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization StateSpecialization` | Required |
 | `RepresentationSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization RepresentationSpecialization` | Required |
 | `SelectedSameBlockCopyI64RemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedSameBlockCopyI64RemovalV1` | Required |
+| `SelectedRedundantExtensionRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedRedundantExtensionRemovalV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 The architecture test derives exact names and phases from `Optimization::ALL`'s

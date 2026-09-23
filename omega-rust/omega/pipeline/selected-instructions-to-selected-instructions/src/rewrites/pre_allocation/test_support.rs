@@ -1,5 +1,6 @@
 use super::model::{
-    StagedOptimizedCopyRemovalIterationReceipt, StagedPreAllocationOptimizationRun,
+    PreAllocationTransformationIdentity, StagedOptimizedPreAllocationIterationReceipt,
+    StagedPreAllocationOptimizationRun,
 };
 
 fn alternate_budget() -> optimization_core::OptimizationWorkBudget {
@@ -61,9 +62,9 @@ impl StagedPreAllocationOptimizationRun {
                     optimization_core::OptimizationSelectionIdentity::from_bytes([0xc2; 32]);
             }
             PreAllocationOptimizationCustodyFieldForTest::Policy => {
-                // The honest run always admits the copy-removal bit, so the
-                // empty policy is the distinct canonical payload.
-                self.custody.policy = super::CopyRemovalPolicy::empty();
+                // The honest run always admits at least one family bit, so
+                // the empty policy is the distinct canonical payload.
+                self.custody.policy = super::PreAllocationPolicy::empty();
             }
             PreAllocationOptimizationCustodyFieldForTest::Budget => {
                 self.custody.budget = alternate_budget();
@@ -86,13 +87,13 @@ impl StagedPreAllocationOptimizationRun {
                 // receipt assembled from this run's own terminal attempt so
                 // the mutation is non-vacuous on every honest run.
                 let attempt = self.custody.attempt;
-                self.custody.iterations = vec![StagedOptimizedCopyRemovalIterationReceipt {
+                self.custody.iterations = vec![StagedOptimizedPreAllocationIterationReceipt {
                     source_selected: attempt.source_selected,
-                    copy_removal: selected_instructions::CopyRemovalIdentity::from_bytes(
-                        [0xc3; 32],
+                    transformation: PreAllocationTransformationIdentity::CopyRemoval(
+                        selected_instructions::CopyRemovalIdentity::from_bytes([0xc3; 32]),
                     ),
                     function_index: 0,
-                    copy: selected_instructions::SelectedInstructionId(0),
+                    instruction: selected_instructions::SelectedInstructionId(0),
                     transformed_selected: attempt.source_selected,
                     fresh_liveness: selected_instructions::LivenessIdentity::from_bytes([0xaa; 32]),
                     fresh_ranges: selected_instructions::LiveRangeIdentity::from_bytes([0xab; 32]),
