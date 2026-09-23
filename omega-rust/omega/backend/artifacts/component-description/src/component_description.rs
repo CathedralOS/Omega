@@ -715,6 +715,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::EstablishTrivialAffineLocal { .. }
                     | OperationKind::EstablishRecord { .. }
                     | OperationKind::EstablishScalarCase { .. }
+                    | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::EstablishByteSequenceLiteral { .. }
                     | OperationKind::PrimitiveScalarRead { .. }
                     | OperationKind::StructuralScalarFieldStore { .. }

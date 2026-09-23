@@ -575,6 +575,9 @@ impl TerminalExecution {
                     OperationKind::EstablishRecord { .. } => {
                         self.execute_establish_record(operation)?
                     }
+                    OperationKind::EstablishStructuralCase { .. } => {
+                        self.execute_establish_structural_case(operation)?
+                    }
                     OperationKind::CallUnit { .. } => self.execute_call_unit(operation)?,
                     OperationKind::CallStructuralScalar { .. } => {
                         self.execute_call_structural_scalar(operation)?

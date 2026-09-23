@@ -24,6 +24,9 @@ pub enum LoweringError {
     UnsupportedPayloadlessCase(semantic_vocabulary::OperationId),
     /// Scalar-array establishment has no abstract storage realization yet.
     UnsupportedScalarArray(semantic_vocabulary::OperationId),
+    /// Terminal preserves the exact non-scalar sum case payload, but Omega has
+    /// no target-neutral abstract operation for realizing that structural value.
+    UnsupportedStructuralCase(semantic_vocabulary::OperationId),
     /// Psi preserves exact byte-sequence literals, but native realization is
     /// deliberately fenced until the selected boundary has a byte-view ABI.
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),

@@ -154,6 +154,11 @@ pub(crate) fn build_checked_value_computation_plans(
                                 ExpressionNode::Name(_)
                             ))
                         || structural_values::is_record_value(program, expression, expected)
+                        || structural_values::is_structural_case_value(
+                            program,
+                            expression,
+                            expected,
+                        )
                         || (matches!(statement, StatementNode::LocalData(_))
                             && structural_values::is_shared_borrow_value(
                                 program, expression, expected,

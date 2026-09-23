@@ -116,6 +116,9 @@ pub(crate) fn validate_unit_operation_static(
         OperationKind::EstablishRecord { .. } => {
             crate::validation::record::fields(module, machine, operation)?;
         }
+        OperationKind::EstablishStructuralCase { .. } => {
+            crate::validation::structural_case::fields(module, machine, operation)?;
+        }
         OperationKind::CallUnit { .. } => {
             unit_calls::validate_call_unit(module, machine, machines, operation)?
         }

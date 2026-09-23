@@ -40,7 +40,8 @@ pub(super) fn record_value_root<'plans>(
             return None;
         }
         match &node.kind {
-            checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+            checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+            | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                 for field in plans.record_fields.span(*fields)? {
                     if let checked_trees::CheckedStructuralRecordFieldValue::Structural(child) =
                         field.value

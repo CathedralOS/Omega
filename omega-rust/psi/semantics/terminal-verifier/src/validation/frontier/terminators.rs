@@ -670,6 +670,7 @@ fn close_return_structural(
         && !super::super::scalar_array::plain_return_source(module, machine, *source)
         && !(source_signature.multiplicity == StructuralMultiplicity::Unrestricted
             && (super::super::scalar_case::plain_return_source(module, machine, *source)
+                || super::super::structural_case::plain_return_source(module, machine, *source)
                 || super::super::record::plain_return_source(module, machine, *source)))
         && !(plain_owned_block_return
             && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
@@ -789,6 +790,7 @@ fn close_return_structural(
         )
         && !super::super::scalar_array::plain_return_source(module, machine, *source)
         && !super::super::scalar_case::plain_return_source(module, machine, *source)
+        && !super::super::structural_case::plain_return_source(module, machine, *source)
         && !super::super::record::plain_return_source(module, machine, *source))
         || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
     {

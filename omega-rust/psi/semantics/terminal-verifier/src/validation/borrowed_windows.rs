@@ -233,7 +233,8 @@ fn touched_regions(
         OperationKind::ByteSequenceWrite { destination, .. } => {
             vec![(*destination, Vec::new())]
         }
-        OperationKind::EstablishRecord { fields } => fields
+        OperationKind::EstablishRecord { fields }
+        | OperationKind::EstablishStructuralCase { fields, .. } => fields
             .iter()
             .filter_map(|field| match &field.value {
                 terminal_psi::RecordFieldValue::Structural(argument) => {

@@ -8,9 +8,12 @@ use crate::custody::{direct_scalar_field_type, remove_affine_root, resolve_struc
 use crate::errors::TerminalInterpretError;
 use crate::execution::{OperationFlow, TerminalExecution};
 use crate::scalar_operations::terminal_scalar_belongs_to_type;
-use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
+use crate::structural_inputs::case_membership::StructuralCaseContents;
+use crate::values::StructuralScalarRuntimeField;
+use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
 use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
     StructuralFieldType, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
@@ -114,6 +117,283 @@ impl TerminalExecution {
             });
         }
         Ok(OperationFlow::Advance)
+    }
+
+    pub(crate) fn execute_establish_structural_case(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::EstablishStructuralCase {
+            result_case,
+            ref fields,
+        } = operation.kind
+        else {
+            unreachable!("dispatched execute_establish_structural_case")
+        };
+        let terminal_psi::OperationResult::Structural(result) = &operation.result else {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        };
+        self.establish_structural_case(result, result_case, fields)?;
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Stage a sum's non-scalar case payload the way `establish_record` stages
+    /// record members: every child subtree copies (or, for affine children,
+    /// moves) into the fresh identity under `Field(member)` prefixes, and the
+    /// selected case's discriminator lands on the new root.
+    fn establish_structural_case(
+        &mut self,
+        result: &terminal_psi::StructuralOperationResult,
+        result_case: semantic_vocabulary::StructuralCaseId,
+        fields: &[terminal_psi::RecordFieldInitializer],
+    ) -> Result<(), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if self.structural_values.contains_key(&result.place)
+            || self.scalar_case_values.contains_key(&result.place)
+            || !matches!(
+                result.multiplicity,
+                StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+            )
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+        {
+            return Err(invalid());
+        }
+        let Some(StructuralTypeDeclaration {
+            shape: StructuralTypeShape::Sum { cases },
+            ..
+        }) = self.structural_types.get(&result.structural_type)
+        else {
+            return Err(invalid());
+        };
+        let Some(selected) = cases.iter().find(|case| case.id == result_case) else {
+            return Err(invalid());
+        };
+        if selected.fields.len() != fields.len() {
+            return Err(invalid());
+        }
+        let value = TerminalStructuralValue {
+            opaque_identity: self.local_structural_identities.allocate()?,
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        let member_root = StructuralRuntimePlace::from(&value);
+        let mut staged_scalars: BTreeMap<StructuralScalarRuntimeField, TerminalScalarValue> =
+            BTreeMap::new();
+        let mut staged_cases: BTreeMap<StructuralRuntimePlace, StructuralCaseContents> =
+            BTreeMap::new();
+        let mut staged_byte_fields: BTreeMap<StructuralByteSequenceRuntimeField, ByteSequenceView> =
+            BTreeMap::new();
+        let mut staged_byte_arrays: BTreeMap<StructuralRuntimePlace, ByteSequenceView> =
+            BTreeMap::new();
+        let mut staged_primitives: BTreeMap<StructuralRuntimePlace, TerminalScalarValue> =
+            BTreeMap::new();
+        let mut staged_referents: BTreeMap<StructuralRuntimePlace, TerminalStructuralValue> =
+            BTreeMap::new();
+        let mut consumed = BTreeSet::new();
+        for (declaration, binding) in selected.fields.iter().zip(fields) {
+            if binding.field != declaration.id || declaration.relevance.is_erased() {
+                return Err(invalid());
+            }
+            match &binding.value {
+                terminal_psi::RecordFieldValue::Scalar { value: operand, .. } => {
+                    let scalar = self.values.get(operand).copied().ok_or_else(invalid)?;
+                    if declaration.field_type.scalar_type() != Some(scalar.scalar_type())
+                        || !terminal_scalar_belongs_to_type(scalar)
+                    {
+                        return Err(invalid());
+                    }
+                    if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) =
+                        declaration.field_type
+                    {
+                        let TerminalScalarValue::Integer { value: integer, .. } = scalar else {
+                            return Err(invalid());
+                        };
+                        if !bounds.contains(integer) {
+                            return Err(invalid());
+                        }
+                    }
+                    staged_scalars.insert(
+                        StructuralScalarRuntimeField {
+                            parent: member_root.clone(),
+                            field: binding.field,
+                        },
+                        scalar,
+                    );
+                }
+                terminal_psi::RecordFieldValue::Structural(argument) => {
+                    if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                        return Err(invalid());
+                    }
+                    let member = StructuralRuntimePlace {
+                        opaque_identity: value.opaque_identity,
+                        path: vec![StructuralPathSegment::Field(declaration.identity.clone())],
+                    };
+                    let affine = self
+                        .live_affine_frontier
+                        .iter()
+                        .any(|entry| entry.place == argument.place && entry.path.is_empty());
+                    if affine
+                        && (!consumed.insert(argument.place)
+                            || result.multiplicity == StructuralMultiplicity::Unrestricted)
+                    {
+                        return Err(invalid());
+                    }
+                    if let Some(case) = self.scalar_case_values.get(&argument.place) {
+                        if declaration.field_type
+                            != StructuralFieldType::Structural(case.structural_type)
+                        {
+                            return Err(invalid());
+                        }
+                        staged_cases.insert(
+                            member.clone(),
+                            StructuralCaseContents {
+                                structural_type: case.structural_type,
+                                case: case.result_case,
+                            },
+                        );
+                        for (field, scalar) in &case.fields {
+                            staged_scalars.insert(
+                                StructuralScalarRuntimeField {
+                                    parent: member.clone(),
+                                    field: *field,
+                                },
+                                *scalar,
+                            );
+                        }
+                        continue;
+                    }
+                    let Some(child) = self.structural_values.get(&argument.place) else {
+                        return Err(invalid());
+                    };
+                    if !child.qualifications.is_empty()
+                        || declaration.field_type
+                            != StructuralFieldType::Structural(child.structural_type)
+                    {
+                        return Err(invalid());
+                    }
+                    // Retarget every live subtree cell into member coordinates;
+                    // affine children additionally vacate their source region
+                    // once the whole roster validates.
+                    let retarget = |parent: &StructuralRuntimePlace| {
+                        (parent.opaque_identity == child.opaque_identity
+                            && parent.path.starts_with(&child.path))
+                        .then(|| StructuralRuntimePlace {
+                            opaque_identity: member.opaque_identity,
+                            path: member
+                                .path
+                                .iter()
+                                .chain(&parent.path[child.path.len()..])
+                                .cloned()
+                                .collect(),
+                        })
+                    };
+                    for (carrier, referent) in &self.reference_referents {
+                        if let Some(place) = retarget(carrier) {
+                            if !affine {
+                                return Err(invalid());
+                            }
+                            staged_referents.insert(place, referent.clone());
+                        }
+                    }
+                    for (cell, scalar) in &self.structural_scalar_fields {
+                        if let Some(parent) = retarget(&cell.parent) {
+                            staged_scalars.insert(
+                                StructuralScalarRuntimeField {
+                                    parent,
+                                    field: cell.field,
+                                },
+                                *scalar,
+                            );
+                        }
+                    }
+                    for (carrier, contents) in &self.structural_cases {
+                        if let Some(place) = retarget(carrier) {
+                            staged_cases.insert(place, *contents);
+                        }
+                    }
+                    for (cell, view) in &self.structural_byte_sequence_fields {
+                        if let Some(parent) = retarget(&cell.parent) {
+                            staged_byte_fields.insert(
+                                StructuralByteSequenceRuntimeField {
+                                    parent,
+                                    field: cell.field,
+                                },
+                                view.clone(),
+                            );
+                        }
+                    }
+                    for (carrier, view) in &self.structural_byte_arrays {
+                        if let Some(place) = retarget(carrier) {
+                            staged_byte_arrays.insert(place, view.clone());
+                        }
+                    }
+                    for (carrier, scalar) in &self.structural_primitive_storage {
+                        if let Some(place) = retarget(carrier) {
+                            staged_primitives.insert(place, *scalar);
+                        }
+                    }
+                }
+            }
+        }
+        for place in consumed {
+            if let Some(child) = self.structural_values.remove(&place) {
+                self.prune_subtree(&StructuralRuntimePlace::from(&child));
+            } else {
+                self.scalar_case_values.remove(&place);
+            }
+            remove_affine_root(&mut self.live_affine_frontier, place);
+        }
+        self.structural_scalar_fields.extend(staged_scalars);
+        self.structural_cases.extend(staged_cases);
+        self.structural_byte_sequence_fields
+            .extend(staged_byte_fields);
+        self.structural_byte_arrays.extend(staged_byte_arrays);
+        self.structural_primitive_storage.extend(staged_primitives);
+        self.reference_referents.extend(staged_referents);
+        self.structural_cases.insert(
+            member_root,
+            StructuralCaseContents {
+                structural_type: result.structural_type,
+                case: result_case,
+            },
+        );
+        self.structural_values.insert(result.place, value);
+        if result.multiplicity == StructuralMultiplicity::Affine {
+            self.live_affine_frontier.insert(StructuralAffineDiscard {
+                place: result.place,
+                path: Vec::new(),
+                structural_type: result.structural_type,
+            });
+        }
+        Ok(())
+    }
+
+    /// Remove every runtime cell under `from`; paired with subtree copies so
+    /// consumed children vacate their source region atomically.
+    fn prune_subtree(&mut self, from: &StructuralRuntimePlace) {
+        self.structural_scalar_fields.retain(|cell, _| {
+            cell.parent.opaque_identity != from.opaque_identity
+                || !cell.parent.path.starts_with(&from.path)
+        });
+        self.structural_byte_sequence_fields.retain(|cell, _| {
+            cell.parent.opaque_identity != from.opaque_identity
+                || !cell.parent.path.starts_with(&from.path)
+        });
+        self.structural_byte_arrays.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.structural_cases.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.reference_referents.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
+        self.structural_primitive_storage.retain(|carrier, _| {
+            carrier.opaque_identity != from.opaque_identity || !carrier.path.starts_with(&from.path)
+        });
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(

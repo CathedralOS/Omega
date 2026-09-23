@@ -100,6 +100,7 @@ pub(crate) mod scalar_case;
 mod scalar_qualifications;
 mod structural_byte_sequence_fields;
 mod structural_byte_sequence_store;
+pub(crate) mod structural_case;
 mod structural_case_membership;
 mod structural_operations;
 mod structural_qualification_rosters;

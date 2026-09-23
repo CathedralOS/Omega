@@ -293,7 +293,8 @@ pub(super) fn validate_structural_argument(
                                         // projected owned subtree: the call's
                                         // result source map rejoins the exact
                                         // leaf loans under that edge.
-                                        OperationKind::EstablishRecord { .. } => {
+                                        OperationKind::EstablishRecord { .. }
+                                        | OperationKind::EstablishStructuralCase { .. } => {
                                             reference_result_call
                                                 && argument.access == StructuralAccess::Owned
                                                 && expected.access == argument.access

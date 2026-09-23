@@ -18,6 +18,30 @@ use typed_trees::types::TypeReferenceHandle;
 // A match arm may also select an owned child projected by exact field or
 // fixed-index path; its structural node is a Projection over the root place,
 // which the owned-selection transfer evidence then checks path-for-path.
+/// A case literal carrying non-scalar payload registers its construction root
+/// the same way a record literal does: each authored field keeps its own
+/// scalar or nested structural value under the selected case.
+pub(super) fn is_structural_case_value(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    if !matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::StructLiteral(_)
+    ) {
+        return false;
+    }
+    let Some(constructor) = validation::structural_case_constructor(program, expression) else {
+        return false;
+    };
+    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+        return false;
+    };
+    program.normalized_type_identity(constructor.type_reference)
+        == program.normalized_type_identity(reference)
+}
+
 pub(super) fn is_record_value(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -462,6 +486,11 @@ impl Builder<'_, '_> {
                 });
             }
             CheckedStructuralValueKind::Case(constructor)
+        } else if let ExpressionNode::StructLiteral(literal) =
+            self.program.expression_table.expression(expression)
+            && literal.case_symbol.is_some()
+        {
+            self.structural_case_value(expression, expected, values, pure)?
         } else if let ExpressionNode::StructLiteral(literal) =
             self.program.expression_table.expression(expression)
             && literal.case_symbol.is_none()
@@ -1170,6 +1199,74 @@ impl Builder<'_, '_> {
         }
         Some(CheckedStructuralValueKind::Record {
             data_symbol: literal.type_symbol,
+            fields: values.record_fields.insert_many(fields),
+        })
+    }
+
+    /// A case literal composes its payload fields exactly like a record's:
+    /// authored initializers pair against the selected case's declarations in
+    /// authored order, and each operand is a scalar computation or a nested
+    /// structural value. The case tag stays with the construction, so the
+    /// value keeps its discriminated identity a record cannot spell.
+    fn structural_case_value(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+        values: &mut CheckedStructuralValuePlans,
+        pure: &CheckedScalarExpressionPlans,
+    ) -> Option<CheckedStructuralValueKind> {
+        let constructor = validation::structural_case_constructor(self.program, expression)?;
+        if self
+            .program
+            .normalized_type_identity(constructor.type_reference)
+            != self.program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+        let mut fields = Vec::with_capacity(constructor.fields.len());
+        for (ordinal, (symbol, value_expression, declared)) in
+            constructor.fields.into_iter().enumerate()
+        {
+            let reference = validation::unwrapped_type_reference(self.program, declared)?;
+            let value =
+                if validation::reference_result_custody::parts(self.program, declared).is_some() {
+                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                        self.structural_value(value_expression, declared, values, pure)?,
+                    )
+                } else if let Some(primitive) = self.program.primitive_type_reference(reference) {
+                    let root = self.expression(value_expression, primitive)?;
+                    self.plans.nodes.get_mut(root).authored_root = value_expression;
+                    self.plans.roots.append(CheckedScalarComputationRoot {
+                        machine: self.machine,
+                        state: self.state,
+                        statement_ordinal: u32::try_from(self.statement_index).ok()?,
+                        role: CheckedScalarExpressionRole::StructuralValueField {
+                            expression,
+                            field_ordinal: u32::try_from(ordinal).ok()?,
+                        },
+                        root,
+                    });
+                    checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
+                } else {
+                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                        self.structural_value(value_expression, declared, values, pure)?,
+                    )
+                };
+            fields.push(checked_trees::CheckedStructuralRecordField {
+                field: symbol,
+                expression: value_expression,
+                type_reference: declared,
+                value,
+            });
+        }
+        let ExpressionNode::StructLiteral(literal) =
+            self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        Some(CheckedStructuralValueKind::StructuralCase {
+            data_symbol: literal.type_symbol,
+            case: constructor.case,
             fields: values.record_fields.insert_many(fields),
         })
     }

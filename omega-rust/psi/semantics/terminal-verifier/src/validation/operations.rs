@@ -70,6 +70,9 @@ pub(super) fn validate_operation_operands(
         OperationKind::EstablishRecord { .. } => {
             super::record::operands(module, machine, operation, value_types, defined)
         }
+        OperationKind::EstablishStructuralCase { .. } => {
+            super::structural_case::operands(module, machine, operation, value_types, defined)
+        }
         OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
             storage_operands::validate_structural_byte_sequence_field_byte_store(
                 operation,
