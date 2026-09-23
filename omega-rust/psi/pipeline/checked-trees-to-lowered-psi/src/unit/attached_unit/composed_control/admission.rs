@@ -362,10 +362,13 @@ pub(super) fn validate_claim_free_boundary(
                 )
         })
         || !(boundary.result.is_unit()
-            || matches!(&boundary.result,
+            || matches!(
+                &boundary.result,
                 CheckedBoundaryMachineResultPlan::Structural {
-                    multiplicity: Multiplicity::Affine | Multiplicity::Unrestricted, ..
-                }))
+                    multiplicity: Multiplicity::Affine | Multiplicity::Unrestricted,
+                    ..
+                }
+            ))
     {
         return unsupported(
             "composed Unit boundary escaped claim-free borrowed-input/result custody",

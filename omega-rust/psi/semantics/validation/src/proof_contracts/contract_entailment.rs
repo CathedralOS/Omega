@@ -225,51 +225,48 @@ fn membership_ensures_is_route_authorized(
         .rsplit("::")
         .next()
         .unwrap_or(machine.name.as_str());
-    domain
-        .establishment_routes
-        .iter()
-        .any(|route| match route {
-            language_semantics::DomainEstablishmentRoute::ExactMachine {
-                machine: authorized,
-            } => *authorized == machine.symbol,
-            language_semantics::DomainEstablishmentRoute::CheckedRequirement {
-                trait_definition,
-                requirement,
+    domain.establishment_routes.iter().any(|route| match route {
+        language_semantics::DomainEstablishmentRoute::ExactMachine {
+            machine: authorized,
+        } => *authorized == machine.symbol,
+        language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+            trait_definition,
+            requirement,
+        }
+        | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+            boundary_trait: trait_definition,
+            requirement,
+        } => {
+            if *requirement == machine.symbol {
+                return true;
             }
-            | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
-                boundary_trait: trait_definition,
-                requirement,
-            } => {
-                if *requirement == machine.symbol {
-                    return true;
-                }
-                let Some(requirement_signature) = program
-                    .traits()
-                    .iter()
-                    .find(|definition| definition.symbol == *trait_definition)
-                    .and_then(|definition| {
-                        program
-                            .trait_machine_signatures(definition)
-                            .iter()
-                            .find(|signature| signature.symbol == *requirement)
-                    })
-                else {
-                    return false;
-                };
-                program
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .any(|conformance| {
-                        conformance.symbol == *trait_definition
-                            && conformance
-                                .requirement
-                                .as_ref()
-                                .map(|name| name.as_str())
-                                .unwrap_or(machine_name)
-                                == requirement_signature.name.as_str()
-                    })
-            }
-        })
+            let Some(requirement_signature) = program
+                .traits()
+                .iter()
+                .find(|definition| definition.symbol == *trait_definition)
+                .and_then(|definition| {
+                    program
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .find(|signature| signature.symbol == *requirement)
+                })
+            else {
+                return false;
+            };
+            program
+                .machine_trait_conformances(machine)
+                .iter()
+                .any(|conformance| {
+                    conformance.symbol == *trait_definition
+                        && conformance
+                            .requirement
+                            .as_ref()
+                            .map(|name| name.as_str())
+                            .unwrap_or(machine_name)
+                            == requirement_signature.name.as_str()
+                })
+        }
+    })
 }
 
 pub(crate) fn validate_machine_contract_entailment(

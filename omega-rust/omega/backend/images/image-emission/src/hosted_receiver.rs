@@ -856,9 +856,7 @@ fn receiver_layout(
     services: &[ProgramEntryFusedServiceEstablishment],
 ) -> Result<(u64, u64), Diagnostic> {
     use calling_conventions::CallingPolicy;
-    use terminal_psi::{
-        StructuralAccess, StructuralMultiplicity, StructuralTypeShape,
-    };
+    use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
     let invalid = || invalid(artifact.target);
     let (expected_policy, receiver_register) = match artifact.target {
         target_
@@ -997,12 +995,13 @@ fn validate_receiver_fields(
                 .filter(|row| row.field_path() == field_path.as_slice());
             let outcome = match matches.next() {
                 None => Err(invalid()),
-                Some(row) if matches.next().is_some()
-                    || row.source_signature_identity() != source.identity()
-                    || row.target_slot() != source.target_slot()
-                    || row.receiver_type_identity() != receiver_identity
-                    || row.attachment_type_identity() != attachment_type_identity
-                    || row.carrier_type_identity() != type_identity =>
+                Some(row)
+                    if matches.next().is_some()
+                        || row.source_signature_identity() != source.identity()
+                        || row.target_slot() != source.target_slot()
+                        || row.receiver_type_identity() != receiver_identity
+                        || row.attachment_type_identity() != attachment_type_identity
+                        || row.carrier_type_identity() != type_identity =>
                 {
                     Err(invalid())
                 }
@@ -1050,7 +1049,8 @@ fn validate_receiver_fields(
                             fields: nested_fields,
                         }
                         | StructuralTypeShape::Mixed {
-                            fields: nested_fields, ..
+                            fields: nested_fields,
+                            ..
                         } => {
                             visiting.push(structural_type);
                             field_path.push(field.identity.clone());
@@ -1071,11 +1071,8 @@ fn validate_receiver_fields(
                             outcome?;
                         }
                         _ => {
-                            let valid = zero_valid_record_storage(
-                                declarations,
-                                structural_type,
-                                visiting,
-                            );
+                            let valid =
+                                zero_valid_record_storage(declarations, structural_type, visiting);
                             if !valid {
                                 return Err(invalid());
                             }

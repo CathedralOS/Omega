@@ -460,9 +460,7 @@ pub(super) fn returned<'a>(
             // Minted qualification rosters are custody evidence carried on
             // the result row; the verbatim `result != returned` check is the
             // honest comparison — ensurances are not part of home shape.
-            if result != returned
-                || !result.claims.is_empty()
-            {
+            if result != returned || !result.claims.is_empty() {
                 return None;
             }
             (

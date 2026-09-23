@@ -1,10 +1,9 @@
 //! Composed roots and callable Unit bodies share one selected catalog.
 use super::super::super::super::ServiceReachPlan;
 use super::super::super::{
-    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
-    CheckedUnitEffectOperationPlan, ServiceReachSummary,
-    collect_installation_machine_contract_services, collect_service_summary, lookup_machine_id,
-    unique_unit_boundary, unsupported,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan,
+    ServiceReachSummary, collect_installation_machine_contract_services, collect_service_summary,
+    lookup_machine_id, unique_unit_boundary, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
 

@@ -72,9 +72,7 @@ impl ProgramEntryFusedServiceEstablishment {
             return Err("Fused root establishment contains an empty semantic identity");
         }
         if field_path.is_empty() || field_path.last() != Some(&field_identity) {
-            return Err(
-                "Fused root establishment field path must end at the field identity",
-            );
+            return Err("Fused root establishment field path must end at the field identity");
         }
         Ok(Self {
             source_signature_identity,

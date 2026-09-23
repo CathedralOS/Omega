@@ -79,7 +79,6 @@ pub(super) fn project(
         }
         AbstractOperation::Jump { .. } => {
             let [edge] = node.successors.as_slice() else {
-
                 return Err(Error::SourceCustodyMismatch);
             };
             Ok(LegalizedScalarTerminator::Jump {
@@ -90,7 +89,6 @@ pub(super) fn project(
         }
         AbstractOperation::Conditional { condition, .. } => {
             let [when_true, when_false] = node.successors.as_slice() else {
-
                 return Err(Error::SourceCustodyMismatch);
             };
             Ok(LegalizedScalarTerminator::Conditional {

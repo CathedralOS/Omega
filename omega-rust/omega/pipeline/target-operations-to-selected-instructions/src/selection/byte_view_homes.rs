@@ -78,8 +78,14 @@ pub(super) fn view_backing_roots(
             Some(root) => Ok(Some(vec![(root, view.root_length)])),
             // The view's own backing is a block-parameter view: enumerate the
             // places every incoming edge binds to its `source` parameter.
-            None => bound_view_roots(source, views, view.source, view.root_length, &mut BTreeSet::new())
-                .map(Some),
+            None => bound_view_roots(
+                source,
+                views,
+                view.source,
+                view.root_length,
+                &mut BTreeSet::new(),
+            )
+            .map(Some),
         };
     }
     if crate::selection::established_view_input::view_type(source, place).is_none() {
@@ -130,7 +136,6 @@ fn bound_view_roots_recurse(
 ) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let Some(contract) = source.structural.as_ref() else {
-
         return Err(invalid());
     };
     let Some(declaration) = contract
@@ -138,11 +143,9 @@ fn bound_view_roots_recurse(
         .iter()
         .find(|declaration| declaration.id == parameter)
     else {
-
         return Err(invalid());
     };
     let StructuralPlaceKind::BlockParameter { block, .. } = declaration.kind else {
-
         return Err(invalid());
     };
     let bound_root = |place: PlaceId,
@@ -220,7 +223,6 @@ fn bound_view_roots_recurse(
         }
     }
     if bound_edges == 0 || unbound_edges != 0 || roots.is_empty() {
-
         return Err(invalid());
     }
     Ok(roots)

@@ -7,12 +7,11 @@ use super::super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedUnitEffectOperationPlan, LoweredPsi, ScalarType,
     SemanticDomainId, ServiceReachSummary, StructuralDomainId, StructuralDomainRequirement,
-    StructuralPlaceDeclaration,
-    StructuralTypeId, ValueDeclaration, boundary_machine_id, dense_identity, lookup_domain_id,
-    lookup_type_id,
-    lower_boundary_content_guarantees, lower_boundary_crash_routes, lower_boundary_result,
-    lower_fixed_boundary_service_reach, lower_published_service_ceiling, lower_root_service_reach,
-    lower_unit_parameters, terminal_scalar_type, unsupported,
+    StructuralPlaceDeclaration, StructuralTypeId, ValueDeclaration, boundary_machine_id,
+    dense_identity, lookup_domain_id, lookup_type_id, lower_boundary_content_guarantees,
+    lower_boundary_crash_routes, lower_boundary_result, lower_fixed_boundary_service_reach,
+    lower_published_service_ceiling, lower_root_service_reach, lower_unit_parameters,
+    terminal_scalar_type, unsupported,
 };
 use super::{CheckedTrees, LoweringError, internal_calls, scalar_calls};
 use crate::unit::attached_unit::bodies::{UnitBody, UnitPlans};
@@ -266,24 +265,19 @@ fn lower_catalogs(
                 )
             })
         }))
-        .chain(
-            boundaries
+        .chain(boundaries.iter().flat_map(|(boundary, _)| {
+            boundary
+                .structural_parameters
                 .iter()
-                .flat_map(|(boundary, _)| {
-                    boundary
-                        .structural_parameters
-                        .iter()
-                        .flat_map(|parameter| parameter.qualifications.iter())
-                        .chain(match &boundary.result {
-                            CheckedBoundaryMachineResultPlan::Structural {
-                                qualifications,
-                                ..
-                            } => qualifications.as_slice(),
-                            CheckedBoundaryMachineResultPlan::Unit
-                            | CheckedBoundaryMachineResultPlan::Scalar(_) => &[],
-                        })
-                }),
-        )
+                .flat_map(|parameter| parameter.qualifications.iter())
+                .chain(match &boundary.result {
+                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                        qualifications.as_slice()
+                    }
+                    CheckedBoundaryMachineResultPlan::Unit
+                    | CheckedBoundaryMachineResultPlan::Scalar(_) => &[],
+                })
+        }))
         .copied()
         .collect::<Vec<SemanticDomainId>>();
     domain_roots.sort_by_key(|domain| domain.0);
