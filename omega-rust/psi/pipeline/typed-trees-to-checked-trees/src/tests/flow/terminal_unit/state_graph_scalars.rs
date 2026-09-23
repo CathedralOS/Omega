@@ -385,3 +385,77 @@ fn general_state_graph_retains_interleaved_scalar_storage_write() {
     ] if first.statement_index == 4 && *symbol == output.symbol && path.is_empty()
         && last.statement_index == 6));
 }
+
+#[test]
+fn state_graph_composes_a_field_equality_guard_inside_a_named_state() {
+    // `self.<field> == <literal>` inside a declared `state` block: the
+    // receiver formal is authored on that state, and the pure Boolean
+    // equality lane mints the conditional pair.
+    let checked = checked(
+        r#"
+        pub data Root { flag: bool; hit: i32; }
+        machine Root::run(&mut self) {
+            state open(&mut self) {
+                transition self.flag == true {
+                    true -> have()
+                    _ -> stop()
+                }
+            }
+            state have(&mut self) { self.hit = 70; }
+            state stop(&mut self) { self.hit = 71; }
+        }
+        "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "the named-state equality guard composes: {:?}",
+                checked.facts.flow.terminal_unit_effects.omissions
+            )
+        });
+    let [entry, open, have, stop] = plan.states.as_slice() else {
+        panic!(
+            "the named-state equality pair keeps the entry, its state, and both leaves: {:?}",
+            plan.states.len()
+        )
+    };
+    let CheckedComposedUnitControlTerminatorPlan::Conditional {
+        guard,
+        when_true,
+        when_false,
+        ..
+    } = &open.terminator
+    else {
+        panic!(
+            "the named-state equality guard mints a conditional terminator: {:?}",
+            open.terminator
+        )
+    };
+    assert_eq!(when_true.target_state, have.state);
+    assert_eq!(when_false.target_state, stop.state);
+    let CheckedScalarExpression::Boolean(boolean) = guard else {
+        panic!("the equality guard is a Boolean scalar: {guard:?}")
+    };
+    let checked_trees::CheckedBooleanExpression::Equal { left, right } = boolean.as_ref() else {
+        panic!("the equality guard keeps the authored Equal: {boolean:?}")
+    };
+    assert!(matches!(
+        left.as_ref(),
+        checked_trees::CheckedBooleanExpression::StructuralParameterField {
+            parameter_position: 0,
+            path,
+        } if path.as_slice() == [
+            checked_trees::CheckedStructuralPredicatePathSegment::Field("flag".to_owned())
+        ]
+    ));
+    assert!(matches!(
+        right.as_ref(),
+        checked_trees::CheckedBooleanExpression::Constant(true)
+    ));
+    let _ = entry;
+}
