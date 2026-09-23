@@ -1562,6 +1562,25 @@ splits three ways:
   fixture under **ENTRY-CONTENT-ROOTS** rather than a checker regression:
   `package-manager operations::check_project::tests::semantic::retained_check_root_uses_final_consumer_bindings_and_requested_entry`.
   It is the only failure in that crate's full integration suite on this host.
+Later reading at `33f622e97c` (2026-09-23, macOS aarch64), which supersedes
+the `structural_borrows` bullet above for anyone measuring today:
+`cargo nextest run -p abstract-operations-to-target-operations --lib` is
+**162 run, 158 passed, 4 failed**, and all four report
+`Unsupported("record source attachment has no declared type")` rather than
+either reason recorded above. The two extra members are
+`tests::structural_borrows::ordinary_calls_reject_missing_substituted_and_forged_scalar_homes`
+and `::structural_calls_preserve_verified_crash_continuations`. Measured on
+clean upstream with no local change, so it is upstream's, not a candidate's;
+the rejection site is
+`checked-trees-to-lowered-psi/src/expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`.
+This newer break fails the fixture before the contract lowering `915122bedb`
+repaired is reached, so that repair's effect is masked at this revision --
+it was measured green on base `18848f50f3`, where the Unit member passed.
+Do not read the four-failure count here as evidence that the multi-fact
+`requires` defect is unfixed, and do not re-attribute these to
+`bd5648555c`: that commit's signature was
+`scalar contract contains an unsupported clause`.
+
 - **Two were attributed and one is repaired.** Both
   `abstract-operations-to-target-operations tests::structural_borrows::borrowed_unit_call_preserves_verified_requirement_obligations`
   and `::borrowed_scalar_call_preserves_verified_requirement_obligations`
