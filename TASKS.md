@@ -2310,12 +2310,49 @@ syntax and other terminal services are not prerequisites.
   fail from `bd5648555c` onward. They stop at `lower_machine`, so nothing
   downstream of Psi lowering is implicated.
 
+  Measured at `ac770589f5` by instrumenting the rejection site with the
+  fixture's own `Main::run`, which answers the "no interned named type"
+  hypothesis and rules out the three obvious handles:
+
+  - `referee="Main::run" caller="Main::run" attached="Main" lookup=None
+    datadefs=["Main"]`. The self parameter's referee names the MACHINE
+    symbol, not the data symbol -- which the fence already tolerates through
+    its `*symbol != caller.symbol` arm -- so `reference` carries the wrong
+    symbol for the `data_definitions()` lookup below.
+  - `Main` is a real data definition and has NO `Named` type reference
+    anywhere in the program, because the source never spells `Main` as a
+    type: it writes `data Main`, `machine Main::put(&mut self, ...)` and
+    `self`. `find_named_type_reference` scans for a `Named` node, so it
+    succeeds only when the program incidentally mentions the type name. That
+    is the same "incidentally interned" property the fence's own comment
+    says a projected loan must not depend on.
+  - `caller.attached_data_application` is **invalid** for this machine
+    (`valid=false`), so the generic-application handle is not a substitute
+    either.
+
+  So no existing `TypeReferenceHandle` names the attachment, and the code
+  after the fence needs a handle rather than a symbol: `type_multiplicity`,
+  `normalized_type_identity` (compared against `argument.type_identity`) and
+  `has_plain_owned_contents_with_numeric_constraints` all take `reference`.
+  Passing the machine-named `reference` with the symbol swapped is not a
+  repair -- the identity comparison would then reject on
+  `"record operand changed its declared referent type"`.
+
+  The fork is therefore upstream of this file, in how a machine's attachment
+  is typed: intern a named reference for a machine's attached data so `self`
+  has a declared type to reconstruct from, type the self formal by the data
+  symbol rather than the machine symbol, or give these three queries a
+  symbol-keyed route. It is engineering, not language design -- no Omega
+  surface question is open -- so it is not in OWNER_QUESTIONS.md.
+
   Acceptance: both lower and keep their proved requirement obligations, and an
   ambient borrowed-self field read still reaches the scalar graph. The fence's
   own comment says projected loans reconstruct the endpoint from the authored
   place, so the question is what a whole-root self source reconstructs from
   when its attachment has no interned named type -- not whether to drop the
-  fence.
+  fence. Note that making these lower re-exposes
+  **SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT**: the scalar member then fails
+  on `obligations.len() >= 2` instead, measured on base `18848f50f3`.
 
 - **SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT.** (new-scope) One callee's
   requirement obligations depend on which lowering route prepared it, not on
