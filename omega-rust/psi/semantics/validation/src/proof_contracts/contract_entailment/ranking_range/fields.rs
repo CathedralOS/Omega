@@ -161,6 +161,7 @@ fn operations_land_under(
                     | BinaryOperator::Modulo
                     | BinaryOperator::ShiftLeft
                     | BinaryOperator::ShiftRight
+                    | BinaryOperator::BitwiseAnd
             ) =>
         {
             binary

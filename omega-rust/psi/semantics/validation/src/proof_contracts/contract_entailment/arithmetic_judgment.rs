@@ -306,6 +306,50 @@ fn floor_shift_right(value: &BigInt, count: u64) -> Option<BigInt> {
     })
 }
 
+/// The representable `[minimum, maximum]` of a `bits`-wide integer carrier,
+/// two's complement when `signed`. `bits` names a real machine width
+/// (8..=64), so the shifts below cannot fail.
+fn bitwise_carrier_bounds(bits: u32, signed: bool) -> (BigInt, BigInt) {
+    if signed {
+        let half = BigInt::from_i64(1).shl_bits((bits - 1) as usize);
+        (half.negate(), half.sub(&BigInt::from_i64(1)))
+    } else {
+        (
+            BigInt::zero(),
+            BigInt::from_i64(1)
+                .shl_bits(bits as usize)
+                .sub(&BigInt::from_i64(1)),
+        )
+    }
+}
+
+/// `left & right` inside a `bits`-wide two's-complement carrier. Each
+/// operand reduces modulo `2^bits` -- every real operand is already
+/// in-carrier, so the reduction is identity there and only keeps a spelled
+/// out-of-range constant total -- then the u64 magnitudes AND and the
+/// result reinterprets under `signed`.
+fn bitwise_and_constants(left: &BigInt, right: &BigInt, bits: u32, signed: bool) -> Option<BigInt> {
+    let modulus = BigInt::from_i64(1).shl_bits(bits as usize);
+    let reduce = |value: &BigInt| -> Option<u64> {
+        let (_, remainder) = value.div_rem(&modulus)?;
+        let reduced = if remainder.is_negative() {
+            remainder.add(&modulus)
+        } else {
+            remainder
+        };
+        reduced.to_u64()
+    };
+    let masked = reduce(left)? & reduce(right)?;
+    let value = BigInt::from_u64(masked);
+    // A signed carrier reinterprets the top bit; `bits <= 64` always, and
+    // for `bits == 64` that bit is position 63.
+    if signed && masked & (1u64 << (bits - 1).min(63)) != 0 {
+        Some(value.sub(&modulus))
+    } else {
+        Some(value)
+    }
+}
+
 /// The operands one opaque atom was minted from, retained so a later
 /// simultaneous substitution can re-mint the same shape under the
 /// transported operands rather than dropping the term.
@@ -342,6 +386,17 @@ enum OpaqueTerm {
         value: Polynomial,
         count: Polynomial,
         count_bits: u32,
+    },
+    /// An integer bitwise-AND keeps both inputs and the shared carrier's
+    /// shape (`bits` wide, two's complement when `signed`). The operation
+    /// is total -- every operand pairing lands inside that carrier -- so
+    /// the term carries no divisor/count-style side condition, only the
+    /// shape its interval reads sign corners from.
+    BitwiseAnd {
+        left: Polynomial,
+        right: Polynomial,
+        bits: u32,
+        signed: bool,
     },
 }
 
@@ -684,6 +739,31 @@ impl<'program> Engine<'program> {
         let value = match binary.operator {
             BinaryOperator::ShiftLeft => self.integer_shift_left(value, count, count_bits)?,
             BinaryOperator::ShiftRight => self.integer_shift_right(value, count, count_bits)?,
+            _ => return None,
+        };
+        self.bind_strict_occurrence(expression, value).then_some(())
+    }
+
+    /// The rank-range owner has checked the selected builtin integer
+    /// meaning and supplies the shared carrier's shape; the bound
+    /// mathematical term does not excuse the endpoint's own operand
+    /// agreement and landing proofs. `a & b` is total inside its carrier,
+    /// so unlike division or a shift it attaches no operand obligation of
+    /// its own.
+    pub(super) fn bind_strict_integer_bitwise_and(
+        &mut self,
+        expression: ExpressionHandle,
+        bits: u32,
+        signed: bool,
+    ) -> Option<()> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let left = self.normalize(binary.left)?;
+        let right = self.normalize(binary.right)?;
+        let value = match binary.operator {
+            BinaryOperator::BitwiseAnd => self.integer_bitwise_and(left, right, bits, signed)?,
             _ => return None,
         };
         self.bind_strict_occurrence(expression, value).then_some(())
@@ -1141,6 +1221,116 @@ impl<'program> Engine<'program> {
         Some(Polynomial::atom(atom))
     }
 
+    /// Normalize an independently admitted integer bitwise-AND. The caller
+    /// owns selected meaning, the shared primitive's agreement, and each
+    /// operand's landing; `a & b` is total inside the `bits`-wide carrier
+    /// (two's complement when `signed`), so the term's mathematical value
+    /// needs no side condition. Retain both operands: a runtime mask is an
+    /// independently transported value too.
+    fn integer_bitwise_and(
+        &mut self,
+        left: Polynomial,
+        right: Polynomial,
+        bits: u32,
+        signed: bool,
+    ) -> Option<Polynomial> {
+        if let (Some(left), Some(right)) = (left.constant_value(), right.constant_value()) {
+            return bitwise_and_constants(&left, &right, bits, signed).map(Polynomial::constant);
+        }
+        let interval = self.bitwise_and_interval(&left, &right, bits, signed);
+        // Match quotient identity: normalized operands, not source spelling.
+        let atom = format!("\0integer-bitwise-and:{left:?}&{right:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::BitwiseAnd {
+                left,
+                right,
+                bits,
+                signed,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
+    /// The interval an integer bitwise-AND atom takes from its operands'
+    /// and the shared carrier's representable range. `a & b` is total, so
+    /// the carrier's own range bounds every evaluation; each live sign
+    /// quadrant then tightens it: a provably nonnegative operand bounds
+    /// the result below itself and above zero (its unset sign bit clears
+    /// the result's and its set bits cap the magnitude), while two
+    /// provably negative operands keep the result below `min(a, b)` inside
+    /// the carrier floor. Quadrants the operand intervals exclude
+    /// contribute nothing.
+    fn bitwise_and_interval(
+        &self,
+        left: &Polynomial,
+        right: &Polynomial,
+        bits: u32,
+        signed: bool,
+    ) -> Interval {
+        let (minimum, maximum) = bitwise_carrier_bounds(bits, signed);
+        let left_interval = self.polynomial_interval(&self.substituted(left));
+        let right_interval = self.polynomial_interval(&self.substituted(right));
+        // An operand can be nonnegative unless its whole interval sits
+        // below zero, and negative unless it never leaves zero.
+        let nonnegative =
+            |interval: &Interval| !interval.high.as_ref().is_some_and(BigInt::is_negative);
+        let negative =
+            |interval: &Interval| !interval.low.as_ref().is_some_and(|low| !low.is_negative());
+        let min_bound = |left: &Option<BigInt>, right: &Option<BigInt>| match (left, right) {
+            (Some(left), Some(right)) => Some(left.clone().min(right.clone())),
+            (Some(bound), None) | (None, Some(bound)) => Some(bound.clone()),
+            (None, None) => None,
+        };
+        // The union of the live quadrants: lows min, highs max, and one
+        // quadrant without a ceiling lifts the whole result's. `fired`
+        // keeps the first bounded quadrant's `Some` from reading as
+        // "unbounded so far" -- the union of bounds is empty only before
+        // the first live quadrant contributes one.
+        let mut low: Option<BigInt> = None;
+        let mut high: Option<BigInt> = None;
+        let mut fired = false;
+        let mut extend = |quadrant_low: BigInt, quadrant_high: Option<BigInt>| {
+            low = Some(match &low {
+                Some(current) => current.clone().min(quadrant_low.clone()),
+                None => quadrant_low,
+            });
+            high = match quadrant_high {
+                Some(bound) if !fired => Some(bound),
+                Some(bound) => high.clone().map(|current| current.max(bound)),
+                None => None,
+            };
+            fired = true;
+        };
+        let (left_nonnegative, left_negative) =
+            (nonnegative(&left_interval), negative(&left_interval));
+        let (right_nonnegative, right_negative) =
+            (nonnegative(&right_interval), negative(&right_interval));
+        if left_nonnegative && right_nonnegative {
+            extend(
+                BigInt::zero(),
+                min_bound(&left_interval.high, &right_interval.high),
+            );
+        }
+        if left_nonnegative && right_negative {
+            extend(BigInt::zero(), left_interval.high.clone());
+        }
+        if left_negative && right_nonnegative {
+            extend(BigInt::zero(), right_interval.high.clone());
+        }
+        if left_negative && right_negative {
+            extend(
+                minimum.clone(),
+                min_bound(&left_interval.high, &right_interval.high),
+            );
+        }
+        Interval {
+            low: low.map(|low| low.max(minimum.clone())).or(Some(minimum)),
+            high: high.map(|high| high.min(maximum.clone())).or(Some(maximum)),
+        }
+    }
+
     /// Range queries mint endpoint terms before installing their hypotheses.
     /// Recompute dependent intervals in mint order once those facts are live:
     /// an inner quotient must tighten before an outer quotient reads it.
@@ -1169,6 +1359,12 @@ impl<'program> Engine<'program> {
                     count,
                     count_bits,
                 } => self.shift_right_interval(&value, &count, count_bits),
+                OpaqueTerm::BitwiseAnd {
+                    left,
+                    right,
+                    bits,
+                    signed,
+                } => self.bitwise_and_interval(&left, &right, bits, signed),
             };
             self.arithmetic_intervals.insert(atom, interval);
         }
@@ -1266,6 +1462,27 @@ impl<'program> Engine<'program> {
                     (
                         format!("\0integer-shift-right:{value:?}>>{count:?}"),
                         self.shift_right_interval(&value, &count, count_bits),
+                    )
+                }
+                OpaqueTerm::BitwiseAnd {
+                    left,
+                    right,
+                    bits,
+                    signed,
+                } => {
+                    let Some(left) =
+                        super::inductive_judgment::apply_argument_map(&left, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(right) =
+                        super::inductive_judgment::apply_argument_map(&right, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-bitwise-and:{left:?}&{right:?}"),
+                        self.bitwise_and_interval(&left, &right, bits, signed),
                     )
                 }
             };

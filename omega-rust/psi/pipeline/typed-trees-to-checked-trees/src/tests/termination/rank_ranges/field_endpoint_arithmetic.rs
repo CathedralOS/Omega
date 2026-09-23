@@ -1,6 +1,6 @@
 use super::lower_typed_trees;
 use crate::CheckingRequest;
-use crate::tests::front_end::typed_program;
+use crate::tests::front_end::{typed_program, typed_program_result};
 
 const NAMED_QUOTIENT: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -299,6 +299,74 @@ fn signed_shift_right_endpoint_uses_floor_division() {
     // `i8` width cannot prove `< 8`.
     rejects_named(&signed.replace("pending - 1", "pending"));
     rejects_named(&signed.replace("i8 [1..=1]", "i8 [1..=9]"));
+}
+
+#[test]
+fn symbolic_bitwise_and_endpoint_preserves_both_operands_at_named_arrivals() {
+    // `&` is total inside its shared carrier: the endpoint owes no divisor-
+    // or count-style side condition, but both operands still transport as
+    // exact terms. `[0, 20] & [1, 5]` reads `[0, 5]` -- a provably
+    // nonnegative operand bounds the result below itself and above zero.
+    let source = SYMBOLIC_QUOTIENT.replace("cap / divisor", "(cap & divisor)");
+    accepts_named(&source);
+    for changed in [
+        source.replace("iterate(width, limit - 0", "iterate(1, limit - 0"),
+        source.replace("iterate(width, limit - 0", "iterate(width, 0"),
+        source.replace("pending - 1", "pending"),
+    ] {
+        rejects_named(&changed);
+    }
+    // A literal mask and a nested non-polynomial operand mint the same way:
+    // `(cap % divisor) & divisor` transports innermost-first.
+    accepts_named(&source.replace("(cap & divisor)", "(cap & 7)"));
+    accepts_named(&source.replace("(cap & divisor)", "((cap % divisor) & divisor)"));
+    accepts_named(&source.replace("(cap & divisor)", "((cap << divisor) & divisor)"));
+    // Totality needs no side condition, so the canceled endpoint is an
+    // ordinary `+ 6`; what still rejects above is lost operand
+    // correspondence, not the operation's own formation.
+    let canceled = source.replace(
+        "(cap & divisor) + 6",
+        "(cap & divisor) - (cap & divisor) + 6",
+    );
+    accepts_named(&canceled);
+    // Both operands share one integer carrier: a `u8` mask beside the `u64`
+    // subject selects no builtin `&`, and a literal outside the carrier or
+    // a negative one cannot land in it. These are malformed endpoints --
+    // whichever stage sees them first rejects.
+    for endpoint in ["(cap & 5u8)", "(cap & 18446744073709551616)", "(cap & -1)"] {
+        rejects_any_stage(&source.replace("(cap & divisor)", endpoint));
+    }
+    rejects_any_stage(&source.replace("divisor: u64 [1..=5]", "divisor: u8 [1..=5]"));
+}
+
+#[test]
+fn signed_bitwise_and_endpoint_uses_operand_sign_bounds() {
+    // A provably nonnegative mask clears the result's sign bit even beside a
+    // provably negative operand: `cap & divisor` over `i8` lands `[0, 5]`,
+    // not the dividend's `[-21, -1]` and not the whole carrier.
+    let signed = SYMBOLIC_QUOTIENT
+        .replace("cap: u64 [0..=20]", "cap: i8 [-21..=-1]")
+        .replace("limit: u64 [0..=20]", "limit: i8 [-21..=-1]")
+        .replace("u64 [1..=5]", "i8 [1..=5]")
+        .replace("cap / divisor + 6", "(cap & divisor) + 6");
+    accepts_named(&signed);
+    rejects_named(&signed.replace("pending - 1", "pending"));
+    // Two provably negative operands keep the result below `min(a, b)` at
+    // the carrier floor -- `-21 & -1` is `-21`, so `+ 6` cannot bound the
+    // positive pending values the nonnegative mask could.
+    rejects_named(&signed.replace("i8 [1..=5]", "i8 [-5..=-1]"));
+}
+
+/// A malformed endpoint can fail typing or checking; either rejection is the
+/// closed behavior. Unlike [`rejects_named`] this makes no claim about which
+/// stage owns the diagnostic.
+fn rejects_any_stage(source: &str) {
+    match typed_program_result(source) {
+        Ok(program) => {
+            lower_typed_trees(program, &CheckingRequest::settled()).expect_err(source);
+        }
+        Err(_) => {}
+    }
 }
 
 fn rejects_named(source: &str) {

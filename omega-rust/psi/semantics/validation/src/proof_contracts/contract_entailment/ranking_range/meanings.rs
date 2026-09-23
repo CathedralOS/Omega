@@ -143,6 +143,30 @@ pub(super) fn builtin(
                     _ => None,
                 };
             }
+            // `&` also names no overloadable spelling: a typed occurrence is
+            // the builtin operator. Unlike a shift both operands share one
+            // carrier -- an anonymous literal or natural coordinate is the
+            // same wildcard input division's operands are -- and the
+            // operation is total inside it, so meaning keeps that agreed
+            // integer primitive as the result carrier.
+            if binary.operator == BinaryOperator::BitwiseAnd {
+                if left.zip(right).is_some_and(|(left, right)| {
+                    program.primitive_type_reference(left)
+                        != program.primitive_type_reference(right)
+                }) {
+                    return None;
+                }
+                return match left.or(right) {
+                    Some(carrier)
+                        if program
+                            .primitive_type_reference(carrier)
+                            .is_some_and(PrimitiveType::accepts_integer_literal) =>
+                    {
+                        Some(Some(carrier))
+                    }
+                    _ => None,
+                };
+            }
             let spelling = match binary.operator {
                 BinaryOperator::Add => OperatorSpelling::Add,
                 BinaryOperator::Subtract => OperatorSpelling::Subtract,
@@ -227,6 +251,7 @@ pub(super) fn install_nonpolynomial_terms(
                     | BinaryOperator::Modulo
                     | BinaryOperator::ShiftLeft
                     | BinaryOperator::ShiftRight
+                    | BinaryOperator::BitwiseAnd
             ) {
                 if let Some(carrier) = builtin(program, machine, state, expression, 0)? {
                     let primitive = super::exact_integer_parameter(program, carrier)?;
@@ -244,6 +269,16 @@ pub(super) fn install_nonpolynomial_terms(
                                     primitive,
                                 )? as u32,
                             )?,
+                        // `&` is total inside the shared carrier, so the
+                        // term keeps the carrier's shape -- width and
+                        // signedness -- rather than a defined-range bound.
+                        BinaryOperator::BitwiseAnd => engine.bind_strict_integer_bitwise_and(
+                            expression,
+                            crate::proof_contracts::arithmetic_domains::integer_bit_width(
+                                primitive,
+                            )? as u32,
+                            primitive.is_signed_integer(),
+                        )?,
                         _ => return None,
                     }
                 } else if binary.operator != BinaryOperator::Modulo {
