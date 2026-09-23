@@ -29,7 +29,7 @@ pub(crate) fn local_reference_storage_before_statement(
     let PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut declarations =
         statements
@@ -188,7 +188,7 @@ fn preserve_call_prefix_storage(
         .iter()
         .filter(|prior| prior.statement_index == call.statement_index)
     {
-        let site = crate::semantic_calls::find_call_site(
+        let site = crate::semantic::calls::find_call_site(
             program,
             machine.symbol,
             state.state_symbol,
@@ -196,19 +196,19 @@ fn preserve_call_prefix_storage(
             prior.call_ordinal,
         )?;
         let frame = match site {
-            crate::semantic_calls::CallSite::Statement(call) => {
+            crate::semantic::calls::CallSite::Statement(call) => {
                 if !frames.call_reference_bindings_are_stable(machine, call) {
                     return None;
                 }
                 frames.may_write_frame(machine, call)
             }
-            crate::semantic_calls::CallSite::Expression { expression, .. } => {
+            crate::semantic::calls::CallSite::Expression { expression, .. } => {
                 if !frames.expression_reference_bindings_are_stable(machine, expression) {
                     return None;
                 }
                 frames.expression_write_frame(machine, expression)
             }
-            crate::semantic_calls::CallSite::TransitionNamed { .. } => return None,
+            crate::semantic::calls::CallSite::TransitionNamed { .. } => return None,
         };
         preserve_frame(
             program,

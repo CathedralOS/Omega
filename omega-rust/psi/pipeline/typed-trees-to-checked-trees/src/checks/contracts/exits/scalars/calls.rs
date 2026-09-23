@@ -230,10 +230,10 @@ impl ExitScalars<'_, '_> {
         if occurrences.next().is_some() || call.target_symbol != authored.target_symbol {
             return None;
         }
-        let Some(crate::semantic_calls::CallSite::Expression {
+        let Some(crate::semantic::calls::CallSite::Expression {
             expression: actual,
             call: selected,
-        }) = crate::semantic_calls::find_call_site(
+        }) = crate::semantic::calls::find_call_site(
             self.program,
             self.machine.symbol,
             state.state_symbol,
@@ -247,7 +247,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let (callee, entry) =
-            crate::semantic_calls::find_machine_by_entry_state(self.program, call.target_symbol)?;
+            crate::semantic::calls::find_machine_by_entry_state(self.program, call.target_symbol)?;
         let parameters = self.program.state_parameters(entry);
         if parameters
             .iter()
@@ -355,8 +355,11 @@ impl ExitScalars<'_, '_> {
     ) -> Option<ScalarValue> {
         let statement = u32::try_from(call.statement_index).ok()?;
         let position = u32::try_from(position).ok()?;
-        let caller_state =
-            crate::semantic_calls::find_state_in_machine(self.program, self.machine.symbol, state)?;
+        let caller_state = crate::semantic::calls::find_state_in_machine(
+            self.program,
+            self.machine.symbol,
+            state,
+        )?;
         let statements = self
             .program
             .statement_table
@@ -420,7 +423,7 @@ impl ExitScalars<'_, '_> {
                 continue;
             }
             let parameters =
-                crate::semantic_calls::call_target_parameters(self.program, call.target_symbol)?;
+                crate::semantic::calls::call_target_parameters(self.program, call.target_symbol)?;
             let source_position = usize::try_from(position).ok()?;
             if self
                 .program

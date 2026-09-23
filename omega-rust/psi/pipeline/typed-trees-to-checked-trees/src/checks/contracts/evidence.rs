@@ -6,9 +6,9 @@ use checked_trees::{
 use diagnostics::Diagnostic;
 use typed_trees::proposition::PropositionLabels;
 
-use crate::semantic_calls::call_site_evidence_arguments;
-use crate::semantic_calls::call_target_parameters;
-use crate::semantic_calls::find_call_site;
+use crate::semantic::calls::call_site_evidence_arguments;
+use crate::semantic::calls::call_target_parameters;
+use crate::semantic::calls::find_call_site;
 
 pub(super) fn bind_contract_expression_evidence_arguments(
     program: &typed_trees::TypedTrees,
@@ -104,7 +104,7 @@ pub(super) fn bind_contract_expression_evidence_arguments(
                 continue;
             }
 
-            let call_site = crate::semantic_calls::CallSite::Expression { expression, call };
+            let call_site = crate::semantic::calls::CallSite::Expression { expression, call };
             let mut bindings = Vec::with_capacity(parameters.len());
             let mut invalid = false;
             for (lane_position, (authored, parameter)) in
@@ -335,7 +335,7 @@ pub(crate) fn instantiate_contract_expression_evidence_parameter(
     instantiate_proof_expression_parameter(
         program,
         facts,
-        &crate::semantic_calls::CallSite::Expression { expression, call },
+        &crate::semantic::calls::CallSite::Expression { expression, call },
         target_parameters,
         parameter,
     )
@@ -380,7 +380,7 @@ fn evidence_term_visible_from_owner(
 fn instantiate_proof_expression_parameter(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     target_parameters: &[typed_trees::signature::StateParameter],
     parameter: Handle<CheckedEvidenceTerm>,
 ) -> Option<CheckedPropositionApplication> {
@@ -453,7 +453,7 @@ pub(super) fn bind_call_evidence_arguments(
         let authored = call_site_evidence_arguments(&call_site);
         let is_named_transition = matches!(
             call_site,
-            crate::semantic_calls::CallSite::TransitionNamed { .. }
+            crate::semantic::calls::CallSite::TransitionNamed { .. }
         );
         let mut parameters = facts
             .proof
@@ -573,7 +573,7 @@ fn instantiated_parameter_proposition(
     program: &typed_trees::TypedTrees,
     facts: &CheckFacts,
     call: &checked_trees::ContractCallFact,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     parameter: Handle<CheckedEvidenceTerm>,
 ) -> Option<CheckedPropositionApplication> {
     let parameter_term = facts.proof.evidence_terms.get(parameter);

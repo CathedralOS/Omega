@@ -33,14 +33,14 @@ pub(in crate::checks::ranges) fn ensured_call_result_bounds(
         if let Some(machine) = crate::lookup::machine_by_symbol(program, call.target_symbol) {
             (machine, program.machine_states(machine).first()?)
         } else {
-            crate::semantic_calls::find_state_with_machine(program, call.target_symbol)?
+            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)?
         };
     // An authored parameter named `result` on the called signature shadows the
     // reserved binder; a `result` operand then denotes that parameter, not the
     // return value (the `is_result_reference` precedence rule in
     // contracts/return_values, applied to the same parameter source the
     // contract-label instantiation uses).
-    let result_is_parameter = crate::semantic_calls::call_target_parameters(
+    let result_is_parameter = crate::semantic::calls::call_target_parameters(
         program,
         call.target_symbol,
     )

@@ -388,7 +388,7 @@ pub(super) fn argument(
                 || linear
                 || owned_reference_record
             {
-                let source_state = crate::semantic_calls::find_state(program, state)?;
+                let source_state = crate::semantic::calls::find_state(program, state)?;
                 let StatementNode::LocalData(local) = program
                     .statement_table
                     .statements(source_state.statement_nodes)
@@ -444,9 +444,9 @@ pub(super) fn argument(
                 return None;
             }
             let source_machine = crate::lookup::machine_by_symbol(program, machine)?;
-            let source_state = crate::semantic_calls::find_state(program, state)?;
+            let source_state = crate::semantic::calls::find_state(program, state)?;
             let parameter_position =
-                crate::semantic_calls::call_target_parameters(program, call.target_symbol)?
+                crate::semantic::calls::call_target_parameters(program, call.target_symbol)?
                     .iter()
                     .position(|candidate| candidate.symbol == parameter.symbol)?;
             let expected = checked_trees::CheckedArrayConstructionSource::CallArgument {
@@ -604,7 +604,7 @@ pub(super) fn argument(
         // retain a known live claim; affine handoffs have neither a claim
         // identity nor a live obligation.
         let expected_move_kind = if parameter.is_self
-            && crate::semantic_calls::find_state(program, call.target_symbol).is_some_and(
+            && crate::semantic::calls::find_state(program, call.target_symbol).is_some_and(
                 |target| {
                     !crate::checks::type_carries_linear_obligation(program, target.return_type)
                 },

@@ -1,8 +1,8 @@
 use crate::lookup::{
     call_receiver_parts, receiver_can_dispatch_to_machine, resolve_state_call_target,
 };
-use crate::semantic_calls::CallSite;
-use crate::semantic_calls::CallSiteTraversal;
+use crate::semantic::calls::CallSite;
+use crate::semantic::calls::CallSiteTraversal;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 
 pub(super) fn find_call_site_in_expression<'program>(

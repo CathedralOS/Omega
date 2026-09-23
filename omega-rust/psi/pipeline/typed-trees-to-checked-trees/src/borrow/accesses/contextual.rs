@@ -93,7 +93,7 @@ fn contextual_symbol_type_symbol(
         return Some(type_symbol);
     }
 
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     program
         .statement_table
         .statements(state.statement_nodes)
@@ -121,7 +121,7 @@ pub(super) fn contextual_name_root_symbol(
         return Some(symbol);
     }
 
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let name = program.expression_table.display_name(expression);
     if is_self_receiver(&name) {
         return program

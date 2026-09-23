@@ -671,7 +671,7 @@ fn checked_binding_value(
         return None;
     }
     let (target_machine, target_state) =
-        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
+        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
     let parameters = program.state_parameters(target_state);
     let authored_arguments = program
         .expression_table

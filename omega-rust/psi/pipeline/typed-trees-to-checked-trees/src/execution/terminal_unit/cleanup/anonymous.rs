@@ -49,8 +49,8 @@ pub(in crate::execution::terminal_unit) fn binding(
     // multiple producers belong to the shared statement sequencer, where each
     // temporary's exact dying continuation is its own cleanup row.
     let source =
-        crate::semantic_calls::find_call_site(program, machine.symbol, state.symbol, 0, 0)?;
-    if crate::semantic_calls::call_site_argument_expressions(program, &source).len() != 1 {
+        crate::semantic::calls::find_call_site(program, machine.symbol, state.symbol, 0, 0)?;
+    if crate::semantic::calls::call_site_argument_expressions(program, &source).len() != 1 {
         return None;
     }
     binding_at(
@@ -111,7 +111,7 @@ pub(in crate::execution::terminal_unit) fn binding_at(
         return None;
     }
     let _ = producer;
-    let source = crate::semantic_calls::find_call_site(
+    let source = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -120,7 +120,7 @@ pub(in crate::execution::terminal_unit) fn binding_at(
     )?;
     // Exactly one operand may project this temporary's root; a second use would
     // leave part of the residual without a checked owner.
-    let mut projected = crate::semantic_calls::call_site_argument_expressions(program, &source)
+    let mut projected = crate::semantic::calls::call_site_argument_expressions(program, &source)
         .iter()
         .filter_map(|argument| {
             crate::flow::canonical_place_from_expression_in_state(
@@ -207,7 +207,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
     if producers.next().is_some() {
         return None;
     }
-    let consumer_site = crate::semantic_calls::find_call_site(
+    let consumer_site = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -215,7 +215,7 @@ pub(in crate::execution::terminal_unit) fn validate_permissions_at(
         0,
     )?;
     let mut selected =
-        crate::semantic_calls::call_site_argument_expressions(program, &consumer_site)
+        crate::semantic::calls::call_site_argument_expressions(program, &consumer_site)
             .iter()
             .filter_map(|argument| {
                 crate::flow::canonical_place_from_expression_in_state(

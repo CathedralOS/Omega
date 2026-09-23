@@ -213,7 +213,7 @@ fn call_result_place(
         return None;
     }
     let (callee, callee_state) =
-        crate::semantic_calls::find_state_with_machine(program, call.target_symbol)?;
+        crate::semantic::calls::find_state_with_machine(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !callee.lifetime_parameters.is_empty()
@@ -859,7 +859,7 @@ where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);
@@ -1094,7 +1094,7 @@ where
             // a write-capable leaf's is the prefix's exact stored origin.
             // Provenance that stays unproven keeps the whole operand unproven.
             let root_type = statements_local_type(program, state, root, index).or_else(|| {
-                crate::semantic_calls::find_state(program, state.state_symbol).and_then(
+                crate::semantic::calls::find_state(program, state.state_symbol).and_then(
                     |typed_state| {
                         program
                             .state_parameters(typed_state)
@@ -1262,7 +1262,7 @@ fn statements_local_type(
     root: symbols::SymbolHandle,
     bound: usize,
 ) -> Option<TypeReferenceHandle> {
-    let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     program
         .statement_table
         .statements(typed_state.statement_nodes)
@@ -1313,7 +1313,7 @@ where
     Resolve:
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
 {
-    let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);
@@ -1570,7 +1570,7 @@ fn leaf_candidate_arrival(
     index: usize,
     mut candidate: CanonicalPlace,
 ) -> Option<LeafArrival> {
-    let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);

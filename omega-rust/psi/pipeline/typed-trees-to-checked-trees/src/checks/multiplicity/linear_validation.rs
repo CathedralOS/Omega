@@ -66,7 +66,7 @@ pub(crate) fn validate_linear_permission_events(
     };
 
     for (_, state_flow) in facts.flow.control.states.iter() {
-        let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol)
+        let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol)
         else {
             continue;
         };
@@ -475,7 +475,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
         else {
             continue;
         };
-        let Some(target_state) = crate::semantic_calls::find_state(program, call.target_symbol)
+        let Some(target_state) = crate::semantic::calls::find_state(program, call.target_symbol)
         else {
             continue;
         };
@@ -557,7 +557,7 @@ fn append_unresolved_state_result_mapping_diagnostics(
         }
     }
 
-    let machine_name = crate::semantic_calls::find_state_with_machine(program, state.symbol)
+    let machine_name = crate::semantic::calls::find_state_with_machine(program, state.symbol)
         .map(|(machine, _)| machine.name.as_str())
         .unwrap_or("<unknown machine>");
     for (statement_index, path) in unresolved_statements {

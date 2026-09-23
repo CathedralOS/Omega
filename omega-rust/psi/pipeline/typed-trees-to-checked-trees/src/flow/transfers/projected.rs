@@ -222,7 +222,7 @@ fn stable_segment(segment: &facts::PlaceSegment) -> bool {
 /// The place a builtin collection-view call lends to its result, or `None`
 /// when `expression` is not a compiler-owned `as_slice`/`as_mut_slice` view on
 /// a collection receiver. The call shape comes from
-/// [`crate::semantic_calls::collection_view_call`], which this lane and the
+/// [`crate::semantic::calls::collection_view_call`], which this lane and the
 /// ownership lane's `append_builtin_collection_view` now share: a resolved
 /// `target_symbol` means a declared machine or boundary operator answered
 /// instead, and its returned view may be only a partial projection of the
@@ -242,7 +242,7 @@ pub(super) fn collection_view_source_place(
         return None;
     };
     if !matches!(
-        crate::semantic_calls::collection_view_call(program, call),
+        crate::semantic::calls::collection_view_call(program, call),
         Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
     ) {
         return None;
@@ -335,7 +335,7 @@ pub(super) fn bound_reference_referent_place(
         }
     }
     let machine = crate::lookup::machine_by_symbol(program, machine_symbol)?;
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     // The binding's own alias is recorded once the next statement begins, so
     // the prefix observed there is the one carrying the new referent.
     let before = program
@@ -362,7 +362,7 @@ pub(super) fn bound_reference_referent_place(
     if !exact {
         return None;
     }
-    Some(crate::semantic_places::append_place_with_segments(
+    Some(crate::semantic::places::append_place_with_segments(
         semantic,
         place.root,
         &place.segments,
@@ -375,7 +375,7 @@ fn declared_local_type_reference(
     statement_index: usize,
     local_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let mut declarations = program
         .statement_table
         .statements(state.statement_nodes)

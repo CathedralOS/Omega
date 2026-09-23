@@ -48,9 +48,9 @@ pub(crate) fn stored_dynamic_receiver<'facts>(
     machine: SymbolHandle,
     state: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
 ) -> Option<&'facts checked_trees::DynamicDescriptorStorageFact> {
-    let crate::semantic_calls::CallSite::Expression { call, .. } = call_site else {
+    let crate::semantic::calls::CallSite::Expression { call, .. } = call_site else {
         return None;
     };
     let place = dynamic_receiver_place(program, call.receiver)?;
@@ -65,10 +65,10 @@ pub(crate) fn stored_dynamic_receiver<'facts>(
 
 pub(crate) fn local_receiver_symbol(
     program: &TypedTrees,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
 ) -> Option<SymbolHandle> {
     match call_site {
-        crate::semantic_calls::CallSite::Expression { call, .. } => {
+        crate::semantic::calls::CallSite::Expression { call, .. } => {
             let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver)
             else {
                 return None;
@@ -78,12 +78,12 @@ pub(crate) fn local_receiver_symbol(
             };
             Some(path.symbol)
         }
-        crate::semantic_calls::CallSite::Statement(call) => {
+        crate::semantic::calls::CallSite::Statement(call) => {
             let [_name] = program.statement_table.name_path_members(call.receiver) else {
                 return None;
             };
             Some(call.receiver_symbol)
         }
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => None,
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
     }
 }

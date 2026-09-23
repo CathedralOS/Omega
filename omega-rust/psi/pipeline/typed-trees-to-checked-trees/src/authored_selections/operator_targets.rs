@@ -340,14 +340,14 @@ pub(crate) fn checked_structural_equality_call(
                 .map(move |checked_call| (state, checked_call))
         })
         .filter_map(|(state, checked_call)| {
-            match crate::semantic_calls::find_call_site(
+            match crate::semantic::calls::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
                 checked_call.statement_index,
                 checked_call.call_ordinal,
             ) {
-                Some(crate::semantic_calls::CallSite::Expression {
+                Some(crate::semantic::calls::CallSite::Expression {
                     expression: candidate,
                     ..
                 }) if candidate == expression => Some(checked_call.target_symbol),

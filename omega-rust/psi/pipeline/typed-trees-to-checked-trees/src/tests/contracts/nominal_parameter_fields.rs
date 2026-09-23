@@ -4,7 +4,7 @@ use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
 use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
 
 const DEFINITIONS: &str = r#"

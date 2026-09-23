@@ -347,7 +347,7 @@ pub(crate) fn permission_kind_for_move(
     else {
         return PermissionEventKind::Transfer;
     };
-    let Some(call_site) = crate::semantic_calls::find_call_site(
+    let Some(call_site) = crate::semantic::calls::find_call_site(
         program,
         machine_symbol,
         state_symbol,
@@ -356,10 +356,10 @@ pub(crate) fn permission_kind_for_move(
     ) else {
         return PermissionEventKind::Transfer;
     };
-    let Some(target_state) = crate::semantic_calls::find_state(program, target_symbol) else {
+    let Some(target_state) = crate::semantic::calls::find_state(program, target_symbol) else {
         return PermissionEventKind::Transfer;
     };
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
     let parameters = program.state_parameters(target_state);
     let event_segments = facts.flow.ownership.segments.span_or_empty(event.segments);
     if arguments.len() == parameters.len() {

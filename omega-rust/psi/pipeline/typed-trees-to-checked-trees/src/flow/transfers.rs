@@ -122,7 +122,7 @@ pub(super) fn propagate_statement_transfers(
                     }
                 })
                 .map(|canonical| {
-                    crate::semantic_places::append_place_with_segments(
+                    crate::semantic::places::append_place_with_segments(
                         semantic,
                         canonical.root,
                         &canonical.segments,
@@ -210,7 +210,7 @@ pub(super) fn propagate_statement_transfers(
     {
         let root = semantic.places.get(target_place).root;
         target_place =
-            crate::semantic_places::append_place_with_segments(semantic, root, &target_segments);
+            crate::semantic::places::append_place_with_segments(semantic, root, &target_segments);
     }
 
     if let Some(source) = source_place {
@@ -684,7 +684,11 @@ pub(super) fn propagate_statement_transfers(
         StatementNode::Assignment(assignment) => {
             match (
                 crate::lookup::machine_by_symbol(program, machine_symbol),
-                crate::semantic_calls::find_state_in_machine(program, machine_symbol, state_symbol),
+                crate::semantic::calls::find_state_in_machine(
+                    program,
+                    machine_symbol,
+                    state_symbol,
+                ),
             ) {
                 (Some(machine), Some(state)) => {
                     crate::facts::field_domain::assignment_target_domain_identities(
@@ -734,7 +738,7 @@ pub(super) fn propagate_statement_transfers(
         semantic.append_ref(&mut refs, fact);
     }
     for candidate in candidate_targets {
-        let candidate_place = crate::semantic_places::append_place_with_segments(
+        let candidate_place = crate::semantic::places::append_place_with_segments(
             semantic,
             candidate.root,
             &candidate.segments,
@@ -1197,7 +1201,7 @@ fn contextual_expression_place(
     expression: ExpressionHandle,
 ) -> Option<PlaceHandle> {
     let _ = machine_symbol;
-    crate::semantic_places::canonical_place_to_fact_place_in_state(
+    crate::semantic::places::canonical_place_to_fact_place_in_state(
         program,
         semantic,
         state_symbol,

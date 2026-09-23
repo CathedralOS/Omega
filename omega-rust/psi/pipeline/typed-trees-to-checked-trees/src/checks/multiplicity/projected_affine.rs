@@ -45,7 +45,7 @@ pub(super) fn append_transfer(
         })
         || permission_kind_for_move(program, facts, machine, state, event)
             != PermissionEventKind::Transfer
-        || crate::semantic_calls::find_state(program, state).is_none_or(|state| {
+        || crate::semantic::calls::find_state(program, state).is_none_or(|state| {
             program
                 .state_parameters(state)
                 .iter()

@@ -38,7 +38,7 @@ fn prove(
     goal: ExpressionHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<bool> {
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         caller.machine_symbol,
         caller.state_symbol,
@@ -46,7 +46,7 @@ fn prove(
         call.call_ordinal,
     )?;
     let ordinary_call = match &site {
-        crate::semantic_calls::CallSite::Expression { call: source, .. } => {
+        crate::semantic::calls::CallSite::Expression { call: source, .. } => {
             source.target_symbol == call.target_symbol
                 && (!source.receiver.is_valid()
                     || matches!(
@@ -62,7 +62,7 @@ fn prove(
                 && source.machine_arguments.is_empty()
                 && source.evidence_arguments.is_empty()
         }
-        crate::semantic_calls::CallSite::Statement(source) => {
+        crate::semantic::calls::CallSite::Statement(source) => {
             // The shared statement-call traversal already selected this exact
             // target. A data namespace is not a runtime receiver place.
             source.target_symbol == call.target_symbol
@@ -76,7 +76,7 @@ fn prove(
                 && source.machine_arguments.is_empty()
                 && source.evidence_arguments.is_empty()
         }
-        crate::semantic_calls::CallSite::TransitionNamed {
+        crate::semantic::calls::CallSite::TransitionNamed {
             path,
             evidence_arguments,
             ..
@@ -92,19 +92,19 @@ fn prove(
         return None;
     }
     let caller_machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
-    let caller_state = crate::semantic_calls::find_state_in_machine(
+    let caller_state = crate::semantic::calls::find_state_in_machine(
         program,
         caller.machine_symbol,
         caller.state_symbol,
     )?;
     // The callee is a machine head: the target names the machine itself or
     // resolves to the machine's entry state.
-    let (callee, entry) = crate::semantic_calls::find_machine_head(program, call.target_symbol)?;
+    let (callee, entry) = crate::semantic::calls::find_machine_head(program, call.target_symbol)?;
     let parameters = program.state_parameters(entry);
     if caller.machine_symbol == callee.symbol
         && matches!(
             site,
-            crate::semantic_calls::CallSite::TransitionNamed { .. }
+            crate::semantic::calls::CallSite::TransitionNamed { .. }
         )
         && crate::checks::termination::proves_ranked_entry_requirement_with_call_frames(
             program,
@@ -115,7 +115,7 @@ fn prove(
     {
         return Some(true);
     }
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let explicit_parameters = parameters.iter().filter(|parameter| !parameter.is_self);
     if explicit_parameters.clone().count() != arguments.len() {
         return None;

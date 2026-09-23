@@ -35,7 +35,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
     pre_contexts: HandleSpan<FlowSemanticContextRef>,
     exit: &mut CallFlowContexts,
 ) {
-    let Some(site) = crate::semantic_calls::find_call_site(
+    let Some(site) = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -45,7 +45,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
         return;
     };
     let Some(parameters) =
-        crate::semantic_calls::call_target_parameters(program, borrow_call.target_symbol)
+        crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)
     else {
         return;
     };
@@ -56,7 +56,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
                 .iter()
                 .any(|target_state| target_state.symbol == borrow_call.target_symbol)
     });
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let mut rows: Vec<(crate::flow::CanonicalPlace, Vec<PlaceSegment>, SymbolHandle)> = Vec::new();
     let mut argument_index = 0usize;
     for parameter in parameters {
@@ -206,7 +206,7 @@ pub(in crate::flow) fn append_call_referent_field_domain_facts(
     for (storage, path, domain_symbol) in rows {
         let mut place = storage.clone();
         place.extend_segments(&path);
-        let place_handle = crate::semantic_places::append_place_with_segments(
+        let place_handle = crate::semantic::places::append_place_with_segments(
             semantic,
             place.root,
             &place.segments,
@@ -263,7 +263,7 @@ fn row_was_live(
     let mut place = storage.clone();
     place.extend_segments(path);
     let place =
-        crate::semantic_places::append_place_with_segments(semantic, place.root, &place.segments);
+        crate::semantic::places::append_place_with_segments(semantic, place.root, &place.segments);
     build
         .contexts
         .semantic_context_refs

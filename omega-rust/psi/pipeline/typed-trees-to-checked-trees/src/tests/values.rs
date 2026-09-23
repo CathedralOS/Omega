@@ -1395,7 +1395,7 @@ fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
     );
     // Both directions of the ordinal join must agree: the collected fact's
     // ordinal resolves back to the authored index expression.
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         store,
@@ -1405,7 +1405,7 @@ fn assignment_target_index_call_retains_call_ordinal_and_flow_call() {
     .expect("the index call ordinal must resolve to its authored site");
     assert!(matches!(
         site,
-        crate::semantic_calls::CallSite::Expression { expression, .. }
+        crate::semantic::calls::CallSite::Expression { expression, .. }
             if expression == pick_call.authored_expression
     ));
 }

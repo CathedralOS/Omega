@@ -43,7 +43,7 @@ struct CompatibilityKey {
 
 struct ResolvedStateCall<'program, 'flow> {
     fact: &'flow checked_trees::FlowCallFact,
-    site: crate::semantic_calls::CallSite<'program>,
+    site: crate::semantic::calls::CallSite<'program>,
 }
 
 struct StateCallIndex<'program, 'flow> {
@@ -62,7 +62,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
             .span_or_empty(state_flow.calls)
             .iter()
             .filter_map(|fact| {
-                crate::semantic_calls::find_call_site(
+                crate::semantic::calls::find_call_site(
                     program,
                     state_flow.machine_symbol,
                     state_flow.state_symbol,
@@ -85,7 +85,7 @@ impl<'program, 'flow> StateCallIndex<'program, 'flow> {
             .iter()
             .filter(|call| call.fact.statement_index == statement_index)
             .find_map(|call| match &call.site {
-                crate::semantic_calls::CallSite::Expression { expression, .. }
+                crate::semantic::calls::CallSite::Expression { expression, .. }
                     if *expression == value =>
                 {
                     Some(call.fact.exit_semantic_contexts)
@@ -112,7 +112,7 @@ pub(super) fn build_index_compatibility_facts(
         else {
             continue;
         };
-        let Some(state) = crate::semantic_calls::find_state_in_machine(
+        let Some(state) = crate::semantic::calls::find_state_in_machine(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
@@ -124,12 +124,12 @@ pub(super) fn build_index_compatibility_facts(
         for resolved in &state_calls.calls {
             let call = resolved.fact;
             let Some(parameters) =
-                crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+                crate::semantic::calls::call_target_parameters(program, call.target_symbol)
             else {
                 continue;
             };
             let arguments =
-                crate::semantic_calls::call_site_argument_expressions(program, &resolved.site);
+                crate::semantic::calls::call_site_argument_expressions(program, &resolved.site);
             let point = ProgramPoint::Call {
                 machine_symbol: state_flow.machine_symbol,
                 state_symbol: state_flow.state_symbol,
@@ -998,7 +998,7 @@ fn fact_substitutions<'program>(
     else {
         return Vec::new();
     };
-    let Some(call_site) = crate::semantic_calls::find_call_site(
+    let Some(call_site) = crate::semantic::calls::find_call_site(
         program,
         machine_symbol,
         state_symbol,
@@ -1008,16 +1008,16 @@ fn fact_substitutions<'program>(
         return Vec::new();
     };
     let target_symbol = match &call_site {
-        crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
+        crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
+        crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => call_flow_at_point(flow, point)
             .map_or_else(SymbolHandle::invalid, |call| call.target_symbol),
     };
-    let Some(parameters) = crate::semantic_calls::call_target_parameters(program, target_symbol)
+    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target_symbol)
     else {
         return Vec::new();
     };
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
     parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -1127,7 +1127,7 @@ pub(crate) fn bound_index_substitutions(
     machine_arguments: &[StaticMachineArgument],
 ) -> Vec<(SymbolHandle, BoundIndexArgument)> {
     let type_parameters =
-        crate::semantic_calls::call_target_type_parameters(program, target_symbol);
+        crate::semantic::calls::call_target_type_parameters(program, target_symbol);
     let const_parameters = type_parameters
         .iter()
         .filter(|parameter| {
@@ -1299,13 +1299,13 @@ fn enclosing_call_substitutions(
         return Vec::new();
     };
     let (target_symbol, machine_arguments) = match &resolved.site {
-        crate::semantic_calls::CallSite::Statement(call) => {
+        crate::semantic::calls::CallSite::Statement(call) => {
             (call.target_symbol, call.machine_arguments.as_ref())
         }
-        crate::semantic_calls::CallSite::Expression { call, .. } => {
+        crate::semantic::calls::CallSite::Expression { call, .. } => {
             (call.target_symbol, call.machine_arguments.as_ref())
         }
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => return Vec::new(),
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => return Vec::new(),
     };
     bound_index_substitutions(
         program,
@@ -2075,7 +2075,7 @@ fn append_call_result_ensured_instances(
         call.fact.statement_index == statement_index
             && matches!(
                 &call.site,
-                crate::semantic_calls::CallSite::Expression { expression, .. }
+                crate::semantic::calls::CallSite::Expression { expression, .. }
                     if *expression == value
             )
     }) else {
@@ -2167,7 +2167,7 @@ fn call_return_type(
     program: &TypedTrees,
     state_symbol: SymbolHandle,
 ) -> Option<TypeReferenceHandle> {
-    if let Some(state) = crate::semantic_calls::find_state(program, state_symbol) {
+    if let Some(state) = crate::semantic::calls::find_state(program, state_symbol) {
         return Some(state.return_type);
     }
     if let Some((_, signature)) = program.machine_parameter_signature(state_symbol) {

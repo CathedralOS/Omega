@@ -12,7 +12,7 @@ use crate::flow::mutation::normalize_write_only_range_place;
 use crate::flow::push_field_place_segments;
 use crate::flow::resolve_member_symbol_from_type_symbol;
 use crate::flow::symbol_type_symbol;
-use crate::semantic_calls::find_state;
+use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use language_core::is_self_receiver;
@@ -236,7 +236,7 @@ pub(crate) fn rebase_exact_local_place(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let (machine, state) = crate::semantic_calls::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)
@@ -292,7 +292,7 @@ pub(super) fn rebase_local_write_places(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let (machine, state) = crate::semantic_calls::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let mut owned_frames = None;
     let resolver = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames)?;

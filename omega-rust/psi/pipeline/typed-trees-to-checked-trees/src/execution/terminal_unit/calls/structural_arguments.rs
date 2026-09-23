@@ -42,7 +42,7 @@ pub(crate) fn structural_call_arguments(
     caller_trivial_affine_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     receiver_symbol: SymbolHandle,
     statement_index: usize,
     allow_fixed_index_projection: bool,
@@ -62,7 +62,7 @@ pub(crate) fn structural_call_arguments(
     )
     .unwrap_or_default();
     let explicit_arguments =
-        crate::semantic_calls::call_site_argument_expressions(program, call_site);
+        crate::semantic::calls::call_site_argument_expressions(program, call_site);
     let explicit_self = explicit_arguments.len()
         > target_parameters
             .iter()
@@ -806,7 +806,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     target_machine: &typed_trees::machine::Machine,
     target_state: &typed_trees::state::State,
     call: &checked_trees::FlowCallFact,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     authored_place: &crate::flow::CanonicalPlace,
 ) -> Option<crate::flow::CanonicalPlace> {
     let facts::PlaceRoot::Symbol(authored_root) = authored_place.root else {
@@ -832,7 +832,7 @@ fn reborrow_restored_shared_cohort_observation_alias_target(
     {
         return None;
     }
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, call_site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
     if arguments.len() != target_parameters.len() {
         return None;
     }
@@ -935,7 +935,7 @@ fn borrow_access_spelling<'place>(
         return None;
     };
     if (root == machine
-        || crate::semantic_calls::find_state(program, state).is_some_and(|state| {
+        || crate::semantic::calls::find_state(program, state).is_some_and(|state| {
             program
                 .state_parameters(state)
                 .iter()
@@ -958,7 +958,7 @@ pub(crate) fn exact_structural_argument_access(
     place: &crate::flow::CanonicalPlace,
     target_access: CheckedStructuralAccess,
 ) -> Option<CheckedStructuralAccess> {
-    let returned_loans = crate::semantic_calls::find_state(program, state)
+    let returned_loans = crate::semantic::calls::find_state(program, state)
         .and_then(|source_state| {
             let StatementNode::LocalData(local) = program
                 .statement_table

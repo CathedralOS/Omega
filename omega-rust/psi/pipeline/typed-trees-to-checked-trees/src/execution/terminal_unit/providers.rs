@@ -161,7 +161,7 @@ pub(super) fn checked_provider_attachment_requirements(
             }
             return None;
         }
-        let call_site = crate::semantic_calls::find_call_site(
+        let call_site = crate::semantic::calls::find_call_site(
             program,
             machine.symbol,
             state.symbol,

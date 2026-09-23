@@ -558,7 +558,7 @@ fn expression_type_reference_replays_the_same_leaf_evidence() {
         "scheduler",
     );
     let receiver = program_member_receiver(&fixture);
-    let state = crate::semantic_calls::find_state(&fixture.program, fixture.state_symbol)
+    let state = crate::semantic::calls::find_state(&fixture.program, fixture.state_symbol)
         .expect("fixture state");
     let context_type = fixture
         .program

@@ -68,7 +68,7 @@ fn signature_ceiling_places_inner(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
     let machine = crate::lookup::machine_by_symbol(program, caller_machine_symbol)?;
-    let state = crate::semantic_calls::find_state(program, caller_state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, caller_state_symbol)?;
     // A builtin function (`min`, `max`, `sqrt`, the float classifiers, the
     // asm intrinsics) takes scalar values and owns no caller storage; its
     // ceiling is empty even though it declares no state parameters.
@@ -79,7 +79,7 @@ fn signature_ceiling_places_inner(
     {
         return Some(Vec::new());
     }
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -87,8 +87,8 @@ fn signature_ceiling_places_inner(
         borrow_call.call_ordinal,
     )?;
     let parameters =
-        crate::semantic_calls::call_target_parameters(program, borrow_call.target_symbol)?;
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+        crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)?;
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     if parameters
         .iter()
         .filter(|parameter| !parameter.is_self)

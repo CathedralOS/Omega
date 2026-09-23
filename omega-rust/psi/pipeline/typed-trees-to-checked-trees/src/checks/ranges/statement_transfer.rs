@@ -200,7 +200,7 @@ pub(super) fn transfer_statement_facts<'program>(
                 machine,
                 state,
                 paths.as_deref(),
-                Some(&crate::semantic_calls::CallSite::Statement(call)),
+                Some(&crate::semantic::calls::CallSite::Statement(call)),
             );
             // R4 witness mint: a BOUNDARY callee's `ensures <param> <= K`
             // bounds the `&mut` out-argument's place the moment the call

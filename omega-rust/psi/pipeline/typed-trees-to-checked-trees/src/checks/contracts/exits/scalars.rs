@@ -130,7 +130,7 @@ impl ExitScalars<'_, '_> {
         {
             return false;
         }
-        let Some(state) = crate::semantic_calls::find_state_in_machine(
+        let Some(state) = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -304,7 +304,7 @@ impl ExitScalars<'_, '_> {
         else {
             return false;
         };
-        let Some(state) = crate::semantic_calls::find_state_in_machine(
+        let Some(state) = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -405,7 +405,7 @@ impl ExitScalars<'_, '_> {
         // Even short-circuit operands cannot be reread after a later write.
         let mut nodes = Vec::new();
         crate::monomorphization::collect_expression_tree(self.program, expression, &mut nodes);
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -462,7 +462,7 @@ impl ExitScalars<'_, '_> {
     }
 
     fn return_expression_role(&self) -> Option<CheckedScalarExpressionRole> {
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -519,7 +519,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         let symbols = plans.binding_symbols.span_or_empty(binding.symbols);
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,

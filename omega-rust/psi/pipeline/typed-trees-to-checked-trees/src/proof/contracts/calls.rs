@@ -29,7 +29,7 @@ pub(crate) fn build_contract_call_facts(
                 continue;
             };
 
-            let call_site = crate::semantic_calls::find_call_site(
+            let call_site = crate::semantic::calls::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -38,7 +38,7 @@ pub(crate) fn build_contract_call_facts(
             );
             let contract_target = call_site
                 .as_ref()
-                .and_then(crate::semantic_calls::CallSite::static_requirement_dispatch)
+                .and_then(crate::semantic::calls::CallSite::static_requirement_dispatch)
                 .map(|dispatch| (dispatch.declaring_trait, dispatch.requirement))
                 .unwrap_or((target_machine_symbol, target_state_symbol));
             append_contract_call(
@@ -46,7 +46,7 @@ pub(crate) fn build_contract_call_facts(
                 &mut fact_refs,
                 &mut calls,
                 call_site.as_ref().is_some_and(|site| {
-                    !crate::semantic_calls::call_site_evidence_arguments(site).is_empty()
+                    !crate::semantic::calls::call_site_evidence_arguments(site).is_empty()
                 }),
                 ContractCallSite {
                     caller_machine_symbol: state.machine_symbol,
@@ -70,7 +70,7 @@ pub(crate) fn build_contract_call_facts(
                     is_state_transfer: target_machine_symbol == state.machine_symbol
                         && matches!(
                             call_site,
-                            Some(crate::semantic_calls::CallSite::TransitionNamed { .. })
+                            Some(crate::semantic::calls::CallSite::TransitionNamed { .. })
                         ),
                 },
             );
@@ -400,7 +400,7 @@ pub(crate) fn contract_target_from_state_symbol(
     }
 
     if let Some((target_machine, _)) =
-        crate::semantic_calls::find_state_with_machine(program, target_state_symbol)
+        crate::semantic::calls::find_state_with_machine(program, target_state_symbol)
     {
         return Some((target_machine.symbol, target_state_symbol));
     }

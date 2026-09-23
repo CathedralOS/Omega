@@ -144,7 +144,7 @@ fn shared_result_reads_keep_cleanup_until_an_owned_transfer() {
                 assert_eq!(argument.access, CheckedStructuralAccess::SharedBorrow);
                 assert!(argument.path.is_empty());
             }
-            let state = crate::semantic_calls::find_state(&checked, plan.state).unwrap();
+            let state = crate::semantic::calls::find_state(&checked, plan.state).unwrap();
             let typed_trees::statement::StatementNode::LocalData(local) =
                 &checked.statement_table.statements(state.statement_nodes)[0]
             else {

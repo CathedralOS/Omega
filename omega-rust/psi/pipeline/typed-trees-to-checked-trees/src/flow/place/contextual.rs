@@ -113,7 +113,7 @@ fn resolve_contextual_name_path_root(
     path: &typed_trees::expression::TableNamePath,
 ) -> Option<SymbolHandle> {
     let name = program.expression_table.display_name(expression);
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     if is_self_receiver(&name) {
         return program
             .state_parameters(state)

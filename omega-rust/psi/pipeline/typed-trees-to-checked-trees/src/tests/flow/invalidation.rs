@@ -7,7 +7,7 @@ use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
 use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 use crate::tests::StateMutationSummaryCache;
 use crate::tests::call_mutated_places;
 
@@ -664,7 +664,7 @@ fn preserves_domain_intersection_requires_across_unrelated_machine_field_mutatio
     );
     let touch_unrelated_borrow_call = &borrow_calls[2];
     let target_state =
-        crate::semantic_calls::find_state(&typed, touch_unrelated_borrow_call.target_symbol);
+        crate::semantic::calls::find_state(&typed, touch_unrelated_borrow_call.target_symbol);
     assert!(
         target_state.is_some(),
         "expected touch_unrelated target state, got {:?}",

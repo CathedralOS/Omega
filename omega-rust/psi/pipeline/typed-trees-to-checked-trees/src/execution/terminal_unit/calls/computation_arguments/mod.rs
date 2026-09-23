@@ -67,7 +67,7 @@ pub(crate) fn structural_computation_argument(
     )?;
     crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
-    let target_state = crate::semantic_calls::find_state(program, call.target_symbol)?;
+    let target_state = crate::semantic::calls::find_state(program, call.target_symbol)?;
     let target_position = program
         .state_parameters(target_state)
         .iter()
@@ -271,7 +271,7 @@ fn shared_nominal_argument(
     }
     let target_identity = if target.is_self {
         let (owner, _) =
-            crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
+            crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
         let reference = program
             .type_reference_table
             .find_named_type_reference(owner.attached_data_symbol)?;
@@ -472,7 +472,7 @@ fn shared_nominal_argument(
         return None;
     }
     if target.is_self {
-        let site = crate::semantic_calls::find_call_site(
+        let site = crate::semantic::calls::find_call_site(
             program,
             machine,
             state.symbol,

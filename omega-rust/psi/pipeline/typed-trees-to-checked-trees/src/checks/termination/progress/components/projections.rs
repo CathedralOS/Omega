@@ -49,7 +49,7 @@ pub(super) fn finite_projection_limit(
                 let private_component_call =
                     crate::lookup::machine_by_symbol(program, call.target_symbol)
                         .or_else(|| {
-                            crate::semantic_calls::find_state_with_machine(
+                            crate::semantic::calls::find_state_with_machine(
                                 program,
                                 call.target_symbol,
                             )
@@ -73,7 +73,7 @@ pub(super) fn finite_projection_limit(
                     }
                 }
                 if let Some(parameters) =
-                    crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+                    crate::semantic::calls::call_target_parameters(program, call.target_symbol)
                 {
                     for parameter in parameters {
                         if let Some(subject) = call_argument_subject_with_parameters(

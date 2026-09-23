@@ -5,10 +5,10 @@ use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::normalize_attached_place_root;
 use crate::flow::normalized_event_place_root;
 use crate::lookup::expression_root_symbol;
-use crate::semantic_calls::CallSite;
-use crate::semantic_calls::call_site_argument_expressions;
-use crate::semantic_calls::find_call_site;
-use crate::semantic_calls::find_state;
+use crate::semantic::calls::CallSite;
+use crate::semantic::calls::call_site_argument_expressions;
+use crate::semantic::calls::find_call_site;
+use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use checked_trees::{BorrowCallFact, BorrowFacts};
@@ -402,7 +402,7 @@ fn boundary_frame_access_places(
     }
     if refinable
         && let Some(parameters) =
-            crate::semantic_calls::call_target_parameters(program, borrow_call.target_symbol)
+            crate::semantic::calls::call_target_parameters(program, borrow_call.target_symbol)
     {
         let arguments = call_site_argument_expressions(program, site);
         if parameters

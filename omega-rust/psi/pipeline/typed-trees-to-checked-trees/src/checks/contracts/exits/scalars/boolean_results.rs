@@ -49,7 +49,7 @@ impl ExitScalars<'_, '_> {
             true,
             &mut remaining,
         )?;
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,
@@ -181,7 +181,7 @@ impl ExitScalars<'_, '_> {
                     return entry_position(symbol)
                         .map(|position| CheckedBooleanExpression::Parameter { position });
                 }
-                let state = crate::semantic_calls::find_state_in_machine(
+                let state = crate::semantic::calls::find_state_in_machine(
                     self.program,
                     self.exit.machine_symbol,
                     self.exit.state_symbol,

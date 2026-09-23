@@ -25,7 +25,7 @@ impl ExitScalars<'_, '_> {
         use super::super::super::prover::call_guarantees::{self, arithmetic, callable::Callable};
         use validation::ScopedArithmeticValue;
         let entry = self.program.machine_states(self.machine).first()?;
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -147,7 +147,7 @@ impl ExitScalars<'_, '_> {
 
     pub(super) fn result_field_value(&self, expression: ExpressionHandle) -> Option<ScalarValue> {
         let (value, remaining) = self.result_projection(expression)?;
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -219,7 +219,7 @@ impl ExitScalars<'_, '_> {
                 )
             };
         let entry = self.program.machine_states(self.machine).first()?;
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,

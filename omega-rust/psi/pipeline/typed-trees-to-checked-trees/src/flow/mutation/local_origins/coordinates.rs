@@ -32,7 +32,7 @@ fn structural_origin(
     let mut place = canonical_place_from_symbol(origin.source_root)?;
     // Existing storage-frame consumers retain the authored self parameter,
     // not the machine's display name, as their caller namespace.
-    if crate::semantic_calls::find_state_with_machine(program, state.symbol)
+    if crate::semantic::calls::find_state_with_machine(program, state.symbol)
         .is_some_and(|(machine, _)| machine.symbol == origin.source_root)
         && let Some(receiver) = program
             .state_parameters(state)

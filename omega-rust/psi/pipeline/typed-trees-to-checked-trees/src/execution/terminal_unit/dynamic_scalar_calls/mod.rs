@@ -51,7 +51,7 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                 continue;
             };
             for flow_call in facts.flow.control.calls.span_or_empty(flow.calls) {
-                let Some(call_site) = crate::semantic_calls::find_call_site(
+                let Some(call_site) = crate::semantic::calls::find_call_site(
                     program,
                     machine.symbol,
                     state.symbol,
@@ -82,7 +82,7 @@ pub(super) fn build_checked_dynamic_dispatch_plans(
                 }
 
                 match &call_site {
-                    crate::semantic_calls::CallSite::Statement(_) => {
+                    crate::semantic::calls::CallSite::Statement(_) => {
                         let Some(binding) = unit::build_checked_dynamic_unit_call(
                             program,
                             facts,

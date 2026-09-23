@@ -37,7 +37,7 @@ diagnostics clear; these views are not persisted rejection certificates.
 
 Semantic fact construction owns declaration facts, proof obligations and initial
 domain assumptions. Shared call-coordinate queries come directly from
-`semantic_calls`, not through the semantic fact builder.
+`semantic::calls`, not through the semantic fact builder.
 
 `lower_typed_trees` is the crate's one lowering entrance. Its `CheckingRequest`
 names the preliminary-package or settled-package checkpoint and carries the
@@ -64,7 +64,8 @@ on rejection the original checked trees remain unchanged.
 | Owner under `src/` | Responsibility |
 | --- | --- |
 | `semantic/mod.rs`, `semantic/contracts/`, `semantic/points.rs` | Contract payloads, places, obligation origins, and program points. |
-| `semantic_calls/mod.rs`, `semantic_calls/traversal/` | Shared exact state/statement/call coordinates. |
+| `semantic.rs` | The semantic-fact area root: `facts` states the knowledge, `calls` names the coordinates it is stated about, `places` renders the storage. |
+| `semantic/calls.rs`, `semantic/calls/traversal/` | Shared exact state/statement/call coordinates. |
 | `flow/`, `flow/call_phases.rs` | Entry facts, call requires, invalidation, guarantees, exits, and transfer order. |
 | `flow/place/`, `flow/domain/` | Canonical places and dependency-overlap invalidation. |
 | `flow/ownership/` | Type-multiplicity-based moves, drops, argument routes, and result storage. |

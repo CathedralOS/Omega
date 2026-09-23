@@ -421,7 +421,7 @@ pub(super) fn check_call_occurrences(
         if control.is_retired(state.symbol, call) {
             continue;
         }
-        let expected = crate::semantic_calls::find_call_site(
+        let expected = crate::semantic::calls::find_call_site(
             program,
             machine.symbol,
             state.symbol,
@@ -429,7 +429,7 @@ pub(super) fn check_call_occurrences(
             call.call_ordinal,
         )
         .map(|site| match site {
-            crate::semantic_calls::CallSite::Expression { expression, .. } => expression,
+            crate::semantic::calls::CallSite::Expression { expression, .. } => expression,
             _ => ExpressionHandle::invalid(),
         });
         if expected != Some(call.authored_expression) {
@@ -1170,8 +1170,8 @@ impl ArmWindowPlan {
         else {
             return ArmHandle::invalid();
         };
-        let Some(crate::semantic_calls::CallSite::Expression { expression, .. }) =
-            crate::semantic_calls::find_call_site(
+        let Some(crate::semantic::calls::CallSite::Expression { expression, .. }) =
+            crate::semantic::calls::find_call_site(
                 program,
                 machine.symbol,
                 state.symbol,
@@ -1208,14 +1208,14 @@ impl ArmWindowPlan {
         else {
             return ExpressionHandle::invalid();
         };
-        match crate::semantic_calls::find_call_site(
+        match crate::semantic::calls::find_call_site(
             program,
             machine.symbol,
             state.symbol,
             statement_index,
             call_ordinal,
         ) {
-            Some(crate::semantic_calls::CallSite::Expression { expression, .. }) => expression,
+            Some(crate::semantic::calls::CallSite::Expression { expression, .. }) => expression,
             _ => ExpressionHandle::invalid(),
         }
     }
@@ -1759,7 +1759,7 @@ pub(super) fn statement_steps(
                 program,
                 machine.symbol,
                 state.symbol,
-                &crate::semantic_calls::CallSite::Statement(call),
+                &crate::semantic::calls::CallSite::Statement(call),
                 statement_index,
             ) {
                 order.steps.push(WindowStep::Observe {

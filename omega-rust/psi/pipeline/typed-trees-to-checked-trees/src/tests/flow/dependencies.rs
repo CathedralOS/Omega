@@ -5,7 +5,7 @@ use crate::tests::front_end::{
 use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 
 #[test]
 fn constrained_type_composes_predicate_bodies_without_flow_minting_role_only_domains() {

@@ -422,7 +422,7 @@ fn specialized_signature_substitutions(
             if call.target_symbol != signature.symbol {
                 continue;
             }
-            let call_site = crate::semantic_calls::find_call_site(
+            let call_site = crate::semantic::calls::find_call_site(
                 program,
                 flow_state.machine_symbol,
                 flow_state.state_symbol,
@@ -430,8 +430,8 @@ fn specialized_signature_substitutions(
                 call.call_ordinal,
             )?;
             let site = match &call_site {
-                crate::semantic_calls::CallSite::Statement(_) => {
-                    let state = crate::semantic_calls::find_state_in_machine(
+                crate::semantic::calls::CallSite::Statement(_) => {
+                    let state = crate::semantic::calls::find_state_in_machine(
                         program,
                         flow_state.machine_symbol,
                         flow_state.state_symbol,
@@ -446,10 +446,10 @@ fn specialized_signature_substitutions(
                         state.statement_nodes.start().generation(),
                     ))
                 }
-                crate::semantic_calls::CallSite::Expression { expression, .. } => {
+                crate::semantic::calls::CallSite::Expression { expression, .. } => {
                     checked_trees::NominalMachineUseSite::Expression(*expression)
                 }
-                crate::semantic_calls::CallSite::TransitionNamed { .. } => return None,
+                crate::semantic::calls::CallSite::TransitionNamed { .. } => return None,
             };
             let specialization = facts
                 .requirement_call_specializations
@@ -458,11 +458,13 @@ fn specialized_signature_substitutions(
             // indexes: validation filtered the `<>` argument list to
             // machine-typed members before recording `static_machine_ordinal`.
             let authored_machine_arguments = match &call_site {
-                crate::semantic_calls::CallSite::Statement(call) => call.machine_arguments.as_ref(),
-                crate::semantic_calls::CallSite::Expression { call, .. } => {
+                crate::semantic::calls::CallSite::Statement(call) => {
                     call.machine_arguments.as_ref()
                 }
-                crate::semantic_calls::CallSite::TransitionNamed { .. } => &[],
+                crate::semantic::calls::CallSite::Expression { call, .. } => {
+                    call.machine_arguments.as_ref()
+                }
+                crate::semantic::calls::CallSite::TransitionNamed { .. } => &[],
             }
             .iter()
             .filter(|argument| {

@@ -74,7 +74,7 @@ use crate::operators::{
     select_pending_domain_operator_meanings,
 };
 use crate::proof::build_proof_facts_with_operators;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 use crate::values::build_value_facts;
 use checked_trees::CheckFacts;
 use flow_effects::OperationalPlan;

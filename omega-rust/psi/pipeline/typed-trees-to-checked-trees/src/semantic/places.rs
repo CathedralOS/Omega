@@ -1,9 +1,9 @@
-use crate::semantic::contract_fact_place;
-use crate::semantic_calls::CallSite;
-use crate::semantic_calls::call_site_argument_expressions;
-use crate::semantic_calls::call_target_parameters;
-use crate::semantic_calls::find_call_site;
-use crate::semantic_calls::find_state_in_machine;
+use crate::semantic::calls::CallSite;
+use crate::semantic::calls::call_site_argument_expressions;
+use crate::semantic::calls::call_target_parameters;
+use crate::semantic::calls::find_call_site;
+use crate::semantic::calls::find_state_in_machine;
+use crate::semantic::facts::contract_fact_place;
 use checked_trees::{ContractCallFact, ContractProofFact};
 use facts::{FactPlace, FactPlan};
 mod expression;

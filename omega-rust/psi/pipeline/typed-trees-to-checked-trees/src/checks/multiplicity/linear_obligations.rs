@@ -509,7 +509,7 @@ fn event_is_owned_self_projection(
     let facts::PlaceRoot::Symbol(event_root) = event.root else {
         return false;
     };
-    if crate::semantic_calls::find_state_in_machine(program, event_root, state.symbol).is_none() {
+    if crate::semantic::calls::find_state_in_machine(program, event_root, state.symbol).is_none() {
         return false;
     }
     program.state_parameters(state).iter().any(|parameter| {
@@ -539,7 +539,7 @@ fn nominal_drop_place_name<'program>(
     if place.segments.is_empty()
         && let facts::PlaceRoot::Symbol(root) = place.root
         && let Some(attached) =
-            crate::semantic_calls::find_state_with_machine(program, state_symbol).and_then(
+            crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
                 |(machine, _)| {
                     (machine.symbol == root)
                         .then_some(machine.attached_data.as_deref())

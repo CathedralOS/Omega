@@ -250,7 +250,7 @@ fn nested_statement_receiver_paths_retain_every_semantic_field() {
             .collect::<Vec<_>>(),
         ["carrier", "inner", "context"]
     );
-    // This path also feeds semantic_places::receiver_place_for_call; dropping
+    // This path also feeds semantic::places::receiver_place_for_call; dropping
     // the middle symbol aliases distinct nested receiver subobjects.
     assert_eq!(path.member_symbols(), expected.as_slice());
 }

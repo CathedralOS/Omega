@@ -780,7 +780,7 @@ impl Builder<'_, '_> {
             expected,
             &[],
         )?;
-        let state = crate::semantic_calls::find_state(self.program, self.state)?;
+        let state = crate::semantic::calls::find_state(self.program, self.state)?;
         let StatementNode::LocalData(local) = self
             .program
             .statement_table

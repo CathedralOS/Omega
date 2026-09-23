@@ -94,7 +94,7 @@ fn collect_compatibility(
             ));
             continue;
         }
-        let premises = crate::semantic_calls::find_state_in_machine(
+        let premises = crate::semantic::calls::find_state_in_machine(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,

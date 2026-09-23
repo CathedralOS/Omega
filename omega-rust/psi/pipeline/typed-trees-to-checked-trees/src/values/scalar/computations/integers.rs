@@ -172,7 +172,7 @@ impl Builder<'_, '_> {
             ExpressionNode::Call(call) => {
                 // The resolved callee owns both the result carrier and its policy.
                 // A destination carrier is not evidence for either one.
-                let (_, state) = crate::semantic_calls::find_machine_by_entry_state(
+                let (_, state) = crate::semantic::calls::find_machine_by_entry_state(
                     self.program,
                     call.target_symbol,
                 )?;

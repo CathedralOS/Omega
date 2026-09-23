@@ -1,4 +1,4 @@
-pub(in crate::semantic_calls) struct CallSiteTraversal<'program, 'ordinal> {
+pub(in crate::semantic::calls) struct CallSiteTraversal<'program, 'ordinal> {
     pub(super) program: &'program typed_trees::TypedTrees,
     pub(super) machine: &'program typed_trees::machine::Machine,
     pub(super) state: &'program typed_trees::state::State,
@@ -9,7 +9,7 @@ pub(in crate::semantic_calls) struct CallSiteTraversal<'program, 'ordinal> {
 }
 
 impl CallSiteTraversal<'_, '_> {
-    pub(in crate::semantic_calls) fn new<'program, 'ordinal>(
+    pub(in crate::semantic::calls) fn new<'program, 'ordinal>(
         program: &'program typed_trees::TypedTrees,
         machine: &'program typed_trees::machine::Machine,
         state: &'program typed_trees::state::State,

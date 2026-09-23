@@ -1,6 +1,6 @@
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
-use crate::semantic_calls::find_state;
+use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
@@ -65,7 +65,7 @@ pub(crate) fn canonical_place_type_reference(
     // fields through the exact attached data declaration rather than treating
     // the machine's nominal self type as an ordinary data reference.
     if let Some((machine, state)) =
-        crate::semantic_calls::find_state_with_machine(program, state_symbol)
+        crate::semantic::calls::find_state_with_machine(program, state_symbol)
         && (machine.symbol == root_symbol
             || program
                 .state_parameters(state)
@@ -86,7 +86,7 @@ pub(crate) fn canonical_place_type_reference(
     }
 
     if let Some((machine, _)) =
-        crate::semantic_calls::find_state_with_machine(program, state_symbol)
+        crate::semantic::calls::find_state_with_machine(program, state_symbol)
         && machine.attached_data_application.is_valid()
         && let Some(field) = validation::exact_attached_field(
             program,
@@ -186,7 +186,7 @@ fn machine_member_type_reference(
     state_symbol: SymbolHandle,
     symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    crate::semantic_calls::find_state_with_machine(program, state_symbol).and_then(
+    crate::semantic::calls::find_state_with_machine(program, state_symbol).and_then(
         |(machine, _)| {
             program
                 .machine_owned_data(machine)

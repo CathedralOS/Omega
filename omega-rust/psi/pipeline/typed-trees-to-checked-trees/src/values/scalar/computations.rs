@@ -252,7 +252,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     state,
                     statement_index,
                 ) {
-                    let crate::semantic_calls::CallSite::Expression { call, .. } = site else {
+                    let crate::semantic::calls::CallSite::Expression { call, .. } = site else {
                         continue;
                     };
                     let Ok(call_ordinal) = u32::try_from(call_ordinal) else {
@@ -872,7 +872,7 @@ impl Builder<'_, '_> {
                     return None;
                 }
                 let (target_machine, target_state) =
-                    crate::semantic_calls::find_machine_by_entry_state(
+                    crate::semantic::calls::find_machine_by_entry_state(
                         self.program,
                         call.target_symbol,
                     )?;
@@ -1009,7 +1009,7 @@ impl Builder<'_, '_> {
                             );
                             continue;
                         }
-                        let state = crate::semantic_calls::find_state_in_machine(
+                        let state = crate::semantic::calls::find_state_in_machine(
                             self.program,
                             self.machine,
                             self.state,

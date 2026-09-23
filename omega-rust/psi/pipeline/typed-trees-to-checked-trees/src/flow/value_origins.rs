@@ -135,7 +135,7 @@ where
         Fn(&FlowStateFact, usize, &TableCallExpression, &[PlaceSegment]) -> Option<CanonicalPlace>,
     Rebase: Fn(&FlowStateFact, usize, &CanonicalPlace) -> Option<CanonicalPlace>,
 {
-    let typed_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     let statements = program
         .statement_table
         .statements(typed_state.statement_nodes);

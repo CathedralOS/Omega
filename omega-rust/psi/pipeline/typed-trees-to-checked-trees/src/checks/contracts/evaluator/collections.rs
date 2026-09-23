@@ -58,9 +58,9 @@ impl ContractExpressionEvaluator<'_, '_> {
         if !matches!(transition.guard, TransitionGuardNode::Always)
             || !matches!(
                 self.call_site,
-                crate::semantic_calls::CallSite::TransitionNamed { .. }
+                crate::semantic::calls::CallSite::TransitionNamed { .. }
             )
-            || crate::semantic_calls::call_site_argument_expressions(self.program, self.call_site)
+            || crate::semantic::calls::call_site_argument_expressions(self.program, self.call_site)
                 .iter()
                 .any(|argument| {
                     !matches!(
@@ -99,7 +99,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         // Only a compiler-owned element view of a collection keeps the
         // receiver's declared extent; the text views carry no element count.
         if !matches!(
-            crate::semantic_calls::collection_view_call(self.program, call),
+            crate::semantic::calls::collection_view_call(self.program, call),
             Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
         ) {
             return None;
@@ -157,7 +157,7 @@ impl ContractExpressionEvaluator<'_, '_> {
     fn target_self_data_definition(&self) -> Option<&typed_trees::data::DataDefinition> {
         let machine =
             crate::lookup::machine_by_symbol(self.program, self.target_symbol).or_else(|| {
-                crate::semantic_calls::find_state_with_machine(self.program, self.target_symbol)
+                crate::semantic::calls::find_state_with_machine(self.program, self.target_symbol)
                     .map(|(machine, _)| machine)
             })?;
         let attached_data = machine.attached_data.as_ref()?;

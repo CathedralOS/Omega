@@ -14,7 +14,7 @@ use crate::borrow::loans::reference_borrow_access_kind;
 use crate::borrow::tracker::StateLoanTracker;
 use crate::borrow::view_link::ViewReturnFieldSource;
 use crate::borrow::view_link::ViewReturnSource;
-use crate::semantic_calls::find_state;
+use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 

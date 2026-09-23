@@ -152,7 +152,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 state,
                                 statement_ordinal,
                                 0,
-                                &crate::semantic_calls::CallSite::Expression {
+                                &crate::semantic::calls::CallSite::Expression {
                                     expression: local.initial_value,
                                     call,
                                 },
@@ -358,7 +358,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 state,
                                 statement_ordinal,
                                 0,
-                                &crate::semantic_calls::CallSite::Expression {
+                                &crate::semantic::calls::CallSite::Expression {
                                     expression: *expression,
                                     call,
                                 },
@@ -487,7 +487,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                 state,
                                 statement_ordinal,
                                 0,
-                                &crate::semantic_calls::CallSite::Expression { expression, call },
+                                &crate::semantic::calls::CallSite::Expression { expression, call },
                                 &scalar_parameters,
                                 parameters,
                                 &parameter_types,
@@ -573,7 +573,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             state,
                             statement_ordinal,
                             0,
-                            &crate::semantic_calls::CallSite::Statement(call),
+                            &crate::semantic::calls::CallSite::Statement(call),
                             &scalar_parameters,
                             parameters,
                             &parameter_types,

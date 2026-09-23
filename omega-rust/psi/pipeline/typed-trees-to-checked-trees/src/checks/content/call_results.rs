@@ -66,7 +66,7 @@ pub(super) fn check_call_result_qualifications(
             else {
                 return None;
             };
-            let site = crate::semantic_calls::find_call_site(
+            let site = crate::semantic::calls::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
@@ -77,7 +77,7 @@ pub(super) fn check_call_result_qualifications(
                 (place.root, site),
                 (
                     PlaceRoot::Expression(expression),
-                    crate::semantic_calls::CallSite::Expression {
+                    crate::semantic::calls::CallSite::Expression {
                         expression: actual,
                         ..
                     }
@@ -99,7 +99,7 @@ pub(super) fn check_call_result_qualifications(
             }
             let (
                 PlaceRoot::Expression(expression),
-                crate::semantic_calls::CallSite::Expression { call, .. },
+                crate::semantic::calls::CallSite::Expression { call, .. },
             ) = (place.root, site)
             else {
                 return None;
@@ -133,14 +133,14 @@ pub(super) fn check_call_result_qualifications(
             // Checked bodies owe routed field membership at every exit. The
             // multiplicity checker independently replays their returned claim
             // maps, including identity-forwarding wrappers without a theorem.
-            if crate::semantic_calls::find_state_with_machine(program, call.target_symbol)
+            if crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
                 .is_some_and(|(machine, _)| machine.body_is_present)
             {
                 return Some(());
             }
 
             let call_parameters =
-                crate::semantic_calls::call_target_parameters(program, call.target_symbol);
+                crate::semantic::calls::call_target_parameters(program, call.target_symbol);
 
             // Preserve the existing bare-result issuance route, including its
             // exact carrier/subject checks. Fresh supply must be fresh: a
@@ -336,14 +336,14 @@ fn call_parameter_qualification_join(
     path: &[PlaceSegment],
     domain_symbol: SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
-    site: crate::semantic_calls::CallSite<'_>,
+    site: crate::semantic::calls::CallSite<'_>,
     state_symbol: SymbolHandle,
     statement_index: usize,
 ) -> Option<()> {
     let call_target = match site {
-        crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic_calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+        crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
+        crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
     };
     if evidence.origin != QualificationEvidenceOrigin::Propagated
         || evidence.source_symbol != call_target
@@ -352,8 +352,8 @@ fn call_parameter_qualification_join(
     {
         return None;
     }
-    let parameters = crate::semantic_calls::call_target_parameters(program, call_target)?;
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let parameters = crate::semantic::calls::call_target_parameters(program, call_target)?;
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let position = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -377,7 +377,7 @@ fn call_parameter_qualification_join(
         return None;
     }
     // Checked bodies owe their authored parameter claims at every exit.
-    if crate::semantic_calls::find_state_with_machine(program, call_target)
+    if crate::semantic::calls::find_state_with_machine(program, call_target)
         .is_some_and(|(machine, _)| machine.body_is_present)
     {
         return Some(());
@@ -921,7 +921,7 @@ fn result_claim(
     ) {
         return Some(identity);
     }
-    let state = crate::semantic_calls::find_state(program, invocation.state)?;
+    let state = crate::semantic::calls::find_state(program, invocation.state)?;
     let statement = program
         .statement_table
         .statements(state.statement_nodes)

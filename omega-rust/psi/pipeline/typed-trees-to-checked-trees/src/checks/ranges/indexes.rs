@@ -190,7 +190,7 @@ pub(super) fn check_expression<'program>(
                 machine,
                 state,
                 paths.as_deref(),
-                Some(&crate::semantic_calls::CallSite::Expression { expression, call }),
+                Some(&crate::semantic::calls::CallSite::Expression { expression, call }),
             );
         }
         ExpressionNode::Cast(cast) => {

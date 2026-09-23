@@ -1465,7 +1465,7 @@ fn a_sealed_quotient_request_call_resolves_as_a_proof_only_intrinsic() {
         .expect("the request expression is retained");
     for (_, state) in checked.facts.flow.control.states.iter() {
         for call in checked.facts.flow.control.calls.span_or_empty(state.calls) {
-            let site = crate::semantic_calls::find_call_site(
+            let site = crate::semantic::calls::find_call_site(
                 &checked.typed,
                 state.machine_symbol,
                 state.state_symbol,
@@ -1474,7 +1474,7 @@ fn a_sealed_quotient_request_call_resolves_as_a_proof_only_intrinsic() {
             );
             if matches!(
                 site,
-                Some(crate::semantic_calls::CallSite::Expression { expression, .. })
+                Some(crate::semantic::calls::CallSite::Expression { expression, .. })
                     if expression == request_expression
             ) {
                 assert!(

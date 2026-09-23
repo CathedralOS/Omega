@@ -24,7 +24,7 @@ pub(super) struct ForwardedDynamicUnitCall<'program, 'facts> {
     pub machine: &'program typed_trees::machine::Machine,
     pub state: &'program typed_trees::state::State,
     pub flow_call: &'facts checked_trees::FlowCallFact,
-    pub call_site: crate::semantic_calls::CallSite<'program>,
+    pub call_site: crate::semantic::calls::CallSite<'program>,
     pub transfer: checked_trees::CheckedDynamicDescriptorTransferPlan,
     pub prior_transfers: Vec<checked_trees::CheckedDynamicDescriptorTransferPlan>,
 }
@@ -37,11 +37,11 @@ pub(super) fn build_checked_dynamic_unit_call(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     flow_call: &checked_trees::FlowCallFact,
-    call_site: crate::semantic_calls::CallSite<'_>,
+    call_site: crate::semantic::calls::CallSite<'_>,
     shapes: &mut ShapeCollector<'_>,
     forwarded: Option<ForwardedDynamicUnitCall<'_, '_>>,
 ) -> Option<checked_trees::CheckedDynamicBinding<checked_trees::CheckedDynamicUnitCallPlan>> {
-    let crate::semantic_calls::CallSite::Statement(caller_call) = call_site else {
+    let crate::semantic::calls::CallSite::Statement(caller_call) = call_site else {
         return None;
     };
     let coordinate = CheckedUnitCallCoordinate {
@@ -65,7 +65,7 @@ pub(super) fn build_checked_dynamic_unit_call(
         origin,
     ) = match forwarded {
         Some(forwarded) => {
-            let crate::semantic_calls::CallSite::Statement(call) = forwarded.call_site else {
+            let crate::semantic::calls::CallSite::Statement(call) = forwarded.call_site else {
                 return None;
             };
             if !forwarded_unit_transfer_path_is_exact(&forwarded) {
@@ -456,7 +456,7 @@ pub(super) fn build_checked_forwarded_dynamic_unit_calls(
                     continue;
                 };
                 let transfer = (*transfer).clone();
-                let Some(outer_site) = crate::semantic_calls::find_call_site(
+                let Some(outer_site) = crate::semantic::calls::find_call_site(
                     program,
                     machine.symbol,
                     state.symbol,
@@ -465,7 +465,7 @@ pub(super) fn build_checked_forwarded_dynamic_unit_calls(
                 ) else {
                     continue;
                 };
-                let crate::semantic_calls::CallSite::Statement(call) = &outer_site else {
+                let crate::semantic::calls::CallSite::Statement(call) = &outer_site else {
                     continue;
                 };
                 if call.static_requirement_dispatch.is_some()
@@ -523,7 +523,7 @@ fn resolve_forwarded_dynamic_unit_call<'program, 'facts>(
             return None;
         }
         visited.push((current.target_machine, current.target_state));
-        let target_state = crate::semantic_calls::find_state(program, current.target_state)?;
+        let target_state = crate::semantic::calls::find_state(program, current.target_state)?;
         let target_machine = program.machines().iter().find(|candidate| {
             candidate.symbol == current.target_machine
                 && program
@@ -557,14 +557,14 @@ fn resolve_forwarded_dynamic_unit_call<'program, 'facts>(
         if inner_call.statement_index != 0 || inner_call.call_ordinal != 0 {
             return None;
         }
-        let inner_site = crate::semantic_calls::find_call_site(
+        let inner_site = crate::semantic::calls::find_call_site(
             program,
             target_machine.symbol,
             target_state.symbol,
             inner_call.statement_index,
             inner_call.call_ordinal,
         )?;
-        let crate::semantic_calls::CallSite::Statement(inner_statement_call) = &inner_site else {
+        let crate::semantic::calls::CallSite::Statement(inner_statement_call) = &inner_site else {
             return None;
         };
         if !std::ptr::eq(*inner_statement_call, helper_call) {

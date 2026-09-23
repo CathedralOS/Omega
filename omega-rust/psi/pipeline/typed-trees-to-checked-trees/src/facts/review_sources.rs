@@ -10,7 +10,7 @@ use typed_trees::TypedTrees;
 use crate::lookup::{
     call_receiver_parts, resolve_state_call_target, statement_call_receiver_members,
 };
-use crate::semantic_calls::{CallSite, find_call_site};
+use crate::semantic::calls::{CallSite, find_call_site};
 
 pub(crate) fn bind_checked_body_call_source_spans(
     program: &TypedTrees,

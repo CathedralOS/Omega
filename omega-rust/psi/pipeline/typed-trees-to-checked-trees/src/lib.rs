@@ -1,33 +1,57 @@
 //! Typed trees to checked trees.
 //!
-//! Start at `checking.rs`: `lower_typed_trees` is the crate's one lowering
-//! entrance, and a `CheckingRequest` names the package checkpoint and carries
-//! the settled selections. It also owns the open-index normalization and
-//! static machine-call specialization steps that package orchestration reuses
-//! on typed snapshots.
-//! `execution::selected_execution` owns `settle_checked_execution`, the
-//! checked->checked settlement link that applies a provider settlement;
-//! `execution::finalize_execution` owns initial plan completion.
-//! Executable builders live under execution, separately from temporal flow.
-//! Fact population lives in `facts`, flow and value analysis in
-//! `flow` and `values`, and the remaining folders each own one checking
-//! concern. `package_review` carries the compiler-internal rederivation seams
-//! that let orchestration reject drifted retained facts. This root preserves
-//! the crate API and wires the subsystems.
+//! One entrance: [`lower_typed_trees`], in `checking.rs`, which takes a
+//! [`CheckingRequest`] naming the package checkpoint and the settled
+//! selections. Read that function to read this stage — the module order
+//! below is the order it runs them in.
+//!
+//! It prepares the typed program, validates it, builds the facts a checked
+//! machine publishes, analyses its flow and values, and plans its execution:
+//!
+//! 1. `proof` elaborates mathematical declarations and signatures.
+//! 2. `lookup` resolves projected receiver calls to their exact owners.
+//! 3. `authored_selections` binds what the source selected before
+//!    specialization can rewrite it.
+//! 4. `monomorphization` specializes generic and provider templates, then
+//!    binds each specialization's contract identity.
+//! 5. `operators` binds token-bound machine calls.
+//! 6. `checking::program_validation` rejects a typed program that cannot be
+//!    checked at all.
+//! 7. `facts` and `semantic` build the published knowledge: what is known,
+//!    the call coordinates it is known about, and the places it names.
+//! 8. `flow`, `values` and `borrow` analyse temporal flow, value origins and
+//!    borrow custody over those facts.
+//! 9. `checks` runs the checking rules and records their evidence.
+//! 10. `execution` completes the plans a checked machine executes.
+//!
+//! Beside the route, `conformance` closes trait applications, `labels` names
+//! things for diagnostics, and `product_pruning` and `package_review` are
+//! orchestration seams rather than steps: the compiler calls them after a
+//! checked tree exists, to prune a product and to rederive retained facts it
+//! must be able to reject when they drift.
 
+// The route, in the order `lower_typed_trees` runs it.
 mod authored_selections;
+mod borrow;
 mod checking;
 mod checks;
-mod conformance;
 mod execution;
 mod facts;
-mod labels;
+mod flow;
 mod lookup;
 mod monomorphization;
 mod operators;
+mod proof;
+mod semantic;
+mod values;
+
+// Beside the route.
+mod conformance;
+mod labels;
+
+// Orchestration seams, called after a checked tree exists.
 mod package_review;
 mod product_pruning;
-mod values;
 
 pub use checking::{
     CheckingRequest, SelectedBoundaryFamilySpecialization,
@@ -83,18 +107,11 @@ pub use monomorphization::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
 };
 
-mod semantic;
-mod semantic_calls;
-mod semantic_places;
-
-mod proof;
 pub use proof::{
     CheckedContractEntailmentAssumptionDischargeRecheckError,
     recheck_contract_entailment_assumption_discharge,
 };
 
-mod borrow;
-mod flow;
-
+#[cfg(test)]
 #[cfg(test)]
 mod tests;

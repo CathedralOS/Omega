@@ -208,7 +208,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         state,
         call.statement_index,
     );
-    let has_case_operands = crate::semantic_calls::find_call_site(
+    let has_case_operands = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -216,9 +216,9 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         call.call_ordinal,
     )
     .map(|site| {
-        let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
         let Some(parameters) =
-            crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+            crate::semantic::calls::call_target_parameters(program, call.target_symbol)
         else {
             return false;
         };
@@ -293,15 +293,15 @@ fn collect<'a>(
     active: &mut Vec<typed_trees::expression::ExpressionHandle>,
     output: &mut Vec<Operand<'a>>,
 ) -> Option<()> {
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
-    let parameters = crate::semantic_calls::call_target_parameters(program, call.target_symbol)?;
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
     let explicit_self = arguments.len()
         > parameters
             .iter()

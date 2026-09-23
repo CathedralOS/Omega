@@ -1,4 +1,4 @@
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use checked_trees::expression::ExpressionHandle;
 use symbols::SymbolHandle;
 
@@ -207,9 +207,9 @@ pub(crate) fn call_target_type_parameters(
 #[cfg(test)]
 mod tests {
     use super::SymbolHandle;
-    use crate::semantic_calls::call_target_parameters;
-    use crate::semantic_calls::call_target_type_parameters;
-    use crate::semantic_calls::{
+    use crate::semantic::calls::call_target_parameters;
+    use crate::semantic::calls::call_target_type_parameters;
+    use crate::semantic::calls::{
         find_machine, find_machine_by_entry_state, find_machine_head, find_state,
         find_state_in_machine,
     };

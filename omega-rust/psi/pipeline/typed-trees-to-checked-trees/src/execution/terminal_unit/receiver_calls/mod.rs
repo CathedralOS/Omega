@@ -439,7 +439,7 @@ fn result_receiver_argument(
     {
         return None;
     }
-    let source = crate::semantic_calls::find_state(program, state)?;
+    let source = crate::semantic::calls::find_state(program, state)?;
     let mut matching = results.iter().filter_map(|result| {
         if result.statement_index >= coordinate.statement_index {
             return None;
@@ -552,7 +552,7 @@ fn receiver_place(
     if calls.next().is_some() {
         return None;
     }
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         machine,
         state,
@@ -567,7 +567,7 @@ fn receiver_place(
         statement_index,
     )?;
     let authored_machine = crate::lookup::machine_by_symbol(program, machine)?;
-    let authored_state = crate::semantic_calls::find_state_in_machine(program, machine, state)?;
+    let authored_state = crate::semantic::calls::find_state_in_machine(program, machine, state)?;
     if let Some(aliases) =
         receiver_aliases::aliases(program, facts, authored_machine, authored_state)
         && let Some(resolved) = receiver_aliases::resolve(&aliases, &place)
@@ -583,7 +583,7 @@ fn is_self_root(
     state: SymbolHandle,
     place: &crate::flow::CanonicalPlace,
 ) -> bool {
-    crate::semantic_calls::find_state(program, state).is_some_and(|state| {
+    crate::semantic::calls::find_state(program, state).is_some_and(|state| {
         program.state_parameters(state).iter().any(|parameter| {
             parameter.is_self
                 && matches!(place.root, facts::PlaceRoot::Symbol(root)
@@ -605,7 +605,7 @@ fn receiver_argument(
     let facts::PlaceRoot::Symbol(root) = place.root else {
         return None;
     };
-    let source = program.state_parameters(crate::semantic_calls::find_state(program, state)?);
+    let source = program.state_parameters(crate::semantic::calls::find_state(program, state)?);
     let (position, _) = source.iter().enumerate().find(|(_, parameter)| {
         parameter.symbol == root || (parameter.is_self && root == machine)
     })?;

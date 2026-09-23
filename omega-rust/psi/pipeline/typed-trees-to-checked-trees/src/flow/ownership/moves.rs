@@ -385,7 +385,7 @@ fn expression_call_is_owned_by_call_flow(
     if is_boundary_acceptance_marker(call.target.as_str()) {
         return false;
     }
-    let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {
+    let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
         return false;
     };
     let Some(machine) = program.machines().iter().find(|machine| {

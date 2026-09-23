@@ -47,7 +47,7 @@ impl ExitScalars<'_, '_> {
     /// `place_side` is the goal operand naming the written place; `goal` is
     /// the operand it must equal at the exit.
     fn write_transport_proves(&self, place_side: ExpressionHandle, goal: ExpressionHandle) -> bool {
-        let Some(state) = crate::semantic_calls::find_state_in_machine(
+        let Some(state) = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,

@@ -47,7 +47,7 @@ pub(super) fn validate_permission_source_replay(
                     else {
                         return false;
                     };
-                    crate::semantic_calls::find_state(program, call.target_symbol).is_some_and(
+                    crate::semantic::calls::find_state(program, call.target_symbol).is_some_and(
                         |target| {
                             super::super::type_multiplicity::type_carries_linear_obligation(
                                 program,

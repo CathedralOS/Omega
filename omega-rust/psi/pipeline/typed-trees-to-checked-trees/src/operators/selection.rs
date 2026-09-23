@@ -229,7 +229,7 @@ fn local_initializer_selects_domain(
     else {
         return false;
     };
-    let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {
+    let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
         return false;
     };
     program
@@ -264,7 +264,7 @@ fn signature_selects_domain(
         return false;
     };
     let binding_name = program.expression_table.display_name(expression);
-    let resolved = crate::semantic_calls::find_state_with_machine(program, state_symbol);
+    let resolved = crate::semantic::calls::find_state_with_machine(program, state_symbol);
     resolved
         .into_iter()
         .flat_map(|(machine, _)| program.machine_contracts(machine))

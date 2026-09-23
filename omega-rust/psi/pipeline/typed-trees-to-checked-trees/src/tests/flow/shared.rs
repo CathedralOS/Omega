@@ -8,7 +8,7 @@ use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 
 #[test]
 fn builds_shared_flow_facts_for_state_and_call_sites() {

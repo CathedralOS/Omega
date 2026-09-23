@@ -7,7 +7,7 @@ use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
 use crate::flow::symbol_type_symbol;
 use crate::labels::semantic_contract_fact_kind;
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use arena::{Handle, HandleSpan};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{
@@ -471,7 +471,7 @@ fn append_operator_ensures_context(
                         continue;
                     };
                     place.extend_segments(&relative.segments);
-                    let place = crate::semantic_places::append_place_with_segments(
+                    let place = crate::semantic::places::append_place_with_segments(
                         semantic,
                         place.root,
                         &place.segments,
@@ -532,7 +532,7 @@ fn append_operator_ensures_context(
                         semantic.append_ref(&mut refs, fact);
                     } else {
                         for dependency in dependencies {
-                            let place = crate::semantic_places::append_place_with_segments(
+                            let place = crate::semantic::places::append_place_with_segments(
                                 semantic,
                                 dependency.root,
                                 &dependency.segments,

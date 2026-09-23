@@ -128,7 +128,7 @@ fn proof_term_type_matches(
             ..
         } => actual == type_identity,
         checked_trees::CheckedProofTerm::Formal { parameter_symbol } => {
-            crate::semantic_calls::find_state(program, caller_state).is_some_and(|state| {
+            crate::semantic::calls::find_state(program, caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.symbol == *parameter_symbol
                         && base_type_identity(program, parameter.type_reference, &[]).as_deref()
@@ -346,7 +346,7 @@ fn bounded_runtime_index(
     if program.machine_states(machine).first()?.symbol != state_symbol {
         return None;
     }
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
         return None;
     };

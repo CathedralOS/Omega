@@ -96,7 +96,7 @@ pub(super) fn range_flow_fixture(
 ) -> checked_trees::FlowFacts {
     let plan = proof::obligations::build_proof_plan(program);
     let proof = crate::proof::build_proof_facts(program, &plan, borrows);
-    let mut semantic = crate::semantic::build_semantic_facts(program, &proof);
+    let mut semantic = crate::semantic::facts::build_semantic_facts(program, &proof);
     let domains = crate::flow::build_domain_facts(program, &semantic);
     let operational = validation::infer_operational_may(program);
     let mut flow = crate::flow::build_flow_facts(

@@ -157,7 +157,7 @@ pub(super) fn check_receiver_conflicts(
         return;
     }
     let Some((receiver_access, receiver_name)) =
-        crate::semantic_calls::call_target_parameters(program, call.target_symbol).and_then(
+        crate::semantic::calls::call_target_parameters(program, call.target_symbol).and_then(
             |parameters| {
                 parameters
                     .iter()
@@ -194,7 +194,7 @@ pub(super) fn check_receiver_conflicts(
     else {
         return;
     };
-    let receiver = crate::semantic_calls::find_call_site(
+    let receiver = crate::semantic::calls::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -350,7 +350,7 @@ fn receiver_is_writable(
     entry_constraints: arena::HandleSpan<checked_trees::FlowConstraintRef>,
     receiver: &CapturedPlace,
 ) -> bool {
-    let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol) else {
+    let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol) else {
         return false;
     };
     if receiver.root_symbol == state_flow.machine_symbol {

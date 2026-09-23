@@ -116,7 +116,7 @@ impl ContractExpressionEvaluator<'_, '_> {
         name: Option<&str>,
     ) -> Option<ExpressionHandle> {
         let arguments =
-            crate::semantic_calls::call_site_argument_expressions(self.program, self.call_site);
+            crate::semantic::calls::call_site_argument_expressions(self.program, self.call_site);
         let mut argument_index = 0usize;
 
         for parameter in self.target_parameters {

@@ -730,7 +730,7 @@ fn linear_source_use_conflicts(
             program,
             machine.symbol,
             state.symbol,
-            &crate::semantic_calls::CallSite::Statement(call),
+            &crate::semantic::calls::CallSite::Statement(call),
             statement_index,
         ) {
             Some(place) if place.root == facts::PlaceRoot::Symbol(source_symbol) => {
@@ -1332,7 +1332,7 @@ fn call_moves_no_ownership(
     call: &typed_trees::expression::TableCallExpression,
 ) -> bool {
     !call.receiver.is_valid()
-        && crate::semantic_calls::call_target_parameters(program, call.target_symbol).is_some_and(
+        && crate::semantic::calls::call_target_parameters(program, call.target_symbol).is_some_and(
             |parameters| {
                 parameters.iter().all(|parameter| {
                     program.type_multiplicity(parameter.type_reference)

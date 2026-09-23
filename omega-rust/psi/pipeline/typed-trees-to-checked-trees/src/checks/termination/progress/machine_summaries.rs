@@ -5,9 +5,9 @@ use crate::checks::termination::progress::fact_subjects::{
     fact_domain, fact_subject, profile_label, subject_from_place,
 };
 use crate::checks::termination::progress::{lineage, origins};
-use crate::semantic_calls::call_site_argument_expressions;
-use crate::semantic_calls::call_target_parameters;
-use crate::semantic_calls::find_call_site;
+use crate::semantic::calls::call_site_argument_expressions;
+use crate::semantic::calls::call_target_parameters;
+use crate::semantic::calls::find_call_site;
 use checked_trees::{
     BuildBoundProgressDemand, FlowCallFact, FlowFacts, FlowStateFact, ProgressDemandCallSite,
 };
@@ -205,7 +205,7 @@ pub(crate) fn selected_call_summary<'a>(
     }
     let target_machine =
         crate::lookup::machine_by_symbol(program, target_symbol).or_else(|| {
-            crate::semantic_calls::find_state_with_machine(program, target_symbol)
+            crate::semantic::calls::find_state_with_machine(program, target_symbol)
                 .map(|(machine, _)| machine)
         })?;
     match &target_machine.termination_plan.interface {
@@ -436,7 +436,7 @@ pub(crate) fn local_state_transition_target<'program>(
     )?;
     if !matches!(
         call_site,
-        crate::semantic_calls::CallSite::TransitionNamed { .. }
+        crate::semantic::calls::CallSite::TransitionNamed { .. }
     ) {
         return None;
     }

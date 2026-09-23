@@ -36,7 +36,7 @@ pub(super) fn root(
             parameter.name == *name
                 && (parameter.symbol == symbol
                     || (parameter.is_self
-                        && crate::semantic_calls::find_state_with_machine(program, state.symbol)
+                        && crate::semantic::calls::find_state_with_machine(program, state.symbol)
                             .is_some_and(|(machine, _)| machine.symbol == symbol)))
         })
         .map(|parameter| parameter.type_reference)
@@ -61,7 +61,7 @@ pub(super) fn root(
                 return None;
             }
             let (machine, _) =
-                crate::semantic_calls::find_state_with_machine(program, state.symbol)?;
+                crate::semantic::calls::find_state_with_machine(program, state.symbol)?;
             validation::exact_attached_field(program, machine, symbol, name.as_str())
                 .map(|field| field.type_reference)
         })?;
@@ -183,7 +183,7 @@ pub(super) fn expression(
             else {
                 return Ok(None);
             };
-            let Some(machine) = crate::semantic_calls::find_machine(program, state.symbol) else {
+            let Some(machine) = crate::semantic::calls::find_machine(program, state.symbol) else {
                 return Ok(None);
             };
             if !validation::place_has_builtin_coordinates(program, machine, Some(state), handle) {
@@ -256,7 +256,7 @@ pub(super) fn matches_symbol(
     selected: SymbolHandle,
 ) -> bool {
     authored == selected
-        || crate::semantic_calls::find_state_with_machine(program, state.symbol).is_some_and(
+        || crate::semantic::calls::find_state_with_machine(program, state.symbol).is_some_and(
             |(machine, _)| {
                 program.state_parameters(state).iter().any(|parameter| {
                     parameter.is_self && (root == machine.symbol || root == parameter.symbol)

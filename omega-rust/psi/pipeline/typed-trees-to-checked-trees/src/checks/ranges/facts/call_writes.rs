@@ -2,7 +2,7 @@
 
 use super::RangeFacts;
 use crate::flow::CanonicalPlace;
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use typed_trees::{TypedTrees, machine::Machine, state::State};
 
 #[cfg(test)]
@@ -93,7 +93,7 @@ impl<'program> RangeCallContext<'program> {
                 // nodes even when spelled identically).
                 CallSite::TransitionNamed { path, .. } => {
                     !call.authored_expression.is_valid()
-                        && crate::semantic_calls::transition_call_target(
+                        && crate::semantic::calls::transition_call_target(
                             program,
                             machine,
                             state,

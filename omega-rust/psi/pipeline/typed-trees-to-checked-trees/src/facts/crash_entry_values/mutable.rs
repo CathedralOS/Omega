@@ -744,7 +744,7 @@ fn expression_may_overwrite(
 /// when the callee's `self` parameter is mutable. An unresolvable or
 /// self-less target cannot be cleared of writing.
 fn receiver_call_writes(program: &TypedTrees, target_symbol: SymbolHandle) -> bool {
-    match crate::semantic_calls::call_target_parameters(program, target_symbol) {
+    match crate::semantic::calls::call_target_parameters(program, target_symbol) {
         Some(parameters) => parameters
             .iter()
             .find(|parameter| parameter.is_self)

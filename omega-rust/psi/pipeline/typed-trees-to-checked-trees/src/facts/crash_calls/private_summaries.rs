@@ -99,7 +99,7 @@ pub(crate) fn infer_private_body_summaries(
                         && call.call_ordinal == invocation.call_ordinal
                 })
                 .expect("a retained summary invocation has its flow call");
-            let call_site = crate::semantic_calls::find_call_site(
+            let call_site = crate::semantic::calls::find_call_site(
                 program,
                 node.machine,
                 invocation.caller_state,
@@ -108,7 +108,7 @@ pub(crate) fn infer_private_body_summaries(
             )
             .expect("a retained summary invocation has its typed call site");
             let arguments =
-                crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+                crate::semantic::calls::call_site_argument_expressions(program, &call_site);
 
             if let Some(target_plan) = plans
                 .iter()
@@ -316,7 +316,7 @@ fn machine_non_transition_invocation_sites(
         .filter(|(_, state)| state.machine_symbol == machine)
     {
         for call in flow.control.calls.span_or_empty(state.calls) {
-            let site = crate::semantic_calls::find_call_site(
+            let site = crate::semantic::calls::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,
@@ -325,7 +325,7 @@ fn machine_non_transition_invocation_sites(
             )?;
             if matches!(
                 site,
-                crate::semantic_calls::CallSite::TransitionNamed { .. }
+                crate::semantic::calls::CallSite::TransitionNamed { .. }
             ) {
                 continue;
             }

@@ -439,7 +439,7 @@ fn borrowed_computation_arguments_retain_parameter_access_and_dense_positions() 
         assert_eq!(argument.as_place().unwrap().access, expected);
         let call = checked.facts.flow.control.calls.get(source_call);
         let parameters =
-            crate::semantic_calls::call_target_parameters(&checked.typed, call.target_symbol)
+            crate::semantic::calls::call_target_parameters(&checked.typed, call.target_symbol)
                 .unwrap();
         assert_eq!(parameters.len(), 3);
         assert!(
@@ -597,7 +597,7 @@ fn borrowed_computation_arguments_reject_unestablished_or_non_named_storage() {
             }
             4 => {
                 let target =
-                    crate::semantic_calls::find_state(&program, call.target_symbol).unwrap();
+                    crate::semantic::calls::find_state(&program, call.target_symbol).unwrap();
                 let parameter = program.state_parameters(target)[0].symbol;
                 let handle = program
                     .state_parameters

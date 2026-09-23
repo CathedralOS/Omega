@@ -2,7 +2,7 @@ use crate::borrow::view_link::{
     ViewReturnSource, is_borrow_carrying_data, is_mutably_borrow_carrying_data,
     resolve_signature_view_return_source,
 };
-use crate::semantic_calls::find_state;
+use crate::semantic::calls::find_state;
 use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::name::Identifier;
@@ -935,7 +935,7 @@ pub(crate) fn helper_call_borrow_loan_place(
     // semantics, and nothing here establishes it -- widening it would mint a
     // loan against a place this lane never proved is the source.
     if matches!(
-        crate::semantic_calls::collection_view_call(program, call),
+        crate::semantic::calls::collection_view_call(program, call),
         Some(
             CollectionViewOperation::SharedSlice
                 | CollectionViewOperation::MutableSlice
@@ -1039,7 +1039,7 @@ fn call_site_substitutions(
     signature: &typed_trees::signature::StateSignature,
     call: &checked_trees::expression::TableCallExpression,
 ) -> Option<Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>> {
-    let (caller, state) = crate::semantic_calls::find_state_with_machine(program, state_symbol)?;
+    let (caller, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
     validation::closed_static_call_type_bindings(
         program,
         caller,

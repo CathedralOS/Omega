@@ -21,7 +21,7 @@ pub(super) fn build_checked_dynamic_descriptor_transfers(
                     continue;
                 };
                 for call in facts.flow.control.calls.span_or_empty(flow.calls) {
-                    let Some(call_site) = crate::semantic_calls::find_call_site(
+                    let Some(call_site) = crate::semantic::calls::find_call_site(
                         program,
                         caller.symbol,
                         caller_state.symbol,
@@ -31,7 +31,7 @@ pub(super) fn build_checked_dynamic_descriptor_transfers(
                         continue;
                     };
                     let Some(target_state) =
-                        crate::semantic_calls::find_state(program, call.target_symbol)
+                        crate::semantic::calls::find_state(program, call.target_symbol)
                     else {
                         continue;
                     };
@@ -44,7 +44,7 @@ pub(super) fn build_checked_dynamic_descriptor_transfers(
                         continue;
                     };
                     let arguments =
-                        crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+                        crate::semantic::calls::call_site_argument_expressions(program, &call_site);
                     let parameters = program
                         .state_parameters(target_state)
                         .iter()

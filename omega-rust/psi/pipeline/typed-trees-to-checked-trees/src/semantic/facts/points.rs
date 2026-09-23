@@ -141,7 +141,7 @@ pub(super) fn contract_fact_origin(contract: &ContractProofFact) -> FactOrigin {
 #[cfg(test)]
 mod tests {
     use super::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, FactOrigin};
-    use crate::semantic::points::contract_fact_origin;
+    use crate::semantic::facts::points::contract_fact_origin;
     use arena::Handle;
     use checked_trees::expression::ExpressionHandle;
     use symbols::SymbolHandle;

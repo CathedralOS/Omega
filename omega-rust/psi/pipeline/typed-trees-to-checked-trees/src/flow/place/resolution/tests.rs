@@ -1508,7 +1508,7 @@ fn place_member_resolution_replays_member_hops_past_a_case_leaf() {
 #[test]
 fn place_member_resolution_replays_a_nested_member_indexed_chain() {
     let (mut program, state_symbol, member_handle, _) = nested_member_chain_fixture();
-    let state = crate::semantic_calls::find_state(&program, state_symbol).expect("Board::m state");
+    let state = crate::semantic::calls::find_state(&program, state_symbol).expect("Board::m state");
     let statement_index = member_statement_index(&program, state, member_handle);
     let self_parameter = program
         .state_parameters(state)
@@ -1583,7 +1583,7 @@ fn place_member_resolution_replays_a_nested_member_indexed_chain() {
 #[test]
 fn place_member_resolution_replays_a_local_rooted_member_indexed_chain() {
     let (mut program, state_symbol, _, member_handle) = nested_member_chain_fixture();
-    let state = crate::semantic_calls::find_state(&program, state_symbol).expect("Board::m state");
+    let state = crate::semantic::calls::find_state(&program, state_symbol).expect("Board::m state");
     let statement_index = member_statement_index(&program, state, member_handle);
     // `b` is bound by `let b: Grid = self.grid` before the `d` statement: the
     // contextual root scan finds the local and the walk resumes at `Grid`'s

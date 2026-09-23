@@ -71,7 +71,7 @@ pub(super) fn collect_state_argument_facts_from_expression(
             context.machine,
             context.state,
             paths.as_deref(),
-            Some(&crate::semantic_calls::CallSite::Expression { expression, call }),
+            Some(&crate::semantic::calls::CallSite::Expression { expression, call }),
         );
         return;
     }

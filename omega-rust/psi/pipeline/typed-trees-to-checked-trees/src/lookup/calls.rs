@@ -279,7 +279,7 @@ fn state_symbol_in_any_machine(
     program: &typed_trees::TypedTrees,
     target_symbol: SymbolHandle,
 ) -> SymbolHandle {
-    crate::semantic_calls::find_state(program, target_symbol)
+    crate::semantic::calls::find_state(program, target_symbol)
         .map(|state| state.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }

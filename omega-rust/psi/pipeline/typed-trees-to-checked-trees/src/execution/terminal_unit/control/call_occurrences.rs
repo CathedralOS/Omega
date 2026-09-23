@@ -642,14 +642,14 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
     for call in &structural {
         trace.phase("outer calls: structural argument calls");
         trace.statement(u32::try_from(call.statement_index).ok());
-        let site = crate::semantic_calls::find_call_site(
+        let site = crate::semantic::calls::find_call_site(
             program,
             machine,
             state.symbol,
             call.statement_index,
             call.call_ordinal,
         )?;
-        let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
         collect_argument_calls(
             program,
             facts,
@@ -716,7 +716,7 @@ fn collect_argument_calls(
     calls: &[checked_trees::FlowCallFact],
     consumed: &mut Vec<arena::Handle<checked_trees::FlowCallFact>>,
 ) -> Option<()> {
-    let parameters = crate::semantic_calls::call_target_parameters(program, call.target_symbol)?;
+    let parameters = crate::semantic::calls::call_target_parameters(program, call.target_symbol)?;
     let explicit_self = arguments.len()
         > parameters
             .iter()

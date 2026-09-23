@@ -1,7 +1,7 @@
 use super::expression;
 use crate::lookup::statement_call_can_dispatch_to_machine;
-use crate::semantic_calls::CallSite;
-use crate::semantic_calls::CallSiteTraversal;
+use crate::semantic::calls::CallSite;
+use crate::semantic::calls::CallSiteTraversal;
 use checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use expression::find_call_site_in_expression;
 

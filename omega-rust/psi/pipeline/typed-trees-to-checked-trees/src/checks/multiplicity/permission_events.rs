@@ -61,7 +61,7 @@ pub(crate) fn record_permission_events_with_incoming_guards(
         else {
             continue;
         };
-        let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol)
+        let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol)
         else {
             continue;
         };
@@ -264,7 +264,7 @@ fn record_crash_frontier_lower_bounds(
         else {
             continue;
         };
-        let Some(state) = crate::semantic_calls::find_state(program, state_flow.state_symbol)
+        let Some(state) = crate::semantic::calls::find_state(program, state_flow.state_symbol)
         else {
             continue;
         };
@@ -736,7 +736,7 @@ fn apply_statically_inactive_call_results(
             let PermissionEventSource::Statement { statement_index } = event.source else {
                 return None;
             };
-            let state = crate::semantic_calls::find_state(program, event.state_symbol)?;
+            let state = crate::semantic::calls::find_state(program, event.state_symbol)?;
             let statement = program
                 .statement_table
                 .statements(state.statement_nodes)
@@ -751,7 +751,7 @@ fn apply_statically_inactive_call_results(
             else {
                 return None;
             };
-            let target = crate::semantic_calls::find_state(program, call.target_symbol)?;
+            let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
             let map = maps.iter().find(|map| map.state_symbol == target.symbol)?;
             let receiving_path = segments.span_or_empty(event.segments);
             (!map

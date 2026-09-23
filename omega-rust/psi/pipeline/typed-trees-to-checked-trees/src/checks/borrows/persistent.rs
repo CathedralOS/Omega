@@ -440,7 +440,7 @@ fn source_is_known_static_persistent_place(
         return false;
     };
 
-    let Some(state) = crate::semantic_calls::find_state(program, state_symbol) else {
+    let Some(state) = crate::semantic::calls::find_state(program, state_symbol) else {
         return false;
     };
     if known_static
@@ -960,7 +960,8 @@ fn is_state_independent_borrow_source(
                 && is_state_independent_borrow_source(program, binary.right)
         }
         typed_trees::expression::ExpressionNode::Call(call) => {
-            let Some(state) = crate::semantic_calls::find_state(program, call.target_symbol) else {
+            let Some(state) = crate::semantic::calls::find_state(program, call.target_symbol)
+            else {
                 return false;
             };
             state_returns_only_static_borrows(program, state, &mut Vec::new())
@@ -1013,7 +1014,7 @@ fn state_returns_only_static_borrows(
                 }
                 typed_trees::statement::TransitionTargetNode::Named { path, .. } => {
                     let Some(target_state) =
-                        crate::semantic_calls::find_state(program, path.symbol)
+                        crate::semantic::calls::find_state(program, path.symbol)
                     else {
                         return false;
                     };
