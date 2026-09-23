@@ -44,7 +44,7 @@ pub(super) fn copy(
             .ok_or_else(invalid)?
             .structural_type
     };
-    let (endpoint, shape, byte_offset, index) = if path.is_empty() {
+    let (endpoint, shape, byte_offset, indices) = if path.is_empty() {
         (
             root_type,
             crate::lowering::structural_layout::structural_shape(
@@ -54,7 +54,7 @@ pub(super) fn copy(
                 &mut BTreeSet::new(),
             )?,
             0,
-            None,
+            Vec::new(),
         )
     } else {
         crate::lowering::structural_layout::leaf_copy_projection(
@@ -68,8 +68,9 @@ pub(super) fn copy(
     if endpoint != result.structural_type {
         return Err(invalid());
     }
-    let index = match index {
-        Some((selector, stride)) => {
+    let indices = indices
+        .into_iter()
+        .map(|(selector, stride)| {
             let parameter = usize::try_from(selector)
                 .ok()
                 .and_then(|position| function.parameters.get(position).copied())
@@ -78,7 +79,7 @@ pub(super) fn copy(
             if parameter.scalar_type != ScalarType::Integer(unsigned_64) {
                 return Err(invalid());
             }
-            Some(target_operations::TargetStructuralRuntimeIndex {
+            Ok(target_operations::TargetStructuralRuntimeIndex {
                 operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
                     parameter_index: selector,
                     source_value: parameter.value,
@@ -86,9 +87,8 @@ pub(super) fn copy(
                 },
                 stride,
             })
-        }
-        None => None,
-    };
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     if result_home.layout.shape() != shape {
         return Err(invalid());
@@ -106,7 +106,7 @@ pub(super) fn copy(
         source: *source,
         path: path.clone(),
         byte_offset,
-        index,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())

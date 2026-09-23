@@ -56,33 +56,32 @@ pub(super) fn project_structural_leaf_copy(
         unreachable!("dispatched project_structural_leaf_copy")
     };
     let kind = {
-        let (byte_offset, shape, index) = scalar_graph_input::structural_case::leaf_copy_layout(
+        let (byte_offset, shape, indices) = scalar_graph_input::structural_case::leaf_copy_layout(
             optimized, *source, path, result, plan,
         )?;
-        let (index, index_stride) = match index {
-            Some((selector, stride)) => {
+        let indices = indices
+            .into_iter()
+            .map(|(selector, stride)| {
                 let parameter = usize::try_from(selector)
                     .ok()
                     .and_then(|position| optimized.parameters.get(position))
                     .ok_or(LegalizationError::SourceCustodyMismatch)?;
-                (
-                    Some(abstract_operations::AbstractResult {
+                Ok(legalized_operations::LegalizedRuntimeIndexOperand {
+                    operand: abstract_operations::AbstractResult {
                         value: parameter.value,
                         scalar_type: parameter.scalar_type,
-                    }),
+                    },
                     stride,
-                )
-            }
-            None => (None, 0),
-        };
+                })
+            })
+            .collect::<Result<Vec<_>, LegalizationError>>()?;
         LegalizedScalarInstructionKind::StructuralLeafCopy {
             result: result.clone(),
             source: *source,
             path: path.clone(),
             byte_offset,
             shape,
-            index,
-            index_stride,
+            indices,
         }
     };
     Ok(kind)

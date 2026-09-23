@@ -29,8 +29,7 @@ pub(super) fn copy(
         source,
         byte_offset,
         shape,
-        index,
-        index_stride,
+        indices,
         ..
     } = &row.kind
     else {
@@ -61,17 +60,20 @@ pub(super) fn copy(
         alignment: shape.alignment,
     });
     let pointer = local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), true)?;
-    let input = if let Some(index) = index {
-        let (_, index_register, _, index_type) = replay.resolve(index.value).ok_or_else(invalid)?;
+    let mut input = input;
+    for index in indices {
+        let (_, index_register, _, index_type) =
+            replay.resolve(index.operand.value).ok_or_else(invalid)?;
         let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
-        if index.scalar_type != ScalarType::Integer(unsigned_64) || index_type != index.scalar_type
+        if index.operand.scalar_type != ScalarType::Integer(unsigned_64)
+            || index_type != index.operand.scalar_type
         {
             return Err(invalid());
         }
         let stride = super::result(replay, *source, *byte_offset)?;
         replay.check_instruction(
             SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(u128::from(*index_stride)),
+                value: IntegerValue::Unsigned(u128::from(index.stride)),
             },
             replay.constraints.keys.materialize_i64,
             &[stride],
@@ -87,7 +89,7 @@ pub(super) fn copy(
             &[index_register, stride, scaled],
             &SelectedInstructionProvenance {
                 operations: vec![row.operation],
-                values: vec![index.value],
+                values: vec![index.operand.value],
                 ..Default::default()
             },
         )?;
@@ -98,14 +100,12 @@ pub(super) fn copy(
             &[input, scaled, address],
             &SelectedInstructionProvenance {
                 operations: vec![row.operation],
-                values: vec![index.value],
+                values: vec![index.operand.value],
                 ..Default::default()
             },
         )?;
-        address
-    } else {
-        input
-    };
+        input = address;
+    }
     let mut cursor = 0u32;
     while cursor < u32::from(shape.byte_size) {
         let width = chunk(u32::from(shape.byte_size) - cursor);

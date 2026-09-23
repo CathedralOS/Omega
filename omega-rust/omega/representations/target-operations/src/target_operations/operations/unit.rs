@@ -90,10 +90,11 @@ pub enum TargetUnitOperation {
         source: PlaceId,
         path: Vec<StructuralPathSegment>,
         byte_offset: u32,
-        /// Runtime traversal through a `RuntimeIndex` segment: the resolved
-        /// operand scales by `stride` and joins `byte_offset` ahead of the
-        /// copy's first load. `None` for fully static projections.
-        index: Option<TargetStructuralRuntimeIndex>,
+        /// Runtime traversals through `RuntimeIndex` segments, in path
+        /// order: each resolved operand scales by its `stride` and joins
+        /// `byte_offset` ahead of the copy's first load. Empty for fully
+        /// static projections.
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// Observe bounded inline storage metadata, not the field's byte contents.
     StructuralByteSequenceFieldLength {
