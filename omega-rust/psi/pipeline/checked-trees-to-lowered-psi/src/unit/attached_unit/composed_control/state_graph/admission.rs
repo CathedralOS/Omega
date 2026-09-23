@@ -459,6 +459,79 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     terminator_ordinal + 1,
                 )?;
             }
+            (
+                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                    guard,
+                    jump,
+                    return_arm,
+                    return_when_true,
+                },
+                [
+                    StatementNode::Transition(true_source),
+                    StatementNode::Transition(false_source),
+                ],
+            ) if matches!(true_source.guard, TransitionGuardNode::When(_)) => {
+                edges::validate_fallback(checked, true_source, false_source)?;
+                if checked.facts.values.scalar_expressions.expression_at(
+                    state.state,
+                    u32::try_from(terminator_ordinal)
+                        .map_err(|_| LoweringError::Unsupported("Unit graph ordinal overflow"))?,
+                    CheckedScalarExpressionRole::Guard,
+                ) != Some(guard)
+                {
+                    return unsupported("Unit graph guard disagrees with checked expression");
+                }
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    result: return_result,
+                    ..
+                } = return_arm
+                else {
+                    return unsupported(
+                        "Unit graph conditional return arm is not a structural value producer",
+                    );
+                };
+                let (jump_source, jump_ordinal, return_ordinal) = if *return_when_true {
+                    (false_source, terminator_ordinal + 1, terminator_ordinal)
+                } else {
+                    (true_source, terminator_ordinal, terminator_ordinal + 1)
+                };
+                if jump.statement_ordinal as usize != jump_ordinal
+                    || return_result.statement_index as usize != return_ordinal
+                {
+                    return unsupported(
+                        "Unit graph conditional return drifted from its authored ordinals",
+                    );
+                }
+                let (binding, _) = checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .bound_expression_at(
+                        state.state,
+                        terminator_ordinal as u32,
+                        CheckedScalarExpressionRole::Guard,
+                    )
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph guard has no exact source binding",
+                    ))?;
+                crate::expression_preparation::source_custody::validate_pure(
+                    checked,
+                    binding,
+                    ScalarType::Boolean,
+                )?;
+                if !matches!(guard, CheckedScalarExpression::Boolean(_)) {
+                    return unsupported("Unit graph guard is not Boolean");
+                }
+                edges::validate(
+                    checked,
+                    plan,
+                    source,
+                    state,
+                    jump_source,
+                    jump,
+                    jump_ordinal,
+                )?;
+            }
             (CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback }, tail)
                 if tail.len() == arms.len() + 1
                     && tail[..arms.len()].iter().all(|statement| {
