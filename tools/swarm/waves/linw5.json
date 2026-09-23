@@ -1,0 +1,162 @@
+{
+ "wave": "linw5",
+ "mode": "local",
+ "sessions": [
+  {
+   "name": "elf-dynamic-relaent",
+   "host": "local",
+   "board": "TASKS.md",
+   "item": "RC-NATIVE-MATRIX-LINUX-X86-64",
+   "owning_paths": [
+    "omega-rust/omega/backend/images/image-elf/src/dynamic_executable"
+   ],
+   "suggested_first_slice": "Coordinator slot. Board-named attributed defect: 9e20e91559 emits an unconditional DT_RELA + DT_RELASZ=0 pair for the empty general relocation table but never DT_RELAENT (tag 9, sizeof(Elf64_Rela)=24); glibc dereferences l_info[DT_RELAENT] whenever DT_RELA is present, so emitted images fault in ld-linux before _start. Emit the entry-size tag beside the pair, or emit neither tag when the table is empty - pick the honest fix per ElfDynamicTag in image-elf/src/dynamic_executable/dynamic_table/dynamic_tags.rs. Verify an emitted ELF actually executes on this Linux x86-64 host (board evidence: masking the DT_RELA row makes the image exit 70). Remaining matrix failures belong to SAMPLE-CORPUS / TWO-AXIS-TERMINAL-AUTHORITY-REVIEW - report them, do not repair in this leg. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
+   "host_gates": [
+    "which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "spill-realization",
+   "host": "local",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "SPILL-REALIZATION",
+   "owning_paths": [
+    "omega-rust/omega/pipeline/selected-instructions-to-register-homes/src/assignment/runtime_spill",
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+   ],
+   "suggested_first_slice": "CONTINUATION leg (prior leg landed 04d2099ae1: early-clobber tied writes admitted beside unpinned co-readers via dedicated reload pair recorded in Admission::dedicated_tie_uses). Pick ONE next bounded SPILL-REALIZATION row: shapes still rejected include UseDef early-clobber (a second victim write), foreign-class non-IEEE values, or entry-bound victims with entry-targeting edges - admit one honestly or prove and pin why it must stay rejected. Keep the validator re-deriving the same contract independently; extend the reject table only by moving one shape to admitted coverage. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
+   "host_gates": [
+    "which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "alias-aware-memory",
+   "host": "local",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "ALIAS-AWARE-MEMORY",
+   "owning_paths": [
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/load_forwarding",
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/dead_store",
+    "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/store_motion"
+   ],
+   "suggested_first_slice": "CONTINUATION leg (prior leg landed 96893353d1: store motion sinks across grown reconvergent regions via frontier fixed-point in admission.rs + validation.rs). Pick ONE next bounded ALIAS-AWARE-MEMORY row: the untaken premise-binding direction - ownership_frontier_facts currently live only on LegalizedScalarFunction upstream; carry retained loan/compatibility/fact identities into SelectedMemoryAccess or a rewrite receipt. Transport into SelectedInstructionPlan is outside current owning_paths - widen the claim first if the honest leg needs it. A different bounded row in rewrites/unexecuted/{load_forwarding,dead_store,store_motion} is an acceptable alternative. Keep admission and validation independently re-deriving the same contract. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
+   "host_gates": [
+    "which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "proof-kernel-core",
+   "host": "local",
+   "board": "TASKS.md",
+   "item": "PROOF-KERNEL-CORE",
+   "owning_paths": [
+    "omega-rust/psi/semantics/proof-admission/src/mathematical_core",
+    "omega-rust/psi/semantics/proof-admission/src/mathematical_core.rs",
+    "omega-rust/psi/semantics/proof-admission/src/lib.rs",
+    "omega-rust/psi/semantics/proof-admission/tests",
+    "omega-rust/omega/compiler/compiler/tests/proof_kernel_canaries.rs",
+    "omega-rust/omega/compiler/compiler/tests/kernel_equality_transport.rs",
+    "omega-rust/psi/semantics/terminal-codec/src"
+   ],
+   "suggested_first_slice": "CONTINUATION leg (prior leg landed 7d473757be: closed Truth/Falsehood crossings derive through J+Empty with rule_axioms=0). Pick ONE next bounded row of PROOF-KERNEL-CORE: remaining residue includes other rule_instance fallback arms for genuinely undecided/open shapes (other carriers, dependent codomains, open Id Two<->Int endpoints, out-of-numeral-range closed values), indexed-scheme application checks, or negative-recursion elaboration. NOTE: terminal codec artifact custody matrices were also assigned to this slot by the custody worker - a bounded migration of one terminal-codec matrix to the shared custody driver is an acceptable alternative slice if a kernel row is not cleanly bounded. Keep undecided residue explicit (rule_axioms==1 where genuinely open) - do not overclaim decidability. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
+   "host_gates": [
+    "which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "custody-mutation-coverage",
+   "host": "local",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "CUSTODY-MUTATION-COVERAGE",
+   "owning_paths": [
+    "omega-rust/psi/foundation/mutation-matrix",
+    "omega-rust/omega/representations/optimization-core"
+   ],
+   "suggested_first_slice": "CONTINUATION leg 3 (prior legs landed 9d78249703 installed-realization, 7e1c44a589 decoded-container, both via the shared custody_field_inventory + run_one_field_substitution_matrix driver). Pick ONE next matrix: component-publication matrices external_stack_provision_rejects_every_one_field_substitution or installed_runnable_component_rejects_every_one_field_substitution, or executable-installation residual replacement_join_rejects_each_patch_substitution. Follow the landed pattern: custody_field_inventory! declaring every representable/informational/canonical-validation lane, honest substitution hook, per-lane outcome function, one run_one_field_substitution_matrix call replacing the hand-rolled battery, independent checker preserved. Widen the claim before editing outside owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
+   "host_gates": [
+    "which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "top-level-boundary-requirements",
+   "host": "local",
+   "board": "TASKS.md",
+   "item": "TOP-LEVEL-BOUNDARY-REQUIREMENTS",
+   "owning_paths": [
+    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch.rs",
+    "omega-rust/omega/build/selected-dispatch/src/boundary_dispatch",
+    "omega-rust/omega/build/selected-dispatch/src/selected_dispatch/requirement_adapter.rs",
+    "omega-rust/psi/semantics/validation/src/machine_calls/calls/generic_bounds.rs"
+   ],
+   "suggested_first_slice": "CONTINUATION leg (prior leg landed cd27f6b940: mutable-borrow &mut self receiver-place forwarding settles). Pick ONE next bounded row of TOP-LEVEL-BOUNDARY-REQUIREMENTS from the board item: remaining open legs include requirement family rows, external satisfiers, and write-only or qualified receivers. Reuse the subset-refinement arm in refresh_settled_state_write_frames (typed-trees-to-checked-trees/src/execution/selected_execution.rs) - it is the load-bearing piece for any receiver shape whose declared write bound exceeds the realization writes. Keep write-only/qualified receivers behind the bodyless-symbol fence unless that is the leg you pick. Widen the claim before editing outside your listed owning_paths. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
+   "host_gates": [
+    "which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "general-licm",
+   "host": "local",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "GENERAL-LICM",
+   "owning_paths": [
+    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
+    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/invariant_calls.rs",
+    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/validation/invariant_operations.rs"
+   ],
+   "suggested_first_slice": "Boundary-extension leg: 49468aee46 relocates crash-continuation scalar calls through the authenticated shared-source preheader with callee-contract-derived rosters. Still open: call motion carrying claim transfers, requirement obligations or selected evidence lacks reconstruction; affine/linear argument transfers need custody the boundary cannot re-express. Take ONE bounded step extending motion to one such family with independent reconstruction of the relationship it carries, preserving the topology non-speculation gate and cyclic freeze. Review parked WIP swarm/macw6-general-licm (46a232ec0a, call-invariance test scaffolding) first - reuse or discard honestly. Fenced: a2a src/{analyses,field_value_specialization,representation_specialization,state_specialization,pass_manager,publication,rules}, validation files other than invariant_{calls,operations}.rs. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4.",
+   "host_gates": [
+    "which cargo"
+   ],
+   "probe_only": false
+  }
+ ],
+ "max_acu_limit": 1,
+ "bypass_approval": false,
+ "resumable": true,
+ "tags": [
+  "omega-swarm",
+  "linw5"
+ ],
+ "owner_label_prefix": "Devin / linw5",
+ "exclusions": [
+  "SQUALR-HEADLESS",
+  "MACOS-APPLICATION-PUBLICATION",
+  "ALPHA-WINDOWS-CONFORMANCE",
+  "UEFI-PHYSICAL-SEMANTIC-ENTRY",
+  "UEFI-OS-HANDOFF",
+  "AP-BRINGUP",
+  "TRANSPARENT-TRAIT-REFINEMENTS",
+  "REMOVE-BRACKETED-RANGE-ANNOTATIONS",
+  "STATE-LOCAL-VALUE-FRONTIER",
+  "PLACED-ACCESS-NATIVE-OPS",
+  "FINITE-GENERIC-DISPATCH",
+  "OPERATOR-MACHINE-SUPPLY",
+  "BOUNDED-INSTALLATION-REACH-ROWS",
+  "COMPONENT-SUBSTRATE",
+  "DECLARATIVE-PEEPHOLES",
+  "EXACT-MACHINE-SIMPLIFICATIONS",
+  "FRAME-LAYOUT",
+  "PROOF-CONTRACT-MIGRATION",
+  "PCC-CANONICAL-SEMANTIC-LEDGER",
+  "PROOF-CERTIFICATION-BRIDGE",
+  "OPTIONAL-STDLIB-SEMANTIC-BINDINGS",
+  "VEC-NATIVE-GROWTH",
+  "PACKAGE-NAME-UNDERSCORE-MIGRATION",
+  "BORROW-PROOF-CONVERGENCE",
+  "REPRESENTATION-OWNERSHIP",
+  "STRUCTURAL-BORROW-IDENTITY",
+  "TRANSLATION-VALIDATION",
+  "JOIN-INVARIANT-REWRITE-TRANSPORT",
+  "FLOAT-IDENTITY-LITERAL-CARRIER",
+  "TERMINATION-RANKING-CHECKS",
+  "TPR6",
+  "CML4",
+  "MATCH-SELECTIVE-LOWERING"
+ ]
+}
