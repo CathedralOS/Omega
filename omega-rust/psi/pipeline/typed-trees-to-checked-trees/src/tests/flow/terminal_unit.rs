@@ -10,6 +10,7 @@ mod attached_receiver_shapes;
 mod borrowed_window_pairs;
 mod boundary_result_operands;
 mod call_argument_casts;
+mod call_result_field_stores;
 mod callable_composed;
 pub(crate) mod calls;
 mod cleanup;

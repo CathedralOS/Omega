@@ -28,7 +28,7 @@ use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 /// rebase the checker performs: a route through a reference-typed local
 /// (`let r = &mut self; r.f`) names the same hole as the owner path
 /// (`self.f`), so both must land on one window.
-fn window_place(
+pub(in crate::execution::terminal_unit) fn window_place(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
