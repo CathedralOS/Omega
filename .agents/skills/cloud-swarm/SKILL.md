@@ -92,7 +92,14 @@ what silently starves the pool when dispatches lack the alarm.
 **Drain = verdict + merge + redispatch, one pass.** On every settle:
 `get_messages` tail → record the outcome → if `lane_pushed`, run the merge
 cycle below immediately → message the next leaf with the notify re-armed.
-One settle = one full drain; never batch deferred merges.
+One settle = one full drain; never batch deferred merges. **The drain is
+not done until the worker's status is `running` again** — a merged lane
+with no next-leg message leaves the worker idling in waiting_for_user,
+which both wastes the slot and stops waking you. If the merge resolution
+is heavy, send the next-leg dispatch FIRST (the worker doesn't need the
+merge to push its next lane) and merge after. When idle, sweep all worker
+statuses with `devin_session_interact get` — a `waiting_for_user` or
+`suspended` worker you didn't park is a bug in your own loop.
 
 **Coordinator merge cycle (per landed lane).**
 
