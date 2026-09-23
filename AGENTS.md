@@ -284,6 +284,21 @@ wrong place:
 Terminal Psi is the only portable boundary. `StateGraph` and `ControlFlowPlan`
 predate that cut and are **not** the public portable format.
 
+### Psi implementation and deferred human audit
+
+Until the owner requests otherwise, human review and audit of Psi are deferred.
+Implementers own the IR, operation vocabulary, encoding,
+and reconstruction choices needed to express all accepted Omega behavior. Do not
+block those choices on owner approval or add owner questions for them. Choose
+cohesive representations, update their specifications and versioned schemas, and
+carry the change through producers, consumers, and customer acceptance.
+
+This defers human design review, not compiler checking or required evidence.
+Keep independent verification, rejection controls, and applicable tests; do not
+declare deferred audits complete. Preserve source-language meaning, observable
+behavior, trust guarantees, and the Psi/Omega firewall. Escalate genuinely missing
+language or trust decisions, not how existing behavior is represented in Psi.
+
 ### Crate placement rule
 
 Workspace crate names encode the pipeline. Within both halves:

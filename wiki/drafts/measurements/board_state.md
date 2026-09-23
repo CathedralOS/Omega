@@ -36,7 +36,9 @@ before committing to it. "Names concrete files" does not mean "small".
 
 These are the snapshot's classifications, not current blockers. Mutable receiver
 contracts are now explicit in the specification; NOMINAL-FIELD-FLOW is
-implementation cleanup. Other decisions use stable names rather than queue numbers.
+implementation cleanup. Trap-site encoding is also delegated implementation work;
+human Psi design review is deferred. Other decisions use stable names rather than
+queue numbers.
 
 | Row | Decision reference |
 | --- | --- |
@@ -44,7 +46,7 @@ implementation cleanup. Other decisions use stable names rather than queue numbe
 | NOMINAL-FIELD-FLOW | [mutable-self-receiver-declared-field-rows](../../spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains), settled |
 | NATIVE-WRAPPER-ENCODING-AARCH64 | `aarch64-semantic-wrapper-arrival-shape` |
 | OWNED-SELF-RECEIVER-AFFINE-DISCARD | `owned-self-receiver-implicit-retirement` |
-| ARITHMETIC-POLICY-REALIZATION | `terminal-operation-level-trap-crash-site` -- one lane only; the row says the rest "is implementation work, not a reason to mark this whole row owner-blocked" |
+| ARITHMETIC-POLICY-REALIZATION | `terminal-operation-level-trap-crash-site`, now [delegated implementation](../../../AGENTS.md#psi-implementation-and-deferred-human-audit), not owner-blocked |
 
 `SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT` reads as owner-blocked and is
 not: its "owner" is the scalar-graph code owner, not the language owner. The

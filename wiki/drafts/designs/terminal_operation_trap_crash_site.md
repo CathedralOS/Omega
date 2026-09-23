@@ -1,11 +1,12 @@
 # Terminal operation-level trap crash site — profile row proposal
 
-Design record for **NEW-APR-TRAP-CRASH-SITE-PROFILE-PROPOSAL** (TASKS.md,
-planner-scoped draft). Feeds
-[`terminal-operation-level-trap-crash-site`](../../../OWNER_QUESTIONS.md), which the DESIGN-BLOCKED
-Terminal Trapping family legs wait on. Audited at `12ea4941eb` on linux
-x86-64. Delete this draft once that question is answered and the chosen row
-shape moves the observation profile.
+Implementation alternatives for `terminal-operation-level-trap-crash-site`, owned
+by **ARITHMETIC-POLICY-REALIZATION** in [TASKS.md](../../../TASKS.md). The
+[Psi implementation policy](../../../AGENTS.md#psi-implementation-and-deferred-human-audit)
+delegates this choice without owner review. The implementation observations were
+recorded at `12ea4941eb` on Linux x86-64; check the working tree before reuse.
+Move the selected encoding into its specification with the implementation, then
+delete this draft. It is not a separate approval or audit milestone.
 
 ## Problem
 
@@ -13,8 +14,8 @@ The language side is settled: an executable `Trapping` operation owns a
 crash site — `wiki/spec/terminal-psi/structural_predicates.md:71` requires
 it to carry "its primitive denotation and path-conditioned crash site",
 and `wiki/spec/language/effects.md:261` states the body operation creates
-the crash site under its compiler-defined denotation. What is not settled
-is the Terminal form of that site.
+the crash site under its compiler-defined denotation. What is missing
+is the Terminal representation of that site.
 
 `omega.terminal.observation-profile.v1` enumerates the reconstructed
 profile as a closed, ordered row list (`observations.md`), and only two
@@ -70,7 +71,7 @@ them.
 - Con: group 4's definition is "every declared route of every
   BoundaryCall" — widening it rewrites the group's meaning rather than
   extending it, and loses the boundary-identity uniformity consumers
-  rely on. Weakest provenance of the options.
+  rely on. Boundary-specific provenance must remain mandatory on boundary rows.
 
 **C. Append a fifth crash-bearing group.** A new ordered row group —
 operation crash sites ordered by machine, block, operation, path context,
@@ -93,15 +94,13 @@ row.
   path conditioning, which a state-level observation cannot carry. Listed
   for completeness; it is not a conforming answer.
 
-## Recommendation space (owner decision — not chosen here)
+## Implementation choice
 
-The row's own text says resuming means "choosing a profile row shape and
-moving `omega.terminal.observation-profile.v1` with it". On profile
-mechanics alone, **C** is the least-disruptive conforming shape: closed
-ordered lists gain a trailing group, groups 3–4 are untouched, and the
-path context is explicit. **A** is viable if the owner prefers one
-crash-site table and accepts the wider key change. **B** weakens group
-4's contract; **D** fails the spec.
+The implementer chooses and versions the representation. **C** preserves existing
+row shapes; **A** unifies crash-site coordinates; **B** reuses operation keying
+but must retain mandatory boundary provenance where applicable. Compare their
+producer and consumer complexity on the actual customer. **D** fails the settled
+site contract. No owner preference among conforming encodings is required.
 
 ## What unblocks after a choice
 
@@ -120,5 +119,4 @@ crash-site table and accepts the wider key change. **B** weakens group
 
 - Signed/mixed modular and saturating conversion spellings (separate
   Lowered Psi vocabulary gaps on the same row).
-- Any choice of the named decision itself — this draft enumerates the
-  conforming space for the owner.
+- Changes to source trapping semantics or required observation guarantees.
