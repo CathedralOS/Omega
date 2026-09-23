@@ -27,6 +27,15 @@ pub(super) fn replay(
         return Err(Error::NonCanonicalLegalizedPlan);
     }
     let invalid = Error::NonCanonicalLegalizedPlan;
+    // The frontier catalog is re-projected from the source unit, never read
+    // back from the proposal: replay establishes the same machine-scoped rows
+    // independently, so a forged or dropped fact identity fails the join.
+    let frontier_facts: Vec<_> = unit
+        .ownership_frontier_facts
+        .iter()
+        .filter(|fact| fact.machine == target.machine)
+        .cloned()
+        .collect();
     if proposed.machine != target.machine
         || proposed.attachment != target.attachment
         || proposed.provenance != target.provenance
@@ -34,6 +43,7 @@ pub(super) fn replay(
         || proposed.entry_block != optimized.entry
         || proposed.parameters.len() != optimized.parameters.len()
         || proposed.blocks.len() != optimized.blocks.len()
+        || proposed.ownership_frontier_facts != frontier_facts
         || proposed
             .parameters
             .iter()

@@ -318,6 +318,49 @@ fn abi_layout_substitutions_drift_the_plan_identity() {
 }
 
 #[test]
+fn ownership_frontier_fact_identities_bind_the_plan_identity() {
+    let plan = scalar_call_unit_plan();
+    let identity = legalized_operation_plan_identity(&plan);
+    assert!(plan.scalar_functions[0].ownership_frontier_facts.is_empty());
+    let fact = |site| {
+        optimization_unit::OwnershipFrontierFact::new(
+            plan.psi,
+            id(1),
+            site,
+            optimization_unit::OwnershipFrontierSnapshot {
+                claims: Vec::new(),
+                owned_places: Vec::new(),
+                partial_custody: Vec::new(),
+            },
+        )
+    };
+    let mut retained = plan.clone();
+    retained.scalar_functions[0].ownership_frontier_facts = vec![
+        fact(optimization_unit::OwnershipFrontierSite::BlockEntry(id(1))),
+        fact(optimization_unit::OwnershipFrontierSite::EdgeEntry(id(1))),
+    ];
+    let retained_identity = legalized_operation_plan_identity(&retained);
+    // Retaining verifier fact rows is content: a roster that drops the
+    // premise catalog cannot share the identity of one that keeps it.
+    assert_identity_drift(identity, &retained);
+    // Order is part of the binding: the same rows in another sequence drift.
+    let mut reordered = retained.clone();
+    reordered.scalar_functions[0]
+        .ownership_frontier_facts
+        .swap(0, 1);
+    assert_identity_drift(retained_identity, &reordered);
+    // A substituted fact identity drifts even when the row count is unchanged.
+    let mut substituted = retained.clone();
+    substituted.scalar_functions[0].ownership_frontier_facts[1] =
+        fact(optimization_unit::OwnershipFrontierSite::EdgeEntry(id(2)));
+    assert_identity_drift(retained_identity, &substituted);
+    // A dropped row drifts.
+    let mut dropped = retained.clone();
+    dropped.scalar_functions[0].ownership_frontier_facts.pop();
+    assert_identity_drift(retained_identity, &dropped);
+}
+
+#[test]
 fn structural_signature_and_calls_cannot_alias_value_less_unit_graph() {
     let original = call_aware_plan();
     let mut erased = original.clone();

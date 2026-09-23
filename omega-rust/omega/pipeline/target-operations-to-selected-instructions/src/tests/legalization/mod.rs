@@ -6,6 +6,7 @@ mod byte_output;
 mod dynamic_parameter_call;
 mod ieee_literal_sources;
 mod normalized_foreign;
+mod ownership_frontier_facts;
 mod plain_unit;
 mod primitive_stores;
 mod process_exit;
