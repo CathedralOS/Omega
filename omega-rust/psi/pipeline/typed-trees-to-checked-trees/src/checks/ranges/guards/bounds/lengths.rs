@@ -13,7 +13,12 @@ pub(in crate::checks::ranges::guards) fn seed_length_greater_than_fact(
     let Some(lower_bound) = expression_integer_value(program, facts, possible_lower_bound) else {
         return;
     };
-    seed_minimum_length_fact(program, facts, possible_length, lower_bound + 1);
+    seed_minimum_length_fact(
+        program,
+        facts,
+        possible_length,
+        lower_bound.saturating_add(1),
+    );
 }
 
 pub(in crate::checks::ranges::guards) fn seed_length_at_least_fact(
