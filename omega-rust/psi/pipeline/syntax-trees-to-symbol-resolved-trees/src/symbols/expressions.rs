@@ -1,6 +1,7 @@
 mod references;
 mod traversal;
 
+pub(crate) use references::reject_unqualified_case_values;
 pub(super) use references::{
     assign_member_symbol, assign_membership_symbol, assign_name_symbol,
     assign_struct_literal_symbols,

@@ -98,6 +98,12 @@ Ambiguous imported declarations reject. Compiler traversal order cannot select
 between them. An explicit receiver field projection is not an implicit bare-name
 alias for that field.
 
+Case members are not an additional bare-name resolution step. Value position
+requires the carrier-qualified `Type::Case` path even when an expected type or
+visible carrier would make one case appear likely. Lexical bindings keep their
+ordinary meaning; the compiler does not reinterpret an unresolved single-segment
+name as a case.
+
 Distinct visible declarations competing for the same carrier-qualified domain,
 case, or machine name reject; neither carrier ownership nor import order selects
 a winner. Module growth can therefore introduce a collision in a broad import.

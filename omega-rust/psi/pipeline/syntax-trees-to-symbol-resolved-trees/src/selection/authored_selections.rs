@@ -1077,8 +1077,12 @@ fn expression_candidates(
                     .collect::<Vec<_>>()
                     .join("::");
                 let reference = path_span(members, expression_span);
-                let _ = crate::symbols::bare_case_type(&program.symbols, &name, reference)
-                    .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
+                let _ = crate::symbols::qualified_payload_free_case_type(
+                    &program.symbols,
+                    &name,
+                    reference,
+                )
+                .map_err(|message| Diagnostic::error(message).with_source_span(reference))?;
             }
             let symbols = expressions.name_path_member_symbols(path.member_symbols);
             for (offset, member) in members.iter().enumerate() {

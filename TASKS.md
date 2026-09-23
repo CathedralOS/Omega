@@ -3035,11 +3035,6 @@ syntax and other terminal services are not prerequisites.
   - Add ordinary construction for record members typed `UInt`, `&[u8] in Utf8`,
     and primitive arrays such as `[u32; 4]`; top-level array locals are not
     record-field support. Aggregate replacement must keep the custody checks below.
-
-  `arithmetic/bare_name_scopes` depends on
-  [`bare-case-value-names`](OWNER_QUESTIONS.md); do not silently widen
-  `exact_case_reference_owner` while implementing value transport.
-
   Remaining work:
 
   - Close two distinct receiving cases in

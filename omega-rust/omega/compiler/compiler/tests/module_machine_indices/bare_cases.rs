@@ -5,7 +5,7 @@ use super::{
 use compiler::CheckedCompileRequest;
 
 #[test]
-fn package_bare_cases_share_brace_constructor_identity_and_authority() {
+fn package_qualified_payload_free_cases_share_brace_constructor_identity_and_authority() {
     let tree = Sources::new();
     let root = tree.package("root");
     let leaf = tree.package("leaf");
@@ -81,7 +81,7 @@ fn package_bare_cases_share_brace_constructor_identity_and_authority() {
 }
 
 #[test]
-fn bare_case_values_preserve_payload_defaults_shadowing_and_nominal_type() {
+fn qualified_payload_free_case_values_preserve_payload_defaults_shadowing_and_nominal_type() {
     for (declaration, body, expected) in [
         (
             "pub data Value { case Empty; case Present(value: u32); }",
@@ -141,7 +141,7 @@ fn bare_case_values_preserve_payload_defaults_shadowing_and_nominal_type() {
 }
 
 #[test]
-fn bare_package_cases_cannot_escape_local_shadow_or_nominal_destination() {
+fn qualified_package_cases_cannot_escape_local_shadow_or_nominal_destination() {
     for (source, expected) in [
         (
             "use leaf::settings; machine make(leaf: u32) -> leaf::settings::Value { leaf::settings::Value::Empty }",
@@ -190,7 +190,7 @@ fn bare_package_cases_cannot_escape_local_shadow_or_nominal_destination() {
 }
 
 #[test]
-fn bare_package_case_authority_requires_direct_dependency_and_public_carrier() {
+fn qualified_package_case_authority_requires_direct_dependency_and_public_carrier() {
     let tree = Sources::new();
     let root = tree.package("root");
     let middle = tree.package("middle");
@@ -256,16 +256,16 @@ fn bare_package_case_authority_requires_direct_dependency_and_public_carrier() {
 }
 
 #[test]
-fn bare_case_constructor_ambiguity_cannot_fall_back_to_a_simpler_name() {
-    assert_bare_case_ambiguity(false);
+fn qualified_case_constructor_ambiguity_cannot_fall_back_to_a_simpler_name() {
+    assert_qualified_case_ambiguity(false);
 }
 
 #[test]
 fn ambiguous_constant_prefix_cannot_be_redirected_to_a_case() {
-    assert_bare_case_ambiguity(true);
+    assert_qualified_case_ambiguity(true);
 }
 
-fn assert_bare_case_ambiguity(constants: bool) {
+fn assert_qualified_case_ambiguity(constants: bool) {
     {
         let tree = Sources::new();
         let root = tree.package("root");
@@ -302,7 +302,7 @@ fn assert_bare_case_ambiguity(constants: bool) {
 }
 
 #[test]
-fn bare_case_namespace_cannot_capture_a_generic_binder() {
+fn qualified_case_namespace_cannot_capture_a_generic_binder() {
     for binder in ["settings", "const settings: u32"] {
         let tree = Sources::new();
         let root = tree.package("root");
@@ -328,7 +328,7 @@ fn bare_case_namespace_cannot_capture_a_generic_binder() {
 }
 
 #[test]
-fn bare_case_namespace_cannot_capture_a_conformance_binder() {
+fn qualified_case_namespace_cannot_capture_a_conformance_binder() {
     let tree = Sources::new();
     let root = tree.package("root");
     Sources::write(
@@ -361,7 +361,7 @@ fn bare_case_namespace_cannot_capture_a_conformance_binder() {
 }
 
 #[test]
-fn bare_case_namespace_cannot_capture_a_named_state() {
+fn qualified_case_namespace_cannot_capture_a_named_state() {
     let tree = Sources::new();
     let root = tree.package("root");
     Sources::write(
@@ -396,7 +396,7 @@ fn bare_case_namespace_cannot_capture_a_named_state() {
 }
 
 #[test]
-fn normalized_bare_case_retains_checked_tag_predicate() {
+fn normalized_qualified_case_retains_checked_tag_predicate() {
     assert_normalized_case_predicate("");
 }
 
@@ -510,7 +510,7 @@ fn consumer_same_named_data_does_not_capture_dependency_case_dispatch() {
 }
 
 #[test]
-fn bare_case_value_equality_does_not_replace_payload_sum_membership() {
+fn qualified_case_value_equality_does_not_replace_payload_sum_membership() {
     let tree = Sources::new();
     let root = tree.package("root");
     let source = "data Sequence { case Empty; case Cons(head: u64, tail: Sequence); }

@@ -161,10 +161,10 @@ fn selection_ambiguity(
     )
 }
 
-/// A bare value may construct only a payload-free case. The caller resolves
-/// lexical binders first; named constant prefixes remain values, including an
-/// ambiguous prefix that must never be reinterpreted as a namespace.
-pub(crate) fn bare_case_type<'name>(
+/// A carrier-qualified path may construct only a payload-free case. The caller
+/// resolves lexical binders first; named constant prefixes remain values,
+/// including an ambiguous prefix that must never be reinterpreted as a namespace.
+pub(crate) fn qualified_payload_free_case_type<'name>(
     symbols: &SymbolTable,
     name: &'name str,
     reference: source::SourceSpan,

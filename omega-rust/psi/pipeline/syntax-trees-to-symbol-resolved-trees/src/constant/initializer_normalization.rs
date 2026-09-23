@@ -100,7 +100,7 @@ pub(crate) fn retain(
                     .as_ref()
                     .is_some_and(|selection| {
                         selection
-                            .bare_case(syntax, &identifier)
+                            .qualified_payload_free_case(syntax, &identifier)
                             .is_ok_and(|selected| selected.is_some())
                     })
                 {

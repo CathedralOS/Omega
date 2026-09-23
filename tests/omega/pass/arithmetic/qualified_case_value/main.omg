@@ -1,4 +1,4 @@
-// Bare enum cases remain visible declarations. State values instead reach a
+// Case values use explicit carrier qualification. State values instead reach a
 // sibling through an explicit argument and bind to that sibling's parameter.
 
 use omega_language_std::console;
@@ -9,7 +9,7 @@ data Light { case Off; case On; }
 data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self) reaches Console {
-    let signal: Light = On; // bare enum-case constant -- must be accepted
+    let signal: Light = Light::On;
     transition { _ -> classify(70) }
     state classify(&mut self, n: i32 [0..=100]) {
         transition n > 0 {

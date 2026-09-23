@@ -216,6 +216,7 @@ fn drive_recorded(
     let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
     crate::symbols::assign(&mut lowerer)?;
+    crate::symbols::reject_unqualified_case_values(&lowerer.symbol_resolved_trees)?;
     // A token-bearing machine attached to a domain gives that domain its
     // denotation role before the selections below classify predicate-only
     // domains; it needs the attached symbols the assignment just settled.
