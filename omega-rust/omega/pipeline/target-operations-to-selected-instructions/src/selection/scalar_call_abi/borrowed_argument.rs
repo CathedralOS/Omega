@@ -267,7 +267,6 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             ))
         || !call.claim_transfers.is_empty()
-        || !call.crash_continuations.is_empty()
         || call.call_plan != expected
         || (!exclusive
             && aggregate.is_none()

@@ -116,25 +116,19 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             psi_operation,
             result,
             claim_transfers,
-            crash_continuations,
             ..
-        } if scalar_shape(result.scalar_type).is_some()
-            && claim_transfers.is_empty()
-            && crash_continuations.is_empty() =>
-        {
-            // Requirements are proof-only: source projection retains their
-            // ordered roster, and legalization/selection replay checks it.
-            // They need no carrier, unlike claim transfers or crash routes.
+        } if scalar_shape(result.scalar_type).is_some() && claim_transfers.is_empty() => {
+            // Requirements and crash continuations are proof and
+            // correspondence metadata: source projection retains their
+            // rosters, and legalization/selection replay compares them
+            // verbatim. They need no carrier, unlike claim transfers.
             Ok((*psi_operation, result.value))
         }
         AbstractOperation::CallDynamicParameterScalar {
             psi_operation,
             result,
-            crash_continuations,
             ..
-        } if scalar_shape(result.scalar_type).is_some() && crash_continuations.is_empty() => {
-            Ok((*psi_operation, result.value))
-        }
+        } if scalar_shape(result.scalar_type).is_some() => Ok((*psi_operation, result.value)),
         AbstractOperation::ByteSequenceRead {
             psi_operation,
             result,
@@ -654,30 +648,20 @@ pub(super) fn validate(
             }
             continue;
         }
-        // Requirement obligations are discharged proof metadata carried on the
-        // call for correspondence, matching the admitted scalar `Call` lane;
-        // claim transfers and crash continuations still reject here.
+        // Requirement obligations and crash continuations are discharged
+        // proof and correspondence metadata carried on the call, matching the
+        // admitted scalar `Call` lane; claim transfers still reject here.
         if let AbstractOperation::CallUnit {
-            claim_transfers,
-            crash_continuations,
-            ..
+            claim_transfers, ..
         } = &node.operation
         {
-            if result.is_some()
-                || !node.definitions.is_empty()
-                || !claim_transfers.is_empty()
-                || !crash_continuations.is_empty()
-            {
+            if result.is_some() || !node.definitions.is_empty() || !claim_transfers.is_empty() {
                 return Err(invalid);
             }
             continue;
         }
-        if let AbstractOperation::CallDynamicParameterUnit {
-            crash_continuations,
-            ..
-        } = &node.operation
-        {
-            if result.is_some() || !node.definitions.is_empty() || !crash_continuations.is_empty() {
+        if let AbstractOperation::CallDynamicParameterUnit { .. } = &node.operation {
+            if result.is_some() || !node.definitions.is_empty() {
                 return Err(invalid);
             }
             continue;
