@@ -490,12 +490,13 @@ fn lower_general_partial_affine_unit_cleanup_machine(
                     }
                 }
             }
-            CheckedUnitEffectOperationPlan::EstablishReference { source, .. } => {
-                if !source.path.is_empty() && parameter_index == source.source_parameter_index() {
-                    return unsupported(
-                        "general partial affine residual root moved whole through a reference",
-                    );
-                }
+            CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
+                if !source.path.is_empty()
+                    && parameter_index == source.source_parameter_index() =>
+            {
+                return unsupported(
+                    "general partial affine residual root moved whole through a reference",
+                );
             }
             _ => {}
         }

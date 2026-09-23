@@ -309,9 +309,7 @@ pub(super) fn successor(
             // reconstruct, so the residual lookup never reads the map.
             &std::collections::BTreeMap::new(),
         )
-        .map_or(true, |(trivial, residuals, _)| {
-            !trivial.is_empty() || !residuals.is_empty()
-        })
+        .is_none_or(|(trivial, residuals, _)| !trivial.is_empty() || !residuals.is_empty())
     {
         return None;
     }

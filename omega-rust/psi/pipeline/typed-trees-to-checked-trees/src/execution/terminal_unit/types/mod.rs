@@ -154,10 +154,10 @@ pub(super) fn return_unit_affine_discards(
                 // carrier owes no separate exit discard. The whole-ingress
                 // lane keeps an empty path and leaves the borrowed parameter
                 // on the ordinary roster.
-                if !source.path.is_empty() {
-                    if let Some(parameter_index) = source.source_parameter_index() {
-                        transferred_parameters.insert(parameter_index);
-                    }
+                if !source.path.is_empty()
+                    && let Some(parameter_index) = source.source_parameter_index()
+                {
+                    transferred_parameters.insert(parameter_index);
                 }
             }
             _ => {}
@@ -174,24 +174,20 @@ pub(super) fn return_unit_affine_discards(
         if transferred_parameters.contains(parameter_index) {
             continue;
         }
-        let Some(parameter) = structural_parameters.get(*parameter_index as usize) else {
-            return None;
-        };
+        let parameter = structural_parameters.get(*parameter_index as usize)?;
         if parameter.access != CheckedStructuralAccess::Owned
             || !parameter.qualifications.is_empty()
         {
             return None;
         }
-        let Some(rows) = super::cleanup::partial_affine_residuals(
+        let rows = super::cleanup::partial_affine_residuals(
             structural_types,
             &CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: *parameter_index,
             },
             &parameter.type_identity,
             moved_paths,
-        ) else {
-            return None;
-        };
+        )?;
         // Projections covering the whole root leave no complement.
         if rows.is_empty() {
             continue;

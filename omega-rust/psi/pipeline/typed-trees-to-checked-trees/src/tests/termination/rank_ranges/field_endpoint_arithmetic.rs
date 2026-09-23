@@ -361,11 +361,8 @@ fn signed_bitwise_and_endpoint_uses_operand_sign_bounds() {
 /// closed behavior. Unlike [`rejects_named`] this makes no claim about which
 /// stage owns the diagnostic.
 fn rejects_any_stage(source: &str) {
-    match typed_program_result(source) {
-        Ok(program) => {
-            lower_typed_trees(program, &CheckingRequest::settled()).expect_err(source);
-        }
-        Err(_) => {}
+    if let Ok(program) = typed_program_result(source) {
+        lower_typed_trees(program, &CheckingRequest::settled()).expect_err(source);
     }
 }
 

@@ -1193,27 +1193,24 @@ fn provider_attachment_specialization_routes_by_receiver_field_name() {
 
 #[test]
 fn provider_attachment_specialization_rejects_unrouted_fields() {
-    for source in [
-        // A direct boundary call names no `self.<field>` provider receiver.
-        r#"
+    // A direct boundary call names no `self.<field>` provider receiver.
+    let source = r#"
         pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
         data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             Console::exit_process(0);
         }
-        "#,
-    ] {
-        let checked = checked_with_service(source);
-        assert!(
-            checked
-                .facts
-                .flow
-                .terminal_unit_effects
-                .for_machine(machine_named(&checked, "main"))
-                .is_none(),
-            "unsupported provider-backed attachment shapes must fail closed"
-        );
-    }
+        "#;
+    let checked = checked_with_service(source);
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "main"))
+            .is_none(),
+        "unsupported provider-backed attachment shapes must fail closed"
+    );
 }
 
 #[test]
