@@ -4,9 +4,7 @@
 #[path = "source_diff_commands/git.rs"]
 mod cases;
 #[cfg(unix)]
-#[allow(dead_code)]
-#[path = "named_workspace_install/fixture.rs"]
-mod fixture;
+use crate::named_workspace_fixture as fixture;
 
 #[cfg(not(unix))]
 #[test]
