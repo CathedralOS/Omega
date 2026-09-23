@@ -138,13 +138,6 @@ pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDi
     ExecutableContainerDigest::from_digest(digest.finalize().into())
 }
 
-pub(crate) fn publish_exact_executable_bytes(
-    path: &std::path::Path,
-    bytes: &[u8],
-) -> Result<(), String> {
-    publish_exact_bytes(path, bytes, true)
-}
-
 /// Publish ordinary non-executable product bytes — Psi artifacts and `.proof`
 /// companions — with the same stage/replay/rename/replay discipline as the
 /// executable path.
@@ -552,12 +545,10 @@ mod tests {
     //! chain above this is covered by `compile_report/custody_tests.rs`.
     use super::{
         ExecutablePublicationReceipt, appended_file_name_path, executable_container_digest,
-        install_staged_products, publish_exact_executable_bytes, publish_exact_file_bytes,
-        remove_stale_companion, stage_exact_bytes,
+        install_staged_products, publish_exact_file_bytes, remove_stale_companion,
+        stage_exact_bytes,
     };
     use std::path::{Path, PathBuf};
-
-    /// A fresh per-test destination directory under the system temp root.
 
     /// "Publication must not associate a stale sidecar with newly written
     /// bytes" (spec, `proofs/publication.md`). The interruption this pins is a
@@ -610,6 +601,7 @@ mod tests {
         );
     }
 
+    /// A fresh per-test destination directory under the system temp root.
     struct TestDir(PathBuf);
 
     impl TestDir {
@@ -632,6 +624,16 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    /// The single-file executable publication whose filesystem legs the tests
+    /// below pin one at a time. Production publishes its executable as one
+    /// member of a staged set alongside the companions that commit to its
+    /// bytes (`CompileReport::publish_retained_native_artifact`), so this
+    /// composition of the two live primitives has no caller outside the tests
+    /// and lives here rather than beside them.
+    fn publish_exact_executable_bytes(path: &Path, bytes: &[u8]) -> Result<(), String> {
+        install_staged_products(&[stage_exact_bytes(path, bytes, true)?])
     }
 
     fn directory_entries(dir: &Path) -> Vec<String> {
