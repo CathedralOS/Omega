@@ -904,30 +904,31 @@ fn result_home_layout(
         .get(&result.structural_type)
         .map(|declaration| &declaration.shape)
     {
-        Some(StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }) => {
-            reconstruct(result.structural_type, declarations)
-                .map(TargetStructuralHomeLayout::Aggregate)
-        }
-        Some(StructuralTypeShape::Sum { cases }) => {
-            if cases.iter().flat_map(|case| &case.fields).any(|field| {
-                !matches!(
-                    field.field_type.scalar_type(),
-                    Some(ScalarType::Integer(integer))
-                        if super::structural_signatures::fixed_native_integer_shape(integer)
-                            .is_some()
-                )
-            }) {
-                return Err(InvalidStructuralShape);
-            }
-            conventional_sum_layout(
-                &[],
-                cases,
-                &indexed,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )
-            .map(TargetStructuralHomeLayout::Sum)
-        }
+        Some(
+            StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::FixedArray { .. }
+            | StructuralTypeShape::Reference { .. }
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::ByteSequence(_)
+            | StructuralTypeShape::ElementView { .. },
+        ) => reconstruct(result.structural_type, declarations)
+            .map(TargetStructuralHomeLayout::Aggregate),
+        Some(StructuralTypeShape::Sum { cases }) => conventional_sum_layout(
+            &[],
+            cases,
+            &indexed,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .map(TargetStructuralHomeLayout::Sum),
+        Some(StructuralTypeShape::Mixed { fields, cases }) => conventional_sum_layout(
+            fields,
+            cases,
+            &indexed,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .map(TargetStructuralHomeLayout::Sum),
         _ => Err(InvalidStructuralShape),
     }
 }

@@ -3,7 +3,7 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{MachineId, OperationId, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{MachineId, OperationId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
@@ -19,13 +19,10 @@ fn sum_layout(
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
     let declaration = types.get(&structural_type).ok_or_else(invalid)?;
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return Err(invalid());
-    };
-    if cases.iter().flat_map(|case| &case.fields).any(|field| {
-        !matches!(field.field_type.scalar_type(), Some(ScalarType::Integer(integer))
-            if crate::lowering::scalar_abi::fixed_native_integer_shape(integer).is_some())
-    }) {
+    if !matches!(
+        declaration.shape,
+        StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. }
+    ) {
         return Err(invalid());
     }
     crate::lowering::structural_layout::structural_sum_layout(
@@ -86,7 +83,10 @@ pub(in crate::lowering) fn result_home_layout(
         Some(
             StructuralTypeShape::Record { .. }
                 | StructuralTypeShape::FixedArray { .. }
-                | StructuralTypeShape::Reference { .. },
+                | StructuralTypeShape::Reference { .. }
+                | StructuralTypeShape::PrimitiveScalar(_)
+                | StructuralTypeShape::ByteSequence(_)
+                | StructuralTypeShape::ElementView { .. },
         )
     ) {
         // Whole aggregate transport needs recursive size/alignment, not scalar
