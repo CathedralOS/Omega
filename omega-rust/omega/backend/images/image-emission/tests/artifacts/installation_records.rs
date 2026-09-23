@@ -172,7 +172,13 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     // before the body, so a relabeled payload cannot masquerade as a
     // predecessor format.
     // Reconstruct framing independently of the production helper and pin both
-    // identities.
+    // identities. The pinned values move whenever the embedded terminal bytes
+    // do: `baffe0a0ed` took the semantic format marker to 106 and the
+    // vocabulary marker to 108 for the proof-term scalar leaf, and these two
+    // digests are re-recorded from that. The shape tags themselves are
+    // explicit on both sides (`Record` 1 ... `ElementView` 8), so a variant
+    // added to `StructuralTypeShape` renumbers nothing -- only a real payload
+    // change reaches here.
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -185,7 +191,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     predecessor_payload[8..10].copy_from_slice(&95_u16.to_le_bytes());
     assert_eq!(
         independent_fingerprint(&predecessor_payload),
-        "61e229fb134e8d955f6c7567702dc5dddde7c9458e1f1839eca4ae793ab0592a"
+        "5ad9a35532c880446f0fa470bc69c07e3e1fbee7ff37e12834d1926158c1104c"
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
@@ -193,13 +199,13 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "667970dccdc6b79e765f36c3e4267ea638f524528c8cc04e1b30326cca355bc8"
+        "7e91ec14c8c619d08966152a51a5882bbbd3533039d347e2e5473f23e58ff0d6"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "667970dccdc6b79e765f36c3e4267ea638f524528c8cc04e1b30326cca355bc8"
+        "7e91ec14c8c619d08966152a51a5882bbbd3533039d347e2e5473f23e58ff0d6"
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a
