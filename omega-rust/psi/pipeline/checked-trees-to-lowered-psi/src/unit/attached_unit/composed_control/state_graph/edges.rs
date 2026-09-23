@@ -49,7 +49,17 @@ pub(super) fn validate(
     edge: &CheckedStructuralControlSuccessorPlan,
     ordinal: usize,
 ) -> Result<(), LoweringError> {
-    validate_bindings(checked, plan, source, state, transition, edge, ordinal, &[], None)?;
+    validate_bindings(
+        checked,
+        plan,
+        source,
+        state,
+        transition,
+        edge,
+        ordinal,
+        &[],
+        None,
+    )?;
     validate_cleanup(checked, plan, source, state, edge)
 }
 
