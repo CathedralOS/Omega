@@ -23,6 +23,7 @@ mod byte_sequence_length;
 mod byte_sequence_read;
 mod byte_sequence_subslice;
 mod call_operand_source_custody;
+mod call_premise_terminal_boundary;
 mod callable_multistate_unit;
 mod case_payload_guard_observation;
 mod composed_call_arguments_source;
