@@ -2003,6 +2003,20 @@ syntax and other terminal services are not prerequisites.
   parameter route now reaches native artifact, final-address and installation
   replay; `callback_terminal_custody::direct_callback_relocation_resolves_to_its_private_function`
   is a success witness, not a fragment-import rejection.
+  THAT IS NOT TRUE ON MAIN and has not been for at least a week. Measured at
+  four points -- `485327f4929` (2026-09-17), `d210421f021` (2026-09-20),
+  `09e2de5f006` (2026-09-22) and today -- the test fails with exactly the
+  rejection the sentence rules out: `native artifact fragment object
+  publication failed: fragment import lacks selected call custody`. Whatever
+  reached native artifact, final-address and installation replay, this witness
+  does not observe it now, so the sentence above states an intent rather than
+  the tree. Its sibling
+  `a_package_local_calling_copy_rejects_beside_the_standard_library_entry` is
+  red too and for an unrelated reason -- `target boundary schema
+  WindowsX86_64Application retains 0 evaluated calling plans for semantic
+  requirement ProgramStorageEntry::enter instead of exactly one` -- so it is
+  not observing its own rejection either. Re-establish both before treating
+  the bounded direct parameter route as witnessed.
 
   Remaining: multiple callbacks and layout-field destinations; authenticated
   complete plan applications and independent authored-use-to-Terminal-operation
