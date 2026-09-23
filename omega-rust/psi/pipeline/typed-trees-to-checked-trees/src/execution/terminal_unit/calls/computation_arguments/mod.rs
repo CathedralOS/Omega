@@ -1,6 +1,7 @@
 //! Structural parameters, projected shared operands, and primitive referents
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
+use super::super::CheckedUnitStructuralFieldPlan;
 use super::super::CheckedUnitStructuralFieldType;
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
@@ -482,17 +483,61 @@ fn shared_nominal_argument(
     } else {
         (shapes.add_type(reference, &[], &[]))?
     };
-    // Whole scalar sums use the same established-place observation as records.
-    // No payload is extracted, copied, or reconstructed to borrow the sum; its
-    // source declaration and dominating call result remain separate evidence.
-    // The existing case call channel observes whole copy scalar sums. Nested
-    // sums require a separate projected payload/custody channel, not this loan.
-    let whole_scalar_sum = path.is_empty() && shapes.types.len() == 1
-        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
-        && shapes.types.get(&identity).is_some_and(|shape| {
-            matches!(&shape.shape, CheckedUnitStructuralTypeShape::Sum { cases }
-                if !cases.is_empty() && cases.iter().all(|case| case.fields.iter().all(|field|
-                    !field.relevance.is_erased() && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)))))
+    // Whole structural sums use the same established-place observation as
+    // records. No payload is extracted, copied, or reconstructed to borrow
+    // the sum; its source declaration and dominating call result remain
+    // separate evidence. Collecting the receiver's shape also collects every
+    // type its transitive structural fields name, so the loan observes that
+    // whole closure in place: the referent itself must be a record, a
+    // non-empty sum or mixed sum, or a fixed array, and each collected member
+    // type must be one of those or a primitive scalar leaf — scalar members
+    // carry no fields of their own, and the plain-owned-contents gate upstream
+    // refused reference, slice, and non-plain members before a shape was ever
+    // collected. A scalar root is not structural: it stays with the primitive
+    // scalar/local source plans below. A borrow projected into a payload
+    // keeps requiring its own channel.
+    let plain_field = |field: &CheckedUnitStructuralFieldPlan| {
+        !field.relevance.is_erased()
+            && matches!(
+                field.field_type,
+                CheckedUnitStructuralFieldType::Scalar(_)
+                    | CheckedUnitStructuralFieldType::Structural { .. }
+            )
+    };
+    let structural_root = shapes.types.get(&identity).is_some_and(|shape| {
+        matches!(
+            shape.shape,
+            CheckedUnitStructuralTypeShape::Sum { .. }
+                | CheckedUnitStructuralTypeShape::Mixed { .. }
+                | CheckedUnitStructuralTypeShape::Record { .. }
+                | CheckedUnitStructuralTypeShape::FixedArray { .. }
+        )
+    });
+    let whole_structural_sum = structural_root
+        && path.is_empty()
+        && matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
+        && shapes.types.values().all(|shape| match &shape.shape {
+            CheckedUnitStructuralTypeShape::Sum { cases } => {
+                !cases.is_empty()
+                    && cases
+                        .iter()
+                        .flat_map(|case| case.fields.iter())
+                        .all(&plain_field)
+            }
+            CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                !cases.is_empty()
+                    && fields
+                        .iter()
+                        .chain(cases.iter().flat_map(|case| case.fields.iter()))
+                        .all(&plain_field)
+            }
+            CheckedUnitStructuralTypeShape::Record { fields } => fields.iter().all(&plain_field),
+            CheckedUnitStructuralTypeShape::FixedArray { .. }
+            | CheckedUnitStructuralTypeShape::PrimitiveScalar(_) => true,
+            _ => false,
         });
     // A whole primitive referent observes the same existing storage when the
     // forwarded source is itself a `&T` carrier. The loan names the carrier's
@@ -512,7 +557,7 @@ fn shared_nominal_argument(
         });
     if identity != target_identity
         || !parameter_qualifications(program, &mut shapes, reference, &[])?.is_empty()
-        || (!whole_scalar_sum
+        || (!whole_structural_sum
             && !whole_primitive_scalar
             && !shapes.types.values().all(|shape| {
                 matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }

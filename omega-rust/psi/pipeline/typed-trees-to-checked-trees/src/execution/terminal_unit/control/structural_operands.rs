@@ -482,11 +482,30 @@ pub(in crate::execution::terminal_unit) fn result(
                 .claim_free_affine_machines
                 .iter()
                 .filter(|target| target.machine == owner.symbol && target.state == state.symbol);
-            let target = targets.next()?;
-            return (targets.next().is_none()
-                && target.result.multiplicity == Multiplicity::Affine
-                && target.result.qualifications.is_empty())
-            .then(|| target.result.clone());
+            if let Some(target) = targets.next() {
+                return (targets.next().is_none()
+                    && target.result.multiplicity == Multiplicity::Affine
+                    && target.result.qualifications.is_empty())
+                .then(|| target.result.clone());
+            }
+            // A checked-body producer whose result is affine plain owned
+            // storage carries no claims inside the value for the operand's own
+            // call operation to replay; the anonymous result only needs the
+            // declared identity, exactly as the closed-array and
+            // reference-record arms above.
+            if owner.supply_mode == MachineSupplyMode::CheckedBody
+                && program.type_multiplicity(return_type) == Multiplicity::Affine
+                && validation::has_plain_owned_contents(program, return_type)
+                && machine_binders(program, owner).is_empty()
+            {
+                return Some(CheckedStructuralResultPlan {
+                    type_identity: shapes.add_type(return_type, &[], &[])?,
+                    multiplicity: Multiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+            }
+            return None;
         }
         machine_binders(program, owner)
     } else {
