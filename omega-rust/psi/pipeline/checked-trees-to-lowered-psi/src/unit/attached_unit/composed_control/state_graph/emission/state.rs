@@ -21,6 +21,7 @@ use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_checked_crash_predicates};
 
 impl StateGraphEmission<'_, '_> {
     /// Emit the state at `position` in authored order.
@@ -867,6 +868,24 @@ impl StateGraphEmission<'_, '_> {
                 Terminator::ReturnUnit {
                     edge: edge_id(allocate_dense(&mut next_edge)?),
                     trivial_affine_discards: local_discards,
+                }
+            }
+            CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal } => {
+                let crash = lower_checked_crash_exit(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    *statement_ordinal,
+                    &self.claims.source_claims,
+                )?;
+                Terminator::Crash {
+                    edge: edge_id(allocate_dense(&mut next_edge)?),
+                    cause: crash.cause,
+                    site_guard: lower_checked_crash_predicates(
+                        &crash.site_guard,
+                        &self.state_values[position],
+                    )?,
+                    frontier_lower_bound: crash.frontier_lower_bound,
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {

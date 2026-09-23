@@ -148,6 +148,13 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         subject: CheckedUnitStructuralArgumentPlan,
         cases: Vec<CheckedClosedSumCaseSuccessorPlan>,
     },
+    /// Leave checked execution without cleanup, a successor, or an
+    /// established value — the standalone authored `crash` exit. The
+    /// statement ordinal names its exact authored transition so the crash
+    /// contract's checked-site row can be rejoined downstream.
+    Crash {
+        statement_ordinal: u32,
+    },
 }
 
 impl CheckedComposedUnitControlStatePlan {
