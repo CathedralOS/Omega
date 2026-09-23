@@ -1255,9 +1255,12 @@ syntax and other terminal services are not prerequisites.
   `PreservingDecode`; `wire/wire_preserving_decode_relay_exit` validates a
   known byte and retains the exact ordered unknown tail in a borrowed
   `OpaqueWireRemainder`. Its landing established checked compilation, not
-  native success. Reproduce
+  native success. At `b725fb771e` (macOS arm64)
   `versions_wire_and_const_lengths::wire_preserving_decode_relay_exit_canary_runs`
-  before attributing a current repair.
+  fails to compile: `Main::main`'s Unit plan is omitted at `state graph:
+  state signature: parameter custody shape: owned non-linear record contents`
+  (state 1), because `inspect(relayed: Relayed<LocalMessage>)` receives an
+  owned record whose `remainder.bytes_and_ordering` is a borrowed `&[u8]`.
 
   Complete faithful relay through the same selected codec: preserve unknown
   bytes/order while independently handling the validated known value, reject

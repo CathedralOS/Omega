@@ -102,6 +102,20 @@ prerequisite to every lower-rung milestone.
   Preserve exact tape bytes, I/O and stack behavior. Windows extent/runtime
   acceptance stays with ALPHA-WINDOWS-CONFORMANCE.
 
+  Measured at `b725fb771e` on macOS arm64 (Apple clang 17.0.0, CommandLineTools
+  SDK 15.5): the committed container is not a clang rebuild of its source even
+  modulo signature — besides the two `movz` immediates it differs in linker
+  encodings (e.g. padded function-start ULEBs), since
+  `macho_v5_transform.py` manufactured it. `clang -arch arm64 -Wl,-no_uuid` of
+  the corrected `alpha_arm64_macos.s`, output named `alpha_arm64_macos`, gives
+  a 16,942,368-byte linker-signed container with SHA-256
+  `ae2e0f8678e902eb205d1b7d331302a94fa5d7d51cf192cfa0a8f747bfde2031`. Run from
+  a scratch copy, `tests/alpha/bounds.py` passes 75 of 78 cases with it (the
+  three stack-end cases `ret-stack-exact`, `ret-stack-adjacent`,
+  `call-at-memory-end` die by SIGKILL on a loaded host) and 0 of 78 with the
+  committed seed (every case SIGKILL). Installing it replaces an audited trust
+  root, so the swap and repin wait on the owner's explicit approval.
+
 ## P1 - Gamma checker and first complete encoding proof
 
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific encoding proof
