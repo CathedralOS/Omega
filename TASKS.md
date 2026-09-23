@@ -293,6 +293,33 @@ the complete product bar; focused successes below do not establish that baseline
   `control_flow/runtime_branching_helper_string` and
   `core/extent_root_provider_adapter`.
 
+  Re-measured unfiltered at `f918adbb15` + this change: **131 distinct members
+  fail**, from 135, and the difference is exactly the four fixed below with no
+  new member. The two large shapes are unmoved (88 `rejoins 0 Terminal
+  attachment identities`, 26 `native-artifact Terminal production failed`) and
+  `data <D> literal cannot prove the default domain` is now ZERO.
+
+  `capabilities/acquires_through_helper_return` is FIXED, and the cause was a
+  duplicate standard-library declaration rather than anything in the fixture:
+  `dab8767e424` renamed the routed-service carrier `Service<R>` to `Binding<R>`
+  and left `source/library/core/binding.omg` behind as a byte-identical second
+  declaration of `Binding<R>` (the two files differed in one comment word).
+  Both typed-trees' `is_exact_service_data_symbol` and symbol resolution's
+  `exact_service_carrier_data` recognize the carrier by EXACT source file, so a
+  program reaching the duplicate through `use omega::language::core::binding`
+  got a `Binding<Desktop>` that classified as no carrier at all, and a value
+  call on it could not resolve the boundary-trait method. 1807 files import
+  `core::service` and 4 imported `core::binding`; the duplicate is gone and
+  those 4 are repointed. The rename's other mechanical artifact went with it:
+  both tables carried a `"ForeignBinding" => binding.omg` row, but
+  `ForeignBinding` is the compile-time foreign LOCATOR in
+  `core/external_binding.omg` and is not `boundary data`, so that row could
+  never match.
+  NAMING IS LEFT AS IS deliberately: the surviving file is `service.omg` while
+  the carrier it declares is `Binding<R>`. Renaming the file is a 1807-importer
+  migration plus both source-identity tables, which is a deliberate change to
+  take on purpose rather than to fall into by leaving a duplicate.
+
   `core/extent_root_provider_adapter` is DIAGNOSED end to end, and the cause is
   structural rather than local to the fixture: a boundary trait owned by
   `source/library/core` cannot be a provider-selection subject at all, by

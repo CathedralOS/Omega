@@ -38,18 +38,17 @@ fn type_reference_symbol(
     }
 }
 
-/// Whether `symbol` is the toolchain routed-service carrier declaration
-/// (`core/service.omg` `Service`, or `core/binding.omg` `Binding` under its
-/// ratified name). The full carrier shape is classified later by typed-trees;
-/// resolution needs only the exact source identity to route receiver calls
-/// through the carrier's closed requirement.
+/// Whether `symbol` is the toolchain routed-service carrier declaration:
+/// `Binding<R>` in `core/service.omg`, the name `Service<R>` was renamed to.
+/// The full carrier shape is classified later by typed-trees; resolution needs
+/// only the exact source identity to route receiver calls through the
+/// carrier's closed requirement.
 fn exact_service_carrier_data(symbols: &SymbolTable, symbol: SymbolHandle) -> bool {
     if !symbol.is_valid() || symbols.get(symbol).kind != SymbolKind::Data {
         return false;
     }
     let carrier_source = match symbols.name(symbol) {
         "Binding" => "service.omg",
-        "ForeignBinding" => "binding.omg",
         _ => return false,
     };
     let Some(span) = symbols.symbol_source_span(symbol) else {
