@@ -753,6 +753,8 @@ fn walk_state_write_prefix_inner(
                         &isolated_local_roots,
                         &local_alias_origins,
                         &divergent_alias_origins,
+                        symbols,
+                        inference,
                     )
                 } else {
                     let argument_types = super::call_targets::call_argument_types(

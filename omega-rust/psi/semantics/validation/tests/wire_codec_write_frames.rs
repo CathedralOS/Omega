@@ -91,26 +91,43 @@ fn a_codec_cursor_bound_to_an_unproven_reference_stays_opaque() {
 /// is where a candidate set is easiest to collapse to one route. A rebind onto
 /// a second binding keeps the whole set.
 ///
-/// A HELPER RESULT standing in the middle does not, and that is the gap the
-/// board's remaining composition bullet names: `Blob::encode(.., hold(cursor))`
-/// resolves to an opaque frame. The codec resolver looks its arguments up by
-/// name among the caller's aliases, so a call-expression argument has no entry
-/// to find -- the receiver lane reaches the same shape through result-origin
-/// composition. Closing it is the row's shared candidate-origin propagation,
-/// not a case added here.
+/// A helper result standing in the middle is the same set reached one hop
+/// later, and the codec leaf defers to the shared reference-origin resolver
+/// for it rather than learning another argument spelling.
 #[test]
-fn a_divergent_codec_cursor_survives_a_rebind() {
+fn a_divergent_codec_cursor_survives_composition() {
+    for (name, body) in [
+        (
+            "rebound_binding",
+            "let sample: Blob = Blob { value: 7 }; \
+             let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
+             let again: &mut u64 = cursor; \
+             Blob::encode(&sample, &mut self.buffer, again);",
+        ),
+        (
+            "helper_result",
+            "let sample: Blob = Blob { value: 7 }; \
+             let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
+             Blob::encode(&sample, &mut self.buffer, hold(cursor));",
+        ),
+    ] {
+        assert_eq!(
+            caller_frame(&codec_program(body)),
+            Some(vec![
+                "self.buffer".to_owned(),
+                "self.other".to_owned(),
+                "self.value".to_owned(),
+            ]),
+            "{name}"
+        );
+    }
+}
+
+/// The hop must not become a way to guess: a helper result whose own route is
+/// unresolvable leaves the whole frame opaque rather than naming one arm.
+#[test]
+fn an_unresolvable_helper_result_keeps_the_codec_frame_opaque() {
     let body = "let sample: Blob = Blob { value: 7 }; \
-         let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
-         let again: &mut u64 = cursor; \
-         Blob::encode(&sample, &mut self.buffer, again);";
-    assert_eq!(
-        caller_frame(&codec_program(body)),
-        Some(vec![
-            "self.buffer".to_owned(),
-            "self.other".to_owned(),
-            "self.value".to_owned(),
-        ]),
-        "a second binding must not collapse the candidate set"
-    );
+         Blob::encode(&sample, &mut self.buffer, opaque_ref(&mut self.value));";
+    assert_eq!(caller_frame(&codec_program(body)), None);
 }
