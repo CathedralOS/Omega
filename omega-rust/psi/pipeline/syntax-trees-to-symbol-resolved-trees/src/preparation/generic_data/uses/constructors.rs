@@ -74,7 +74,7 @@ pub(in crate::preparation::generic_data) fn selected_case_value(
     name: &Identifier,
 ) -> Option<(syntax_trees::item::ItemHandle, Option<Identifier>)> {
     if let Some(selection) = selection {
-        let (definition, case) = selection.bare_case(syntax, name).ok()??;
+        let (definition, case) = selection.qualified_payload_free_case(syntax, name).ok()??;
         let owner = syntax.root_item_handles().iter().copied().find(|handle|
             matches!(syntax.root_item(*handle), Item::Data(data) if std::ptr::eq(data, definition)))?;
         return Some((owner, Some(case)));

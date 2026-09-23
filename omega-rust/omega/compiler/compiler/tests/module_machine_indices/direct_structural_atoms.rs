@@ -554,7 +554,7 @@ fn qualified_constructor_case_eligibility_precedes_same_leaf_owner_ambiguity() {
 }
 
 #[test]
-fn qualified_bare_cases_preserve_value_construction_obligations() {
+fn qualified_payload_free_cases_preserve_value_construction_obligations() {
     for (declaration, body, expected) in [
         (
             "pub data Choice { case Empty; case Some(value: u32); }",
@@ -612,7 +612,7 @@ fn qualified_bare_cases_preserve_value_construction_obligations() {
 }
 
 #[test]
-fn qualified_bare_case_checks_preserve_payload_case_membership() {
+fn qualified_payload_free_case_checks_preserve_payload_case_membership() {
     let tree = Sources::new();
     let root = tree.package("root");
     Sources::write(
@@ -625,7 +625,7 @@ fn qualified_bare_case_checks_preserve_payload_case_membership() {
 }
 
 #[test]
-fn qualified_bare_cases_do_not_turn_equality_into_membership_or_erase_nominal_identity() {
+fn qualified_payload_free_cases_do_not_turn_equality_into_membership_or_erase_nominal_identity() {
     for (source, expected) in [
         (
             "use settings; machine compare() -> bool { settings::Choice::Some == settings::Choice::Some }",
@@ -660,7 +660,7 @@ fn qualified_bare_cases_do_not_turn_equality_into_membership_or_erase_nominal_id
 }
 
 #[test]
-fn qualified_bare_case_selection_requires_direct_package_and_public_carrier() {
+fn qualified_payload_free_case_selection_requires_direct_package_and_public_carrier() {
     let tree = Sources::new();
     let root = tree.package("root");
     let middle = tree.package("middle");

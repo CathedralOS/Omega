@@ -1,3 +1,4 @@
+use diagnostics::Diagnostic;
 use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 use super::super::expression_paths::{
@@ -18,6 +19,64 @@ use super::super::targets::{
     assign_runtime_subject_argument_symbol, assign_static_argument_symbols, build_operand_route,
 };
 use language_semantics::declaration_selection::BuildOperation;
+
+/// A case is a member of its carrier, never an expected-type-dependent bare
+/// value. Reject the exact unresolved spelling here so no later consumer can
+/// reinterpret it as an implicit constructor.
+pub(crate) fn reject_unqualified_case_values(
+    program: &symbol_resolved_trees::SymbolResolvedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let case_names = program
+        .data_definitions
+        .iter()
+        .flat_map(|definition| program.data_members(definition.members))
+        .filter_map(|member| match member {
+            symbol_resolved_trees::data::DataMember::Variant(case) => Some(case.name.as_str()),
+            symbol_resolved_trees::data::DataMember::Field(_) => None,
+        })
+        .collect::<std::collections::BTreeSet<_>>();
+    let diagnostics = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(expression_handle, expression)| {
+            let symbol_resolved_trees::expression::ExpressionNode::Name(path) = expression else {
+                return None;
+            };
+            let [name] = program
+                .tables
+                .bodies
+                .expressions
+                .name_path_members(path.members)
+            else {
+                return None;
+            };
+            (!path.head_symbol.is_valid()
+                && !path.symbol.is_valid()
+                && program
+                    .tables
+                    .bodies
+                    .expressions
+                    .authored_expression_exposure(expression_handle)
+                    .is_some()
+                && case_names.contains(name.as_str()))
+            .then(|| {
+                Diagnostic::error(format!(
+                    "case value `{}` requires its carrier-qualified `Type::{}` path",
+                    name.as_str(),
+                    name.as_str(),
+                ))
+                .with_source_span(name.source_span())
+            })
+        })
+        .collect::<Vec<_>>();
+    if diagnostics.is_empty() {
+        Ok(())
+    } else {
+        Err(diagnostics)
+    }
+}
 
 /// The spelled member names of a `self`-rooted receiver path, root -> leaf
 /// (`["self", "p"]` for the receiver `self.p`). `None` for non-place receivers
@@ -350,7 +409,7 @@ pub(in crate::symbols) fn assign_name_symbol(
                 symbols.get(head_symbol).kind,
                 SymbolKind::Data | SymbolKind::Module
             ))
-        && normalize_bare_case_value(symbols, expression_table, path, expression)
+        && normalize_qualified_case_value(symbols, expression_table, path, expression)
     {
         return;
     }
@@ -363,7 +422,7 @@ pub(in crate::symbols) fn assign_name_symbol(
         path,
     );
     // Attached machines are not children of their carrier in the symbol tree.
-    // A bare qualified selection must retain the same exact declaration as a
+    // A qualified selection must retain the same exact declaration as a
     // call, otherwise equation/non-value checks see an unresolved leaf. Keep
     // the lexical head chosen above; never reopen lookup by the leaf spelling.
     if !path.is_self_value && !symbol.is_valid() && head_symbol.is_valid() {
@@ -403,11 +462,11 @@ pub(in crate::symbols) fn assign_name_symbol(
     }
 }
 
-// Bare case values and braces share construction after lexical binding has
+// Qualified payload-free case values and braces share construction after lexical binding has
 // selected the value frontier. Package aliases need no invented declaration
 // symbols: the existing constructor selector retains their source authority.
 // Membership has a separate domain-path node and never enters this value route.
-fn normalize_bare_case_value(
+fn normalize_qualified_case_value(
     symbols: &SymbolTable,
     expression_table: &mut symbol_resolved_trees::expression::ExpressionTable,
     path: &symbol_resolved_trees::expression::TableNamePath,
@@ -424,7 +483,7 @@ fn normalize_bare_case_value(
         .join("::");
     let source_span = diagnostic_path_source_span(members);
     let (owner, case_symbol, case) =
-        match crate::symbols::bare_case_type(symbols, &name, source_span) {
+        match crate::symbols::qualified_payload_free_case_type(symbols, &name, source_span) {
             Ok(Some(selected)) => selected,
             Ok(None) => return false,
             // Keep the unresolved authored Name for the fallible selection

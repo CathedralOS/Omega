@@ -328,7 +328,7 @@ values retain each authored occurrence without bypassing package visibility or
 direct-dependency authority. This follows the
 [construction contract](../../../wiki/spec/language/data_and_literals.md#construction-and-case-identity)
 and uses ordinary namespace resolution rather than a separate constructor scope.
-Payload-free bare case values, including package-qualified paths, normalize to
+Payload-free qualified case values, including package-qualified paths, normalize to
 the same resolved constructor after lexical value bindings have been selected.
 Scoped fields, named states and conformance binders also select the path head
 before normalization; a failed suffix cannot reopen lookup as a module case.
@@ -336,7 +336,7 @@ They retain the original occurrence and exact case owner and undergo ordinary
 common-field, default, payload and opaque-construction checks. Case membership
 keeps its separate declaration role. Check the package customer with
 `omega --check tests/omega/pass/modules/package_bare_cases/main.omg`.
-The `module_machine_indices::bare_cases` probes cover lexical precedence,
+The `module_machine_indices::qualified_case_values` probes cover lexical precedence,
 ambiguity, authority and construction obligations.
 Closed generic sum paths retain the authored carrier and case spans while
 selecting the specialized owner. Both selections survive as evidence that a

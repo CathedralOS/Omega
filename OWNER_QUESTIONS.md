@@ -165,32 +165,7 @@ route. Keep ordinary local compilation separate from portable publication.
 - Tempting but wrong: use host paths or import order, exempt toolchain declarations,
   or assume distinct owner identities make competing visible names unambiguous.
 
-### Q5 - Should a bare case name resolve as a value?
-
-Named decision: `bare-case-value-names`.
-
-**Context:** [Data literals](wiki/spec/language/data_and_literals.md) define
-`Light::On`. [Name resolution](wiki/spec/language/modules.md) does not give bare
-case names a lookup step; [operator-family inference](wiki/spec/language/expressions.md#operator-families)
-does not establish a general case-name rule.
-
-**Problem:** `arithmetic/bare_name_scopes` expects `let signal: Light = On;`,
-but `exact_case_reference_owner` requires qualification. A fixture's expectation
-does not establish a language requirement.
-
-**Proposed solution:** Require `Light::On` unless a concrete customer justifies
-bare-case inference. Correct the fixture rather than inventing lookup semantics
-solely to make it pass.
-
-**Alternatives:**
-- Resolve through the expected carrier after lexical bindings. Concise, but
-  unavailable without an expected type and relevant to proof narrowing/equality.
-- Expose cases with their visible carrier, using ordinary ambiguity rejection.
-  Works without an expected type but brings more names into scope.
-- Tempting but wrong: choose the first matching case by import order or silently
-  prefer a case over a local binding.
-
-### Q6 - Does normal completion consume an owned receiver, including an affine one?
+### Q5 - Does normal completion consume an owned receiver, including an affine one?
 
 Named decision: `owned-self-receiver-implicit-retirement`.
 

@@ -1,0 +1,11 @@
+// Case values require their carrier-qualified path even when the destination
+// fixes the expected type. A bare `On` remains an unresolved name.
+
+data Light { case Off; case On; }
+
+data Main { selected: Light; }
+
+machine Main::main(&mut self) {
+    let signal: Light = On;
+    self.selected = signal;
+}

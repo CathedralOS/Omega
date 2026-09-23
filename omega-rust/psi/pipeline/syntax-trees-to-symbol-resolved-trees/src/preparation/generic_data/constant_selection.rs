@@ -634,13 +634,16 @@ impl<'base> ConstantSelection<'base> {
     /// Bare Names retain value-prefix precedence before specialization changes
     /// their lookup metadata. The shared resolver distinguishes absence from
     /// unique or ambiguous constants; braces remain ordinary constructors.
-    pub(crate) fn bare_case<'syntax>(
+    pub(crate) fn qualified_payload_free_case<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
         name: &Identifier,
     ) -> Result<Option<(&'syntax DataDefinition, Identifier)>, String> {
-        let Some((owner, _, case)) =
-            crate::symbols::bare_case_type(&self.symbols, name.as_str(), name.source_span())?
+        let Some((owner, _, case)) = crate::symbols::qualified_payload_free_case_type(
+            &self.symbols,
+            name.as_str(),
+            name.source_span(),
+        )?
         else {
             return Ok(None);
         };

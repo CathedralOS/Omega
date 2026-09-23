@@ -28,6 +28,14 @@ Cases, attached domains, and attached machines share a member namespace;
 collisions reject rather than selecting by priority. Pattern rules are defined
 in [dispatch](patterns.md).
 
+Case values always use their carrier-qualified member path. Expected type,
+imports, and local context do not infer a case owner for a single-segment name:
+write `Light::On`, not `On`. A payload-bearing value uses its qualified
+construction form, such as `Command::Move { dx: 1 }`; `Command::Move` without
+its payload remains the case domain, not a partially constructed value. This
+rule is `bare-case-value-names` and applies uniformly in locals, arguments,
+returns, comparisons, and nested expressions.
+
 Cases are nominal, not foreign integers. `#N` is schema identity, not a runtime
 tag assignment. Foreign codes cross in their declared integer carrier and use
 ordinary checked mapping machines, including an explicit unknown-code outcome.

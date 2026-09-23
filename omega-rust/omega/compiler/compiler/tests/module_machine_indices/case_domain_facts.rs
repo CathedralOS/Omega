@@ -114,7 +114,7 @@ fn case_domain_fact_discharges_through_the_place_assigned_case() {
 }
 
 #[test]
-fn bare_case_membership_obligation_discharges_through_the_assigned_case() {
+fn qualified_case_membership_obligation_discharges_through_the_assigned_case() {
     let (_tree, root) = choice_root();
     Sources::write(
         root.join("main.omg"),

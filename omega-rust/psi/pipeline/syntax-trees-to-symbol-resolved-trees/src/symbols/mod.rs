@@ -427,9 +427,10 @@ pub(crate) fn assign_constant_expression_symbols(
     }
 }
 
+pub(crate) use expressions::reject_unqualified_case_values;
 pub(crate) use lookup::{
-    MembershipSelection, bare_case_type, constructor_type, domain_name_reaches,
-    membership_selection, prefer_module_local_domain,
+    MembershipSelection, constructor_type, domain_name_reaches, membership_selection,
+    prefer_module_local_domain, qualified_payload_free_case_type,
 };
 
 /// Build the symbol table and give every reference its identity, then settle

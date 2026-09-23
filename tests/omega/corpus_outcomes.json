@@ -822,6 +822,16 @@
   ]
  },
  {
+  "fixture": "fail/arithmetic/unqualified_case_value_rejected",
+  "tier": "fail",
+  "status": "rejected",
+  "millis": 6,
+  "expected_satisfied": true,
+  "diagnostics": [
+   "case value `On` requires its carrier-qualified `Type::On` path"
+  ]
+ },
+ {
   "fixture": "fail/arithmetic/value_call_arg_class_mismatch_rejected",
   "tier": "fail",
   "status": "rejected",
@@ -12793,14 +12803,6 @@
   "diagnostics": []
  },
  {
-  "fixture": "pass/arithmetic/bare_name_scopes",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 2993,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
   "fixture": "pass/arithmetic/bounded_arithmetic_return",
   "tier": "pass",
   "status": "checked",
@@ -13074,6 +13076,14 @@
   "tier": "pass",
   "status": "checked",
   "millis": 2915,
+  "expected_satisfied": null,
+  "diagnostics": []
+ },
+ {
+  "fixture": "pass/arithmetic/qualified_case_value",
+  "tier": "pass",
+  "status": "checked",
+  "millis": 2708,
   "expected_satisfied": null,
   "diagnostics": []
  },
