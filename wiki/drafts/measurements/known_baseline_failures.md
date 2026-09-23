@@ -1232,6 +1232,44 @@ diagnostic, not by module:
   complete the set. Unbisected; none of the 46 names overlap the recorded
   row.
 
+## macOS arm64 direct-execution observation (canary `_runs` family)
+
+`cargo nextest run -p compiler --test canary_suite -E 'test(/_runs$/)'
+--no-fail-fast` at `61deef7389` (2026-09-23, macOS aarch64, cargo,
+`RUST_MIN_STACK=67108864`): **925 run, 175 passed (165 slow), 750 failed,
+554 skipped**, 5176.3 s. The 554 are the non-matching canaries the filter
+excludes, not `#[ignore]` skips. This is the command the `macos_arm64`
+release-record lane needs for `--native-execution`, measured here for the
+first time.
+
+**Native execution on this host is sound; the blocker is upstream of it.**
+Of the 750 failures, **713 panic at "should compile"** and **0 are execution
+mismatches** -- there is no `should exit N, got M` anywhere in the run, and
+no launch failure (`should run:`). Every canary that compiled then executed
+its emitted Mach-O and exited as expected. The remaining 37 are also
+pre-execution: specialization, checking, and one `cross-compile failed for
+windows_x86_64`.
+
+**533 of the compile failures are one family**, `selected ProgramEntry
+establishment rejoins 0 Terminal attachment identities; expected one` -- the
+same family the `linux_x86_64` record names at roughly the same size (~549
+there). That family is therefore host-independent, and closing it is worth
+far more to this lane than anything macOS-specific.
+
+Contrast with the differential gate deliberately: that one IS host-divergent
+(18 failures here against 116 on Linux, recorded above), so neither host's
+reading substitutes for the other in general. One concrete divergence in this
+family: `const_fold_unsigned_shift_right_arg_canary_runs` **passes here**, and
+the Linux record lists it among four genuine execution mismatches (exit 71
+where 70 expected). The other three Linux mismatches
+(`runtime_shift_signedness`, `runtime_shift_right_atwidth`,
+`runtime_bitwise_high_ops`) are not selected by this filter on this host.
+
+What this does NOT establish: the lane is not recordable as `recorded` yet,
+because the release recorder writes that row only for an observation that
+exits 0, and this exits 100. It establishes the denominator and that the
+failure is not in Mach-O emission or execution.
+
 ## native-differential RC-NATIVE-MATRIX (macOS arm64, first reading)
 
 `cargo nextest run -p omega-native-differential-test --all-targets
