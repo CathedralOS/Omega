@@ -350,7 +350,6 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "selected machine-effect carrier",
         paths: &[
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/catalog.rs",
-            "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/catalog/model.rs",
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/catalog/constraint_keys.rs",
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/catalog/validation.rs",
             "omega-rust/omega/representations/selected-instructions/src/selected_instructions/effects/catalog/identity.rs",

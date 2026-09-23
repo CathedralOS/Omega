@@ -5,7 +5,6 @@
 
 mod constraint_keys;
 mod identity;
-mod model;
 mod validation;
 
 use std::collections::BTreeSet;
@@ -14,20 +13,14 @@ use register_model::ValidatedRegisterConstraintCatalog;
 
 use validation::validate_declaration;
 
+use crate::{SaturatingCarrier, SelectedConstraintKeys};
 pub use identity::{
     MachineIdentityBytes, alternative_family_tag, encode_machine_alternative_identity,
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
     machine_effect_catalog_identity, saturating_family_tag,
 };
-pub use model::{
-    MachineAlternative, MachineAlternativeApplicability, MachineAlternativeFamily,
-    MachineAlternativeKey, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectCatalog, MachineEffectCatalogIdentity, MachineEffectCatalogValidationError,
-    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedEffects,
-    MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge,
-    MachineTrapBehavior, ValidatedMachineEffectCatalog,
-};
+use register_model::{RegisterConstraintCatalogIdentity, RegisterConstraintKey, RegisterViewId};
+use target::NativeTarget;
 
 pub fn validate_machine_effect_catalog(
     constraints: &ValidatedRegisterConstraintCatalog,
@@ -76,3 +69,730 @@ pub fn validate_machine_effect_catalog(
     let identity = machine_effect_catalog_identity(&catalog);
     Ok(ValidatedMachineEffectCatalog { catalog, identity })
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MachineEffectCatalogIdentity([u8; 32]);
+
+impl MachineEffectCatalogIdentity {
+    pub(crate) fn from_canonical_bytes(bytes: &[u8]) -> Self {
+        use sha2::{Digest, Sha256};
+        Self(Sha256::digest(bytes).into())
+    }
+
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub const fn bytes(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MachineSemanticKind {
+    Crash,
+    CopyBytes,
+    BitwiseAndI64,
+    BitwiseXorI64,
+    CallAggregate,
+    ReturnAggregate,
+    HostedExitProcessI32,
+    LoadPacked3,
+    LoadPacked5,
+    LoadPacked6,
+    LoadPacked7,
+    StorePacked,
+    Load8,
+    Load16,
+    Load32,
+    Float32ToBits,
+    Float64ToBits,
+    BitsToFloat32,
+    BitsToFloat64,
+    Load8Indexed,
+    CompareI64Zero,
+    MaterializeI64,
+    CopyI64,
+    ExactAddI64,
+    ExactAddI64Immediate,
+    ExactSubtractI64,
+    ExactDivideU64,
+    ExactSubtractI64Immediate,
+    ConditionalBranchNonZero,
+    ReturnScalar,
+    ReturnUnit,
+    CompareI64,
+    CompareI64Immediate,
+    ConditionalBranchU64LessThan,
+    ConditionalBranchI64LessThan,
+    CallScalar,
+    Jump,
+    ZeroExtendU8,
+    ZeroExtendU32,
+    ZeroExtendU16,
+    SignExtendI8,
+    SignExtendI16,
+    SignExtendI32,
+    Load64,
+    Store64,
+    FrameAddress,
+    CallUnit,
+    ByteViewAddress,
+    HostedReadByte,
+    HostedWriteByteI32,
+    Store,
+    AddressOffset,
+    MaterializeBooleanEqual,
+    MaterializeBooleanU64LessThan,
+    MaterializeBooleanI64LessThan,
+    MaterializeBooleanU64LessOrEqual,
+    MaterializeBooleanI64LessOrEqual,
+    WrappingRemainderI64,
+    WrappingAddI64,
+    SaturatingAdd(SaturatingCarrier),
+    SaturatingSubtract(SaturatingCarrier),
+    SaturatingDivide(SaturatingCarrier),
+    SaturatingRemainder(SaturatingCarrier),
+    NormalizedForeignCall,
+    ExactMultiplyI64,
+    ExactRemainderU64,
+    WrappingSubtractI64,
+    WrappingMultiplyI64,
+    WrappingDivideI64,
+    BitwiseOrI64,
+    BitwiseNotI64,
+    SaveFloatingControl,
+    RestoreFloatingControl,
+    WrappingShiftLeftI64,
+    WrappingShiftRightI64,
+    WrappingShiftRightU64,
+    ExactShiftLeftI64,
+    ExactShiftRightI64,
+    ExactShiftRightU64,
+    ExactDivideI64,
+    ExactRemainderI64,
+}
+
+impl MachineSemanticKind {
+    pub const ALL: [Self; 109] = [
+        Self::Crash,
+        Self::CopyBytes,
+        Self::BitwiseAndI64,
+        Self::BitwiseXorI64,
+        Self::CallAggregate,
+        Self::ReturnAggregate,
+        Self::HostedExitProcessI32,
+        Self::LoadPacked3,
+        Self::LoadPacked5,
+        Self::LoadPacked6,
+        Self::LoadPacked7,
+        Self::StorePacked,
+        Self::Load8,
+        Self::Load16,
+        Self::Load32,
+        Self::Float32ToBits,
+        Self::Float64ToBits,
+        Self::BitsToFloat32,
+        Self::BitsToFloat64,
+        Self::Load8Indexed,
+        Self::CompareI64Zero,
+        Self::MaterializeI64,
+        Self::CopyI64,
+        Self::ExactAddI64,
+        Self::ExactAddI64Immediate,
+        Self::ExactSubtractI64,
+        Self::ExactDivideU64,
+        Self::ExactSubtractI64Immediate,
+        Self::ConditionalBranchNonZero,
+        Self::ReturnScalar,
+        Self::ReturnUnit,
+        Self::CompareI64,
+        Self::CompareI64Immediate,
+        Self::ConditionalBranchU64LessThan,
+        Self::ConditionalBranchI64LessThan,
+        Self::CallScalar,
+        Self::Jump,
+        Self::ZeroExtendU8,
+        Self::ZeroExtendU32,
+        Self::ZeroExtendU16,
+        Self::SignExtendI8,
+        Self::SignExtendI16,
+        Self::SignExtendI32,
+        Self::Load64,
+        Self::Store64,
+        Self::FrameAddress,
+        Self::CallUnit,
+        Self::ByteViewAddress,
+        Self::HostedReadByte,
+        Self::HostedWriteByteI32,
+        Self::Store,
+        Self::AddressOffset,
+        Self::MaterializeBooleanEqual,
+        Self::MaterializeBooleanU64LessThan,
+        Self::MaterializeBooleanI64LessThan,
+        Self::MaterializeBooleanU64LessOrEqual,
+        Self::MaterializeBooleanI64LessOrEqual,
+        Self::WrappingRemainderI64,
+        Self::WrappingAddI64,
+        Self::SaturatingAdd(SaturatingCarrier::I8),
+        Self::SaturatingAdd(SaturatingCarrier::I16),
+        Self::SaturatingAdd(SaturatingCarrier::I32),
+        Self::SaturatingAdd(SaturatingCarrier::I64),
+        Self::SaturatingAdd(SaturatingCarrier::U8),
+        Self::SaturatingAdd(SaturatingCarrier::U16),
+        Self::SaturatingAdd(SaturatingCarrier::U32),
+        Self::SaturatingAdd(SaturatingCarrier::U64),
+        Self::SaturatingSubtract(SaturatingCarrier::I8),
+        Self::SaturatingSubtract(SaturatingCarrier::I16),
+        Self::SaturatingSubtract(SaturatingCarrier::I32),
+        Self::SaturatingSubtract(SaturatingCarrier::I64),
+        Self::SaturatingSubtract(SaturatingCarrier::U8),
+        Self::SaturatingSubtract(SaturatingCarrier::U16),
+        Self::SaturatingSubtract(SaturatingCarrier::U32),
+        Self::SaturatingSubtract(SaturatingCarrier::U64),
+        Self::SaturatingDivide(SaturatingCarrier::I8),
+        Self::SaturatingDivide(SaturatingCarrier::I16),
+        Self::SaturatingDivide(SaturatingCarrier::I32),
+        Self::SaturatingDivide(SaturatingCarrier::I64),
+        Self::SaturatingDivide(SaturatingCarrier::U8),
+        Self::SaturatingDivide(SaturatingCarrier::U16),
+        Self::SaturatingDivide(SaturatingCarrier::U32),
+        Self::SaturatingDivide(SaturatingCarrier::U64),
+        Self::SaturatingRemainder(SaturatingCarrier::I8),
+        Self::SaturatingRemainder(SaturatingCarrier::I16),
+        Self::SaturatingRemainder(SaturatingCarrier::I32),
+        Self::SaturatingRemainder(SaturatingCarrier::I64),
+        Self::SaturatingRemainder(SaturatingCarrier::U8),
+        Self::SaturatingRemainder(SaturatingCarrier::U16),
+        Self::SaturatingRemainder(SaturatingCarrier::U32),
+        Self::SaturatingRemainder(SaturatingCarrier::U64),
+        Self::NormalizedForeignCall,
+        Self::ExactMultiplyI64,
+        Self::ExactRemainderU64,
+        Self::WrappingSubtractI64,
+        Self::WrappingMultiplyI64,
+        Self::WrappingDivideI64,
+        Self::BitwiseOrI64,
+        Self::BitwiseNotI64,
+        Self::SaveFloatingControl,
+        Self::RestoreFloatingControl,
+        Self::WrappingShiftLeftI64,
+        Self::WrappingShiftRightI64,
+        Self::WrappingShiftRightU64,
+        Self::ExactShiftLeftI64,
+        Self::ExactShiftRightI64,
+        Self::ExactShiftRightU64,
+        Self::ExactDivideI64,
+        Self::ExactRemainderI64,
+    ];
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MachineAlternativeFamily {
+    Crash,
+    CopyBytes,
+    BitwiseAndI64,
+    BitwiseXorI64,
+    CallAggregate,
+    ReturnAggregate,
+    HostedExitProcessI32,
+    LoadPacked3,
+    LoadPacked5,
+    LoadPacked6,
+    LoadPacked7,
+    StorePacked,
+    Load8,
+    Load16,
+    Load32,
+    Float32ToBits,
+    Float64ToBits,
+    BitsToFloat32,
+    BitsToFloat64,
+    Load8Indexed,
+    CompareI64Zero,
+    MaterializeI64,
+    CopyI64,
+    ExactAddI64,
+    ExactAddI64Immediate,
+    ExactSubtractI64,
+    ExactDivideU64,
+    ExactSubtractI64Immediate,
+    ConditionalBranchNonZero,
+    ReturnScalar,
+    ReturnUnit,
+    CompareI64,
+    CompareI64Immediate,
+    ConditionalBranchU64LessThan,
+    ConditionalBranchI64LessThan,
+    CallScalar,
+    Jump,
+    ZeroExtendU8,
+    ZeroExtendU32,
+    ZeroExtendU16,
+    SignExtendI8,
+    SignExtendI16,
+    SignExtendI32,
+    Load64,
+    Store64,
+    FrameAddress,
+    CallUnit,
+    ByteViewAddress,
+    HostedReadByte,
+    HostedWriteByteI32,
+    Store,
+    AddressOffset,
+    MaterializeBooleanEqual,
+    MaterializeBooleanU64LessThan,
+    MaterializeBooleanI64LessThan,
+    MaterializeBooleanU64LessOrEqual,
+    MaterializeBooleanI64LessOrEqual,
+    WrappingRemainderI64,
+    WrappingAddI64,
+    SaturatingAdd(SaturatingCarrier),
+    SaturatingSubtract(SaturatingCarrier),
+    SaturatingDivide(SaturatingCarrier),
+    SaturatingRemainder(SaturatingCarrier),
+    NormalizedForeignCall,
+    ExactMultiplyI64,
+    ExactRemainderU64,
+    WrappingSubtractI64,
+    WrappingMultiplyI64,
+    WrappingDivideI64,
+    BitwiseOrI64,
+    BitwiseNotI64,
+    SaveFloatingControl,
+    RestoreFloatingControl,
+    WrappingShiftLeftI64,
+    WrappingShiftRightI64,
+    WrappingShiftRightU64,
+    ExactShiftLeftI64,
+    ExactShiftRightI64,
+    ExactShiftRightU64,
+    ExactDivideI64,
+    ExactRemainderI64,
+}
+
+impl From<MachineSemanticKind> for MachineAlternativeFamily {
+    fn from(value: MachineSemanticKind) -> Self {
+        match value {
+            MachineSemanticKind::CopyBytes => Self::CopyBytes,
+            MachineSemanticKind::BitwiseAndI64 => Self::BitwiseAndI64,
+            MachineSemanticKind::BitwiseXorI64 => Self::BitwiseXorI64,
+            MachineSemanticKind::CallAggregate => Self::CallAggregate,
+            MachineSemanticKind::ReturnAggregate => Self::ReturnAggregate,
+            MachineSemanticKind::Crash => Self::Crash,
+            MachineSemanticKind::HostedExitProcessI32 => Self::HostedExitProcessI32,
+            MachineSemanticKind::LoadPacked3 => Self::LoadPacked3,
+            MachineSemanticKind::LoadPacked5 => Self::LoadPacked5,
+            MachineSemanticKind::LoadPacked6 => Self::LoadPacked6,
+            MachineSemanticKind::LoadPacked7 => Self::LoadPacked7,
+            MachineSemanticKind::StorePacked => Self::StorePacked,
+            MachineSemanticKind::Load8 => Self::Load8,
+            MachineSemanticKind::Load16 => Self::Load16,
+            MachineSemanticKind::Load32 => Self::Load32,
+            MachineSemanticKind::Float32ToBits => Self::Float32ToBits,
+            MachineSemanticKind::Float64ToBits => Self::Float64ToBits,
+            MachineSemanticKind::BitsToFloat32 => Self::BitsToFloat32,
+            MachineSemanticKind::BitsToFloat64 => Self::BitsToFloat64,
+            MachineSemanticKind::HostedReadByte => Self::HostedReadByte,
+            MachineSemanticKind::HostedWriteByteI32 => Self::HostedWriteByteI32,
+            MachineSemanticKind::SaveFloatingControl => Self::SaveFloatingControl,
+            MachineSemanticKind::RestoreFloatingControl => Self::RestoreFloatingControl,
+            MachineSemanticKind::Store => Self::Store,
+            MachineSemanticKind::AddressOffset => Self::AddressOffset,
+            MachineSemanticKind::ByteViewAddress => Self::ByteViewAddress,
+            MachineSemanticKind::Load8Indexed => Self::Load8Indexed,
+            MachineSemanticKind::CompareI64Zero => Self::CompareI64Zero,
+            MachineSemanticKind::MaterializeI64 => Self::MaterializeI64,
+            MachineSemanticKind::CopyI64 => Self::CopyI64,
+            MachineSemanticKind::ExactAddI64 => Self::ExactAddI64,
+            MachineSemanticKind::ExactAddI64Immediate => Self::ExactAddI64Immediate,
+            MachineSemanticKind::ExactSubtractI64 => Self::ExactSubtractI64,
+            MachineSemanticKind::ExactDivideU64 => Self::ExactDivideU64,
+            MachineSemanticKind::WrappingRemainderI64 => Self::WrappingRemainderI64,
+            MachineSemanticKind::WrappingAddI64 => Self::WrappingAddI64,
+            MachineSemanticKind::SaturatingAdd(carrier) => Self::SaturatingAdd(carrier),
+            MachineSemanticKind::SaturatingSubtract(carrier) => Self::SaturatingSubtract(carrier),
+            MachineSemanticKind::SaturatingDivide(carrier) => Self::SaturatingDivide(carrier),
+            MachineSemanticKind::SaturatingRemainder(carrier) => Self::SaturatingRemainder(carrier),
+            MachineSemanticKind::ExactSubtractI64Immediate => Self::ExactSubtractI64Immediate,
+            MachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
+            MachineSemanticKind::ReturnScalar => Self::ReturnScalar,
+            MachineSemanticKind::ReturnUnit => Self::ReturnUnit,
+            MachineSemanticKind::CompareI64 => Self::CompareI64,
+            MachineSemanticKind::CompareI64Immediate => Self::CompareI64Immediate,
+            MachineSemanticKind::ConditionalBranchU64LessThan => Self::ConditionalBranchU64LessThan,
+            MachineSemanticKind::ConditionalBranchI64LessThan => Self::ConditionalBranchI64LessThan,
+            MachineSemanticKind::CallScalar => Self::CallScalar,
+            MachineSemanticKind::Jump => Self::Jump,
+            MachineSemanticKind::ZeroExtendU8 => Self::ZeroExtendU8,
+            MachineSemanticKind::ZeroExtendU32 => Self::ZeroExtendU32,
+            MachineSemanticKind::ZeroExtendU16 => Self::ZeroExtendU16,
+            MachineSemanticKind::SignExtendI8 => Self::SignExtendI8,
+            MachineSemanticKind::SignExtendI16 => Self::SignExtendI16,
+            MachineSemanticKind::SignExtendI32 => Self::SignExtendI32,
+            MachineSemanticKind::MaterializeBooleanEqual => Self::MaterializeBooleanEqual,
+            MachineSemanticKind::MaterializeBooleanU64LessThan => {
+                Self::MaterializeBooleanU64LessThan
+            }
+            MachineSemanticKind::MaterializeBooleanI64LessThan => {
+                Self::MaterializeBooleanI64LessThan
+            }
+            MachineSemanticKind::MaterializeBooleanU64LessOrEqual => {
+                Self::MaterializeBooleanU64LessOrEqual
+            }
+            MachineSemanticKind::MaterializeBooleanI64LessOrEqual => {
+                Self::MaterializeBooleanI64LessOrEqual
+            }
+
+            MachineSemanticKind::Load64 => Self::Load64,
+            MachineSemanticKind::Store64 => Self::Store64,
+            MachineSemanticKind::FrameAddress => Self::FrameAddress,
+            MachineSemanticKind::CallUnit => Self::CallUnit,
+            MachineSemanticKind::NormalizedForeignCall => Self::NormalizedForeignCall,
+            MachineSemanticKind::ExactMultiplyI64 => Self::ExactMultiplyI64,
+            MachineSemanticKind::ExactRemainderU64 => Self::ExactRemainderU64,
+            MachineSemanticKind::WrappingSubtractI64 => Self::WrappingSubtractI64,
+            MachineSemanticKind::WrappingMultiplyI64 => Self::WrappingMultiplyI64,
+            MachineSemanticKind::WrappingDivideI64 => Self::WrappingDivideI64,
+            MachineSemanticKind::BitwiseOrI64 => Self::BitwiseOrI64,
+            MachineSemanticKind::BitwiseNotI64 => Self::BitwiseNotI64,
+            MachineSemanticKind::WrappingShiftLeftI64 => Self::WrappingShiftLeftI64,
+            MachineSemanticKind::WrappingShiftRightI64 => Self::WrappingShiftRightI64,
+            MachineSemanticKind::WrappingShiftRightU64 => Self::WrappingShiftRightU64,
+            MachineSemanticKind::ExactShiftLeftI64 => Self::ExactShiftLeftI64,
+            MachineSemanticKind::ExactShiftRightI64 => Self::ExactShiftRightI64,
+            MachineSemanticKind::ExactShiftRightU64 => Self::ExactShiftRightU64,
+            MachineSemanticKind::ExactDivideI64 => Self::ExactDivideI64,
+            MachineSemanticKind::ExactRemainderI64 => Self::ExactRemainderI64,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MachineAlternativeKey {
+    pub family: MachineAlternativeFamily,
+    pub variant: u32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MachineAlternativeApplicability {
+    Always,
+    ResultAliasesOperand {
+        result: u16,
+        operand: u16,
+    },
+    ResultAliasesOperandAndDistinctFromOperand {
+        result: u16,
+        aliased_operand: u16,
+        distinct_operand: u16,
+    },
+    ResultAliasesOperands {
+        result: u16,
+        left: u16,
+        right: u16,
+    },
+    ResultDistinctFromOperands {
+        result: u16,
+        left: u16,
+        right: u16,
+    },
+    /// A commutative target form for which either input may fill the restricted
+    /// encoding role, but one named physical view cannot fill that role.
+    AtLeastOneOperandDoesNotAliasView {
+        left: u16,
+        right: u16,
+        excluded_view: RegisterViewId,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineMemoryEffect {
+    /// Reads source and writes destination for the explicit runtime count.
+    CopyBytesV1,
+    /// Initialize an eight-byte structural home and read stdin into its i32 payload.
+    HostedReadByteV1,
+    /// Private-byte initialization and kernel read, with an observable stdout write.
+    HostedWriteByteV1,
+    WritePointerV1,
+    NoneV1,
+    ReadPointerV1,
+    WriteFrameStorageV1,
+    ReadFrameStorageV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineTrapBehavior {
+    ExplicitCrashV1,
+    HostedExitReturnedV1,
+    HostedReadFailureV1,
+    HostedWriteFailureV1,
+    NeverV1,
+    MayArchitecturalFaultV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineBarrier {
+    ExternalEffect,
+    None,
+    ControlFlow,
+    Call,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineCallEffect {
+    NoneV1,
+    DirectInternalNormalReturnV1 {
+        pre_call_stack_alignment: u16,
+    },
+    /// Direct call to an evaluated foreign boundary that returns normally.
+    /// The callee is an imported external authority, not an internal machine;
+    /// the locator itself remains in the boundary's provider custody and is
+    /// never a selected-instruction operand or ambient lookup name.
+    DirectExternalNormalReturnV1 {
+        pre_call_stack_alignment: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineCleanupEffect {
+    NoneV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineSizeKnowledge {
+    ExactBytes(u16),
+    EncoderResolved {
+        minimum_bytes: u16,
+        maximum_bytes: Option<u16>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineLatencyKnowledge {
+    StableBaselineUnavailable,
+}
+
+/// External dependencies and architectural effects of one encoded
+/// alternative. These refine, but never replace, the selected instruction's
+/// semantic/ABI operand custody and complete conservative constraint row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineEncodedEffects {
+    /// Numbered selected operands whose incoming values affect the encoded
+    /// result. Internal reads of values defined earlier in a multi-instruction
+    /// realization are deliberately excluded. Admission requires this list to
+    /// restate the constraint row's read contract exactly; the only surfaces
+    /// that consume fewer operands are a return — whose operand homes are the
+    /// caller's contract, not the encoding's inputs — and an all-aliased
+    /// subtract, whose `x - x` result depends on neither input home.
+    pub external_operand_reads: Vec<u16>,
+    /// Numbered selected operands whose physical homes are written. Admission
+    /// requires this list to equal the constraint row's contracted
+    /// definitions exactly.
+    pub external_operand_writes: Vec<u16>,
+    /// Physical register units the encoding reads beyond its operand list.
+    /// Admission requires this list to equal the constraint row's implicit
+    /// uses exactly, with one named exception: an indirect-register return
+    /// honestly reads only its target register and may narrow to a non-empty
+    /// subset of the row's uses.
+    pub implicit_unit_uses: Vec<register_model::RegisterUnitId>,
+    /// Physical register units the encoding defines beyond its operand list.
+    /// Admission requires this list to equal the constraint row's implicit
+    /// definitions exactly.
+    pub implicit_unit_defs: Vec<register_model::RegisterUnitId>,
+    /// Physical register units the encoding clobbers. Admission requires
+    /// this list to equal the constraint row's declared clobbers exactly.
+    pub implicit_unit_clobbers: Vec<register_model::RegisterUnitId>,
+    pub memory: MachineEncodedMemoryEffect,
+    pub stack: MachineEncodedStackEffect,
+    pub trap: MachineEncodedTrapBehavior,
+    pub control: MachineEncodedControlEffect,
+}
+
+impl MachineEncodedEffects {
+    pub fn fallthrough_v1(
+        external_operand_reads: Vec<u16>,
+        external_operand_writes: Vec<u16>,
+    ) -> Self {
+        Self {
+            external_operand_reads,
+            external_operand_writes,
+            implicit_unit_uses: Vec::new(),
+            implicit_unit_defs: Vec::new(),
+            implicit_unit_clobbers: Vec::new(),
+            memory: MachineEncodedMemoryEffect::NoneV1,
+            stack: MachineEncodedStackEffect::UnchangedV1,
+            trap: MachineEncodedTrapBehavior::NeverV1,
+            control: MachineEncodedControlEffect::FallThroughV1,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineEncodedMemoryEffect {
+    CopyBytesV1 {
+        source_pointer_operand: u16,
+        destination_pointer_operand: u16,
+        count_operand: u16,
+    },
+    /// Zero eight frame bytes, read stdin into payload at offset four, and set the tag at zero.
+    HostedReadByteV1 {
+        stack_pointer: RegisterViewId,
+    },
+    /// Write one frame byte, then let the selected host kernel read it for stdout.
+    HostedWriteByteV1 {
+        stack_pointer: RegisterViewId,
+    },
+    /// Exact footprint is the receiving-validated Store instruction byte size.
+    WritePointerV1 {
+        pointer_operand: u16,
+    },
+    ReadIndexedPointerV1 {
+        pointer_operand: u16,
+        index_operand: u16,
+        byte_count: u16,
+    },
+    NoneV1,
+    ReadPointerV1 {
+        pointer_operand: u16,
+        byte_count: u16,
+    },
+    WriteFrameStorageV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+    ReadFrameStorageV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+    ReadActivationStackV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+    WriteReturnAddressBelowStackPointerV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineEncodedStackEffect {
+    UnchangedV1,
+    PopBytesV1 {
+        stack_pointer: RegisterViewId,
+        byte_count: u16,
+    },
+    CallReturnAddressLifecycleV1 {
+        stack_pointer: RegisterViewId,
+        return_address_byte_count: u16,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineEncodedTrapBehavior {
+    ExplicitCrashV1,
+    HostedExitReturnedV1,
+    /// Architectural faults remain possible; syscall results other than zero or one trap.
+    HostedReadFailureV1,
+    /// Architectural faults remain possible; a nonpositive syscall result traps.
+    HostedWriteFailureV1,
+    NeverV1,
+    MayArchitecturalFaultV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineEncodedControlEffect {
+    CrashV1,
+    HostedExitOrTrapV1,
+    HostedReadReturnOrTrapV1,
+    HostedWriteReturnOrTrapV1,
+    FallThroughV1,
+    ConditionalRelativeBranchV1,
+    ReturnFromActivationStackV1,
+    ReturnIndirectRegisterV1 { target: RegisterViewId },
+    DirectRelativeCallV1,
+    UnconditionalRelativeBranchV1,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineAlternative {
+    pub key: MachineAlternativeKey,
+    pub applicability: MachineAlternativeApplicability,
+    pub size: MachineSizeKnowledge,
+    pub latency: MachineLatencyKnowledge,
+    pub encoded: MachineEncodedEffects,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineEffectDeclaration {
+    pub semantic: MachineSemanticKind,
+    pub constraint: RegisterConstraintKey,
+    /// The declared memory footprint the semantic owns. Admission binds this
+    /// exactly: a footprint class belongs to the semantics whose encoding
+    /// performs it, and every other declaration — including returns and
+    /// calls, whose activation-stack lifecycle lives in the encoded stack
+    /// and call surfaces — declares `NoneV1`.
+    pub memory: MachineMemoryEffect,
+    /// The declared trap surface the semantic owns. Admission binds this
+    /// exactly: hosted trap results name their owning hosted operation,
+    /// only a semantic whose encoded work dereferences memory declares
+    /// `MayArchitecturalFaultV1`, and every other rule declares `NeverV1`
+    /// even when its ISA-specific encoded trap still admits a fault.
+    pub trap: MachineTrapBehavior,
+    pub barrier: MachineBarrier,
+    pub call: MachineCallEffect,
+    /// The cleanup surface the declaration carries. Admission binds it
+    /// fail-closed: the vocabulary has one value today, and a second
+    /// variant must name its owning semantics before a row may carry it.
+    pub cleanup: MachineCleanupEffect,
+    pub alternatives: Vec<MachineAlternative>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MachineEffectCatalog {
+    pub target: NativeTarget,
+    pub register_constraints: RegisterConstraintCatalogIdentity,
+    pub selected_keys: SelectedConstraintKeys,
+    pub declarations: Vec<MachineEffectDeclaration>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedMachineEffectCatalog {
+    catalog: MachineEffectCatalog,
+    identity: MachineEffectCatalogIdentity,
+}
+
+impl ValidatedMachineEffectCatalog {
+    pub const fn catalog(&self) -> &MachineEffectCatalog {
+        &self.catalog
+    }
+
+    pub const fn identity(&self) -> MachineEffectCatalogIdentity {
+        self.identity
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MachineEffectCatalogValidationError {
+    TargetArchitectureMismatch,
+    RegisterConstraintRootMismatch,
+    DuplicateSelectedConstraintKey,
+    NonCanonicalDeclarations,
+    DeclarationRosterMismatch,
+    UnknownConstraint(MachineSemanticKind),
+    NonCanonicalAlternatives(MachineSemanticKind),
+    EmptyAlternatives(MachineSemanticKind),
+    AlternativeFamilyMismatch(MachineSemanticKind),
+    InvalidAlternativeApplicability(MachineSemanticKind),
+    InvalidEncodedEffects(MachineSemanticKind),
+    InvalidSizeKnowledge(MachineSemanticKind),
+    BarrierMismatch(MachineSemanticKind),
+}
+
+impl std::fmt::Display for MachineEffectCatalogValidationError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid machine-effect catalog: {self:?}")
+    }
+}
+
+impl std::error::Error for MachineEffectCatalogValidationError {}
