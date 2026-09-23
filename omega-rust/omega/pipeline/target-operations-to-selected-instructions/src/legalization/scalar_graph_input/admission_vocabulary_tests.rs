@@ -227,8 +227,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::PortWrite { .. }
         | AbstractOperation::SaturatingIntegerMultiply { .. }
         | AbstractOperation::StoreDynamicDescriptor { .. }
-        | AbstractOperation::StoreStructuralField { .. }
-        | AbstractOperation::StructuralLeafCopy { .. } => AdmissionRoute::NamedRejection,
+        | AbstractOperation::StoreStructuralField { .. } => AdmissionRoute::NamedRejection,
     }
 }
 

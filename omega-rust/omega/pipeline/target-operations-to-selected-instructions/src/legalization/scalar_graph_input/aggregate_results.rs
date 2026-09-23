@@ -83,30 +83,38 @@ pub(in crate::legalization) fn sum_type_layout(
         .iter()
         .filter(|declaration| declaration.id == structural_type);
     let declaration = declarations.next().ok_or(invalid.clone())?;
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return Err(invalid);
+    let (common, cases) = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
+        StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
+        _ => return Err(invalid),
     };
     if declarations.next().is_some() {
         return Err(invalid);
     }
+    let shape_of = |field: &terminal_psi::StructuralFieldDeclaration| {
+        crate::structural_inputs::structural_reference_input::field_shape(
+            &field.field_type,
+            &plan.structural_types,
+            &mut Vec::new(),
+        )
+        .ok_or(invalid.clone())
+    };
+    let common = common
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .map(shape_of)
+        .collect::<Result<Vec<_>, _>>()?;
     let payloads = cases
         .iter()
         .map(|case| {
             case.fields
                 .iter()
-                .map(|field| {
-                    if field.relevance.is_erased() {
-                        return Err(invalid.clone());
-                    }
-                    let Some(ScalarType::Integer(integer)) = field.field_type.scalar_type() else {
-                        return Err(invalid.clone());
-                    };
-                    scalar_shape(ScalarType::Integer(integer)).ok_or(invalid.clone())
-                })
+                .filter(|field| !field.relevance.is_erased())
+                .map(shape_of)
                 .collect::<Result<Vec<_>, _>>()
         })
         .collect::<Result<Vec<_>, _>>()?;
-    calling_conventions::evaluate_conventional_sum_layout(&[], &payloads).map_err(|_| invalid)
+    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).map_err(|_| invalid)
 }
 
 pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
@@ -743,6 +751,9 @@ pub(in crate::legalization) fn home_layout(
                 StructuralTypeShape::Record { .. }
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Reference { .. }
+                    | StructuralTypeShape::PrimitiveScalar(_)
+                    | StructuralTypeShape::ByteSequence(_)
+                    | StructuralTypeShape::ElementView { .. }
             )
     }) {
         // Qualifications ride the home origin verbatim as custody evidence;
