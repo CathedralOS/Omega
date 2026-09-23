@@ -232,14 +232,17 @@ pub(in crate::legalization) fn membership_layout(
 
 /// Resolve the copied leaf's byte offset inside the readable root and its
 /// canonical shape. The path's endpoint type must be the declared result type
-/// and the result must keep the copy's unrestricted empty custody.
+/// and the result must keep the copy's unrestricted empty custody. A
+/// `RuntimeIndex` segment additionally yields `(selector, stride)`: the named
+/// dense parameter must exist and carry a `u64` index, mirroring the
+/// indexed-store operand contract.
 pub(in crate::legalization) fn leaf_copy_layout(
     function: &PsiOptimizationFunction,
     source: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
-) -> Result<(u32, calling_conventions::ValueShape), LegalizationError> {
+) -> Result<(u32, calling_conventions::ValueShape, Option<(u32, u32)>), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
@@ -249,10 +252,10 @@ pub(in crate::legalization) fn leaf_copy_layout(
         return Err(invalid);
     }
     let identity = source_identity(function, source)?;
-    let (endpoint, byte_offset) = if path.is_empty() {
-        (identity, 0)
+    let (endpoint, byte_offset, index) = if path.is_empty() {
+        (identity, 0, None)
     } else {
-        crate::structural_inputs::structural_reference_input::project(
+        crate::structural_inputs::structural_reference_input::leaf_copy_projection(
             identity,
             path,
             &plan.structural_types,
@@ -264,12 +267,24 @@ pub(in crate::legalization) fn leaf_copy_layout(
     {
         return Err(invalid);
     }
+    if let Some((selector, _)) = index {
+        let unsigned_64 =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .map_err(|_| invalid.clone())?;
+        let parameter = usize::try_from(selector)
+            .ok()
+            .and_then(|position| function.parameters.get(position))
+            .ok_or(invalid.clone())?;
+        if parameter.scalar_type != semantic_vocabulary::ScalarType::Integer(unsigned_64) {
+            return Err(invalid);
+        }
+    }
     let shape = crate::structural_inputs::structural_reference_input::shape(
         endpoint,
         &plan.structural_types,
     )
     .ok_or(invalid)?;
-    Ok((byte_offset, shape))
+    Ok((byte_offset, shape, index))
 }
 
 pub(super) fn validate(

@@ -3,6 +3,7 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 
@@ -43,7 +44,7 @@ pub(super) fn copy(
             .ok_or_else(invalid)?
             .structural_type
     };
-    let (endpoint, shape, byte_offset) = if path.is_empty() {
+    let (endpoint, shape, byte_offset, index) = if path.is_empty() {
         (
             root_type,
             crate::lowering::structural_layout::structural_shape(
@@ -53,9 +54,10 @@ pub(super) fn copy(
                 &mut BTreeSet::new(),
             )?,
             0,
+            None,
         )
     } else {
-        crate::lowering::structural_layout::resolve_structural_projection_path(
+        crate::lowering::structural_layout::leaf_copy_projection(
             root_type,
             path,
             types,
@@ -66,6 +68,27 @@ pub(super) fn copy(
     if endpoint != result.structural_type {
         return Err(invalid());
     }
+    let index = match index {
+        Some((selector, stride)) => {
+            let parameter = usize::try_from(selector)
+                .ok()
+                .and_then(|position| function.parameters.get(position).copied())
+                .ok_or_else(invalid)?;
+            let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+            if parameter.scalar_type != ScalarType::Integer(unsigned_64) {
+                return Err(invalid());
+            }
+            Some(target_operations::TargetStructuralRuntimeIndex {
+                operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
+                    parameter_index: selector,
+                    source_value: parameter.value,
+                    scalar_type: parameter.scalar_type,
+                },
+                stride,
+            })
+        }
+        None => None,
+    };
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     if result_home.layout.shape() != shape {
         return Err(invalid());
@@ -83,6 +106,7 @@ pub(super) fn copy(
         source: *source,
         path: path.clone(),
         byte_offset,
+        index,
     });
     provenance.operations.push(*psi_operation);
     Ok(())

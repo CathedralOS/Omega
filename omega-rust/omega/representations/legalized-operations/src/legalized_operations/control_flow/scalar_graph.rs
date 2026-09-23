@@ -103,6 +103,7 @@ impl LegalizedScalarInstruction {
                     LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
+                    LegalizedScalarInstructionKind::StructuralLeafCopy { index, .. } => index.is_some_and(|operand| operand.value == value),
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
@@ -111,7 +112,6 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
-                    | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::EstablishElementView { .. }
@@ -266,6 +266,11 @@ pub enum LegalizedScalarInstructionKind {
         path: Vec<terminal_psi::StructuralPathSegment>,
         byte_offset: u32,
         shape: calling_conventions::ValueShape,
+        /// Resolved operand for a `RuntimeIndex` segment, scaling by
+        /// `index_stride` before joining `byte_offset`. `None` for fully
+        /// static projections.
+        index: Option<abstract_operations::AbstractResult>,
+        index_stride: u32,
     },
     /// Exact admitted byte-input boundary and its owned structural result home.
     HostedReadByte {
