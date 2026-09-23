@@ -96,16 +96,20 @@ entry can bind them, and now check; eight EFI programs authored in July sat on
 the host tier from before the cross-target tier existed, and now compile for
 `uefi_x86_64` beside their siblings.
 
-Family five is a library gap. A `Service<X>` field demands a selected Fused
-provider for `X`, and `source/library/std` declares exactly three:
-`ConsoleNativeProvider`, `ProcessExitNativeProvider` and
-`UefiOsHandoffNativeProvider`. The fifteen fixtures declare
-`Service<FilesystemHost>` (9), `Service<TimeHost>` (2), `Service<Gui>` (2)
-and `Service<Input>` (1), for which no provider exists, so the compiler's
-refusal is correct and the fixtures cannot compile until the library supplies
-one. A real program that reaches the filesystem, the clock or a window through
-a service field is blocked the same way; the samples that stall on those
-surfaces stall here.
+Family five is a library gap on the settled carrier. The compiler-known
+runtime carrier is `Binding<R>` ([entry roots](../../spec/build/entry_roots.md));
+the library and corpus still spell it `Service<R>`, and `Binding<...>` still
+names the unrelated foreign locator, which is the migration
+BINDING-CARRIER-NAME owes. A direct entry-receiver field of that carrier
+demands a selected Fused provider for `R`, and `source/library/std` declares
+exactly three: `ConsoleNativeProvider`, `ProcessExitNativeProvider` and
+`UefiOsHandoffNativeProvider`. The fifteen fixtures declare the carrier over
+`FilesystemHost` (9), `TimeHost` (2), `Gui` (2) and `Input` (1) directly on
+`Main`, for which no provider exists, so the compiler's refusal is correct.
+The passing filesystem fixtures reach the host through std's `Filesystem`
+wrapper, whose own carrier field is established by the library rather than
+selected at the entry; a program that takes the raw host directly is blocked
+until a provider is authored.
 
 ## Spec gaps
 
