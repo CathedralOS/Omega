@@ -1,25 +1,10 @@
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn checked(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("window tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("window syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("window symbols");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("window types");
-    lower_typed_trees(typed, &CheckingRequest::settled())
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-}
 
 fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
     interpret_entry(
-        &checked(source),
+        &crate::front_end::checked_program(source),
         BuildMachineEntry::Name("main"),
         &[],
         InterpretOptions::default(),
@@ -105,7 +90,7 @@ fn packed_byte_windows_update_the_existing_backing_storage() {
 #[test]
 fn window_execution_rejects_stale_bounds_instead_of_clamping() {
     use typed_trees::expression::ExpressionNode;
-    let program = checked(
+    let program = crate::front_end::checked_program(
         "machine fill(values: &write [i32; 4]) { values[1..3] = [7, 8]; }
         machine main() -> i32 { let mut values: [i32; 4]; fill(&write values); 7 }",
     );

@@ -3,21 +3,8 @@ use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
 
 fn execute(source: &str) -> checked_interpreter::InterpretOutcome {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("dispatch tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("dispatch syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("dispatch symbols");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("dispatch types");
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let checked = crate::front_end::checked_program_result(source)
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     interpret_entry(
         &checked,
         BuildMachineEntry::Name("main"),

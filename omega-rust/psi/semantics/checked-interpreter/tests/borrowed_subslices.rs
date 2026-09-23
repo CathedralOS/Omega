@@ -1,23 +1,13 @@
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::{InterpretOutcome, interpret_entry};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
     try_checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics}"))
 }
 
 fn try_checked(source: &str) -> Result<checked_trees::CheckedTrees, String> {
-    let tokens = Lexer::new(source).tokenize().expect("subslice tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("subslice syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("subslice symbols");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("subslice types");
-    lower_typed_trees(typed, &CheckingRequest::settled())
+    crate::front_end::checked_program_result(source)
         .map_err(|diagnostics| format!("{diagnostics:#?}"))
 }
 

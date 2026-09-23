@@ -83,6 +83,12 @@
 //! - (A paren'd construction against a payload-less case (`E::A(5)`) still parses as a
 //!   CALL but resolves to nothing; the interpreter declines it.)
 
+// The interpreter tests' front-end pipelines, one file shared with the `suite`
+// integration target; see its module documentation.
+#[cfg(test)]
+#[path = "../tests/support/front_end.rs"]
+mod front_end;
+
 mod build_evaluation_sponsor;
 mod build_time;
 mod evaluation;

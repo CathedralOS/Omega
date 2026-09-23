@@ -1,24 +1,10 @@
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
-
-fn checked_program(source: &str) -> checked_trees::CheckedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked lowering")
-}
 
 #[test]
 fn interpreter_dispatches_fixed_token_through_selected_conformance_row() {
-    let checked = checked_program(
+    let checked = crate::front_end::checked_program(
         r#"
         trait Ranked {
             operator < before(left: Self, right: Self) -> bool;
@@ -68,7 +54,7 @@ fn interpreter_dispatches_fixed_token_through_selected_conformance_row() {
 
 #[test]
 fn interpreter_resolves_crowned_token_to_concrete_declaration() {
-    let checked = checked_program(
+    let checked = crate::front_end::checked_program(
         r#"
         trait Ranked {
             operator < before(left: Self, right: Self) -> bool;

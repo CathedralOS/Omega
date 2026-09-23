@@ -1,12 +1,6 @@
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 #[test]
 fn record_field_countdown_executes_through_renamed_state_arrivals() {
@@ -33,12 +27,8 @@ fn check_countdown(countdown: &str, arguments: &str) {
             transition result == 0 {{ true -> 7 false -> 0 }}
         }}"
     );
-    let tokens = Lexer::new(&source).tokenize().expect("countdown tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("countdown syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("countdown symbols");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("countdown types");
     let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked field arrivals");
+        crate::front_end::checked_program_result(&source).expect("checked field arrivals");
     let outcome = interpret_entry(
         &checked,
         BuildMachineEntry::Name("main"),

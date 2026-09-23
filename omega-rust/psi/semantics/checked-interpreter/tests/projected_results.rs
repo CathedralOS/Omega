@@ -2,24 +2,11 @@ use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::evaluate_const_machine;
 
-fn typed_program(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("projection tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("projection syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("projection symbols");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("projection types")
-}
-
 fn evaluate(source: &str) -> Result<i64, String> {
     // Exercise the shared evaluator independently of Terminal admission. Full
     // checking must keep its result-realization fence until stored references
     // and their source loans have executable Terminal producers and consumers.
-    evaluate_const_machine(&typed_program(source), "main")
+    evaluate_const_machine(&crate::front_end::typed_program(source), "main")
 }
 
 #[test]
@@ -124,11 +111,8 @@ fn checked_stored_reference_argument_mutates_the_original_referent() {
                  source
              }}"
         );
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed_program(&source),
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap_or_else(|diagnostics| panic!("{argument}: {diagnostics:#?}"));
+        let checked = crate::front_end::checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{argument}: {diagnostics:#?}"));
         let outcome = checked_interpreter::interpret_entry(
             &checked,
             BuildMachineEntry::Name("main"),
@@ -165,10 +149,7 @@ fn checked_stored_reference_argument_requires_builtin_indexing() {
                  source
              }}"
         );
-        let result = typed_trees_to_checked_trees::lower_typed_trees(
-            typed_program(&source),
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        );
+        let result = crate::front_end::checked_program_result(&source);
         if admitted {
             let checked =
                 result.unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:#?}"));
@@ -203,11 +184,8 @@ fn checked_stored_reference_argument_composes_with_a_value_call() {
             let observed: i32 = replace(held[0].body);
             transition observed == 29 && source == 29 { true -> 29 false -> 0 }
         }";
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_program(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let checked = crate::front_end::checked_program_result(source)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let outcome = checked_interpreter::interpret_entry(
         &checked,
         BuildMachineEntry::Name("main"),
@@ -247,11 +225,8 @@ fn checked_stored_reference_argument_cannot_widen_enclosing_access() {
              machine replace(value: &mut i32) {{ value = 29; }}
              machine exercise(held: {parameter}) {{ replace({argument}); }}"
         );
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-            typed_program(&source),
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("a selected reference cannot amplify enclosing access");
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("a selected reference cannot amplify enclosing access");
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
@@ -277,11 +252,8 @@ fn checked_stored_reference_argument_retains_referent_type_and_loan() {
     ] {
         let source =
             format!("{declarations} machine replace(value: &mut i32) {{ value = 29; }} {body}");
-        let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
-            typed_program(&source),
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .expect_err("forwarding does not waive type or live-loan checks");
+        let diagnostics = crate::front_end::checked_program_result(&source)
+            .expect_err("forwarding does not waive type or live-loan checks");
         assert!(
             diagnostics
                 .iter()
@@ -373,11 +345,8 @@ fn checked_projected_argument_evaluates_its_selector_once() {
                       let result: i32 = select(values[index(&mut calls)]);
                       transition calls == 1 && result == 7 { true -> 7 false -> 0 }
                   }";
-    let checked = typed_trees_to_checked_trees::lower_typed_trees(
-        typed_program(source),
-        &typed_trees_to_checked_trees::CheckingRequest::settled(),
-    )
-    .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let checked = crate::front_end::checked_program_result(source)
+        .unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
     let outcome = checked_interpreter::interpret_entry(
         &checked,
         BuildMachineEntry::Name("main"),

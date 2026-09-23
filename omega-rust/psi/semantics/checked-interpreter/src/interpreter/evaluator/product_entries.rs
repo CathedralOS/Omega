@@ -352,20 +352,11 @@ mod tests {
     fn product_entry_description_requires_the_slot_compatibility_owner() {
         let source = "machine launch() { }";
         let mut sources = source::SourceMap::default();
-        sources.add("main.omg".into(), source.into());
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                sources: Some(std::sync::Arc::new(sources)),
-                ..syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax)
-            },
-        )
-        .expect("resolved");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typed");
+        // The first registered source owns `SourceId(0)`, the id the anonymous
+        // `parse_syntax_trees` this fixture used to call parses under.
+        let source_id = sources.add("main.omg".into(), source.into()).source_id;
+        let typed =
+            crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)]);
         let mut evaluator = Evaluator::new(&typed, &[]);
         let result = evaluator.issue_product_entry_description(
             b"launch",
