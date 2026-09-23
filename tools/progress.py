@@ -366,6 +366,15 @@ def parse_pass_log(path: Path, tier_of: dict[str, str]) -> dict:
         failed[f"{group}/{fixture}"] = tier.split()[0] if tier else "active"
     families = failure_families(text)
     summary = re.search(r"(\d+) pass canary\(ies\) failed to compile", text)
+    # Under OMEGA_PASS_CANARY_REPORT_COUNTS=1 the umbrella prints how many
+    # selected fixtures it elided because a dedicated exact-native owner
+    # judges them instead. Those never compile here, so they are neither
+    # passes nor failures of this run.
+    coverage = {}
+    line = re.search(r"pass-canary coverage: (.*)", text)
+    if line:
+        for key, value in re.findall(r"([a-z-]+)=(\d+)", line.group(1)):
+            coverage[key] = int(value)
     per_tier: dict[str, dict[str, int]] = {}
     for member, tier in tier_of.items():
         bucket = per_tier.setdefault(tier, {"members": 0, "failed": 0})
@@ -378,6 +387,7 @@ def parse_pass_log(path: Path, tier_of: dict[str, str]) -> dict:
         "per_tier": per_tier,
         "families": families,
         "ran": "test result:" in text,
+        "coverage": coverage,
     }
 
 
@@ -569,6 +579,11 @@ def headline(report: dict) -> dict:
         measured = sum(b["members"] for b in o["pass"]["per_tier"].values())
         failed = sum(b["failed"] for b in o["pass"]["per_tier"].values())
         out["rostered pass fixtures that pass their tier"] = f"{measured - failed}/{measured}"
+        coverage = o["pass"].get("coverage") or {}
+        elided = sum(v for k, v in coverage.items() if k.endswith("-elided"))
+        if coverage:
+            out["fixtures the umbrella elided for a dedicated owner (not read here)"] = str(elided)
+            out["umbrella-compiled fixtures that pass"] = f"{measured - elided - failed}/{measured - elided}"
         native = {t: b for t, b in o["pass"]["per_tier"].items() if t != "checked_only"}
         nm = sum(b["members"] for b in native.values())
         nf = sum(b["failed"] for b in native.values())
