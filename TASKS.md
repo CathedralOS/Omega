@@ -3828,11 +3828,48 @@ syntax and other terminal services are not prerequisites.
   or an exact selected realization. `const_generic_expressions/value.rs`
   and `const_initializers/materialize.rs` still reject computed NaNs at
   their current boundaries. Complete that distinction without choosing an
-  arbitrary payload or inventing new literal syntax. For the remaining
-  selected named-operation customers (classification, conversion, directed
-  rounding and fused operations), first exercise the existing general
-  evaluator; the binary-operator match alone does not establish which calls
-  are unsupported.
+  arbitrary payload or inventing new literal syntax.
+
+  The remaining selected named-operation customers (classification,
+  conversion, directed rounding and fused operations) were measured against
+  the existing general evaluator at `5f46e74ff6`. The binary-operator match
+  was indeed not the boundary:
+
+  - The general evaluator already reaches named calls at float carriers. A
+    bodied `machine scale(value: f32) -> f32 { value * 2.0f32 }` invoked from
+    `const R: f32 = scale(1.5f32);` evaluates, and so do a boolean
+    classification shape and a body-level `a * b + c`.
+  - What stops a DIRECT const call to a named float operation is
+    `constant/initializer_dependencies.rs` `Collector::call`, which admits
+    only `SymbolKind::Machine` and a machine's `State`. The sealed float
+    boundaries are `SymbolKind::Operator`, so the dependency walk rejects
+    with "constant initializer call has no exact ordinary machine
+    declaration" before evaluation is ever attempted.
+  - No float engine is missing. `checked-interpreter`'s
+    `evaluator/expressions_and_value_calls.rs` already computes square root,
+    classify, minimum/maximum and fused multiply-add out of `FloatSemantics`,
+    and `machine_execution/admission.rs` routes const invocations into that
+    same interpreter. The gap is const-initializer call admission, not
+    arithmetic.
+  - `float_operations.omg` contains two `{` characters in the whole file:
+    every named float operation on BOTH sides -- the `F32`/`F64` boundary
+    operators and the `FloatSemantics` rows their `ensures` cite -- is
+    bodyless. So any route ends at the catalog binding, which is
+    **FLOAT-PROVIDERS**' kernel discharge, not this row's.
+  - The fixture that would demonstrate build-time named float operations is
+    RED and off the active pass roster. All four
+    `canary_suite/proof_and_float_suites/float_semantic_twins.rs` tests fail
+    at this commit, and `build_runtime_float_semantics_twins_agree` fails
+    before any float question with "authored Operator declaration selection
+    occurrence 178 remained unresolved after successful checking
+    (CheckedOperator)" at
+    `tests/omega/pass/float/build_runtime_semantics_twins/main.omg` line 91
+    column 28 -- the OUTER `==` of `(nan32 == nan32) == false`, an ordinary
+    `bool` comparison. Reduced probes of `bool == bool`, `(a == b) == false`
+    and the same shapes over `f32` all check cleanly without the library
+    import, so the unresolved occurrence depends on the imported
+    `float_operations` providers rather than on the comparison shape. Repair
+    that finalization gap before reading anything else from this fixture.
 
   Scouting (macw4, no code): named float calls in const-initializer position
   fail earlier than any evaluator boundary —
