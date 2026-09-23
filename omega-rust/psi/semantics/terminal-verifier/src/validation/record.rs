@@ -18,6 +18,29 @@ pub(super) fn constructible_type(module: &TerminalModule, root: StructuralTypeId
 }
 
 fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool) -> bool {
+    fn field_valid(
+        module: &TerminalModule,
+        field: &StructuralFieldDeclaration,
+        active: &mut Vec<StructuralTypeId>,
+        complete: &mut BTreeSet<StructuralTypeId>,
+        references: bool,
+    ) -> bool {
+        // An erased member carries its declaration only: proof material
+        // contributes no runtime field and needs no carrier recursion.
+        if field.relevance.is_erased()
+            && matches!(field.field_type, StructuralFieldType::Erased { .. })
+        {
+            return true;
+        }
+        field.relevance == terminal_psi::BindingRelevance::Relevant
+            && match field.field_type {
+                StructuralFieldType::Structural(child) => {
+                    (references && super::references::referent(module, child).is_some())
+                        || visit(module, child, active, complete, references)
+                }
+                _ => field.field_type.scalar_type().is_some(),
+            }
+    }
     fn visit(
         module: &TerminalModule,
         root: StructuralTypeId,
@@ -41,27 +64,38 @@ fn record_type(module: &TerminalModule, root: StructuralTypeId, references: bool
         if candidates.next().is_some() {
             return false;
         }
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
-            return false;
-        };
         active.push(root);
-        let valid = fields.iter().all(|field| {
-            // An erased member carries its declaration only: proof material
-            // contributes no runtime field and needs no carrier recursion.
-            if field.relevance.is_erased()
-                && matches!(field.field_type, StructuralFieldType::Erased { .. })
-            {
-                return true;
+        // A plain or constructible owned type keeps owned storage at every
+        // leaf: records and mixed sums carry their fields, sums carry their
+        // case payloads, and a fixed array is its element leaf repeated.
+        // Borrowed carriers (references, byte sequences, element views) stay
+        // rejected — owning or returning them rides the borrowing lattice,
+        // not this one.
+        let valid = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields
+                .iter()
+                .all(|field| field_valid(module, field, active, complete, references)),
+            StructuralTypeShape::Mixed { fields, cases } => {
+                fields
+                    .iter()
+                    .all(|field| field_valid(module, field, active, complete, references))
+                    && cases.iter().all(|case| {
+                        case.fields
+                            .iter()
+                            .all(|field| field_valid(module, field, active, complete, references))
+                    })
             }
-            field.relevance == terminal_psi::BindingRelevance::Relevant
-                && match field.field_type {
-                    StructuralFieldType::Structural(child) => {
-                        (references && super::references::referent(module, child).is_some())
-                            || visit(module, child, active, complete, references)
-                    }
-                    _ => field.field_type.scalar_type().is_some(),
-                }
-        });
+            StructuralTypeShape::Sum { cases } => cases.iter().all(|case| {
+                case.fields
+                    .iter()
+                    .all(|field| field_valid(module, field, active, complete, references))
+            }),
+            StructuralTypeShape::FixedArray { element, .. } => {
+                visit(module, *element, active, complete, references)
+            }
+            StructuralTypeShape::PrimitiveScalar(_) => true,
+            _ => false,
+        };
         active.pop();
         if valid {
             complete.insert(root);

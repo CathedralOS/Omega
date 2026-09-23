@@ -105,6 +105,16 @@ pub enum CheckedStructuralValueKind {
     FixedArray {
         elements: Vec<CheckedStructuralValueHandle>,
     },
+    /// An omitted record field's zero value: a `[scalar; N]` leaf
+    /// established all-zero — the only omitted-runtime-field carrier the
+    /// zero-defaulting rule admits today. `element` is the planner's
+    /// literal-zero computation in the declared element carrier; the single
+    /// computation supplies every leaf, so `element_count` is the declared
+    /// flattened leaf count of the enclosing array.
+    ZeroedScalarArray {
+        element: CheckedScalarComputationHandle,
+        element_count: u64,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
