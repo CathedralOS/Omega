@@ -340,6 +340,6 @@ pub(crate) fn nested_structural_call_return_type(
             || (ordinary
                 && program.type_multiplicity(return_type)
                     == language_semantics::Multiplicity::Unrestricted
-                && validation::is_closed_primitive_array_type(program, return_type))))
+                && validation::has_plain_owned_contents(program, return_type))))
     .then_some(return_type)
 }
