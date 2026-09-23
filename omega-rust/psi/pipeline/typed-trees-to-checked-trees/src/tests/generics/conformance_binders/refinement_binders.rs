@@ -357,8 +357,7 @@ fn a_targeted_clause_naming_overloads_is_ambiguous() {
         }
     "#;
     let diagnostics = crate::tests::front_end::typed_program_result(source)
-        .err()
-        .expect("an ambiguous targeted clause rejects at typing");
+        .expect_err("an ambiguous targeted clause rejects at typing");
     assert!(
         diagnostics.iter().any(|diagnostic| {
             diagnostic

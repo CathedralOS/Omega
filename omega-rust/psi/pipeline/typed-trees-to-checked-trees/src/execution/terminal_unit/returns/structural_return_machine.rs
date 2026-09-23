@@ -199,7 +199,7 @@ pub(crate) fn build_structural_return_machine(
     {
         return None;
     }
-    let Some((trivial_affine_discards, residual_affine_discards, _)) = return_unit_affine_discards(
+    let (trivial_affine_discards, residual_affine_discards, _) = return_unit_affine_discards(
         program,
         facts,
         machine.symbol,
@@ -219,9 +219,7 @@ pub(crate) fn build_structural_return_machine(
             })
             .collect::<Vec<_>>(),
         &shapes.types,
-    ) else {
-        return None;
-    };
+    )?;
     let expected_discards = (1..structural_parameters.len())
         .rev()
         .map(|position| u32::try_from(position).ok())

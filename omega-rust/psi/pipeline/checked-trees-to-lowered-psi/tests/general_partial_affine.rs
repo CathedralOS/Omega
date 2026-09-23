@@ -316,7 +316,7 @@ fn assert_partial_exit(
         residuals
     );
     assert_eq!(
-        trivial_affine_discards.iter().copied().collect::<Vec<_>>(),
+        trivial_affine_discards.to_vec(),
         trivial_parameters
             .iter()
             .map(|index| parameters[*index].place)
