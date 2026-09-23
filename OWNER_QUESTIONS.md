@@ -338,6 +338,45 @@ it instantiates. A reviewer verifies those citations before the framing.
    owner-blocked; ordinary scripting, provider adapters, and independent Psi
    component work proceed under their settled contracts.
 
+10. **What portable identity does a root compiled with no package declaration
+    carry, and may two such owners declare the same carrier-qualified domain
+    path?** (named decision: `unmanaged-root-package-identity`).
+    [Build declarations and package
+    identity](wiki/spec/build/declarations.md) defines `PackageKey` as
+    "Declared name and canonical source lineage" and `PackageInstance` as
+    "Key at an exact immutable source resolution" -- both presuppose a
+    DECLARED package, and neither that file nor
+    [package sources](wiki/spec/packages/sources.md) says what identity a
+    root without a package declaration carries. The word "unmanaged" does not
+    appear anywhere under `wiki/spec/`.
+    [Domains](wiki/spec/language/domains.md) states the collision rule in
+    terms of an owner it assumes exists: "distinct visible declarations
+    competing for the same carrier-qualified case, domain, or machine name
+    reject without inherent-declaration or import-order priority", and
+    "the exact domain owner and carrier owner remain independent".
+
+    The consequence is user-facing, not a corpus artifact. An ordinary
+    program compiled without a package declaration cannot declare its own
+    `pub domain [u8; N]::Utf8`: it and the toolchain-injected
+    `source/library/std/calling.omg` declaration both carry
+    `package_identity: None`, so `lowering/domain.rs` mints the same legacy
+    key `[u8; N]::Utf8` for both owners and `domains.rs` rejects the share as
+    a cross-owner collision. Every un-packaged program that wants a byte-array
+    Utf8 domain of its own meets this, whether or not any fixture does.
+
+    The implementation currently keeps the conservative refusal, which is the
+    right default while the rule is unstated. Two obvious identities are
+    already ruled out as non-portable -- host paths and source-order numbers --
+    and no admissible third is named, which is what makes this an owner
+    decision rather than an engineering one.
+
+    Answering it settles whether an unmanaged root receives a derived portable
+    identity (and from what: declared root name, content digest, or an
+    explicit authored key), or whether equal carrier-qualified domain paths
+    across unmanaged owners stay forbidden and the toolchain library's
+    declarations are exempted instead. Until then MODULE-NAMESPACE-RESOLUTION
+    keeps `domains.rs`'s independent collision rejection.
+
 ## Squalr scalar-scan port: surface-driven shape choices
 
 The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced

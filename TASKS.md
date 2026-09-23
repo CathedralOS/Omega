@@ -2386,7 +2386,15 @@ syntax and other terminal services are not prerequisites.
     `module_namespace_residuals` contains resolver-only operator/case tests;
     extend those customers through their remaining consumers rather than adding
     another namespace recognizer.
-  - Supply portable package identity for unmanaged roots before permitting
+  - **Design-blocked** on `unmanaged-root-package-identity`
+    (OWNER_QUESTIONS.md question 10): the spec never says what identity a root
+    compiled with no package declaration carries. `declarations.md` defines
+    `PackageKey`/`PackageInstance` only for a DECLARED package, "unmanaged"
+    appears nowhere under `wiki/spec/`, and `domains.md` states the collision
+    rule in terms of an owner it assumes exists. This bullet already rules out
+    the two obvious identities without naming an admissible third, which is
+    the owner decision rather than an engineering gap.
+    Supply portable package identity for unmanaged roots before permitting
     equal module/domain paths across them. Keep `domains.rs`'s independent
     collision rejection until then; host paths and source-order numbers are
     not portable identity.
