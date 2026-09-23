@@ -2325,6 +2325,7 @@ fn consume_value_places(
             | checked_trees::CheckedStructuralValueKind::Call { .. }
             | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+            | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }
     }

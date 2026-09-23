@@ -381,6 +381,44 @@ pub(crate) fn validate(
                     &argument,
                 )?;
             }
+            CheckedStructuralValueKind::ZeroedScalarArray {
+                element,
+                element_count,
+            } => {
+                // A synthesized zero field has no authored value to replay —
+                // its whole contract is the declared `[scalar; N]` carrier
+                // and the planner's literal-zero element in the element's
+                // own primitive.
+                let expected = validation::unwrapped_type_reference(&checked.typed, reference)
+                    .ok_or(LoweringError::Unsupported(
+                        "zeroed scalar array carrier missing",
+                    ))?;
+                let checked_trees::types::TypeReferenceNode::FixedArray {
+                    element_type,
+                    length: checked_trees::types::FixedArrayLength::Literal(length),
+                } = checked.type_reference_table.type_reference(expected)
+                else {
+                    return unsupported("zeroed scalar array substituted its carrier");
+                };
+                if u64::try_from(*length).ok() != Some(element_count) {
+                    return unsupported("zeroed scalar array changed its leaf count");
+                }
+                let Some(primitive) = checked.primitive_type_reference(*element_type) else {
+                    return unsupported("zeroed scalar array element is not a primitive");
+                };
+                let computation = checked.facts.values.scalar_computations.nodes.get(element);
+                let checked_trees::CheckedScalarComputationKind::Value(
+                    checked_trees::CheckedScalarExpression::IntegerLiteral { literal },
+                ) = &computation.kind
+                else {
+                    return unsupported("zeroed scalar array element is not a literal zero");
+                };
+                if computation.primitive_type != primitive
+                    || !literal.value_bignum().is_some_and(|value| value.is_zero())
+                {
+                    return unsupported("zeroed scalar array changed its zero leaf");
+                }
+            }
             CheckedStructuralValueKind::Reference { source: argument } => {
                 if argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow {
                     // A `&T` selection leaf replays its authored `&place`
@@ -455,25 +493,76 @@ pub(crate) fn validate(
                     .record_fields
                     .span(fields)
                     .ok_or(LoweringError::Unsupported("record field span is stale"))?;
-                if authored.len() != declared.len() || retained.len() != authored.len() {
+                // The retained roster covers every declared member exactly
+                // once; authored initializers name a subset, and each
+                // omitted member arrives as a synthesized structural field.
+                if retained.len() != declared.len()
+                    || authored.len() > declared.len()
+                    || authored.iter().any(|initializer| {
+                        declared
+                            .iter()
+                            .all(|member| member.symbol != initializer.field_symbol)
+                    })
+                {
                     return unsupported("record establishment changed its complete field roster");
                 }
                 let mut selected = Vec::new();
-                for (ordinal, (field, initializer)) in retained.iter().zip(authored).enumerate() {
+                for (ordinal, field) in retained.iter().enumerate() {
                     let declaration = declared
                         .iter()
                         .find(|item| item.symbol == field.field)
                         .ok_or(LoweringError::Unsupported("record field has another owner"))?;
-                    if selected.contains(&field.field)
-                        || field.field != initializer.field_symbol
-                        || field.expression != initializer.value
+                    if selected.contains(&field.field) {
+                        return unsupported(
+                            "record establishment reordered or substituted a field",
+                        );
+                    }
+                    selected.push(field.field);
+                    let Some(initializer) = authored
+                        .iter()
+                        .find(|initializer| initializer.field_symbol == field.field)
+                    else {
+                        // Omitted members are the planner's zero synthesis:
+                        // only a structural zeroed-leaf value qualifies, and
+                        // its own arm replays the declared carrier and the
+                        // literal-zero element.
+                        let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) =
+                            field.value
+                        else {
+                            return unsupported("record establishment omitted a scalar member");
+                        };
+                        if !plans.nodes.is_valid(value)
+                            || !matches!(
+                                plans.nodes.get(value).kind,
+                                CheckedStructuralValueKind::ZeroedScalarArray { .. }
+                            )
+                        {
+                            return unsupported(
+                                "record establishment omitted a non-zeroable member",
+                            );
+                        }
+                        operand_roles.push(CheckedScalarExpressionRole::RecordField {
+                            expression,
+                            field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                                LoweringError::Unsupported("record field ordinal overflow")
+                            })?,
+                        });
+                        pending.push((
+                            value,
+                            field.expression,
+                            declaration.type_reference,
+                            source_arm,
+                            None,
+                        ));
+                        continue;
+                    };
+                    if field.expression != initializer.value
                         || field.type_reference != declaration.type_reference
                     {
                         return unsupported(
                             "record establishment reordered or substituted a field",
                         );
                     }
-                    selected.push(field.field);
                     match field.value {
                         checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
                             let role = CheckedScalarExpressionRole::RecordField {
