@@ -22,6 +22,7 @@ pub(in crate::execution::terminal_unit) fn exact_false_fallback(
             };
             boolean_literal_fallback(program, true_expression, expression)
                 || builtin_complement_guard(program, facts, true_expression, expression)
+                || closed_case_complement(program, true_expression, expression)
         }
     }
 }
@@ -64,6 +65,58 @@ fn boolean_label(
         return Some((binary.right, *value));
     }
     None
+}
+
+/// A case test pair `subject == A` / `subject == B` over one closed sum is
+/// the authored two-variant split: exactly one variant holds at a time, so
+/// the second arm fires exactly where the first fails. Only a two-variant
+/// roster makes an authored pair exhaustive — a three-or-more variant sum
+/// leaves cases the pair never names, and a repeated case splits nothing.
+/// The subject is re-read for the second guard, so it must evaluate to the
+/// value the first guard observed, exactly like the builtin complement.
+fn closed_case_complement(
+    program: &TypedTrees,
+    true_expression: typed_trees::expression::ExpressionHandle,
+    false_expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    let (Some((true_subject, true_case)), Some((false_subject, false_case))) = (
+        crate::proof::exact_outcome_case_test(program, true_expression),
+        crate::proof::exact_outcome_case_test(program, false_expression),
+    ) else {
+        return false;
+    };
+    if true_case == false_case
+        || !program
+            .expression_table
+            .expressions_structurally_equal(true_subject, false_subject)
+        || !reevaluation_stable(program, true_subject)
+    {
+        return false;
+    }
+    let variant_owner = |case| {
+        program.data_definitions().iter().find(|definition| {
+            program.data_members(definition).iter().any(|member| {
+                matches!(
+                    member,
+                    typed_trees::data::DataMember::Variant(variant)
+                        if variant.symbol == case
+                )
+            })
+        })
+    };
+    let Some(owner) = variant_owner(true_case) else {
+        return false;
+    };
+    let Some(other) = variant_owner(false_case) else {
+        return false;
+    };
+    if owner.symbol != other.symbol {
+        return false;
+    }
+    program.data_members(owner).iter().all(|member| {
+        matches!(member, typed_trees::data::DataMember::Variant(variant)
+            if variant.symbol == true_case || variant.symbol == false_case)
+    })
 }
 
 /// Builtin `L == R` paired with `L != R` over identical operands is the

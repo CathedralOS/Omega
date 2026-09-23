@@ -14,6 +14,7 @@ mod call_result_field_stores;
 mod callable_composed;
 pub(crate) mod calls;
 mod cleanup;
+mod closed_case_pairs;
 mod composed_call_arguments;
 mod composed_claims;
 mod composed_internal_calls;
