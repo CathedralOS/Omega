@@ -79,9 +79,24 @@ pub(super) fn validate_bindings(
         || edge.target_state != authored_target
         || transition.exit != TransitionExit::Ordinary
         || transition.continuation.is_valid()
-        || !edge.trivial_affine_discard_parameter_positions.is_empty()
     {
         return unsupported("Unit graph successor disagrees with source control");
+    }
+    // Every edge's owned-parameter discards are exactly those its checked
+    // cleanup evidence names; an edge without evidence discards none.
+    let evidence = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_edge(plan.machine, state.state, edge.statement_ordinal)
+        .map(|cleanup| {
+            cleanup
+                .trivial_affine_discard_parameter_positions
+                .as_slice()
+        })
+        .unwrap_or_default();
+    if evidence != edge.trivial_affine_discard_parameter_positions.as_slice() {
+        return unsupported("Unit graph successor discards disagree with cleanup evidence");
     }
     let target = plan
         .states
@@ -547,9 +562,8 @@ fn validate_cleanup(
             "Unit graph edge cleanup evidence missing",
         ))?;
     if cleanup.target_state != edge.target_state
-        || !cleanup
-            .trivial_affine_discard_parameter_positions
-            .is_empty()
+        || cleanup.trivial_affine_discard_parameter_positions
+            != edge.trivial_affine_discard_parameter_positions
     {
         return unsupported("Unit graph edge cleanup evidence disagrees");
     }

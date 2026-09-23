@@ -851,8 +851,9 @@ fn an_inline_case_argument_on_an_attached_call_plans() {
     // machine through a nested receiver with an inline case literal:
     // `self.lexer.reject(LexDiagnosticCode::SourceCapacityExceeded, l, l)`.
     // The construction is established as a state-local operand before the
-    // call; unrestricted (copy) case types only — an affine literal still has
-    // no permission events to carry it and stays omitted.
+    // call and transferred whole into it, for an unrestricted (copy) case type
+    // and for an affine one alike: the consuming call's permission event
+    // carries the fresh value, as it does an anonymous call result.
     let checked = crate::front_end::checked_program(
         r#"
         data Code [copy] { case Exceeded; case Other; }
@@ -899,28 +900,9 @@ fn an_inline_case_argument_on_an_attached_call_plans() {
         "Main::pings_inline",
         "Main::plain_scalar_siblings",
         "Main::bound_affine",
+        "Main::inline_affine",
     ] {
         checked_trees_to_lowered_psi::lower_machine(&checked, TerminalMachineSelection::Name(name))
             .unwrap_or_else(|error| panic!("{name}: {error:?}"));
     }
-    let error = checked_trees_to_lowered_psi::lower_machine(
-        &checked,
-        TerminalMachineSelection::Name("Main::inline_affine"),
-    )
-    .expect_err("an affine literal has no permission events to carry it");
-    let checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-        machine,
-        omission,
-        ..
-    } = error
-    else {
-        panic!("unexpected error: {error:?}");
-    };
-    assert_eq!(machine, "Main::inline_affine");
-    assert_eq!(
-        omission.as_deref(),
-        Some(
-            "`Main::inline_affine` has no admitted body (local construction stopped at statement sequence: call: call operation, statement 0)"
-        )
-    );
 }

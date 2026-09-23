@@ -804,3 +804,40 @@ fn record_patterns_and_projected_record_replacement_lower_in_either_body_route()
             .expect("the field stores and the pattern's reads lower");
     }
 }
+
+/// A record literal passed by value is a fresh owned temporary the call
+/// consumes whole, established at the call statement like a `let`
+/// initializer; and a guarded state graph whose edges do not forward an owned
+/// parameter disposes it on each edge. Both compose with a record pattern in
+/// arm position and with a plain callee.
+#[test]
+fn constructed_arguments_and_owned_edge_discards_lower() {
+    let guarded = "machine Main::judge(&mut self, p: Point) {
+             transition p {
+                 Point { x, y as vertical } if x == 30 -> good()
+                 _ -> bad()
+             }
+             state good(&mut self) { self.out = 70; }
+             state bad(&mut self) { self.out = 1; }
+         }";
+    let plain = "machine Main::judge(&mut self, p: Point) { self.out = p.x; }";
+    for (caller, callee) in [
+        ("self.judge(Point { x: 30, y: 40 });", guarded),
+        (
+            "let p: Point = Point { x: 30, y: 40 }; self.judge(p);",
+            guarded,
+        ),
+        ("self.judge(Point { x: 30, y: 40 });", plain),
+    ] {
+        let checked = crate::front_end::checked_program(&format!(
+            "data Point {{ x: i32 [0..=100]; y: i32 [0..=100]; }}
+             data Main {{ out: i32 [0..=100]; }}
+             machine Main::main(&mut self) {{ {caller} }}
+             {callee}"
+        ));
+        for name in ["Main::main", "Main::judge"] {
+            lower_machine(&checked, TerminalMachineSelection::Name(name))
+                .unwrap_or_else(|error| panic!("{name} for `{caller}`: {error:?}"));
+        }
+    }
+}

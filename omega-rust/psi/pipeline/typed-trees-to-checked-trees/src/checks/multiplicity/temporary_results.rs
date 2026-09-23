@@ -93,6 +93,102 @@ pub(super) fn append_whole_affine_transfer(
     }
 }
 
+/// An affine record or case construction passed by value is a fresh owned
+/// temporary the call consumes whole, like an anonymous affine call result.
+/// Move discovery records no place for it (it reads no existing storage), so
+/// its transfer into the owned formal is produced here from the call's own
+/// arguments, unless an earlier producer already recorded the same transfer.
+/// An unrestricted construction is copied, not moved, and needs no transfer;
+/// linear constructions keep their claim rules.
+pub(super) fn append_constructed_argument_transfers(
+    program: &typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    calls: &[checked_trees::FlowCallFact],
+    permission_events: &mut Vec<FlowPermissionEventFact>,
+) {
+    for call in calls
+        .iter()
+        .filter(|call| call.statement_index == statement_index)
+    {
+        let Some(site) = crate::semantic::calls::find_call_site(
+            program,
+            machine_symbol,
+            state_symbol,
+            statement_index,
+            call.call_ordinal,
+        ) else {
+            continue;
+        };
+        let Some(parameters) =
+            crate::semantic::calls::call_target_parameters(program, call.target_symbol)
+        else {
+            continue;
+        };
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
+        let explicit_self = arguments.len()
+            > parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .count();
+        let explicit_parameters = parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self || explicit_self);
+        for (parameter, argument) in explicit_parameters.zip(arguments.iter()) {
+            let typed_trees::expression::ExpressionNode::StructLiteral(literal) =
+                program.expression_table.expression(*argument)
+            else {
+                continue;
+            };
+            let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == literal.type_symbol)
+            else {
+                continue;
+            };
+            let multiplicity = data.properties.multiplicity;
+            let source = language_semantics::PermissionEventSource::Call {
+                statement_index,
+                call_ordinal: call.call_ordinal,
+                target_symbol: call.target_symbol,
+            };
+            let root = facts::PlaceRoot::Expression(*argument);
+            if permission_events
+                .iter()
+                .any(|event| event.source == source && event.root == root)
+                || parameter.is_self
+                || parameter.is_const
+                || parameter.relevance.is_erased()
+                || multiplicity != Multiplicity::Affine
+                || type_multiplicity(program, parameter.type_reference) != multiplicity
+                || matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    TypeReferenceNode::Reference { .. }
+                )
+            {
+                continue;
+            }
+            permission_events.push(FlowPermissionEventFact {
+                machine_symbol,
+                state_symbol,
+                source,
+                kind: PermissionEventKind::Transfer,
+                multiplicity,
+                access: PermissionAccess::Owned,
+                claim_identity: PermissionClaimIdentity::Unknown,
+                provenance: PermissionProvenance::Unknown,
+                root,
+                segments: HandleSpan::empty(),
+                obligation_live: false,
+            });
+        }
+    }
+}
+
 pub(super) fn check_unselected_claims(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,

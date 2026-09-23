@@ -307,9 +307,14 @@ the complete product bar; focused successes below do not establish that baseline
   `filesystem/runtime_local_host_result_dispatch_exit` reaches Terminal
   production (`Unit graph reordered a source effect`); seven multi-target
   members stop at their own Unit-plan omissions.
-  `selected_program_entry_service_requirements` walks only direct receiver
-  fields while establishment's `collect_service_fields` walks nested records,
-  so entries holding a service inside a nested record get no nomination.
+  Entry service nomination now runs establishment's nested-record walk
+  (`selected_dispatch::program_entry_service_requirements`, `0ec519c5bb`), so
+  `fs: Filesystem`/`time: Time` receivers nominate their host bindings in
+  review and in the harness; the 19 wrapper-only fixtures still stop earlier
+  on macOS (7 at `rejoins 0 Terminal attachment identities`,
+  `filesystem/wrapper_open_with_exit` at `cannot transfer a non-copy value out
+  of borrowed storage`). Targetless `compile_reviewed_repository_fixture(..,
+  None)` has no selected entry and nominates no entry services.
 
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
@@ -3356,6 +3361,28 @@ syntax and other terminal services are not prerequisites.
   `exact_case_reference_owner` refuses one-segment references, and widening
   it changes what a bare name means to proof narrowing and interpreter
   equality.
+  Record and case literals passed by value now compose as fresh owned
+  operands, and guarded state graphs dispose owned parameters on their edges,
+  so the three arm-pattern canaries plan and lower past their callers: the
+  two case-payload members (`control_flow/{arm_pattern_rest_optout_exit,
+  case_pattern_rename_waive_exit}`) stop at `computed case field requires its
+  exact plain scalar type`, because their `i32 [0..=50]` payload fields are
+  `BoundedInteger` in Terminal and case establishment into one needs a range
+  obligation this route does not produce;
+  `control_flow/record_pattern_arm_rename_guard_exit` stops at
+  `OperationProofUnavailable` for its guard's sum of two unconstrained `i32`
+  fields.
+  Unread-`&mut self` roster defect, probed 2026-09-23: replacing the count
+  comparison in the four store planners (`primitive_store.rs`,
+  `structural_scalar_store/mod.rs`) with a position check that admits an
+  omitted reference `self` plans `Random::next_u32(&mut self, state: &mut
+  RandomState)`, but lowering then refuses it ("structural scalar store names
+  an unknown parameter"): `ordinary_machine/stores.rs`,
+  `state_graph/body.rs` and `emission/structural_scalar_store.rs` compare the
+  checked authored position with Terminal's dense
+  `StructuralParameterDeclaration.position`, which agree only while `self`
+  is present. Needs one authored-to-dense map in lowering; no corpus member's
+  first failure moves with it yet (WIP diff kept outside the repo).
   The 21-fixture `record literal field` bucket was a trace artifact: the
   four store routes in `structural_scalar_store` each name their phases and
   the last route's precondition label overwrote the decisive one; the trace

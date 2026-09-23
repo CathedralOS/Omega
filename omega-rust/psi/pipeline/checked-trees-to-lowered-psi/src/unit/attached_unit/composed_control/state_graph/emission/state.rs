@@ -362,6 +362,18 @@ impl StateGraphEmission<'_, '_> {
                     &evaluation,
                 )?
             };
+            // Owned parameters the target does not receive die on this edge,
+            // at whatever place their value occupies when control leaves.
+            for position in &edge.trivial_affine_discard_parameter_positions {
+                let (_, parameter) = evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|(source_position, _)| source_position == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "Unit graph edge discards a parameter its state does not declare",
+                    ))?;
+                trivial_affine_discards.push(evaluation.current_structural_place(parameter.place));
+            }
             if case_edge {
                 let consumed = prepared_cases
                     .as_ref()

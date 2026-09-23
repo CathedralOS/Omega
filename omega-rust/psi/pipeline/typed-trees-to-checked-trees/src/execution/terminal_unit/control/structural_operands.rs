@@ -20,8 +20,8 @@ use crate::execution::terminal_unit::control::call_results::checked_structural_r
 pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     Call(&'facts checked_trees::FlowCallFact),
     Array(crate::values::CallArrayConstruction),
-    /// An inline case construction retained by the checker as a structural
-    /// value rooted at the authored argument expression. The statement
+    /// An inline case or record construction retained by the checker as a
+    /// structural value rooted at the authored argument expression. The statement
     /// sequence establishes it as a state-local operand before the
     /// consuming call, giving the argument the same binding-ordinal source
     /// an anonymous call result carries.
@@ -31,10 +31,10 @@ pub(in crate::execution::terminal_unit) enum Operand<'facts> {
     },
 }
 
-/// An argument position carries an established case operand only when the
-/// checker retained a `Case` value rooted exactly at that expression for this
-/// statement and machine, typed to the matched formal.
-fn case_value_root<'a>(
+/// An argument position carries an established constructed operand only
+/// when the checker retained a `Case` or `Record` value rooted exactly at that
+/// expression for this statement and machine, typed to the matched formal.
+fn constructed_value_root<'a>(
     program: &TypedTrees,
     facts: &'a CheckFacts,
     machine: SymbolHandle,
@@ -60,6 +60,7 @@ fn case_value_root<'a>(
         || !matches!(
             facts.values.structural_values.nodes.get(root.root).kind,
             checked_trees::CheckedStructuralValueKind::Case(_)
+                | checked_trees::CheckedStructuralValueKind::Record { .. }
         )
     {
         return None;
@@ -208,7 +209,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
         state,
         call.statement_index,
     );
-    let has_case_operands = crate::semantic::calls::find_call_site(
+    let has_constructed_operands = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -236,7 +237,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
                 .iter()
                 .zip(parameters.iter())
                 .any(|(argument, parameter)| {
-                    case_value_root(
+                    constructed_value_root(
                         program,
                         facts,
                         machine.symbol,
@@ -250,7 +251,7 @@ pub(in crate::execution::terminal_unit) fn operations_for_call<'a>(
     })
     .unwrap_or(false);
     if arrays.is_empty()
-        && !has_case_operands
+        && !has_constructed_operands
         && !calls.iter().any(|nested| {
             nested.statement_index == call.statement_index
                 && nested.call_ordinal != 0
@@ -338,7 +339,7 @@ fn collect<'a>(
             output.push(Operand::Array(*array));
             continue;
         }
-        if let Some(root) = case_value_root(
+        if let Some(root) = constructed_value_root(
             program,
             facts,
             machine.symbol,

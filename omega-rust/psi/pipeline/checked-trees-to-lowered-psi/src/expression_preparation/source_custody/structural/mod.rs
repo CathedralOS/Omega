@@ -887,6 +887,12 @@ pub(crate) fn operand_source(
         Some(StatementNode::LocalData(local)) => vec![local.initial_value],
         Some(StatementNode::Assignment(assignment)) => vec![assignment.value],
         Some(StatementNode::Expression(expression)) => vec![*expression],
+        // A call statement's operands are its authored arguments; a
+        // construction passed by value is evaluated there.
+        Some(StatementNode::Call(call)) => checked
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec(),
         Some(StatementNode::Transition(transition))
             if transition.exit == checked_trees::statement::TransitionExit::Ordinary =>
         {
