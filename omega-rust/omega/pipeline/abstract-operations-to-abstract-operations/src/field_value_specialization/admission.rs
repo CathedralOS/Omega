@@ -1,16 +1,15 @@
-//! Optimizer module role: admission leaf. Proven field-value predicates the
-//! producer enumeration and the independent validator share.
+//! Optimizer module role: admission leaf. Proven field-value predicates behind the plan.
 //!
-//! Proposal decides *which* field observations enter a plan; validation must
-//! never rerun that decision through the producer's own plan — a matcher
-//! cannot attest to itself. Both sides share only these predicates: the
-//! place's declaration/type/proof evidence and the per-node admissibility
-//! that resolves one field observation's proven stored value.
+//! The plan is built from two predicates only: the place's
+//! declaration/type/proof evidence and the per-node admissibility that
+//! resolves one field observation's proven stored value. The independent
+//! validator in `optimization-unit-semantics` re-derives the same predicates
+//! from the candidate's rows rather than trusting this enumeration — a
+//! matcher cannot attest to itself.
 
 use super::{
-    FieldValueResolution, FoldedFieldValue, NodeLocation, O, OperationId, PlaceId,
-    PsiOptimizationFunction, PsiOptimizationUnit, ResolvedFieldValue, ScalarType,
-    StructuralPlaceKind,
+    FieldValueResolution, FieldValueRow, FoldedFieldValue, NodeLocation, O, OperationId, PlaceId,
+    PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
 use crate::representation_specialization::admission::declared_structural_type;
 use optimization_unit::{
@@ -198,7 +197,7 @@ fn block_dominators(
 /// `BooleanStructuralField` result, `Integer` for an `IntegerStructuralField`
 /// result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ObservedFieldKind {
+enum ObservedFieldKind {
     Boolean,
     Integer,
 }
@@ -208,9 +207,9 @@ pub(super) enum ObservedFieldKind {
 /// initializer folds to a literal or forwards as a substitution — `None` for
 /// a declared singleton bound.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ProvenFieldValue {
-    pub(super) producer: Option<OperationId>,
-    pub(super) resolution: FieldValueResolution,
+struct ProvenFieldValue {
+    producer: Option<OperationId>,
+    resolution: FieldValueResolution,
 }
 
 /// The admissibility of one node under `evidence`: a `BooleanStructuralField`
@@ -224,7 +223,7 @@ pub(super) fn admit_field_node(
     block: &OptimizationBlock,
     node_index: usize,
     node: &OptimizationNode,
-) -> Option<ResolvedFieldValue> {
+) -> Option<FieldValueRow> {
     let (psi_operation, result, scalar_type, source, path, field, kind) = match &node.operation {
         O::BooleanStructuralField {
             psi_operation,
@@ -280,7 +279,7 @@ pub(super) fn admit_field_node(
         *field,
         kind,
     )?;
-    Some(ResolvedFieldValue {
+    Some(FieldValueRow {
         site: NodeLocation {
             machine: function.machine,
             block: block.id,
@@ -307,7 +306,7 @@ pub(super) fn admit_field_node(
 /// literal at any resolvable path independently of producer and outranks a
 /// nonconstant initializer — the literal is strictly more resolved.
 #[allow(clippy::too_many_arguments)]
-pub(super) fn proven_field_value(
+fn proven_field_value(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,

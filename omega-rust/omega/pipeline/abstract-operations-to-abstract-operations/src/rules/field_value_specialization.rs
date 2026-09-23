@@ -5,8 +5,7 @@ use optimization_core::{
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
 use optimization_unit::{
-    FieldValueResolution, FieldValueRow, FieldValueSpecializationRewrite, PsiOptimizationUnit,
-    PsiRewriteCandidate, ScalarSubstitution,
+    FieldValueResolution, PsiOptimizationUnit, PsiRewriteCandidate, ScalarSubstitution,
 };
 
 use crate::rules::REPRESENTATION_SPECIALIZATION_PASS_NAME;
@@ -75,33 +74,20 @@ impl PsiOptimizationRule for FieldValueSpecializationRule {
                 continue;
             }
             for declaration in &function.structural_places {
-                let Some(plan) =
+                let Some(patch) =
                     field_value_specialization::propose::plan(unit, function, declaration.id)
                 else {
                     continue;
                 };
-                if plan.reads.is_empty() {
+                if patch.reads.is_empty() {
                     continue;
                 }
-                let reads = plan
-                    .reads
-                    .iter()
-                    .map(|row| FieldValueRow {
-                        site: row.site(),
-                        psi_operation: row.psi_operation(),
-                        result: row.result(),
-                        source: row.source(),
-                        path: row.path().to_vec(),
-                        field: row.field(),
-                        producer: row.producer(),
-                        resolution: row.resolution().clone(),
-                    })
-                    .collect::<Vec<_>>();
                 // Every `Forward` row carries exactly one substitution — the
                 // read's result rebinds to the proven initializer — and the
                 // candidate's region and custody ledger come from the same
                 // accounting the independent replay recomputes.
-                let mut substitutions = reads
+                let mut substitutions = patch
+                    .reads
                     .iter()
                     .filter_map(|row| match &row.resolution {
                         FieldValueResolution::Forward(forwarded) => Some(ScalarSubstitution {
@@ -113,16 +99,10 @@ impl PsiOptimizationRule for FieldValueSpecializationRule {
                     })
                     .collect::<Vec<_>>();
                 substitutions.sort();
-                let Ok((affected_blocks, provenance)) =
-                    field_value_specialization::validate::plan_accounting(function, &plan)
+                let Some((affected_blocks, provenance)) =
+                    field_value_specialization::accounting::plan_accounting(function, &patch)
                 else {
                     continue;
-                };
-                let patch = FieldValueSpecializationRewrite {
-                    machine: plan.machine,
-                    place: plan.place,
-                    producer: plan.producer,
-                    reads,
                 };
                 let predicted_cost_delta = -i64::try_from(patch.reads.len()).unwrap_or(i64::MAX);
                 candidates.push(

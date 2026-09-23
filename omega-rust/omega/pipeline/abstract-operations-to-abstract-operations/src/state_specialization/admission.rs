@@ -1,16 +1,17 @@
 //! Optimizer module role: admission leaf. Dispatch-shape and incoming-edge
-//! predicates the producer enumeration and the independent validator share.
+//! predicates behind the plan.
 //!
-//! Proposal decides *which* edges enter a plan; validation must never rerun
-//! that decision through the producer's own plan — a matcher cannot attest to
-//! itself. Both sides share only these predicates: the dispatch's block-shape
+//! The plan is built from two predicates only: the dispatch's block-shape
 //! evidence and the per-edge admissibility that turns one qualifying incoming
-//! traversal into its fused `SpecializedStateEdge` row.
+//! traversal into its `SpecializedStateEdgeRow`. The independent validator in
+//! `optimization-unit-semantics` re-derives the same predicates from the
+//! candidate's rows rather than trusting this enumeration — a matcher cannot
+//! attest to itself.
 
 use super::{
     BlockId, NodeLocation, O, OptimizationBlock, OptimizationEdge, OptimizationNode,
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarConstant, ScalarConstantAnalysis,
-    SpecializedStateEdge,
+    SpecializedStateEdgeRow,
 };
 use semantic_vocabulary::{EdgeId, IntegerType, IntegerValue, MachineId, ScalarType, ValueId};
 use std::cmp::Ordering;
@@ -309,7 +310,7 @@ pub(super) fn admit_incoming_edge(
     owner_node: &OptimizationNode,
     edge: &OptimizationEdge,
     constants: &ScalarConstantAnalysis,
-) -> Option<SpecializedStateEdge> {
+) -> Option<SpecializedStateEdgeRow> {
     let predecessor = NodeLocation {
         machine: evidence.machine,
         block: owner_block,
@@ -401,7 +402,7 @@ pub(super) fn admit_incoming_edge(
     if !resolved_block.structural_parameters.is_empty() {
         return None;
     }
-    Some(SpecializedStateEdge {
+    Some(SpecializedStateEdgeRow {
         incoming_edge: edge.psi_edge,
         predecessor,
         parameter: evidence.parameter,

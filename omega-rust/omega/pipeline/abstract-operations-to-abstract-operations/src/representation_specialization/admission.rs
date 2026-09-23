@@ -1,15 +1,15 @@
-//! Optimizer module role: admission leaf. Proven-case predicates the producer
-//! enumeration and the independent validator share.
+//! Optimizer module role: admission leaf. Proven-case predicates behind the plan.
 //!
-//! Proposal decides *which* `StructuralCaseMembership` observations enter a
-//! plan; validation must never rerun that decision through the producer's own
-//! plan — a matcher cannot attest to itself. Both sides share only these
-//! predicates: the place's declaration/type/proof evidence and the per-node
-//! admissibility that resolves one membership observation's proven case.
+//! The plan is built from two predicates only: the place's
+//! declaration/type/proof evidence and the per-node admissibility that
+//! resolves one membership observation's proven case. The independent
+//! validator in `optimization-unit-semantics` re-derives the same predicates
+//! from the candidate's rows rather than trusting this enumeration — a
+//! matcher cannot attest to itself.
 
 use super::{
-    NodeLocation, O, OperationId, PlaceId, PsiOptimizationFunction, PsiOptimizationUnit,
-    ResolvedCaseMembership, ScalarType, StructuralPlaceKind,
+    FoldedCaseMembershipRow, NodeLocation, O, OperationId, PlaceId, PsiOptimizationFunction,
+    PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
 use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
 use terminal_psi::{
@@ -56,7 +56,7 @@ pub(super) fn admit_membership_node(
     block: semantic_vocabulary::BlockId,
     node_index: usize,
     node: &optimization_unit::OptimizationNode,
-) -> Option<ResolvedCaseMembership> {
+) -> Option<FoldedCaseMembershipRow> {
     let O::StructuralCaseMembership {
         psi_operation,
         result,
@@ -78,7 +78,7 @@ pub(super) fn admit_membership_node(
     } else {
         resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None))?
     };
-    Some(ResolvedCaseMembership {
+    Some(FoldedCaseMembershipRow {
         site: NodeLocation {
             machine,
             block,
@@ -165,7 +165,7 @@ pub(crate) fn declared_structural_type(
 /// roster, a `FixedIndex` on a non-array, a `Referent` crossing on a
 /// non-reference — or when the resolved end type is not a `Sum`/`Mixed`
 /// roster of exactly one case.
-pub(super) fn sole_case_at_path(
+fn sole_case_at_path(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
@@ -176,7 +176,7 @@ pub(super) fn sole_case_at_path(
 
 /// The one case of a declared closed roster, or `None` when the place's
 /// declared type is not a sum shape or names more than one case.
-pub(super) fn sole_case(
+fn sole_case(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
