@@ -1,6 +1,6 @@
 //! Copy one readable root's verified leaf into fresh activation storage.
 use super::{
-    Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
 };
@@ -86,12 +86,40 @@ pub(super) fn copy(
     for index in indices {
         let (_, index_register, _, index_type) =
             builder.resolve(index.operand.value).ok_or_else(invalid)?;
-        let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
-        if index.operand.scalar_type != ScalarType::Integer(unsigned_64)
-            || index_type != index.operand.scalar_type
-        {
+        let ScalarType::Integer(integer) = index.operand.scalar_type else {
+            return Err(invalid());
+        };
+        if integer.bits() > 64 || index_type != index.operand.scalar_type {
             return Err(invalid());
         }
+        // Narrow index operands join the 64-bit address model after the same
+        // sign- or zero-normalization scalar transport applies elsewhere.
+        let index_register = match integer.bits() {
+            64 => index_register,
+            bits => {
+                let kind = match (integer.sign(), bits) {
+                    (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
+                    (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
+                    (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
+                    (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
+                    (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
+                    (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
+                    _ => return Err(invalid()),
+                };
+                let extended = transport_register(builder, *source, *byte_offset)?;
+                builder.emit(
+                    kind,
+                    builder.constraints.keys.copy_i64,
+                    &[index_register, extended],
+                    SelectedInstructionProvenance {
+                        operations: vec![row.operation],
+                        values: vec![index.operand.value],
+                        ..Default::default()
+                    },
+                )?;
+                extended
+            }
+        };
         let stride = transport_register(builder, *source, *byte_offset)?;
         builder.emit(
             SelectedInstructionKind::MaterializeI64 {

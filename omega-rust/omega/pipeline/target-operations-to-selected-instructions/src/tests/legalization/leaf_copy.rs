@@ -23,6 +23,10 @@ fn i32_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
 }
 
+fn u32_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap())
+}
+
 fn i64_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap())
 }
@@ -948,16 +952,94 @@ fn leaf_copy_runtime_index_rejects_over_extent_maximum() {
 }
 
 #[test]
-fn leaf_copy_runtime_index_requires_a_u64_parameter() {
-    // A narrower index scalar cannot feed the i64 address math honestly.
-    let source = runtime_index_source(0, 1, i32_type());
-    assert!(
-        abstract_operations_to_target_operations::lower_to_target_operations(
+fn leaf_copy_runtime_index_widens_integer_selectors() {
+    // Any integer selector no wider than the address model joins it through
+    // the ordinary scalar-transport normalization; its signedness decides the
+    // extension, and 64-bit operands already carry the model's width.
+    for (scalar, extension) in [
+        (u64_type(), None),
+        (i64_type(), None),
+        (u32_type(), Some(SelectedInstructionKind::ZeroExtendU32)),
+        (i32_type(), Some(SelectedInstructionKind::SignExtendI32)),
+    ] {
+        let source = runtime_index_source(0, 1, scalar);
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
             &source,
             TargetLoweringRequest::new(NativeTarget::linux_x64()),
         )
-        .is_err()
-    );
+        .unwrap_or_else(|error| panic!("{scalar:?} selector admits a leaf copy: {error:?}"));
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+            .expect("integer-index leaf copy graph keeps canonical custody");
+        let legal = legalize_target_operations(&target, &source, &unit)
+            .unwrap_or_else(|error| panic!("{scalar:?} selector legalizes: {error:?}"));
+        let environment =
+            register_environment::baseline_target_register_environment(NativeTarget::linux_x64())
+                .unwrap();
+        let constraints = selection_constraints(&legal, &environment);
+        let selected = select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap_or_else(|error| panic!("{scalar:?} selector selects: {error:?}"));
+        validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap_or_else(|error| panic!("{scalar:?} selector validates: {error:?}"));
+        let ops: Vec<_> = selected.plan().functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter(|row| row.provenance.operations == [OperationId::new(1).unwrap()])
+            .collect();
+        match extension {
+            Some(kind) => assert!(
+                ops.iter()
+                    .any(|row| std::mem::discriminant(&row.kind) == std::mem::discriminant(&kind)),
+                "{scalar:?} selector widens through {kind:?} before scaling"
+            ),
+            None => assert!(
+                !ops.iter().any(|row| matches!(
+                    row.kind,
+                    SelectedInstructionKind::ZeroExtendU8
+                        | SelectedInstructionKind::ZeroExtendU16
+                        | SelectedInstructionKind::ZeroExtendU32
+                        | SelectedInstructionKind::SignExtendI8
+                        | SelectedInstructionKind::SignExtendI16
+                        | SelectedInstructionKind::SignExtendI32
+                )),
+                "{scalar:?} selector needs no widening"
+            ),
+        }
+    }
+}
+
+#[test]
+fn leaf_copy_runtime_index_rejects_non_integer_and_missing_selectors() {
+    for scalar in [
+        ScalarType::Boolean,
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64),
+    ] {
+        let source = runtime_index_source(0, 1, scalar);
+        assert!(
+            abstract_operations_to_target_operations::lower_to_target_operations(
+                &source,
+                TargetLoweringRequest::new(NativeTarget::linux_x64()),
+            )
+            .is_err(),
+            "{scalar:?} cannot feed address math"
+        );
+    }
     // A selector that names no parameter slot cannot resolve an operand.
     let source = runtime_index_source(3, 1, u64_type());
     assert!(
@@ -1194,8 +1276,9 @@ fn leaf_copy_nested_runtime_index_rejects_an_over_extent_maximum() {
 }
 
 #[test]
-fn leaf_copy_nested_runtime_index_requires_u64_parameters() {
-    let source = nested_runtime_index_source((0, 1), (1, 2), i32_type());
+fn leaf_copy_nested_runtime_index_rejects_missing_or_non_integer_selectors() {
+    // A selector that names no parameter slot cannot resolve an operand.
+    let source = nested_runtime_index_source((0, 5), (1, 2), u64_type());
     assert!(
         abstract_operations_to_target_operations::lower_to_target_operations(
             &source,
@@ -1203,8 +1286,7 @@ fn leaf_copy_nested_runtime_index_requires_u64_parameters() {
         )
         .is_err()
     );
-    // A selector that names no parameter slot cannot resolve an operand.
-    let source = nested_runtime_index_source((0, 5), (1, 2), u64_type());
+    let source = nested_runtime_index_source((0, 1), (1, 2), ScalarType::Boolean);
     assert!(
         abstract_operations_to_target_operations::lower_to_target_operations(
             &source,
