@@ -57,13 +57,24 @@ fn fused_root_row(
     selected: &SelectedCompilerProgramEntry,
     field: &str,
 ) -> program_entry_plan::ProgramEntryFusedServiceEstablishment {
+    fused_root_row_at(selected, field, vec![field.into()])
+}
+
+/// The same row with an explicit field ROUTE, so a nested binding can be
+/// spelled: a carrier at `banner::console` shares its leaf name with a
+/// carrier at `console` and is a different establishment.
+fn fused_root_row_at(
+    selected: &SelectedCompilerProgramEntry,
+    field: &str,
+    field_path: Vec<String>,
+) -> program_entry_plan::ProgramEntryFusedServiceEstablishment {
     program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
         selected.source_signature().identity(),
         selected.source_signature().target_slot(),
         "ref-mut(named(name(Application)))".into(),
         "named(name(Application))".into(),
         field.into(),
-        vec![field.into()],
+        field_path,
         "named(name(Binding<Console>))".into(),
         "named(name(Binding<Console>))".into(),
         "Console".into(),
@@ -355,5 +366,45 @@ fn root_selection_collects_every_malformed_row() {
             .to_string()
             .contains("root slot `plan9::ProgramEntry` belongs to unknown target profile"),
         "{diagnostics:?}"
+    );
+}
+
+/// A nested receiver field carries its own service binding, and its leaf name
+/// is whatever the author wrote there -- commonly the same word as the outer
+/// one. `calls/nested_machine_continuation` is the corpus case: `Main` binds
+/// `console` and its `banner: Banner` member binds `console` too. Binding
+/// keys on the field ROUTE, which the producer already both orders and
+/// de-duplicates by, so the pair is admitted; a genuine repeat of one route
+/// still rejects.
+#[test]
+fn fused_roots_at_distinct_routes_may_share_one_leaf_name() {
+    let mut selected = provisioned_program_entry_settlement();
+    let nested = fused_root_row_at(
+        &selected,
+        "console",
+        vec!["banner".into(), "console".into()],
+    );
+    let direct = fused_root_row_at(&selected, "console", vec!["console".into()]);
+    selected
+        .bind_fused_service_establishments(vec![nested, direct.clone()])
+        .expect("two routes sharing a leaf name are two establishments");
+    assert_eq!(
+        selected
+            .fused_service_establishments()
+            .iter()
+            .map(program_entry_plan::ProgramEntryFusedServiceEstablishment::field_path)
+            .collect::<Vec<_>>(),
+        [
+            ["banner".to_owned(), "console".to_owned()].as_slice(),
+            ["console".to_owned()].as_slice()
+        ],
+        "establishments order by route"
+    );
+
+    assert!(
+        selected
+            .bind_fused_service_establishments(vec![direct.clone(), direct])
+            .is_err(),
+        "one route establishing twice is still a repeat"
     );
 }

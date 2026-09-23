@@ -319,3 +319,57 @@ fn establishment_for_source(
     )
     .expect("well-formed Fused root establishment")
 }
+
+/// A nested receiver field carries its own service binding, and its leaf name
+/// is whatever the author wrote there -- commonly the same word as the outer
+/// one. `calls/nested_machine_continuation` is the corpus case: `Main` binds
+/// `console` and its `banner: Banner` member binds `console` too. Target
+/// settlement orders establishments by the field ROUTE, which is how they are
+/// produced, so the pair is in order; keying on the leaf name instead read
+/// `console >= console` and rejected the program.
+#[test]
+fn target_settlement_orders_fused_roots_by_route_not_leaf_name() {
+    let (_artifact, _receipt, source, _plans, establishment) = fused_service_custody();
+    let at = |path: Vec<String>| {
+        program_entry_plan::ProgramEntryFusedServiceEstablishment::new(
+            establishment.source_signature_identity(),
+            establishment.target_slot(),
+            establishment.receiver_type_identity().to_owned(),
+            establishment.attachment_type_identity().to_owned(),
+            "console".to_owned(),
+            path,
+            establishment.carrier_type_identity().to_owned(),
+            establishment.carrier_base_identity().to_owned(),
+            establishment.requirement_identity().to_owned(),
+            establishment.service_schema_digest(),
+            establishment.selected_provider_plan_digest(),
+        )
+        .expect("a nested Fused root row")
+    };
+    let ordered = [
+        at(vec!["banner".to_owned(), "console".to_owned()]),
+        at(vec!["console".to_owned()]),
+    ];
+    NativeProgramEntrySettlement::new(&source, None, &ordered)
+        .validate_fused_service_establishments_for_target()
+        .expect("two routes sharing a leaf name are in route order");
+
+    let repeated = [
+        at(vec!["console".to_owned()]),
+        at(vec!["console".to_owned()]),
+    ];
+    assert!(
+        NativeProgramEntrySettlement::new(&source, None, &repeated)
+            .validate_fused_service_establishments_for_target()
+            .is_err(),
+        "one route establishing twice is still out of strict order"
+    );
+
+    let reversed = [ordered[1].clone(), ordered[0].clone()];
+    assert!(
+        NativeProgramEntrySettlement::new(&source, None, &reversed)
+            .validate_fused_service_establishments_for_target()
+            .is_err(),
+        "routes out of order still reject"
+    );
+}
