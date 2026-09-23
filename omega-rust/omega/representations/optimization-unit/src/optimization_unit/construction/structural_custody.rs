@@ -75,6 +75,10 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         } => {
             places.insert(result.place);
         }
+        O::StructuralLeafCopy { source, result, .. } => {
+            places.insert(*source);
+            places.insert(result.place);
+        }
         O::EstablishReference { result, source, .. } => {
             places.insert(result.place);
             places.insert(source.place);
@@ -243,6 +247,11 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::CallStructural {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::StructuralLeafCopy {
             psi_operation,
             result,
             ..

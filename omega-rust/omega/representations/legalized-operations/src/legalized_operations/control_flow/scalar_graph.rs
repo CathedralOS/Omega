@@ -111,6 +111,7 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
+                    | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
                     | LegalizedScalarInstructionKind::EstablishElementView { .. }
@@ -255,6 +256,16 @@ pub enum LegalizedScalarInstructionKind {
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
         tag_byte_offset: u32,
+    },
+    /// One owned copy of a readable root's `Unrestricted` leaf at a resolved
+    /// static offset. The copy extent is the leaf's own `shape`; the borrowed
+    /// root keeps full custody and the result is fresh activation storage.
+    StructuralLeafCopy {
+        result: terminal_psi::StructuralOperationResult,
+        source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        byte_offset: u32,
+        shape: calling_conventions::ValueShape,
     },
     /// Exact admitted byte-input boundary and its owned structural result home.
     HostedReadByte {

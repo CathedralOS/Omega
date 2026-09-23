@@ -61,7 +61,7 @@ pub(super) fn observe(
 
 /// A tag observation may read the function's own incoming parameter under any
 /// readable access; a write-only loan carries no readable tag.
-fn parameter_root(
+pub(super) fn parameter_root(
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     source: PlaceId,
 ) -> Option<&TargetStructuralParameter> {

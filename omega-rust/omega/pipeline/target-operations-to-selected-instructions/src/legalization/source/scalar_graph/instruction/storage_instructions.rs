@@ -41,6 +41,35 @@ pub(super) fn project_structural_case_membership(
     Ok(kind)
 }
 
+pub(super) fn project_structural_leaf_copy(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::StructuralLeafCopy {
+        result,
+        source,
+        path,
+        ..
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_structural_leaf_copy")
+    };
+    let kind = {
+        let (byte_offset, shape) = scalar_graph_input::structural_case::leaf_copy_layout(
+            optimized, *source, path, result, plan,
+        )?;
+        LegalizedScalarInstructionKind::StructuralLeafCopy {
+            result: result.clone(),
+            source: *source,
+            path: path.clone(),
+            byte_offset,
+            shape,
+        }
+    };
+    Ok(kind)
+}
+
 pub(super) fn project_write_only_primitive_store(
     node: &optimization_unit::OptimizationNode,
     unit: &PsiOptimizationUnit,

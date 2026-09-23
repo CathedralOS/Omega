@@ -286,6 +286,18 @@ pub(super) fn match_input(
         {
             return Err(invalid);
         }
+        if let AbstractOperation::StructuralLeafCopy { result, .. } = &node.operation
+            && (!plan
+                .structural_types
+                .iter()
+                .any(|declaration| declaration.id == result.structural_type)
+                || !unit
+                    .structural_types
+                    .iter()
+                    .any(|declaration| declaration.id == result.structural_type))
+        {
+            return Err(invalid);
+        }
         if let AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,

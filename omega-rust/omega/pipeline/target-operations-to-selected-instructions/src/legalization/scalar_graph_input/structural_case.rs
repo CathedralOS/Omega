@@ -52,6 +52,11 @@ pub(in crate::legalization) fn source_result(
                 result,
                 ..
             }
+            | AbstractOperation::StructuralLeafCopy {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::CallStructural {
                 psi_operation,
                 result,
@@ -144,6 +149,45 @@ pub(in crate::legalization) fn case_source(
     )
 }
 
+/// The inspected root's structural type: a live result home under the
+/// same empty-custody contract, or a readable function/block parameter.
+fn source_identity(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    if let Ok((_, result)) = source_result(function, source) {
+        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+            || !result.claims.is_empty()
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+        {
+            return Err(invalid);
+        }
+        return Ok(result.structural_type);
+    }
+    let parameter = function
+        .structural_parameters
+        .iter()
+        .chain(
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == source)
+        .ok_or(invalid.clone())?;
+    if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+        || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+        || !function.entry_claims.is_empty()
+    {
+        return Err(invalid);
+    }
+    Ok(parameter.structural_type)
+}
+
 /// Resolve the exact nominal case under the independently validated root access.
 pub(in crate::legalization) fn membership_layout(
     function: &PsiOptimizationFunction,
@@ -153,37 +197,7 @@ pub(in crate::legalization) fn membership_layout(
     plan: &AbstractOperationPlan,
 ) -> Result<(u32, u32), LegalizationError> {
     let invalid = LegalizationError::SourceCustodyMismatch;
-    let identity = if let Ok((_, result)) = source_result(function, source) {
-        if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !result.claims.is_empty()
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
-        {
-            return Err(invalid);
-        }
-        result.structural_type
-    } else {
-        let parameter = function
-            .structural_parameters
-            .iter()
-            .chain(
-                function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.structural_parameters),
-            )
-            .find(|parameter| parameter.place == source)
-            .ok_or(invalid.clone())?;
-        if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
-            || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
-            || !parameter.projected_qualifications.is_empty()
-            || !function.entry_claims.is_empty()
-        {
-            return Err(invalid);
-        }
-        parameter.structural_type
-    };
+    let identity = source_identity(function, source)?;
     let (identity, byte_offset) = if path.is_empty() {
         (identity, 0)
     } else {
@@ -214,6 +228,48 @@ pub(in crate::legalization) fn membership_layout(
         .and_then(|ordinal| u32::try_from(ordinal).ok())
         .map(|tag| (tag, byte_offset))
         .ok_or(invalid)
+}
+
+/// Resolve the copied leaf's byte offset inside the readable root and its
+/// canonical shape. The path's endpoint type must be the declared result type
+/// and the result must keep the copy's unrestricted empty custody.
+pub(in crate::legalization) fn leaf_copy_layout(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+    path: &[terminal_psi::StructuralPathSegment],
+    result: &StructuralOperationResult,
+    plan: &AbstractOperationPlan,
+) -> Result<(u32, calling_conventions::ValueShape), LegalizationError> {
+    let invalid = LegalizationError::SourceCustodyMismatch;
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        || !result.claims.is_empty()
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+    {
+        return Err(invalid);
+    }
+    let identity = source_identity(function, source)?;
+    let (endpoint, byte_offset) = if path.is_empty() {
+        (identity, 0)
+    } else {
+        crate::structural_inputs::structural_reference_input::project(
+            identity,
+            path,
+            &plan.structural_types,
+        )
+        .ok_or(invalid.clone())?
+    };
+    if endpoint != result.structural_type
+        || super::reference_custody::contains_reference(&plan.structural_types, endpoint)
+    {
+        return Err(invalid);
+    }
+    let shape = crate::structural_inputs::structural_reference_input::shape(
+        endpoint,
+        &plan.structural_types,
+    )
+    .ok_or(invalid)?;
+    Ok((byte_offset, shape))
 }
 
 pub(super) fn validate(

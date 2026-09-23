@@ -1170,6 +1170,7 @@ fn select_function(
                     LegalizedScalarInstructionKind::EstablishRecord { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarCase { .. }
                     | LegalizedScalarInstructionKind::EstablishScalarArray { .. }
+                    | LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
                     | LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
