@@ -2098,6 +2098,15 @@ syntax and other terminal services are not prerequisites.
   `BorrowedSliceView` shape the catalog below it already understands. Start
   there; do not erase extent or add a sample-specific recognizer.
 
+  It is not the only refusal, so do not expect that branch alone to reach
+  native. Instruction selection refuses the element-view instructions as well:
+  `target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs`'s
+  `select_function` lists `EstablishElementView` and `ElementViewSubslice`
+  among the legalized kinds it answers with `Err(invalid())`. So the native leg
+  needs both the Unit-graph admission and a selection arm for those two
+  instructions; the Terminal and interpreter halves above are what is already
+  finished.
+
   Core `Slice::index<T [copy]>` already settles shared by-value element access.
 
   Acceptance: a non-byte-view callee consumes `.len`, indexing and subslicing
