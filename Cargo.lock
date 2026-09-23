@@ -2477,6 +2477,7 @@ dependencies = [
 name = "trust-ledger"
 version = "0.1.0"
 dependencies = [
+ "artifacts",
  "compiler",
  "diagnostics",
  "effects",
