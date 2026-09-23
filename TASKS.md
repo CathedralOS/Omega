@@ -3020,10 +3020,17 @@ syntax and other terminal services are not prerequisites.
     standing between the binding and the call and a rebind onto a second
     binding. Opacity for unknown callees, private escapes and unproved rebinds
     is retained by the surrounding cases in that same file.
-  - `demand.rs` and `state_write_walk.rs` reject wire arguments mentioning a
-    divergent alias before `wire_codecs.rs` can resolve its candidate set. Remove that
-    mismatch by carrying checked argument origins through the caller and
-    synthesized-codec frame. Member/indexed reference loads still need their
+  - ~~`demand.rs` and `state_write_walk.rs` reject wire arguments mentioning a
+    divergent alias before `wire_codecs.rs` can resolve its candidate set.~~
+    Done, measured at `a242d84e8e`: both sites now pass the divergent origins
+    into `known_wire_codec_call_written_paths`, which unions every proven
+    referent and keeps an unproven binding opaque on its own.
+    `validation/tests/wire_codec_write_frames.rs` pins both halves -- a codec
+    cursor bound to a `match`-selected reference publishes the buffer and BOTH
+    referents, and one bound to an unproven reference still fails closed. The
+    removal is a widening, so it was checked the other way too: cutting the
+    divergent origins off from the resolver turns the union back into an opaque
+    frame. Member/indexed reference loads still need their
     own load evidence; the enclosing carrier's path is not the referent.
   - Carry the receiver/codec repairs through contextual-case, named-state and
     aggregate-result composition, preserving existing `write_frame_*` controls.
