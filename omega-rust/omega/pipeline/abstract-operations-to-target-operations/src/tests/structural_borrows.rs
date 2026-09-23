@@ -1597,6 +1597,62 @@ fn established_home_borrow_retains_borrowed_reference_and_validates() {
     }
 }
 
+/// A callee's published service ceiling is verified reach, not custody: a
+/// borrowed Unit call into it lowers through the same row, keeps the callee
+/// identity authority review walks, and replays under the ordinary call
+/// checks. A scalar result still requires the service-free fixed-native ABI.
+#[test]
+fn borrowed_unit_call_into_a_serviceful_callee_keeps_its_row_and_replay() {
+    let service = semantic_vocabulary::ServiceId::new(1).unwrap();
+    let mut source = established_home_borrow_plan();
+    let callee = source.functions[1].machine;
+    for function in &mut source.functions {
+        function.published_service_ceiling = vec![service];
+    }
+    for native in [NativeTarget::linux_x64(), NativeTarget::macos_arm64()] {
+        let target =
+            crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
+                .expect("a serviceful Unit callee lowers through the borrowed-call row");
+        crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
+        let retained = target.functions[0]
+            .graph
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::Call {
+                    callee: retained,
+                    result,
+                    arguments,
+                    ..
+                } => Some((*retained, result, arguments.len())),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            retained,
+            vec![(callee, &target_operations::TargetCallResult::Unit, 1)]
+        );
+        // The ceiling does not relax custody: a callee that also publishes
+        // entry claims still refuses the borrowed row.
+        let mut claimed = source.clone();
+        let input = claimed.functions[1].structural_parameters[0].place;
+        claimed.functions[1]
+            .entry_claims
+            .push(terminal_psi::EntryClaim {
+                claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+                input,
+                path: Vec::new(),
+            });
+        assert_eq!(
+            crate::lower_to_target_operations(&claimed, crate::TargetLoweringRequest::new(native)),
+            Err(crate::LoweringError::UnsupportedControlFlow(
+                source.functions[0].machine
+            ))
+        );
+    }
+}
+
 #[test]
 fn established_home_borrow_rejects_substituted_root_projection_and_home() {
     let source = established_home_borrow_plan();

@@ -99,6 +99,25 @@ fn fixture() -> AbstractOperationPlan {
     }
 }
 
+/// The borrowed-call row admits a serviceful Unit callee, but a scalar result
+/// still requires the service-free fixed-native ABI the callee publishes.
+#[test]
+fn borrowed_scalar_call_into_a_serviceful_callee_still_refuses() {
+    let mut source = fixture();
+    let target = NativeTarget::macos_arm64();
+    lower_to_target_operations(&source, TargetLoweringRequest::new(target))
+        .expect("the service-free scalar call lowers");
+    for function in &mut source.functions {
+        function.published_service_ceiling = vec![semantic_vocabulary::ServiceId::new(1).unwrap()];
+    }
+    assert_eq!(
+        lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
+        Err(crate::LoweringError::UnsupportedControlFlow(
+            source.functions[0].machine
+        ))
+    );
+}
+
 #[test]
 fn scalar_graph_lowers_shared_view_call_transport() {
     let source = fixture();
