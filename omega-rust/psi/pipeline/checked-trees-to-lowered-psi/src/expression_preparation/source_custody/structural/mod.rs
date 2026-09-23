@@ -444,18 +444,21 @@ pub(crate) fn validate(
                     .record_fields
                     .span(fields)
                     .ok_or(LoweringError::Unsupported("record field span is stale"))?;
-                if authored.len() != declared.len() || retained.len() != authored.len() {
+                // The checked record mints the complete declared-order roster:
+                // authored entries correspond exactly, and omitted members
+                // retain a zero marker the verifier re-checks against the
+                // declared type's composed zero form.
+                if authored.len() > declared.len() || retained.len() != declared.len() {
                     return unsupported("record establishment changed its complete field roster");
                 }
                 let mut selected = Vec::new();
-                for (ordinal, (field, initializer)) in retained.iter().zip(authored).enumerate() {
+                let mut consumed = 0usize;
+                for field in retained.iter() {
                     let declaration = declared
                         .iter()
                         .find(|item| item.symbol == field.field)
                         .ok_or(LoweringError::Unsupported("record field has another owner"))?;
                     if selected.contains(&field.field)
-                        || field.field != initializer.field_symbol
-                        || field.expression != initializer.value
                         || field.type_reference != declaration.type_reference
                     {
                         return unsupported(
@@ -465,9 +468,18 @@ pub(crate) fn validate(
                     selected.push(field.field);
                     match field.value {
                         checked_trees::CheckedStructuralRecordFieldValue::Scalar(value) => {
+                            let Some(initializer_index) = authored.iter().position(|initializer| {
+                                initializer.field_symbol == field.field
+                                    && initializer.value == field.expression
+                            }) else {
+                                return unsupported(
+                                    "record establishment reordered or substituted a field",
+                                );
+                            };
+                            consumed += 1;
                             let role = CheckedScalarExpressionRole::RecordField {
                                 expression,
-                                field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                                field_ordinal: u32::try_from(initializer_index).map_err(|_| {
                                     LoweringError::Unsupported("record field ordinal overflow")
                                 })?,
                             };
@@ -478,7 +490,7 @@ pub(crate) fn validate(
                                 result.statement_index,
                                 role,
                                 value,
-                                initializer.value,
+                                authored[initializer_index].value,
                             )?;
                             let expected = validation::unwrapped_type_reference(
                                 &checked.typed,
@@ -497,6 +509,15 @@ pub(crate) fn validate(
                             operand_roles.push(role);
                         }
                         checked_trees::CheckedStructuralRecordFieldValue::Structural(value) => {
+                            let Some(initializer) = authored.iter().find(|initializer| {
+                                initializer.field_symbol == field.field
+                                    && initializer.value == field.expression
+                            }) else {
+                                return unsupported(
+                                    "record establishment reordered or substituted a field",
+                                );
+                            };
+                            consumed += 1;
                             pending.push((
                                 value,
                                 initializer.value,
@@ -505,7 +526,25 @@ pub(crate) fn validate(
                                 None,
                             ));
                         }
+                        checked_trees::CheckedStructuralRecordFieldValue::Zero => {
+                            if field.expression.is_valid()
+                                || authored
+                                    .iter()
+                                    .any(|initializer| initializer.field_symbol == field.field)
+                                || !validation::zero_initialized_field_supported(
+                                    &checked.typed,
+                                    declaration.type_reference,
+                                )
+                            {
+                                return unsupported(
+                                    "record establishment minted a field outside its zero-initialized roster",
+                                );
+                            }
+                        }
                     }
+                }
+                if consumed != authored.len() {
+                    return unsupported("record establishment reordered or substituted a field");
                 }
             }
             CheckedStructuralValueKind::FixedArray { elements } => {

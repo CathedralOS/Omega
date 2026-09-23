@@ -8,9 +8,9 @@
 //! Final live locals rebind in declaration order at the selected cleanup edge;
 //! this preserves disposal order without remapping survivors after every move.
 use super::super::{
-    OperationKind, OperationResult, StructuralFieldId, StructuralFieldType,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    ValueDeclaration, allocate_dense, place_id,
+    Operation, OperationKind, OperationResult, StructuralFieldId, StructuralFieldType,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    StructuralTypeShape, ValueDeclaration, allocate_dense, place_id,
 };
 use super::{
     CheckedScalarExpressionRole, CheckedTrees, LoweringError, Multiplicity, PlaceId,
@@ -23,6 +23,7 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use checked_trees::expression::ExpressionNode;
 use checked_trees::{
     CheckedStructuralRecordFieldValue, CheckedStructuralValueKind, CheckedUnitEffectOperationPlan,
 };
@@ -68,6 +69,19 @@ enum Field {
         bounded: bool,
     },
     Structural(PlaceId),
+    /// An authored literal omits this declared member: the field reads the
+    /// scalar carrier's constant zero rather than a completed operand.
+    Zero {
+        scalar_type: ScalarType,
+        bounded: bool,
+    },
+    /// An authored literal omits this declared member: the field reads a
+    /// closed array of scalar zero leaves established at this place.
+    ZeroScalarArray {
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+        elements: Vec<ScalarType>,
+    },
 }
 
 pub(super) fn prepare(
@@ -254,8 +268,13 @@ impl Preparation<'_> {
             .ok_or(LoweringError::Unsupported(
                 "scalar record field span is stale",
             ))?;
+        let ExpressionNode::StructLiteral(literal) =
+            self.checked.expression_table.expression(node.expression)
+        else {
+            return unsupported("scalar record lost its authored constructor");
+        };
         let mut initialized = Vec::new();
-        for (ordinal, field) in fields.iter().enumerate() {
+        for field in fields.iter() {
             let authored = self
                 .checked
                 .data_members(owner)
@@ -299,9 +318,21 @@ impl Preparation<'_> {
                     if target.field_type.scalar_type() != Some(result_type.scalar_type) {
                         return unsupported("scalar record field substituted its carrier");
                     }
+                    let initializer_ordinal = self
+                        .checked
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .iter()
+                        .position(|initializer| {
+                            initializer.field_symbol == field.field
+                                && initializer.value == field.expression
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "record scalar field escaped its authored constructor",
+                        ))?;
                     let role = CheckedScalarExpressionRole::RecordField {
                         expression: node.expression,
-                        field_ordinal: u32::try_from(ordinal).map_err(|_| {
+                        field_ordinal: u32::try_from(initializer_ordinal).map_err(|_| {
                             LoweringError::Unsupported("record field ordinal exceeds u32")
                         })?,
                     };
@@ -336,6 +367,91 @@ impl Preparation<'_> {
                         return unsupported("nested record substituted its structural carrier");
                     }
                     Field::Structural(self.record(child, field.type_reference)?)
+                }
+                CheckedStructuralRecordFieldValue::Zero => {
+                    // An authored literal omits this declared member: it reads
+                    // the zero-initialized value of the declared type.
+                    match &target.field_type {
+                        StructuralFieldType::Scalar(_)
+                        | StructuralFieldType::IeeeFloat(_)
+                        | StructuralFieldType::BoundedInteger(_) => {
+                            let Some(scalar_type) = target.field_type.scalar_type() else {
+                                return unsupported("omitted record member lost its carrier");
+                            };
+                            Field::Zero {
+                                scalar_type,
+                                bounded: matches!(
+                                    target.field_type,
+                                    StructuralFieldType::BoundedInteger(_)
+                                ),
+                            }
+                        }
+                        StructuralFieldType::Structural(child_type) => {
+                            let Some(child) = self
+                                .types
+                                .iter()
+                                .find(|declaration| declaration.id == *child_type)
+                            else {
+                                return unsupported(
+                                    "omitted record member lost its structural declaration",
+                                );
+                            };
+                            if child.identity
+                                != self
+                                    .checked
+                                    .normalized_type_identity(field.type_reference)
+                                    .as_str()
+                            {
+                                return unsupported(
+                                    "omitted record member substituted its structural carrier",
+                                );
+                            }
+                            match &child.shape {
+                                StructuralTypeShape::Record { .. } => {
+                                    let multiplicity =
+                                        match validation::reference_result_custody::result_multiplicity(
+                                            &self.checked.typed,
+                                            field.type_reference,
+                                        ) {
+                                            Multiplicity::Affine => StructuralMultiplicity::Affine,
+                                            Multiplicity::Unrestricted => {
+                                                StructuralMultiplicity::Unrestricted
+                                            }
+                                            Multiplicity::Linear => {
+                                                return unsupported(
+                                                    "omitted record member cannot establish linear custody",
+                                                )
+                                            }
+                                        };
+                                    Field::Structural(self.record_zero(*child_type, multiplicity)?)
+                                }
+                                StructuralTypeShape::FixedArray { element, length } => {
+                                    let mut elements = Vec::new();
+                                    crate::unit::attached_unit::structural_values::record::zero_scalar_leaf_types(
+                                        *element,
+                                        *length,
+                                        self.types,
+                                        &mut elements,
+                                    )?;
+                                    Field::ZeroScalarArray {
+                                        place: place_id(allocate_dense(self.next_place)?),
+                                        structural_type: *child_type,
+                                        elements,
+                                    }
+                                }
+                                _ => {
+                                    return unsupported(
+                                        "omitted record member has no composed zero spelling",
+                                    );
+                                }
+                            }
+                        }
+                        _ => {
+                            return unsupported(
+                                "omitted record member has no composed zero spelling",
+                            );
+                        }
+                    }
                 }
             };
             initialized.push((position, (target.id, field_value)));
@@ -387,6 +503,84 @@ impl Preparation<'_> {
                 access: StructuralAccess::Owned,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
+            },
+            prefix: self.prefix.clone(),
+        });
+        Ok(place)
+    }
+
+    /// Establish the composed zero of a record type whose authored literal
+    /// omitted it: every member mints the same zero spelling the record
+    /// checker's field gate admits, nested records recursively.
+    fn record_zero(
+        &mut self,
+        structural_type: StructuralTypeId,
+        multiplicity: StructuralMultiplicity,
+    ) -> Result<PlaceId, LoweringError> {
+        let declaration = self
+            .types
+            .iter()
+            .find(|declaration| declaration.id == structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "zero record lost its structural declaration",
+            ))?;
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            return unsupported("zero record has a nonrecord structural declaration");
+        };
+        let place = place_id(allocate_dense(self.next_place)?);
+        let mut initialized = Vec::with_capacity(fields.len());
+        for field in fields {
+            let value = match &field.field_type {
+                StructuralFieldType::Scalar(_)
+                | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::BoundedInteger(_) => {
+                    let Some(scalar_type) = field.field_type.scalar_type() else {
+                        return unsupported("zero record member lost its carrier");
+                    };
+                    Field::Zero {
+                        scalar_type,
+                        bounded: matches!(field.field_type, StructuralFieldType::BoundedInteger(_)),
+                    }
+                }
+                StructuralFieldType::Structural(child_type) => {
+                    match self
+                        .types
+                        .iter()
+                        .find(|declaration| declaration.id == *child_type)
+                        .map(|declaration| &declaration.shape)
+                    {
+                        Some(StructuralTypeShape::Record { .. }) => Field::Structural(
+                            self.record_zero(*child_type, StructuralMultiplicity::Unrestricted)?,
+                        ),
+                        Some(StructuralTypeShape::FixedArray { element, length }) => {
+                            let mut elements = Vec::new();
+                            crate::unit::attached_unit::structural_values::record::zero_scalar_leaf_types(
+                                *element,
+                                *length,
+                                self.types,
+                                &mut elements,
+                            )?;
+                            Field::ZeroScalarArray {
+                                place: place_id(allocate_dense(self.next_place)?),
+                                structural_type: *child_type,
+                                elements,
+                            }
+                        }
+                        _ => {
+                            return unsupported("zero record member has no composed zero spelling");
+                        }
+                    }
+                }
+                _ => return unsupported("zero record member has no composed zero spelling"),
+            };
+            initialized.push((field.id, value));
+        }
+        self.steps.push(Step::Record {
+            construction: Construction {
+                place,
+                structural_type,
+                multiplicity,
+                fields: initialized,
             },
             prefix: self.prefix.clone(),
         });
@@ -512,6 +706,7 @@ impl Prepared {
 pub(crate) fn emit(
     construction: &Construction,
     values: &[ValueDeclaration],
+    next_value: &mut u64,
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<(), LoweringError> {
@@ -539,6 +734,56 @@ pub(crate) fn emit(
                 }
             }
             Field::Structural(place) => {
+                terminal_psi::RecordFieldValue::Structural(StructuralArgument {
+                    place: *place,
+                    path: Vec::new(),
+                    access: StructuralAccess::Owned,
+                })
+            }
+            Field::Zero {
+                scalar_type,
+                bounded,
+            } => terminal_psi::RecordFieldValue::Scalar {
+                value: crate::unit::attached_unit::structural_values::record::zero_scalar_leaf(
+                    *scalar_type,
+                    next_value,
+                    operations,
+                ),
+                range_obligation: if *bounded {
+                    Some(calls.allocate_requirement()?)
+                } else {
+                    None
+                },
+            },
+            Field::ZeroScalarArray {
+                place,
+                structural_type,
+                elements,
+            } => {
+                let elements = elements
+                    .iter()
+                    .map(|element| {
+                        crate::unit::attached_unit::structural_values::record::zero_scalar_leaf(
+                            *element, next_value, operations,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let operation = operations.allocate();
+                operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: operation,
+                    result: OperationResult::Structural(StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place: *place,
+                        structural_type: *structural_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishScalarArray { elements },
+                });
                 terminal_psi::RecordFieldValue::Structural(StructuralArgument {
                     place: *place,
                     path: Vec::new(),

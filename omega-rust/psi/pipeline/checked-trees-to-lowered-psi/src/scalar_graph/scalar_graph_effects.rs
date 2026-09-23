@@ -53,7 +53,7 @@ pub(crate) fn emit(
             }
             LoweredScalarEffect::EstablishRecord(record) => {
                 crate::scalar_graph::scalar_graph_lowering::structural_values::emit(
-                    record, values, operations, calls,
+                    record, values, next_value, operations, calls,
                 )?;
             }
             LoweredScalarEffect::EstablishScalarCase(case) => {

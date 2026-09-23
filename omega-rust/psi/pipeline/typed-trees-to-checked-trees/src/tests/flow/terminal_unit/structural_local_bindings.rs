@@ -131,3 +131,191 @@ fn call_result_without_a_unit_shape_refuses_at_the_result_shape_phase() {
         );
     }
 }
+
+fn established_record_fields(
+    checked: &checked_trees::CheckedTrees,
+    name: &str,
+    operation_index: usize,
+) -> Vec<checked_trees::CheckedStructuralRecordField> {
+    let machine = machine_named(checked, name);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let operations = plans
+        .for_machine(machine)
+        .map(|plan| plan.operations.clone())
+        .or_else(|| {
+            plans
+                .composed_for_machine(machine)
+                .map(|plan| plan.states[0].operations.clone())
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "`{name}` composes: {:?}",
+                plans.omission_for_machine(machine)
+            )
+        });
+    let CheckedUnitEffectOperationPlan::EstablishStructuralValue { value, .. } =
+        &operations[operation_index]
+    else {
+        panic!("operation {operation_index} establishes a structural value: {operations:#?}")
+    };
+    let checked_trees::CheckedStructuralValueKind::Record { fields, .. } = &checked
+        .facts
+        .values
+        .structural_values
+        .nodes
+        .get(*value)
+        .kind
+    else {
+        panic!("the established value is a record literal")
+    };
+    checked
+        .facts
+        .values
+        .structural_values
+        .record_fields
+        .span(*fields)
+        .expect("record fields")
+        .to_vec()
+}
+
+#[test]
+fn partial_literal_local_establishes_omitted_fields_as_zeros() {
+    // A declared member the literal omits still initializes: the record plan
+    // covers every declared field in declared order, with a zero entry where
+    // no authored initializer exists.
+    let checked = checked(
+        "data P3 { a: u64; b: u64; c: u64; }
+         data Main { total: u64; }
+         machine Main::main(&mut self) {
+             let p: P3 = P3 { a: 1, c: 3 };
+             self.total = 5;
+         }",
+    );
+    let fields = established_record_fields(&checked, "main", 0);
+    let [
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Scalar(_),
+            ..
+        },
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Zero,
+            ..
+        },
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Scalar(_),
+            ..
+        },
+    ] = fields.as_slice()
+    else {
+        panic!("the omitted middle member is the zero entry in declared order: {fields:#?}")
+    };
+}
+
+#[test]
+fn empty_literal_local_establishes_every_field_as_a_zero() {
+    let checked = checked(
+        "data Pair { a: u64; b: u64; }
+         data Main { total: u64; }
+         machine Main::main(&mut self) {
+             let p: Pair = Pair {};
+             self.total = 5;
+         }",
+    );
+    let fields = established_record_fields(&checked, "main", 0);
+    assert!(
+        fields.len() == 2
+            && fields.iter().all(|field| matches!(
+                field.value,
+                checked_trees::CheckedStructuralRecordFieldValue::Zero
+            )),
+        "an empty literal zero-initializes every declared member: {fields:#?}"
+    );
+}
+
+#[test]
+fn partial_literal_local_with_a_mutable_borrow_composes() {
+    // The OpenedProcessInfo shape: a mutable partial literal whose omitted
+    // member is a closed array, followed by a &mut method statement and the
+    // local's tail.
+    let checked = checked(
+        "data Info [copy] { id: u64; tag: [u8; 4]; len: u64; }
+         machine Info::new(id: u64) -> Info {
+             let mut info: Info = Info { id: id, len: 0 };
+             info.set_len(id);
+             info
+         }
+         machine Info::set_len(&mut self, v: u64) {
+             self.len = v;
+         }",
+    );
+    let fields = established_record_fields(&checked, "Info::new", 0);
+    let [
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Scalar(_),
+            ..
+        },
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Zero,
+            ..
+        },
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Scalar(_),
+            ..
+        },
+    ] = fields.as_slice()
+    else {
+        panic!("the omitted array member is the zero entry: {fields:#?}")
+    };
+}
+
+#[test]
+fn omitted_nested_record_member_establishes_a_zero_record() {
+    let checked = checked(
+        "data Inner { a: u64; b: u64; }
+         data Outer { inner: Inner; count: u64; }
+         data Main { total: u64; }
+         machine Main::main(&mut self) {
+             let o: Outer = Outer { count: 2 };
+             self.total = 5;
+         }",
+    );
+    let fields = established_record_fields(&checked, "main", 0);
+    let [
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Zero,
+            ..
+        },
+        checked_trees::CheckedStructuralRecordField {
+            value: checked_trees::CheckedStructuralRecordFieldValue::Scalar(_),
+            ..
+        },
+    ] = fields.as_slice()
+    else {
+        panic!("the omitted record member is the zero entry: {fields:#?}")
+    };
+}
+
+#[test]
+fn literal_refuses_an_omitted_field_with_no_zero_spelling() {
+    // A sum member has no unique zero, so the omission cannot mint a field
+    // value and the literal keeps its refusal.
+    let stage = omission(
+        "data Opt { case Some(v: u64); case Empty; }
+         data P2 { a: u64; o: Opt; }
+         machine make(a: u64) -> P2 {
+             let p: P2 = P2 { a: a };
+             p
+         }",
+        "make",
+    );
+    assert!(
+        matches!(
+            stage,
+            checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
+                statement_index: Some(0),
+                ..
+            }
+        ),
+        "the omitted sum member still refuses at its own statement: {stage:?}"
+    );
+}
