@@ -157,10 +157,15 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 {
                     continue;
                 }
+                // A use admission recorded beside an early-clobber tied write
+                // takes a pair of its own: the write's tied home must be a
+                // register the instruction's unpinned co-readers never share.
+                let dedicated = admitted.dedicated_tie_uses[block_index]
+                    .contains(&(instruction_index, operand.operand));
                 let reloaded = reload_for_use(
                     &admitted,
                     register,
-                    shared && operand.fixed_view.is_none(),
+                    shared && operand.fixed_view.is_none() && !dedicated,
                     &mut open_reload,
                     function,
                     &mut instructions,

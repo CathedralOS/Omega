@@ -25,8 +25,17 @@ pub(super) struct Admission<'source> {
     /// Per block: one reload register serves consecutive flexible uses until
     /// an instruction that can destroy register content — a clobber or an
     /// implicit definition — closes it and the next use opens a fresh pair.
-    /// `false` keeps each use on a private reload pair.
+    /// `false` keeps each use on a private reload pair. A use recorded in
+    /// `dedicated_tie_uses` keeps a private pair even where this holds.
     pub shared_reload: Vec<bool>,
+    /// Per block: `(instruction index, operand ordinal)` of each victim use
+    /// whose tied `Def` is early-clobber while an unpinned victim-reading
+    /// co-operand could share the block's open reload register — the write
+    /// may then land in that register ahead of the co-operand's read. The
+    /// tied use takes a dedicated pair so the write's tied home is a
+    /// register no other operand reads. Consulted only where `shared_reload`
+    /// holds: a private-pair block already leaves every use unshared.
+    pub dedicated_tie_uses: Vec<std::collections::BTreeSet<(usize, u16)>>,
     /// Per block: the source instruction indices that close the still-open
     /// shared reload — every instruction redefining the victim, whose later
     /// `Def` or `UseDef` operand makes the held value stale the way a unit
@@ -341,12 +350,17 @@ pub(super) fn admit<'source>(
         .iter()
         .map(|_| std::collections::BTreeSet::new())
         .collect();
-    // Blocks holding a victim use whose tied `Def` is early-clobber while an
-    // unpinned co-operand could read the same reload register. The flag alone
-    // is no hazard — the write can land only in the home its tie names — so
-    // the decision waits on the block's sharing answer below.
-    let mut early_clobber_ties: std::collections::BTreeSet<usize> =
-        std::collections::BTreeSet::new();
+    // Per block: `(instruction index, operand ordinal)` of each victim use
+    // whose tied `Def` is early-clobber while an unpinned co-operand could
+    // read the same reload register. The flag alone is no hazard — the write
+    // can land only in the home its tie names — so the tied use takes a
+    // dedicated pair where the block's sharing answer leaves a co-reader on
+    // that register.
+    let mut dedicated_tie_uses: Vec<std::collections::BTreeSet<(usize, u16)>> = function
+        .blocks
+        .iter()
+        .map(|_| std::collections::BTreeSet::new())
+        .collect();
     let mut defined = definition.is_none();
     let mut uses = 0usize;
     let mut use_blocks = Vec::new();
@@ -665,9 +679,11 @@ pub(super) fn admit<'source>(
                         // flag on the tied write is itself no hazard — the
                         // write lands only in the reload home its tie names —
                         // but it may complete before an unrelated operand's
-                        // read, so an unpinned use sharing its register with
-                        // an unpinned victim-reading co-operand records the
-                        // block for the `shared_reload` check below.
+                        // read, so an unpinned use that could share the
+                        // block's open register with an unpinned
+                        // victim-reading co-operand is recorded for a
+                        // dedicated pair: the write's tied home is then a
+                        // register no other operand reads.
                         let mut tied_writes = instruction
                             .operands
                             .iter()
@@ -693,7 +709,16 @@ pub(super) fn admit<'source>(
                                     && co.fixed_view.is_none()
                             })
                         {
-                            early_clobber_ties.insert(current_block_index);
+                            dedicated_tie_uses[current_block_index]
+                                .insert((instruction_index, operand.operand));
+                            // The dedicated pair's own load reads the slot at
+                            // this position even when the block's open pair
+                            // serves the co-readers, so the slot-reuse replay
+                            // must see it.
+                            let dedicated = &mut use_positions[current_block_index].dedicated;
+                            if dedicated.last() != Some(&instruction_index) {
+                                dedicated.push(instruction_index);
+                            }
                         }
                         if operand.fixed_view.is_none() {
                             flexible_uses[current_block_index] = true;
@@ -1023,11 +1048,10 @@ pub(super) fn admit<'source>(
     // The deferred half of the early-clobber admission: the recorded hazard
     // is real only where the block actually keeps one reload register open
     // across unpinned uses — the write may then land in that shared register
-    // ahead of the co-operand's read. Under a private-pair block the tied
-    // write's register is unshared, so the flag alone never rejects.
-    if early_clobber_ties.iter().any(|block| shared_reload[*block]) {
-        return Err(RuntimeSpillError::UnsupportedUse);
-    }
+    // ahead of the co-operand's read. The tied use takes a dedicated pair of
+    // its own there, so the write's tied home is a register no co-reader
+    // shares. Under a private-pair block every use is unshared already and
+    // the record goes unread; either way the flag alone never rejects.
     // Under `UnitWriteCrossing` a unit-writing instruction instead keeps the
     // open pair while an allocatable view of the victim's class avoids every
     // unit written inside the span so far — the clobber-set-reduced, most
@@ -1238,6 +1262,7 @@ pub(super) fn admit<'source>(
         function,
         use_blocks,
         shared_reload,
+        dedicated_tie_uses,
         span_closes,
         victim,
         lineage,
