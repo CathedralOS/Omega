@@ -30,12 +30,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   SPILL-REALIZATION owns joining retained logical spill/coloring evidence to
   physical recovery and retiring unused spill boundaries with their consumers.
 
-  The semantic-wrapper encoding and object stages under
-  `native-realization/src/optimized_semantic_wrapper_{encoding,object}/`
-  have production callers in `native_realization/optimized_fragment_projection.rs`.
-  Move their coupled record, codec, validation, and backend responsibilities
-  out of the coordinator without breaking that route. UEFI/provider/ABI gaps
-  remain with their native owners, not another wrapper implementation.
+  The semantic-wrapper object's records, composition, validation and codec
+  live in `native-artifact/src/semantic_wrapper_object` (`ef562278e7`); the
+  object stage in `native-realization/src/optimized_semantic_wrapper_object/`
+  keeps only settlement/source/encoding custody and replay. The encoding
+  stage (`optimized_semantic_wrapper_encoding/`) is still coordinator-owned;
+  move its remaining record/backend responsibilities without breaking
+  `native_realization/optimized_fragment_projection.rs`. UEFI/provider/ABI
+  gaps remain with their native owners, not another wrapper implementation.
 
   Audit surviving public entrances using qualified identities and repository-wide
   consumers, including native-differential tests; a common name such as
@@ -43,23 +45,6 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   competing entrances or orphan outputs, coordinators sequence typed stages,
   and retained plans constrain the physical operations they describe.
   An isolated validator or retained-but-unused plan does not close the join.
-
-- **REPRESENTATION-OWNERSHIP.** Finish durable representation ownership for
-  the semantic-wrapper record and codec under
-  `native-realization/src/optimized_semantic_wrapper_object/`, coordinated
-  with PIPELINE-OWNER-CONSOLIDATION's coupled wrapper disposition.
-  Follow [representation ownership](omega-rust/omega/representations/README.md):
-  current program data outlives its producer; historical inputs remain explicit
-  replay evidence, not the route to current data.
-
-  Acceptance: durable records/codecs live with their representation owners,
-  ordinary consumers read current data directly, replay inputs remain distinct,
-  and `tests/architecture/representation_ownership.rs` covers the resulting
-  named roots and ownership. Preserve direct-read controls and legitimate
-  retained proof-input identity checks. The post-allocation manifest and
-  fixed-view-copy codecs already live in register-homes; do not relocate again.
-
-## Product pruning and rollout
 
 - **WORKSPACE-ROLLOUT.** Keep exact rules opt-in and Experimental in the
   [rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
