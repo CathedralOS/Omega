@@ -28,7 +28,7 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
 machine build(builder: &mut Build) {
     builder.application("console-consumer");
     builder.depend_as("ordinary_console", Source::Path { location: "../console" });
-    builder.select_provider<Console, ConsoleNativeProvider>();
+    builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -42,7 +42,7 @@ machine build(builder: &mut Build) {
         r#"
 use ordinary_console::main;
 use omega::language::core::service;
-data Main { console: Binding<Console> in Bound; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 "#,
     );
