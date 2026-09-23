@@ -13,7 +13,12 @@ use super::{
     direct_expression_contains_short_circuit, edge_id, emit_direct_expression,
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
+use crate::emission::boolean_control::{
+    LoweredBooleanDecision, LoweredBooleanDecisionTarget, boolean_decision_test_count,
+    emit_inlined_boolean_guard_blocks, lower_boolean_control_decision,
+};
 use crate::emission::operation_emission::LoweredScalarBinding;
+use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
@@ -1254,6 +1259,74 @@ fn emit_state(
                 };
             let when_true_erased_proof_arguments = proof_terms(when_true_erased_proof_arguments)?;
             let when_false_erased_proof_arguments = proof_terms(when_false_erased_proof_arguments)?;
+            if contains_short_circuit(condition) {
+                if !when_true_erased_arguments.is_empty()
+                    || !when_false_erased_arguments.is_empty()
+                    || !when_true_erased_proof_arguments.is_empty()
+                    || !when_false_erased_proof_arguments.is_empty()
+                {
+                    return unsupported(
+                        "erased call operands do not stage through guard decisions",
+                    );
+                }
+                let when_true_block = *targets
+                    .get(*when_true_target)
+                    .ok_or(LoweringError::Unsupported("call true target is absent"))?;
+                let when_false_block = *targets
+                    .get(*when_false_target)
+                    .ok_or(LoweringError::Unsupported("call false target is absent"))?;
+                let decision = lower_boolean_control_decision(
+                    condition,
+                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                        value: true,
+                    }),
+                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                        value: false,
+                    }),
+                );
+                let decision_tests = boolean_decision_test_count(&decision);
+                debug_assert!(decision_tests > 0);
+                let first_synthetic_block = block_id(*next_block);
+                *next_block = next_block
+                    .checked_add(u64::try_from(decision_tests - 1).map_err(|_| {
+                        LoweringError::Unsupported("call guard decision count exceeds u64")
+                    })?)
+                    .ok_or(LoweringError::Unsupported(
+                        "call guard decision identities exhausted",
+                    ))?;
+                let terminator_operation_start = operations.len();
+                let (root, children) = emit_inlined_boolean_guard_blocks(
+                    &decision,
+                    &values,
+                    block_parameters,
+                    &LoweredBooleanDecisionTarget {
+                        block: when_true_block,
+                        arguments: when_true_arguments,
+                    },
+                    &LoweredBooleanDecisionTarget {
+                        block: when_false_block,
+                        arguments: when_false_arguments,
+                    },
+                    block,
+                    first_synthetic_block,
+                    next_value,
+                    next_edge,
+                    operations,
+                );
+                let mut root = root;
+                root.erased_scalar_formals = erased_formals;
+                root.erased_proof_formals =
+                    erased_proof_formal_declarations(source_erased_proof_formals);
+                root.operations.splice(
+                    0..0,
+                    operations[operation_start..terminator_operation_start]
+                        .iter()
+                        .cloned(),
+                );
+                blocks.push(root);
+                blocks.extend(children);
+                return Ok(());
+            }
             let condition = emit_boolean_expression(condition, &values, next_value, operations);
             Terminator::Conditional {
                 condition,
