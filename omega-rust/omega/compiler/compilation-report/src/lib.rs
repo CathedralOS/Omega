@@ -43,12 +43,16 @@
 //! grouping is load-bearing: reorder that loop and every receipt ever stored
 //! stops replaying.
 //!
-//! `publish_exact_executable_bytes` writes once and reads back twice. It stages
-//! to `.{file_name}.{process_id}.tmp` beside the target, reads the staged file
-//! and compares byte-for-byte, removes any existing target, renames, sets mode
-//! 0o755 on unix, then reads the installed file and compares byte-for-byte
-//! again. Either replay failure deletes the file and returns an error, so a
-//! failed publication leaves nothing behind that looks installed.
+//! Publication writes once and reads back twice, in two halves.
+//! `stage_exact_bytes` writes `.{file_name}.{process_id}.tmp` beside the
+//! target, reads the staged file and compares byte-for-byte, and sets mode
+//! 0o755 on unix when the member is the executable; `install_staged_product`
+//! removes any existing target, renames, then reads the installed file and
+//! compares byte-for-byte again. Either replay failure deletes the file and
+//! returns an error, so a failed publication leaves nothing behind that looks
+//! installed. Every executable goes out as one member of a staged set, never
+//! on its own: the split exists so the companions committing to its bytes
+//! become visible in the same install.
 
 //! The four 32-byte digest newtypes are minted by a macro with four identical
 //! bodies rather than sharing one `Digest([u8; 32])`, and the duplication is
