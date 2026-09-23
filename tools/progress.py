@@ -322,19 +322,49 @@ def spec_report(corpus: dict) -> dict:
 # A failure header is `<tier> <path>:` where the path is `Path::display()`
 # output, so its separator is the host's; the fixture is the last two
 # components under `pass`.
+# The active tier's header carries no prefix; every other tier names itself.
 PASS_FAILURE = re.compile(
-    r"^(checked-only|cross-target \S+|rooted target \S+|windows-host|active|rooted) "
-    r".*?pass[/\\]([a-z_0-9]+)[/\\]([a-z_0-9]+)",
+    r"^(?:(checked-only|cross-target \S+|rooted target \S+|windows-host) )?"
+    r"\S*?pass[/\\]([a-z_0-9]+)[/\\]([a-z_0-9]+):$",
     re.M,
 )
 SAMPLE_FAILURE = re.compile(r"^([a-z]+/[a-z_0-9/]+): ", re.M)
+
+
+def normalize_diagnostic(line: str) -> str:
+    """Collapse a diagnostic to its family: names, numbers and paths vary per
+    fixture, the sentence around them is the gap."""
+    line = re.sub(r"`[^`]*`", "`_`", line)
+    line = re.sub(r"\S*[/\\]\S*", "<path>", line)
+    line = re.sub(r"\d+", "N", line)
+    return line.strip()[:120]
+
+
+def failure_families(text: str) -> list[dict]:
+    """Every failure block, keyed by the family of its first diagnostic line."""
+    families: dict[str, dict] = {}
+    for match in PASS_FAILURE.finditer(text):
+        fixture = f"{match.group(2)}/{match.group(3)}"
+        tier = match.group(1).split()[0] if match.group(1) else "active"
+        rest = text[match.end():]
+        body = rest[: rest.find("\n\n")] if "\n\n" in rest else rest
+        first = next((l for l in body.splitlines() if l.strip()), "")
+        key = normalize_diagnostic(first)
+        family = families.setdefault(key, {"family": key, "count": 0, "groups": {}, "fixtures": [], "tiers": {}})
+        family["count"] += 1
+        group = fixture.split("/", 1)[0]
+        family["groups"][group] = family["groups"].get(group, 0) + 1
+        family["tiers"][tier] = family["tiers"].get(tier, 0) + 1
+        family["fixtures"].append(fixture)
+    return sorted(families.values(), key=lambda f: -f["count"])
 
 
 def parse_pass_log(path: Path, tier_of: dict[str, str]) -> dict:
     text = path.read_text(encoding="utf-8", errors="ignore")
     failed = {}
     for tier, group, fixture in PASS_FAILURE.findall(text):
-        failed[f"{group}/{fixture}"] = tier.split()[0]
+        failed[f"{group}/{fixture}"] = tier.split()[0] if tier else "active"
+    families = failure_families(text)
     summary = re.search(r"(\d+) pass canary\(ies\) failed to compile", text)
     per_tier: dict[str, dict[str, int]] = {}
     for member, tier in tier_of.items():
@@ -346,6 +376,39 @@ def parse_pass_log(path: Path, tier_of: dict[str, str]) -> dict:
         "reported_failures": int(summary.group(1)) if summary else None,
         "failed_members": failed,
         "per_tier": per_tier,
+        "families": families,
+        "ran": "test result:" in text,
+    }
+
+
+FAIL_TIERS = [
+    ("cross_target", "CROSS_TARGET_FAIL_CANARIES"),
+    ("active", "ACTIVE_FAIL_CANARIES"),
+    ("checked_only", "CHECKED_ONLY_FAIL_CANARIES"),
+]
+FAIL_FAILURE = re.compile(r"^\S*?fail[/\\]([a-z_0-9]+)[/\\]([a-z_0-9]+):$", re.M)
+
+
+def fail_tier_sizes() -> dict[str, int]:
+    texts = [p.read_text(encoding="utf-8") for p in UMBRELLA_ROSTERS if p.is_file()]
+    sizes = {}
+    for tier, const in FAIL_TIERS:
+        members: set[str] = set()
+        for text in texts:
+            members |= set(FIXTURE.findall(const_block(text, const)))
+        sizes[tier] = len(members)
+    return sizes
+
+
+def parse_fail_log(path: Path) -> dict:
+    """The fail suite passes when every rostered fail fixture rejects with its
+    expected diagnostic fragment; a failure names the fixture that did not."""
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    failed = [f"{g}/{f}" for g, f in FAIL_FAILURE.findall(text)]
+    return {
+        "tier_sizes": fail_tier_sizes(),
+        "failed_members": failed,
+        "green": bool(re.search(r"test result: ok\.", text)),
         "ran": "test result:" in text,
     }
 
@@ -400,6 +463,16 @@ def print_report(report: dict) -> None:
             for tier, b in po["per_tier"].items():
                 ok = b["members"] - b["failed"]
                 print(f"  {tier:14s} {ok}/{b['members']} pass")
+            print("  failure families (first diagnostic, count, groups):")
+            for fam in po["families"][:20]:
+                groups = ", ".join(f"{g} {n}" for g, n in sorted(fam["groups"].items(), key=lambda kv: -kv[1])[:4])
+                print(f"    {fam['count']:4d}  {fam['family']}")
+                print(f"          {groups}")
+        if "fail" in o:
+            fo = o["fail"]
+            total = sum(fo["tier_sizes"].values())
+            print(f"fail suite: {total - len(fo['failed_members'])}/{total} reject with their expected diagnostic"
+                  + ("" if fo["green"] else f"; {len(fo['failed_members'])} did not"))
         if "samples" in o:
             so = o["samples"]
             if so["checked_total"]:
@@ -435,6 +508,10 @@ def headline(report: dict) -> dict:
         nm = sum(b["members"] for b in native.values())
         nf = sum(b["failed"] for b in native.values())
         out["fixtures that compile to a native artifact"] = f"{nm - nf}/{nm}"
+    if "fail" in o:
+        fo = o["fail"]
+        total = sum(fo["tier_sizes"].values())
+        out["fail fixtures rejecting as expected"] = f"{total - len(fo['failed_members'])}/{total}"
     if "samples" in o and o["samples"]["checked_total"]:
         so = o["samples"]
         out["samples reaching checked trees"] = f"{so['checked_total'] - so['checked_failed']}/{so['checked_total']}"
@@ -456,6 +533,8 @@ def main() -> int:
     outcomes = {}
     if args.pass_log and args.pass_log.is_file():
         outcomes["pass"] = parse_pass_log(args.pass_log, report["corpus"]["tier_of"])
+    if args.fail_log and args.fail_log.is_file():
+        outcomes["fail"] = parse_fail_log(args.fail_log)
     if args.samples_log and args.samples_log.is_file():
         outcomes["samples"] = parse_samples_log(args.samples_log)
     if outcomes:
