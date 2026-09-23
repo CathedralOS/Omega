@@ -627,8 +627,13 @@ pub fn reviewed_repository_fixture_package_inputs(
     if !declares_standard_library {
         return Ok(Some(package_inputs));
     }
+    // Like consumer review's discovery pass, the preliminary compile admits
+    // entry `Binding<R>` fields whose Fused selection does not exist yet:
+    // accepting the canonical host bindings below is what lets settlement
+    // mint those selections for the real compile.
     let preliminary = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs.clone()),
+        permit_unsettled_fused_service_fields: true,
         ..CheckedCompileRequest::new(root_path, target_name)
     })?;
     let required = dangerous_service_acceptance::required_dangerous_services(
@@ -645,6 +650,17 @@ pub fn reviewed_repository_fixture_package_inputs(
                     AcceptedSemanticBindingRole::FilesystemHostService,
                     standard_library_identity,
                     "FilesystemHost",
+                )
+                .map_err(|diagnostic| vec![diagnostic])?,
+        );
+    }
+    if required.time {
+        bindings.push(
+            preliminary
+                .candidate_service_binding(
+                    AcceptedSemanticBindingRole::TimeHostService,
+                    standard_library_identity,
+                    "TimeHost",
                 )
                 .map_err(|diagnostic| vec![diagnostic])?,
         );

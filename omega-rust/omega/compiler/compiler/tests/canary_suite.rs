@@ -3677,6 +3677,7 @@ fn dangerous_service_projection_reads_console_exit_through_a_package_alias() {
         required,
         dangerous_service_acceptance::RequiredDangerousServices {
             filesystem: false,
+            time: false,
             console: Some(dangerous_service_acceptance::ConsoleUse {
                 exit: true,
                 output: false,
@@ -3685,6 +3686,75 @@ fn dangerous_service_projection_reads_console_exit_through_a_package_alias() {
             process_exit: false,
         }
     );
+}
+
+#[test]
+fn canonical_host_bindings_are_accepted_from_entry_binding_fields() {
+    // `FilesystemHost` and `TimeHost` are toolchain-settled slots: settlement
+    // mints their Fused plan only after the build accepts the slot binding,
+    // so a projection keyed on an already-selected plan never accepted them
+    // and every such entry stopped at establishment's missing-Fused-provider
+    // rejection, even for linux_x86_64, whose settlement tables realize both.
+    // The entry's `Binding<R>` fields are the demand; the `clock` field is
+    // never called, which still requires its establishment.
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-canary-canonical-host-acceptance-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+    fs::create_dir_all(&scratch).expect("create canonical-host scratch project");
+    fs::write(
+        scratch.join("build.omg"),
+        format!(
+            "machine build(builder: &mut Build) {{\n    builder.application(\"canonical-host-acceptance\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
+            bundled_standard_library_dependency_declaration(),
+        ),
+    )
+    .expect("write canonical-host scratch build");
+    let root = scratch.join("main.omg");
+    fs::write(
+        &root,
+        "use omega_language_std::console;\n\
+         use omega_language_std::filesystem_host;\n\
+         use omega_language_std::time_host;\n\
+         use omega::language::core::service;\n\
+         data Main { console: Binding<Console>; host: Binding<FilesystemHost>; clock: Binding<TimeHost>; }\n\
+         machine Main::main(&mut self) reaches Console + FilesystemHost {\n\
+             let fd: i32 = self.host.open(\"omega_canonical_host_absent.dat\", 0);\n\
+             transition fd < 0 { true -> good() _ -> bad(71) }\n\
+             state good(&mut self) { self.console.exit_process(70); }\n\
+             state bad(&mut self, code: i32) { self.console.exit_process(code); }\n\
+         }\n",
+    )
+    .expect("write canonical-host scratch main");
+    let package_inputs = reviewed_repository_fixture_package_inputs(&root, Some("linux_x86_64"))
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "canonical-host scratch fixture should review:\n{}",
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        })
+        .expect("the authored standard-library dependency wires package inputs");
+    let _ = fs::remove_dir_all(&scratch);
+    for (role, declaration) in [
+        (
+            AcceptedSemanticBindingRole::FilesystemHostService,
+            "FilesystemHost",
+        ),
+        (AcceptedSemanticBindingRole::TimeHostService, "TimeHost"),
+    ] {
+        let binding = package_inputs
+            .accepted_semantic_binding(role)
+            .unwrap_or_else(|| {
+                panic!("the entry's `Binding<{declaration}>` field accepts {role:?}")
+            });
+        assert_eq!(binding.declaration_path(), declaration);
+        assert_eq!(binding.package(), fixture_package_identity(2));
+    }
 }
 
 fn compile_reviewed_repository_fixture(
