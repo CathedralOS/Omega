@@ -1063,6 +1063,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
         &baseline,
         selected.source_signature(),
         &provenance,
+        false,
     )
     .expect("the selected root receipt should independently rederive");
     assert_eq!(derived, selected.fused_service_establishments());
@@ -1082,6 +1083,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
         &unselected,
         selected.source_signature(),
         &[],
+        false,
     )
     .expect_err("an unselected entry service must reject before the missing attachment");
     assert_eq!(missing_provider.len(), 1);
@@ -1089,6 +1091,17 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
         missing_provider[0].message,
         "selected ProgramEntry Service field `Main::service` requires a selected Fused provider for boundary `Ping`",
     );
+
+    // The discovery pass leaves the same unselected field unestablished instead
+    // of rejecting — nominating the provider is that pass's product.
+    let tolerated = selected_dispatch::derive_fused_program_entry_establishments(
+        &unselected,
+        selected.source_signature(),
+        &[],
+        true,
+    )
+    .expect("a discovery pass leaves unsettled Service fields unestablished");
+    assert!(tolerated.is_empty());
 
     let mut substituted = baseline.clone().into_program();
     match fused_service_field_mut(&mut substituted) {
@@ -1102,6 +1115,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
             &substituted,
             selected.source_signature(),
             &provenance,
+            false,
         )
         .is_err(),
         "a selected-root Terminal receipt substitution must reject"

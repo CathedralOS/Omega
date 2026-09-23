@@ -2157,12 +2157,19 @@ fn provider_backed_field(
     if let Some(requirement) =
         typed_trees::service::exact_bound_service_requirement(program, type_reference)
     {
-        let authorization = program.fused_service_erasure(requirement)?;
+        // A `Service<boundary>` field with no settled provider selection still
+        // carries a provider handle: mint the unerased ProviderBacked shape so
+        // the record keeps its plan. Establishment — not shape collection —
+        // owns rejecting the missing selection, which lets the review's
+        // discovery pass mint this shape before its nomination exists.
+        let authorization = program.fused_service_erasure(requirement);
         return Some((
-            Some(checked_trees::CheckedFusedServiceErasureReceipt {
-                requirement,
-                provider_plan_digest: authorization.provider_plan_digest,
-            }),
+            authorization.map(
+                |authorization| checked_trees::CheckedFusedServiceErasureReceipt {
+                    requirement,
+                    provider_plan_digest: authorization.provider_plan_digest,
+                },
+            ),
             type_reference,
         ));
     }
