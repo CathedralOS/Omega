@@ -85,14 +85,13 @@ pub(crate) fn plain_scalar_array_call(
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
-        && crash_continuations.is_empty()
+        && *crash_continuations == contract.crash_routes
         && selected_evidence.is_empty()
         && callee.entry_claim_declarations.is_empty()
         && callee.content_entry_claims.is_empty()
         && callee.evidence_contract_lanes.is_empty()
         && contract.requires.is_empty()
         && contract.ensures.is_empty()
-        && contract.crash_routes.is_empty()
         && contract.outcome_specific_ensures.is_empty()
         // Argument types/access are independently checked by the ordinary call
         // contract. An array result must not exclude a borrowed primitive input.

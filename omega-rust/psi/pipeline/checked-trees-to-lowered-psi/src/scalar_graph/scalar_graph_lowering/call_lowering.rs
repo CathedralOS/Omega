@@ -581,4 +581,3 @@ pub(crate) fn lower_scalar_graph_successor(
         erased_proof_arguments,
     ))
 }
-

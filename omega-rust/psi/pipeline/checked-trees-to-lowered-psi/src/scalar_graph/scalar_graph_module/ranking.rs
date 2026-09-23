@@ -246,9 +246,9 @@ pub(super) fn retain(
             // belongs to the delivering edge — the source's own term passed
             // onward is preservation, not descent.
             let successor_rank = match target_position {
-                Some(position) => *arguments.get(position).ok_or(
-                    LoweringError::Unsupported("scalar backedge lost its next rank"),
-                )?,
+                Some(position) => *arguments.get(position).ok_or(LoweringError::Unsupported(
+                    "scalar backedge lost its next rank",
+                ))?,
                 None => target_member.rank,
             };
             let covered = rank.covered_cyclic_edges.iter().any(|edge| {

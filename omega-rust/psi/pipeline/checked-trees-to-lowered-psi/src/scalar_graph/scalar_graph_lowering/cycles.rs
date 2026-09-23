@@ -7,8 +7,8 @@ use super::{
     StructuralTypeDeclaration, source_custody, terminal_scalar_type, unsupported,
 };
 use checked_trees::expression::ExpressionNode;
-use checked_trees::types::PrimitiveType;
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
     CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
@@ -162,9 +162,8 @@ fn validate_rank<'a>(
         let coordinate = resolve_member(checked, member_machine, member_source, member_row)?;
         members.push(coordinate);
     }
-    let member_lookup = |state: symbols::SymbolHandle| {
-        members.iter().find(|member| member.source.symbol == state)
-    };
+    let member_lookup =
+        |state: symbols::SymbolHandle| members.iter().find(|member| member.source.symbol == state);
     let header = member_lookup(source.symbol).ok_or(LoweringError::Unsupported(
         "scalar loop lost its header rank coordinate",
     ))?;
@@ -241,13 +240,10 @@ fn validate_rank<'a>(
                 // Its guard/decrement proof remains with that owner; do not add a
                 // second syntax recognizer for Boolean wrappers or failed guards.
                 if transition.exit != TransitionExit::Ordinary || is_continuation {
-                    return unsupported(
-                        "scalar natural rank has an unsupported source edge role",
-                    );
+                    return unsupported("scalar natural rank has an unsupported source edge role");
                 }
-                let statement_ordinal = u32::try_from(statement_ordinal).map_err(|_| {
-                    LoweringError::Unsupported("scalar loop statement exceeds u32")
-                })?;
+                let statement_ordinal = u32::try_from(statement_ordinal)
+                    .map_err(|_| LoweringError::Unsupported("scalar loop statement exceeds u32"))?;
                 let mut matching = successors.iter().flatten().copied().filter(|successor| {
                     successor.statement_ordinal == statement_ordinal
                         && successor.is_continuation == is_continuation
@@ -257,9 +253,7 @@ fn validate_rank<'a>(
                     "scalar natural rank lost an authored successor",
                 ))?;
                 if matching.next().is_some() {
-                    return unsupported(
-                        "scalar natural rank duplicated an authored successor",
-                    );
+                    return unsupported("scalar natural rank duplicated an authored successor");
                 }
                 source_custody::validate_successor(checked, member.source.symbol, successor)?;
                 let target_member = member_lookup(normalized).ok_or(LoweringError::Unsupported(

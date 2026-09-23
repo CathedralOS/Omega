@@ -57,7 +57,7 @@ pub(crate) fn plain_record_call(
         && claim_transfers.is_empty()
         && returned_claim_transfers.is_empty()
         && requirement_obligations.is_empty()
-        && crash_continuations.is_empty()
+        && *crash_continuations == contract.crash_routes
         && selected_evidence.is_empty()
         && callee.entry_claims.is_empty()
         && callee.entry_claim_declarations.is_empty()
@@ -65,7 +65,6 @@ pub(crate) fn plain_record_call(
         && callee.evidence_contract_lanes.is_empty()
         && contract.requires.is_empty()
         && contract.ensures.is_empty()
-        && contract.crash_routes.is_empty()
         && contract.outcome_specific_ensures.is_empty()
         && callee.structural_parameters.iter().all(|parameter| {
             matches!(

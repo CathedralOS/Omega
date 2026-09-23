@@ -111,10 +111,11 @@ pub(super) fn operation(
                 if retained == psi_operation && retained_source == source
             )).count() == 1
         }
-        AbstractOperation::CallStructural { psi_operation, callee, result, .. } => {
+        AbstractOperation::CallStructural { psi_operation, callee, result, crash_continuations, .. } => {
             selected.calls.iter().filter(|row| row.operation == *psi_operation && row.call.callee == *callee
                 && row.call.structural_result.as_ref() == Some(result)
-                && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()).count() == 1
+                && row.call.result_placement == row.call.call_plan.result && row.call.result_placement.is_some()
+                && row.call.crash_continuations == *crash_continuations).count() == 1
         }
         AbstractOperation::ReturnStructural { psi_edge, source, returned_claims, trivial_affine_locals, trivial_affine_discards } => {
             returned_claims.is_empty() && trivial_affine_locals.is_empty()

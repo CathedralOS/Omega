@@ -200,7 +200,7 @@ pub(crate) fn finalize_checked_scalar_graph_plans_with_call_frames(
     proof_terms: &checked_trees::CheckedProofTerms,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) {
-// Validation reads each successor's own machine graph for cross-machine
+    // Validation reads each successor's own machine graph for cross-machine
     // targets, so every graph is checked against the completed list before
     // any machine is dropped.
     let retained = plans
@@ -866,7 +866,8 @@ fn checked_successor(
         // first state outright (`-> self.pong` carries `pong`'s entry-state
         // symbol): the same spelling the scalar call-lowering gates resolve
         // through `find_machine_by_entry_state`.
-        crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)?.1
+        crate::semantic::calls::find_machine_by_entry_state(program, path.symbol)?
+            .1
             .symbol
     };
     Some(CheckedScalarSuccessor {
