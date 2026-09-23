@@ -37,6 +37,14 @@ use super::test_support::*;
 use extents::{AddressSpaceId, ExtentProvenanceId, ExtentRights};
 use layout_plans::{MachineRegimeId, PlacementAddressRange, PlacementSite};
 
+mod installed_realization_custody_fields;
+
+use installed_realization_custody_fields::{
+    InstalledRealizationCustodyCheck, InstalledRealizationCustodyFieldForTest,
+    foreign_realization_spec_donor, installed_realization_custody_outcome,
+    substitute_installed_realization_for_test,
+};
+
 #[test]
 fn canonical_materializer_patches_x86_relative_targets_and_binds_the_receipt() {
     let target = RelocationTarget::Entry(entry_id(1001));
@@ -1864,139 +1872,40 @@ fn installed_realization_rejects_every_one_field_substitution() {
     }
 
     // Every field retained in the installed-occurrence evidence substitutes
-    // independently: the honest containing identity is recomputed by the
-    // digest and each independent replay still rejects the substitution.
-    let axes: Vec<(&str, fn(&mut RealizationSpec))> = vec![
-        ("artifact code bytes", |s| s.code[0] ^= 1),
-        ("artifact architecture", |s| {
-            s.architecture = Architecture::Aarch64;
-        }),
-        ("artifact identity", |s| s.artifact = 2),
-        ("artifact entry set", |s| s.entry_set = 35),
-        ("artifact entry identity", |s| s.entry = 1002),
-        ("artifact entry code offset", |s| s.entry_offset = 24),
-        ("artifact relocation roster", |s| {
-            s.relocations.push(DecodedArtifactRelocation {
-                kind: ArtifactRelocationKind::Absolute64,
-                destination_offset: 8,
-                target: RelocationTarget::Entry(entry_id(1001)),
-                addend: 0,
-            });
-            s.resolve = |_| Some(0x9000);
-        }),
-        ("admission receipt", |s| s.admission_receipt = 41),
-        ("container proof presence", |s| s.container_proof = None),
-        ("container proof digest", |s| {
-            s.container_proof = Some(RetainedContainerProof {
-                digest: normalized_proof_payload_digest(b"forged proof payload"),
-                bytes: b"container proof payload".to_vec(),
-            });
-        }),
-        ("container proof bytes", |s| {
-            s.container_proof = Some(RetainedContainerProof {
-                digest: normalized_proof_payload_digest(b"container proof payload"),
-                bytes: b"forged proof payload".to_vec(),
-            });
-        }),
-        ("installed identity", |s| s.installed = 282),
-        ("placement identity", |s| s.placement = 108),
-        ("installation scope", |s| {
-            s.scope = 62;
-            s.constraints = spec_constraints(
-                Some((0x1000, 0x1_0000)),
-                4096,
-                PlacementPhase::PostHandoff,
-                None,
-                Some(62),
-            );
-        }),
-        ("constraint installation scope", |s| {
-            s.constraints = spec_constraints(
-                Some((0x1000, 0x1_0000)),
-                4096,
-                PlacementPhase::PostHandoff,
-                None,
-                None,
-            );
-        }),
-        ("installation audience", |s| {
-            s.audience = InstallationAudience::DormantLocal;
-        }),
-        ("permitted range dropped", |s| {
-            s.constraints =
-                spec_constraints(None, 4096, PlacementPhase::PostHandoff, None, Some(61));
-        }),
-        ("permitted range start", |s| {
-            s.constraints = spec_constraints(
-                Some((0x800, 0x1_0000)),
-                4096,
-                PlacementPhase::PostHandoff,
-                None,
-                Some(61),
-            );
-        }),
-        ("permitted range end", |s| {
-            s.constraints = spec_constraints(
-                Some((0x1000, 0x2_0000)),
-                4096,
-                PlacementPhase::PostHandoff,
-                None,
-                Some(61),
-            );
-        }),
-        ("placement alignment", |s| {
-            s.constraints = spec_constraints(
-                Some((0x1000, 0x1_0000)),
-                2048,
-                PlacementPhase::PostHandoff,
-                None,
-                Some(61),
-            );
-        }),
-        ("placement phase", |s| {
-            s.constraints = spec_constraints(
-                Some((0x1000, 0x1_0000)),
-                4096,
-                PlacementPhase::Load,
-                None,
-                Some(61),
-            );
-        }),
-        ("placement machine regime", |s| {
-            s.constraints = spec_constraints(
-                Some((0x1000, 0x1_0000)),
-                4096,
-                PlacementPhase::PostHandoff,
-                Some(10),
-                Some(61),
-            );
-        }),
-        ("placement base", |s| s.extent_base = 0x8000),
-        ("placement length", |s| s.extent_length = 8192),
-        ("placement address space", |s| s.extent_space = 54),
-        ("placement rights roster", |s| {
-            s.extent_rights = vec![51, 55]
-        }),
-        ("placement provenance", |s| s.extent_provenance = 56),
-        ("placement mapping era", |s| s.extent_era = 57),
-        ("extent lineage", |s| s.extent_lineage = 117),
-        ("realized footprint", |s| s.realized_footprint = 72),
-        ("final validation identity", |s| s.validation = 181),
-        ("W^X enforcement", |s| s.wx = WxEnforcement::ConventionOnly),
-    ];
-    for (name, mutate) in &axes {
-        let mut changed = spec.clone();
-        mutate(&mut changed);
-        let substituted = realize(&changed);
-        assert_realization_diverged(
-            name,
-            &substituted,
-            authentic_digest,
-            &registry,
-            &quarantined,
-            &spec,
-        );
-    }
+    // independently through the declared inventory: the honest containing
+    // identity recomputes by the occurrence digest, the registry authority's
+    // replay refuses to bind the substituted record, and the joined replay
+    // drives the same divergence through the stale-entry and lifecycle
+    // gates.
+    optimization_core::run_one_field_substitution_matrix(
+        &optimization_core::OneFieldSubstitutionMatrix {
+            family: "installed realization",
+            fields: InstalledRealizationCustodyFieldForTest::INVENTORY,
+            honest: &authentic_spec,
+            donor: foreign_realization_spec_donor(),
+            custody: &|spec: &RealizationSpec| realize(spec).occurrence_digest(),
+            substitute: &substitute_installed_realization_for_test,
+            check: &|changed: &RealizationSpec| {
+                let substituted = realize(changed);
+                if registry.matches(&substituted) {
+                    Ok(substituted.occurrence_digest())
+                } else {
+                    Err(InstalledRealizationCustodyCheck::RegistryMismatch)
+                }
+            },
+            outcome: &installed_realization_custody_outcome,
+            joined_replay: Some(&|changed: &RealizationSpec, field| {
+                assert_realization_diverged(
+                    &format!("{field:?}"),
+                    &realize(changed),
+                    authentic_digest,
+                    &registry,
+                    &quarantined,
+                    &spec,
+                );
+            }),
+        },
+    );
 
     // The exact materialized byte interval is bound independently of the
     // content identity: one relocation resolved to two different targets
