@@ -203,6 +203,32 @@ OMEGA_PASS_CANARY_FILTER=nested_parameter_receiver_call \
 red, so a filtered run scoped to what you changed is how a failure gets
 attributed.
 
+### Corpus outcome gate
+
+For e2e-visible changes, `tools/corpus_gate.py` is the cheap iteration smoke:
+it runs the `corpus_runner` binary (a `harness = false` test target that
+compiles every `tests/omega/{pass,fail,run}` fixture through the compile and
+checked-compile routes) and diffs per-fixture outcome records —
+checked/rejected, diagnostic messages, expected-fragment satisfaction, and
+per-fixture compile time — against `tests/omega/corpus_outcomes.json`. A diff
+means observable behavior moved; `--record` re-pins the golden when the
+movement is intended.
+
+```bash
+python3 tools/corpus_gate.py --filter termination   # one domain in the loop
+python3 tools/corpus_gate.py --filter wire/,fail/proofs
+python3 tools/corpus_gate.py --record             # re-pin the golden
+```
+
+`--filter` matches the same comma-separated `tier/group/name` fragments as the
+canary filters (also `OMEGA_CORPUS_FIXTURE_FILTER`); `--shard k/N` selects a
+deterministic hash slice for splitting the run across sessions. A subset diff
+compares only the fixtures that ran against the same golden; a subset
+`--record` merges into it. The unfiltered corpus is scheduled-workload cost,
+not loop cost — keep it out of routine iteration. This gate does not replace
+the scoped suites AGENTS.md names for internal-only surfaces, and run-tier
+fixtures are compile-checked only, not executed.
+
 ### Bootstrap gates
 
 Bootstrap gates are `sh` scripts, not Cargo tests, and self-skip when `python3`
