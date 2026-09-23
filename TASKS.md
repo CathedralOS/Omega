@@ -2829,9 +2829,26 @@ syntax and other terminal services are not prerequisites.
   `lineage.rs::ParameterLineage::Exact` carries a `Vec<ProgressSubject>` and
   `resolve` already returns `Vec<ProgressPremise>`.
 
-  What blocks them is that `origins.rs::at_call` returns
-  `Option<ProgressSubject>`, so a disjunction has nowhere to go and collapses
-  to `None`. Widening it to a set (empty = unproven) reaches two consumers:
+  What blocks them is NOT the shape it looks like. Measured by instrumenting
+  `call_result_place`: for
+  `machine choose(..) -> SchedulerHandle { transition flag { true -> former.scheduler false -> latter.scheduler } }`
+  the callee's terminal statement is an UNCONDITIONAL transition
+  (`guard == Always`, `continuation` invalid) and the two-arm guard sits in the
+  PREFIX (`prefix.len() == 1`). A `TableTransition` does carry `target` and
+  `continuation` fields, so reading the arms off those looks right and is
+  wrong -- an attempt built on that model resolved nothing, because the arms
+  were never there. Do not repeat it; instrument the terminal before
+  believing any model of this lowering.
+
+  The actual gate is the prefix rejection immediately below the terminal
+  match: "an unresolved control-flow or binding route cannot select which
+  input supplied the result; only the single linear prefix qualifies", which
+  returns `None` when any prefix statement is a `Transition`. Admitting the
+  finite set means resolving the demanded value once per guarded prefix route,
+  not per terminal arm.
+
+  Beyond that, `origins.rs::at_call` returns `Option<ProgressSubject>`, so even
+  a resolved disjunction has nowhere to go and collapses to `None`. Widening it to a set (empty = unproven) reaches two consumers:
   `machine_summaries.rs:138`, which already loops over resolved instances, and
   `lineage/transfers.rs:55`, whose transfer subject would carry the
   alternatives that `merge_parameter_lineage` then folds. Admit a disjunction
