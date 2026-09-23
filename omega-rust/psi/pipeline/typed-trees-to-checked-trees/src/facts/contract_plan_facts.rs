@@ -439,25 +439,57 @@ pub(crate) fn build_closed_scalar_value_contract_plan(
         lower_closed_clause(contract).or_else(|| {
             // Preserve legacy closed literal encoding, then read compositional
             // scalar predicates in their exact entry or normal-result namespace.
-            let [ProofFact::Expression(expression)] =
-                program.proof_facts.span_or_empty(contract.facts)
-            else {
-                return None;
-            };
-            if contract.kind == SignatureContractKind::Ensures
+            let facts = program.proof_facts.span_or_empty(contract.facts);
+            // The float-meaning equality reading is a whole-clause shape, not
+            // a predicate, so it stays on the single-fact spelling.
+            if let [ProofFact::Expression(expression)] = facts
+                && contract.kind == SignatureContractKind::Ensures
                 && let Some(clause) = lower_float_meaning_equality_clause(program, *expression)
             {
                 return Some(clause);
             }
-            crate::values::lower_scalar_contract_predicate(
-                program,
-                operators,
-                machine,
-                *expression,
-                contract.kind == SignatureContractKind::Ensures,
-                &mut 4096,
-            )
-            .map(checked_trees::ClosedScalarContractValue::Predicate)
+            // One keyword is one clause however many facts it lists:
+            // `requires 1 <= value; value <= 7;` parses to ONE contract
+            // carrying TWO facts and means the conjunction that
+            // `requires 1 <= value && value <= 7;` spells as one. One clause
+            // per authored contract is load-bearing downstream --
+            // `runtime_requirements::source` counts authored CONTRACTS to
+            // find where the derived parameter-range tail begins, and reads
+            // an authored two-bound range back as a single `And` -- so the
+            // facts join here rather than becoming separate rows. Reading
+            // only the one-fact spelling left every multi-fact clause
+            // unlowered as `None`: harmless while such machines took the Unit
+            // route, and fail-closed once they reach the scalar graph's
+            // `covered_requires`. The facts share one predicate budget
+            // because they are one clause.
+            let mut remaining = 4096;
+            let mut conjunction: Option<checked_trees::CheckedBooleanExpression> = None;
+            for fact in facts {
+                // A membership or proposition fact has no scalar predicate
+                // reading, and a clause is all-or-nothing: the whole clause
+                // stays unlowered rather than shrinking to the facts that do
+                // read, which would drop an authored requirement silently.
+                let ProofFact::Expression(expression) = fact else {
+                    return None;
+                };
+                let predicate = crate::values::lower_scalar_contract_predicate(
+                    program,
+                    operators,
+                    machine,
+                    *expression,
+                    contract.kind == SignatureContractKind::Ensures,
+                    &mut remaining,
+                )?;
+                conjunction = Some(match conjunction {
+                    None => predicate,
+                    // Left-associated, as `a && b && c` reads.
+                    Some(left) => checked_trees::CheckedBooleanExpression::And {
+                        left: Box::new(left),
+                        right: Box::new(predicate),
+                    },
+                });
+            }
+            conjunction.map(checked_trees::ClosedScalarContractValue::Predicate)
         })
     };
 
