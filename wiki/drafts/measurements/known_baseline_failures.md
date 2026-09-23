@@ -1156,6 +1156,47 @@ declaration", same message); the other is
 unresolved after successful checking (CheckedCall)"). The recorded
 fused-provider and macOS-temp-dir members are closed.
 
+## fast-suite sweep (macOS arm64, 2026-09-23)
+
+`cargo nextest run -p <crate> --no-fail-fast` at `a2924de738` across nine
+crates, run to find failures no row or entry names. Six are clean:
+`image-emission` 297/297, `native-realization` 135/135 (6 slow, 2 leaky),
+`legalized-operations` 30/30, `register-homes` 73/73, `selected-dispatch`
+122/122. The rest:
+
+- `terminal-verifier` 851 run, 848 passed, 3 failed. Two are owned --
+  `trusted_surface::recorded_digests_match_the_working_tree` is the
+  deliberate red the board says must not be closed by re-recording, and
+  `structural_unit::jumps_and_crash_routes::jump_edge_residual_discards_close_the_projected_argument_root_in_order`
+  is CML4's. The third,
+  `structural_unit::partial_affine_moves::direct_field_partial_affine_return_rejects_forged_conservation_shapes`,
+  is bracketed on CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.
+- `terminal-interpreter` 316 run, 314 passed, 2 failed: both
+  `affine_cleanups::*` members are OWNER_QUESTIONS question 12's witnesses.
+- `optimization-unit-semantics` 231 run, 228 passed, 3 failed: all three are
+  CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT, attributed to
+  `c049c026b6`.
+- `package-evidence` 677 run, 666 passed, 11 failed. Eight are the
+  `contract_expressions::evidence_calls` family OPERATOR-MACHINE-SUPPLY
+  owns, and `terminal_permission_policy::uefi::ordinary_uefi_permission_retains_calling_meaning_omitted_from_accepted_schema_digest`
+  is AUTHORED-SELECTION-FINALIZATION-GAPS'. **Two are unattributed** and are
+  recorded here by exact name and message so a search finds them:
+
+  - `boundary_supply::static_telescopes::review_projects_unselected_type_and_lifetime_generic_top_level_external_supply`
+    fails its own assertion message, "generic disclosure must not imply
+    provider selection or installation" -- so a disclosure that should stay
+    inert is now implying selection or installation, which is a control
+    failing open rather than a spelling drift, and worth a cause before a
+    repin.
+  - `public_api::traits_and_lifetimes::public_trait_shape_retains_boundary_parent_and_alpha_normalized_requirements`
+    fails `assert!(exchange.identity().path().contains("Service::exchange"))`.
+    A path spelling that no longer matches is the signature of the
+    `Service<R>` carrier migration this file already attributes elsewhere to
+    **ENTRY-CONTENT-ROOTS** (`0e1977994b9`), so that is the family to check
+    first -- but it is NOT confirmed by bisect here, and the bare `assert!`
+    prints no actual path, so treat the family as a lead rather than the
+    attribution.
+
 ## package-evidence
 
 `cargo nextest run -p package-evidence --no-fail-fast` at 34cc842d85 plus the
