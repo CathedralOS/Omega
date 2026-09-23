@@ -24,6 +24,9 @@ as in `data Box<T [copy]> [copy]`. They are distinct from domain qualifications
 and generate no callable behavior. `sized` and structural carry are derived
 judgments, not authored requests. Explicit `copy` and `linear` requests are
 checked at the declaration; failure rejects rather than weakening the request.
+Fields and locals do not redeclare the multiplicity of their type: every use of
+`T` receives the property fixed by `T`'s declaration and concrete generic
+application. A conformance, selected provider, or lowering cannot change it.
 
 Opaque boundary properties require accepted provider evidence. Ordinary packages
 cannot append structural properties to foreign types or grant themselves opaque

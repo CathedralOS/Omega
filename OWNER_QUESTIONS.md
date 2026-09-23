@@ -140,30 +140,7 @@ Validate one real device sequence and one idle/external-entry sequence.
 - Tempting but wrong: replace hardware idle with interpreter pause, redefine
   instructions through provider names, or move OS policy into the compiler.
 
-### Q4 - Is passing a Binding by value a move or a copy?
-
-Named decision: `service-carrier-argument-multiplicity`.
-
-**Context:** Already settled: [component publication](wiki/spec/build/component_publication.md#bindings-and-era-entry)
-defines `Binding<R>` as affine. Passing it by value moves it; ordinary argument
-passing does not duplicate authority.
-
-**Problem:** `capabilities/uses_caller_folder` passes `self.folder` by value from
-borrowed receiver storage without replacement. The checker rejects that move;
-the fixture expects acceptance. This is an implementation/fixture issue, not an
-open multiplicity decision.
-
-**Proposed solution:** Preserve affine custody and lend `&Binding<Folder>` when
-the callee only needs access. Keep a negative control for an unrepaired move out
-of borrowed storage, and close the stale escalation through the owning task.
-
-**Alternatives:**
-- Transfer ownership with valid replacement, or use protocol-authorized checked
-  duplication where an actual second binding is required.
-- Tempting but wrong: make Binding copyable only in argument position, or merely
-  reclassify the pass fixture without preserving its legitimate borrowed-call use.
-
-### Q5 - What portable identity should a root without a package declaration have?
+### Q4 - What portable identity should a root without a package declaration have?
 
 Named decision: `unmanaged-root-package-identity`.
 
@@ -188,7 +165,7 @@ route. Keep ordinary local compilation separate from portable publication.
 - Tempting but wrong: use host paths or import order, exempt toolchain declarations,
   or assume distinct owner identities make competing visible names unambiguous.
 
-### Q6 - Should a bare case name resolve as a value?
+### Q5 - Should a bare case name resolve as a value?
 
 Named decision: `bare-case-value-names`.
 
@@ -213,7 +190,7 @@ solely to make it pass.
 - Tempting but wrong: choose the first matching case by import order or silently
   prefer a case over a local binding.
 
-### Q7 - Does normal completion consume an owned receiver, including an affine one?
+### Q6 - Does normal completion consume an owned receiver, including an affine one?
 
 Named decision: `owned-self-receiver-implicit-retirement`.
 
