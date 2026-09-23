@@ -1,1 +1,1 @@
-declare `Point satisfies Equatable;` to synthesize structural equality
+declare `PointEquatable: Point satisfies Equatable;` to synthesize structural equality
