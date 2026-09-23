@@ -32,3 +32,4 @@ mod resolved_receiver_calls;
 mod selective_value_calls;
 mod state_value_scope;
 mod trait_machine_identity;
+mod wire_codec_write_frames;
