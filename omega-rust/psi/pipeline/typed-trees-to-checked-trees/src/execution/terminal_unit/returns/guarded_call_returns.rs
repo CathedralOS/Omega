@@ -97,14 +97,14 @@ pub(crate) fn build_payloadless_guarded_call_return_machine(
     if flow_call.target_symbol != call.target_symbol {
         return None;
     }
-    let call_site = crate::semantic_calls::find_call_site(
+    let call_site = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
         flow_call.statement_index,
         flow_call.call_ordinal,
     )?;
-    let crate::semantic_calls::CallSite::Expression { expression, .. } = call_site else {
+    let crate::semantic::calls::CallSite::Expression { expression, .. } = call_site else {
         return None;
     };
     if expression != saved.initial_value {

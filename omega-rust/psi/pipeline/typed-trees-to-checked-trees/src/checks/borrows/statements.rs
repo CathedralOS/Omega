@@ -7,7 +7,7 @@ use diagnostics::Diagnostic;
 
 use crate::flow::{StateMutationSummaryCache, call_write_accesses, statement_mutated_place};
 use crate::labels::symbol_name;
-use crate::semantic_calls::find_state_in_machine;
+use crate::semantic::calls::find_state_in_machine;
 
 use super::details::active_loan_detail;
 use super::overlap::{
@@ -501,14 +501,14 @@ fn source_exiting_without_carried_borrows<'program>(
 ) -> Option<&'program typed_trees::state::State> {
     let source = find_state_in_machine(program, flow.machine_symbol, flow.state_symbol)?;
     let target = find_state_in_machine(program, flow.machine_symbol, call.target_symbol)?;
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         flow.machine_symbol,
         flow.state_symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let crate::semantic_calls::CallSite::TransitionNamed { path, .. } = &site else {
+    let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = &site else {
         return None;
     };
     // A local state name has no explicit receiver; its head is the target
@@ -517,7 +517,7 @@ fn source_exiting_without_carried_borrows<'program>(
         return None;
     }
     let machine = crate::lookup::machine_by_symbol(program, flow.machine_symbol)?;
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let parameters = program.state_parameters(target);
     let mut positional = parameters.iter().filter(|parameter| !parameter.is_self);
     for argument in arguments {

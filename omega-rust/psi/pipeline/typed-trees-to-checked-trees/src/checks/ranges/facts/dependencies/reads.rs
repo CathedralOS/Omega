@@ -4,7 +4,7 @@ use super::{
 use crate::checks::ranges::facts::RangeCallContext;
 use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use checked_trees::{
     CheckedOperatorFacts, CheckedOperatorResolutionStatus, CheckedValueOrigin,
     CheckedValueStatementRole,
@@ -177,7 +177,7 @@ pub(super) fn collect_reads(
             else {
                 return false;
             };
-            let Some(target_state) = crate::semantic_calls::find_state_in_machine(
+            let Some(target_state) = crate::semantic::calls::find_state_in_machine(
                 program,
                 target_machine_symbol,
                 target_state_symbol,

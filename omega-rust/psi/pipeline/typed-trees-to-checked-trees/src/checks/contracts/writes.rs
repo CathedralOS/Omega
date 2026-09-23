@@ -33,7 +33,7 @@ pub(super) fn check_domain_field_writes(
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return;
     };
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -355,7 +355,7 @@ fn static_max_byte_length(
             known_lengths,
         ),
         ExpressionNode::Call(call) => {
-            let target = crate::semantic_calls::find_state(program, call.target_symbol)?;
+            let target = crate::semantic::calls::find_state(program, call.target_symbol)?;
             crate::facts::field_domain::type_reference_fixed_array_capacity(
                 program,
                 target.return_type,
@@ -653,7 +653,7 @@ fn scan_construction_field_domains(
                     // domain-carrying `[u8; N]` field (view carriers have no capacity).
                     if let Some(machine) =
                         crate::lookup::machine_by_symbol(program, state_flow.machine_symbol)
-                        && let Some(state) = crate::semantic_calls::find_state_in_machine(
+                        && let Some(state) = crate::semantic::calls::find_state_in_machine(
                             program,
                             state_flow.machine_symbol,
                             state_flow.state_symbol,
@@ -1891,7 +1891,7 @@ fn declared_value_domain_implies(
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -1927,7 +1927,7 @@ fn value_call_return_domain_implies(
     let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
         return false;
     };
-    let Some(target) = crate::semantic_calls::find_state(program, call.target_symbol) else {
+    let Some(target) = crate::semantic::calls::find_state(program, call.target_symbol) else {
         return false;
     };
     if !target.return_type.is_valid() {
@@ -2023,7 +2023,7 @@ fn recast_source_declared_domain_implies(
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,

@@ -273,7 +273,7 @@ pub(super) fn check_suspension_carry(
                 continue;
             }
 
-            let call_site = crate::semantic_calls::find_call_site(
+            let call_site = crate::semantic::calls::find_call_site(
                 program,
                 machine.symbol,
                 state.symbol,
@@ -446,7 +446,7 @@ fn derive_claim_carry_policies(
 fn append_call_carried_argument_diagnostics(
     program: &typed_trees::TypedTrees,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic_calls::CallSite<'_>>,
+    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
@@ -455,11 +455,11 @@ fn append_call_carried_argument_diagnostics(
         return;
     };
     let Some(parameters) =
-        crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+        crate::semantic::calls::call_target_parameters(program, call.target_symbol)
     else {
         return;
     };
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, call_site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
     for (position, (parameter, argument)) in parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -469,7 +469,7 @@ fn append_call_carried_argument_diagnostics(
         let display_name = program.expression_table.display_name(*argument);
         append_if_suspension_forbidden_with_type_parameters(
             program,
-            crate::semantic_calls::call_target_type_parameters(program, call.target_symbol),
+            crate::semantic::calls::call_target_type_parameters(program, call.target_symbol),
             parameter.type_reference,
             &display_name,
             call,
@@ -487,7 +487,7 @@ fn append_live_persistent_diagnostics(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic_calls::CallSite<'_>>,
+    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
@@ -559,7 +559,7 @@ fn append_persistent_field_if_live(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic_calls::CallSite<'_>>,
+    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     field_symbol: symbols::SymbolHandle,
     type_reference: typed_trees::types::TypeReferenceHandle,
     field_name: &str,
@@ -600,7 +600,7 @@ fn persistent_symbol_is_live_after_call(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic_calls::CallSite<'_>>,
+    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     field_symbol: symbols::SymbolHandle,
     field_name: &str,
 ) -> bool {
@@ -733,7 +733,7 @@ fn append_live_parameter_diagnostics(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic_calls::CallSite<'_>>,
+    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,
@@ -785,7 +785,7 @@ fn append_live_local_diagnostics(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     call: &checked_trees::BorrowCallFact,
-    call_site: Option<&crate::semantic_calls::CallSite<'_>>,
+    call_site: Option<&crate::semantic::calls::CallSite<'_>>,
     claim_carry: &ClaimCarryContext<'_>,
     crossing: &mut CrossingAccumulator,
     diagnostics: &mut Vec<Diagnostic>,

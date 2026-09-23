@@ -22,7 +22,7 @@ pub(super) fn call_site_proves_boolean_contract_expression(
     operators: &checked_trees::CheckedOperatorFacts,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -49,7 +49,7 @@ pub(crate) fn call_site_boolean_contract_expression_value(
     program: &typed_trees::TypedTrees,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &[StateParameter],
     expression: ExpressionHandle,
@@ -74,13 +74,13 @@ fn call_site_boolean_contract_expression_value_with_operators<'program, 'call>(
     operators: Option<&'program checked_trees::CheckedOperatorFacts>,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    call_site: &'call crate::semantic_calls::CallSite<'program>,
+    call_site: &'call crate::semantic::calls::CallSite<'program>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &'program [StateParameter],
     expression: ExpressionHandle,
     call_frames: Option<&'call validation::CallFrameResolver<'program>>,
 ) -> Option<bool> {
-    let caller_state = crate::semantic_calls::find_state_in_machine(
+    let caller_state = crate::semantic::calls::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -115,7 +115,7 @@ pub(super) struct ContractExpressionEvaluator<'program, 'call> {
     caller_machine: &'program Machine,
     caller_state: &'program State,
     statement_index: usize,
-    call_site: &'call crate::semantic_calls::CallSite<'program>,
+    call_site: &'call crate::semantic::calls::CallSite<'program>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &'program [StateParameter],
     /// Expressions whose integer evaluation is in progress on the call

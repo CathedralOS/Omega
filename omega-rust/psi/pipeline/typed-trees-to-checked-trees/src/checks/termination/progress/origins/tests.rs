@@ -152,7 +152,7 @@ impl Fixture {
     }
 
     fn root(&self, name: &str) -> SymbolHandle {
-        let state = crate::semantic_calls::find_state(&self.program, self.state.state_symbol)
+        let state = crate::semantic::calls::find_state(&self.program, self.state.state_symbol)
             .expect("fixture state");
         self.program
             .state_parameters(state)
@@ -239,7 +239,7 @@ impl Fixture {
     }
 
     fn make_local_reference(&mut self, name: &str, constrained: bool) {
-        let state = crate::semantic_calls::find_state(&self.program, self.state.state_symbol)
+        let state = crate::semantic::calls::find_state(&self.program, self.state.state_symbol)
             .expect("fixture state");
         let statements = state.statement_nodes;
         let (index, stored_type) = self
@@ -962,7 +962,7 @@ fn call_result_receiver_derives_the_exact_entry_subject() {
         &[],
         "machine SchedulerHandle::observe(self) -> u64 { 0 }",
     );
-    let state = crate::semantic_calls::find_state(&fixture.program, fixture.state.state_symbol)
+    let state = crate::semantic::calls::find_state(&fixture.program, fixture.state.state_symbol)
         .expect("fixture state");
     let statement = &fixture
         .program
@@ -976,7 +976,7 @@ fn call_result_receiver_derives_the_exact_entry_subject() {
         unreachable!("observe call node")
     };
     let parameters =
-        crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+        crate::semantic::calls::call_target_parameters(&fixture.program, call.target_symbol)
             .expect("observe parameters");
     let [parameter] = parameters else {
         unreachable!("observe self parameter")
@@ -1021,7 +1021,7 @@ fn call_result_argument_derives_the_exact_entry_subject() {
         "let saved: SchedulerHandle = keep(pick(replacement));",
         "context.scheduler",
     );
-    let state = crate::semantic_calls::find_state(&fixture.program, fixture.state.state_symbol)
+    let state = crate::semantic::calls::find_state(&fixture.program, fixture.state.state_symbol)
         .expect("fixture state");
     let statement = &fixture
         .program
@@ -1035,7 +1035,7 @@ fn call_result_argument_derives_the_exact_entry_subject() {
         unreachable!("keep call node")
     };
     let parameters =
-        crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+        crate::semantic::calls::call_target_parameters(&fixture.program, call.target_symbol)
             .expect("keep parameters");
     let [parameter] = parameters else {
         unreachable!("keep handle parameter")
@@ -1103,7 +1103,7 @@ fn indexed_carrier_argument_demands_the_leaf_referent() {
             .last()
             .expect("demand call row");
         let parameters =
-            crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+            crate::semantic::calls::call_target_parameters(&fixture.program, call.target_symbol)
                 .expect("observe_scheduler parameters");
         let [parameter] = parameters else {
             unreachable!("observe_scheduler value parameter")
@@ -1145,7 +1145,7 @@ fn dynamic_index_carrier_argument_stays_unproven() {
         .last()
         .expect("demand call row");
     let parameters =
-        crate::semantic_calls::call_target_parameters(&fixture.program, call.target_symbol)
+        crate::semantic::calls::call_target_parameters(&fixture.program, call.target_symbol)
             .expect("observe_scheduler parameters");
     let [parameter] = parameters else {
         unreachable!("observe_scheduler value parameter")

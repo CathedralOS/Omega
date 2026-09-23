@@ -4,7 +4,7 @@ use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
 use crate::lower_typed_trees;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
 use checked_trees::ContractProofFactKind;
 
@@ -986,8 +986,10 @@ fn exit_ensures_requirement_label_resolves_attached_data_members() {
     let mut scratch = validation::build_definition_fact_plan(&typed);
     let self_place = scratch.append_symbol_place(self_symbol);
     assert!(
-        crate::semantic_places::resolve_place_member_symbol(&typed, &scratch, self_place, "player")
-            .is_some(),
+        crate::semantic::places::resolve_place_member_symbol(
+            &typed, &scratch, self_place, "player"
+        )
+        .is_some(),
         "root self place should resolve attached-data member"
     );
     assert_eq!(segments.len(), 1, "segments: {segments:?}");
@@ -1100,7 +1102,7 @@ fn accepts_requires_from_local_alias_transfer() {
         .iter()
         .find(|call| call.target_symbol.is_valid())
         .expect("inspect call");
-    let call_site = crate::semantic_calls::find_call_site(
+    let call_site = crate::semantic::calls::find_call_site(
         &typed,
         caller_flow.machine_symbol,
         caller_flow.state_symbol,
@@ -1108,7 +1110,7 @@ fn accepts_requires_from_local_alias_transfer() {
         inspect_call.call_ordinal,
     )
     .expect("call site");
-    let arguments = crate::semantic_calls::call_site_argument_expressions(&typed, &call_site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(&typed, &call_site);
     assert_eq!(arguments.len(), 1);
     let local_argument = arguments[0];
     assert_eq!(typed.expression_table.display_name(local_argument), "local");

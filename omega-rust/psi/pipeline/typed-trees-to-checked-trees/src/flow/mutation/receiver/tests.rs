@@ -1,6 +1,6 @@
 use super::canonical_receiver_place_for_call_site;
 use crate::flow::canonical_place_from_symbol;
-use crate::semantic_calls::{CallSite, find_call_site};
+use crate::semantic::calls::{CallSite, find_call_site};
 use crate::tests::front_end::typed_program;
 
 /// `carrier.context.increment_counter()` is a projected statement receiver:

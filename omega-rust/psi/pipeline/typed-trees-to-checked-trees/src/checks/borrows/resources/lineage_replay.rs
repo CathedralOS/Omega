@@ -8,7 +8,7 @@ pub(crate) fn replay_checked_direct_reborrow_lineage(
     borrow: &BorrowFacts,
 ) -> Result<(), Vec<Diagnostic>> {
     for (_, state) in borrow.states.iter() {
-        let Some(typed_state) = crate::semantic_calls::find_state_in_machine(
+        let Some(typed_state) = crate::semantic::calls::find_state_in_machine(
             program,
             state.machine_symbol,
             state.state_symbol,

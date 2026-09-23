@@ -63,7 +63,7 @@ pub(super) fn requirement_reads_survive_earlier_operand_writes(
         .find(|parameter| parameter.is_self)
         .map(|parameter| parameter.symbol);
     let arm_of = |call_ordinal: usize| -> Option<TransitionTargetHandle> {
-        crate::semantic_calls::transition_call_target(
+        crate::semantic::calls::transition_call_target(
             program,
             machine,
             state,

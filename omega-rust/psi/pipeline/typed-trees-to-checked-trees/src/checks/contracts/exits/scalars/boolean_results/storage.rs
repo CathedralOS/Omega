@@ -24,7 +24,7 @@ impl ExitScalars<'_, '_> {
             return None;
         }
         *remaining -= 1;
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,
@@ -162,7 +162,7 @@ impl ExitScalars<'_, '_> {
         before_statement: u32,
         remaining: &mut usize,
     ) -> Option<()> {
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.machine.symbol,
             self.exit.state_symbol,

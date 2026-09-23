@@ -32,13 +32,13 @@ pub(crate) fn build_checked_dynamic_scalar_call(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     flow_call: &checked_trees::FlowCallFact,
-    call_site: crate::semantic_calls::CallSite<'_>,
+    call_site: crate::semantic::calls::CallSite<'_>,
     shapes: &mut ShapeCollector<'_>,
     boundaries: &[CheckedBoundaryMachinePlan],
     forwarded: Option<ForwardedDynamicCall<'_, '_>>,
     stored: Option<&checked_trees::DynamicDescriptorStorageFact>,
 ) -> Option<CheckedDynamicBinding<checked_trees::CheckedDynamicScalarCallPlan>> {
-    let crate::semantic_calls::CallSite::Expression {
+    let crate::semantic::calls::CallSite::Expression {
         expression: caller_expression,
         call: caller_call,
     } = call_site
@@ -72,7 +72,7 @@ pub(crate) fn build_checked_dynamic_scalar_call(
             if stored.is_some() {
                 return None;
             }
-            let crate::semantic_calls::CallSite::Expression { call, .. } = forwarded.call_site
+            let crate::semantic::calls::CallSite::Expression { call, .. } = forwarded.call_site
             else {
                 return None;
             };

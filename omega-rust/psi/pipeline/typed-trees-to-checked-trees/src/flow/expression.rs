@@ -14,7 +14,7 @@ use crate::flow::canonical_place_segments_may_overlap;
 use crate::flow::filter_contexts_after_place_mutations;
 use crate::flow::project_constraint_refs_to_active_contexts;
 use crate::flow::reference_spans;
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use arena::HandleSpan;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::statement::StatementNode;

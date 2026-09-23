@@ -18,7 +18,7 @@
 //! not establish that a computed actual still denotes its captured value.
 
 use crate::flow::CanonicalPlace;
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use checked_trees::{CheckedOperatorFacts, FlowCallFact, FlowStateFact};
 use facts::{FactPayload, FactPlace, FactPlan, PlaceRoot};
 use symbols::SymbolHandle;
@@ -214,7 +214,7 @@ fn invocation<'program>(
     statement: usize,
     ordinal: usize,
 ) -> Option<Invocation<'program>> {
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         caller.machine_symbol,
         caller.state_symbol,
@@ -228,7 +228,7 @@ fn invocation<'program>(
     };
     let callable = match &site {
         CallSite::TransitionNamed { .. } => {
-            crate::semantic_calls::find_state_with_machine(program, target)
+            crate::semantic::calls::find_state_with_machine(program, target)
                 .filter(|(machine, _)| machine.symbol == caller.machine_symbol)
                 .map(|(machine, state)| Callable::Machine { machine, state })
                 .or_else(|| Callable::resolve(program, target))?
@@ -248,7 +248,7 @@ fn invocation<'program>(
 fn stable_arguments(program: &TypedTrees, invocation: &Invocation<'_>) -> bool {
     let parameters = invocation.callable.parameters(program);
     let arguments =
-        crate::semantic_calls::call_site_argument_expressions(program, &invocation.site);
+        crate::semantic::calls::call_site_argument_expressions(program, &invocation.site);
     // Receiver, static and evidence substitution retain their own owners.
     let ordinary = match &invocation.site {
         CallSite::Expression { call, .. } => {
@@ -511,10 +511,10 @@ fn actual_projection(
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
     direct_place(program, expression)?;
-    crate::semantic_places::call_contract_argument_projection(
+    crate::semantic::places::call_contract_argument_projection(
         program,
         invocation.callable.parameters(program),
-        crate::semantic_calls::call_site_argument_expressions(program, &invocation.site),
+        crate::semantic::calls::call_site_argument_expressions(program, &invocation.site),
         expression,
     )
 }
@@ -626,7 +626,7 @@ mod prerequisite_roster_probes {
     use super::{
         Invocation, direct_place, invocation, receiver_place, stable_arguments, stable_value,
     };
-    use crate::semantic_calls::{CallSite, call_site_argument_expressions};
+    use crate::semantic::calls::{CallSite, call_site_argument_expressions};
     use crate::tests::front_end::typed_program;
     use checked_trees::FlowStateFact;
     use facts::PlaceRoot;

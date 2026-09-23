@@ -48,12 +48,12 @@ fn named_tail_call_coordinates_match_borrow_and_semantic_traversal() {
                 && !call.acknowledgement.acknowledges_block
         }));
         assert!(matches!(
-            crate::semantic_calls::find_call_site(&checked, machine.symbol, state.symbol, 0, 0),
-            Some(crate::semantic_calls::CallSite::TransitionNamed { .. }),
+            crate::semantic::calls::find_call_site(&checked, machine.symbol, state.symbol, 0, 0),
+            Some(crate::semantic::calls::CallSite::TransitionNamed { .. }),
         ));
         assert!(matches!(
-            crate::semantic_calls::find_call_site(&checked, machine.symbol, state.symbol, 0, 1),
-            Some(crate::semantic_calls::CallSite::Expression { .. }),
+            crate::semantic::calls::find_call_site(&checked, machine.symbol, state.symbol, 0, 1),
+            Some(crate::semantic::calls::CallSite::Expression { .. }),
         ));
         let borrow = &checked.facts.borrow;
         let state_borrow = borrow

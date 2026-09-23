@@ -111,7 +111,7 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     continue;
                 };
                 let Some((target_machine, target_state)) =
-                    crate::semantic_calls::find_state_with_machine(
+                    crate::semantic::calls::find_state_with_machine(
                         program,
                         result_call.target_symbol,
                     )

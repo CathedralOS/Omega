@@ -146,7 +146,7 @@ fn borrowed_receiver_scalar_results_survive_later_mutation_in_composed_plan() {
         panic!("call");
     };
     let target_state =
-        crate::semantic_calls::find_state(&checked.typed, receiver_calls[0].1).unwrap();
+        crate::semantic::calls::find_state(&checked.typed, receiver_calls[0].1).unwrap();
     let target = &checked.typed.state_parameters(target_state)[0];
     let reconstruct = |call, expression| {
         crate::execution::terminal_unit::structural_computation_argument(

@@ -102,7 +102,7 @@ fn expression_permission_claim_identity_for_claim(
                 // A checked result is a distinct occurrence until its exact
                 // return map proves forwarding. One owned argument does not
                 // prove that a conditional callee returns that argument.
-                if crate::semantic_calls::find_state(program, call.target_symbol).is_some() {
+                if crate::semantic::calls::find_state(program, call.target_symbol).is_some() {
                     return None;
                 }
                 let mut candidates = Vec::new();
@@ -261,7 +261,7 @@ fn expression_permission_provenance_for_claim(
 ) -> Option<PermissionProvenance> {
     if let typed_trees::expression::ExpressionNode::Call(call) =
         program.expression_table.expression(expression)
-        && crate::semantic_calls::find_state(program, call.target_symbol).is_some()
+        && crate::semantic::calls::find_state(program, call.target_symbol).is_some()
     {
         return None;
     }

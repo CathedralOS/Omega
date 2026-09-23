@@ -187,7 +187,7 @@ pub(super) fn selected_call<'a>(
             conversions: Vec::new(),
         });
     }
-    let callee = crate::semantic_calls::find_state(program, call.target_symbol)?;
+    let callee = crate::semantic::calls::find_state(program, call.target_symbol)?;
     let mut source_type = program.primitive_type_reference(callee.return_type)?;
     crate::values::bounds::primitive_range(source_type)?;
     let mut conversions = Vec::with_capacity(casts.len());

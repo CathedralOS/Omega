@@ -39,7 +39,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     local_symbol: SymbolHandle,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<CanonicalPlace>> {
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix = statements.get(..statement_index)?;
     let (binding_index, local) =
@@ -170,7 +170,7 @@ pub(crate) fn call_result_sources(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Option<Vec<ReferenceResultSource>> {
     let (callee, callee_state) =
-        crate::semantic_calls::find_state_with_machine(program, call.target_symbol)?;
+        crate::semantic::calls::find_state_with_machine(program, call.target_symbol)?;
     if callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.body_is_present
         || !program.machine_type_parameters(callee).is_empty()

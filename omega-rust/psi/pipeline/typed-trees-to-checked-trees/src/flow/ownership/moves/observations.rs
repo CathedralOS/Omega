@@ -125,7 +125,7 @@ pub(super) fn selected_operator(
 
 /// Targetless collection views borrow existing storage. Nominal/operator calls
 /// are resolved before this intrinsic path is considered, and
-/// [`crate::semantic_calls::collection_view_call`] rejects them. Only the two
+/// [`crate::semantic::calls::collection_view_call`] rejects them. Only the two
 /// element views are claimed here: `as_view`/`bytes` view a text carrier, not
 /// collection storage whose elements this lane could keep observed.
 pub(super) fn append_builtin_collection_view(
@@ -137,7 +137,7 @@ pub(super) fn append_builtin_collection_view(
     source: FlowOwnershipEventSource,
 ) -> bool {
     if !matches!(
-        crate::semantic_calls::collection_view_call(program, call),
+        crate::semantic::calls::collection_view_call(program, call),
         Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
     ) {
         return false;
@@ -229,7 +229,7 @@ pub(super) fn detached_borrowed_copy_admitted(
 
     // A `self`-rooted place crosses the state receiver's loan; the machine
     // symbol and the `self` parameter are the two spellings of that root.
-    if let Some(state_decl) = crate::semantic_calls::find_state(program, state)
+    if let Some(state_decl) = crate::semantic::calls::find_state(program, state)
         && let Some(self_parameter) = program
             .state_parameters(state_decl)
             .iter()

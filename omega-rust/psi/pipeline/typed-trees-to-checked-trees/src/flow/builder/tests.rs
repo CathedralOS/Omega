@@ -7,7 +7,7 @@ use crate::borrow::build_borrow_facts;
 use crate::flow::build_domain_facts;
 use crate::flow::{StateMutationSummaryCache, canonical_place_from_symbol};
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 
 thread_local! {
     pub(in crate::flow) static STATE_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };

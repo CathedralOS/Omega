@@ -1,4 +1,4 @@
-use crate::semantic_calls::MeasureReceiver;
+use crate::semantic::calls::MeasureReceiver;
 use checked_trees::{CheckFacts, ContractProofFactOwner};
 use language_semantics::declaration_selection::CollectionMeasure;
 use symbols::SymbolHandle;
@@ -113,7 +113,7 @@ pub(super) fn checked_collection_view_intrinsic_from_exact_owner(
     // The call shape decides which operation the spelling may select; this
     // site additionally requires every exact owner environment to agree on the
     // receiver's carrier type before the intrinsic is recorded.
-    let expected = crate::semantic_calls::collection_view_call(program, call)?;
+    let expected = crate::semantic::calls::collection_view_call(program, call)?;
     let mut retained = None;
     for environment in exact_owner_environments(program, facts, expression)? {
         let receiver =
@@ -849,7 +849,7 @@ fn member_target_in_environment(
 }
 
 /// The measure a member selects on its inferred receiver, asked of
-/// [`crate::semantic_calls::collection_measure_member`] in that query's
+/// [`crate::semantic::calls::collection_measure_member`] in that query's
 /// receiver vocabulary. A nominal or compiler-text receiver has no measure.
 fn collection_measure_in_environment(
     program: &TypedTrees,
@@ -861,7 +861,7 @@ fn collection_measure_in_environment(
         InferredType::CollectionView(_) => MeasureReceiver::Window,
         InferredType::Nominal(_) | InferredType::CompilerString => return None,
     };
-    crate::semantic_calls::collection_measure_member(program, member, receiver)
+    crate::semantic::calls::collection_measure_member(program, member, receiver)
 }
 
 fn resolve_member_symbol_from_authored_source(
@@ -1090,7 +1090,7 @@ fn inferred_type_is_collection(program: &TypedTrees, inferred: InferredType) -> 
     match inferred {
         InferredType::Nominal(_) => false,
         InferredType::TypeReference(type_reference) => {
-            crate::semantic_calls::type_reference_is_collection(program, type_reference)
+            crate::semantic::calls::type_reference_is_collection(program, type_reference)
         }
         InferredType::CollectionView(_) => true,
         InferredType::CompilerString => false,

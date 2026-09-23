@@ -6,7 +6,7 @@ pub(super) fn place_is_used_after_call(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
     statement_index: usize,
-    target: &crate::semantic_calls::CallSite<'_>,
+    target: &crate::semantic::calls::CallSite<'_>,
     symbol: SymbolHandle,
     fallback_name: &str,
 ) -> bool {
@@ -35,7 +35,7 @@ struct EvaluationTraversal<'program, 'target> {
     program: &'program typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
-    target: &'target crate::semantic_calls::CallSite<'program>,
+    target: &'target crate::semantic::calls::CallSite<'program>,
     target_reached: bool,
     place_used_after_target: bool,
     symbol: SymbolHandle,
@@ -63,7 +63,7 @@ impl EvaluationTraversal<'_, '_> {
                 {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::semantic_calls::CallSite::Statement(target) if std::ptr::eq(*target, call))
+                if matches!(self.target, crate::semantic::calls::CallSite::Statement(target) if std::ptr::eq(*target, call))
                 {
                     self.target_reached = true;
                 }
@@ -95,7 +95,7 @@ impl EvaluationTraversal<'_, '_> {
                 for argument in self.program.statement_table.expression_handles(*arguments) {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::semantic_calls::CallSite::TransitionNamed { arguments: target, .. } if *target == *arguments)
+                if matches!(self.target, crate::semantic::calls::CallSite::TransitionNamed { arguments: target, .. } if *target == *arguments)
                 {
                     self.target_reached = true;
                 }
@@ -157,7 +157,7 @@ impl EvaluationTraversal<'_, '_> {
                 {
                     self.visit_expression(*argument);
                 }
-                if matches!(self.target, crate::semantic_calls::CallSite::Expression { call: target, .. } if std::ptr::eq(*target, call))
+                if matches!(self.target, crate::semantic::calls::CallSite::Expression { call: target, .. } if std::ptr::eq(*target, call))
                 {
                     self.target_reached = true;
                 }

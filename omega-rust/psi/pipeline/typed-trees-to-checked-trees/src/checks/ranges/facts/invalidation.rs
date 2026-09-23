@@ -138,7 +138,7 @@ impl RangeFacts<'_> {
         machine: &Machine,
         state: &State,
         paths: Option<&[String]>,
-        site: Option<&crate::semantic_calls::CallSite<'_>>,
+        site: Option<&crate::semantic::calls::CallSite<'_>>,
     ) {
         if paths.is_some_and(|paths| paths.is_empty()) {
             return;

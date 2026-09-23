@@ -68,7 +68,7 @@ pub(super) fn capture_statement(
             &mut crate::values::PlaceScalarValues {
                 program,
                 parameters: program
-                    .state_parameters(crate::semantic_calls::find_state(program, state)?),
+                    .state_parameters(crate::semantic::calls::find_state(program, state)?),
                 symbols,
                 value_at_place: |place: &CanonicalPlace| {
                     crate::values::scalar_value_at_place(
@@ -159,7 +159,7 @@ pub(super) fn capture_bounds(
                 semantic,
                 contexts: &contexts,
                 parameters: program
-                    .state_parameters(crate::semantic_calls::find_state(program, state)?),
+                    .state_parameters(crate::semantic::calls::find_state(program, state)?),
                 symbols,
                 state,
             },
@@ -202,7 +202,7 @@ fn builtin_bound_meaning_source(
     validation::has_builtin_bound_expression_meaning(
         program,
         machine,
-        crate::semantic_calls::find_state_in_machine(program, machine_symbol, state),
+        crate::semantic::calls::find_state_in_machine(program, machine_symbol, state),
         source,
     )
 }
@@ -290,7 +290,7 @@ fn retains_values_across_unit_call<Value>(
         return None;
     }
     let (callee, entry) =
-        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
+        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
     if !callee.body_is_present
         || callee.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !callee.owned_data.is_empty()

@@ -42,7 +42,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
     let mut diagnostics = Vec::new();
     for mut call in calls {
         let Some((callee_machine, callee_state)) =
-            crate::semantic_calls::find_state_with_machine(program, call.target)
+            crate::semantic::calls::find_state_with_machine(program, call.target)
         else {
             continue;
         };
@@ -52,7 +52,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         };
         // The caller state must resolve inside the caller machine itself; a
         // whole-program find could admit a same-named state stored elsewhere.
-        let caller_state = crate::semantic_calls::find_state_in_machine(
+        let caller_state = crate::semantic::calls::find_state_in_machine(
             program,
             call.caller_machine,
             call.caller_state,

@@ -293,7 +293,7 @@ fn has_builtin_meaning(
     state: &typed_trees::state::State,
     expression: ExpressionHandle,
 ) -> bool {
-    let Some((machine, _)) = crate::semantic_calls::find_state_with_machine(program, state.symbol)
+    let Some((machine, _)) = crate::semantic::calls::find_state_with_machine(program, state.symbol)
     else {
         return false;
     };

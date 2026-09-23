@@ -4,7 +4,7 @@ use crate::checks::check_unretained_borrow_fixture_facts as check_checked_facts;
 use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 use crate::tests::front_end::typed_program;
 
 #[test]

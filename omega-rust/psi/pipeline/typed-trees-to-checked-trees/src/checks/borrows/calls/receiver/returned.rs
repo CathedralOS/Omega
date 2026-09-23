@@ -83,7 +83,7 @@ pub(super) fn resolve(
     {
         return None;
     }
-    let source_state = crate::semantic_calls::find_state(program, state.state_symbol)?;
+    let source_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     let StatementNode::LocalData(local) = program
         .statement_table
         .statements(source_state.statement_nodes)

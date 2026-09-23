@@ -101,7 +101,7 @@ fn append_guard_bounds_context(
         return;
     };
     let Some(state) =
-        crate::semantic_calls::find_state_in_machine(program, machine_symbol, state_symbol)
+        crate::semantic::calls::find_state_in_machine(program, machine_symbol, state_symbol)
     else {
         return;
     };
@@ -158,7 +158,7 @@ fn append_guard_bounds_context(
             }
             _ => continue,
         };
-        let Some(place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+        let Some(place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
             program,
             semantic,
             state_symbol,
@@ -314,7 +314,7 @@ fn append_case_constraint_context(
         if variant.where_facts.is_empty() {
             continue;
         }
-        let Some(place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+        let Some(place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
             program,
             semantic,
             state_symbol,
@@ -639,7 +639,7 @@ fn append_observation_context(
 ) {
     let mut places = Vec::new();
     for occurrence in occurrences.iter().copied() {
-        let Some(place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+        let Some(place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
             program,
             semantic,
             state_symbol,

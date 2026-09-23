@@ -2,7 +2,7 @@
 //!
 //! The same program spells `as_slice` twice: once as the compiler-owned view
 //! of a fixed array, and once as a declared machine on a data receiver. Only
-//! the first is a view, and `semantic_calls::collection_view_call` is the one
+//! the first is a view, and `semantic::calls::collection_view_call` is the one
 //! place which decides that for every consumer lane.
 
 use super::{AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget};
@@ -49,7 +49,7 @@ fn a_resolved_nominal_machine_spelled_as_slice_is_not_a_collection_view() {
         let ExpressionNode::Call(call) = program.expression_table.expression(expression) else {
             panic!("retained call expression");
         };
-        let selected = crate::semantic_calls::collection_view_call(&program, call);
+        let selected = crate::semantic::calls::collection_view_call(&program, call);
         if target_is_resolved {
             assert_eq!(
                 selected, None,

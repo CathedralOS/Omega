@@ -26,7 +26,7 @@ impl<'program> Callable<'program> {
         if !target.is_valid() {
             return None;
         }
-        let machines = crate::semantic_calls::find_machine_head(program, target)
+        let machines = crate::semantic::calls::find_machine_head(program, target)
             .map(|(machine, state)| Self::Machine { machine, state });
         let requirements = program
             .traits()

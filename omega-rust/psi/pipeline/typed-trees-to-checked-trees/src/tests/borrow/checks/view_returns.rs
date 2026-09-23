@@ -5,8 +5,8 @@ use crate::flow::build_domain_facts;
 use crate::flow::build_flow_facts;
 use crate::flow::canonical_place_overlaps_segments;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
-use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
+use crate::semantic::calls::{call_site_argument_expressions, find_call_site};
+use crate::semantic::facts::build_semantic_facts;
 use crate::tests::front_end::typed_program;
 
 #[test]

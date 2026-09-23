@@ -455,7 +455,7 @@ pub(super) fn available_target(
     // recorded them: each whole-move argument source is the local its
     // producing statement bound. Anonymous expression-rooted results never
     // source a whole owned move, so only `LocalData` bindings belong here.
-    let caller_state = crate::semantic_calls::find_state(program, caller.state)?;
+    let caller_state = crate::semantic::calls::find_state(program, caller.state)?;
     let caller_structural_results = caller
         .operations
         .iter()

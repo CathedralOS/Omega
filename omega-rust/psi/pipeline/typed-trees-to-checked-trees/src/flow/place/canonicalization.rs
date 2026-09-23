@@ -137,7 +137,7 @@ pub(crate) fn normalize_attached_place_root(
     place: &mut CanonicalPlace,
 ) {
     if let facts::PlaceRoot::Symbol(root) = place.root
-        && let Some(state) = crate::semantic_calls::find_state(program, state_symbol)
+        && let Some(state) = crate::semantic::calls::find_state(program, state_symbol)
         && program
             .state_parameters(state)
             .iter()

@@ -661,20 +661,19 @@ fn computed_boolean_selected_actual_rejects_without_later_checked_operator_rows(
         .span_or_empty(state.calls)
         .iter()
         .find(|call| {
-            crate::semantic_calls::call_target_parameters(&checked, call.target_symbol).is_some_and(
-                |parameters| {
+            crate::semantic::calls::call_target_parameters(&checked, call.target_symbol)
+                .is_some_and(|parameters| {
                     parameters.len() == 1
                         && checked.primitive_type_reference(parameters[0].type_reference)
                             == Some(typed_trees::types::PrimitiveType::Bool)
-                },
-            )
+                })
         })
         .expect("selected equality feeds the Bool callee");
     let parameters =
-        crate::semantic_calls::call_target_parameters(&checked, call.target_symbol).unwrap();
+        crate::semantic::calls::call_target_parameters(&checked, call.target_symbol).unwrap();
     let expression = checked.expression_table.iter_expressions().find_map(|(expression, node)|
         matches!(node, typed_trees::expression::ExpressionNode::Name(path) if path.symbol == parameters[0].symbol).then_some(expression)).unwrap();
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         &checked,
         state.machine_symbol,
         state.state_symbol,

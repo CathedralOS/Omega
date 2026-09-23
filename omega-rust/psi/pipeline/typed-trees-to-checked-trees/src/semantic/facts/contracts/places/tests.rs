@@ -1,5 +1,5 @@
-use crate::semantic::contract_fact_place;
-use crate::semantic::contracts::places::contract_owner_self_symbol;
+use crate::semantic::facts::contract_fact_place;
+use crate::semantic::facts::contracts::places::contract_owner_self_symbol;
 use crate::tests::front_end::typed_program;
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner};
 use facts::{FactPlace, FactPlan};

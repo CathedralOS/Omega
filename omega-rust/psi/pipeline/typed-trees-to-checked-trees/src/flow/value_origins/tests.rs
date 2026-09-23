@@ -58,7 +58,7 @@ impl Fixture {
     }
 
     fn root(&self, name: &str) -> SymbolHandle {
-        let state = crate::semantic_calls::find_state(&self.program, self.state.state_symbol)
+        let state = crate::semantic::calls::find_state(&self.program, self.state.state_symbol)
             .expect("fixture state");
         self.program
             .state_parameters(state)

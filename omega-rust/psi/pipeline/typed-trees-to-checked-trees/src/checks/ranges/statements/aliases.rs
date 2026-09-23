@@ -111,7 +111,7 @@ fn alias_source_label(
         ExpressionNode::Borrow(inner) => alias_source_label(program, inner.target),
         ExpressionNode::Call(call)
             if matches!(
-                crate::semantic_calls::collection_view_call(program, call),
+                crate::semantic::calls::collection_view_call(program, call),
                 Some(CollectionViewOperation::SharedSlice | CollectionViewOperation::MutableSlice)
             ) =>
         {

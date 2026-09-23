@@ -1,5 +1,5 @@
 use super::{RangeCallContext, RangeFacts};
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use crate::tests::front_end::typed_program;
 
 fn program() -> typed_trees::TypedTrees {
@@ -36,7 +36,7 @@ fn owner_local_calls_rejoin_exact_nested_sibling_and_statement_occurrences() {
         for state in program.machine_states(machine) {
             let context = RangeCallContext::new(machine, state, &borrows, &flow, frames.as_ref());
             for expected in context.borrow_calls {
-                let site = crate::semantic_calls::find_call_site(
+                let site = crate::semantic::calls::find_call_site(
                     &program,
                     machine.symbol,
                     state.symbol,
@@ -153,7 +153,7 @@ fn missing_call_evidence_is_opaque_not_a_complete_empty_write_frame() {
     let frames = validation::CallFrameResolver::new(&program);
     let machine = &program.machines()[2];
     let state = &program.machine_states(machine)[0];
-    let site = crate::semantic_calls::find_call_site(&program, machine.symbol, state.symbol, 0, 0)
+    let site = crate::semantic::calls::find_call_site(&program, machine.symbol, state.symbol, 0, 0)
         .unwrap();
     let empty_flow = checked_trees::FlowFacts::default();
     let empty_borrows = checked_trees::BorrowFacts::default();

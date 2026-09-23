@@ -66,7 +66,7 @@ pub(in crate::execution) fn build_call_operation(
         statement_index: u32::try_from(call.statement_index).ok()?,
         call_ordinal: u32::try_from(call.call_ordinal).ok()?,
     };
-    let call_site = crate::semantic_calls::find_call_site(
+    let call_site = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -74,7 +74,7 @@ pub(in crate::execution) fn build_call_operation(
         call.call_ordinal,
     )?;
     let source_site = match &call_site {
-        crate::semantic_calls::CallSite::Statement(_) => {
+        crate::semantic::calls::CallSite::Statement(_) => {
             let offset = u32::try_from(call.statement_index).ok()?;
             Some(checked_trees::NominalMachineUseSite::Statement(
                 arena::Handle::from_parts(
@@ -87,10 +87,10 @@ pub(in crate::execution) fn build_call_operation(
                 ),
             ))
         }
-        crate::semantic_calls::CallSite::Expression { expression, .. } => Some(
+        crate::semantic::calls::CallSite::Expression { expression, .. } => Some(
             checked_trees::NominalMachineUseSite::Expression(*expression),
         ),
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => None,
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
     };
 
     if program
@@ -98,7 +98,7 @@ pub(in crate::execution) fn build_call_operation(
         .builtin_function_symbol(BuiltinFunction::AsmPortOut)
         == Some(call.target_symbol)
     {
-        let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
         let [port, value] = arguments else {
             return None;
         };
@@ -150,7 +150,7 @@ pub(in crate::execution) fn build_call_operation(
         })
         .collect::<Vec<_>>();
     if let [(definition, signature)] = static_boundaries.as_slice() {
-        let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
         let source_parameters = program.state_signature_parameters(signature);
         // A boundary signature is a foreign ABI contract; an erased position
         // has no agreed foreign transfer yet, so the call fails closed here.
@@ -191,11 +191,11 @@ pub(in crate::execution) fn build_call_operation(
         // selection indexes: validation filtered the `<>` argument list to
         // machine-typed members before recording `static_machine_ordinal`.
         let authored_machine_arguments = match &call_site {
-            crate::semantic_calls::CallSite::Statement(call) => call.machine_arguments.as_ref(),
-            crate::semantic_calls::CallSite::Expression { call, .. } => {
+            crate::semantic::calls::CallSite::Statement(call) => call.machine_arguments.as_ref(),
+            crate::semantic::calls::CallSite::Expression { call, .. } => {
                 call.machine_arguments.as_ref()
             }
-            crate::semantic_calls::CallSite::TransitionNamed { .. } => &[],
+            crate::semantic::calls::CallSite::TransitionNamed { .. } => &[],
         }
         .iter()
         .filter(|argument| {
@@ -580,7 +580,7 @@ pub(in crate::execution) fn build_call_operation(
         return None;
     }
 
-    let target_state = crate::semantic_calls::find_state(program, call.target_symbol)?;
+    let target_state = crate::semantic::calls::find_state(program, call.target_symbol)?;
     let target_machine = program.machines().iter().find(|candidate| {
         program
             .machine_states(candidate)

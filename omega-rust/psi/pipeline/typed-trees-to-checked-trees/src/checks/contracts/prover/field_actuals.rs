@@ -19,7 +19,7 @@ pub(super) fn proves(
     context: &facts::FactContext,
     caller_state: SymbolHandle,
     statement_index: usize,
-    call: &crate::semantic_calls::CallSite<'_>,
+    call: &crate::semantic::calls::CallSite<'_>,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<bool> {
@@ -46,7 +46,7 @@ pub(super) fn proves(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .position(|parameter| parameter.symbol == formal)?;
-    let Some(argument) = crate::semantic_calls::call_site_argument_expressions(program, call)
+    let Some(argument) = crate::semantic::calls::call_site_argument_expressions(program, call)
         .get(position)
         .copied()
     else {

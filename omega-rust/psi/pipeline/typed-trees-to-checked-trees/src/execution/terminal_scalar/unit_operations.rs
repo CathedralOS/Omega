@@ -183,7 +183,7 @@ fn eligible(
     else {
         return false;
     };
-    let Some(state) = crate::semantic_calls::find_state(program, *target_state) else {
+    let Some(state) = crate::semantic::calls::find_state(program, *target_state) else {
         return false;
     };
     let Some(contract) = facts.contract_plans.for_machine(*target_machine) else {

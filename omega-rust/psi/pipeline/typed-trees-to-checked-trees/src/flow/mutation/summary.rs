@@ -8,9 +8,9 @@ use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::flow::mutation::WritePlaceNamespace;
-use crate::semantic_calls::call_site_argument_expressions;
-use crate::semantic_calls::find_call_site;
-use crate::semantic_calls::find_state;
+use crate::semantic::calls::call_site_argument_expressions;
+use crate::semantic::calls::find_call_site;
+use crate::semantic::calls::find_state;
 
 use super::local_origins::rebase_local_write_places;
 use crate::flow::mutation::receiver::canonical_receiver_place_for_call_site;
@@ -287,7 +287,7 @@ fn machine_symbol_for_state(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
 ) -> SymbolHandle {
-    crate::semantic_calls::find_state_with_machine(program, state.symbol)
+    crate::semantic::calls::find_state_with_machine(program, state.symbol)
         .map(|(machine, _)| machine.symbol)
         .unwrap_or_else(SymbolHandle::invalid)
 }
@@ -296,7 +296,7 @@ fn state_has_concrete_body_signature(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,
 ) -> bool {
-    crate::semantic_calls::find_state_with_machine(program, state.symbol).is_some_and(
+    crate::semantic::calls::find_state_with_machine(program, state.symbol).is_some_and(
         |(machine, _)| {
             machine.body_is_present
                 && program

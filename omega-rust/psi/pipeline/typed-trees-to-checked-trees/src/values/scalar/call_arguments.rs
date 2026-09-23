@@ -185,7 +185,7 @@ pub(super) fn nested_structural_call_sites<'program>(
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
     statement_index: usize,
-) -> Vec<(usize, crate::semantic_calls::CallSite<'program>)> {
+) -> Vec<(usize, crate::semantic::calls::CallSite<'program>)> {
     let mut states = flow.control.states.iter().filter_map(|(_, candidate)| {
         (candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol)
             .then_some(candidate)
@@ -246,7 +246,7 @@ pub(super) fn nested_structural_call_sites<'program>(
             }
             Some((
                 source.call_ordinal,
-                crate::semantic_calls::CallSite::Expression {
+                crate::semantic::calls::CallSite::Expression {
                     expression: source.authored_expression,
                     call,
                 },

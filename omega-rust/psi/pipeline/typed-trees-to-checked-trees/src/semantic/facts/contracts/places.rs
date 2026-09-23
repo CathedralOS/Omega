@@ -1,6 +1,6 @@
 use crate::flow::effective_member_symbol;
-use crate::semantic_calls::call_target_parameters;
-use crate::semantic_places::{append_place_segment, resolve_place_member_symbol};
+use crate::semantic::calls::call_target_parameters;
+use crate::semantic::places::{append_place_segment, resolve_place_member_symbol};
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::{ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ProofFacts};
 use facts::PlaceHandle;
@@ -63,7 +63,7 @@ pub(crate) fn outcome_specific_fact_dependency_places(
     row: &checked_trees::OutcomeSpecificArmRowFact,
 ) -> Vec<PlaceHandle> {
     let mut places = Vec::new();
-    if let Some(result) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+    if let Some(result) = crate::semantic::places::canonical_place_to_fact_place_in_state(
         program,
         facts,
         arm.caller_state_symbol,
@@ -105,7 +105,7 @@ pub(crate) fn outcome_specific_fact_dependency_places(
         .iter()
         .chain(interface_occurrences)
     {
-        if let Some(place) = crate::semantic_places::instantiate_outcome_contract_expression_place(
+        if let Some(place) = crate::semantic::places::instantiate_outcome_contract_expression_place(
             program,
             facts,
             call,

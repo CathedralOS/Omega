@@ -69,7 +69,7 @@ fn events(
     let consumer = calls.iter().find(|call| call.call_ordinal == 0)?;
     let producer = calls.iter().find(|call| call.call_ordinal == 1)?;
     let (consumer_owner, _) =
-        crate::semantic_calls::find_state_with_machine(program, consumer.target_symbol)?;
+        crate::semantic::calls::find_state_with_machine(program, consumer.target_symbol)?;
     if consumer_owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
         return None;
     }
@@ -80,14 +80,15 @@ fn events(
     ) {
         return None;
     }
-    let source = crate::semantic_calls::find_call_site(
+    let source = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
         statement_index,
         0,
     )?;
-    let [argument] = crate::semantic_calls::call_site_argument_expressions(program, &source) else {
+    let [argument] = crate::semantic::calls::call_site_argument_expressions(program, &source)
+    else {
         return None;
     };
     let ExpressionNode::Borrow(borrow) = program.expression_table.expression(*argument) else {
@@ -105,7 +106,7 @@ fn events(
         return None;
     }
     let [parameter] =
-        crate::semantic_calls::call_target_parameters(program, consumer.target_symbol)?
+        crate::semantic::calls::call_target_parameters(program, consumer.target_symbol)?
     else {
         return None;
     };

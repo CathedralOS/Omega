@@ -92,7 +92,7 @@ pub(crate) fn check_flow_call_borrows(
 
         // Entry premises are stable inside the state. Statement-local call
         // guarantees are appended by the consumer at the exact use point.
-        let stated_premises = crate::semantic_calls::find_state_in_machine(
+        let stated_premises = crate::semantic::calls::find_state_in_machine(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
@@ -316,7 +316,7 @@ fn replay_checked_borrow_compatibility_certificate(
     // The premise set is re-derived from the formation scope's entry
     // establishment points, not trusted from the certificate. An unresolvable formation
     // scope offers no premises, so a recorded premised token cannot replay.
-    let mut stated_premises = crate::semantic_calls::find_state_in_machine(
+    let mut stated_premises = crate::semantic::calls::find_state_in_machine(
         program,
         certificate.formation.machine_symbol,
         certificate.formation.state_symbol,
@@ -491,7 +491,7 @@ fn replay_checked_borrow_mutation_certificate(
     // The mutated place is re-derived from the typed formation statement, not
     // trusted from the row: the certificate only stands when the statement's
     // write target re-roots to the exact place the row judges.
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         certificate.formation.machine_symbol,
         certificate.formation.state_symbol,

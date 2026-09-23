@@ -1311,7 +1311,7 @@ fn guard_call_is_checked_before_its_result_refinement() {
         .iter()
         .enumerate()
     {
-        if let Some(target) = crate::semantic_calls::transition_call_target(
+        if let Some(target) = crate::semantic::calls::transition_call_target(
             &typed,
             machine,
             state,

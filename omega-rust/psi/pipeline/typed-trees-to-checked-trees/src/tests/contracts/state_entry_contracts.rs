@@ -2,7 +2,7 @@ use crate::CheckingRequest;
 use crate::borrow::build_borrow_facts;
 use crate::flow::check_against_whole_pass as lower_typed_trees;
 use crate::proof::build_proof_facts;
-use crate::semantic::build_semantic_facts;
+use crate::semantic::facts::build_semantic_facts;
 use crate::tests::contracts::parse_typed_trees;
 
 fn check(source: &str, accepted: bool, rejection: &str) {

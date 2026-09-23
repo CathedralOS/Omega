@@ -225,7 +225,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                             .span_or_empty(caller_flow.calls)
                             .iter()
                             .any(|call| {
-                                let Some(site) = crate::semantic_calls::find_call_site(
+                                let Some(site) = crate::semantic::calls::find_call_site(
                                     program,
                                     machine.symbol,
                                     state.symbol,
@@ -234,7 +234,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                                 ) else {
                                     return false;
                                 };
-                                let crate::semantic_calls::CallSite::TransitionNamed {
+                                let crate::semantic::calls::CallSite::TransitionNamed {
                                     path, ..
                                 } = &site
                                 else {
@@ -341,7 +341,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
             .span_or_empty(caller_flow.calls)
             .iter()
             .any(|call| {
-                let Some(site) = crate::semantic_calls::find_call_site(
+                let Some(site) = crate::semantic::calls::find_call_site(
                     program,
                     machine.symbol,
                     state.symbol,
@@ -350,7 +350,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 ) else {
                     return false;
                 };
-                let crate::semantic_calls::CallSite::TransitionNamed { path, .. } = &site else {
+                let crate::semantic::calls::CallSite::TransitionNamed { path, .. } = &site else {
                     return false;
                 };
                 Self::target_is_header(machine, entry, state, path.symbol)
@@ -520,7 +520,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 .calls
                 .span_or_empty(caller_flow.calls)
             {
-                let Some(site) = crate::semantic_calls::find_call_site(
+                let Some(site) = crate::semantic::calls::find_call_site(
                     self.program,
                     self.machine.symbol,
                     caller.symbol,
@@ -529,7 +529,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                 ) else {
                     continue;
                 };
-                let crate::semantic_calls::CallSite::TransitionNamed {
+                let crate::semantic::calls::CallSite::TransitionNamed {
                     path,
                     evidence_arguments,
                     ..
@@ -552,7 +552,7 @@ impl<'program, 'facts> Header<'program, 'facts> {
                     return None;
                 }
                 let arguments =
-                    crate::semantic_calls::call_site_argument_expressions(self.program, &site);
+                    crate::semantic::calls::call_site_argument_expressions(self.program, &site);
                 if arguments.len() != explicit
                     || !arguments
                         .iter()

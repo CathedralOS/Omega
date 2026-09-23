@@ -406,7 +406,7 @@ impl ActivationCarryAccumulator<'_> {
         }
 
         if let Some((machine, state)) =
-            crate::semantic_calls::find_state_with_machine(self.program, target)
+            crate::semantic::calls::find_state_with_machine(self.program, target)
         {
             let parameters = self.program.machine_type_parameters(machine);
             for parameter in self.program.state_parameters(state) {

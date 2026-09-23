@@ -53,7 +53,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
 ) -> bool {
     let operators = &facts.operators;
     let semantic = &facts.semantic;
-    let Some(call_site) = crate::semantic_calls::find_call_site(
+    let Some(call_site) = crate::semantic::calls::find_call_site(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -63,7 +63,7 @@ pub(super) fn call_entry_contexts_prove_boolean_contract_expression(
         return false;
     };
     let Some(target_parameters) =
-        crate::semantic_calls::call_target_parameters(program, call_flow.target_symbol)
+        crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
     else {
         return false;
     };
@@ -390,7 +390,7 @@ pub(super) fn indexed_membership(program: &typed_trees::TypedTrees, payload: Fac
 /// an ordinary formal, or the receiver for `self`.
 fn case_test_subject_actual(
     program: &typed_trees::TypedTrees,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     parameters: &[typed_trees::signature::StateParameter],
     subject: typed_trees::expression::ExpressionHandle,
 ) -> Option<(
@@ -403,14 +403,14 @@ fn case_test_subject_actual(
         && parameters
             .iter()
             .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
-        && let crate::semantic_calls::CallSite::Expression { call, .. } = call_site
+        && let crate::semantic::calls::CallSite::Expression { call, .. } = call_site
     {
         return Some((call.receiver, Vec::new()));
     }
-    crate::semantic_places::call_contract_argument_projection(
+    crate::semantic::places::call_contract_argument_projection(
         program,
         parameters,
-        crate::semantic_calls::call_site_argument_expressions(program, call_site),
+        crate::semantic::calls::call_site_argument_expressions(program, call_site),
         subject,
     )
 }

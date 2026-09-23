@@ -185,11 +185,11 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
 pub(crate) fn provider_attachment_receiver_matches(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     provider_symbol: SymbolHandle,
 ) -> bool {
     let (field_name, selected_field) = match call_site {
-        crate::semantic_calls::CallSite::Statement(call) => {
+        crate::semantic::calls::CallSite::Statement(call) => {
             let [self_name, field_name] = program.statement_table.name_path_members(call.receiver)
             else {
                 return false;
@@ -199,7 +199,7 @@ pub(crate) fn provider_attachment_receiver_matches(
             }
             (field_name.clone(), None)
         }
-        crate::semantic_calls::CallSite::Expression { call, .. } => {
+        crate::semantic::calls::CallSite::Expression { call, .. } => {
             let (_, Some(receiver)) = crate::lookup::call_receiver_parts(program, call.receiver)
             else {
                 return false;
@@ -212,7 +212,7 @@ pub(crate) fn provider_attachment_receiver_matches(
             }
             (field_name.clone(), Some(receiver.member_symbol(1)))
         }
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => return false,
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => return false,
     };
     let Some(attached_name) = machine.attached_data.as_ref() else {
         return false;

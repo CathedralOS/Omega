@@ -37,7 +37,7 @@ fn exact_mutable_referent(
     source_symbol: SymbolHandle,
     returned_loans: &[arena::Handle<checked_trees::BorrowLoanFact>],
 ) -> Option<()> {
-    let state = crate::semantic_calls::find_state_in_machine(
+    let state = crate::semantic::calls::find_state_in_machine(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -61,7 +61,7 @@ fn exact_mutable_referent(
     // actual preceding writes instead; unknown or overlapping storage changes
     // stay outside this direct entry-parameter forwarding path.
     prefix_preserves_parameter(program, borrow, borrow_state, call, source_symbol)?;
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -69,8 +69,8 @@ fn exact_mutable_referent(
         call.call_ordinal,
     )?;
     let target_symbol = match &site {
-        crate::semantic_calls::CallSite::Statement(authored) => authored.target_symbol,
-        crate::semantic_calls::CallSite::Expression {
+        crate::semantic::calls::CallSite::Statement(authored) => authored.target_symbol,
+        crate::semantic::calls::CallSite::Expression {
             expression,
             call: authored,
         } if *expression == call.authored_expression => authored.target_symbol,
@@ -79,8 +79,8 @@ fn exact_mutable_referent(
     if !target_symbol.is_valid() || target_symbol != call.target_symbol {
         return None;
     }
-    let parameters = crate::semantic_calls::call_target_parameters(program, target_symbol)?;
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let parameters = crate::semantic::calls::call_target_parameters(program, target_symbol)?;
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     if parameters.len() != arguments.len()
         || parameters
             .iter()
@@ -158,7 +158,7 @@ fn prefix_preserves_parameter(
     call: &checked_trees::FlowCallFact,
     source_symbol: SymbolHandle,
 ) -> Option<()> {
-    let state = crate::semantic_calls::find_state_in_machine(
+    let state = crate::semantic::calls::find_state_in_machine(
         program,
         borrow_state.machine_symbol,
         borrow_state.state_symbol,
@@ -235,7 +235,7 @@ fn preceding_byte_loan_preserves_carrier(
     call: &checked_trees::BorrowCallFact,
     source_symbol: SymbolHandle,
 ) -> bool {
-    let Some(source_state) = crate::semantic_calls::find_state_in_machine(
+    let Some(source_state) = crate::semantic::calls::find_state_in_machine(
         program,
         state.machine_symbol,
         state.state_symbol,
@@ -249,8 +249,8 @@ fn preceding_byte_loan_preserves_carrier(
     else {
         return false;
     };
-    let Some(crate::semantic_calls::CallSite::Statement(authored)) =
-        crate::semantic_calls::find_call_site(
+    let Some(crate::semantic::calls::CallSite::Statement(authored)) =
+        crate::semantic::calls::find_call_site(
             program,
             state.machine_symbol,
             state.state_symbol,
@@ -264,7 +264,7 @@ fn preceding_byte_loan_preserves_carrier(
         return false;
     }
     let Some(parameters) =
-        crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+        crate::semantic::calls::call_target_parameters(program, call.target_symbol)
     else {
         return false;
     };

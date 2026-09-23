@@ -49,7 +49,7 @@ pub(crate) fn checked_target_conformance_targets(
     program: &TypedTrees,
     target: SymbolHandle,
 ) -> Vec<SymbolHandle> {
-    let Some(machine_symbol) = crate::semantic_calls::find_state_with_machine(program, target)
+    let Some(machine_symbol) = crate::semantic::calls::find_state_with_machine(program, target)
         .map(|(machine, _)| machine.symbol)
     else {
         return Vec::new();
@@ -91,14 +91,14 @@ pub(crate) fn checked_statement_call_target(
             continue;
         }
         if matches!(
-            crate::semantic_calls::find_call_site(
+            crate::semantic::calls::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
                 statement_index,
                 call.call_ordinal,
             ),
-            Some(crate::semantic_calls::CallSite::Statement(_))
+            Some(crate::semantic::calls::CallSite::Statement(_))
         ) {
             return call.target_symbol;
         }
@@ -157,10 +157,10 @@ pub(crate) fn checked_call_target(
     }
     for (_, state) in facts.flow.control.states.iter() {
         for call in facts.flow.control.calls.span_or_empty(state.calls) {
-            if let Some(crate::semantic_calls::CallSite::Expression {
+            if let Some(crate::semantic::calls::CallSite::Expression {
                 expression: candidate,
                 ..
-            }) = crate::semantic_calls::find_call_site(
+            }) = crate::semantic::calls::find_call_site(
                 program,
                 state.machine_symbol,
                 state.state_symbol,

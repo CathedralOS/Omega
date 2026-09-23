@@ -327,8 +327,6 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
             "product_pruning",
             "proof",
             "semantic",
-            "semantic_calls",
-            "semantic_places",
             "values",
         ],
     ),

@@ -4,7 +4,7 @@ use diagnostics::Diagnostic;
 
 use crate::checks::borrows::details::binding_reference_access;
 use crate::checks::borrows::resources::invalid_reborrow_attenuation_diagnostic;
-use crate::semantic_calls::{call_site_argument_expressions, find_call_site};
+use crate::semantic::calls::{call_site_argument_expressions, find_call_site};
 
 pub(super) fn check_mutable_argument_writability(
     program: &typed_trees::TypedTrees,

@@ -39,7 +39,7 @@ impl ContractTargetParameters for [typed_trees::signature::StateParameter] {
 /// concrete call result at the call site.
 fn call_result_label(
     program: &typed_trees::TypedTrees,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
 ) -> String {
     let argument_list = |arguments| {
         program
@@ -52,7 +52,7 @@ fn call_result_label(
     };
 
     match call_site {
-        crate::semantic_calls::CallSite::Statement(call) => {
+        crate::semantic::calls::CallSite::Statement(call) => {
             let arguments = argument_list(call.arguments);
             let receiver = typed_trees::expression::display_name_path(
                 program.expression_table.name_path_members(call.receiver),
@@ -64,7 +64,7 @@ fn call_result_label(
                 format!("{receiver}.{}({arguments})", call.target)
             }
         }
-        crate::semantic_calls::CallSite::Expression { call, .. } => {
+        crate::semantic::calls::CallSite::Expression { call, .. } => {
             let arguments = argument_list(call.arguments);
             if call.receiver.is_valid() {
                 format!(
@@ -77,7 +77,7 @@ fn call_result_label(
             }
         }
         // A named transition target carries no single call result to bind.
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => RESULT_BINDER.to_owned(),
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => RESULT_BINDER.to_owned(),
     }
 }
 
@@ -89,7 +89,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
     program: &typed_trees::TypedTrees,
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> String {
@@ -350,7 +350,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
             }
 
             let arguments =
-                crate::semantic_calls::call_site_argument_expressions(program, call_site);
+                crate::semantic::calls::call_site_argument_expressions(program, call_site);
             let mut argument_index = 0usize;
 
             for parameter in target_state.contract_parameters(program) {
@@ -362,7 +362,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                         // The callee's self denotes the selected receiver, not
                         // necessarily the caller's enclosing machine value.
                         return match call_site {
-                            crate::semantic_calls::CallSite::Expression { call, .. }
+                            crate::semantic::calls::CallSite::Expression { call, .. }
                                 if call.receiver.is_valid() =>
                             {
                                 program.render_proof_expression(
@@ -370,7 +370,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
                                     ProofSubstitutions::None,
                                 )
                             }
-                            crate::semantic_calls::CallSite::Statement(call)
+                            crate::semantic::calls::CallSite::Statement(call)
                                 if !call.receiver.is_empty() =>
                             {
                                 typed_trees::expression::display_name_path(
@@ -417,7 +417,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
             // own requires contract establishes.
             let machine_arguments = call_site_machine_arguments(call_site);
             if members.len() == 1 && !machine_arguments.is_empty() {
-                let type_parameters = crate::semantic_calls::call_target_type_parameters(
+                let type_parameters = crate::semantic::calls::call_target_type_parameters(
                     program,
                     call_site_target_symbol(call_site),
                 );
@@ -459,21 +459,21 @@ pub(crate) fn instantiate_call_contract_expression_label(
 /// The static generic arguments authored on the call (`bounded<K>`), empty
 /// for a named transition which carries none.
 fn call_site_machine_arguments<'program>(
-    call_site: &'program crate::semantic_calls::CallSite<'program>,
+    call_site: &'program crate::semantic::calls::CallSite<'program>,
 ) -> &'program [typed_trees::expression::StaticMachineArgument] {
     match call_site {
-        crate::semantic_calls::CallSite::Statement(call) => &call.machine_arguments,
-        crate::semantic_calls::CallSite::Expression { call, .. } => &call.machine_arguments,
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => &[],
+        crate::semantic::calls::CallSite::Statement(call) => &call.machine_arguments,
+        crate::semantic::calls::CallSite::Expression { call, .. } => &call.machine_arguments,
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => &[],
     }
 }
 
 /// The state symbol the call targets, used to reach the callee's declared
 /// generic telescope for binder instantiation.
-fn call_site_target_symbol(call_site: &crate::semantic_calls::CallSite<'_>) -> SymbolHandle {
+fn call_site_target_symbol(call_site: &crate::semantic::calls::CallSite<'_>) -> SymbolHandle {
     match call_site {
-        crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
-        crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
-        crate::semantic_calls::CallSite::TransitionNamed { path, .. } => path.symbol,
+        crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
+        crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
+        crate::semantic::calls::CallSite::TransitionNamed { path, .. } => path.symbol,
     }
 }

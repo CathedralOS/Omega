@@ -2,11 +2,11 @@
 //!
 //! The same program spells `len` twice: once as the compiler-owned length of
 //! a fixed array, and once as a declared field of a record. Only the first is
-//! a measure, and `semantic_calls::collection_measure_member` is the one place
+//! a measure, and `semantic::calls::collection_measure_member` is the one place
 //! which decides that for every consumer lane holding a receiver type.
 
 use super::{AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionTarget};
-use crate::semantic_calls::MeasureReceiver;
+use crate::semantic::calls::MeasureReceiver;
 use crate::tests::front_end::{checked_program, typed_program};
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -53,7 +53,7 @@ fn a_record_field_spelled_len_is_not_a_collection_measure() {
         let receiver_type =
             crate::flow::expression_place_type_reference(&program, member.receiver, &[])
                 .unwrap_or_else(|| panic!("`{receiver}` has a declared type"));
-        let selected = crate::semantic_calls::collection_measure_member(
+        let selected = crate::semantic::calls::collection_measure_member(
             &program,
             member,
             MeasureReceiver::Declared(receiver_type),

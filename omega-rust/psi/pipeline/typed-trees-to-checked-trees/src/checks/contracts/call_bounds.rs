@@ -59,14 +59,14 @@ fn prove(
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         _ => return None,
     };
-    let site = crate::semantic_calls::find_call_site(
+    let site = crate::semantic::calls::find_call_site(
         program,
         caller.machine_symbol,
         caller.state_symbol,
         call.statement_index,
         call.call_ordinal,
     )?;
-    let crate::semantic_calls::CallSite::Expression {
+    let crate::semantic::calls::CallSite::Expression {
         call: source_call, ..
     } = &site
     else {
@@ -80,7 +80,7 @@ fn prove(
     }
     // A bare call to a machine names its entry state; a target resolving to
     // any other state is not the machine-head call this route proves.
-    let callee = crate::semantic_calls::find_state_with_machine(program, call.target_symbol)
+    let callee = crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
         .and_then(|(machine, state)| {
             program
                 .machine_states(machine)
@@ -92,12 +92,12 @@ fn prove(
     if parameters.iter().any(|parameter| parameter.is_self) {
         return None;
     }
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     if arguments.len() != parameters.len() {
         return None;
     }
     let machine = crate::lookup::machine_by_symbol(program, caller.machine_symbol)?;
-    let state = crate::semantic_calls::find_state_in_machine(
+    let state = crate::semantic::calls::find_state_in_machine(
         program,
         caller.machine_symbol,
         caller.state_symbol,

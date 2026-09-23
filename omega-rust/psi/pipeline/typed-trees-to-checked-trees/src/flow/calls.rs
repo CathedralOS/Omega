@@ -182,7 +182,7 @@ fn memoized_call_target_parameters<'plans>(
     *build
         .call_target_parameters
         .entry(target)
-        .or_insert_with(|| crate::semantic_calls::call_target_parameters(program, target))
+        .or_insert_with(|| crate::semantic::calls::call_target_parameters(program, target))
 }
 
 pub(super) fn memoized_find_call_site<'plans>(
@@ -192,12 +192,12 @@ pub(super) fn memoized_find_call_site<'plans>(
     state_symbol: SymbolHandle,
     statement_index: usize,
     call_ordinal: usize,
-) -> Option<crate::semantic_calls::CallSite<'plans>> {
+) -> Option<crate::semantic::calls::CallSite<'plans>> {
     *build
         .call_sites
         .entry((machine_symbol, state_symbol, statement_index, call_ordinal))
         .or_insert_with(|| {
-            crate::semantic_calls::find_call_site(
+            crate::semantic::calls::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
@@ -227,7 +227,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
     {
         return;
     }
-    let Some(crate::semantic_calls::CallSite::Expression { expression, call }) =
+    let Some(crate::semantic::calls::CallSite::Expression { expression, call }) =
         memoized_find_call_site(
             program,
             build,
@@ -272,7 +272,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
     let [source_argument] = linear_inputs.as_slice() else {
         return;
     };
-    let Some(source_place) = crate::semantic_places::canonical_place_to_fact_place_in_state(
+    let Some(source_place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
         program,
         semantic,
         state.symbol,
@@ -395,7 +395,7 @@ fn append_call_result_field_domain_facts<'plans>(
     if paths.is_empty() {
         return;
     }
-    let Some(crate::semantic_calls::CallSite::Expression { expression, .. }) =
+    let Some(crate::semantic::calls::CallSite::Expression { expression, .. }) =
         memoized_find_call_site(
             program,
             build,
@@ -419,7 +419,7 @@ fn append_call_result_field_domain_facts<'plans>(
     );
     let mut refs = HandleSpan::empty();
     for (path, domain_symbol, semantic_domain) in paths.iter() {
-        let place = crate::semantic_places::append_place_with_segments(
+        let place = crate::semantic::places::append_place_with_segments(
             semantic,
             facts::PlaceRoot::Expression(expression),
             path,
@@ -481,7 +481,7 @@ fn append_call_parameter_domain_facts<'plans>(
     ) else {
         return;
     };
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let point = ProgramPoint::CallEnsures {
         machine_symbol: machine.symbol,
         state_symbol: state.symbol,
@@ -511,7 +511,7 @@ fn append_call_parameter_domain_facts<'plans>(
         ) else {
             continue;
         };
-        let place = crate::semantic_places::append_place_with_segments(
+        let place = crate::semantic::places::append_place_with_segments(
             semantic,
             place.root,
             &place.segments,
@@ -550,7 +550,7 @@ pub(crate) fn call_target_return_type(
     program: &typed_trees::TypedTrees,
     target_state_symbol: SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    if let Some(state) = crate::semantic_calls::find_state(program, target_state_symbol) {
+    if let Some(state) = crate::semantic::calls::find_state(program, target_state_symbol) {
         return Some(state.return_type);
     }
     if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
@@ -679,7 +679,7 @@ pub(crate) fn call_result_qualification_identities(
             if result.symbol.is_valid()
                 || result.head_symbol.is_valid()
                 || !matches!(program.expression_table.name_path_members(result.members), [name] if name.as_str() == "result")
-                || crate::semantic_calls::call_target_parameters(program, target).is_some_and(
+                || crate::semantic::calls::call_target_parameters(program, target).is_some_and(
                     |parameters| {
                         parameters
                             .iter()
@@ -711,7 +711,7 @@ pub(crate) fn call_parameter_qualification_identities(
     program: &typed_trees::TypedTrees,
     target: SymbolHandle,
 ) -> Vec<(usize, SymbolHandle, language_semantics::SemanticDomainId)> {
-    let Some(parameters) = crate::semantic_calls::call_target_parameters(program, target) else {
+    let Some(parameters) = crate::semantic::calls::call_target_parameters(program, target) else {
         return Vec::new();
     };
     let mut contracts = Vec::new();

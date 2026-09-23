@@ -173,7 +173,7 @@ pub(crate) fn instantiate_partition_wrapper(
     source_derivation_depth: u32,
 ) -> Option<ContentPartitionCompositionFact> {
     let target_parameters =
-        crate::semantic_calls::call_target_parameters(program, invocation.target_symbol)?;
+        crate::semantic::calls::call_target_parameters(program, invocation.target_symbol)?;
     let call_ordinal = partition_invocation_call_ordinal(
         program,
         facts,
@@ -298,7 +298,7 @@ fn partition_invocation_call_ordinal(
                 && call.target_symbol == invocation.target_symbol
         })
         .filter_map(|call| {
-            let call_site = crate::semantic_calls::find_call_site(
+            let call_site = crate::semantic::calls::find_call_site(
                 program,
                 machine_symbol,
                 state_symbol,
@@ -308,11 +308,11 @@ fn partition_invocation_call_ordinal(
             let exact = match (&invocation.form, call_site) {
                 (
                     ReturnedPartitionInvocationForm::Expression(expected),
-                    crate::semantic_calls::CallSite::Expression { expression, .. },
+                    crate::semantic::calls::CallSite::Expression { expression, .. },
                 ) => *expected == expression,
                 (
                     ReturnedPartitionInvocationForm::NamedTransition,
-                    crate::semantic_calls::CallSite::TransitionNamed { arguments, .. },
+                    crate::semantic::calls::CallSite::TransitionNamed { arguments, .. },
                 ) => {
                     program.statement_table.expression_handles(arguments)
                         == invocation.arguments.as_slice()
@@ -321,7 +321,7 @@ fn partition_invocation_call_ordinal(
                     ReturnedPartitionInvocationForm::StagedLocal {
                         call_expression, ..
                     },
-                    crate::semantic_calls::CallSite::Expression { expression, .. },
+                    crate::semantic::calls::CallSite::Expression { expression, .. },
                 ) => *call_expression == expression,
                 _ => false,
             };

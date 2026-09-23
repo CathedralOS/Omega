@@ -302,7 +302,7 @@ pub(super) fn attach_checked_crash_calls(
                     capsule.target_contract_commitment(),
                 )
             };
-            let Some(call_site) = crate::semantic_calls::find_call_site(
+            let Some(call_site) = crate::semantic::calls::find_call_site(
                 program,
                 state_flow.machine_symbol,
                 state_flow.state_symbol,
@@ -313,14 +313,14 @@ pub(super) fn attach_checked_crash_calls(
             };
             if matches!(
                 call_site,
-                crate::semantic_calls::CallSite::TransitionNamed { .. }
+                crate::semantic::calls::CallSite::TransitionNamed { .. }
             ) {
                 // A named transition transfers within the current machine; it
                 // is not an invocation of that machine's public crash ceiling.
                 continue;
             }
             let arguments =
-                crate::semantic_calls::call_site_argument_expressions(program, &call_site);
+                crate::semantic::calls::call_site_argument_expressions(program, &call_site);
             let surviving_summary = match target_routes {
                 SelectedTargetCrashRoutes::Published { buckets, contracts } => {
                     refine_published_crash_routes(

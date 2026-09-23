@@ -8,7 +8,7 @@ use crate::authored_selections::contexts;
 use crate::authored_selections::operator_targets::{
     authored_operand_type, type_reference_for_symbol,
 };
-use crate::semantic_calls::MeasureReceiver;
+use crate::semantic::calls::MeasureReceiver;
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -205,7 +205,7 @@ fn collection_measure_target(
     type_reference: typed_trees::types::TypeReferenceHandle,
     member: &typed_trees::expression::TableMemberExpression,
 ) -> Option<CheckedResolutionTarget> {
-    let measure = crate::semantic_calls::collection_measure_member(
+    let measure = crate::semantic::calls::collection_measure_member(
         program,
         member,
         MeasureReceiver::Declared(type_reference),

@@ -86,7 +86,7 @@ fn expression_type_reference_in_state(
         .and_then(|collection| indexed_element_type_reference(program, collection)),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
         ExpressionNode::Call(call) => {
-            crate::semantic_calls::find_state_with_machine(program, state_symbol)
+            crate::semantic::calls::find_state_with_machine(program, state_symbol)
                 .and_then(|(machine, state)| {
                     validation::expression_result_type_reference(
                         program, machine, state, expression,
@@ -244,7 +244,7 @@ fn contextual_type_reference_in_state(
     state_symbol: SymbolHandle,
     statement_index: usize,
 ) -> Option<TypeReferenceHandle> {
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     match program
         .statement_table
         .statements(state.statement_nodes)
@@ -287,7 +287,7 @@ fn symbol_type_reference_in_state(
         return None;
     }
 
-    let state = crate::semantic_calls::find_state(program, state_symbol)?;
+    let state = crate::semantic::calls::find_state(program, state_symbol)?;
     program
         .state_parameters(state)
         .iter()
@@ -334,7 +334,7 @@ fn self_field_type_reference(
     let ExpressionNode::Name(path) = program.expression_table.expression(member.receiver) else {
         return None;
     };
-    let (machine, state) = crate::semantic_calls::find_state_with_machine(program, state_symbol)?;
+    let (machine, state) = crate::semantic::calls::find_state_with_machine(program, state_symbol)?;
     let self_parameter = program
         .state_parameters(state)
         .iter()

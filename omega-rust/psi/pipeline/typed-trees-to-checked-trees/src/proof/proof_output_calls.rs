@@ -26,7 +26,7 @@ pub(crate) fn bind_proof_output_call_facts(
             continue;
         };
         let machine_target =
-            crate::semantic_calls::find_state_with_machine(program, call.target_symbol);
+            crate::semantic::calls::find_state_with_machine(program, call.target_symbol);
         let open_requirement = crate::lookup::machine_by_symbol(program, package.machine_symbol)
             .map(|machine| {
                 validation::named_conformance_target_requirement(
@@ -275,7 +275,7 @@ pub(crate) fn bind_proof_output_call_facts(
 
         let runtime_call = if let Some(statement_index) = package.runtime_call_statement_index {
             let Some(caller_state) =
-                crate::semantic_calls::find_state(program, package.state_symbol)
+                crate::semantic::calls::find_state(program, package.state_symbol)
             else {
                 diagnostics.push(diagnostics::Diagnostic::error(
                     "proof-output binding has no caller state",
@@ -888,7 +888,7 @@ fn instantiate_proof_output_proposition(
     else {
         return None;
     };
-    let call_site = crate::semantic_calls::CallSite::Expression {
+    let call_site = crate::semantic::calls::CallSite::Expression {
         expression: package.call,
         call,
     };
@@ -981,7 +981,7 @@ pub(crate) fn intake_call_ensures_propositions(
                 .first()
                 .map(|state| (machine, state))
         })
-        .or_else(|| crate::semantic_calls::find_state_with_machine(program, call.target_symbol))
+        .or_else(|| crate::semantic::calls::find_state_with_machine(program, call.target_symbol))
     else {
         return;
     };

@@ -1,4 +1,4 @@
-use crate::semantic_calls::MeasureReceiver;
+use crate::semantic::calls::MeasureReceiver;
 use language_semantics::declaration_selection::CollectionMeasure;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -284,7 +284,7 @@ pub(super) fn expression_matches_parameter(
             program.expression_table.expression(expression),
             ExpressionNode::Member(member)
                 if expression_is_parameter(program, member.receiver, parameter)
-                    && crate::semantic_calls::collection_measure_member(
+                    && crate::semantic::calls::collection_measure_member(
                         program,
                         member,
                         MeasureReceiver::Declared(parameter.type_reference),

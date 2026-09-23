@@ -70,7 +70,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// handles.
     pub(super) call_sites: HashMap<
         (SymbolHandle, SymbolHandle, usize, usize),
-        Option<crate::semantic_calls::CallSite<'plans>>,
+        Option<crate::semantic::calls::CallSite<'plans>>,
     >,
     pub(super) call_target_parameters:
         HashMap<SymbolHandle, Option<&'plans [typed_trees::signature::StateParameter]>>,
@@ -292,7 +292,7 @@ impl<'plans> FlowBuildContext<'plans> {
     }
 
     /// `(machines index, in-machine state index)` of a state symbol anywhere
-    /// in the program -- the shape `semantic_calls::find_state` scans for.
+    /// in the program -- the shape `semantic::calls::find_state` scans for.
     pub(super) fn state_location(
         &mut self,
         program: &typed_trees::TypedTrees,
@@ -351,7 +351,7 @@ impl<'plans> FlowBuildContext<'plans> {
             .transition_call_targets
             .entry((machine.symbol, state.symbol, statement_index, call_ordinal))
             .or_insert_with(|| {
-                crate::semantic_calls::transition_call_target(
+                crate::semantic::calls::transition_call_target(
                     program,
                     machine,
                     state,

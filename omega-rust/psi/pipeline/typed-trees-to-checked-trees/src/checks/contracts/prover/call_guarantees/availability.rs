@@ -7,7 +7,7 @@ use super::{
     invocation, stable_arguments,
 };
 use crate::flow::CanonicalPlace;
-use crate::semantic_calls::CallSite;
+use crate::semantic::calls::CallSite;
 use checked_trees::FlowStateFact;
 use facts::{ContractFactKind, FactOrigin, FactPayload, FactPlan, PlaceRoot, ProgramPoint};
 use symbols::SymbolHandle;

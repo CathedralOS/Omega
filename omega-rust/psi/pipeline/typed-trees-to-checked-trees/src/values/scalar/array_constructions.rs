@@ -50,7 +50,7 @@ pub(crate) fn call_array_constructions(
         {
             continue;
         }
-        let Some(site) = crate::semantic_calls::find_call_site(
+        let Some(site) = crate::semantic::calls::find_call_site(
             program,
             machine.symbol,
             state.symbol,
@@ -60,14 +60,14 @@ pub(crate) fn call_array_constructions(
             continue;
         };
         let target_symbol = match &site {
-            crate::semantic_calls::CallSite::Expression { call, .. } => call.target_symbol,
-            crate::semantic_calls::CallSite::Statement(call) => call.target_symbol,
-            crate::semantic_calls::CallSite::TransitionNamed { .. } => continue,
+            crate::semantic::calls::CallSite::Expression { call, .. } => call.target_symbol,
+            crate::semantic::calls::CallSite::Statement(call) => call.target_symbol,
+            crate::semantic::calls::CallSite::TransitionNamed { .. } => continue,
         };
         if target_symbol != call.target_symbol {
             continue;
         }
-        let Some(target) = crate::semantic_calls::find_state(program, target_symbol) else {
+        let Some(target) = crate::semantic::calls::find_state(program, target_symbol) else {
             continue;
         };
         // A scalar computation owns its nested structural operands. Giving
@@ -79,7 +79,7 @@ pub(crate) fn call_array_constructions(
             .get(statement_index)
         {
             Some(StatementNode::Call(_)) => {
-                matches!(site, crate::semantic_calls::CallSite::Statement(_))
+                matches!(site, crate::semantic::calls::CallSite::Statement(_))
             }
             Some(StatementNode::LocalData(local)) => {
                 call.authored_expression == local.initial_value
@@ -109,7 +109,7 @@ pub(crate) fn call_array_constructions(
             continue;
         }
         let parameters = program.state_parameters(target);
-        let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+        let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
         let explicit_self = arguments.len()
             > parameters
                 .iter()

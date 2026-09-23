@@ -28,7 +28,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
     if !call.machine_arguments.is_empty() || !call.selects_only_nominal_route() {
         return None;
     }
-    let caller = crate::semantic_calls::find_state(program, caller_state)?;
+    let caller = crate::semantic::calls::find_state(program, caller_state)?;
     let caller_statements = program.statement_table.statements(caller.statement_nodes);
     let caller_statement = caller_statements.get(statement_index)?;
     let local_ordinal = u32::try_from(caller_statements[..statement_index].iter().filter(|statement| {
@@ -73,7 +73,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
         }),
     )?;
     let (machine, _) =
-        crate::semantic_calls::find_machine_by_entry_state(program, call.target_symbol)?;
+        crate::semantic::calls::find_machine_by_entry_state(program, call.target_symbol)?;
     if !machine.body_is_present
         || machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
         || !machine.owned_data.is_empty()
@@ -448,14 +448,14 @@ fn exact_call_occurrence<'facts>(
                 && candidate.has_receiver == call.receiver.is_valid()
                 && candidate.receiver_symbol == receiver_root
                 && matches!(
-                    crate::semantic_calls::find_call_site(
+                    crate::semantic::calls::find_call_site(
                         program,
                         owner.symbol,
                         caller_state,
                         statement_index,
                         candidate.call_ordinal,
                     ),
-                    Some(crate::semantic_calls::CallSite::Expression { expression, .. })
+                    Some(crate::semantic::calls::CallSite::Expression { expression, .. })
                         if expression == source
                 )
         });

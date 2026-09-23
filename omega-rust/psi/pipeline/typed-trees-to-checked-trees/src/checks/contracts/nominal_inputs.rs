@@ -107,7 +107,7 @@ pub(super) fn check(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(site) = crate::semantic_calls::find_call_site(
+    let Some(site) = crate::semantic::calls::find_call_site(
         program,
         state.machine_symbol,
         state.state_symbol,
@@ -117,14 +117,14 @@ pub(super) fn check(
         return;
     };
     let Some(parameters) =
-        crate::semantic_calls::call_target_parameters(program, call.target_symbol)
+        crate::semantic::calls::call_target_parameters(program, call.target_symbol)
     else {
         return;
     };
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &site);
     let target_machine =
         crate::lookup::machine_by_symbol(program, call.target_symbol).or_else(|| {
-            crate::semantic_calls::find_state_with_machine(program, call.target_symbol)
+            crate::semantic::calls::find_state_with_machine(program, call.target_symbol)
                 .map(|(machine, _)| machine)
         });
     let mut argument_index = 0;

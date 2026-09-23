@@ -100,7 +100,7 @@ fn proves_bound(
     let Some(machine) = crate::lookup::machine_by_symbol(program, caller.machine_symbol) else {
         return false;
     };
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         caller.machine_symbol,
         caller.state_symbol,

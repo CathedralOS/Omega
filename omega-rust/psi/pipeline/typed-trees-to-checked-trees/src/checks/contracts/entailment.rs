@@ -174,7 +174,7 @@ pub(super) fn transparent_proposition_proves_exit(
     }) else {
         return false;
     };
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
@@ -243,17 +243,17 @@ pub(super) fn structural_call_requirement(
     if !entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver) {
         return false;
     }
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
     ) else {
         return false;
     };
-    let Some(callee) = crate::semantic_calls::find_state(program, call_flow.target_symbol) else {
+    let Some(callee) = crate::semantic::calls::find_state(program, call_flow.target_symbol) else {
         return false;
     };
-    let Some(call_site) = crate::semantic_calls::find_call_site(
+    let Some(call_site) = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
         state.symbol,
@@ -262,8 +262,8 @@ pub(super) fn structural_call_requirement(
     ) else {
         return false;
     };
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, &call_site);
-    let in_transition_target = crate::semantic_calls::transition_call_target(
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
+    let in_transition_target = crate::semantic::calls::transition_call_target(
         program,
         machine,
         state,
@@ -342,7 +342,7 @@ fn isolated_proof_values(
                 .span_or_empty(state.calls)
                 .iter()
                 .all(|call| {
-                    crate::semantic_calls::find_state(program, call.target_symbol)
+                    crate::semantic::calls::find_state(program, call.target_symbol)
                         .is_some_and(isolated_parameters)
                 })
         })

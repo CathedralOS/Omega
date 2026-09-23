@@ -38,7 +38,7 @@ fn constrained_reference_aliases_use_the_same_live_origin_query() {
     let expected = fixture.subject("context", &[("Context", "scheduler")]);
     assert_eq!(fixture.query(subject.clone()), Some(expected.clone()));
     let state =
-        crate::semantic_calls::find_state(&fixture.program, fixture.state.state_symbol).unwrap();
+        crate::semantic::calls::find_state(&fixture.program, fixture.state.state_symbol).unwrap();
     let statements = state.statement_nodes;
     let StatementNode::LocalData(local) =
         &fixture.program.statement_table.statements(statements)[0]
@@ -81,7 +81,7 @@ fn a_foreign_same_spelling_root_cannot_supply_a_reference_origin() {
         .state_parameters(&fixture.program.machine_states(foreign)[0])[0]
         .symbol;
     let state =
-        crate::semantic_calls::find_state(&fixture.program, fixture.state.state_symbol).unwrap();
+        crate::semantic::calls::find_state(&fixture.program, fixture.state.state_symbol).unwrap();
     let StatementNode::LocalData(local) = &fixture
         .program
         .statement_table

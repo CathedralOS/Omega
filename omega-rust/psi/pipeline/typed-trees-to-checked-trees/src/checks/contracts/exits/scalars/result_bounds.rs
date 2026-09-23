@@ -58,7 +58,7 @@ impl ExitScalars<'_, '_> {
         let (result_expression, result_type) = result_operand;
         let entry = self.program.machine_states(self.machine).first()?;
         let primitive = exact_integer_carrier(self.program, result_type)?;
-        let state = crate::semantic_calls::find_state_in_machine(
+        let state = crate::semantic::calls::find_state_in_machine(
             self.program,
             self.exit.machine_symbol,
             self.exit.state_symbol,

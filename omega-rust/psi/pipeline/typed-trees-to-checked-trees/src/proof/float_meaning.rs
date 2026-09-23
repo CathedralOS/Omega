@@ -916,16 +916,16 @@ fn instantiate_transported_ensures(
             statement_index: call.statement_index,
             call_ordinal: call.call_ordinal,
         };
-        let argument_expressions = crate::semantic_calls::find_call_site(
+        let argument_expressions = crate::semantic::calls::find_call_site(
             program,
             call.caller_machine_symbol,
             call.caller_state_symbol,
             call.statement_index,
             call.call_ordinal,
         )
-        .map(|site| crate::semantic_calls::call_site_argument_expressions(program, &site));
+        .map(|site| crate::semantic::calls::call_site_argument_expressions(program, &site));
         let target_parameters =
-            crate::semantic_calls::call_target_parameters(program, call.target_state_symbol);
+            crate::semantic::calls::call_target_parameters(program, call.target_state_symbol);
         let operand_key = |invocation: &ValidatedFloatMeaningProjectionInvocation| {
             imported_call_operand_key(
                 program,

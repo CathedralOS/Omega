@@ -59,12 +59,12 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     target_state: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     let parameters = target_state.contract_parameters(program);
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, call_site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
     let substitute = |expression| {
         let typed_trees::expression::ExpressionNode::Name(path) =
             program.expression_table.expression(expression)
@@ -85,7 +85,7 @@ pub(super) fn direct_context_proves_instantiated_boolean_expression(
             .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
         {
             return match call_site {
-                crate::semantic_calls::CallSite::Expression { call, .. } => call.receiver,
+                crate::semantic::calls::CallSite::Expression { call, .. } => call.receiver,
                 _ => expression,
             };
         }
@@ -167,7 +167,7 @@ fn instantiated_live_value_proves(
     contexts: &[facts::FactContextHandle],
     caller_state_symbol: SymbolHandle,
     statement_index: usize,
-    call_site: &crate::semantic_calls::CallSite<'_>,
+    call_site: &crate::semantic::calls::CallSite<'_>,
     target: &(impl ContractTargetParameters + ?Sized),
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
@@ -175,7 +175,7 @@ fn instantiated_live_value_proves(
     use typed_trees::expression::ExpressionNode;
 
     let parameters = target.contract_parameters(program);
-    let arguments = crate::semantic_calls::call_site_argument_expressions(program, call_site);
+    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
     evaluate_scalar(program, expression, &mut |formal| {
         let argument = match program.expression_table.expression(formal) {
             ExpressionNode::Name(path)
@@ -191,7 +191,7 @@ fn instantiated_live_value_proves(
                     .any(|parameter| parameter.is_self && parameter.symbol == path.symbol)
                 {
                     match call_site {
-                        crate::semantic_calls::CallSite::Expression { call, .. } => call.receiver,
+                        crate::semantic::calls::CallSite::Expression { call, .. } => call.receiver,
                         _ => return None,
                     }
                 } else {

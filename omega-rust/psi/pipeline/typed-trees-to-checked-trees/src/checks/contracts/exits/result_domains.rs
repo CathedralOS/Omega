@@ -222,8 +222,8 @@ pub(in crate::checks::contracts) fn check_scalar_tail_result_domains(
     call: &checked_trees::FlowCallFact,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let Some(crate::semantic_calls::CallSite::TransitionNamed { path, .. }) =
-        crate::semantic_calls::find_call_site(
+    let Some(crate::semantic::calls::CallSite::TransitionNamed { path, .. }) =
+        crate::semantic::calls::find_call_site(
             program,
             state_flow.machine_symbol,
             state_flow.state_symbol,
@@ -338,10 +338,10 @@ fn exact_call_result_membership(
     if occurrences.next().is_some() || call.target_symbol != authored.target_symbol {
         return false;
     }
-    let Some(crate::semantic_calls::CallSite::Expression {
+    let Some(crate::semantic::calls::CallSite::Expression {
         expression,
         call: selected,
-    }) = crate::semantic_calls::find_call_site(
+    }) = crate::semantic::calls::find_call_site(
         program,
         exit.machine_symbol,
         exit.state_symbol,
@@ -421,7 +421,7 @@ fn establishes_scalar_predicates(
     else {
         return false;
     };
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         exit.machine_symbol,
         exit.state_symbol,
@@ -1385,7 +1385,7 @@ pub(crate) fn mutable_referent_field_requirements(
     state_symbol: symbols::SymbolHandle,
 ) -> Vec<facts::Fact> {
     let Some(state) =
-        crate::semantic_calls::find_state_in_machine(program, machine_symbol, state_symbol)
+        crate::semantic::calls::find_state_in_machine(program, machine_symbol, state_symbol)
     else {
         return Vec::new();
     };
@@ -1475,7 +1475,7 @@ pub(in crate::checks::contracts) fn check_mutable_referent_field_domains(
     // Mutable roots use implicit signature preconditions rather than seeded
     // StateParameterDomain facts. Their declaration still creates a return
     // obligation, even when a write retired every copy of the entry evidence.
-    if let Some(state) = crate::semantic_calls::find_state_in_machine(
+    if let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         exit.machine_symbol,
         exit.state_symbol,

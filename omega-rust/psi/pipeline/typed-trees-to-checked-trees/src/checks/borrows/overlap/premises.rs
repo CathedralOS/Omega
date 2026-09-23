@@ -445,7 +445,7 @@ pub(in crate::checks::borrows) fn append_call_premises(
     let Some(frames) = call_frames else {
         return;
     };
-    let Some(state) = crate::semantic_calls::find_state_in_machine(
+    let Some(state) = crate::semantic::calls::find_state_in_machine(
         program,
         state_flow.machine_symbol,
         state_flow.state_symbol,
