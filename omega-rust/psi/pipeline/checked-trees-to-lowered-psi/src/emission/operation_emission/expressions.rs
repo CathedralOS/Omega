@@ -149,7 +149,7 @@ impl LoweredDirectExpression {
     }
 }
 
-pub(super) fn emit_scalar_leaf(
+pub(crate) fn emit_scalar_leaf(
     kind: OperationKind,
     scalar_type: ScalarType,
     next_value_identity: &mut u64,

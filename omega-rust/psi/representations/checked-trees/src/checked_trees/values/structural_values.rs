@@ -102,6 +102,10 @@ pub struct CheckedStructuralRecordField {
 pub enum CheckedStructuralRecordFieldValue {
     Scalar(CheckedScalarComputationHandle),
     Structural(CheckedStructuralValueHandle),
+    /// An authored literal omits this declared field: its value is the
+    /// zero-initialized value of the declared type, which emission replays
+    /// from the field's shape rather than from an authored initializer.
+    Zero,
 }
 
 impl Default for CheckedStructuralRecordFieldValue {

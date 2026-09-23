@@ -480,7 +480,7 @@ fn structural_payload_sum_result_keeps_composed_plan() {
 }
 
 #[test]
-fn byte_sequence_field_record_result_still_declines_composed() {
+fn byte_sequence_field_record_composes_with_a_zero_member() {
     let checked = checked(
         r#"
         data Framed { bytes: [u8; 4]; tag: u64; }
@@ -494,13 +494,26 @@ fn byte_sequence_field_record_result_still_declines_composed() {
         }
     "#,
     );
-    assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(machine_named(&checked, "choose_framed"))
-            .is_none(),
-        "a byte-sequence field stays outside the composed result signature"
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "choose_framed"))
+        .expect("a zero-initialized array member joins the composed signature");
+    let states_with_establishments = plan
+        .states
+        .iter()
+        .filter(|state| {
+            state.operations.iter().any(|operation| {
+                matches!(
+                    operation,
+                    checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                )
+            })
+        })
+        .count();
+    assert_eq!(
+        states_with_establishments, 2,
+        "each state establishes its partial literal with the omitted array reading the zero member"
     );
 }

@@ -1247,22 +1247,52 @@ impl Builder<'_, '_> {
                 _ => None,
             })
             .collect::<Vec<_>>();
-        if authored.len() != relevant.len() + erased.len() {
+        // An authored literal may omit declared members: each omission reads
+        // the zero-initialized value of its declared type, so the checked
+        // record still mints the complete declared-order roster and marks the
+        // omitted entries for emission to replay. Omissions whose declared
+        // type has no composed zero form (sums, byte sequences, references,
+        // providers) stay refused rather than guessing a value.
+        if authored.len() > relevant.len() + erased.len() {
             return None;
         }
         let mut fields = Vec::new();
-        for (ordinal, initializer) in authored.into_iter().enumerate() {
-            let erased_field = erased
-                .iter()
-                .find(|field| field.symbol == initializer.field_symbol);
-            let field = if let Some(field) = erased_field {
-                *field
-            } else {
-                *relevant
-                    .iter()
-                    .find(|field| field.symbol == initializer.field_symbol)?
+        let mut consumed = vec![false; authored.len()];
+        for member in declared.iter() {
+            let typed_trees::data::DataMember::Field(field) = member else {
+                continue;
             };
-            if erased_field.is_some() {
+            let Some(initializer_index) = authored
+                .iter()
+                .position(|initializer| initializer.field_symbol == field.symbol)
+            else {
+                if field.relevance.is_erased() {
+                    // An erased member carries semantic content; its omission
+                    // must already be synthesized by the upstream nullary
+                    // initializer pass, so an unwritten erased member here is
+                    // a checker-level miss, not a zero.
+                    return None;
+                }
+                if !validation::zero_initialized_field_supported(self.program, field.type_reference)
+                {
+                    return None;
+                }
+                fields.push(checked_trees::CheckedStructuralRecordField {
+                    field: field.symbol,
+                    expression: ExpressionHandle::invalid(),
+                    type_reference: field.type_reference,
+                    value: checked_trees::CheckedStructuralRecordFieldValue::Zero,
+                });
+                continue;
+            };
+            if consumed[initializer_index] {
+                // A second spelled entry for the same declared member is a
+                // duplicate, not another omission.
+                return None;
+            }
+            consumed[initializer_index] = true;
+            let initializer = &authored[initializer_index];
+            if field.relevance.is_erased() {
                 // The erased member stays in the checked record's field list —
                 // it carries semantic content but no runtime storage, so the
                 // checked value keeps its exact initializer for interpretation
@@ -1277,14 +1307,6 @@ impl Builder<'_, '_> {
                     value,
                 });
                 continue;
-            }
-            if fields
-                .iter()
-                .any(|prior: &checked_trees::CheckedStructuralRecordField| {
-                    prior.field == field.symbol
-                })
-            {
-                return None;
             }
             let reference =
                 validation::unwrapped_type_reference(self.program, field.type_reference)?;
@@ -1309,7 +1331,7 @@ impl Builder<'_, '_> {
                         statement_ordinal: u32::try_from(self.statement_index).ok()?,
                         role: CheckedScalarExpressionRole::RecordField {
                             expression,
-                            field_ordinal: u32::try_from(ordinal).ok()?,
+                            field_ordinal: u32::try_from(initializer_index).ok()?,
                         },
                         root,
                     });
@@ -1330,6 +1352,11 @@ impl Builder<'_, '_> {
                 type_reference: field.type_reference,
                 value,
             });
+        }
+        // Every spelled initializer must land on a declared member: a bogus
+        // field name leaves authored unconsumed.
+        if consumed.iter().any(|consumed| !consumed) {
+            return None;
         }
         Some(CheckedStructuralValueKind::Record {
             data_symbol: literal.type_symbol,

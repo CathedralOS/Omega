@@ -599,3 +599,89 @@ fn membership_domain_label(
         .collect::<Vec<_>>()
         .join("::")
 }
+
+/// Whether a declared literal field omitted by the author reads a composed
+/// zero-initialized value. Primitive scalars mint a constant-zero leaf, a
+/// closed array whose elements zero recursively mints a zero array, and a
+/// field-only record mints a record of recursively zero fields. Everything
+/// else — sums and mixed contents, erased members, byte sequences, slices,
+/// references, providers — has no single composed zero form and must be
+/// spelled by the author.
+pub fn zero_initialized_field_supported(
+    program: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    fn visit(
+        program: &TypedTrees,
+        type_reference: typed_trees::types::TypeReferenceHandle,
+        visiting: &mut Vec<symbols::SymbolHandle>,
+    ) -> bool {
+        let Some(reference) =
+            crate::value_custody::places::unwrapped_type_reference(program, type_reference)
+        else {
+            return false;
+        };
+        fn scalar_leaf(
+            program: &TypedTrees,
+            type_reference: typed_trees::types::TypeReferenceHandle,
+        ) -> bool {
+            let Some(reference) =
+                crate::value_custody::places::unwrapped_type_reference(program, type_reference)
+            else {
+                return false;
+            };
+            if program.primitive_type_reference(reference).is_some() {
+                return true;
+            }
+            match program.type_reference_table.type_reference(reference) {
+                typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+                    scalar_leaf(program, *element_type)
+                }
+                _ => false,
+            }
+        }
+
+        if program.primitive_type_reference(reference).is_some() {
+            return true;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+                // A closed array's zero is one scalar constant leaf per
+                // roster element; elements that only zero as structures have
+                // no scalar-leaf spelling.
+                scalar_leaf(program, *element_type)
+            }
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } => {
+                if visiting.contains(symbol) {
+                    // An owned field cycle cannot compose a finite zero.
+                    return false;
+                }
+                let Some(data) = program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == *symbol)
+                else {
+                    return false;
+                };
+                let members = program.data_members(data);
+                if members
+                    .iter()
+                    .any(|member| !matches!(member, typed_trees::data::DataMember::Field(_)))
+                {
+                    return false;
+                }
+                visiting.push(*symbol);
+                let supported = members.iter().all(|member| {
+                    let typed_trees::data::DataMember::Field(field) = member else {
+                        return false;
+                    };
+                    !field.relevance.is_erased() && visit(program, field.type_reference, visiting)
+                });
+                visiting.pop();
+                supported
+            }
+            _ => false,
+        }
+    }
+    visit(program, type_reference, &mut Vec::new())
+}

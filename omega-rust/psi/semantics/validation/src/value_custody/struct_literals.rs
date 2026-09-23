@@ -32,6 +32,7 @@ mod tests;
 
 pub(crate) use window_elements::validate_array_window_elements;
 
+pub use construction_bounds::zero_initialized_field_supported;
 use construction_bounds::{validate_literal_case_constraints, validate_literal_default_domain};
 use field_obligations::enforce_construction_field_obligations;
 pub(crate) use field_obligations::{

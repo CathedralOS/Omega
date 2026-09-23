@@ -193,6 +193,7 @@ pub use value_custody::places::unwrapped_type_reference;
 pub use value_custody::recasts::{
     ValidatedLiteralIndexedRecastFootprint, validate_literal_indexed_recast_footprint,
 };
+pub use value_custody::struct_literals::zero_initialized_field_supported;
 pub use value_custody::type_references::normalize_open_index_expressions;
 pub use value_custody::type_references::{
     closed_float_range_endpoint, closed_integer_range_bound, closed_integer_range_maximum,
