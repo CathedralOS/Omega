@@ -63,7 +63,12 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    push a commit whose only payload is mechanical reflow (`fmt:`/whitespace),
    and never land one on main; reviewers and the ledger read lanes
    commit-by-commit. If a later gate re-formats your diff, fold it into the
-   next functional commit on the same lane.
+   next functional commit on the same lane. Before the verdict, squash
+   fixup/WIP/checkpoint commits (`git rebase -i` or recommit) so every
+   pushed commit is a meaningful unit of progress a reviewer can read —
+   a lane of "wip", "fix", "oops" commits is a defect, not history. Drop
+   commits whose content was superseded upstream instead of merging them
+   twice.
 4. "Reuse your existing clone/worktree when present" — suspended workers
    resume on the same VM; a re-clone plus cold build is measured leg-time tax.
    Never `cargo clean` and never build `omega` from source for evidence:

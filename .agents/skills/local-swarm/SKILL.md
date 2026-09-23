@@ -93,6 +93,9 @@ The operating loop mirrors the cloud small-pool mode:
   reformatting folds into the change commit — never a standalone
   `fmt:`/whitespace-only commit on the slot's branch or on main. If a later
   gate re-formats the diff, fold it into the next functional commit.
+  Squash fixup/WIP/checkpoint commits before reporting done — every
+  commit should be a meaningful unit of progress; drop content that was
+  superseded upstream rather than merging it twice.
 - **Coordinator slot.** The coordinator works its own reserved item serially
   in its checkout or a dedicated worktree — claim, edits, scoped gates,
   land through `tools/landing.py` like every other slot. Between drains,
