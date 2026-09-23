@@ -19,7 +19,7 @@ fn root(
             && checked.expression_table.name_path_members(path.members).len() == 1)
 }
 
-fn case_test(
+pub(super) fn case_test(
     checked: &CheckedTrees,
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, symbols::SymbolHandle)> {
@@ -54,7 +54,7 @@ fn case_test(
     None
 }
 
-fn identity(variant: &DataVariant) -> String {
+pub(super) fn identity(variant: &DataVariant) -> String {
     variant
         .identity
         .map(|identity| format!("#{identity}"))

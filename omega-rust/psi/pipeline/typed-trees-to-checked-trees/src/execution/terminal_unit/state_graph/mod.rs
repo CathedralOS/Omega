@@ -7,9 +7,10 @@ use super::{
     CheckedStructuralControlTransferPlan, CheckedStructuralScalarArgumentPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralParameterPlan, ExpressionNode, Multiplicity, PermissionEventKind,
-    PermissionEventSource, PrimitiveType, StatementNode, TransitionExit, TransitionGuardNode,
-    TransitionTargetNode, TypeReferenceNode, TypedTrees, calls,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment, ExpressionNode,
+    Multiplicity, PermissionEventKind, PermissionEventSource, PrimitiveType, StatementNode,
+    TransitionExit, TransitionGuardNode, TransitionTargetNode, TypeReferenceNode, TypedTrees,
+    calls,
 };
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::calls::{
@@ -1272,6 +1273,7 @@ enum SuccessorGuard {
     ReceiverTransfer,
     SubsliceTransfer,
     ResultTransfer,
+    CasePayloadTransfer,
     ParameterTransfer,
     ScalarArguments,
     ErasedArguments,
@@ -1302,6 +1304,9 @@ impl SuccessorEdge {
             }
             (Self::Jump, SuccessorGuard::ResultTransfer) => {
                 "state graph: terminator: jump successor: result-local transfer"
+            }
+            (Self::Jump, SuccessorGuard::CasePayloadTransfer) => {
+                "state graph: terminator: jump successor: case-payload transfer"
             }
             (Self::Jump, SuccessorGuard::ParameterTransfer) => {
                 "state graph: terminator: jump successor: parameter transfer"
@@ -1339,6 +1344,9 @@ impl SuccessorEdge {
             (Self::Conditional, SuccessorGuard::ResultTransfer) => {
                 "state graph: terminator: conditional successors: result-local transfer"
             }
+            (Self::Conditional, SuccessorGuard::CasePayloadTransfer) => {
+                "state graph: terminator: conditional successors: case-payload transfer"
+            }
             (Self::Conditional, SuccessorGuard::ParameterTransfer) => {
                 "state graph: terminator: conditional successors: parameter transfer"
             }
@@ -1375,6 +1383,9 @@ impl SuccessorEdge {
             (Self::GuardedJump, SuccessorGuard::ResultTransfer) => {
                 "state graph: terminator: guarded jump successors: result-local transfer"
             }
+            (Self::GuardedJump, SuccessorGuard::CasePayloadTransfer) => {
+                "state graph: terminator: guarded jump successors: case-payload transfer"
+            }
             (Self::GuardedJump, SuccessorGuard::ParameterTransfer) => {
                 "state graph: terminator: guarded jump successors: parameter transfer"
             }
@@ -1410,6 +1421,9 @@ impl SuccessorEdge {
             }
             (Self::ClosedCase, SuccessorGuard::ResultTransfer) => {
                 "state graph: terminator: closed-sum case successor: result-local transfer"
+            }
+            (Self::ClosedCase, SuccessorGuard::CasePayloadTransfer) => {
+                "state graph: terminator: closed-sum case successor: case-payload transfer"
             }
             (Self::ClosedCase, SuccessorGuard::ParameterTransfer) => {
                 "state graph: terminator: closed-sum case successor: parameter transfer"
@@ -1525,6 +1539,24 @@ fn successor_bindings(
     }
     let (source_structural, source_scalar) = &signatures[source_index];
     let (target_structural, target_scalar) = &signatures[target_index];
+    // A guard that is an exact case test selects one sum case for this edge,
+    // so the destructure-bound payload subtree `subject.Case::field` carries
+    // the edge's proven membership into the target's custody. Record the
+    // tested subject's canonical place and the selected case once; the
+    // transfer walk reuses them for every structural argument.
+    let case_test = match transition.guard {
+        TransitionGuardNode::When(guard) => crate::proof::exact_outcome_case_test(program, guard)
+            .and_then(|(subject, case)| {
+                crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    source.symbol,
+                    ordinal as usize,
+                    subject,
+                )
+                .map(|place| (place, case))
+            }),
+        _ => None,
+    };
     let argument_at = |position: u32| {
         let position = target_parameters
             .iter()
@@ -1661,6 +1693,29 @@ fn successor_bindings(
                             target_parameter_index: u32::try_from(target_index).ok()?,
                         });
                     }
+                }
+            }
+            if let Some((subject_place, selected_case)) = &case_test {
+                mark(SuccessorGuard::CasePayloadTransfer);
+                let place = crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    source.symbol,
+                    ordinal as usize,
+                    expression,
+                )?;
+                if let Some(source) = case_payload_transfer(
+                    program,
+                    place,
+                    subject_place,
+                    *selected_case,
+                    source,
+                    source_structural,
+                    target,
+                ) {
+                    return Some(CheckedStructuralControlTransferPlan {
+                        source,
+                        target_parameter_index: u32::try_from(target_index).ok()?,
+                    });
                 }
             }
             mark(SuccessorGuard::ParameterTransfer);
@@ -1825,4 +1880,145 @@ fn successor_bindings(
         erased_proof_arguments,
         trivial_affine_discard_parameter_positions: Vec::new(),
     })
+}
+
+/// Admit a `[copy]` case-payload subtree transfer on a case-tested edge.
+///
+/// The edge's guard selected `selected_case` on `subject_place`, so an
+/// argument whose place extends that subject through exactly that case
+/// into one declared payload field carries proven membership into the
+/// target's custody — the same authorization an authored case arm gives
+/// its destructure bindings. The checked source keeps the resolved
+/// subject argument plus the selected case and field identities, so a
+/// downstream channel can rejoin the projected subtree without
+/// re-deriving the destructure local.
+fn case_payload_transfer(
+    program: &TypedTrees,
+    place: crate::flow::CanonicalPlace,
+    subject_place: &crate::flow::CanonicalPlace,
+    selected_case: symbols::SymbolHandle,
+    source: &typed_trees::state::State,
+    source_structural: &[CheckedUnitStructuralParameterPlan],
+    target: &CheckedUnitStructuralParameterPlan,
+) -> Option<checked_trees::CheckedStructuralControlTransferSourcePlan> {
+    // The argument must name exactly one payload field beneath the edge's
+    // proven case: `subject-place ++ [Case{selected}, Field{payload}]`.
+    // Longer tails reach inside the payload field's own subtree and stay
+    // unadmitted.
+    if place.root != subject_place.root
+        || place.segments.len() != subject_place.segments.len() + 2
+        || place.segments[..subject_place.segments.len()] != subject_place.segments[..]
+    {
+        return None;
+    }
+    let [
+        facts::PlaceSegment::Case { variant },
+        facts::PlaceSegment::Field {
+            symbol: field_symbol,
+        },
+    ] = &place.segments[subject_place.segments.len()..]
+    else {
+        return None;
+    };
+    if *variant != selected_case {
+        return None;
+    }
+    // The selected case's declared payload field owns the transferred
+    // subtree's identity and type.
+    let field = program.data_definitions().iter().find_map(|data| {
+        program.data_members(data).iter().find_map(|member| {
+            let typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.symbol == selected_case)
+                .then(|| {
+                    program
+                        .data_payload_fields(variant)
+                        .iter()
+                        .find(|field| field.symbol == *field_symbol)
+                })
+                .flatten()
+        })
+    })?;
+    // Copying the payload out of the borrowed subject must not disturb
+    // the subject's custody: the field's own contents copy, its declared
+    // type and multiplicity match the target exactly, and the target
+    // takes owned custody of the copied subtree.
+    if !validation::has_plain_owned_contents_with_numeric_constraints(program, field.type_reference)
+        || program
+            .normalized_type_identity(field.type_reference)
+            .into_string()
+            != target.type_identity
+        || program.type_multiplicity(field.type_reference) != target.multiplicity
+        || target.access != CheckedStructuralAccess::Owned
+    {
+        return None;
+    }
+    // The tested subject resolves to a retained structural parameter.
+    let facts::PlaceRoot::Symbol(root) = subject_place.root else {
+        return None;
+    };
+    let position = program
+        .state_parameters(source)
+        .iter()
+        .position(|parameter| parameter.symbol == root)?;
+    let (parameter_index, _) = source_structural
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.position as usize == position)?;
+    // The projection reaching the tested sum keeps the shared
+    // structural-path vocabulary; the subject's own type is the field
+    // type at the end of that projection.
+    let mut subject_type = program
+        .state_parameters(source)
+        .get(position)?
+        .type_reference;
+    let path = subject_place
+        .segments
+        .iter()
+        .map(|segment| {
+            let facts::PlaceSegment::Field { symbol } = segment else {
+                return None;
+            };
+            subject_type = program.data_definitions().iter().find_map(|data| {
+                program.data_members(data).iter().find_map(|member| {
+                    let typed_trees::data::DataMember::Field(field) = member else {
+                        return None;
+                    };
+                    (field.symbol == *symbol).then_some(field.type_reference)
+                })
+            })?;
+            super::types::terminal_field_identity(program, *symbol)
+                .map(CheckedUnitStructuralPathSegment::Field)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let variant = program.data_definitions().iter().find_map(|data| {
+        program.data_members(data).iter().find_map(|member| {
+            let typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            (variant.symbol == selected_case).then_some(variant)
+        })
+    })?;
+    Some(
+        checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+            subject: CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(parameter_index).ok()?,
+                },
+                path,
+                type_identity: program.normalized_type_identity(subject_type).into_string(),
+                access: CheckedStructuralAccess::SharedBorrow,
+            },
+            case_identity: variant
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| variant.name.as_str().to_owned()),
+            field_identity: field
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| field.name.as_str().to_owned()),
+            path: Vec::new(),
+        },
+    )
 }
