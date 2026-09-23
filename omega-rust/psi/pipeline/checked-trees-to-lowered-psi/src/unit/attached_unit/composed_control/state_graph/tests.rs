@@ -4,6 +4,7 @@ use super::super::CheckedTrees;
 use super::{CheckedComposedUnitControlMachinePlan, admission};
 mod case_payload_edges;
 mod closed_cases;
+mod displaced_field_replacement;
 
 fn fixture() -> CheckedTrees {
     let source = r#"

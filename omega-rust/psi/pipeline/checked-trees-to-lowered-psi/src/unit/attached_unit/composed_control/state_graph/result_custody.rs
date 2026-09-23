@@ -86,6 +86,36 @@ pub(super) fn selection_role(
         })
 }
 
+/// Structural results whose custody ends inside the body rather than at an
+/// exit: a discarded result pairs with its call's cleanup continuation, and a
+/// call result stored whole into a borrowed field's opened window moves into
+/// that field. Neither belongs to an authored local, and the rejoined body
+/// already proved the one disposal or transfer each receives.
+fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
+    state
+        .operations
+        .iter()
+        .flat_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                affine_discards, ..
+            } => affine_discards
+                .iter()
+                .filter_map(|discard| match discard.source {
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                        binding_ordinal,
+                    } => Some(binding_ordinal),
+                    _ => None,
+                })
+                .collect(),
+            CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } => value
+                .source_structural_result_binding_ordinal()
+                .into_iter()
+                .collect(),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
 /// Validate the complete roster, not a requirement to transfer on every branch.
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -266,29 +296,7 @@ pub(super) fn local_discards(
     edge: Option<&CheckedStructuralControlSuccessorPlan>,
 ) -> Result<Vec<u32>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    // A discarded structural result pairs with its call's cleanup continuation
-    // rather than an authored local; that continuation already proves disposal.
-    let cleanup_discards =
-        state
-            .operations
-            .iter()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                    affine_discards, ..
-                } => {
-                    Some(affine_discards.iter().filter_map(|discard| {
-                        match discard.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } => Some(binding_ordinal),
-                    _ => None,
-                }
-                    }))
-                }
-                _ => None,
-            })
-            .flatten()
-            .collect::<Vec<u32>>();
+    let cleanup_discards = retired_in_body(state);
     let mut discards = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {
@@ -342,29 +350,7 @@ pub(super) fn selection_edge_discards(
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
 ) -> Result<Vec<PlaceId>, LoweringError> {
     let statements = checked.statement_table.statements(source.statement_nodes);
-    // A discarded structural result pairs with its call's cleanup continuation
-    // rather than an authored local; that continuation already proves disposal.
-    let cleanup_discards =
-        state
-            .operations
-            .iter()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-                    affine_discards, ..
-                } => {
-                    Some(affine_discards.iter().filter_map(|discard| {
-                        match discard.source {
-                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                        binding_ordinal,
-                    } => Some(binding_ordinal),
-                    _ => None,
-                }
-                    }))
-                }
-                _ => None,
-            })
-            .flatten()
-            .collect::<Vec<u32>>();
+    let cleanup_discards = retired_in_body(state);
     let mut roots = Vec::new();
     for result in state.operations.iter().rev().filter_map(result) {
         if cleanup_discards.contains(&result.binding_ordinal) {

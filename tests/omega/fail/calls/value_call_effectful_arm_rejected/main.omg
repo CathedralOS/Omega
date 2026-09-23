@@ -1,9 +1,14 @@
 // State-BODIED arms: the selected arm mutates a field BEFORE returning the
-// struct. exit 70 = vec right AND the side effect landed exactly once.
-// REJECTED: the side-effecting arm states make the callee's Unit plan
-// unavailable; callers and the selected entry lose theirs, so the closure
-// check reports `missing a checked transitive machine plan` rather than
-// the retired `SIDE-EFFECTING arm state` emission fence.
+// struct, and the caller stores that struct over its own `self.vec`.
+// This is a VALID program pinned as a known limit, not a rejected shape.
+// Checking plans `Main::main` as a composed state graph whose assignment
+// displaces the old `vec` through a borrowed-storage window (move-out, store
+// of the call result, discard of the displaced value); Psi lowering emits and
+// Terminal verification reconstructs that window. The native route then
+// stops: target lowering has no realization for `MoveStructuralField` /
+// `StoreStructuralField` yet (BORROWED-STORAGE-RESTORATION), so the fragment
+// is its generic `UnsupportedControlFlow` refusal. Promote this to a pass
+// canary when target realization of the window pair lands.
 
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Main {

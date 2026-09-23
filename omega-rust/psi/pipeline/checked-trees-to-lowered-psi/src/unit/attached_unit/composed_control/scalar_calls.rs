@@ -171,7 +171,10 @@ fn selected_roots(
                 } => scalar_arguments,
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_) => {
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                // Whole structural moves and stores evaluate no scalar.
+                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. } => {
                     continue;
                 }
                 _ => return unsupported("composed scalar selection contains a non-call operation"),
