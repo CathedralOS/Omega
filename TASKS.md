@@ -2277,57 +2277,21 @@ syntax and other terminal services are not prerequisites.
   stays multiplicity blind, say in the spec which accounted disposition the
   receiver occurs in.
 
-- **CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.** (new-scope) Two
-  checked-side facts about the same edge disagree, and `c049c026b6`
-  ("constructed arguments and owned edge discards compose through the Unit
-  graph") added the consistency check that catches it. The check is right;
-  one of the two producers is wrong.
+- **CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.** (new-scope) The closed-sum
+  arm's answer is stated in lowering: the case dispatch is the subject's
+  explicit terminal consumption, so an arm's no-code discards are its cleanup
+  evidence without the subject
+  (`composed_control/state_graph/edges.rs::validate_bindings`, fed the
+  subject's authored position by `cases.rs`). The three
+  `optimization-unit-semantics structural_cases::owned_results` tests pass
+  again. Remaining: the evidence producer,
+  `typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs::build_state_plan`,
+  still names the subject on each arm because a dispatch moves no place.
+  Treat a closed-sum `transition subject { .. }` over an owned parameter as
+  that statement's consumption there, then drop the subtraction in lowering
+  so the two facts agree by construction. Keep the equality check itself.
 
-  `composed_control/state_graph/edges.rs` now requires an edge's
-  `trivial_affine_discard_parameter_positions` to equal the positions its
-  `terminal_structural_control_cleanups` evidence names, at two sites (the
-  ordinary successor and the closed-sum arm), where both previously refused
-  any nonempty discard outright. Measured by instrumenting the refusal on
-  `optimization-unit-semantics`'s own fixture: state `inspect`, edge ordinal
-  1, `evidence=[1]`, `edge=[]`, `has_cleanup=true`.
-
-  Position 1 of `state inspect(out: &mut [u8], result: Outcome)` is the owned
-  sum `result`, and edge ordinal 1 is the `Outcome::Value { value } ->
-  writable(out, value)` arm -- a closed-sum arm that consumes `result` by
-  destructuring rather than forwarding it. So the question the disagreement
-  poses is whether destructuring a closed sum on a case arm IS a trivial
-  affine discard of the scrutinee: the cleanup evidence says yes, the edge
-  says no. `c049c026b6`'s own body distinguishes the closed-sum edge ("a
-  closed-sum case edge still refuses a forged discard"), so which fact is
-  authoritative there is that commit's call, not a free choice.
-
-  The governing clause narrows it rather than leaving it open.
-  [Terminal ownership](wiki/spec/terminal-psi/ownership.md) says every
-  incoming owned obligation on an ordinary continuing or returning edge
-  "occurs exactly once in the edge's transfer map, explicit terminal
-  consumption, eligible automatic cleanup, or validated no-code affine
-  discard" -- **exactly once**, across four routes. A case arm that
-  destructures its scrutinee consumes it; if that is "explicit terminal
-  consumption" (route two), then naming the same position a no-code affine
-  discard (route four) counts it twice, and the cleanup evidence is the side
-  that is wrong rather than the edge. Confirm that reading against the case
-  route before repairing, because the opposite reading -- that the arm
-  transfers the payload and discards the shell -- also lands on exactly one
-  route and would make the edge the wrong side instead.
-
-  Three tests, one cause, all green at `c049c026b6^` and red from
-  `c049c026b6`: `optimization-unit-semantics
-  tests::structural_cases::owned_results::{owned_call_result_transfers_to_case_parameter,
-  established_scalar_case_transfers_to_owned_block_parameter,
-  owned_result_transfer_rejects_current_custody_corruption}` -- 5 run / 5
-  passed at the parent, 5 run / 2 passed at the commit.
-
-  Acceptance: the two facts agree by construction rather than by a checker
-  comparing them after the fact, with the closed-sum arm's answer stated
-  where the disagreement was. Do not relax the new check to `is_empty()` on
-  either side: it is the control that found this.
-
-  Separately bracketed while measuring the same suite family, NOT this cause:
+- **PARTIAL-AFFINE-REFUSAL-ORDER-DRIFT.** (new-scope)
   `terminal-verifier::suite structural_unit::partial_affine_moves::direct_field_partial_affine_return_rejects_forged_conservation_shapes`
   expects `InvalidPartialAffineCleanup` and now gets
   `UnitReturnAffineDiscardsMismatch`. The forged shape still rejects, so this
@@ -2336,7 +2300,8 @@ syntax and other terminal services are not prerequisites.
   NOT the `598e3d4811..702e461755` batch, which was ruled out by measuring at
   `49533e07d3` (already red) before that batch's first commit. Narrowing
   further needs a bisect over ~2176 first-parent commits whose older points
-  require full rebuilds.
+  require full rebuilds. Acceptance: the test names the refusal the verifier
+  should report first, and the verifier reports it.
 
 - **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT.** (new-scope) A borrowed-self
   record argument no longer lowers: `checked-trees-to-lowered-psi`'s
@@ -3483,26 +3448,22 @@ syntax and other terminal services are not prerequisites.
   `exact_case_reference_owner` refuses one-segment references, and widening
   it changes what a bare name means to proof narrowing and interpreter
   equality.
-  Record and case literals passed by value now compose as fresh owned
-  operands, and guarded state graphs dispose owned parameters on their edges,
-  so the three arm-pattern canaries plan and lower past their callers. The
-  two case-payload members (`control_flow/{arm_pattern_rest_optout_exit,
-  case_pattern_rename_waive_exit}`) build their owned `Msg::Move { .. }`
-  actual with range obligations for its bounded payloads (`6e8a15c777`) and
-  read the guarded arm's payload through a `StructuralCase` dispatch whose
-  selected successor binds it (`3769ffc967`), so both produce and verify
-  Terminal. They stop in Omega target lowering at
-  `UnsupportedControlFlow(MachineId(1))`:
-  `abstract-operations-to-target-operations` `control_flow/borrowed_calls.rs`
-  refuses `Main::main`'s call into `apply` because `apply` publishes a
-  service ceiling (`reaches Console`), and behind it
-  `control_flow/structural_case.rs::lower` requires a structural home rather
-  than a parameter root.
-  `control_flow/record_pattern_arm_rename_guard_exit` now widens its guard
-  (`x as i64 + vertical as i64 == 70`): validation refuses exact guard
-  arithmetic without a range proof (`693a39cd90`). It stops at the same
-  `UnsupportedControlFlow(MachineId(1))` on `Main::main`'s `CallUnit` into
-  `judge`, which also publishes `reaches Console`.
+  Record and case literals passed by value compose as fresh owned operands,
+  guarded state graphs dispose owned parameters on their edges, and exact
+  guard arithmetic owes its range proof (`693a39cd90`).
+  `control_flow/{arm_pattern_rest_optout_exit,case_pattern_rename_waive_exit,
+  record_pattern_arm_rename_guard_exit}` compile natively on macos_arm64
+  through Terminal Psi (`5a0dc24319`: borrowed Unit calls reach callees with
+  a service ceiling; `8c20233fff`: `StructuralCase` dispatches on the
+  function's own owned sum parameter from the entry-retained
+  `StructuralParameter` slot). Remaining: (a) runtime execution is
+  unwitnessed: no native run test covers them, and `omega run` stops at
+  package review acceptance; (b) an owned sum parameter passed indirectly or
+  on the stack (the 12-byte `Msg` on Windows x64) still fails closed in
+  selection because no parameter slot is retained, and acceptance is the
+  cross-target compile of these canaries; (c) borrowed-call scalar results
+  into serviceful callees still refuse until a serviceful fixed-native
+  scalar ABI exists.
   Unread-`&mut self` roster defect, probed 2026-09-23: replacing the count
   comparison in the four store planners (`primitive_store.rs`,
   `structural_scalar_store/mod.rs`) with a position check that admits an
