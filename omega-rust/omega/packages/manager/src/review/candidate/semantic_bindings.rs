@@ -403,7 +403,7 @@ pub(super) fn candidate_service_bindings(
             );
         };
         let binding = checked
-            .candidate_service_binding(*role, **package, *path)
+            .candidate_service_binding(*role, **package, path)
             .map_err(
                 |_| CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
                     consumer: consumer.clone(),
