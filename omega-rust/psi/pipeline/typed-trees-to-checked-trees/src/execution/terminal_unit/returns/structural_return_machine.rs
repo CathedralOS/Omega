@@ -199,7 +199,7 @@ pub(crate) fn build_structural_return_machine(
     {
         return None;
     }
-    let trivial_affine_discards = return_unit_affine_discards(
+    let Some((trivial_affine_discards, residual_affine_discards, _)) = return_unit_affine_discards(
         program,
         facts,
         machine.symbol,
@@ -218,12 +218,15 @@ pub(crate) fn build_structural_return_machine(
                     })
             })
             .collect::<Vec<_>>(),
-    );
+        &shapes.types,
+    ) else {
+        return None;
+    };
     let expected_discards = (1..structural_parameters.len())
         .rev()
         .map(|position| u32::try_from(position).ok())
         .collect::<Option<Vec<_>>>()?;
-    if trivial_affine_discards.as_deref() != Some(expected_discards.as_slice()) {
+    if !residual_affine_discards.is_empty() || trivial_affine_discards != expected_discards {
         return None;
     }
     let outcome_maps = facts

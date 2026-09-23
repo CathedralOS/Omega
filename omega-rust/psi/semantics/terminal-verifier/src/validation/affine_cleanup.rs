@@ -97,12 +97,73 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         machine: machine.id,
         block,
     };
-    let Some((block, _, _, arguments, _)) = field_calls.first() else {
+    let partial_block = match partial_returns.as_slice() {
+        [partial_block] => Some(*partial_block),
+        [] => None,
+        [extra, ..] => return Err(invalid(extra.id)),
+    };
+    // A partial terminator names its residual root directly; a parameter
+    // root is a signature place, while a result root keeps the producer
+    // lookup below. Parameter custody is machine-scoped, so the parameter
+    // lane is selected by any projected machine-parameter operand in any
+    // block — including calls whose block ends on a continuation edge.
+    let terminator_root = partial_block.and_then(|partial_block| {
+        let Terminator::ReturnUnitPartialAffine {
+            residual_affine_discards,
+            ..
+        } = &partial_block.terminator
+        else {
+            unreachable!()
+        };
+        residual_affine_discards
+            .first()
+            .map(|residual| residual.place)
+    });
+    let root_is_parameter = terminator_root.is_some_and(|root_place| {
+        machine
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.place == root_place)
+    }) || machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .any(|operation| {
+            let OperationKind::CallUnit {
+                structural_arguments,
+                ..
+            } = &operation.kind
+            else {
+                return false;
+            };
+            structural_arguments.iter().any(|argument| {
+                argument.access == StructuralAccess::Owned
+                    && !argument.path.is_empty()
+                    && partial_affine_root_type(machine, argument.place).is_some()
+                    && machine
+                        .structural_parameters
+                        .iter()
+                        .any(|parameter| parameter.place == argument.place)
+            })
+        });
+    if root_is_parameter {
+        return validate_parameter_partial_affine_shape(
+            module,
+            machine,
+            machines,
+            partial_block,
+            invalid,
+        );
+    }
+    let Some((block, _, _, _, _)) = field_calls.first() else {
         return Err(invalid(
             partial_returns
                 .first()
                 .map_or(machine.entry, |block| block.id),
         ));
+    };
+    let Some((_, _, _, arguments, _)) = field_calls.first() else {
+        unreachable!("field calls checked above")
     };
     let [root_argument] = arguments.as_slice() else {
         return Err(invalid(block.id));
@@ -128,11 +189,6 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         Some(*producer)
     } else {
         None
-    };
-    let partial_block = match partial_returns.as_slice() {
-        [partial_block] => Some(*partial_block),
-        [] => None,
-        _ => return Err(invalid(block.id)),
     };
     if partial_block.is_some_and(|partial_block| partial_block.id != block.id)
         || field_calls
@@ -297,6 +353,260 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         )
     {
         return Err(invalid(block.id));
+    }
+    Ok(())
+}
+
+/// The parameter-rooted lane of `validate_partial_affine_cleanup_shape`.
+/// An ordinary body may project subtrees out of a structural parameter
+/// into Unit calls; the untouched complement then dies as residual rows
+/// on the machine's own return terminator — or the covering moves consume
+/// the root completely and owe no residual at all. Parameter custody is
+/// machine-scoped, so projected operands are collected from every block,
+/// including calls whose block ends on a shared continuation edge. Other
+/// roots keep their own lanes: result temporaries ride the shared call
+/// continuation, and untouched siblings still die whole as trivial
+/// discards the frontier checks by exact reconstruction. A second
+/// partially moved parameter has no terminator vocabulary, so only its
+/// fully consumed complement survives this pass.
+fn validate_parameter_partial_affine_shape(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    partial_block: Option<&terminal_psi::Block>,
+    invalid: impl Fn(BlockId) -> ModuleError,
+) -> Result<(), ModuleError> {
+    // Every owned projection onto a partial-affine root contributes its
+    // path to that root's moved set; each projected operand's callee
+    // contract is checked positionally. The machine's own parameter roots
+    // are what the return terminator may close — result roots keep their
+    // shared continuation evidence instead. Moves inside a block whose
+    // terminator crashes are abandoned with that block's frontier, so
+    // they never reach a return edge and are not recorded here.
+    let mut parameter_roots: Vec<PlaceId> = Vec::new();
+    let mut moved_per_root: BTreeMap<
+        PlaceId,
+        (StructuralTypeId, BTreeSet<Vec<StructuralPathSegment>>),
+    > = BTreeMap::new();
+    let mut indexed_projection = false;
+    for block in &machine.blocks {
+        for operation in &block.operations {
+            let OperationKind::CallUnit {
+                callee,
+                structural_arguments,
+                claim_transfers,
+                ..
+            } = &operation.kind
+            else {
+                continue;
+            };
+            if !structural_arguments.iter().any(|argument| {
+                argument.access == StructuralAccess::Owned
+                    && !argument.path.is_empty()
+                    && partial_affine_root_type(machine, argument.place).is_some()
+            }) {
+                continue;
+            }
+            let callee = machines
+                .get(callee)
+                .copied()
+                .ok_or_else(|| invalid(block.id))?;
+            if !claim_transfers.is_empty()
+                || callee.result != TerminalMachineResult::Unit
+                || !callee.parameters.is_empty()
+            {
+                return Err(invalid(block.id));
+            }
+            for (index, argument) in structural_arguments.iter().enumerate() {
+                if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
+                    continue;
+                }
+                let Some(root_type) = partial_affine_root_type(machine, argument.place) else {
+                    continue;
+                };
+                let moved_type = resolve_structural_path(module, root_type, &argument.path)
+                    .ok_or_else(|| invalid(block.id))?;
+                let Some(parameter) = callee.structural_parameters.get(index) else {
+                    return Err(invalid(block.id));
+                };
+                if parameter.structural_type != moved_type
+                    || parameter.multiplicity != StructuralMultiplicity::Affine
+                    || parameter.position != index as u32
+                    || parameter.is_self
+                    || parameter.access != StructuralAccess::Owned
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || (argument
+                        .path
+                        .iter()
+                        .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)))
+                        && !exact_fixed_array_element_sink(callee, moved_type))
+                {
+                    return Err(invalid(block.id));
+                }
+                indexed_projection |= argument
+                    .path
+                    .iter()
+                    .any(|segment| matches!(segment, StructuralPathSegment::FixedIndex(_)));
+                if matches!(block.terminator, Terminator::Crash { .. }) {
+                    continue;
+                }
+                let (recorded_type, moved_paths) = moved_per_root
+                    .entry(argument.place)
+                    .or_insert_with(|| (root_type, BTreeSet::new()));
+                if *recorded_type != root_type || !moved_paths.insert(argument.path.clone()) {
+                    return Err(invalid(block.id));
+                }
+                if machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == argument.place)
+                    && moved_paths.len() == 1
+                {
+                    parameter_roots.push(argument.place);
+                }
+            }
+        }
+    }
+    if !matches!(machine.result, TerminalMachineResult::Unit)
+        || !machine.entry_claims.is_empty()
+        || !machine.content_entry_claims.is_empty()
+        || !machine.content_identity_reshuffles.is_empty()
+        || !machine.content_partition_compositions.is_empty()
+    {
+        return Err(invalid(
+            partial_block.map_or(machine.entry, |block| block.id),
+        ));
+    }
+    // Abandoned moves left nothing to close.
+    if partial_block.is_none() && moved_per_root.is_empty() {
+        return Ok(());
+    }
+    let residual_root = partial_block.and_then(|partial_block| {
+        let Terminator::ReturnUnitPartialAffine {
+            residual_affine_discards,
+            ..
+        } = &partial_block.terminator
+        else {
+            unreachable!()
+        };
+        residual_affine_discards
+            .first()
+            .map(|residual| residual.place)
+    });
+    let indexed_root = residual_root.is_some_and(|place| {
+        partial_affine_root_type(machine, place).is_some_and(|root_type| {
+            module
+                .structural_types
+                .iter()
+                .find(|declaration| declaration.id == root_type)
+                .is_some_and(|declaration| {
+                    matches!(declaration.shape, StructuralTypeShape::FixedArray { .. })
+                })
+        })
+    });
+    if (indexed_projection || indexed_root)
+        && (!machine.parameters.is_empty()
+            || !machine.published_service_ceiling.is_empty()
+            || !machine.contract.requires.is_empty()
+            || !machine.contract.ensures.is_empty()
+            || !machine.contract.crash_routes.is_empty())
+    {
+        return Err(invalid(
+            partial_block.map_or(machine.entry, |block| block.id),
+        ));
+    }
+    for place in &parameter_roots {
+        if machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *place)
+            .is_none_or(|parameter| parameter.is_self)
+        {
+            return Err(invalid(
+                partial_block.map_or(machine.entry, |block| block.id),
+            ));
+        }
+    }
+    // Reconstruct every moved root's complement. The terminator's root
+    // must publish its exact complement; every other projected parameter
+    // root must be fully consumed — a second partial root has no
+    // return-edge vocabulary. Result roots keep their shared continuation
+    // evidence and are replayed by the frontier.
+    let mut expected_residuals = None;
+    for (place, (root_type, moved)) in &moved_per_root {
+        let is_residual_root = residual_root == Some(*place);
+        let Some(expected) = partial_affine_residuals(
+            module,
+            *root_type,
+            moved,
+            match partial_block {
+                Some(partial_block) if is_residual_root => match &partial_block.terminator {
+                    Terminator::ReturnUnitPartialAffine {
+                        residual_affine_discards,
+                        ..
+                    } => residual_affine_discards.len(),
+                    _ => unreachable!(),
+                },
+                _ => usize::MAX,
+            },
+        ) else {
+            return Err(invalid(
+                partial_block.map_or(machine.entry, |block| block.id),
+            ));
+        };
+        if is_residual_root {
+            expected_residuals = Some(expected);
+        } else if !expected.is_empty()
+            && machine
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter.place == *place)
+        {
+            return Err(invalid(
+                partial_block.map_or(machine.entry, |block| block.id),
+            ));
+        }
+    }
+    match partial_block {
+        Some(partial_block) => {
+            let Terminator::ReturnUnitPartialAffine {
+                residual_affine_discards,
+                ..
+            } = &partial_block.terminator
+            else {
+                unreachable!()
+            };
+            let (Some(residual_place), Some(expected)) = (residual_root, expected_residuals) else {
+                return Err(invalid(partial_block.id));
+            };
+            if expected.is_empty()
+                || residual_affine_discards.len() != expected.len()
+                || residual_affine_discards.iter().zip(&expected).any(
+                    |(residual, (path, structural_type))| {
+                        residual.place != residual_place
+                            || residual.path != *path
+                            || residual.structural_type != *structural_type
+                    },
+                )
+            {
+                return Err(invalid(partial_block.id));
+            }
+        }
+        None => {
+            // Covering projections leave a parameter root fully consumed;
+            // the machine's unique ordinary return then owes no residual.
+            let mut unit_returns = machine
+                .blocks
+                .iter()
+                .filter(|block| matches!(block.terminator, Terminator::ReturnUnit { .. }));
+            if parameter_roots.is_empty()
+                || unit_returns.next().is_none()
+                || unit_returns.next().is_some()
+            {
+                return Err(invalid(machine.entry));
+            }
+        }
     }
     Ok(())
 }

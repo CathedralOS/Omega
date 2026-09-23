@@ -93,6 +93,16 @@ pub(super) fn validate_call_unit(
             && is_structural_call_result(machine, argument.place)
             && partial_affine_root_type(machine, argument.place).is_some()
     });
+    // An owned move out of a structural parameter transfers only the selected
+    // subtree; the parameter's untouched complement dies on the caller's own
+    // return edge as residual rows rather than on a call continuation, so the
+    // single-parameter caller bound does not apply to its roots.
+    let parameter_projection = structural_arguments.iter().any(|argument| {
+        argument.access == StructuralAccess::Owned
+            && !argument.path.is_empty()
+            && !is_structural_call_result(machine, argument.place)
+            && partial_affine_root_type(machine, argument.place).is_some()
+    });
     // Scalar inputs are independent of this result's residual custody.
     // Only the Jump route validates their transport across cleanup;
     // retain the separate final-return and parameter-root limits.
@@ -105,27 +115,29 @@ pub(super) fn validate_call_unit(
                     .iter()
                     .any(|candidate| candidate.id == operation.id)
         });
-    // One consumer may die for several result temporaries at once: every
+    // One consumer may die for several partial-affine roots at once: every
     // projected operand is then an owned move out of a live partial-affine
-    // call result, and the operand roster lines up with the callee's
-    // parameter roster so the shared continuation edge can carry each root's
-    // residual complement latest-established first. Whole-path operands keep their
-    // ordinary transfer checks; borrowed or parameter-rooted projections
-    // retain the single-argument bound.
-    let shared_result_residuals = result_projection
+    // root, and the operand roster lines up with the callee's parameter
+    // roster so the shared continuation edge can carry each result root's
+    // residual complement latest-established first while a parameter root's
+    // complement rides the caller's return edge. Whole-path operands keep
+    // their ordinary transfer checks; borrowed projections retain the
+    // single-argument bound.
+    let shared_residuals = result_projection
         && structural_arguments.len() == callee.structural_parameters.len()
         && structural_arguments.iter().all(|argument| {
             argument.path.is_empty()
                 || (argument.access == StructuralAccess::Owned
-                    && is_structural_call_result(machine, argument.place)
                     && partial_affine_root_type(machine, argument.place).is_some())
         });
     if projected
         && !ordinary_borrowed_projections
         && ((machine.result != TerminalMachineResult::Unit)
             || (!machine.parameters.is_empty() && !scalar_result_continuation)
-            || (!result_projection && machine.structural_parameters.len() != 1)
-            || (!shared_result_residuals
+            || (!result_projection
+                && !parameter_projection
+                && machine.structural_parameters.len() != 1)
+            || (!shared_residuals
                 && (structural_arguments.len() != 1 || callee.structural_parameters.len() != 1)))
     {
         return Err(ModuleError::ProjectedUnitCallOutsideBoundedSlice {

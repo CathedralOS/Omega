@@ -19,7 +19,8 @@ use crate::execution::terminal_unit::types::{
 };
 use crate::execution::terminal_unit::{
     BTreeSet, CheckFacts, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    ExpressionNode, StatementNode, TypeReferenceNode, TypedTrees,
+    CheckedUnitPartialAffineDiscardPlan, ExpressionNode, StatementNode, TypeReferenceNode,
+    TypedTrees,
 };
 
 /// Test convenience: the traced builder without a trace.
@@ -115,6 +116,46 @@ fn build_checked_machine_with_trace(
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectMachinePlan> {
+    build_checked_machine_residual_parts(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        selected_operator_applications,
+        selected_ieee_float_fma_applications,
+        retain_reference_self,
+        call_frames,
+        trace,
+    )
+    .and_then(|(plan, _, has_projected_parameter_moves)| {
+        (!has_projected_parameter_moves).then_some(plan)
+    })
+}
+
+/// `build_checked_machine_with_trace` retaining the exit edge's residual
+/// discards alongside the machine plan. The ordinary Unit roster publishes
+/// only machines whose argument custody is whole-root; a body that moved an
+/// owned parameter through a projection is republished by the partial-affine
+/// cleanup lane instead — residual-bearing returns lower to
+/// `ReturnUnitPartialAffine` and fully consumed roots keep `ReturnUnit`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_checked_machine_residual_parts(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    selected_operator_applications: &[crate::SelectedOperatorApplication],
+    selected_ieee_float_fma_applications: &[crate::SelectedIeeeFloatFmaUnitApplication],
+    retain_reference_self: bool,
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+    trace: &LocalConstructionTrace,
+) -> Option<(
+    CheckedUnitEffectMachinePlan,
+    Vec<CheckedUnitPartialAffineDiscardPlan>,
+    bool,
+)> {
     trace.phase("single-state body");
     let [state] = program.machine_states(machine) else {
         return None;
@@ -483,6 +524,18 @@ fn build_checked_machine_with_trace(
     }) {
         return None;
     }
+    let (trivial_affine_discards, residual_affine_discards, has_projected_parameter_moves) =
+        return_unit_affine_discards(
+            program,
+            facts,
+            machine.symbol,
+            state.symbol,
+            &structural_parameters,
+            program.state_parameters(state),
+            &operations,
+            &admitted_local_symbols,
+            &shapes.types,
+        )?;
     operations.push(CheckedUnitEffectOperationPlan::Complete {
         statement_index: u32::try_from(statements.len()).ok()?,
         trivial_affine_local_discard_ordinals: (0..trivial_affine_locals.len())
@@ -492,16 +545,7 @@ fn build_checked_machine_with_trace(
             .into_iter()
             .filter(|ordinal| !transferred_local_ordinals.contains(ordinal))
             .collect(),
-        trivial_affine_discards: return_unit_affine_discards(
-            program,
-            facts,
-            machine.symbol,
-            state.symbol,
-            &structural_parameters,
-            program.state_parameters(state),
-            &operations,
-            &admitted_local_symbols,
-        )?,
+        trivial_affine_discards,
     });
 
     trace.phase("contract plan");
@@ -547,25 +591,29 @@ fn build_checked_machine_with_trace(
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(program, state)?;
     let erased_proof_parameters =
         crate::execution::terminal_unit::types::erased_proof_parameter_plans(program, state)?;
-    Some(CheckedUnitEffectMachinePlan {
-        scalar_result,
-        scalar_control,
-        structural_result,
-        machine: machine.symbol,
-        state: state.symbol,
-        attachment_type_identity,
-        structural_parameters,
-        scalar_parameters,
-        erased_scalar_parameters,
-        erased_proof_parameters,
-        provider_attachment_requirements,
-        trivial_affine_locals,
-        entry_claims,
-        body_qualifications,
-        contract_report_fingerprint: contract.report_fingerprint,
-        contract_commitment: contract.commitment,
-        contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
-        service_reach: state_flow.service_reach,
-        operations,
-    })
+    Some((
+        CheckedUnitEffectMachinePlan {
+            scalar_result,
+            scalar_control,
+            structural_result,
+            machine: machine.symbol,
+            state: state.symbol,
+            attachment_type_identity,
+            structural_parameters,
+            scalar_parameters,
+            erased_scalar_parameters,
+            erased_proof_parameters,
+            provider_attachment_requirements,
+            trivial_affine_locals,
+            entry_claims,
+            body_qualifications,
+            contract_report_fingerprint: contract.report_fingerprint,
+            contract_commitment: contract.commitment,
+            contract_service_reach: facts.service_reaches.plan_for_machine(machine.symbol)?,
+            service_reach: state_flow.service_reach,
+            operations,
+        },
+        residual_affine_discards,
+        has_projected_parameter_moves,
+    ))
 }

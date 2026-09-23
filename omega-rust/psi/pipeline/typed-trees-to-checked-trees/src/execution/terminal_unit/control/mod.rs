@@ -26,7 +26,9 @@ pub(crate) use call_results::{
 };
 #[cfg(test)]
 pub(crate) use checked_machine::build_checked_machine;
-pub(crate) use checked_machine::{build_checked_machine_traced, build_checked_machine_with};
+pub(crate) use checked_machine::{
+    build_checked_machine_residual_parts, build_checked_machine_traced, build_checked_machine_with,
+};
 pub(crate) use construction_trace::LocalConstructionTrace;
 pub(crate) use structural_unit_machine::build_structural_unit_control_machine;
 

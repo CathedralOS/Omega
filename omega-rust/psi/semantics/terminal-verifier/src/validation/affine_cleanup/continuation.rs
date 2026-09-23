@@ -71,7 +71,19 @@ pub(super) fn validate(
                     && partial_affine_root_type(machine, argument.place).is_some()
             })
         {
-            let root_type = record_move(&mut roots, &mut moved, argument.place, &argument.path)?;
+            // A machine parameter's complement stays with the caller and
+            // dies on the machine's own return edge, not on this
+            // continuation — only temporaries close here. The operand's
+            // callee contract still applies below.
+            let root_type =
+                partial_affine_root_type(machine, argument.place).ok_or_else(invalid)?;
+            if machine
+                .structural_parameters
+                .iter()
+                .all(|parameter| parameter.place != argument.place)
+            {
+                record_move(&mut roots, &mut moved, argument.place, &argument.path)?;
+            }
             if !claim_transfers.is_empty() {
                 return Err(invalid());
             }
@@ -135,7 +147,15 @@ pub(super) fn validate(
             if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
                 continue;
             }
-            let root_type = record_move(&mut roots, &mut moved, argument.place, &argument.path)?;
+            let root_type =
+                partial_affine_root_type(machine, argument.place).ok_or_else(invalid)?;
+            if machine
+                .structural_parameters
+                .iter()
+                .all(|parameter| parameter.place != argument.place)
+            {
+                record_move(&mut roots, &mut moved, argument.place, &argument.path)?;
+            }
             let moved_type =
                 resolve_structural_path(module, root_type, &argument.path).ok_or_else(invalid)?;
             if parameter.structural_type != moved_type

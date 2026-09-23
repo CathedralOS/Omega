@@ -243,7 +243,7 @@ pub(super) fn successor(
         || !target_parameters.is_empty()
         || !source_claims.is_empty()
         || !target_claims.is_empty()
-        || !super::super::types::return_unit_affine_discards(
+        || super::super::types::return_unit_affine_discards(
             program,
             facts,
             machine.symbol,
@@ -252,8 +252,13 @@ pub(super) fn successor(
             program.state_parameters(source_state),
             &[],
             admitted_local_discards,
-        )?
-        .is_empty()
+            // With no operations there are no moved projections to
+            // reconstruct, so the residual lookup never reads the map.
+            &std::collections::BTreeMap::new(),
+        )
+        .map_or(true, |(trivial, residuals, _)| {
+            !trivial.is_empty() || !residuals.is_empty()
+        })
     {
         return None;
     }

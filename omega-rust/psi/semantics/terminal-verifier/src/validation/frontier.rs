@@ -1006,13 +1006,19 @@ fn apply_continuation_residual_discards(
         frontier.owned_places.remove(&place);
         offset += expected.len();
     }
-    // A dying partial root cannot leak across an unannotated continuation.
-    // Fully transferred roots have already left both frontier maps at the call.
-    if frontier
-        .partial_custody_paths
-        .keys()
-        .any(|place| partial_affine_root_type(machine, *place).is_some())
-    {
+    // A dying partial result root cannot leak across an unannotated
+    // continuation. Fully transferred roots have already left both frontier
+    // maps at the call. A structural parameter may stay partial past this
+    // edge: its untouched complement closes on the machine's own return
+    // terminator, which rejects any second surviving root.
+    if frontier.partial_custody_paths.keys().any(|place| {
+        partial_affine_root_type(machine, *place).is_some()
+            && machine
+                .structural_parameters
+                .iter()
+                .all(|parameter| parameter.place != *place)
+            && super::block_views::parameter(machine, *place).is_none()
+    }) {
         return Err(invalid());
     }
     Ok(())

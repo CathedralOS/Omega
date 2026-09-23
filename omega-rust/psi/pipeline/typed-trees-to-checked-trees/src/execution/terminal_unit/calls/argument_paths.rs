@@ -660,16 +660,20 @@ pub(crate) fn ordinary_projected_call_is_supported(
     {
         return true;
     }
-    // A dying-continuation consumer may mix several projected anonymous
-    // result operands with ordinary whole operands. Each projected operand
-    // rejoins its own temporary through `binding_ordinal`, and the appended
-    // call continuation keeps each owner's residual rows separately.
+    // A dying-continuation consumer may mix several projected operands with
+    // ordinary whole operands. Each projected anonymous temporary rejoins its
+    // own result through `binding_ordinal`, and the appended call
+    // continuation keeps each owner's residual rows separately. A projected
+    // owned parameter joins the same operand shape; its untouched complement
+    // stays with the caller and publishes on the caller's return edge
+    // instead of the call continuation.
     if allow_field_path_projection
         && target_machine.supply_mode == MachineSupplyMode::CheckedBody
         && arguments.iter().any(|argument| {
-            argument
+            (argument
                 .source_structural_result_binding_ordinal()
                 .is_some()
+                || argument.source_parameter_index().is_some())
                 && argument.access == CheckedStructuralAccess::Owned
                 && !argument.path.is_empty()
         })
@@ -677,10 +681,23 @@ pub(crate) fn ordinary_projected_call_is_supported(
             .iter()
             .zip(&target_parameters)
             .all(|(argument, target)| {
-                if argument
+                let result_projection = argument
                     .source_structural_result_binding_ordinal()
-                    .is_some()
-                {
+                    .is_some();
+                // The projected parameter root must itself be claim-free
+                // owned affine: its complement publishes residual rows on
+                // the caller's return edge, which has no vocabulary for
+                // borrowed or qualified custody.
+                let parameter_projection = !result_projection
+                    && !argument.path.is_empty()
+                    && argument.source_parameter_index().is_some_and(|index| {
+                        caller_parameters.get(index as usize).is_some_and(|source| {
+                            source.access == CheckedStructuralAccess::Owned
+                                && source.multiplicity == Multiplicity::Affine
+                                && source.qualifications.is_empty()
+                        })
+                    });
+                if result_projection || parameter_projection {
                     return argument.access == CheckedStructuralAccess::Owned
                         && !argument.path.is_empty()
                         && argument.path.iter().all(|segment| {
@@ -720,12 +737,17 @@ pub(crate) fn ordinary_projected_call_is_supported(
             .source_structural_result_binding_ordinal()
             .is_some()
         && arguments[0].access == CheckedStructuralAccess::Owned;
-    if !result_projection
-        && (caller_parameters.len() != 1 || arguments[0].source_parameter_index() != Some(0))
-    {
-        return false;
-    }
-    let caller_parameter = caller_parameters.first();
+    let caller_parameter = if result_projection {
+        None
+    } else {
+        // A projected owned parameter names its root by index; the caller
+        // may carry any number of structural siblings because the residual
+        // complement publishes on the caller's return edge, not the call.
+        let Some(parameter_index) = arguments[0].source_parameter_index() else {
+            return false;
+        };
+        caller_parameters.get(parameter_index as usize)
+    };
     if !result_projection
         && caller_parameter
             .and_then(|parameter| {
@@ -757,9 +779,6 @@ pub(crate) fn ordinary_projected_call_is_supported(
     let literal_index_fields = checked_literal_index_path(&arguments[0].path);
     let literal_index_path = literal_index_fields.is_some();
     let literal_indexed_field_path = literal_index_fields.is_some_and(|fields| !fields.is_empty());
-    if caller_source_parameters.len() != 1 && !result_projection {
-        return false;
-    }
     if field_path && !allow_field_path_projection {
         return false;
     }

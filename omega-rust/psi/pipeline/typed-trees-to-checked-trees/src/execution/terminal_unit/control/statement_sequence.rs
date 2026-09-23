@@ -1195,7 +1195,13 @@ pub(in crate::execution::terminal_unit) fn build(
             == 1
             && super::super::cleanup::anonymous::binding(program, facts, shapes, machine, state)
                 .is_some();
-        let partial_temporaries = if entry_claims.is_empty() && !anonymous_lane_claims {
+        // Claim-free calls admit owned projections from structural
+        // parameters as well as same-statement anonymous temporaries. A
+        // projected parameter's untouched complement stays with the caller
+        // and dies on its return edge as residual cleanup; the anonymous
+        // lane keeps its own dedicated vocabulary and stays excluded.
+        let allow_owned_projections = entry_claims.is_empty() && !anonymous_lane_claims;
+        let partial_temporaries = if allow_owned_projections {
             structural_results
                 .iter()
                 .filter(|(result, root)| {
@@ -1230,7 +1236,7 @@ pub(in crate::execution::terminal_unit) fn build(
             trivial_affine_locals,
             entry_claims,
             call,
-            !partial_temporaries.is_empty(),
+            allow_owned_projections,
             result
                 .as_ref()
                 .map(|result| ExpectedCallValueResult::Scalar(result.primitive_type))

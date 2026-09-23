@@ -26,6 +26,15 @@ mod arithmetic_policy_array_tests;
 
 pub(super) use validation::has_plain_owned_contents;
 
+/// Whole-root discards plus the residual complement of at most one partially
+/// moved owned parameter on the ordinary Unit return edge. A projected owned
+/// actual transfers only the selected subtree into the callee, so the
+/// parameter's untouched remainder still dies on this return and must
+/// publish residual rows rather than disappear from cleanup. Anonymous
+/// temporaries settle on their consuming call's continuation instead; a
+/// projection sourced from a named result or any other root has no residual
+/// lane on this edge and declines the return rather than emit cleanup the
+/// verifier cannot reconstruct.
 pub(super) fn return_unit_affine_discards(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -35,79 +44,174 @@ pub(super) fn return_unit_affine_discards(
     source_parameters: &[StateParameter],
     operations: &[CheckedUnitEffectOperationPlan],
     admitted_local_symbols: &[SymbolHandle],
-) -> Option<Vec<u32>> {
-    let transferred_parameters = operations
+    structural_types: &BTreeMap<String, CheckedUnitStructuralTypePlan>,
+) -> Option<(Vec<u32>, Vec<CheckedUnitPartialAffineDiscardPlan>, bool)> {
+    let mut structural_result_statements = BTreeMap::new();
+    for operation in operations
         .iter()
-        .flat_map(|operation| match operation {
+        .flat_map(|operation| operation.with_value_calls())
+    {
+        let result = match operation {
+            CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => result,
+            _ => continue,
+        };
+        structural_result_statements.insert(result.binding_ordinal, result.statement_index);
+    }
+    let mut transferred_parameters = BTreeSet::new();
+    let mut moved_parameter_paths =
+        BTreeMap::<u32, Vec<(Vec<CheckedUnitStructuralPathSegment>, String)>>::new();
+    let mut named_result_projection = false;
+    for operation in operations
+        .iter()
+        .flat_map(|operation| operation.with_value_calls())
+    {
+        match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::ScalarCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralScalarCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::SelectedOperatorStructuralCall {
                 structural_arguments,
+                coordinate,
                 ..
             }
             | CheckedUnitEffectOperationPlan::StructuralCall {
                 structural_arguments,
+                coordinate,
                 ..
-            } => structural_arguments
-                .iter()
-                .filter(|argument| argument.access == CheckedStructuralAccess::Owned)
-                .filter_map(|argument| argument.source_parameter_index())
-                .collect::<Vec<_>>(),
+            } => {
+                for argument in structural_arguments {
+                    if argument.access != CheckedStructuralAccess::Owned {
+                        continue;
+                    }
+                    if let Some(parameter_index) = argument.source_parameter_index() {
+                        if argument.path.is_empty() {
+                            transferred_parameters.insert(parameter_index);
+                        } else {
+                            moved_parameter_paths
+                                .entry(parameter_index)
+                                .or_default()
+                                .push((argument.path.clone(), argument.type_identity.clone()));
+                        }
+                        continue;
+                    }
+                    if argument.path.is_empty() {
+                        continue;
+                    }
+                    // An owned projection sourced from a same-statement result
+                    // binding is an anonymous temporary whose custody the
+                    // consuming call's continuation already owns; any other
+                    // projected root cannot publish residual evidence here.
+                    let anonymous_temporary = argument
+                        .source_structural_result_binding_ordinal()
+                        .is_some_and(|binding_ordinal| {
+                            structural_result_statements
+                                .get(&binding_ordinal)
+                                .is_some_and(|established| {
+                                    *established == coordinate.statement_index
+                                })
+                        });
+                    if !anonymous_temporary {
+                        named_result_projection = true;
+                    }
+                }
+            }
             CheckedUnitEffectOperationPlan::EstablishReference { source, .. } => {
                 // A projected reference establishment moves its carrier's
                 // leaf into the result and consumes the carrier whole; the
                 // carrier owes no separate exit discard. The whole-ingress
                 // lane keeps an empty path and leaves the borrowed parameter
                 // on the ordinary roster.
-                if source.path.is_empty() {
-                    Vec::new()
-                } else {
-                    source.source_parameter_index().into_iter().collect()
+                if !source.path.is_empty() {
+                    if let Some(parameter_index) = source.source_parameter_index() {
+                        transferred_parameters.insert(parameter_index);
+                    }
                 }
             }
-            CheckedUnitEffectOperationPlan::PortWrite { .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
-            | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            | CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. }
-            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-            | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
-            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-            | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-            | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
-            | CheckedUnitEffectOperationPlan::Complete { .. } => Vec::new(),
-        })
-        .collect::<BTreeSet<_>>();
+            _ => {}
+        }
+    }
+    if named_result_projection {
+        return None;
+    }
+    let mut residual_roots = BTreeSet::new();
+    let mut residual_affine_discards = Vec::new();
+    for (parameter_index, moved_paths) in &moved_parameter_paths {
+        // A root also passed whole is fully consumed; nothing remains to
+        // discard and no exit custody exists.
+        if transferred_parameters.contains(parameter_index) {
+            continue;
+        }
+        let Some(parameter) = structural_parameters.get(*parameter_index as usize) else {
+            return None;
+        };
+        if parameter.access != CheckedStructuralAccess::Owned
+            || parameter.multiplicity != Multiplicity::Affine
+            || !parameter.qualifications.is_empty()
+        {
+            return None;
+        }
+        let Some(rows) = super::cleanup::partial_affine_residuals(
+            structural_types,
+            &CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: *parameter_index,
+            },
+            &parameter.type_identity,
+            moved_paths,
+        ) else {
+            return None;
+        };
+        // Projections covering the whole root leave no complement.
+        if rows.is_empty() {
+            continue;
+        }
+        // The dedicated partial-affine terminator closes exactly one
+        // partially moved root; a second root has no return-edge vocabulary.
+        if !residual_roots.is_empty() {
+            return None;
+        }
+        residual_roots.insert(*parameter_index);
+        residual_affine_discards = rows;
+    }
+    // Any projected move out of an owned parameter keeps the body on the
+    // partial-affine carrier — even when the projections cover the root and
+    // owe no residual rows — so the root-only roster stays free of
+    // path-sensitive argument custody.
+    let has_projected_parameter_moves = moved_parameter_paths
+        .keys()
+        .any(|index| !transferred_parameters.contains(index));
     let events = facts
         .flow
         .ownership
@@ -160,11 +264,25 @@ pub(super) fn return_unit_affine_discards(
             return None;
         }
         let parameter_index = u32::try_from(parameter_index).ok()?;
-        if !transferred_parameters.contains(&parameter_index) {
-            output.push(parameter_index);
+        if transferred_parameters.contains(&parameter_index)
+            || residual_roots.contains(&parameter_index)
+        {
+            continue;
         }
+        // A parameter consumed in full by its projections still records a
+        // whole-root exit drop in the permission ledger; the reconstructed
+        // complement is empty, so neither a trivial row nor residual rows
+        // belong to it.
+        if moved_parameter_paths.contains_key(&parameter_index) {
+            continue;
+        }
+        output.push(parameter_index);
     }
-    Some(output)
+    Some((
+        output,
+        residual_affine_discards,
+        has_projected_parameter_moves,
+    ))
 }
 
 pub(super) fn checked_no_code_affine_discard_positions(
