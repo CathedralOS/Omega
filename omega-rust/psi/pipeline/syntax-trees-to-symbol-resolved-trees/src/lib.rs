@@ -2,26 +2,49 @@
 
 //! Resolves names in parsed Omega source into stable Psi symbol identities.
 //!
-//! Start at `resolution.rs`: it is the route, one call per phase. The folders
-//! are its owners. `preparation` rewrites syntax before any symbol exists;
-//! `lowering` translates each syntax node into the symbol-resolved carrier;
-//! `symbols` builds the symbol table and assigns identities; `selection`
-//! binds what lexical lookup alone cannot settle; `constant` owns constant
-//! declarations, substitution, and initializer custody across every phase.
+//! One entrance: [`resolve`], in `resolution.rs`. Read `drive` there to read
+//! this stage — it is the route, one call per phase, and the module order
+//! below is the order it calls them in. `resolution::lowerer` owns the
+//! `Lowerer` state every phase borrows.
 //!
-//! The stage has one entry, `resolve`, and one re-entry, `resolve_extension`,
-//! for source a build generates after the base was resolved. `pre_resolution`
-//! is the seam build-time evaluation drives before the stage can run: it
-//! must resolve names to evaluate constants and evaluate constants to close
-//! generic data. No later stage may use it.
+//! `begin` first runs `preparation`, which rewrites syntax to syntax before
+//! any symbol exists and validates machine equation declarations. `drive`
+//! then runs the phases in the one order their preconditions allow, as its
+//! own comment records: `lowering` translates items and then mathematical
+//! definitions into the symbol-resolved carrier; `selection` binds operator
+//! homes, which need no symbols yet; `symbols` builds the table and assigns
+//! identities; `lowering` marks the domain homes of token-bearing machines,
+//! which need those just-assigned attached symbols; then `constant` and
+//! `selection` close in turn — constants need the table, the authored
+//! selection ledger needs substituted constants, operator obligations need
+//! the ledger, and every remaining selection needs all of it — before
+//! `lowering` rejects duplicate direct token bindings by comparing settled
+//! operand identities.
+//!
+//! `constant` is not one phase of that route. It owns constant declarations,
+//! substitution and initializer custody across every phase, and `preparation`
+//! and `lowering` reach it directly, not only through the route.
+//!
+//! There is one re-entry beside the entrance, [`resolve_extension`], for
+//! source a build generates after the base was resolved, and one seam,
+//! [`pre_resolution`], that build-time evaluation drives before the stage can
+//! run: it must resolve names to evaluate constants and evaluate constants to
+//! close generic data. No later stage may use it.
 
-mod constant;
+// The entrance and the route it drives.
+mod resolution;
+
+// The phases, in the order `drive` calls them.
 mod lowering;
 mod preparation;
-mod resolution;
 mod selection;
 mod symbols;
 
+// Not a phase: reached from preparation, lowering and the route alike.
+mod constant;
+
+// The entrance, its post-base re-entry, and the requests and carriers both
+// name.
 pub use resolution::{
     ExtensionRequest, RebasedSeededSymbolResolvedTrees, ResolutionRequest,
     SeededSymbolResolvedTrees, resolve, resolve_extension,
