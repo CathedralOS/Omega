@@ -169,21 +169,53 @@ impl Drop for AssertionProject {
 }
 
 #[test]
-fn missing_direct_unit_plan_does_not_establish_absence() {
+fn direct_crash_impl_reports_the_trap_exclusion_verdict() {
     let project = AssertionProject::new(TARGET, true);
     let Err(diagnostics) = project.compile("checking-app", TARGET, OptimizationRollback::default())
     else {
-        panic!("a missing Unit plan cannot prove absence of Trap");
+        panic!("the direct impl retains Trap, so the authored exclusion rejects");
     };
     let text = messages(&diagnostics);
-    // This is a fail-closed frontier, not the completed exclusion verdict.
-    // BUILD-SEMANTIC-EXCLUSIONS retains the required direct-Unit acceptance.
     assert!(
-        text.contains("InvalidUnitMachinePlan")
-            && text.contains("attached Unit closure is missing a checked transitive machine plan"),
+        text.contains("behavior exclusion violated: crash cause Trap")
+            && text.contains("crash terminator"),
         "{text}"
     );
     assert!(text.contains("DirectCheckingAssert::check"), "{text}");
+}
+
+#[test]
+fn direct_assertion_package_executes_on_the_host() {
+    let Some(target) = target::TargetProfile::host_if_supported() else {
+        eprintln!("SKIP: direct assertion execution requires a supported host");
+        return;
+    };
+    let project = AssertionProject::new(target.target_name(), true);
+    // The direct impl carries a reachable Trap, so the retained product only
+    // satisfies an exclusion of a different cause.
+    let build = project.0.join("checking-app/build.omg");
+    let source = std::fs::read_to_string(&build)
+        .unwrap()
+        .replace("CrashCause::Trap", "CrashCause::Abort");
+    std::fs::write(build, source).unwrap();
+    for rollback in [OptimizationRollback::default(), rolled_back()] {
+        let report = project
+            .compile("checking-app", target.target_name(), rollback)
+            .unwrap_or_else(|diagnostics| {
+                panic!("host native compilation: {}", messages(&diagnostics))
+            });
+        let published = report
+            .publish_retained_native_artifact(&project.0.join("out-direct"))
+            .expect("publish host direct assertion package");
+        let output = std::process::Command::new(
+            published
+                .checked_native_executable_path()
+                .expect("checked executable"),
+        )
+        .output()
+        .expect("execute host direct assertion package");
+        assert!(output.status.success(), "{output:?}");
+    }
 }
 
 #[test]
