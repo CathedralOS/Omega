@@ -274,11 +274,13 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 };
                 *argument = reloaded;
             }
-            // A stored structural-transport argument names no new use: the
-            // bridge's snapshot chunk loads already read the reload, so the
-            // binding's `argument` field moves to the single register those
-            // loads name after rewriting — admission proved they all share
-            // it. No reload pair is emitted here.
+            // A stored structural-transport argument whose chunk loads share
+            // one register names no new use: the `argument` field follows the
+            // register they read. Where admission recorded they cannot share
+            // it — pinned operands, divergent loads, or a span close at or
+            // after the first load — the binding emits a dedicated
+            // end-of-block pair instead, the same idiom a value binding uses,
+            // so `argument` reads the victim's edge-time value.
             for binding in &mut successor.structural_bindings {
                 let Some(byte_size) = super::stored_transport_size(binding.transport) else {
                     continue;
@@ -300,21 +302,35 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 }) else {
                     return Err(RuntimeSpillError::SourceMismatch);
                 };
-                let reloaded = pending
-                    .loads
-                    .iter()
-                    .try_fold(None, |found: Option<VirtualRegisterId>, load| {
-                        let named = use_reloads
-                            .get(load)
-                            .copied()
-                            .ok_or(RuntimeSpillError::SourceMismatch)?;
-                        match found {
-                            None => Ok(Some(named)),
-                            Some(existing) if existing == named => Ok(found),
-                            _ => Err(RuntimeSpillError::SourceMismatch),
-                        }
-                    })?
-                    .ok_or(RuntimeSpillError::SourceMismatch)?;
+                let reloaded = if pending.dedicated_reload {
+                    let reload = admission::reload(
+                        &admitted,
+                        register,
+                        &mut next_instruction,
+                        &mut next_register,
+                    )?;
+                    let reloaded = reload.reload_register.id;
+                    let (registers, sequence) = reload.into_streams();
+                    function.virtual_registers.extend(registers);
+                    instructions.extend(sequence);
+                    reloaded
+                } else {
+                    pending
+                        .loads
+                        .iter()
+                        .try_fold(None, |found: Option<VirtualRegisterId>, load| {
+                            let named = use_reloads
+                                .get(load)
+                                .copied()
+                                .ok_or(RuntimeSpillError::SourceMismatch)?;
+                            match found {
+                                None => Ok(Some(named)),
+                                Some(existing) if existing == named => Ok(found),
+                                _ => Err(RuntimeSpillError::SourceMismatch),
+                            }
+                        })?
+                        .ok_or(RuntimeSpillError::SourceMismatch)?
+                };
                 *argument = reloaded;
             }
             if let Some(case) = &mut successor.structural_case {

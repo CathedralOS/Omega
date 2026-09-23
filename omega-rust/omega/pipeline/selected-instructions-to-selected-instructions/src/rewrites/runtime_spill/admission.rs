@@ -526,6 +526,7 @@ pub(super) fn admit<'source>(
                     place: binding.semantic.argument.place,
                     byte_size,
                     loads: Vec::new(),
+                    dedicated_reload: false,
                 });
             }
             if let Some(case) = &successor.structural_case {
@@ -866,6 +867,17 @@ pub(super) fn admit<'source>(
         .and_then(|total| {
             total.checked_add(uses.checked_mul(if bits_conversion.is_some() { 6 } else { 4 })?)
         })
+        // A stored binding whose chunk loads cannot name one register emits a
+        // dedicated end-of-block reload pair of its own — one use's work per
+        // binding, charged for every recorded binding whether or not the
+        // audit below decides its loads share.
+        .and_then(|total| {
+            total.checked_add(
+                structural_uses
+                    .len()
+                    .checked_mul(if bits_conversion.is_some() { 6 } else { 4 })?,
+            )
+        })
         .and_then(|total| {
             total.checked_add(
                 definitions
@@ -1100,12 +1112,16 @@ pub(super) fn admit<'source>(
     // Every recorded binding must resolve to exactly the snapshot chunk-load
     // stream its transport describes — `ReadPlace` accesses for its edge and
     // source place in the transport's chunk decomposition, each in this
-    // bridge block reading the victim — and all of those loads must name one
-    // register after rewriting so the binding's `argument` field can move to
-    // it. A one-chunk snapshot always has such a register; a multi-chunk
-    // snapshot needs the block's shared open reload, so it is admitted only
-    // where every chunk operand is unpinned and no unit-writing instruction
-    // closes the span between the first and the last chunk load.
+    // bridge block reading the victim. The binding's `argument` field then
+    // names one register holding the victim's edge-time value: the single
+    // register all the loads share when they can — a one-chunk snapshot
+    // always has one, and a multi-chunk one does while every chunk operand
+    // is unpinned and the block's shared reload stays open across them — or
+    // a dedicated end-of-block pair of the binding's own when they cannot.
+    // A span-closing instruction at or after the first chunk load — a victim
+    // redefinition, or a unit writer the policy did not cross — forces the
+    // dedicated pair as well: it either splits the loads' registers or leaves
+    // them holding a pre-close value the edge no longer reads.
     if !structural_uses.is_empty() {
         let mut chunk_loads: std::collections::BTreeMap<
             (EdgeId, PlaceId),
@@ -1183,18 +1199,23 @@ pub(super) fn admit<'source>(
             if offset != pending.byte_size {
                 return Err(RuntimeSpillError::UnsupportedUse);
             }
-            if pending.loads.len() > 1 {
-                // Positions follow byte order, not necessarily instruction
-                // order; the span between the outermost chunk loads is what a
-                // span-closing instruction — a victim redefinition, or a unit
-                // writer the policy did not cross — would have to sit inside
-                // to keep the loads from sharing one reload register.
-                let first = *positions.iter().min().unwrap();
-                let last = *positions.iter().max().unwrap();
-                let closed = (first..last).any(|index| span_closes[pending.block].contains(&index));
-                if !shared_reload[pending.block] || closed || pinned {
-                    return Err(RuntimeSpillError::UnsupportedUse);
-                }
+            // The loads all name one register only while every chunk operand
+            // is unpinned, the block keeps a shared reload, and no
+            // span-closing instruction — a victim redefinition, or a unit
+            // writer the policy did not cross — sits at or after the first
+            // load's position: one strictly between loads splits the pair
+            // they read, and one at or after the last load leaves the named
+            // register's value or interval behind what the edge reads.
+            // Positions follow byte order, not necessarily instruction order,
+            // so the span runs from the earliest load's index. Anything else
+            // gives the binding a dedicated end-of-block pair — the same
+            // idiom a value binding uses — and the slot-reuse replay must see
+            // that load.
+            let first = *positions.iter().min().unwrap();
+            pending.dedicated_reload = span_closes[pending.block].range(first..).next().is_some()
+                || (pending.loads.len() > 1 && (!shared_reload[pending.block] || pinned));
+            if pending.dedicated_reload {
+                use_positions[pending.block].end_of_block = true;
             }
         }
     }
