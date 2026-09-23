@@ -450,7 +450,7 @@ fn wrong_nonleading_or_multiple_non_self_receivers_never_forward() {
 
     for (actual, required) in cases {
         assert_eq!(
-            exact_adapter_receiver_shape(&fixture.typed, &actual, required, owner),
+            exact_adapter_receiver_shape(&fixture.typed, &actual, required, owner, None),
             None,
         );
     }
