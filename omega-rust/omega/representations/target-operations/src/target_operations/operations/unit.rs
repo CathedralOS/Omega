@@ -90,6 +90,10 @@ pub enum TargetUnitOperation {
         source: PlaceId,
         path: Vec<StructuralPathSegment>,
         byte_offset: u32,
+        /// Runtime traversal through a `RuntimeIndex` segment: the resolved
+        /// operand scales by `stride` and joins `byte_offset` ahead of the
+        /// copy's first load. `None` for fully static projections.
+        index: Option<TargetStructuralRuntimeIndex>,
     },
     /// Observe bounded inline storage metadata, not the field's byte contents.
     StructuralByteSequenceFieldLength {
@@ -454,4 +458,15 @@ pub enum TargetUnitOperation {
         psi_edge: EdgeId,
         cleanup_actions: Vec<TerminalAffineCleanupAction>,
     },
+}
+
+/// A runtime `RuntimeIndex` traversal inside a structural leaf copy: the
+/// resolved operand scales by `stride` before joining the static byte offset.
+/// The operand carries the caller's published bound evidence verbatim — the
+/// segment's `selector` names the same dense parameter position as
+/// `operand`'s `parameter_index` when it resolves to an incoming parameter.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetStructuralRuntimeIndex {
+    pub operand: TargetUnitScalarArgumentSource,
+    pub stride: u32,
 }

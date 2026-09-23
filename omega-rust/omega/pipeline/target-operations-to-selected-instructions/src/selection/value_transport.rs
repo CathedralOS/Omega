@@ -62,6 +62,11 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::ElementViewRead { index, length, .. } => {
                     pending.extend([*index, *length])
                 }
+                Instruction::StructuralLeafCopy { index, .. } => {
+                    if let Some(index) = index {
+                        pending.push(index.value)
+                    }
+                }
                 Instruction::BooleanNot { operand }
                 | Instruction::IntegerWiden { operand, .. }
                 | Instruction::IntegerExactCast { operand, .. }
@@ -117,7 +122,6 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::StructuralScalarFieldRead { .. }
                 | Instruction::StructuralByteSequenceFieldLength { .. }
                 | Instruction::StructuralCaseMembership { .. }
-                | Instruction::StructuralLeafCopy { .. }
                 | Instruction::EstablishByteSequenceLiteral { .. }
                 | Instruction::ByteSequenceLength { .. }
                 | Instruction::EstablishElementView { .. }

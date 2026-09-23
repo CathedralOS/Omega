@@ -779,6 +779,58 @@ fn project_inner<'a>(
     Some((carrier, offset))
 }
 
+/// Resolve a leaf-copy projection that may traverse one `RuntimeIndex`
+/// segment. Static segments before and after the dynamic segment fold into
+/// the returned byte offset; the dynamic segment contributes
+/// `(selector, stride)` so the copy scales the runtime operand into the same
+/// address. The segment's published bound rows are replayed against the
+/// array's declared extent exactly like the terminal verifier does. A second
+/// `RuntimeIndex` remains an honest unsupported residual.
+pub(crate) fn leaf_copy_projection(
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(StructuralTypeId, u32, Option<(u32, u32)>)> {
+    let Some(position) = path
+        .iter()
+        .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+    else {
+        return project(root, path, declarations)
+            .map(|(endpoint, offset)| (endpoint, offset, None));
+    };
+    if path[position + 1..]
+        .iter()
+        .any(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+    {
+        return None;
+    }
+    let (container, prefix_offset) = project(root, &path[..position], declarations)?;
+    let StructuralPathSegment::RuntimeIndex {
+        selector, maximum, ..
+    } = &path[position]
+    else {
+        unreachable!("position selects a runtime index segment")
+    };
+    let StructuralTypeShape::FixedArray { element, length } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == container)?
+        .shape
+    else {
+        return None;
+    };
+    if !terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) {
+        return None;
+    }
+    let element_shape = shape(*element, declarations)?;
+    let stride = align(u32::from(element_shape.byte_size), element_shape.alignment)?;
+    let (endpoint, suffix_offset) = project(*element, &path[position + 1..], declarations)?;
+    Some((
+        endpoint,
+        prefix_offset.checked_add(suffix_offset)?,
+        Some((*selector, stride)),
+    ))
+}
+
 pub(crate) fn store(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
