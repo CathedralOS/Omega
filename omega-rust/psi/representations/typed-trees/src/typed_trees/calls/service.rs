@@ -13,6 +13,7 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
 pub const SERVICE_CORE_SOURCE: &str = "service.omg";
+pub const BINDING_CORE_SOURCE: &str = "binding.omg";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExactServiceCarrier {
@@ -138,9 +139,6 @@ pub fn exact_bound_service_requirement(
 }
 
 pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) -> bool {
-    if !exact_toolchain_source(program, symbol, SERVICE_CORE_SOURCE) {
-        return false;
-    }
     let Some(definition) = program
         .data_definitions()
         .iter()
@@ -148,9 +146,19 @@ pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) 
     else {
         return false;
     };
+    // `Binding<R>` in `core/binding.omg` is the same toolchain carrier under
+    // its ratified name; `service.omg` retains the `Service` spelling for
+    // callers not yet migrated.
+    let carrier_source = match definition.name.as_str() {
+        "Service" => SERVICE_CORE_SOURCE,
+        "Binding" => BINDING_CORE_SOURCE,
+        _ => return false,
+    };
+    if !exact_toolchain_source(program, symbol, carrier_source) {
+        return false;
+    }
     let parameters = program.data_type_parameters(definition);
-    definition.name.as_str() == "Service"
-        && definition.is_public
+    definition.is_public
         && definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
         && definition.properties.multiplicity == language_semantics::Multiplicity::Affine
         && definition.properties.carry.is_none()

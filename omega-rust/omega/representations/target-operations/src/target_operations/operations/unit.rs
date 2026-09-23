@@ -132,6 +132,8 @@ pub enum TargetUnitOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
         bytes: Vec<u8>,
+        /// Domain memberships the literal mints onto its destination.
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     },
     IntegerConstant {
         psi_operation: OperationId,

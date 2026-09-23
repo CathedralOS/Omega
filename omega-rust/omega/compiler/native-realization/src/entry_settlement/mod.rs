@@ -78,6 +78,7 @@ pub fn validate_native_program_entry_settlement(
                     .iter()
                     .filter(|row| {
                         row.field_identity() == field.field_identity()
+                            && row.field_path() == field.field_path()
                             && row.carrier_type_identity() == field.carrier_type_identity()
                     })
                     .count()

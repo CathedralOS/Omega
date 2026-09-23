@@ -160,6 +160,10 @@ pub(crate) fn emit(
         kind: OperationKind::EstablishByteSequenceLiteral {
             destination: source,
             bytes: store.bytes.clone(),
+            // A stored literal is not a call argument, so no check-admitted
+            // domains replay onto it; qualification evidence belongs to
+            // literal argument occurrences only.
+            qualifications: Vec::new(),
         },
     });
     let length = value_id(allocate_dense(next_value)?);

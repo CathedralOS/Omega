@@ -1027,6 +1027,7 @@ fn structural_returns_reject_non_source_roots_and_signature_drift() {
         place: literal,
         structural_type: literal_type,
         bytes: b"return-source".to_vec(),
+        qualifications: Vec::new(),
     };
     let O::ReturnStructural { source, .. } =
         &mut literal_root.functions[1].blocks[0].nodes[1].operation

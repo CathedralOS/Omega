@@ -171,6 +171,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
                         kind: OperationKind::EstablishByteSequenceLiteral {
                             destination: literal,
                             bytes,
+                            qualifications: Vec::new(),
                         },
                     },
                     Operation {

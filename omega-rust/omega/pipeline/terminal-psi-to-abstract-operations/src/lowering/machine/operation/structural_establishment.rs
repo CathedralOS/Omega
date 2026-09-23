@@ -46,7 +46,12 @@ pub(super) fn lower(
                 fields,
             }
         }
-        OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
+        OperationKind::EstablishByteSequenceLiteral {
+            destination,
+            bytes,
+            qualifications,
+            ..
+        } => {
             let (place, ordinal, structural_type) = byte_sequence_literals
                 .iter()
                 .find(|(place, _, _)| place.id == destination)
@@ -73,6 +78,7 @@ pub(super) fn lower(
                 place: *place,
                 structural_type: declaration,
                 bytes,
+                qualifications,
             }
         }
         OperationKind::EstablishTrivialAffineLocal { destination } => {

@@ -2,6 +2,7 @@
 use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
 use selected_instructions::VirtualRegisterId;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, ValueId};
+use std::collections::BTreeSet;
 
 use crate::SelectedInstructionError;
 
@@ -77,7 +78,8 @@ pub(super) fn view_backing_roots(
             Some(root) => Ok(Some(vec![(root, view.root_length)])),
             // The view's own backing is a block-parameter view: enumerate the
             // places every incoming edge binds to its `source` parameter.
-            None => bound_view_roots(source, views, view.source, view.root_length).map(Some),
+            None => bound_view_roots(source, views, view.source, view.root_length, &mut BTreeSet::new())
+                .map(Some),
         };
     }
     if crate::selection::established_view_input::view_type(source, place).is_none() {
@@ -92,23 +94,43 @@ pub(super) fn view_backing_roots(
     }) {
         return Ok(None);
     }
-    bound_view_roots(source, views, place, extent).map(Some)
+    bound_view_roots(source, views, place, extent, &mut BTreeSet::new()).map(Some)
 }
 
 /// The distinct roots every incoming edge binds to block parameter
 /// `parameter`. A bound byte-view place contributes its own retained root; a
 /// bound un-sliced parameter or literal contributes itself with `extent`, the
-/// checked length the access's operand already carries. Anything else — a
-/// projected binding path, a binding to another dynamically backed place, or
-/// an incoming edge that binds nothing — leaves the reach unjustified.
+/// checked length the access's operand already carries. A bound argument that
+/// is itself a block parameter contributes the roots its own incoming edges
+/// bind, enumerated transitively — a cycle back to a parameter already under
+/// enumeration adds no roots, since its static backing arrives through other
+/// edges. Anything else — a projected binding path or an incoming edge that
+/// binds nothing — leaves the reach unjustified.
 fn bound_view_roots(
     source: &LegalizedScalarFunction,
     views: &[ByteViewHomes],
     parameter: PlaceId,
     extent: ValueId,
+    visiting: &mut BTreeSet<PlaceId>,
+) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
+    if !visiting.insert(parameter) {
+        return Ok(Vec::new());
+    }
+    let roots = bound_view_roots_recurse(source, views, parameter, extent, visiting);
+    visiting.remove(&parameter);
+    roots
+}
+
+fn bound_view_roots_recurse(
+    source: &LegalizedScalarFunction,
+    views: &[ByteViewHomes],
+    parameter: PlaceId,
+    extent: ValueId,
+    visiting: &mut BTreeSet<PlaceId>,
 ) -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
     let invalid = || SelectedInstructionError::SourceCustodyMismatch;
     let Some(contract) = source.structural.as_ref() else {
+
         return Err(invalid());
     };
     let Some(declaration) = contract
@@ -116,18 +138,22 @@ fn bound_view_roots(
         .iter()
         .find(|declaration| declaration.id == parameter)
     else {
+
         return Err(invalid());
     };
     let StructuralPlaceKind::BlockParameter { block, .. } = declaration.kind else {
+
         return Err(invalid());
     };
-    let bound_root = |place: PlaceId| -> Result<(PlaceId, ValueId), SelectedInstructionError> {
+    let bound_root = |place: PlaceId,
+                      visiting: &mut BTreeSet<PlaceId>|
+     -> Result<Vec<(PlaceId, ValueId)>, SelectedInstructionError> {
         if let Some(bound_view) = views.iter().find(|view| view.place == place) {
             // A bound subslice contributes its own root bound: its bytes sit at
             // `O + i` inside `root`, so the honest reach is `0 .. root_length`.
             return bound_view
                 .root
-                .map(|root| (root, bound_view.root_length))
+                .map(|root| vec![(root, bound_view.root_length)])
                 .ok_or_else(invalid);
         }
         let kind = contract
@@ -137,13 +163,22 @@ fn bound_view_roots(
             .map(|declaration| declaration.kind);
         match kind {
             // A bound un-sliced place is its own root; the parameter's checked
-            // length is the bound the descriptor transport preserves.
+            // length is the bound the descriptor transport preserves. An
+            // operation-result place's bytes live in storage the function owns,
+            // so it roots its own reach the same way. (Subslice results were
+            // already claimed by `views` above.)
             Some(
                 StructuralPlaceKind::Parameter { .. }
-                | StructuralPlaceKind::ByteSequenceLiteral { .. },
-            ) => Ok((place, extent)),
-            // Another dynamically backed parameter or an undeclared place keeps
-            // the reach unjustified: its backing is decided by other edges.
+                | StructuralPlaceKind::ByteSequenceLiteral { .. }
+                | StructuralPlaceKind::OperationResult { .. },
+            ) => Ok(vec![(place, extent)]),
+            // A bound place whose backing is itself edge-decided contributes
+            // the roots bound to it transitively.
+            Some(StructuralPlaceKind::BlockParameter { .. }) => {
+                bound_view_roots(source, views, place, extent, visiting)
+            }
+            // An undeclared or otherwise dynamic place keeps the reach
+            // unjustified.
             _ => Err(invalid()),
         }
     };
@@ -168,9 +203,10 @@ fn bound_view_roots(
                 }
                 if binding.argument.path.is_empty() {
                     bound = true;
-                    let candidate = bound_root(binding.argument.place)?;
-                    if !roots.contains(&candidate) {
-                        roots.push(candidate);
+                    for candidate in bound_root(binding.argument.place, visiting)? {
+                        if !roots.contains(&candidate) {
+                            roots.push(candidate);
+                        }
                     }
                 }
             }
@@ -184,6 +220,7 @@ fn bound_view_roots(
         }
     }
     if bound_edges == 0 || unbound_edges != 0 || roots.is_empty() {
+
         return Err(invalid());
     }
     Ok(roots)

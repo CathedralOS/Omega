@@ -13,6 +13,9 @@ mod fixture_package_inputs;
 #[path = "common/hosted_receiver.rs"]
 mod hosted_receiver;
 
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use std::process::Command;
+
 use target::TargetProfile;
 
 /// A receiver-bearing entry whose stores only land if the emitted bridge

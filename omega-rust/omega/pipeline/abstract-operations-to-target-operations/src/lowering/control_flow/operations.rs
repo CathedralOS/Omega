@@ -441,6 +441,7 @@ pub(super) fn lower_operation(
             place,
             structural_type,
             bytes,
+            qualifications,
         } => {
             let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
             if !matches!(
@@ -468,6 +469,7 @@ pub(super) fn lower_operation(
                 place: *place,
                 structural_type: structural_type.clone(),
                 bytes: bytes.clone(),
+                qualifications: qualifications.clone(),
             });
             provenance.operations.push(*psi_operation);
             Ok(())

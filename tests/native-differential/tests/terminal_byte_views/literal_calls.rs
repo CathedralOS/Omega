@@ -44,6 +44,7 @@ fn literal_call_module(bytes: &[u8]) -> TerminalModule {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: place.id,
                 bytes: bytes.to_vec(),
+                qualifications: Vec::new(),
             },
         },
     );
@@ -287,6 +288,7 @@ fn independent_literal_call_module(return_first: bool) -> TerminalModule {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: PlaceId::new(112).unwrap(),
                 bytes: OTHER_LITERAL.to_vec(),
+                qualifications: Vec::new(),
             },
         },
     );

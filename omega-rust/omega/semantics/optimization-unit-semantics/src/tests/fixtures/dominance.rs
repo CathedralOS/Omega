@@ -101,6 +101,7 @@ pub(crate) fn byte_literal_boundary_unit() -> PsiOptimizationUnit {
                         },
                         structural_type: declaration,
                         bytes: vec![0, 0x7f, 0x80, 0xff],
+                        qualifications: Vec::new(),
                     },
                     AbstractOperation::BoundaryCall {
                         psi_operation: id(4_607, OperationId::new),

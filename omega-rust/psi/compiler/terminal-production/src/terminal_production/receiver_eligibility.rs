@@ -161,43 +161,14 @@ pub(super) fn derive(
         return None;
     }
     let mut fused_service_fields = Vec::new();
-    for member in checked.data_members(definition) {
-        let DataMember::Field(field) = member else {
-            continue;
-        };
-        let Some(carrier) = checked
-            .bound_service_parameter_carrier(field.type_reference)
-            .ok()?
-        else {
-            continue;
-        };
-        let field_identity = field
-            .identity
-            .map(|identity| format!("#{identity}"))
-            .unwrap_or_else(|| field.name.as_str().to_owned());
-        let mut terminal_fields = fields
-            .iter()
-            .filter(|candidate| candidate.identity == field_identity);
-        let terminal_field = terminal_fields.next()?;
-        if terminal_fields.next().is_some()
-            || !matches!(
-                &terminal_field.field_type,
-                StructuralFieldType::Erased { type_identity }
-                    if type_identity == &carrier.carrier_type_identity
-            )
-        {
-            return None;
-        }
-        if !admit_fused_service_field(
-            &mut fused_service_fields,
-            CheckedProgramEntryFusedServiceField::new(
-                field_identity,
-                carrier.carrier_type_identity,
-            ),
-        ) {
-            return None;
-        }
-    }
+    collect_fused_service_fields(
+        checked,
+        &module.structural_types,
+        definition,
+        fields,
+        &mut Vec::new(),
+        &mut fused_service_fields,
+    )?;
     Some(CheckedProgramEntryReceiverEligibility::new(
         checked
             .normalized_type_identity(receiver.type_reference)
@@ -213,19 +184,157 @@ pub(super) fn derive(
 /// The fused-service roster keeps the receiver's authored declaration order —
 /// the receipt is read beside the source declaration, and entry settlement
 /// rejoins each row by its exact identity pair rather than by position. Only
-/// uniqueness is enforced: a repeated field identity is refused.
+/// uniqueness is enforced: a repeated field route is refused, so two same-named
+/// leaves under different record fields each keep their own row.
 fn admit_fused_service_field(
     roster: &mut Vec<CheckedProgramEntryFusedServiceField>,
     field: CheckedProgramEntryFusedServiceField,
 ) -> bool {
     if roster
         .iter()
-        .any(|existing| existing.field_identity() == field.field_identity())
+        .any(|existing| existing.field_path() == field.field_path())
     {
         return false;
     }
     roster.push(field);
     true
+}
+
+/// Walk the receiver's record-field tree: every authored bound-service field —
+/// wherever nested record fields place it — must rejoin the same Terminal
+/// `Erased` field shape and contributes one roster row keyed by its complete
+/// field route. Plain nested-record fields only extend the route; every other
+/// field kind contributes nothing and is skipped.
+fn collect_fused_service_fields(
+    checked: &CheckedTrees,
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    source: &DataDefinition,
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    field_path: &mut Vec<String>,
+    roster: &mut Vec<CheckedProgramEntryFusedServiceField>,
+) -> Option<()> {
+    for member in checked.data_members(source) {
+        let DataMember::Field(field) = member else {
+            continue;
+        };
+        let field_identity = field
+            .identity
+            .map(|identity| format!("#{identity}"))
+            .unwrap_or_else(|| field.name.as_str().to_owned());
+        match checked
+            .bound_service_parameter_carrier(field.type_reference)
+            .ok()?
+        {
+            Some(carrier) => {
+                let mut terminal_fields = fields
+                    .iter()
+                    .filter(|candidate| candidate.identity == field_identity);
+                let terminal_field = terminal_fields.next()?;
+                if terminal_fields.next().is_some()
+                    || !matches!(
+                        &terminal_field.field_type,
+                        StructuralFieldType::Erased { type_identity }
+                            if type_identity == &carrier.carrier_type_identity
+                    )
+                {
+                    return None;
+                }
+                field_path.push(field_identity.clone());
+                if !admit_fused_service_field(
+                    roster,
+                    CheckedProgramEntryFusedServiceField::new(
+                        field_identity,
+                        carrier.carrier_type_identity,
+                        field_path.clone(),
+                    ),
+                ) {
+                    return None;
+                }
+                field_path.pop();
+            }
+            None => {
+                let Some(nested) = source_record(checked, field.type_reference) else {
+                    continue;
+                };
+                let mut terminal_fields = fields
+                    .iter()
+                    .filter(|candidate| candidate.identity == field_identity);
+                let structural_child = match (terminal_fields.next(), terminal_fields.next()) {
+                    (Some(terminal_field), None) => match &terminal_field.field_type {
+                        StructuralFieldType::Structural(child) => Some(*child),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let Some(child) = structural_child else {
+                    // The subtree contributes no Terminal-visible route: a
+                    // service leaf inside it could not name a roster row, so
+                    // eligibility must refuse; a service-free subtree is
+                    // skipped like every other non-carrier field kind.
+                    if source_tree_has_service_field(checked, nested, &mut Vec::new()) {
+                        return None;
+                    }
+                    continue;
+                };
+                let mut nested_declarations = declarations
+                    .iter()
+                    .filter(|declaration| declaration.id == child);
+                let nested_declaration = nested_declarations.next()?;
+                if nested_declarations.next().is_some() {
+                    return None;
+                }
+                let nested_fields = match &nested_declaration.shape {
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    _ => continue,
+                };
+                field_path.push(field_identity);
+                collect_fused_service_fields(
+                    checked,
+                    declarations,
+                    nested,
+                    nested_fields,
+                    field_path,
+                    roster,
+                )?;
+                field_path.pop();
+            }
+        }
+    }
+    Some(())
+}
+
+/// Whether the source record's field tree carries any bound-service field.
+/// When a Terminal field cannot carry the nested route (no unique Structural
+/// child), a service leaf inside it would still need a roster row the walk
+/// cannot name, so eligibility must refuse rather than silently lose custody;
+/// a service-free subtree is safe to skip. `visiting` bounds recursive
+/// record cycles the same way `zero_valid` bound them.
+fn source_tree_has_service_field(
+    checked: &CheckedTrees,
+    source: &DataDefinition,
+    visiting: &mut Vec<symbols::SymbolHandle>,
+) -> bool {
+    if visiting.contains(&source.symbol) {
+        return false;
+    }
+    visiting.push(source.symbol);
+    let has = checked.data_members(source).iter().any(|member| {
+        let DataMember::Field(field) = member else {
+            return false;
+        };
+        if matches!(
+            checked.bound_service_parameter_carrier(field.type_reference),
+            Ok(Some(_))
+        ) {
+            return true;
+        }
+        source_record(checked, field.type_reference)
+            .map(|nested| source_tree_has_service_field(checked, nested, visiting))
+            .unwrap_or(false)
+    });
+    visiting.pop();
+    has
 }
 
 /// Whether zero-filled storage is an established value of the receiver's
@@ -263,6 +372,7 @@ fn zero_valid_record_storage(
         None,
         visiting,
         is_receiver,
+        true,
     );
     visiting.pop();
     valid
@@ -272,13 +382,17 @@ fn zero_valid_record_storage(
 /// the exact source type reference for this node; a nominal reference rejoins
 /// its data definition only when the declaration identity matches the
 /// normalized source identity. Refined references stay unresolved rather than
-/// stripping a constraint to reach nested storage.
+/// stripping a constraint to reach nested storage. `admit_erased_services`
+/// stays set only while the node sits on a record-field route from the
+/// receiver — the route the fused-service roster can name — and clears at
+/// array elements and case payloads.
 fn zero_valid_node(
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
     source_reference: Option<TypeReferenceHandle>,
     visiting: &mut Vec<StructuralTypeId>,
+    admit_erased_services: bool,
 ) -> bool {
     if visiting.contains(&structural_type) {
         return false;
@@ -306,6 +420,7 @@ fn zero_valid_node(
         source_reference,
         visiting,
         false,
+        admit_erased_services,
     );
     visiting.pop();
     valid
@@ -323,6 +438,7 @@ fn zero_valid_shape(
     source_reference: Option<TypeReferenceHandle>,
     visiting: &mut Vec<StructuralTypeId>,
     is_receiver: bool,
+    admit_erased_services: bool,
 ) -> bool {
     match &declaration.shape {
         StructuralTypeShape::Record { fields } => zero_valid_fields(
@@ -332,17 +448,27 @@ fn zero_valid_shape(
             |field| source_field_type(checked, source, field),
             visiting,
             is_receiver,
+            admit_erased_services,
         ),
         StructuralTypeShape::FixedArray { element, .. } => {
             // Array eligibility follows the complete element chain at any
             // length; a zero element count never excuses an invalid element.
+            // Element storage is not a record-field route the fused-service
+            // roster can name, so nested erased service fields stay rejected.
             let element_reference = source_reference.and_then(|reference| {
                 match checked.type_reference_table.type_reference(reference) {
                     TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
                     _ => None,
                 }
             });
-            zero_valid_node(checked, declarations, *element, element_reference, visiting)
+            zero_valid_node(
+                checked,
+                declarations,
+                *element,
+                element_reference,
+                visiting,
+                false,
+            )
         }
         StructuralTypeShape::Sum { cases } => {
             zero_valid_first_case(checked, declarations, source, cases, visiting)
@@ -355,6 +481,7 @@ fn zero_valid_shape(
                 |field| source_field_type(checked, source, field),
                 visiting,
                 is_receiver,
+                admit_erased_services,
             ) && zero_valid_first_case(checked, declarations, source, cases, visiting)
         }
         StructuralTypeShape::PrimitiveScalar(scalar) => matches!(
@@ -371,8 +498,11 @@ fn zero_valid_shape(
 }
 
 /// Every field inhabiting zero storage must itself be zero-valid. Erased
-/// nested fields carry obligations this storage cannot discharge; only the
-/// receiver's own erased fields join fused-service establishment rows.
+/// fields carry obligations this storage cannot discharge: the receiver's own
+/// erased fields join fused-service establishment rows directly, and a nested
+/// erased field joins the same rows only on a record-field route the roster
+/// can name — detected by the erased carrier type rejoining a bound-service
+/// source carrier, since the carrier erasure keeps the authored relevance.
 fn zero_valid_fields(
     checked: &CheckedTrees,
     declarations: &[terminal_psi::StructuralTypeDeclaration],
@@ -380,9 +510,16 @@ fn zero_valid_fields(
     field_reference: impl Fn(&terminal_psi::StructuralFieldDeclaration) -> TypeReferenceHandle,
     visiting: &mut Vec<StructuralTypeId>,
     is_receiver: bool,
+    admit_erased_services: bool,
 ) -> bool {
     fields.iter().all(|field| {
-        (is_receiver || !field.relevance.is_erased())
+        let nested_erased_service = admit_erased_services
+            && !is_receiver
+            && matches!(field.field_type, StructuralFieldType::Erased { .. })
+            && checked
+                .bound_service_parameter_carrier(field_reference(field))
+                .is_ok_and(|carrier| carrier.is_some());
+        (is_receiver || !field.relevance.is_erased() || nested_erased_service)
             && match field.field_type {
                 StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => true,
                 StructuralFieldType::BoundedInteger(integer) => {
@@ -397,13 +534,13 @@ fn zero_valid_fields(
                         child,
                         reference.is_valid().then_some(reference),
                         visiting,
+                        admit_erased_services,
                     )
                 }
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
                 ) => zero_valid_byte_field(checked, field_reference(field), capacity),
-                // Only the top-level receiver joins erased service establishment.
-                StructuralFieldType::Erased { .. } => is_receiver,
+                StructuralFieldType::Erased { .. } => is_receiver || nested_erased_service,
                 StructuralFieldType::ByteSequence(_) => false,
             }
     })
@@ -450,6 +587,7 @@ fn zero_valid_first_case(
         &case.fields,
         |field| source_payload_field_type(checked, variant, field),
         visiting,
+        false,
         false,
     )
 }
@@ -1503,7 +1641,8 @@ mod tests {
                     &mut roster,
                     CheckedProgramEntryFusedServiceField::new(
                         identity.to_owned(),
-                        "carrier".to_owned()
+                        "carrier".to_owned(),
+                        vec![identity.to_owned()]
                     )
                 ),
                 accepted

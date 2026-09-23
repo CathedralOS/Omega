@@ -288,9 +288,14 @@ pub enum OperationKind {
     },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.
+    /// `qualifications` replay the domain memberships checking admitted on
+    /// the literal's own bytes for this occurrence — byte-predicate discharge
+    /// is a compile-time judgment, so the emitted occurrence carries the
+    /// satisfied domains as its qualification evidence.
     EstablishByteSequenceLiteral {
         destination: PlaceId,
         bytes: Vec<u8>,
+        qualifications: Vec<StructuralDomainId>,
     },
     /// Observe the exact byte count of one whole borrowed view (shared or mutable).
     /// The result is unsigned 64-bit; the source place and its custody remain unchanged.

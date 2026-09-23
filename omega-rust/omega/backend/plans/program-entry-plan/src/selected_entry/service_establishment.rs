@@ -8,8 +8,9 @@ use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 /// `ProgramEntry` receiver.
 ///
 /// This is not a runtime publication receipt. Its type fixes the first rung to
-/// Fused composition, while the retained identities prove which direct erased
-/// field the generated entry bridge is responsible for establishing.
+/// Fused composition, while the retained identities prove which erased field —
+/// a direct receiver field or one nested through intermediate record fields —
+/// the generated entry bridge is responsible for establishing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramEntryFusedServiceEstablishment {
     source_signature_identity: ProgramEntrySourceSignatureIdentity,
@@ -17,6 +18,7 @@ pub struct ProgramEntryFusedServiceEstablishment {
     receiver_type_identity: String,
     attachment_type_identity: String,
     field_identity: String,
+    field_path: Vec<String>,
     carrier_type_identity: String,
     carrier_base_identity: String,
     requirement_identity: String,
@@ -40,6 +42,9 @@ impl ProgramEntryFusedServiceEstablishment {
         identity
     }
 
+    /// `field_path` is the receiver-root-to-field route through enclosing
+    /// record fields; its last segment must be `field_identity`. A direct
+    /// receiver field carries a single segment.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         source_signature_identity: ProgramEntrySourceSignatureIdentity,
@@ -47,6 +52,7 @@ impl ProgramEntryFusedServiceEstablishment {
         receiver_type_identity: String,
         attachment_type_identity: String,
         field_identity: String,
+        field_path: Vec<String>,
         carrier_type_identity: String,
         carrier_base_identity: String,
         requirement_identity: String,
@@ -65,12 +71,18 @@ impl ProgramEntryFusedServiceEstablishment {
         {
             return Err("Fused root establishment contains an empty semantic identity");
         }
+        if field_path.is_empty() || field_path.last() != Some(&field_identity) {
+            return Err(
+                "Fused root establishment field path must end at the field identity",
+            );
+        }
         Ok(Self {
             source_signature_identity,
             target_slot,
             receiver_type_identity,
             attachment_type_identity,
             field_identity,
+            field_path,
             carrier_type_identity,
             carrier_base_identity,
             requirement_identity,
@@ -97,6 +109,12 @@ impl ProgramEntryFusedServiceEstablishment {
 
     pub fn field_identity(&self) -> &str {
         &self.field_identity
+    }
+
+    /// The receiver-root-to-field route through enclosing record fields,
+    /// ending at this row's `field_identity`.
+    pub fn field_path(&self) -> &[String] {
+        &self.field_path
     }
 
     pub fn carrier_type_identity(&self) -> &str {

@@ -280,7 +280,8 @@ pub(in crate::lowering) fn lower_structural_argument(
     // Whole-root domain preconditions bind by exact roster equality: the
     // callee parameter's declared qualifications must equal the roster the
     // caller's source place carries — a caller structural parameter's own
-    // declared roster, or a produced structural home's result roster. Every
+    // declared roster, a produced structural home's result roster, or the
+    // minted roster an established byte-sequence literal carries. Every
     // other source carries no qualifications and satisfies only an
     // unqualified parameter. Verified discharge happened upstream; lowering
     // transports the authority without re-proving it.
@@ -292,6 +293,19 @@ pub(in crate::lowering) fn lower_structural_argument(
         .or_else(|| {
             super::projected_result::source(operations, argument.place)
                 .map(|(home, _)| home.qualifications())
+        })
+        .or_else(|| {
+            operations.iter().find_map(|operation| {
+                let TargetUnitOperation::EstablishByteSequenceLiteral {
+                    place,
+                    qualifications,
+                    ..
+                } = operation
+                else {
+                    return None;
+                };
+                (place.id == argument.place).then_some(qualifications.as_slice())
+            })
         })
         .unwrap_or(&[]);
     if source_qualifications != callee_parameter.qualifications.as_slice() {
@@ -320,7 +334,7 @@ pub(in crate::lowering) fn lower_structural_argument(
     {
         if !argument.path.is_empty()
             || argument.access != StructuralAccess::SharedBorrow
-            || !super::super::scalar::byte_views::is_immutable_byte_parameter(
+            || !super::super::scalar::byte_views::is_immutable_byte_carrier_parameter(
                 callee_parameter,
                 structural_types,
             )

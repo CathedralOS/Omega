@@ -1,7 +1,8 @@
 //! Composed roots and callable Unit bodies share one selected catalog.
 use super::super::super::super::ServiceReachPlan;
 use super::super::super::{
-    CheckedBoundaryMachinePlan, CheckedUnitEffectOperationPlan, ServiceReachSummary,
+    CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
+    CheckedUnitEffectOperationPlan, ServiceReachSummary,
     collect_installation_machine_contract_services, collect_service_summary, lookup_machine_id,
     unique_unit_boundary, unsupported,
 };
@@ -125,6 +126,13 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                 id: *id,
                 checked_structural_parameters: boundary.structural_parameters.clone(),
                 scalar_parameters: scalar_parameters.clone(),
+                result_domains: match &boundary.result {
+                    CheckedBoundaryMachineResultPlan::Structural { qualifications, .. } => {
+                        qualifications.clone()
+                    }
+                    CheckedBoundaryMachineResultPlan::Unit
+                    | CheckedBoundaryMachineResultPlan::Scalar(_) => Vec::new(),
+                },
                 result: declaration.result.clone(),
             })
         })

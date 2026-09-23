@@ -218,9 +218,16 @@ pub(super) fn validate_borrowed_argument(
         && !exclusive
         && aggregate.is_none()
         && byte_view.is_none()
+        // An argument established by an in-activation literal or block
+        // parameter is an established-view transport too; it predates this
+        // family's ABI support no more than the fixed-array view does.
+        && !matches!(
+            target.source,
+            target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
+                | target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
+        )
         && source.call_plan.result.is_some())
         || !signature.entry_claims.is_empty()
-        || (source.call_plan.result.is_some() && !signature.published_service_ceiling.is_empty())
         || (!parameters.is_empty()
             && !crate::structural_inputs::unobserved_owned_input::accepts(source)
             && !crate::structural_inputs::structural_unit_input::accepts_graph(

@@ -34,6 +34,7 @@ fn module() -> TerminalModule {
         kind: OperationKind::EstablishByteSequenceLiteral {
             destination: PlaceId::new(9).unwrap(),
             bytes: vec![0, 0x80, 0xff],
+            qualifications: Vec::new(),
         },
     };
     caller.blocks[0].operations[1].kind = OperationKind::CallStructuralScalar {

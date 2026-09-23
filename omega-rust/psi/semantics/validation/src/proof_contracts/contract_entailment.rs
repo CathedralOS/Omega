@@ -199,6 +199,79 @@ pub fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
     )
 }
 
+/// Whether `machine` is an authored issuer of `domain_symbol` through the
+/// domain's `established by` routes: an exact-machine route naming it, or a
+/// requirement route it is (`requirement == machine.symbol`) or satisfies.
+/// A route-authorized `ensures <subject> in D` membership is the mint
+/// declaration itself — the authored route makes the machine an issuer, so
+/// the fact is discharged by authority and never becomes an open
+/// contract-entailment obligation. Membership on an unauthorized machine
+/// keeps its stand-down.
+fn membership_ensures_is_route_authorized(
+    program: &TypedTrees,
+    machine: &Machine,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(domain) = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)
+    else {
+        return false;
+    };
+    let machine_name = machine
+        .name
+        .as_str()
+        .rsplit("::")
+        .next()
+        .unwrap_or(machine.name.as_str());
+    domain
+        .establishment_routes
+        .iter()
+        .any(|route| match route {
+            language_semantics::DomainEstablishmentRoute::ExactMachine {
+                machine: authorized,
+            } => *authorized == machine.symbol,
+            language_semantics::DomainEstablishmentRoute::CheckedRequirement {
+                trait_definition,
+                requirement,
+            }
+            | language_semantics::DomainEstablishmentRoute::BoundaryRequirement {
+                boundary_trait: trait_definition,
+                requirement,
+            } => {
+                if *requirement == machine.symbol {
+                    return true;
+                }
+                let Some(requirement_signature) = program
+                    .traits()
+                    .iter()
+                    .find(|definition| definition.symbol == *trait_definition)
+                    .and_then(|definition| {
+                        program
+                            .trait_machine_signatures(definition)
+                            .iter()
+                            .find(|signature| signature.symbol == *requirement)
+                    })
+                else {
+                    return false;
+                };
+                program
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .any(|conformance| {
+                        conformance.symbol == *trait_definition
+                            && conformance
+                                .requirement
+                                .as_ref()
+                                .map(|name| name.as_str())
+                                .unwrap_or(machine_name)
+                                == requirement_signature.name.as_str()
+                    })
+            }
+        })
+}
+
 pub(crate) fn validate_machine_contract_entailment(
     program: &TypedTrees,
     machine: &Machine,
@@ -289,9 +362,14 @@ pub(crate) fn validate_machine_contract_entailment_with_outcomes(
                     }
                     all_facts_are_expressions = false;
                 }
-                ProofFact::Membership(_) => {
+                ProofFact::Membership(membership) => {
                     if matches!(contract.kind, SignatureContractKind::Ensures)
                         && account_stand_downs
+                        && !membership_ensures_is_route_authorized(
+                            program,
+                            machine,
+                            membership.domain_symbol,
+                        )
                     {
                         stand_downs.push(crate::ContractEntailmentStandDown {
                             machine_symbol: machine.symbol,

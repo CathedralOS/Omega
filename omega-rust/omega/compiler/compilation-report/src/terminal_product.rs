@@ -904,30 +904,69 @@ impl TerminalNativeRealizationProposal {
         {
             return Err("Terminal proposal root establishment substituted its receiver type");
         }
-        let mut field_identities = std::collections::BTreeSet::new();
+        let mut field_routes = std::collections::BTreeSet::new();
         for row in rows {
             if row.source_signature_identity() != source.identity()
                 || row.target_slot() != source.target_slot()
                 || row.receiver_type_identity() != receiver_identity
-                || !field_identities.insert(row.field_identity())
+                || !field_routes.insert(row.field_path().to_vec())
             {
                 return Err(
                     "Terminal proposal root establishment drifted from ProgramEntry custody",
                 );
             }
-            let matching_fields = fields
-                .iter()
-                .filter(|field| field.identity == row.field_identity())
-                .collect::<Vec<_>>();
-            let [field] = matching_fields.as_slice() else {
-                return Err("Terminal proposal root establishment has no unique receiver field");
-            };
-            if !matches!(
-                &field.field_type,
-                terminal_psi::StructuralFieldType::Erased { type_identity }
-                    if type_identity == row.carrier_type_identity()
-            ) {
-                return Err("Terminal proposal root establishment substituted its erased carrier");
+            // Replay the route through the record-field tree: each
+            // intermediate segment is a nested record field; the leaf is the
+            // erased service field rejoining its carrier.
+            let mut current_fields = fields.as_slice();
+            let route_length = row.field_path().len();
+            for (position, segment) in row.field_path().iter().enumerate() {
+                let matching_fields = current_fields
+                    .iter()
+                    .filter(|field| field.identity == *segment)
+                    .collect::<Vec<_>>();
+                let [field] = matching_fields.as_slice() else {
+                    return Err(
+                        "Terminal proposal root establishment has no unique receiver field",
+                    );
+                };
+                if position + 1 == route_length {
+                    if !matches!(
+                        &field.field_type,
+                        terminal_psi::StructuralFieldType::Erased { type_identity }
+                            if type_identity == row.carrier_type_identity()
+                    ) {
+                        return Err(
+                            "Terminal proposal root establishment substituted its erased carrier",
+                        );
+                    }
+                } else {
+                    let terminal_psi::StructuralFieldType::Structural(child) = field.field_type
+                    else {
+                        return Err(
+                            "Terminal proposal root establishment has no unique receiver field",
+                        );
+                    };
+                    let nested_types = module
+                        .structural_types
+                        .iter()
+                        .filter(|declaration| declaration.id == child)
+                        .collect::<Vec<_>>();
+                    let [nested_type] = nested_types.as_slice() else {
+                        return Err(
+                            "Terminal proposal root establishment has no unique nested record type",
+                        );
+                    };
+                    current_fields = match &nested_type.shape {
+                        terminal_psi::StructuralTypeShape::Record { fields }
+                        | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
+                        _ => {
+                            return Err(
+                                "Terminal proposal root establishment route leaves its record tree",
+                            );
+                        }
+                    };
+                }
             }
             let matching_plans = self
                 .selected_provider_plans

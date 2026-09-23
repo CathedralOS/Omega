@@ -118,6 +118,7 @@ fn nested_module() -> TerminalModule {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: place_id(3),
                 bytes: Vec::new(),
+                qualifications: Vec::new(),
             },
         },
         unit_call(10, 2, &[1, 3]),
@@ -144,6 +145,7 @@ fn nested_module() -> TerminalModule {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: place_id(9),
                 bytes: vec![0x7f],
+                qualifications: Vec::new(),
             },
         },
         boundary(31, &[7, 8]),
@@ -328,6 +330,7 @@ fn unrelated_unit_scalar_and_structural_result_calls_preserve_caller_bytes() {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: place_id(5),
                 bytes: vec![0, 0xff],
+                qualifications: Vec::new(),
             },
         },
     );

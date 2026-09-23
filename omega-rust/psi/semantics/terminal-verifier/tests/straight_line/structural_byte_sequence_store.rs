@@ -101,6 +101,7 @@ fn fixture(access: StructuralAccess) -> (TerminalModule, ProofBundle) {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: id(2),
                 bytes: b"XXX".to_vec(),
+                qualifications: Vec::new(),
             },
         },
         Operation {
@@ -285,6 +286,7 @@ fn second_literal_cannot_supply_another_sources_length() {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: id(3),
                 bytes: b"Z".to_vec(),
+                qualifications: Vec::new(),
             },
         },
     );

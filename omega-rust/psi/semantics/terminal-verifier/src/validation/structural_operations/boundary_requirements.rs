@@ -2,7 +2,7 @@
 
 use crate::validation::structural_operations::claim_transfers::claim_input;
 use crate::validation::structural_operations::structural_arguments::{
-    linear_call_result, structural_occurrence_carries_qualification,
+    linear_call_result, literal_qualifications, structural_occurrence_carries_qualification,
 };
 use crate::validation::{
     BTreeSet, BoundaryMachineDeclaration, CompletionReceipt, ModuleError, OperationId,
@@ -17,9 +17,11 @@ pub(crate) fn validate_boundary_requirements(
 ) -> Result<(), ModuleError> {
     for requirement in &boundary.requires {
         let argument = &arguments[requirement.argument_index as usize];
-        // Literal and claim-free result operands cannot supply domain
-        // evidence; a claimed linear call result carries it on its own
-        // declared qualifications.
+        // Claim-free result operands cannot supply domain evidence; a
+        // claimed linear call result carries it on its own declared
+        // qualifications, and a byte-sequence literal carries the
+        // memberships its establishment replayed from the checked
+        // byte-predicate discharge.
         let supplied = caller
             .structural_parameters
             .iter()
@@ -37,6 +39,10 @@ pub(crate) fn validate_boundary_requirements(
                         result.projected_qualifications.as_slice(),
                     )
                 })
+            })
+            .or_else(|| {
+                literal_qualifications(caller, argument.place)
+                    .map(|qualifications| (qualifications, &[][..]))
             });
         if supplied.is_none_or(|(qualifications, projected)| {
             !structural_occurrence_carries_qualification(

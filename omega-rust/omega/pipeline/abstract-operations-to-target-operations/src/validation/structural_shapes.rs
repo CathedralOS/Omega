@@ -886,10 +886,10 @@ fn result_home_layout(
     result: &StructuralOperationResult,
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<TargetStructuralHomeLayout, InvalidStructuralShape> {
-    if result.multiplicity == StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-    {
+    // The qualification roster rides `origin.result` verbatim as custody
+    // evidence; the home layout is the carrier's physical shape alone, so
+    // only linear multiplicity still rejects here.
+    if result.multiplicity == StructuralMultiplicity::Linear {
         return Err(InvalidStructuralShape);
     }
     let indexed = declarations
