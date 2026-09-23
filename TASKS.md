@@ -802,14 +802,18 @@ stage, topology-specific IR, or new trusted graph axiom.
   description producer/admission in compiler, build-evaluation, and
   `backend/artifacts/component-description/`.
 
-  Connect topology's demand/supply contract join to
-  `VerifiedComponent::export_contracts()`. The verified API already supplies
-  structured contract identities; `verified_components.rs` still derives
-  offered contracts from opaque export identity strings. This is a consumer
-  gap, not an absent description representation; do not parse those strings
-  or recreate the representation.
+  The demand/supply contract join is CONNECTED to
+  `VerifiedComponent::export_contracts()` -- this paragraph previously said
+  `verified_components.rs` "still derives offered contracts from opaque
+  export identity strings", which contradicted the next paragraph and sent a
+  reader looking for a small available task. Re-measured at `d6474cb32d`:
+  `verified_components.rs`'s `export_contract_identity` already calls
+  `export_contracts()` and returns the matched `contract.contract_identity`;
+  no string is digested or parsed. The function's name is a holdover from the
+  string route, not evidence of one. `cargo nextest run -p topology-plan`
+  is 113 run, 113 passed, 1 skipped.
 
-  The demand/supply join now compares structured contracts: an export
+  The demand/supply join compares structured contracts: an export
   endpoint carries the contract `VerifiedComponent::export_contracts()`
   derived for its surface, in `verified_components.rs` and in the
   `build-scope-topology` package, whose `components.bin` now carries each
