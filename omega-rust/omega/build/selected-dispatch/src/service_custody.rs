@@ -3,7 +3,7 @@
 mod parameters;
 mod root;
 
-pub use root::derive_fused_program_entry_establishments;
+pub use root::{derive_fused_program_entry_establishments, program_entry_service_requirements};
 
 use checked_trees::{
     CheckedFusedServiceErasureReceipt, CheckedTrees, CheckedUnitPlanOmissionStage,
