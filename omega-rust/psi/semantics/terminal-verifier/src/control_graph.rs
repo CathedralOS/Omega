@@ -127,6 +127,10 @@ fn reverse_postorder_from_successors(
 pub(crate) struct DominatorTree {
     positions: BTreeMap<BlockId, usize>,
     nodes: Vec<DominatorNode>,
+    /// Reverse-postorder position to block identity.
+    blocks: Vec<BlockId>,
+    /// Each position's immediate dominator; the entry names itself.
+    immediate: Vec<usize>,
 }
 
 struct DominatorNode {
@@ -147,6 +151,21 @@ impl DominatorTree {
         let use_block = &self.nodes[use_block];
         definition.traversal_start <= use_block.traversal_start
             && use_block.traversal_start < definition.traversal_end
+    }
+
+    /// The blocks strictly dominating `block`, nearest first: its dominator
+    /// tree ancestors. Unreachable or unknown blocks have none. Walking this
+    /// chain costs its length, where testing every candidate definition
+    /// block with [`Self::dominates`] costs the number of candidates.
+    pub(crate) fn strict_dominators(&self, block: BlockId) -> impl Iterator<Item = BlockId> + '_ {
+        let mut position = self.positions.get(&block).copied();
+        std::iter::from_fn(move || {
+            // Position zero is the entry, which has no strict dominator.
+            let current = position.filter(|&current| current != 0)?;
+            let parent = self.immediate[current];
+            position = Some(parent);
+            Some(self.blocks[parent])
+        })
     }
 
     /// Number of dominators including the block itself; the entry has depth 1.
@@ -233,7 +252,12 @@ pub(crate) fn dominators(machine: &TerminalMachine) -> DominatorTree {
         next_start += 1;
         pending.push((child, 0));
     }
-    DominatorTree { positions, nodes }
+    DominatorTree {
+        positions,
+        nodes,
+        blocks: ordered,
+        immediate,
+    }
 }
 
 fn intersect_dominator_chains(mut first: usize, mut second: usize, immediate: &[usize]) -> usize {
