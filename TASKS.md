@@ -371,6 +371,25 @@ the complete product bar; focused successes below do not establish that baseline
   owe [exact intermediate arithmetic](wiki/spec/language/numeric_values.md)
   bounds even when a theorem uses `embed`.
 
+  A red OUTSIDE the corpus, found while sweeping crate suites and recorded here
+  because nothing else owns it: 8 tests in `package-manager`'s
+  `named_workspace_install::cases` fail with `fixture module path ends in
+  ::fixture`, raised by `tests/support/named_workspace.rs`'s `child_filter`.
+  `a78bae1742f` (2026-09-22) mounted that fixture ONCE in `suite.rs` as
+  `named_workspace_fixture` -- its own comment says "four separate mounts used
+  to carry one apiece" -- while `child_filter` still derives its topic with
+  `module_path!().strip_suffix("::fixture")`, which is now
+  `suite::named_workspace_fixture` and never matches. The deeper consequence is
+  that after the consolidation the fixture cannot know its caller at all: every
+  topic reaches it through `use crate::named_workspace_fixture as fixture`, so
+  one module path serves them all. The child filter has to be built from the
+  CALLER's `module_path!()`, passed into `run`, as `{caller}::{test}`.
+  `package_inspection`, `offline_package_commands` and `source_diff_commands`
+  alias the same fixture and may share the fault; only `named_workspace_install`
+  showed red and that asymmetry is unexplained. `packages/manager/tests` is
+  claimed by the package-name migration lane, so this is noted to that claim
+  rather than edited.
+
   Acceptance: complete corpus reaches declared stages, negatives fail for their
   intended reasons, runtime oracles pass on matching hosts, and roster/coverage
   guards remain intact. Do not demote valid accepted-language programs to
