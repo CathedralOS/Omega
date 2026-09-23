@@ -545,6 +545,9 @@ impl Context<'_> {
                 self.composed_successor_subslice_views(when_true, views);
                 self.composed_successor_subslice_views(when_false, views);
             }
+            Plan::ConditionalReturn { jump, .. } => {
+                self.composed_successor_subslice_views(jump, views);
+            }
             Plan::Guarded { arms, fallback, .. } => {
                 let arms = self
                     .checked

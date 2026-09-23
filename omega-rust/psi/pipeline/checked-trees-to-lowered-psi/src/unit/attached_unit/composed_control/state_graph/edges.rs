@@ -29,6 +29,9 @@ pub(in crate::unit::attached_unit::composed_control) fn successors(
             when_false,
             ..
         } => vec![when_true, when_false],
+        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => {
+            vec![jump]
+        }
         CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => arms
             .iter()
             .map(|arm| &arm.successor)

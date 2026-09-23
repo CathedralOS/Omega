@@ -728,14 +728,87 @@ pub(super) fn build_traced(
                         trace.phase("state graph: terminator: conditional successors: guard type");
                         return None;
                     }
-                    CheckedComposedUnitControlTerminatorPlan::Conditional {
-                        guard,
-                        when_true: edge(when_true, ordinal, SuccessorEdge::Conditional)?,
-                        when_false: edge(
-                            when_false,
-                            ordinal.checked_add(1)?,
+                    // An authored `(expression)` arm returns the established
+                    // value instead of transferring to a named state; a named
+                    // arm keeps the ordinary successor custody plan.
+                    let mut return_count = returns::next_result_ordinal(&operations)?;
+                    let mut branch = |transition: &typed_trees::statement::TableTransition,
+                                      edge_ordinal: u32|
+                     -> Option<
+                        Result<
+                            CheckedStructuralControlSuccessorPlan,
+                            CheckedUnitEffectOperationPlan,
+                        >,
+                    > {
+                        if let TransitionTargetNode::Value(expression) =
+                            program.statement_table.transition_target(transition.target)
+                        {
+                            if transition.exit != TransitionExit::Ordinary
+                                || transition.continuation.is_valid()
+                            {
+                                trace.phase(
+                                    SuccessorEdge::Conditional.phase(SuccessorGuard::TargetState),
+                                );
+                                return None;
+                            }
+                            return returns::return_value_operation(
+                                program,
+                                facts,
+                                scalar_callees,
+                                shapes,
+                                machine,
+                                state,
+                                structural,
+                                &state_entry_claims[state_index],
+                                &mut return_count,
+                                edge_ordinal,
+                                *expression,
+                            )
+                            .map(Err);
+                        }
+                        successor(
+                            program,
+                            facts,
+                            machine,
+                            state_index,
+                            &signatures,
+                            &operations,
+                            transition,
+                            edge_ordinal,
                             SuccessorEdge::Conditional,
-                        )?,
+                            trace,
+                        )
+                        .map(Ok)
+                    };
+                    match (
+                        branch(when_true, ordinal)?,
+                        branch(when_false, ordinal.checked_add(1)?)?,
+                    ) {
+                        (Ok(when_true), Ok(when_false)) => {
+                            CheckedComposedUnitControlTerminatorPlan::Conditional {
+                                guard,
+                                when_true,
+                                when_false,
+                            }
+                        }
+                        (Ok(jump), Err(return_arm)) => {
+                            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                                guard,
+                                jump,
+                                return_arm,
+                                return_when_true: false,
+                            }
+                        }
+                        (Err(return_arm), Ok(jump)) => {
+                            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                                guard,
+                                jump,
+                                return_arm,
+                                return_when_true: true,
+                            }
+                        }
+                        // Both arms `(expression)` targets check as Guarded.
+                        (Err(_), Err(_)) => return None,
                     }
                 }
                 tail @ [
@@ -891,6 +964,7 @@ pub(super) fn build_traced(
             terminator,
             CheckedComposedUnitControlTerminatorPlan::Jump { .. }
                 | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
                 | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
                 | CheckedComposedUnitControlTerminatorPlan::ReturnUnit
@@ -927,6 +1001,7 @@ pub(super) fn build_traced(
                 terminator,
                 CheckedComposedUnitControlTerminatorPlan::Jump { .. }
                     | CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+                    | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. }
                     | CheckedComposedUnitControlTerminatorPlan::GuardedJumps { .. }
             ) && result.multiplicity == Multiplicity::Affine
                 && facts
@@ -981,6 +1056,19 @@ pub(super) fn build_traced(
                             state,
                             result,
                             &[when_true, when_false],
+                            &disposable_locals,
+                        )
+                }
+                CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => {
+                    // The return arm consumes its producers through the
+                    // `EstablishStructuralValue` operands like Guarded; only
+                    // the named edge participates in transfer custody.
+                    transferred(jump)
+                        || local_results::permits_disposal(
+                            program,
+                            state,
+                            result,
+                            &[jump],
                             &disposable_locals,
                         )
                 }

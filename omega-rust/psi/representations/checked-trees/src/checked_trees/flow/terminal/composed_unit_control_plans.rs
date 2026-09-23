@@ -131,6 +131,21 @@ pub enum CheckedComposedUnitControlTerminatorPlan {
         when_true: CheckedStructuralControlSuccessorPlan,
         when_false: CheckedStructuralControlSuccessorPlan,
     },
+    /// The two-way conditional whose other arm names an authored
+    /// `(expression)` target: that arm returns the established value instead
+    /// of transferring to a named state. `jump` carries the named arm's
+    /// ordinary custody plan; `return_arm` is the value arm's
+    /// `EstablishStructuralValue` producer in the same local child storage
+    /// `Guarded::return_values` uses. `return_when_true` records which arm
+    /// position the authored `(expression)` target occupied. (A conditional
+    /// whose two arms are both `(expression)` targets checks as `Guarded`,
+    /// never this variant.)
+    ConditionalReturn {
+        guard: CheckedScalarExpression,
+        jump: CheckedStructuralControlSuccessorPlan,
+        return_arm: CheckedUnitEffectOperationPlan,
+        return_when_true: bool,
+    },
     /// Ordered Boolean guards each select a named-state edge. Guards evaluate
     /// in authored order — the same sequencing the shared scalar tail roster
     /// records — and the authored `_` arm is the fallback edge holding where
@@ -163,6 +178,9 @@ impl CheckedComposedUnitControlStatePlan {
         let selected = match &self.terminator {
             CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } => {
                 return_values.as_slice()
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { return_arm, .. } => {
+                std::slice::from_ref(return_arm)
             }
             _ => &[],
         };
