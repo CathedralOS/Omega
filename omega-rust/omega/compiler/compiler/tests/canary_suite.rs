@@ -262,6 +262,17 @@ const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
     ("targets/efi_large_result_entry", "uefi_x86_64"),
     ("targets/efi_large_aggregate_entry", "uefi_x86_64"),
     ("targets/efi_large_aggregate_stack_entry", "uefi_x86_64"),
+    // EFI programs authored in July on the host tier, before this tier
+    // existed; on a hosted target they can only ask for an entry the EFI
+    // subsystem does not bind.
+    ("targets/efi_conout_projection", "uefi_x86_64"),
+    ("targets/efi_entry_arguments", "uefi_x86_64"),
+    ("targets/efi_float_entry_argument", "uefi_x86_64"),
+    ("targets/efi_freestanding_skeleton", "uefi_x86_64"),
+    ("targets/efi_ref_param_direct_faces", "uefi_x86_64"),
+    ("targets/efi_stack_entry_argument", "uefi_x86_64"),
+    ("targets/efi_struct_handoff", "uefi_x86_64"),
+    ("ownership/linear_boundary_entry_handoff", "uefi_x86_64"),
     ("targets/aarch64_hfa_entry_argument", "linux_arm64"),
     ("targets/aarch64_small_aggregate_entry", "linux_arm64"),
     ("targets/aarch64_small_aggregate_stack_entry", "linux_arm64"),
@@ -1132,6 +1143,20 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "terminal_psi/integer_control_contract",
     "terminal_psi/member_crash_contract_boundary",
     "terminal_psi/structural_content_passthrough",
+    // Their `Main::main` takes parameters — a reward, a random state, a
+    // flag, an argument slice — so no hosted ProgramEntry can bind it and
+    // native production stops at "requires one exact selected program
+    // entry" before any capability is exercised. They check; a driver that
+    // supplies the arguments, not a roster row, is what would run them.
+    "calls/runtime_call_enum_field_with_args",
+    "calls/runtime_call_enum_field_with_mut_arg",
+    "calls/runtime_call_enum_sequence",
+    "calls/runtime_transition_subject_call_guard",
+    "control_flow/runtime_guarded_leaf_ordering_call",
+    "storage/runtime_alias_field_binary",
+    "storage/runtime_alias_field_integer",
+    "storage/runtime_alias_integer_write",
+    "targets/entry_run_args_bytes",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[
@@ -4000,7 +4025,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "ownership/linear_state_call_handoff",
     "ownership/linear_transition_nested_call_handoff",
     "ownership/linear_repeated_transition_call_handoff",
-    "ownership/linear_boundary_entry_handoff",
     "ownership/linear_live_across_call_continuation",
     "ownership/linear_fresh_state_call_result_handoff",
     "ownership/linear_transfer_and_consume",
@@ -4249,14 +4273,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_wrapper_exists_exit",
     "filesystem/windows_wrapper_set_len_exit",
     "filesystem/windows_wrapper_copy_exit",
-    "targets/efi_freestanding_skeleton",
-    "targets/efi_entry_arguments",
-    "targets/efi_float_entry_argument",
-    "targets/efi_stack_entry_argument",
-    "targets/entry_run_args_bytes",
-    "targets/efi_struct_handoff",
-    "targets/efi_conout_projection",
-    "targets/efi_ref_param_direct_faces",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "layouts/runtime_plan_laid_compact_bits_exit",
@@ -4429,9 +4445,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/sequential_self_field_rmw_exit",
     "calls/transition_arg_local_from_embedded_call_exit",
     "calls/value_call_embedded_in_binary_exit",
-    "storage/runtime_alias_integer_write",
-    "storage/runtime_alias_field_integer",
-    "storage/runtime_alias_field_binary",
     "storage/runtime_machine_owned_fixed_indexed_struct_copy_exit",
     "storage/runtime_machine_owned_indexed_integer_write_exit",
     "storage/runtime_machine_owned_indexed_nested_exit_write_exit",
@@ -4483,9 +4496,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "rewards/runtime_branch_enemy_reward_shape",
     "calls/runtime_call_value",
     "calls/runtime_call_enum_field_value",
-    "calls/runtime_call_enum_field_with_args",
-    "calls/runtime_call_enum_field_with_mut_arg",
-    "calls/runtime_call_enum_sequence",
     "calls/runtime_call_enum_value",
     "calls/runtime_nested_named_conversion_alias_exit",
     "calls/runtime_call_result_after_splice_mutation_exit",
@@ -4505,7 +4515,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "dungeon/runtime_clear_carve_render_string_fields_exit",
     "dungeon/runtime_full_level_wrapper_lookup_string_field_exit",
     "dungeon/runtime_enemy_clear_reentry_guard",
-    "control_flow/runtime_guarded_leaf_ordering_call",
     "dungeon/runtime_ordered_room_dispatch_after_call_exit",
     "dungeon/runtime_ordered_room_dispatch_exit",
     "dungeon/runtime_ordered_room_dispatch_game_shape_exit",
@@ -4598,7 +4607,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_stdin_command_branch_exit",
     "text/runtime_stdin_line_buffering_exit",
     "calls/runtime_trailing_local_return_exit",
-    "calls/runtime_transition_subject_call_guard",
     "calls/runtime_transition_argument_call_value",
     "collections/runtime_fixed_vec_round_trip_exit",
     "collections/runtime_write_first_loop_index_exit",
