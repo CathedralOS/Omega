@@ -448,6 +448,7 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 80 | ElementViewLength | source place id |
 | 81 | ElementViewRead | source place id + index value id + length value id + obligation id |
 | 82 | ElementViewSubslice | source place id + start value id + end value id + length value id + obligation id |
+| 83 | EstablishStructuralCase | structural case id + counted fields (field id + `u8` operand tag: 1 + value id + optional obligation id; 2 + structural argument) |
 
 Tags 51 (retired literal field row) and 67 (retired scalar-only record
 operand) reject; their payloads are not reinterpreted as current forms. Tags
