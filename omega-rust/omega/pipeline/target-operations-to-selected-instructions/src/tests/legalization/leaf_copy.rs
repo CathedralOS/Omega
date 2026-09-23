@@ -266,6 +266,16 @@ fn leaf_copy_source(
     path: Vec<StructuralPathSegment>,
     result_type: StructuralTypeId,
 ) -> abstract_operations::AbstractOperationPlan {
+    leaf_copy_source_access(param, path, result_type, StructuralAccess::SharedBorrow)
+}
+
+/// `leaf_copy_source` with the parameter's access kind chosen by the caller.
+fn leaf_copy_source_access(
+    param: StructuralTypeDeclaration,
+    path: Vec<StructuralPathSegment>,
+    result_type: StructuralTypeId,
+    access: StructuralAccess,
+) -> abstract_operations::AbstractOperationPlan {
     let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
     let mut declarations = catalog();
     declarations.retain(|declaration| declaration.id != param.id);
@@ -282,7 +292,7 @@ fn leaf_copy_source(
             is_self: false,
             structural_type: param.id,
             multiplicity: StructuralMultiplicity::Unrestricted,
-            access: StructuralAccess::SharedBorrow,
+            access,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
         });
@@ -1201,5 +1211,115 @@ fn leaf_copy_nested_runtime_index_requires_u64_parameters() {
             TargetLoweringRequest::new(NativeTarget::linux_x64()),
         )
         .is_err()
+    );
+}
+
+#[test]
+fn leaf_copy_fragment_backed_owned_param_selects_and_validates() {
+    // An owned ElementView param keeps its descriptor in ABI fragments (the
+    // view type earns no pointer home), so the whole-root copy stores each
+    // fragment register into the result slot without a single load.
+    let native = NativeTarget::linux_x64();
+    let mut source = leaf_copy_source_access(
+        view_type(),
+        vec![],
+        StructuralTypeId::new(80).unwrap(),
+        StructuralAccess::Owned,
+    );
+    source.functions[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;
+    if let AbstractOperation::ReturnUnit {
+        cleanup_actions, ..
+    } = &mut source.functions[0].operations[1]
+    {
+        cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardRoot(
+            PlaceId::new(1).unwrap(),
+        ));
+    }
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &source,
+        TargetLoweringRequest::new(native),
+    )
+    .expect("an owned fragment-backed root admits a whole-root leaf copy");
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    let legal = legalize_target_operations(&target, &source, &unit)
+        .expect("leaf copy from a fragment-backed owned param legalizes");
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let constraints = selection_constraints(&legal, &environment);
+    let selected = select_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .expect("leaf copy from fragment storage reaches selection");
+    validate_selected_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+        selected.plan().clone(),
+    )
+    .expect("independent replay accepts the fragment-backed copy");
+    let function = &selected.plan().functions[0];
+    // The owned param earns no structural-parameter home slot; the result
+    // slot is the only structural storage the copy materializes.
+    assert!(
+        !function
+            .local_storage_slots
+            .iter()
+            .any(|slot| matches!(slot.id,
+                selected_instructions::LocalStorageSlotId::StructuralParameter { place }
+                    if place == PlaceId::new(1).unwrap())),
+        "no StructuralParameter home for the fragment-backed param"
+    );
+    let instructions: Vec<_> = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| row.provenance.operations == [OperationId::new(1).unwrap()])
+        .collect();
+    assert!(
+        instructions.iter().all(|row| !matches!(
+            row.kind,
+            SelectedInstructionKind::Load8 { .. }
+                | SelectedInstructionKind::Load16 { .. }
+                | SelectedInstructionKind::Load32 { .. }
+                | SelectedInstructionKind::Load64 { .. }
+        )),
+        "fragment registers store directly, without loads"
+    );
+    let mut stores: Vec<u32> = instructions
+        .iter()
+        .filter_map(|row| match row.kind {
+            SelectedInstructionKind::Store { byte_offset, .. } => Some(byte_offset),
+            _ => None,
+        })
+        .collect();
+    stores.sort_unstable();
+    assert_eq!(stores, [0, 8], "two 8-byte fragment stores fill the leaf");
+    let mut writes: Vec<u32> = function
+        .memory_accesses
+        .iter()
+        .filter_map(|access| {
+            (access.place == PlaceId::new(2).unwrap()
+                && access.role == SelectedMemoryAccessRole::WritePlace)
+                .then_some(access.byte_offset)
+        })
+        .collect();
+    writes.sort_unstable();
+    assert_eq!(writes, [0, 8]);
+    assert!(
+        function
+            .virtual_registers
+            .iter()
+            .any(|register| matches!(register.origin,
+                selected_instructions::VirtualRegisterOrigin::AbiTransport { place, .. }
+                    if place == PlaceId::new(2).unwrap())),
+        "the copied leaf publishes its result pointer"
     );
 }

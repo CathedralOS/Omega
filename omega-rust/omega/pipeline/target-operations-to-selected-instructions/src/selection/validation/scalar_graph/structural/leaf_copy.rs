@@ -16,9 +16,10 @@ fn invalid() -> SelectedInstructionError {
 }
 
 /// Mirror of construction `leaf_copy::copy`: the source resolves through its
-/// durable pointer only, never ABI fragments, and the result publishes as a
-/// structural local slot followed by chunked loads, chunked stores, and the
-/// place's transport pointer.
+/// durable pointer, or through ABI fragments for an owned parameter without
+/// addressable storage, and the result publishes as a structural local slot
+/// followed by chunked loads, chunked stores, and the place's transport
+/// pointer.
 pub(super) fn copy(
     _source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
@@ -48,8 +49,7 @@ pub(super) fn copy(
         .pointers
         .iter()
         .find(|(place, _)| *place == *source)
-        .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+        .map(|(_, pointer)| *pointer);
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,
@@ -60,7 +60,21 @@ pub(super) fn copy(
         alignment: shape.alignment,
     });
     let pointer = local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), true)?;
-    let mut input = input;
+    let Some(mut input) = input else {
+        check_fragments(
+            _source,
+            row,
+            source,
+            result.place,
+            *byte_offset,
+            *shape,
+            pointer,
+            indices,
+            replay,
+        )?;
+        replay.transport.pointers.push((result.place, pointer));
+        return Ok(());
+    };
     for index in indices {
         let (_, index_register, _, index_type) =
             replay.resolve(index.operand.value).ok_or_else(invalid)?;
@@ -178,4 +192,93 @@ fn chunk(remaining: u32) -> u8 {
         .into_iter()
         .find(|width| u32::from(*width) <= remaining)
         .unwrap_or(1)
+}
+
+/// Replay mirror of construction `copy_from_fragments`: the same owned
+/// parameter's inline ABI fragments store into the result slot at
+/// leaf-relative offsets — a fragment cut by the leaf's bounds or any
+/// runtime-index traversal stays honest-unsupported.
+#[allow(clippy::too_many_arguments)]
+fn check_fragments(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    place: &semantic_vocabulary::PlaceId,
+    result_place: semantic_vocabulary::PlaceId,
+    byte_offset: u32,
+    shape: calling_conventions::ValueShape,
+    pointer: selected_instructions::VirtualRegisterId,
+    indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
+    replay: &mut Replay<'_>,
+) -> Result<(), SelectedInstructionError> {
+    if !indices.is_empty() {
+        return Err(invalid());
+    }
+    let parameter = source
+        .structural
+        .as_ref()
+        .and_then(|signature| {
+            signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == *place)
+        })
+        .ok_or_else(invalid)?;
+    if !crate::selection::aggregate_result_input::inline_argument_fragments(
+        &parameter.target.placement,
+    ) {
+        return Err(invalid());
+    }
+    let leaf_end = byte_offset
+        .checked_add(u32::from(shape.byte_size))
+        .ok_or_else(invalid)?;
+    for location in &parameter.target.placement.locations {
+        let (fragment_offset, width) = match location {
+            calling_conventions::ValueLocation::Register {
+                value_byte_offset,
+                byte_size,
+                ..
+            }
+            | calling_conventions::ValueLocation::Stack {
+                value_byte_offset,
+                byte_size,
+                ..
+            } => (u32::from(*value_byte_offset), *byte_size),
+            _ => return Err(invalid()),
+        };
+        let fragment_end = fragment_offset
+            .checked_add(u32::from(width))
+            .ok_or_else(invalid)?;
+        if fragment_end <= byte_offset || fragment_offset >= leaf_end {
+            continue;
+        }
+        if fragment_offset < byte_offset || fragment_end > leaf_end {
+            return Err(invalid());
+        }
+        let value = replay
+            .transport
+            .fragments
+            .iter()
+            .find(|(stored, offset, _)| *stored == *place && *offset == fragment_offset)
+            .map(|(_, _, value)| *value)
+            .ok_or_else(invalid)?;
+        let offset = fragment_offset - byte_offset;
+        memory(
+            replay,
+            row,
+            result_place,
+            offset,
+            u32::from(width),
+            SelectedMemoryAccessRole::WritePlace,
+        )?;
+        replay.check_instruction(
+            SelectedInstructionKind::Store {
+                byte_offset: offset,
+                byte_size: u8::try_from(width).map_err(|_| invalid())?,
+            },
+            replay.constraints.keys.store.ok_or_else(invalid)?,
+            &[pointer, value],
+            &provenance(row),
+        )?;
+    }
+    Ok(())
 }
