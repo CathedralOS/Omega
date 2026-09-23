@@ -1,0 +1,95 @@
+{
+  "wave": "macw7",
+  "host": "local",
+  "drained": "2026-05-12",
+  "base_at_launch": "2705f0ff3c",
+  "slots": [
+    {
+      "slot": "coordinator",
+      "item": "PSIIR",
+      "result": "landed",
+      "commits": ["bee9db0661"],
+      "item_closed": false,
+      "note": "cyclic fixed-fuel closure failures now report UnboundedCycleComponent{component, OpenCalleeSet{operation}}; acyclic dynamic calls keep flat InvocationBoundCallee; item stays open for conditional bounds + unbounded-rank/wait-foreign causes"
+    },
+    {
+      "slot": "c2l-blowup",
+      "item": "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
+      "result": "landed",
+      "commits": ["c949e5d10e"],
+      "item_closed": true,
+      "note": "scope-indexed proof reuse ended the cascading re-verification; named test passes in ~500s under the ~900s bound (was timeout), full suite 1416/1418 with no timeout member; acceptance met, item removed from board"
+    },
+    {
+      "slot": "backend-vocab-audit",
+      "item": "BACKEND-VOCABULARY-REJECTION-AUDIT",
+      "result": "landed",
+      "commits": ["d37b00b028"],
+      "item_closed": false,
+      "note": "unsupported-scalar refusal exercised through the public compiler on all four bound targets with exact SaturatingIntegerMultiply diagnostics; residual diagnostic-attribution gap assigned to ALIAS-AWARE-MEMORY"
+    },
+    {
+      "slot": "termination-ranking",
+      "item": "TERMINATION-RANKING-CHECKS",
+      "result": "landed",
+      "commits": ["2f546a6da0", "4743a48c14", "eb8119213d"],
+      "item_closed": false,
+      "note": "three independent lands: exact << / >> / & transport through rank arrivals (OpaqueTerm::{ShiftLeft,ShiftRight,BitwiseAnd}, count-width obligations, signed floor semantics, two's-complement & bounds); parked WIP @1f06e37e6c folded into the & land; item stays open for further constituents and interval-only fallback"
+    },
+    {
+      "slot": "domain-issuer-routes",
+      "item": "DOMAIN-ISSUER-ROUTES",
+      "result": "wip",
+      "commits": [],
+      "wip_branch": "swarm/macw7-domain-issuer-routes@b38ff7561a",
+      "item_closed": false,
+      "note": "three unvalidated drain checkpoints across four rate-limit deaths; no validation claim; item open"
+    },
+    {
+      "slot": "exact-machine-2",
+      "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+      "result": "landed",
+      "commits": ["16e7050320"],
+      "wip_branch": "swarm/macw7-exact-machine-2@54435f01e0",
+      "item_closed": false,
+      "note": "redundant-extension family executes through pre-allocation selection (SelectedRedundantExtensionRemovalV1 tag 46, generalized policy + joint catalog executor); parked WIP holds a draft SelectedAddressOffsetFoldV1 whose acceptance coverage is fenced under PACKAGE-NAME-UNDERSCORE-MIGRATION's tests/ claim; item open"
+    },
+    {
+      "slot": "declarative-peepholes",
+      "item": "DECLARATIVE-PEEPHOLES",
+      "result": "landed",
+      "commits": ["3e8da4d90e"],
+      "item_closed": false,
+      "note": "compare literal-fold pairs now partition operand grammar by the folded literal's value (EncodingNonZero(4095) vs Exactly(0)); validator independently re-derives the realization; item open for flag/clobber/tied rows and displaced boundaries"
+    },
+    {
+      "slot": "placed-access",
+      "item": "PLACED-ACCESS-NATIVE-OPS",
+      "result": "landed",
+      "commits": ["b083b94a40"],
+      "item_closed": false,
+      "note": "authored requires bounds fold into RuntimeIndex evidence on both checker and verifier lanes; substituted/missing bounds still reject; no access authority inferred from RuntimeIndex; next lanes pinned on CML4 argument admission + domain-issuer routes"
+    },
+    {
+      "slot": "proof-cert-bridge",
+      "item": "PROOF-CERTIFICATION-BRIDGE",
+      "result": "blocked",
+      "commits": [],
+      "item_closed": false,
+      "note": "spawned twice into c2l's freed seat; killed by the shared rate limiter both times before producing work; item untouched"
+    },
+    {
+      "slot": "pcc-ledger",
+      "item": "PCC-CANONICAL-SEMANTIC-LEDGER",
+      "result": "blocked",
+      "commits": [],
+      "item_closed": false,
+      "note": "spawned into placed-access's freed seat; killed by the shared rate limiter before producing work; item untouched"
+    }
+  ],
+  "friction": [
+    "four shared-model-rate-limit mass kill waves (~00:20Z, ~00:40Z, ~01:10Z, ~01:40Z) killed ~15 agent handles; every dead slot was WIP-committed and re-spawned paced ~60s apart until the drain call",
+    "Copilot's PACKAGE-NAME-UNDERSCORE-MIGRATION claim holds tests/ wholesale, which fenced native-differential fixtures (placed-access narrowing) and exact-machine acceptance coverage (parked in WIP)",
+    "manifest slot reuse required a name layer when c2l's freed paths went to proof-cert-bridge (the ledger keeps slot->handle mapping, so reusing the slot name would alias dead and live handles)"
+  ]
+}

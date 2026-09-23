@@ -390,6 +390,12 @@ the complete product bar; focused successes below do not establish that baseline
     (`prove_ranking_range_call`, `endpoint_pins::argument_sources`,
     `requirements.rs::prove`, `saved_arguments::install`); saved let-locals
     remain inadmissible as call-component actuals (a separate feature).
+    `2f546a6da0`, `4743a48c14` and `eb8119213d` (macw7) transported exact
+    `<<`/`>>`/`&` terms through call arrivals —
+    `OpaqueTerm::{ShiftLeft,ShiftRight,BitwiseAnd}`,
+    `install_nonpolynomial_terms` recursion, the F8 count-within-width
+    obligation, floor-division semantics for signed `>>`, and
+    two's-complement `&` bounds.
     Recheck constituent operations at each exact
     arrival; cancellation, equal intervals and unoriented disequality do not
     establish divisor validity, absence of overflow or subject identity.
@@ -1188,6 +1194,17 @@ syntax and other terminal services are not prerequisites.
   and source-driven `&write`/`&mut` indexed stores execute natively with
   neighbor preservation. `indexed_stores.rs` now exercises host execution.
 
+  `b083b94a40` (macw7) shared that conjunct fold into
+  `ClosedScalarValueContractPlan::requires_bound_interval` and replayed it
+  on the verifier side — `selector_bounded` now accepts roster rows or
+  folded `requires` evidence for `RuntimeIndex` segments, with
+  substituted-bound/no-authority controls in
+  `terminal-interpreter/tests/unit/runtime_index_arguments.rs`. The dynamic
+  indexed shared receiver (`cells[i].get()`) is pinned at
+  `dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs` on two
+  upstream legs: CML4's `argument_paths.rs` checked admission and
+  DOMAIN-ISSUER-ROUTES' `source_path.rs` scalar-wrapper path.
+
   Remaining surrounding lanes stay open: extend the same contract-fact index
   derivation to further placed-access operations, and keep coordinating
   source fixtures with
@@ -1318,13 +1335,19 @@ syntax and other terminal services are not prerequisites.
   (macw4) tightened `Natural` ranked-cycle visit multipliers to literal
   `requires` ceilings when every first-entry arrival reduces to a
   clause-bound parameter, binding consulted clauses as certificate
-  `relevant_preconditions`. Open: derive bounds from relevant preconditions
-  beyond that literal ceiling — the current empty set is *sound* for the
-  max-arm bound (segment_partition merges acyclic branching as a maximum),
-  so a non-empty set means a tighter conditional bound needing its own
-  checked derivation plus the verifier-side check of P — and retain precise
-  absence-of-bound causes, including
-  unbounded rank and the wait/foreign edge preventing closure. Acyclic
+  `relevant_preconditions`. `bee9db0661` (macw7) made cyclic closure
+  failures precise: an invocation-bound dynamic-parameter call inside a
+  ranked cyclic component now reports
+  `UnboundedCycleComponent{component, OpenCalleeSet{operation}}` — the
+  verifier-derived component identity plus the responsible operation;
+  acyclic blocks keep the flat `InvocationBoundCallee`. Open: derive bounds
+  from relevant preconditions beyond that literal ceiling — the current
+  empty set is *sound* for the max-arm bound (segment_partition merges
+  acyclic branching as a maximum), so a non-empty set means a tighter
+  conditional bound needing its own checked derivation plus the
+  verifier-side check of P — and retain the remaining absence-of-bound
+  causes (unbounded rank and wait/foreign edges still collapse flat).
+  Acyclic
   conditional/case segments, condensed ranked interiors and topology-identified
   unranked cycles already have derivation. An invocation-bound callee without
   retained realization/bound evidence is genuinely open: preserve
@@ -1726,6 +1749,9 @@ syntax and other terminal services are not prerequisites.
   a new family cannot be silently omitted. The first acceptance clause holds
   structurally: selection's per-instruction dispatch has no wildcard arm, so
   every legalized kind is guaranteed an arm at build time.
+  `d37b00b028` (macw7) closed the per-ISA leg through the public compiler —
+  the unsupported-scalar refusal is exercised on all four bound targets with
+  exact `SaturatingIntegerMultiply` diagnostics.
 
   ONE residual: selection's refusals carry no operation or target, although
   `LegalizedScalarInstruction` holds `operation` and `LegalizedScalarFunction`
@@ -1746,33 +1772,6 @@ syntax and other terminal services are not prerequisites.
   existing capability owners, including **X86-FMA-PROVIDER-TRANSPORT**; do not
   expand the accepted vocabulary or build another generic audit framework.
 
-- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** Recheck and resolve excessive
-  compile time for
-  `nominal_affine_source::integer_comparison::mixed_nominal_integer_comparison_converges_before_one_shared_cleanup_return`
-  in `checked-trees-to-lowered-psi --test suite`. Historical timeout evidence
-  predates further algorithmic repairs; current completion/time is unverified.
-  Run the unreduced customer with an explicit test timeout, then profile current
-  checking/lowering/certificate work if still slow. Improve measured work without
-  abandoning obligations or weakening independent verification. The first 72
-  top-level `&&` conjuncts (counting the leading parenthesized triple as one)
-  remain a profiling aid, not acceptance.
-
-  Accepted-premise indexing, unchanged-module reconstruction reuse and reachable
-  equality-roster selection already exist. Instrument the actual producer;
-  `OMEGA_PROOF_MEASUREMENTS` does not account for all certificate work.
-  `ebd634e638` (macw4) gated the `exact.rs` transport fallback to compound
-  endpoints and ordered compound pairs first, cutting the known backedge
-  obligation to single-digit milliseconds; the named nominal-affine test may
-  already pass — re-measure with an explicit timeout before profiling.
-  Parked WIP: branch `swarm/macw4-c2l-blowup` at `97228fe69f` holds an
-  unvalidated drain checkpoint spanning `nonzero_divisor_certificate`
-  (integer_selection + affine_custody + cast_custody/chain refactor) —
-  resume by reviewing or discarding.
-  Acceptance: the unreduced test completes its assertions within an ordinary
-  test timeout, proof/reconstruction controls remain valid, and subsequent crate
-  `--no-fail-fast` validation has no timeout member. Algorithmic repair needs no
-  owner decision. Introducing an aggregate proof-work refusal ceiling requires
-  the existing `compile-time-proof-work-ceiling` decision in OWNER_QUESTIONS.md.
 
 ## P4 - ABI, borrowing, and callbacks
 
@@ -2679,7 +2678,9 @@ syntax and other terminal services are not prerequisites.
   missing ordinary callee/conformance identities and connect checked establishment
   evidence to its exact invocation result. Establish a source-produced qualified
   boundary-result roundtrip too; manually assembled Terminal fixtures do not
-  establish source admission.
+  establish source admission. Parked WIP: branch
+  `swarm/macw7-domain-issuer-routes` at `b38ff7561a` holds unvalidated drain
+  checkpoints (three commits) — resume by reviewing or discarding.
 
   Acceptance: source examples serialize, reload without source and independently
   validate requirement, exact-machine and boundary establishment, including
