@@ -118,15 +118,20 @@
 //! body instruction uses: each reload pair sits before its load, inside the
 //! bridge body rather than at the end-of-block position. The binding's
 //! `argument` field then moves to the single register those loads name after
-//! rewriting — no pair of its own is emitted. Admission requires the exact
+//! rewriting — no pair of its own is emitted — when they all share it: a
+//! one-chunk snapshot always resolves to one register, and a multi-chunk
+//! snapshot does while every chunk operand is unpinned and the block's shared
+//! reload stays open from the first load through the edge. Where the loads
+//! cannot share — a pinned chunk operand, a block keeping no shared reload,
+//! or a span-closing instruction at or after the first load, which would
+//! leave the loads' registers divergent or carrying a pre-close value the
+//! edge no longer holds — the binding instead gains a dedicated end-of-block
+//! reload pair of its own, the same idiom a value binding uses, and
+//! `argument` names that fresh register. Admission requires the exact
 //! chunk-load stream the transport's byte decomposition describes, recorded
 //! as `ReadPlace` accesses for the edge and source place in this block. A
-//! one-chunk snapshot always resolves to one register; a multi-chunk
-//! snapshot needs the block's shared open reload, so it is admitted only
-//! where every chunk operand is unpinned and no unit-writing instruction
-//! closes the span between the first and last chunk load. A stored argument
-//! on the victim's own incoming edge, on a non-continuation successor, or
-//! whose chunk loads cannot resolve to one register stays rejected.
+//! stored argument on the victim's own incoming edge or on a
+//! non-continuation successor stays rejected.
 //! Cyclic functions stay admitted: a back edge
 //! reaching the destination is just one more incoming edge, and it must run
 //! the same dedicated edge-copy definition whose store initializes the slot
@@ -300,13 +305,18 @@ pub(crate) enum StoragePosition {
 /// snapshot source — naming the victim. The binding sits on an edge-transfer
 /// continuation in `block`; its snapshot loads carry `ReadPlace` memory
 /// accesses for `edge`/`place` in `byte_size`'s chunk decomposition, and
-/// `loads` is their instruction identities in byte order.
+/// `loads` is their instruction identities in byte order. `dedicated_reload`
+/// records that the loads cannot all name one register — pinned operands,
+/// a block keeping no shared reload, or a span-closing instruction at or
+/// after the first load — so the binding reads the victim's edge-time value
+/// through its own end-of-block pair instead of following theirs.
 pub(crate) struct StructuralArgumentUse {
     pub block: usize,
     pub edge: EdgeId,
     pub place: PlaceId,
     pub byte_size: u32,
     pub loads: Vec<SelectedInstructionId>,
+    pub dedicated_reload: bool,
 }
 
 /// The declared bit-preserving pair bridging a foreign-class victim to the

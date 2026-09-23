@@ -21,6 +21,7 @@ use crate::ValidatedRuntimeSpill;
 use crate::rewrites::runtime_spill::admission;
 use crate::rewrites::runtime_spill::tests::{budget, fixture};
 use crate::spill_selected_runtime_value;
+use crate::spill_selected_runtime_value_with_span_policy;
 use crate::validate_runtime_spill;
 use register_model::RegisterUnitId;
 use selected_instructions::{
@@ -468,11 +469,85 @@ fn whole_value_snapshot_argument_moves_to_its_chunk_reload() {
     }
 }
 
+/// The first view declared on the victim's register class — the pin a chunk
+/// operand would carry when the ABI fixed its unit.
+fn victim_class_view(
+    function: &selected_instructions::SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> register_model::RegisterViewId {
+    let class = function.virtual_registers[1].class;
+    environment
+        .physical()
+        .model()
+        .classes
+        .iter()
+        .find(|row| row.id == class)
+        .and_then(|row| row.views.first())
+        .copied()
+        .unwrap()
+}
+
+/// Every unit every view of the victim's class could occupy — a clobber set
+/// no home in that class survives, so a unit writer carrying it closes the
+/// shared reload under either span policy.
+fn victim_class_units(
+    function: &selected_instructions::SelectedFunction,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> Vec<RegisterUnitId> {
+    let class = function.virtual_registers[1].class;
+    let physical = environment.physical().model();
+    physical
+        .classes
+        .iter()
+        .find(|row| row.id == class)
+        .into_iter()
+        .flat_map(|row| row.views.iter().copied())
+        .filter_map(|view_id| physical.views.get(usize::from(view_id.0)))
+        .flat_map(|view| view.units.iter().chain(&view.write_units).copied())
+        .collect()
+}
+
+/// Insert a `CopyI64` over `operands`, clobbering `units`, into the bridge
+/// (block 1) at the position of instruction `before` — or at the end when
+/// `before` is `None`. A `Def` on the victim is a redefinition; clobbering
+/// units makes it a unit writer; both close the shared reload.
+fn insert_copy(
+    source: &mut ValidatedRuntimeSpill,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    id: u32,
+    before: Option<u32>,
+    operands: [VirtualRegisterId; 2],
+    units: Vec<RegisterUnitId>,
+) {
+    let copy = environment
+        .constraint(environment.selected_keys().copy_i64)
+        .unwrap();
+    let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+    let mut instruction = admission::instruction(
+        SelectedInstructionId(id),
+        SelectedInstructionKind::CopyI64,
+        copy,
+        &operands,
+    );
+    instruction.clobbers = units;
+    let position = before
+        .and_then(|before| {
+            function.blocks[1]
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == SelectedInstructionId(before))
+        })
+        .unwrap_or(function.blocks[1].instructions.len());
+    function.blocks[1]
+        .instructions
+        .insert(position, instruction);
+}
+
 #[test]
 fn structural_argument_uses_reject_unverifiable_or_ambiguous_plans() {
     for target in targets() {
         let environment = baseline_target_register_environment(target).unwrap();
-        for mutation in 0..7 {
+        for mutation in 0..5 {
             let mut source = descriptor_fixture(target);
             let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
             match mutation {
@@ -500,58 +575,9 @@ fn structural_argument_uses_reject_unverifiable_or_ambiguous_plans() {
                         }
                     }
                 }
-                // A pinned chunk operand keeps a private pair, so the two
-                // loads can never share one register.
-                3 => {
-                    let class = function.virtual_registers[1].class;
-                    let view = environment
-                        .physical()
-                        .model()
-                        .classes
-                        .iter()
-                        .find(|row| row.id == class)
-                        .and_then(|row| row.views.first())
-                        .copied()
-                        .unwrap();
-                    for instruction in &mut function.blocks[1].instructions {
-                        if instruction.id == SelectedInstructionId(11) {
-                            instruction.operands[0].fixed_view = Some(view);
-                        }
-                    }
-                }
-                // A unit-writing instruction between the chunks closes the
-                // shared reload, so the loads cannot name one register.
-                4 => {
-                    let copy = environment
-                        .constraint(environment.selected_keys().copy_i64)
-                        .unwrap();
-                    let unit = environment
-                        .physical()
-                        .model()
-                        .views
-                        .iter()
-                        .flat_map(|view| view.units.iter().copied())
-                        .next()
-                        .unwrap_or(RegisterUnitId(0));
-                    let mut instruction = admission::instruction(
-                        SelectedInstructionId(14),
-                        SelectedInstructionKind::CopyI64,
-                        copy,
-                        &[VirtualRegisterId(0), VirtualRegisterId(0)],
-                    );
-                    instruction.clobbers.push(unit);
-                    let position = function.blocks[1]
-                        .instructions
-                        .iter()
-                        .position(|instruction| instruction.id == SelectedInstructionId(11))
-                        .unwrap();
-                    function.blocks[1]
-                        .instructions
-                        .insert(position, instruction);
-                }
                 // The same binding on a non-continuation successor is not the
                 // bridge's transfer record.
-                5 => {
+                3 => {
                     let SelectedTerminator::Jump { successor, .. } =
                         &mut function.blocks[1].terminator
                     else {
@@ -562,7 +588,7 @@ fn structural_argument_uses_reject_unverifiable_or_ambiguous_plans() {
                 // A destination outside the continuation's own destination
                 // block is still fine only for non-parameter victims, but a
                 // different snapshot kind breaks the chunk match.
-                6 => {
+                4 => {
                     for instruction in &mut function.blocks[1].instructions {
                         if instruction.id == SelectedInstructionId(11) {
                             instruction.kind = SelectedInstructionKind::Load32 { byte_offset: 8 };
@@ -582,11 +608,259 @@ fn structural_argument_uses_reject_unverifiable_or_ambiguous_plans() {
                 )
                 .unwrap_err(),
                 match mutation {
-                    5 => RuntimeSpillError::UnsupportedControlFlow,
+                    3 => RuntimeSpillError::UnsupportedControlFlow,
                     _ => RuntimeSpillError::UnsupportedUse,
                 },
                 "target {target:?} mutation {mutation}"
             );
+        }
+    }
+}
+
+/// Where a stored snapshot's chunk loads cannot name one register — a pinned
+/// chunk operand, or a span-closing instruction at or after the first load —
+/// the binding gains a dedicated end-of-block reload pair instead of
+/// following theirs, the same idiom a value binding keeps. The dedicated
+/// load reads the slot at the edge position, so `argument` still carries the
+/// victim's edge-time value — including after an intervening redefinition —
+/// and replay reproduces the same dedicated-versus-shared decision.
+#[test]
+fn unshareable_snapshot_arguments_take_a_dedicated_edge_reload() {
+    for target in targets() {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for shape in ["pinned", "separated", "trailing", "redefined", "crossable"] {
+            let mut source = descriptor_fixture(target);
+            let mut pinned_view = None;
+            match shape {
+                // A pinned chunk operand keeps a private pair while the
+                // unpinned load reads the shared one — two registers, so the
+                // binding gets its own.
+                "pinned" => {
+                    let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+                    let view = victim_class_view(function, &environment);
+                    pinned_view = Some(view);
+                    for instruction in &mut function.blocks[1].instructions {
+                        if instruction.id == SelectedInstructionId(11) {
+                            instruction.operands[0].fixed_view = Some(view);
+                        }
+                    }
+                }
+                // A unit writer between the chunk loads clobbering every unit
+                // of the victim's class leaves no surviving home: the span
+                // closes there under either policy, splitting the loads'
+                // registers.
+                "separated" => {
+                    let units = victim_class_units(&source.transformed.functions[0], &environment);
+                    insert_copy(
+                        &mut source,
+                        &environment,
+                        14,
+                        Some(11),
+                        [VirtualRegisterId(0), VirtualRegisterId(0)],
+                        units,
+                    );
+                }
+                // The same writer after the last chunk load leaves the loads
+                // sharing one register, but that register's span cannot reach
+                // the edge — the binding still takes the dedicated pair.
+                "trailing" => {
+                    let units = victim_class_units(&source.transformed.functions[0], &environment);
+                    insert_copy(
+                        &mut source,
+                        &environment,
+                        14,
+                        None,
+                        [VirtualRegisterId(0), VirtualRegisterId(0)],
+                        units,
+                    );
+                }
+                // A victim redefinition after the last chunk load leaves the
+                // loads sharing the pre-write value while the edge reads the
+                // new one — the dedicated pair reads the post-store slot.
+                "redefined" => {
+                    insert_copy(
+                        &mut source,
+                        &environment,
+                        14,
+                        None,
+                        [VirtualRegisterId(0), VirtualRegisterId(1)],
+                        Vec::new(),
+                    );
+                }
+                // A writer clobbering no unit any view occupies crosses under
+                // `UnitWriteCrossing` — the loads keep sharing and the binding
+                // still follows their register — while the bounded policy
+                // closes the span and takes the dedicated pair.
+                "crossable" => {
+                    insert_copy(
+                        &mut source,
+                        &environment,
+                        14,
+                        Some(11),
+                        [VirtualRegisterId(0), VirtualRegisterId(0)],
+                        vec![RegisterUnitId(u16::MAX)],
+                    );
+                }
+                _ => unreachable!(),
+            }
+            seal(&mut source);
+            for (label, result) in [
+                (
+                    "bounded",
+                    spill_selected_runtime_value(
+                        &source,
+                        0,
+                        VirtualRegisterId(1),
+                        &environment,
+                        budget(),
+                    ),
+                ),
+                (
+                    "crossing",
+                    spill_selected_runtime_value_with_span_policy(
+                        &source,
+                        0,
+                        VirtualRegisterId(1),
+                        &environment,
+                        budget(),
+                        crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                    ),
+                ),
+            ] {
+                let result =
+                    result.unwrap_or_else(|error| panic!("{target:?} {shape} {label}: {error}"));
+                let block = &result.transformed().functions[0].blocks[1];
+                let first = bridge_instruction(&result.transformed().functions[0], 10).operands[0]
+                    .virtual_register;
+                let second = bridge_instruction(&result.transformed().functions[0], 11).operands[0]
+                    .virtual_register;
+                let SelectedStructuralTransport::Descriptor { argument, .. } =
+                    bridge_terminator_binding(&result.transformed().functions[0])
+                else {
+                    unreachable!()
+                };
+                assert_ne!(argument, VirtualRegisterId(1));
+                // The crossable writer keeps the span open only under
+                // `UnitWriteCrossing`; every other shape — and the bounded
+                // policy everywhere — takes the dedicated pair.
+                if shape == "crossable" && label == "crossing" {
+                    assert_eq!(first, second);
+                    assert_eq!(argument, first);
+                    continue;
+                }
+                // The dedicated pair is the last emitted sequence: a
+                // `FrameAddress` on the victim's private slot feeding a
+                // `Load64` whose result the binding names. The loads keep
+                // their own registers — divergent where the span split them.
+                let last = block.instructions.len();
+                assert!(
+                    matches!(
+                        block.instructions[last - 2].kind,
+                        SelectedInstructionKind::FrameAddress {
+                            slot: FrameStorageSlotId::Local(LocalStorageSlotId::Spill {
+                                register
+                            }),
+                            byte_offset: 0
+                        } if register == VirtualRegisterId(1)
+                    ),
+                    "{target:?} {shape} {label}: missing dedicated FrameAddress"
+                );
+                assert!(
+                    matches!(
+                        block.instructions[last - 1].kind,
+                        SelectedInstructionKind::Load64 { byte_offset: 0 }
+                    ),
+                    "{target:?} {shape} {label}: missing dedicated Load64"
+                );
+                assert_eq!(
+                    argument,
+                    block.instructions[last - 1].operands[1].virtual_register
+                );
+                assert_ne!(argument, first);
+                if shape == "separated" {
+                    assert_ne!(first, second);
+                }
+                if shape == "pinned" {
+                    assert_eq!(
+                        bridge_instruction(&result.transformed().functions[0], 11).operands[0]
+                            .fixed_view,
+                        pinned_view
+                    );
+                }
+                assert!(
+                    validate_runtime_spill(
+                        &source,
+                        0,
+                        VirtualRegisterId(1),
+                        &environment,
+                        budget(),
+                        result.transformed().clone()
+                    )
+                    .is_ok(),
+                    "{target:?} {shape} {label} replay"
+                );
+                // Replay rejects every deviation from the dedicated shape.
+                for mutation in 0..4 {
+                    let mut proposed = result.transformed().clone();
+                    let function = &mut proposed.functions[0];
+                    match mutation {
+                        // The binding left naming the victim is not what
+                        // replay builds.
+                        0 => {
+                            let SelectedTerminator::Jump { successor, .. } =
+                                &mut function.blocks[1].terminator
+                            else {
+                                unreachable!()
+                            };
+                            let SelectedStructuralTransport::Descriptor { argument, .. } =
+                                &mut successor.structural_bindings[0].transport
+                            else {
+                                unreachable!()
+                            };
+                            *argument = VirtualRegisterId(1);
+                        }
+                        // Naming a chunk load's register is equally wrong —
+                        // the loads do not carry the edge-time value.
+                        1 => {
+                            let SelectedTerminator::Jump { successor, .. } =
+                                &mut function.blocks[1].terminator
+                            else {
+                                unreachable!()
+                            };
+                            let SelectedStructuralTransport::Descriptor { argument, .. } =
+                                &mut successor.structural_bindings[0].transport
+                            else {
+                                unreachable!()
+                            };
+                            *argument = first;
+                        }
+                        // Dropping the dedicated load truncates the emitted
+                        // pair.
+                        2 => {
+                            function.blocks[1].instructions.pop();
+                        }
+                        // Dropping the pair's address breaks the stream.
+                        3 => {
+                            let last = function.blocks[1].instructions.len();
+                            function.blocks[1].instructions.remove(last - 2);
+                        }
+                        _ => unreachable!(),
+                    }
+                    assert_eq!(
+                        validate_runtime_spill(
+                            &source,
+                            0,
+                            VirtualRegisterId(1),
+                            &environment,
+                            budget(),
+                            proposed
+                        )
+                        .unwrap_err(),
+                        RuntimeSpillError::ReplayMismatch,
+                        "{target:?} {shape} {label} mutation {mutation}"
+                    );
+                }
+            }
         }
     }
 }
