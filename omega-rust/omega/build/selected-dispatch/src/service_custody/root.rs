@@ -387,10 +387,10 @@ fn collect_service_fields<'a>(
 /// guards the receiver-eligibility walk applies: a nominal non-generic
 /// definition with no authored `where` facts. Refined references stay
 /// unresolved rather than stripping a constraint to reach nested fields.
-fn nested_source_record<'a>(
-    checked: &'a CheckedTrees,
+fn nested_source_record(
+    checked: &CheckedTrees,
     reference: TypeReferenceHandle,
-) -> Option<&'a DataDefinition> {
+) -> Option<&DataDefinition> {
     let TypeReferenceNode::Named { symbol, .. } =
         checked.type_reference_table.type_reference(reference)
     else {

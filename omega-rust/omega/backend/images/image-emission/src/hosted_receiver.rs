@@ -944,7 +944,7 @@ fn receiver_layout(
         &target.graph.structural_types,
         fields,
         source,
-        &receiver_identity,
+        receiver_identity,
         &declaration.identity,
         services,
         &mut Vec::new(),
