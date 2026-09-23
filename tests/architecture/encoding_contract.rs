@@ -603,7 +603,11 @@ fn record_field_value_table_matches_codec() {
         "<!-- record-field-value-tags -->",
         code_tags(
             "omega-rust/psi/semantics/terminal-codec/src/sections/semantic_module/block_wire/value_operations.rs",
-            "encode_establish_record",
+            // The field-operand arms sit in the shared initializer writer,
+            // not in `encode_establish_record`: `EstablishStructuralCase`
+            // encodes the same counted fields after its case id and calls the
+            // same helper. Scraping the outer function found no arms at all.
+            "encode_record_field_initializers",
             "RecordFieldValue",
         ),
     );
@@ -3201,7 +3205,10 @@ const DECODE_TAG_PINS: &[(&str, &str, &str, &str)] = &[
     (
         "record-field-value-tags",
         "semantic_module/block_wire/value_operations.rs",
-        "decode_establish_record",
+        // As on the encode side: the tag space belongs to the shared
+        // initializer reader that both `EstablishRecord` and
+        // `EstablishStructuralCase` delegate to.
+        "decode_record_field_initializers",
         "RecordFieldValue",
     ),
     (
