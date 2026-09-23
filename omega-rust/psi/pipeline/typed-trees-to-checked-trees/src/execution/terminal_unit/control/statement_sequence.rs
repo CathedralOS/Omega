@@ -1502,58 +1502,62 @@ pub(in crate::execution::terminal_unit) fn build(
     {
         trace.phase("statement sequence: scalar completion");
         let statements = program.statement_table.statements(state.statement_nodes);
-        let StatementNode::Expression(expression) = statements.last()? else {
-            return None;
-        };
-        let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
-        let role = CheckedScalarExpressionRole::Return;
-        let computations = &facts.values.scalar_computations;
-        let mut roots = computations
-            .roots
-            .iter()
-            .map(|(_, root)| root)
-            .filter(|root| {
-                root.state == state.symbol
-                    && root.statement_ordinal == statement_index
-                    && root.role == role
-            });
-        let value = if let Some(root) = roots.next() {
-            if roots.next().is_some()
-                || root.machine != machine.symbol
-                || !computations.nodes.is_valid(root.root)
-                || computations.nodes.get(root.root).authored_root != *expression
-                || computations.nodes.get(root.root).primitive_type != primitive_type
-                || facts
-                    .values
-                    .scalar_expressions
-                    .expression_at(state.symbol, statement_index, role)
-                    .is_some()
-            {
+        // A tail that transfers control to a named state produces no scalar
+        // completion; the state terminator owns those exits.
+        if !matches!(statements.last(), Some(StatementNode::Transition(_))) {
+            let StatementNode::Expression(expression) = statements.last()? else {
                 return None;
-            }
-            checked_trees::CheckedCallScalarArgument::Computation(root.root)
-        } else {
-            let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
-                state.symbol,
+            };
+            let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+            let role = CheckedScalarExpressionRole::Return;
+            let computations = &facts.values.scalar_computations;
+            let mut roots = computations
+                .roots
+                .iter()
+                .map(|(_, root)| root)
+                .filter(|root| {
+                    root.state == state.symbol
+                        && root.statement_ordinal == statement_index
+                        && root.role == role
+                });
+            let value = if let Some(root) = roots.next() {
+                if roots.next().is_some()
+                    || root.machine != machine.symbol
+                    || !computations.nodes.is_valid(root.root)
+                    || computations.nodes.get(root.root).authored_root != *expression
+                    || computations.nodes.get(root.root).primitive_type != primitive_type
+                    || facts
+                        .values
+                        .scalar_expressions
+                        .expression_at(state.symbol, statement_index, role)
+                        .is_some()
+                {
+                    return None;
+                }
+                checked_trees::CheckedCallScalarArgument::Computation(root.root)
+            } else {
+                let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
+                    state.symbol,
+                    statement_index,
+                    role,
+                )?;
+                if binding.expression != *expression
+                    || crate::values::scalar_expression_type(value) != Some(primitive_type)
+                {
+                    return None;
+                }
+                checked_trees::CheckedCallScalarArgument::Pure(value.clone())
+            };
+            let result = CheckedUnitScalarResultBindingPlan {
                 statement_index,
-                role,
-            )?;
-            if binding.expression != *expression
-                || crate::values::scalar_expression_type(value) != Some(primitive_type)
-            {
-                return None;
-            }
-            checked_trees::CheckedCallScalarArgument::Pure(value.clone())
-        };
-        let result = CheckedUnitScalarResultBindingPlan {
-            statement_index,
-            binding_ordinal: u32::try_from(scalar_count).ok()?,
-            primitive_type,
-        };
-        // Completion evaluates its actual expression after the preceding
-        // operations. A final name reuses its value without replaying its call.
-        operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
-        returned_scalar_call = Some(result);
+                binding_ordinal: u32::try_from(scalar_count).ok()?,
+                primitive_type,
+            };
+            // Completion evaluates its actual expression after the preceding
+            // operations. A final name reuses its value without replaying its call.
+            operations.push(CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value });
+            returned_scalar_call = Some(result);
+        }
     }
     trace.phase("statement sequence: scalar control ownership");
     if scalar_control.is_some()
@@ -1668,6 +1672,9 @@ pub(in crate::execution::terminal_unit) fn scalar_control(
             when_false: checked_trees::CheckedScalarBranchDestination::Return { .. },
             ..
         } => true,
+        // A crash exit is a scalar tail the route already owns; the state
+        // produces no value and needs no completion.
+        checked_trees::CheckedScalarStateTerminator::Crash { .. } => true,
         _ => false,
     };
     if !returning_tail {

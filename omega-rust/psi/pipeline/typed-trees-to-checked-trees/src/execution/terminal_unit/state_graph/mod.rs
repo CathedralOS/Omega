@@ -651,6 +651,14 @@ pub(super) fn build_traced(
                     }
                 }
                 [StatementNode::Transition(transition)]
+                    if matches!(transition.exit, TransitionExit::Crash(_)) =>
+                {
+                    trace.phase("state graph: terminator: crash exit");
+                    CheckedComposedUnitControlTerminatorPlan::Crash {
+                        statement_ordinal: ordinal,
+                    }
+                }
+                [StatementNode::Transition(transition)]
                     if transition.guard == TransitionGuardNode::Always =>
                 {
                     trace.phase("state graph: terminator: jump successor");

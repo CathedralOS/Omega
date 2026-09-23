@@ -64,6 +64,9 @@ pub(in crate::execution::terminal_unit) fn signature(
                     })
                 })
         }
+        // By-value scalar results stay scalar-graph owned: their graph
+        // carries the computation expansion and block-invariant machinery
+        // the composed route does not model.
         _ => false,
     };
     // Whole linear forwarding does not inspect or construct payload fields.

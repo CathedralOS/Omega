@@ -6,7 +6,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, claims, edges, scalars, topology};
-use checked_trees::statement::{StatementNode, TransitionGuardNode};
+use checked_trees::statement::{StatementNode, TransitionExit, TransitionGuardNode};
 use checked_trees::types::TypeReferenceNode;
 
 /// Custody, not topology, selects this emitter. Once selected, failed source
@@ -323,6 +323,17 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 if plan.result == checked_trees::CheckedControlResultPlan::Unit =>
             {
                 edges::return_discards(checked, plan.machine, source, state)?;
+            }
+            (
+                CheckedComposedUnitControlTerminatorPlan::Crash { statement_ordinal },
+                [StatementNode::Transition(transition)],
+            ) if matches!(transition.exit, TransitionExit::Crash(_))
+                && transition.guard == TransitionGuardNode::Always
+                && !transition.continuation.is_valid()
+                && u32::try_from(terminator_ordinal).ok() == Some(*statement_ordinal) =>
+            {
+                // The terminal target, authored cause and checked-site row are
+                // revalidated by `lower_checked_crash_exit` at emission.
             }
             (
                 CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. },
