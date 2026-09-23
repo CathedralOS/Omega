@@ -39,6 +39,12 @@ const CUSTODY_HOP_FILES: &[(&str, &[&str])] = &[
             "analyses/legality/mod.rs",
             "rewrites/fixed_view/fixed_precolored_segment_homes/validation.rs",
             "rewrites/literal_folds/execution.rs",
+            // `ad5cb24ec6` routed same-block copy removal through the
+            // pre-allocation selection; its `validate_source` re-validates the
+            // upstream allocation-legality custody, which is the same custody
+            // role the entries above hold and the same shape as
+            // `rewrites/literal_folds/execution.rs`.
+            "rewrites/pre_allocation/execution.rs",
         ],
     ),
     ("transformation_stage()", &[]),
