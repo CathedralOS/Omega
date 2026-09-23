@@ -2098,14 +2098,17 @@ syntax and other terminal services are not prerequisites.
   `BorrowedSliceView` shape the catalog below it already understands. Start
   there; do not erase extent or add a sample-specific recognizer.
 
-  It is not the only refusal, so do not expect that branch alone to reach
-  native. Instruction selection refuses the element-view instructions as well:
+  Whether anything else refuses afterwards is UNMEASURED, and one obvious
+  candidate is a red herring:
   `target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs`'s
-  `select_function` lists `EstablishElementView` and `ElementViewSubslice`
-  among the legalized kinds it answers with `Err(invalid())`. So the native leg
-  needs both the Unit-graph admission and a selection arm for those two
-  instructions; the Terminal and interpreter halves above are what is already
-  finished.
+  `select_function` does list `EstablishElementView` and `ElementViewSubslice`
+  among the legalized kinds it answers with `Err(invalid())` -- but it lists
+  `EstablishByteSequenceLiteral` and `ByteSequenceSubslice` there too, and byte
+  views demonstrably reach native (`wire/runtime_wire_decoded_byte_slice_index_exit`
+  and `text/runtime_owned_string_byte_view_exit` are exit canaries). So that
+  scalar-graph arm is not the route byte views take, and its rejection is not
+  evidence that element views need one. Take the Unit-graph branch first and
+  let the next diagnostic name itself.
 
   Core `Slice::index<T [copy]>` already settles shared by-value element access.
 
