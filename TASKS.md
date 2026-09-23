@@ -2317,7 +2317,50 @@ syntax and other terminal services are not prerequisites.
   when its attachment has no interned named type -- not whether to drop the
   fence.
 
+- **SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT.** (new-scope) One callee's
+  requirement obligations depend on which lowering route prepared it, not on
+  its authored contract. `unit/attached_unit.rs` builds
+  `scalar_requirement_counts` from two incompatible rules in one expression:
+  a prepared scalar machine contributes `machine.requirement_count()`, which
+  `PreparedScalarContract::requirement_count` defines as
+  `usize::from(plan.requires().iter().any(...))` -- **0 or 1**, documented
+  there as "published as one canonical conjunction" -- while a machine
+  reached through `machine_signatures` contributes
+  `signature.requires.len()`, one per authored requirement.
+  `emit_direct_call_operation` then allocates exactly that many obligations
+  for the call.
 
+  `bd5648555c` ("scalar graphs: admit ambient borrowed-self field reads")
+  moved attached machines with a scalar graph and no unit effects from the
+  second rule to the first, so the same `Main::get(&self, value: u64) -> u64
+  requires 1 <= value; value <= 7;` now publishes ONE obligation to a scalar
+  caller and several to a Unit caller. Measured at `915122bedb`:
+  `abstract-operations-to-target-operations tests::structural_borrows::borrowed_unit_call_preserves_verified_requirement_obligations`
+  passes, and `::borrowed_scalar_call_preserves_verified_requirement_obligations`
+  fails on `assert!(obligations.len() >= 2, "both authored requirements
+  survive")` at `structural_borrows.rs:190`. Both pass at `93489c3a05`
+  (= `bd5648555c^`).
+
+  Not the contract lowering: `915122bedb` repaired the multi-fact `requires`
+  clause that made both tests fail earlier at
+  `Unsupported("scalar contract contains an unsupported clause")`, and the
+  Unit half passes with it. What remains is the count alone.
+
+  The fork, for the scalar-graph owner to settle: publish one obligation per
+  authored requirement on the scalar route too, so a callee's obligation
+  roster is a property of its contract rather than of its caller's route; or
+  keep the canonical conjunction and state deliberately that obligation
+  granularity is route-dependent, in which case the test repins onto the new
+  count and loses its `swap(0, 1)` mutation, which needs two. Collapsing the
+  Unit route to one conjunction instead would cost granularity everywhere
+  and is not proposed. Whichever is chosen, `scalar_requirement_counts`
+  should stop expressing both rules in one chained iterator without saying
+  why they differ.
+
+  Acceptance: one callee's requirement-obligation count is derivable from
+  its contract without knowing which route lowered it, or the board records
+  that it is not and why; the `structural_borrows` pair passes either way,
+  with mutation coverage retained rather than reduced to fit the new count.
 
 - **AUTHORED-SELECTION-FINALIZATION-GAPS.** (new-scope) Close the authored
   declaration selection occurrences that survive successful checking.
