@@ -3,7 +3,7 @@ use optimization_core::OptimizationValidatorIdentity;
 
 pub(crate) fn legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v54",
+        b"omega.terminal-target-legalization-independent-replay.v55",
     )
 }
 

@@ -370,3 +370,111 @@ fn structural_case_selects_tag_and_edge_payload_without_fabricated_values() {
         );
     }
 }
+
+/// A case over the function's own owned sum parameter legalizes to the
+/// parameter owner and selects from the entry-retained parameter slot. The
+/// receiving replays reject re-rooting it at a different owner.
+#[test]
+fn parameter_rooted_case_dispatches_from_the_entry_retained_parameter_slot() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let (abstracted, targeted, unit) =
+            crate::tests::legalization::structural_case::parameter_fixture(native);
+        let place = semantic_vocabulary::PlaceId::new(1).unwrap();
+        let legal = crate::legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
+        let LegalizedScalarTerminator::StructuralCase {
+            source: subject, ..
+        } = &legal.plan().scalar_functions[0].blocks[0].terminator
+        else {
+            panic!("case source");
+        };
+        assert_eq!(
+            subject,
+            &legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                declaration: abstracted.functions[0].structural_parameters[0].clone(),
+            }
+        );
+        // The receiving replay derives the owner itself: a block-arrival or
+        // borrowed claim over the same place is not this parameter.
+        for mutation in ["block owner", "borrowed"] {
+            let mut forged = legal.plan().clone();
+            let entry_block = forged.scalar_functions[0].blocks[0].id;
+            let LegalizedScalarTerminator::StructuralCase { source, .. } =
+                &mut forged.scalar_functions[0].blocks[0].terminator
+            else {
+                panic!("case source");
+            };
+            let legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } =
+                source.clone()
+            else {
+                panic!("parameter source");
+            };
+            *source = match mutation {
+                "block owner" => {
+                    legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
+                        block: entry_block,
+                        declaration,
+                    }
+                }
+                _ => legalized_operations::LegalizedStructuralCaseSource::Parameter {
+                    declaration: terminal_psi::StructuralParameterDeclaration {
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                        ..declaration
+                    },
+                },
+            };
+            assert!(
+                crate::validate_legalized_operations(&targeted, &abstracted, &unit, forged)
+                    .is_err(),
+                "accepted {mutation}"
+            );
+        }
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let function = &selected.plan().functions[0];
+        let slot = selected_instructions::LocalStorageSlotId::StructuralParameter { place };
+        assert_eq!(
+            function
+                .local_storage_slots
+                .iter()
+                .filter(|candidate| candidate.id == slot)
+                .count(),
+            1
+        );
+        let entry = function
+            .blocks
+            .iter()
+            .find(|block| block.id == function.entry_block)
+            .unwrap();
+        let SelectedTerminator::ConditionalBranch {
+            when_zero,
+            when_nonzero,
+            ..
+        } = &entry.terminator
+        else {
+            panic!("case branch")
+        };
+        for successor in [when_zero, when_nonzero] {
+            assert_eq!(successor.structural_case.as_ref().unwrap().slot, slot);
+        }
+    }
+}

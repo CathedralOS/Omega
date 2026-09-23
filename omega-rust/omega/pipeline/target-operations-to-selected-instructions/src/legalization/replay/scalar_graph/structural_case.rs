@@ -27,7 +27,7 @@ pub(super) fn validate(
     else {
         return Err(invalid);
     };
-    let produced = scalar_graph_input::structural_case::source_owner(function, *source)?;
+    let produced = scalar_graph_input::structural_case::case_source(function, *source)?;
     if *actual_source != produced
         || *layout
             != scalar_graph_input::aggregate_results::sum_type_layout(

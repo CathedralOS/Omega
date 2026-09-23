@@ -6,7 +6,8 @@ use semantic_vocabulary::PlaceId;
 use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
 /// Owned aggregate inputs only need addressable storage when an operation observes a
-/// field, observes a projected case, or lends the original value. Pure whole-value transport keeps its ABI
+/// field, observes a projected case, lends the original value, or a case dispatch
+/// reads its tag and payloads. Pure whole-value transport keeps its ABI
 /// fragments; a materialized home becomes the value's storage for later uses.
 pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
     let Some(signature) = &source.structural else {
@@ -27,7 +28,16 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
     }) {
         return false;
     }
-    source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
+    let dispatched = source.blocks.iter().any(|block| {
+        matches!(
+            &block.terminator,
+            legalized_operations::LegalizedScalarTerminator::StructuralCase {
+                source: legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration },
+                ..
+            } if declaration.place == place
+        )
+    });
+    dispatched || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| {
         match &row.kind {
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, .. } => source.place == place,
@@ -497,6 +507,8 @@ pub(super) fn returned<'a>(
                 parameter.multiplicity,
             )
         }
+        // A returned parameter uses `StructuralParameter`, never this owner.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => return None,
     };
     if structural_type != declared.structural_type
         || multiplicity != declared.multiplicity

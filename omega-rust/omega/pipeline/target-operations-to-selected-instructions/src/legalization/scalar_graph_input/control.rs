@@ -55,6 +55,10 @@ pub(super) fn validate(
                         declaration,
                         ..
                     } => (declaration.structural_type, declaration.multiplicity),
+                    // `source_owner` never resolves a function parameter.
+                    legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
+                        return Err(invalid);
+                    }
                 }
             };
             if structural_type != declared.structural_type
