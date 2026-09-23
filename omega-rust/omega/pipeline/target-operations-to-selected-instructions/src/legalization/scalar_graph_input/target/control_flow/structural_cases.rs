@@ -7,7 +7,8 @@ use super::{
 use crate::legalization::scalar_graph_input::target::control_flow::sources;
 use semantic_vocabulary::PlaceId;
 use target_operations::{
-    TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralHomeRequirement,
+    TargetBoundaryResult, TargetControlCaseSuccessor, TargetStructuralCaseSource,
+    TargetStructuralHomeRequirement, TargetStructuralParameter,
 };
 
 pub(super) fn home_available(
@@ -149,17 +150,63 @@ pub(super) fn home_available(
     true
 }
 
+/// A parameter root is the function's own owned arrival: the retained row must
+/// be the graph's exact prepared parameter, the source declaration must meet
+/// the same owned-arrival contract a block home meets, and the sum layout must
+/// equal the one derived independently from that declaration. The parameter is
+/// live on entry, so it dominates every dispatch.
+fn parameter_available(
+    graph: &TargetControlGraph,
+    optimized: &PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+    parameter: &TargetStructuralParameter,
+    layout: &target_operations::TargetStructuralHomeLayout,
+    expected_source: PlaceId,
+) -> bool {
+    let Some(declaration) = optimized
+        .structural_parameters
+        .iter()
+        .find(|declaration| declaration.place == expected_source)
+    else {
+        return false;
+    };
+    parameter.place == expected_source
+        && optimized.entry_claims.is_empty()
+        && graph
+            .parameters
+            .iter()
+            .filter(|candidate| candidate.place == expected_source)
+            .eq(std::iter::once(parameter))
+        && parameter.structural_type == declaration.structural_type
+        && parameter.access == declaration.access
+        && parameter.multiplicity == declaration.multiplicity
+        && parameter.projected_qualifications.is_empty()
+        && super::super::super::aggregate_results::block_home_layout(declaration, plan)
+            .ok()
+            .as_ref()
+            == Some(layout)
+        && layout.sum().is_some_and(|sum| sum.shape == parameter.shape)
+}
+
 pub(super) fn matches(
     graph: &TargetControlGraph,
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
     block: BlockId,
-    source: &TargetStructuralHomeRequirement,
+    source: &TargetStructuralCaseSource,
     cases: &[TargetControlCaseSuccessor],
     expected_source: PlaceId,
     expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
 ) -> bool {
-    if !home_available(graph, optimized, plan, block, source, expected_source) {
+    let available = match source {
+        TargetStructuralCaseSource::Home(home) => {
+            home_available(graph, optimized, plan, block, home, expected_source)
+        }
+        TargetStructuralCaseSource::Parameter { parameter, layout } => {
+            parameter_available(graph, optimized, plan, parameter, layout, expected_source)
+        }
+    };
+    if !available {
         return false;
     }
     let Some(declaration) = graph
@@ -175,7 +222,7 @@ pub(super) fn matches(
     else {
         return false;
     };
-    let Some(layout) = source.layout.sum() else {
+    let Some(layout) = source.layout().sum() else {
         return false;
     };
     if cases.len() != expected_cases.len()

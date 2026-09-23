@@ -144,3 +144,80 @@ pub(crate) fn fixture(
         .expect("case ownership and payload graph");
     (plan, target, unit)
 }
+
+/// The same case graph dispatched on the function's own owned sum parameter:
+/// no producer establishes a home, and each arm discards the arrival when it
+/// jumps to the join.
+pub(crate) fn parameter_fixture(
+    native: ::target::NativeTarget,
+) -> (
+    AbstractOperationPlan,
+    TargetOperationPlan,
+    PsiOptimizationUnit,
+) {
+    let (mut plan, _, _) = fixture(native);
+    let place = PlaceId::new(1).unwrap();
+    let function = &mut plan.functions[0];
+    let AbstractOperation::BoundaryCall {
+        result: abstract_operations::AbstractBoundaryResult::Structural(read),
+        ..
+    } = function.operations.remove(0)
+    else {
+        panic!("read producer");
+    };
+    for entry in &mut function.block_entries[1..] {
+        entry.operation_offset -= 1;
+    }
+    function
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type: read.structural_type,
+            multiplicity: read.multiplicity,
+            access: terminal_psi::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    for operation in &mut function.operations {
+        match operation {
+            AbstractOperation::StructuralCase { cases, .. } => {
+                for case in cases {
+                    case.trivial_affine_discards.clear();
+                }
+            }
+            AbstractOperation::Jump {
+                trivial_affine_discards,
+                ..
+            } => *trivial_affine_discards = vec![place],
+            _ => {}
+        }
+    }
+    plan.boundary_machines.remove(0);
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest {
+            target: native,
+            settlements: &[AdmittedBoundarySettlement {
+                boundary: BoundaryMachineId::new(2).unwrap(),
+                execution: AdmittedBoundaryExecution::CompilerBuiltin(
+                    target_operations::CompilerBuiltinExecution::HostedWriteByteI32,
+                ),
+                realization: target_operations::HostedWriteByteI32Realization.into(),
+            }],
+            installation: None,
+            ieee_float_fma: &[],
+            native_callbacks: &[],
+        },
+    )
+    .expect("an owned sum parameter dispatches without a producer home");
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit)
+        .expect("parameter case ownership and payload graph");
+    (plan, target, unit)
+}

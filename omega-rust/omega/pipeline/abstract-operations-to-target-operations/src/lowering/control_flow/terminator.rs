@@ -365,9 +365,14 @@ pub(super) fn lower_terminator(
                 cleanup_actions: cleanup_actions.clone(),
             })
         }
-        AbstractOperation::StructuralCase { .. } => {
-            structural_case::lower(operation, function, live, structural_types, provenance)
-        }
+        AbstractOperation::StructuralCase { .. } => structural_case::lower(
+            operation,
+            function,
+            prepared,
+            live,
+            structural_types,
+            provenance,
+        ),
         AbstractOperation::ReturnUnit {
             psi_edge,
             cleanup_actions,

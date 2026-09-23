@@ -218,8 +218,10 @@ fn structural_case_graph_preserves_reordered_blocks_and_ordinary_continuation() 
             .collect::<Vec<_>>(),
         vec![block(10), block(30), block(20), block(40)]
     );
-    let target_operations::TargetControlTerminator::StructuralCase { source, cases } =
-        &graph.blocks[0].terminator
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Home(source),
+        cases,
+    } = &graph.blocks[0].terminator
     else {
         panic!("structural case")
     };
@@ -507,8 +509,10 @@ fn owned_sum_arrival_uses_its_actual_block_declaration_and_complete_layout() {
     let lowered =
         lower_owned(&source).expect("owned result transfers into an observed sum parameter");
     let graph = &lowered.functions[0].graph;
-    let target_operations::TargetControlTerminator::StructuralCase { source: home, .. } =
-        &graph.blocks[1].terminator
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Home(home),
+        ..
+    } = &graph.blocks[1].terminator
     else {
         panic!("case");
     };
@@ -653,8 +657,10 @@ fn owned_sum_diamond_retains_destination_identity_and_rejects_sibling_sources() 
     let lowered =
         lower_owned(&source).expect("two independently established values join one owned home");
     let graph = &lowered.functions[0].graph;
-    let target_operations::TargetControlTerminator::StructuralCase { source: home, .. } =
-        &graph.blocks[3].terminator
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Home(home),
+        ..
+    } = &graph.blocks[3].terminator
     else {
         panic!("case");
     };
@@ -969,6 +975,99 @@ fn hosted_read_and_write_settlements_replay_and_reject_forged_rows() {
                 }
             ),
             "accepted a forged immediate defining operation"
+        );
+    }
+}
+
+/// The same dispatch rooted at the function's own owned sum parameter: no
+/// producer establishes a home, and each arm discards the arrival when it
+/// leaves for the join.
+fn parameter_root_fixture() -> AbstractOperationPlan {
+    let mut plan = fixture();
+    plan.boundary_machines.truncate(1);
+    let parameter = terminal_psi::StructuralParameterDeclaration {
+        place: PlaceId::new(21).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: StructuralTypeId::new(20).unwrap(),
+        access: terminal_psi::StructuralAccess::Owned,
+        multiplicity: StructuralMultiplicity::Affine,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let function = &mut plan.functions[0];
+    function.operations.remove(1);
+    for entry in &mut function.block_entries[1..] {
+        entry.operation_offset -= 1;
+    }
+    function.structural_parameters = vec![parameter.clone()];
+    for operation in &mut function.operations {
+        match operation {
+            AbstractOperation::StructuralCase { source, cases } => {
+                *source = parameter.place;
+                for case in cases {
+                    case.trivial_affine_discards.clear();
+                }
+            }
+            AbstractOperation::Jump {
+                trivial_affine_discards,
+                ..
+            } => *trivial_affine_discards = vec![parameter.place],
+            _ => {}
+        }
+    }
+    plan
+}
+
+#[test]
+fn owned_parameter_root_dispatches_from_its_prepared_parameter_and_sum_layout() {
+    let source = parameter_root_fixture();
+    let lowered = lower_owned(&source).expect("an owned sum parameter dispatches without a home");
+    let graph = &lowered.functions[0].graph;
+    let target_operations::TargetControlTerminator::StructuralCase {
+        source: target_operations::TargetStructuralCaseSource::Parameter { parameter, layout },
+        cases,
+    } = &graph.blocks[0].terminator
+    else {
+        panic!("parameter-rooted case");
+    };
+    assert_eq!(graph.parameters.as_slice(), std::slice::from_ref(parameter));
+    assert_eq!(parameter.place, PlaceId::new(21).unwrap());
+    let sum = layout.sum().expect("sum layout");
+    assert_eq!(sum.shape, parameter.shape);
+    assert_eq!(sum.cases.len(), 2);
+    assert_eq!((cases[0].case_tag, cases[1].case_tag), (0, 1));
+    assert_eq!(
+        cases[1].payloads[0].field_byte_offset,
+        u32::from(sum.cases[1].fields[0].byte_offset)
+    );
+}
+
+#[test]
+fn parameter_root_dispatch_refuses_roots_without_an_owned_value_copy() {
+    let valid = parameter_root_fixture();
+    lower_owned(&valid).expect("the unmodified owned root dispatches");
+    for mutation in 0..5 {
+        let mut plan = valid.clone();
+        let function = &mut plan.functions[0];
+        let parameter = &mut function.structural_parameters[0];
+        match mutation {
+            0 => parameter.access = terminal_psi::StructuralAccess::SharedBorrow,
+            1 => parameter.access = terminal_psi::StructuralAccess::MutableBorrow,
+            2 => parameter.access = terminal_psi::StructuralAccess::WriteOnlyBorrow,
+            3 => parameter.multiplicity = StructuralMultiplicity::Linear,
+            _ => {
+                // A different place is neither a home nor this parameter.
+                let AbstractOperation::StructuralCase { source, .. } = &mut function.operations[1]
+                else {
+                    panic!("case");
+                };
+                *source = PlaceId::new(99).unwrap();
+            }
+        }
+        assert!(
+            lower_owned(&plan).is_err(),
+            "parameter root mutation {mutation} must refuse the dispatch"
         );
     }
 }

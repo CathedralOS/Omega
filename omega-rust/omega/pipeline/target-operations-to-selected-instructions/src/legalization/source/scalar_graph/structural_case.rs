@@ -16,7 +16,7 @@ pub(super) fn project(
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
         return Err(invalid);
     };
-    let source = scalar_graph_input::structural_case::source_owner(function, *source)?;
+    let source = scalar_graph_input::structural_case::case_source(function, *source)?;
     let layout =
         scalar_graph_input::aggregate_results::sum_type_layout(source.structural_type(), plan)?;
     let declaration = plan

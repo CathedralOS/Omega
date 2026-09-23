@@ -39,7 +39,7 @@ pub mod control_flow;
 pub use control_flow::{
     TargetControlBlock, TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
     TargetControlSuccessor, TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
-    TargetStructuralReturnSource,
+    TargetStructuralCaseSource, TargetStructuralReturnSource,
 };
 pub mod provenance;
 pub use provenance::{CallSiteOwner, TerminalPsiProvenance};

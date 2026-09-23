@@ -9,5 +9,5 @@ mod graph;
 pub use graph::{
     TargetControlBlock, TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
     TargetControlSuccessor, TargetControlTerminator, TargetScalarBlockParameter,
-    TargetStructuralReturnSource,
+    TargetStructuralCaseSource, TargetStructuralReturnSource,
 };

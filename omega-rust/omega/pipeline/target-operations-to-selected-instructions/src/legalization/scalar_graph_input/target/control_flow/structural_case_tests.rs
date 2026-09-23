@@ -87,6 +87,7 @@ fn structural_case_graph_rejects_substituted_target_custody() {
         "duplicate cleanup",
         "missing payload",
         "arm producer",
+        "parameter root",
     ] {
         let mut changed = target.clone();
         let graph = &mut changed.functions[0].graph;
@@ -95,6 +96,44 @@ fn structural_case_graph_rejects_substituted_target_custody() {
             &mut graph.blocks[0].terminator
         else {
             panic!("case")
+        };
+        if mutation == "parameter root" {
+            // A home-rooted dispatch cannot be re-rooted at a parameter the
+            // function never declared, even with the home's exact layout.
+            let layout = source.layout().clone();
+            let target_operations::TargetStructuralCaseSource::Home(home) = source else {
+                panic!("home");
+            };
+            let parameter = target_operations::TargetStructuralParameter {
+                place: home.place(),
+                structural_type: home.structural_type(),
+                multiplicity: home.multiplicity(),
+                access: terminal_psi::StructuralAccess::Owned,
+                projected_qualifications: Vec::new(),
+                shape: layout.shape(),
+                placement: calling_conventions::ValuePlacement {
+                    shape: layout.shape(),
+                    locations: Vec::new(),
+                },
+            };
+            *source =
+                target_operations::TargetStructuralCaseSource::Parameter { parameter, layout };
+        }
+        let target_operations::TargetStructuralCaseSource::Home(source) = source else {
+            assert_eq!(mutation, "parameter root");
+            assert!(
+                super::super::validate_target(
+                    &changed.functions[0],
+                    &plan.functions[0],
+                    &unit.functions[0],
+                    &changed,
+                    &plan,
+                    &unit
+                )
+                .is_err(),
+                "accepted {mutation}"
+            );
+            continue;
         };
         match mutation {
             "edge" => cases[0].psi_edge = EdgeId::new(99).unwrap(),

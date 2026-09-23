@@ -563,19 +563,28 @@ pub enum LegalizedStructuralCaseSource {
         block: BlockId,
         declaration: terminal_psi::StructuralParameterDeclaration,
     },
+    /// The function's own owned incoming parameter. Only a case dispatch
+    /// produces this owner; its value copy is the entry-retained parameter home.
+    Parameter {
+        declaration: terminal_psi::StructuralParameterDeclaration,
+    },
 }
 
 impl LegalizedStructuralCaseSource {
     pub fn place(&self) -> semantic_vocabulary::PlaceId {
         match self {
             Self::OperationResult { result, .. } => result.place,
-            Self::BlockParameter { declaration, .. } => declaration.place,
+            Self::BlockParameter { declaration, .. } | Self::Parameter { declaration } => {
+                declaration.place
+            }
         }
     }
     pub fn structural_type(&self) -> StructuralTypeId {
         match self {
             Self::OperationResult { result, .. } => result.structural_type,
-            Self::BlockParameter { declaration, .. } => declaration.structural_type,
+            Self::BlockParameter { declaration, .. } | Self::Parameter { declaration } => {
+                declaration.structural_type
+            }
         }
     }
 }

@@ -109,6 +109,41 @@ pub(in crate::legalization) fn source_owner(
     )
 }
 
+/// The owner a case dispatch inspects: a stored result or block arrival as
+/// `source_owner` resolves it, otherwise the function's own owned incoming
+/// parameter under the same owned-arrival contract a block arrival meets.
+/// Other structural consumers keep `source_owner` and never see a parameter.
+pub(in crate::legalization) fn case_source(
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Result<legalized_operations::LegalizedStructuralCaseSource, LegalizationError> {
+    if let Ok(owner) = source_owner(function, place) {
+        return Ok(owner);
+    }
+    let mut parameters = function
+        .structural_parameters
+        .iter()
+        .filter(|parameter| parameter.place == place);
+    let declaration = parameters
+        .next()
+        .ok_or(LegalizationError::SourceCustodyMismatch)?;
+    if parameters.next().is_some()
+        || declaration.is_self
+        || declaration.access != terminal_psi::StructuralAccess::Owned
+        || declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+        || !function.entry_claims.is_empty()
+    {
+        return Err(LegalizationError::SourceCustodyMismatch);
+    }
+    Ok(
+        legalized_operations::LegalizedStructuralCaseSource::Parameter {
+            declaration: declaration.clone(),
+        },
+    )
+}
+
 /// Resolve the exact nominal case under the independently validated root access.
 pub(in crate::legalization) fn membership_layout(
     function: &PsiOptimizationFunction,
@@ -189,7 +224,7 @@ pub(super) fn validate(
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
         return Err(invalid);
     };
-    source_owner(function, *source)?;
+    case_source(function, *source)?;
     if !node.provenance.is_empty()
         || !node.fuel.is_empty()
         || !node.definitions.is_empty()
@@ -228,6 +263,7 @@ pub(super) fn validate(
                     declaration,
                     ..
                 } => declaration.multiplicity == terminal_psi::StructuralMultiplicity::Affine,
+                legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => false,
             };
             if !plain_affine {
                 return Err(invalid);

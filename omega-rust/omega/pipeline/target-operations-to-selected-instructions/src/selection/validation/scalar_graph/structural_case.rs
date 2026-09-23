@@ -55,6 +55,12 @@ pub(super) fn validate(
             block: *block,
             place: declaration.place,
         },
+        // The entry retains an owned parameter's value copy in its own slot.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
+            LocalStorageSlotId::StructuralParameter {
+                place: declaration.place,
+            }
+        }
     };
     if replay
         .transport

@@ -49,6 +49,11 @@ pub(super) fn uses(function: &PsiOptimizationFunction, plan: &AbstractOperationP
                         | AbstractOperation::CallUnit { structural_arguments, .. }
                         if structural_arguments.iter().any(|argument|
                             argument.access == terminal_psi::StructuralAccess::Owned))
+                    // Dispatching on an incoming parameter reads its tag and
+                    // payloads, as a membership observation reads its tag.
+                    || matches!(&node.operation,
+                    AbstractOperation::StructuralCase { source, .. }
+                        if function.structural_parameters.iter().any(|parameter| parameter.place == *source))
             })
 }
 
@@ -219,6 +224,7 @@ pub(super) fn cleanup(
                     && declaration.qualifications.is_empty()
                     && declaration.projected_qualifications.is_empty()
             }
+            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => false,
         })
     };
     actions.iter().all(|action| {
@@ -714,6 +720,10 @@ pub(super) fn result_home(
                 },
                 layout,
             )
+        }
+        // A function parameter is an arrival, not an activation-local home.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
+            return Err(LegalizationError::SourceCustodyMismatch);
         }
     };
     Ok(target_operations::TargetStructuralHomeRequirement { origin, layout })

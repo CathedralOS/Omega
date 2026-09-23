@@ -3,14 +3,15 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{ScalarType, StructuralTypeId};
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
-    TargetScalarBlockValue,
+    TargetScalarBlockValue, TargetStructuralCaseSource, TargetStructuralHomeLayout,
+    TargetStructuralParameter,
 };
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
-use terminal_psi::StructuralAccess;
+use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 
 pub(super) fn observe(
@@ -36,15 +37,9 @@ pub(super) fn observe(
     let identity = if let Some(home) = live.structural_homes.get(source) {
         home.structural_type()
     } else {
-        let parameter = prepared
-            .parameters
-            .iter()
-            .find(|parameter| parameter.place == *source)
-            .ok_or_else(invalid)?;
-        if parameter.access == StructuralAccess::WriteOnlyBorrow {
-            return Err(invalid());
-        }
-        parameter.structural_type
+        parameter_root(prepared, *source)
+            .ok_or_else(invalid)?
+            .structural_type
     };
     let (tag_byte_offset, case_tag) = case_projection(identity, path, *case, types)?;
     if result.scalar_type != ScalarType::Boolean {
@@ -62,6 +57,69 @@ pub(super) fn observe(
     });
     provenance.operations.push(*psi_operation);
     Ok(())
+}
+
+/// A tag observation may read the function's own incoming parameter under any
+/// readable access; a write-only loan carries no readable tag.
+fn parameter_root(
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
+    source: PlaceId,
+) -> Option<&TargetStructuralParameter> {
+    prepared
+        .parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+        .filter(|parameter| parameter.access != StructuralAccess::WriteOnlyBorrow)
+}
+
+/// Resolve the dispatched sum. A live home dispatches as before. Otherwise the
+/// root is the function's own parameter, resolved exactly as a tag observation
+/// resolves it, and then held to the owned-arrival contract a block parameter
+/// home already meets: payload bindings read the activation's value copy, so a
+/// borrowed referent, a linear value, or a qualified root has no such copy.
+fn case_source(
+    function: &AbstractFunction,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
+    live: &LiveDefinitions,
+    structural_types: &StructuralTypeLookup<'_>,
+    source: PlaceId,
+) -> Result<TargetStructuralCaseSource, LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    if let Some(home) = live.structural_homes.get(&source) {
+        return Ok(TargetStructuralCaseSource::Home(home.clone()));
+    }
+    let parameter = parameter_root(prepared, source).ok_or_else(invalid)?;
+    let declaration = function
+        .structural_parameters
+        .iter()
+        .find(|declaration| declaration.place == source)
+        .ok_or_else(invalid)?;
+    if declaration.access != StructuralAccess::Owned
+        || declaration.is_self
+        || declaration.multiplicity == StructuralMultiplicity::Linear
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+        || !function.entry_claims.is_empty()
+        || parameter.access != declaration.access
+        || parameter.multiplicity != declaration.multiplicity
+        || parameter.structural_type != declaration.structural_type
+        || !parameter.projected_qualifications.is_empty()
+    {
+        return Err(invalid());
+    }
+    let layout = crate::lowering::structural_layout::structural_sum_layout(
+        parameter.structural_type,
+        structural_types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    if layout.shape != parameter.shape {
+        return Err(invalid());
+    }
+    Ok(TargetStructuralCaseSource::Parameter {
+        parameter: parameter.clone(),
+        layout: TargetStructuralHomeLayout::Sum(layout),
+    })
 }
 
 fn case_projection(
@@ -99,6 +157,7 @@ fn case_projection(
 pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
+    prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
     provenance: &mut TerminalPsiProvenance,
@@ -107,7 +166,7 @@ pub(super) fn lower(
     let AbstractOperation::StructuralCase { source, cases } = operation else {
         return Err(invalid());
     };
-    let home = live.structural_homes.get(source).ok_or_else(invalid)?;
+    let home = case_source(function, prepared, live, structural_types, *source)?;
     let declaration = structural_types
         .get(&home.structural_type())
         .ok_or_else(invalid)?;
@@ -117,7 +176,7 @@ pub(super) fn lower(
     else {
         return Err(invalid());
     };
-    let layout = home.layout.sum().ok_or_else(invalid)?;
+    let layout = home.layout().sum().ok_or_else(invalid)?;
     if cases.len() != declared_cases.len() || cases.len() != layout.cases.len() {
         return Err(invalid());
     }
@@ -199,7 +258,7 @@ pub(super) fn lower(
         .edges
         .extend(cases.iter().map(|case| case.psi_edge));
     Ok(TargetControlTerminator::StructuralCase {
-        source: home.clone(),
+        source: home,
         cases: lowered,
     })
 }

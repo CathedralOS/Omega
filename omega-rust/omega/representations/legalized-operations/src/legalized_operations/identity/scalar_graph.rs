@@ -699,6 +699,10 @@ fn encode_structural_source(bytes: &mut Vec<u8>, source: &crate::LegalizedStruct
             bytes.extend_from_slice(&block.get().to_le_bytes());
             super::structural_types::encode_structural_parameter(bytes, declaration);
         }
+        crate::LegalizedStructuralCaseSource::Parameter { declaration } => {
+            bytes.push(2);
+            super::structural_types::encode_structural_parameter(bytes, declaration);
+        }
     }
 }
 

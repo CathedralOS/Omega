@@ -128,6 +128,10 @@ pub(super) fn reconstruct(
                     },
                 )
             }
+            // `source_owner` never resolves a function parameter.
+            legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
+                return Err(invalid);
+            }
         }
     };
     let (selected, offset) = crate::structural_inputs::structural_reference_input::project(

@@ -413,7 +413,13 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::Jump { .. }
                 | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::StructuralCase { source, cases } => {
-                    structural_case::retained(selected, &abstracted.block_entries, *source, cases)
+                    structural_case::retained(
+                        selected,
+                        &abstracted.block_entries,
+                        &abstracted.structural_parameters,
+                        *source,
+                        cases,
+                    )
                 }
                 _ => false,
             };

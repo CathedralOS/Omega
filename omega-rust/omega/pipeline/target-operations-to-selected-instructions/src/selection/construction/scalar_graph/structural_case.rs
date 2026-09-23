@@ -60,6 +60,12 @@ pub(super) fn build(
             block: *block,
             place: declaration.place,
         },
+        // The entry retains an owned parameter's value copy in its own slot.
+        legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
+            LocalStorageSlotId::StructuralParameter {
+                place: declaration.place,
+            }
+        }
     };
     if builder
         .transport
