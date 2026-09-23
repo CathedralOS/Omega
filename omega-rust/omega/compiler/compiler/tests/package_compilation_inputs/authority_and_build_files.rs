@@ -1008,7 +1008,7 @@ machine Main::main(&mut self) { }
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("independent-target-default");
+    builder.application("independent_target_default");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -1251,7 +1251,7 @@ machine Main::main(&mut self) reaches Console {
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("native-package-entrypoint");
+    builder.application("native_package_entrypoint");
     builder.select_provider<Console, ConsoleProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -1308,7 +1308,7 @@ fn native_package_product_retains_one_canonical_production_manifest() {
         package,
         vec![PackageSourceBinding::new(
             package,
-            "manifest-native-fixture",
+            "manifest_native_fixture",
             root.clone(),
         )],
         Vec::new(),
@@ -1382,7 +1382,7 @@ machine build(builder: &mut Build) {
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", root.clone()),
-            PackageSourceBinding::new(identity(2), "host-tool", host),
+            PackageSourceBinding::new(identity(2), "host_tool", host),
         ],
         vec![PackageDependencyBinding::for_purpose(
             identity(1),
@@ -1417,7 +1417,7 @@ fn product_imports_cannot_name_build_scope_aliases() {
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", root.clone()),
-            PackageSourceBinding::new(identity(2), "host-tool", host),
+            PackageSourceBinding::new(identity(2), "host_tool", host),
         ],
         vec![PackageDependencyBinding::for_purpose(
             identity(1),
@@ -1527,8 +1527,8 @@ machine build(builder: &mut Build) {
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", root.clone()),
-            PackageSourceBinding::new(identity(2), "product-dep", product),
-            PackageSourceBinding::new(identity(3), "host-tool", host),
+            PackageSourceBinding::new(identity(2), "product_dep", product),
+            PackageSourceBinding::new(identity(3), "host_tool", host),
         ],
         vec![
             PackageDependencyBinding::new(identity(1), "shared", identity(2)),
@@ -1609,7 +1609,7 @@ machine build(builder: &mut Build) {
         identity(1),
         vec![
             PackageSourceBinding::new(identity(1), "root", root.clone()),
-            PackageSourceBinding::new(identity(2), "host-tool", host),
+            PackageSourceBinding::new(identity(2), "host_tool", host),
         ],
         vec![PackageDependencyBinding::for_purpose(
             identity(1),

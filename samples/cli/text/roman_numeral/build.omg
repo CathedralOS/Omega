@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("roman-numeral");
+    builder.application("roman_numeral");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

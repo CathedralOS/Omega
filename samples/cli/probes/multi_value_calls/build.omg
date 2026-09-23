@@ -1,7 +1,7 @@
 // multi_value_calls build file.
 
 machine build(builder: &mut Build) {
-    builder.application("multi-value-calls");
+    builder.application("multi_value_calls");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

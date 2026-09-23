@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("asm-multi-instruction-block-compile");
+    builder.application("asm_multi_instruction_block_compile");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

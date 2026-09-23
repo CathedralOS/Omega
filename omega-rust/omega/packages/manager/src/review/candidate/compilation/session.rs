@@ -194,7 +194,7 @@ mod tests {
         let session_root = session.root().to_path_buf();
         fs::write(session_root.join("partial"), b"discard").expect("write partial output");
         let package = PackageKey::new(
-            PackageName::parse("arithmetic-kernels").unwrap(),
+            PackageName::parse("arithmetic_kernels").unwrap(),
             SourceLineage::git("https://github.com/CathedralOS/arithmetic-kernels.git").unwrap(),
         );
 

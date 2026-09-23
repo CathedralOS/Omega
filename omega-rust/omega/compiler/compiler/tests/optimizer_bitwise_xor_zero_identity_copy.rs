@@ -35,7 +35,7 @@ fn return_only_bitwise_xor_zero_identity_copy_rejoins_native_artifact_production
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-bitwise-xor-zero-identity-copy-rejoin");
+    builder.application("optimizer_bitwise_xor_zero_identity_copy_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingBitwiseXorZeroIdentityCopy);
 }

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("collatz-sequence");
+    builder.application("collatz_sequence");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

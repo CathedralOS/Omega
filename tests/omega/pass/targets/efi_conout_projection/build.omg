@@ -3,7 +3,7 @@
 // parameters.
 
 machine build(builder: &mut Build) {
-    builder.application("efi-conout-projection");
+    builder.application("efi_conout_projection");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

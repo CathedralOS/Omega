@@ -1,7 +1,7 @@
 // Deployable guarded signed-index loop: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-signed-index-guarded-exit");
+    builder.application("runtime_signed_index_guarded_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

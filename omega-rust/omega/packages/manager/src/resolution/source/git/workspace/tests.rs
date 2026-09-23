@@ -34,7 +34,7 @@ fn selects_once_and_retains_ordered_replayable_commitments() {
     let codec = package_source("codec");
     let math = br#"
         machine build(builder: &mut Build) {
-            builder.package("exact-math");
+            builder.package("exact_math");
             builder.depend(Source::Path { location: "../codec" });
         }
     "#;
@@ -60,11 +60,11 @@ fn selects_once_and_retains_ordered_replayable_commitments() {
     );
 
     let plan =
-        plan_git_workspace_selection(&package_name("exact-math"), &root, &supplied_out_of_order)
+        plan_git_workspace_selection(&package_name("exact_math"), &root, &supplied_out_of_order)
             .expect("plan selection");
 
     assert_eq!(plan.selected_member_path().as_str(), "packages/math");
-    assert_eq!(plan.selected_member().package_name().as_str(), "exact-math");
+    assert_eq!(plan.selected_member().package_name().as_str(), "exact_math");
     assert_eq!(plan.workspace_declaration().repository_path(), "build.omg");
     assert_eq!(plan.workspace_declaration().byte_count(), root.len());
     assert!(plan.workspace_declaration().commitment().matches(&root));
@@ -102,7 +102,7 @@ fn selects_once_and_retains_ordered_replayable_commitments() {
         &codec_path
     );
 
-    let changed_math = package_source("exact-math");
+    let changed_math = package_source("exact_math");
     let changed = [
         GitWorkspaceMemberBuild::new(&math_path, &changed_math),
         GitWorkspaceMemberBuild::new(&codec_path, &codec),
@@ -167,8 +167,8 @@ fn rejects_missing_and_duplicate_package_names() {
     let root = workspace_source(&["a", "b"]);
     let a_path = member_path("a");
     let b_path = member_path("b");
-    let duplicate_a = package_source("same-name");
-    let duplicate_b = package_source("same-name");
+    let duplicate_a = package_source("same_name");
+    let duplicate_b = package_source("same_name");
     let duplicate_members = [
         GitWorkspaceMemberBuild::new(&a_path, &duplicate_a),
         GitWorkspaceMemberBuild::new(&b_path, &duplicate_b),
@@ -181,9 +181,9 @@ fn rejects_missing_and_duplicate_package_names() {
         })
     );
     assert_eq!(
-        plan_git_workspace_selection(&package_name("same-name"), &root, &duplicate_members),
+        plan_git_workspace_selection(&package_name("same_name"), &root, &duplicate_members),
         Err(GitWorkspaceSelectionError::PackageDuplicate {
-            package_name: package_name("same-name"),
+            package_name: package_name("same_name"),
             member_paths: vec![a_path, b_path]
         })
     );

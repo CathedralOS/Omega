@@ -35,7 +35,7 @@ fn return_only_bitwise_and_zero_materialization_rejoins_native_artifact_producti
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-bitwise-and-zero-materialization-rejoin");
+    builder.application("optimizer_bitwise_and_zero_materialization_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingBitwiseAndZeroMaterialization);
 }

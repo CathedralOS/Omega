@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("asm-where-contract");
+    builder.application("asm_where_contract");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

@@ -474,7 +474,7 @@ fn root_role_choices_round_trip_in_both_directions_alongside_rows() {
         tree.path("sources/root/build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.application(\"policy-fixture\");\n",
+            " builder.application(\"policy_fixture\");\n",
             " builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}\n",
         ),
     )

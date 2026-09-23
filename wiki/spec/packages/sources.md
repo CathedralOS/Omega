@@ -17,8 +17,8 @@ under [scoped build execution](../build/scoped_execution.md#two-checked-contexts
 
 ## Requester-local graph
 
-A dependency declares its own canonical package name. Default aliases convert
-kebab-case to snake_case; `depend_as` and `build_depend_as` supply validated aliases
+A dependency declares its own canonical snake_case package name. Default aliases
+preserve that spelling; `depend_as` and `build_depend_as` supply validated aliases
 in their respective product and build scopes. Aliases are unique within a scope,
 not across both; there is no cross-scope fallback. Distinct requesters may use
 different aliases for the same key; an ancestor cannot rename dependencies

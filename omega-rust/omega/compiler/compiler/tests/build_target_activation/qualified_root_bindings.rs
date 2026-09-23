@@ -17,7 +17,7 @@ use std::fs;
 
 fn dependency_with_entry(source: &str) -> TempProject {
     let dependency = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"entry-library\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"entry_library\"); }",
     );
     fs::write(dependency.0.join("setup.omg"), source).expect("dependency source");
     dependency
@@ -33,12 +33,12 @@ fn dual_purpose_inputs(
         vec![
             PackageSourceBinding::new(
                 fixture_package_identity(1),
-                "root-binding-owner",
+                "root_binding_owner",
                 project.0.clone(),
             ),
             PackageSourceBinding::new(
                 fixture_package_identity(2),
-                "entry-library",
+                "entry_library",
                 dependency.0.clone(),
             ),
         ],
@@ -62,7 +62,7 @@ fn direct_dependency_root_binding_keeps_its_exact_symbol_through_terminal_produc
     let dependency = dependency_with_entry("module setup; pub machine launch() { }");
     let project = TempProject::with_main(
         "use support::setup; machine launch() { crash Trap; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); builder.roots.bind(windows_x86_64::ProgramEntry, support::setup::launch); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); builder.roots.bind(windows_x86_64::ProgramEntry, support::setup::launch); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(dual_purpose_inputs(&project, &dependency));
@@ -191,7 +191,7 @@ fn direct_root_uses_the_product_target_of_a_shared_dependency_alias() {
     let product_dependency = dependency_with_entry("module setup; pub machine launch() { }");
     let project = TempProject::with_main(
         "use support::setup;",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); builder.roots.bind(windows_x86_64::ProgramEntry, support::setup::launch); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); builder.roots.bind(windows_x86_64::ProgramEntry, support::setup::launch); }",
     );
     let inputs = PackageCompilationInputs::new(
         fixture_package_identity(1),
@@ -199,17 +199,17 @@ fn direct_root_uses_the_product_target_of_a_shared_dependency_alias() {
         vec![
             PackageSourceBinding::new(
                 fixture_package_identity(1),
-                "root-binding-owner",
+                "root_binding_owner",
                 project.0.clone(),
             ),
             PackageSourceBinding::new(
                 fixture_package_identity(2),
-                "build-library",
+                "build_library",
                 build_dependency.0.clone(),
             ),
             PackageSourceBinding::new(
                 fixture_package_identity(3),
-                "product-library",
+                "product_library",
                 product_dependency.0.clone(),
             ),
         ],
@@ -293,7 +293,7 @@ fn direct_dependency_root_binding_does_not_borrow_build_scope_nameability() {
         };
         let project = TempProject::with_main(
             main,
-            "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); builder.roots.bind(windows_x86_64::ProgramEntry, support::setup::launch); }",
+            "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); builder.roots.bind(windows_x86_64::ProgramEntry, support::setup::launch); }",
         );
         let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
         request.package_inputs = Some(if has_product_edge {
@@ -340,14 +340,14 @@ fn direct_dependency_root_binding_preserves_entry_signature_validation() {
 fn foreign_helper_cannot_select_through_its_callers_product_alias() {
     let dependency = dependency_with_entry("module setup; pub machine launch() { }");
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"build-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"build_helper\"); }",
     );
     fs::write(helper.0.join("configure.omg"),
         "module configure; pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, runtime::setup::launch); }",
     ).expect("foreign helper source");
     let project = TempProject::with_main(
         "use runtime::setup;",
-        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
+        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); configure::configure(builder); }",
     );
     let inputs = PackageCompilationInputs::new(
         fixture_package_identity(1),
@@ -355,17 +355,17 @@ fn foreign_helper_cannot_select_through_its_callers_product_alias() {
         vec![
             PackageSourceBinding::new(
                 fixture_package_identity(1),
-                "root-binding-owner",
+                "root_binding_owner",
                 project.0.clone(),
             ),
             PackageSourceBinding::new(
                 fixture_package_identity(2),
-                "build-helper",
+                "build_helper",
                 helper.0.clone(),
             ),
             PackageSourceBinding::new(
                 fixture_package_identity(3),
-                "entry-library",
+                "entry_library",
                 dependency.0.clone(),
             ),
         ],

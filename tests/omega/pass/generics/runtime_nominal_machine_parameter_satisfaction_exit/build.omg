@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-nominal-machine-parameter-satisfaction-exit");
+    builder.application("runtime_nominal_machine_parameter_satisfaction_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.select_provider<Console, ConsoleNativeProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

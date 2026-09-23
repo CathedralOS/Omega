@@ -12,7 +12,7 @@ fn accepted_claim_results_join_encoded_keys_without_reordering_callables() {
     package.write("main.omg", "boundary machine aa() -> u64 ensures result == 0;\nboundary machine z() -> u64 ensures result == 1;\n");
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -80,7 +80,7 @@ pub machine expose() reaches Console + FilesystemHost {}
     package.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_provider<Console, ConsoleNativeProvider>();
 }
 "#,
@@ -166,7 +166,7 @@ fn obligation_ledger_binds_and_recovers_application_root_role() {
     application.write("main.omg", "pub data Token { value: u64; }\n");
     application.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.application("review-application"); }
+        r#"machine build(builder: &mut Build) { builder.application("review_application"); }
 "#,
     );
     let identity = package_identity();
@@ -175,7 +175,7 @@ fn obligation_ledger_binds_and_recovers_application_root_role() {
         BuildDeclarationKind::Application,
         vec![PackageSourceBinding::new(
             identity,
-            "review-application",
+            "review_application",
             application.0.clone(),
         )],
         vec![],
@@ -226,7 +226,7 @@ fn ordinary_package_obligation_ledger_requires_exact_local_reconstruction() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let original = TempPackage::new();
     original.write(
@@ -407,7 +407,7 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let root = TempPackage::new();
     root.write("main.omg", "pub data Token { value: u64; }\n");
@@ -422,10 +422,10 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
         PackageCompilationInputs::new_package(
             root_identity,
             vec![
-                PackageSourceBinding::new(root_identity, "review-fixture", root_path.to_owned()),
+                PackageSourceBinding::new(root_identity, "review_fixture", root_path.to_owned()),
                 PackageSourceBinding::new(
                     dependency_identity,
-                    "graph-dependency",
+                    "graph_dependency",
                     dependency_path.to_owned(),
                 ),
             ],
@@ -559,7 +559,7 @@ fn ordinary_package_obligation_ledger_binds_exact_dependency_closure_without_pat
         different_root,
         vec![PackageSourceBinding::new(
             different_root,
-            "review-fixture",
+            "review_fixture",
             root.0.clone(),
         )],
         Vec::new(),
@@ -579,7 +579,7 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
     };
     let source = "pub data Token { value: i64; }\n";
     let changed_source = "// source-only change\npub data Token { value: i64; }\n";
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
 
     let first = TempPackage::new();
@@ -708,10 +708,10 @@ fn package_source_consumption_commitment_binds_loaded_bytes_not_cache_location()
         PackageCompilationInputs::new_package(
             root_identity,
             vec![
-                PackageSourceBinding::new(root_identity, "graph-root", graph_root.0.clone()),
+                PackageSourceBinding::new(root_identity, "graph_root", graph_root.0.clone()),
                 PackageSourceBinding::new(
                     dependency_identity,
-                    "graph-dependency",
+                    "graph_dependency",
                     dependency.0.clone(),
                 ),
             ],
@@ -1420,7 +1420,7 @@ fn ordinary_package_obligation_ledger_rejects_every_one_field_substitution() {
         fixture_package.write("main.omg", "pub data Token { value: u64; }\n");
         fixture_package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&fixture_package.0)),

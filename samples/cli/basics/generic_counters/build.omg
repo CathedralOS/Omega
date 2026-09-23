@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("generic-counters");
+    builder.application("generic_counters");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

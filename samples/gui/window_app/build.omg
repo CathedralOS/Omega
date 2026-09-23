@@ -1,7 +1,7 @@
 // window_app is a REAL windowed application: the GUI subsystem keeps Windows from
 // attaching a console box (PE Subsystem 2).
 machine build(builder: &mut Build) {
-    builder.application("window-app");
+    builder.application("window_app");
     builder.identifier = "com.omega.window-app";
     builder.depend(Source::Path {
         location: "../../../source/library/std"

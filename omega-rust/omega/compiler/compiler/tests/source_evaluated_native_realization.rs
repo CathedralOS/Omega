@@ -203,7 +203,7 @@ machine Main::main(&mut self) reaches Process {
 }
 "#,
             r#"machine build(builder: &mut Build) {
-    builder.application("source-evaluated-macho-native");
+    builder.application("source_evaluated_macho_native");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 "#,
@@ -245,7 +245,7 @@ machine Main::main(&mut self) reaches Process {
 }
 "#,
             r#"machine build(builder: &mut Build) {
-    builder.application("source-evaluated-windows-x86-fma");
+    builder.application("source_evaluated_windows_x86_fma");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
 }
@@ -299,7 +299,7 @@ machine Main::main(&mut self) reaches Process {
 }
 "#,
             r#"machine build(builder: &mut Build) {
-    builder.application("source-evaluated-windows-u32-result-chain");
+    builder.application("source_evaluated_windows_u32_result_chain");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -344,7 +344,7 @@ machine Main::main(&mut self) reaches Process {{
             "linux_x86_64",
             &source,
             r#"machine build(builder: &mut Build) {
-    builder.application("source-evaluated-linux-native");
+    builder.application("source_evaluated_linux_native");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -386,7 +386,7 @@ machine Main::main(&mut self) {
 }
 "#,
             r#"machine build(builder: &mut Build) {
-    builder.application("source-evaluated-linux-requirement-native");
+    builder.application("source_evaluated_linux_requirement_native");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -426,7 +426,7 @@ machine Main::main(&mut self) reaches Delay {
 }
 "#,
             r#"machine build(builder: &mut Build) {
-    builder.application("source-evaluated-macho-u32-argument-native");
+    builder.application("source_evaluated_macho_u32_argument_native");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 "#,
@@ -468,7 +468,7 @@ machine Main::main(&mut self) reaches Process {
 }
 "#,
             r#"machine build(builder: &mut Build) {
-    builder.application("source-evaluated-macho-i32-result-native");
+    builder.application("source_evaluated_macho_i32_result_native");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 "#,

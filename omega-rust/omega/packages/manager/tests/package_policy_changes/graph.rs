@@ -39,7 +39,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "same-name")
+        .find(|package| package.key().name().as_str() == "same_name")
         .unwrap()
         .key()
         .clone();
@@ -133,7 +133,7 @@ fn retained_rows_survive_old_source_loss_and_distinguish_replaced_same_name_pack
     let added = changes
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "same-name" && package.key() != &old_key)
+        .find(|package| package.key().name().as_str() == "same_name" && package.key() != &old_key)
         .unwrap();
     assert!(added.baseline_resolution().is_none());
     assert!(added.candidate_resolution().is_some());

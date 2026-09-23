@@ -52,7 +52,7 @@ impl Project {
             package,
             vec![PackageSourceBinding::new(
                 package,
-                "application-equations",
+                "application_equations",
                 self.0.clone(),
             )],
             Vec::new(),

@@ -102,7 +102,7 @@ fn rejects_dependency_calls_inside_trait_default_bodies() {
                 }}
             }}
             machine build(builder: &mut Build) {{
-                builder.package("trait-default-dependency");
+                builder.package("trait_default_dependency");
             }}
             "#,
         ));
@@ -133,7 +133,7 @@ fn rejects_dependency_calls_inside_conformance_member_machines() {
                 }}
             }}
             machine build(builder: &mut Build) {{
-                builder.package("conformance-dependency");
+                builder.package("conformance_dependency");
             }}
             "#,
         ));
@@ -147,9 +147,9 @@ fn rejects_dependency_calls_inside_conformance_member_machines() {
 #[test]
 fn rejects_stray_package_selection_literals() {
     for source in [
-        "machine build(builder: &mut Build) { builder.package(\"stray-selection\"); let selection: PackageSelection = PackageSelection::Root {}; }",
-        "machine build(builder: &mut Build) { builder.package(\"stray-selection\"); let selection: PackageSelection = PackageSelection::Named { package: \"std\" }; }",
-        "const SELECTION: PackageSelection = PackageSelection::Root {};\nmachine build(builder: &mut Build) { builder.package(\"stray-selection\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"stray_selection\"); let selection: PackageSelection = PackageSelection::Root {}; }",
+        "machine build(builder: &mut Build) { builder.package(\"stray_selection\"); let selection: PackageSelection = PackageSelection::Named { package: \"std\" }; }",
+        "const SELECTION: PackageSelection = PackageSelection::Root {};\nmachine build(builder: &mut Build) { builder.package(\"stray_selection\"); }",
     ] {
         let fixture = PackageFixture::with_source(source);
         assert!(

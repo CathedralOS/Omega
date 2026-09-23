@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("ripple-field");
+    builder.application("ripple_field");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

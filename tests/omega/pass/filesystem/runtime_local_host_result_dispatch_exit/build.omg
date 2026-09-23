@@ -1,7 +1,7 @@
 // Deployable local host-result canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-local-host-result-dispatch-exit");
+    builder.application("runtime_local_host_result_dispatch_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -41,7 +41,7 @@ pub(crate) fn package_inputs(root: &Path) -> PackageCompilationInputs {
         package_identity(),
         vec![PackageSourceBinding::new(
             package_identity(),
-            "review-fixture",
+            "review_fixture",
             root.to_owned(),
         )],
         Vec::new(),
@@ -71,7 +71,7 @@ pub(crate) fn standard_library_identity() -> PackageKeyIdentity {
 pub(crate) fn standard_library_source() -> PackageSourceBinding {
     PackageSourceBinding::new(
         standard_library_identity(),
-        "omega-language-std",
+        "omega_language_std",
         repository_root().join("source/library/std"),
     )
 }
@@ -86,7 +86,7 @@ pub(crate) fn package_inputs_with_std(root: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
         package_identity(),
         vec![
-            PackageSourceBinding::new(package_identity(), "review-fixture", root.to_owned()),
+            PackageSourceBinding::new(package_identity(), "review_fixture", root.to_owned()),
             standard_library_source(),
         ],
         vec![standard_library_dependency(package_identity())],

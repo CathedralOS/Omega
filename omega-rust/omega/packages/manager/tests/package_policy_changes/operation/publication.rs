@@ -559,7 +559,7 @@ fn changed_build_input_rejects_publication_with_identical_generated_source_and_p
         .reviews()
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "generated-table")
+        .find(|review| review.key().name().as_str() == "generated_table")
         .unwrap();
     let [generated] = producer.generated_source_bundle().sources() else {
         panic!("producer must retain exactly one generated source");

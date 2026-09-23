@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("self-value-call-literal-path-exit");
+    builder.application("self_value_call_literal_path_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

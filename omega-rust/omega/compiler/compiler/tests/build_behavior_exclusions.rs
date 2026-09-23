@@ -161,7 +161,7 @@ machine unused(builder: &mut Build) {
     builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessTermination);
 }
 machine build(builder: &mut Build) {
-    builder.application("physical-exclusion-evaluated");
+    builder.application("physical_exclusion_evaluated");
     builder.roots.bind(windows_x86_64::ProgramEntry, launch);
     let selected: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
     restrict(builder, selected);
@@ -393,7 +393,7 @@ fn console_package_inputs(
             package_compilation::PackageSourceBinding::new(root_identity, name, project.0.clone()),
             package_compilation::PackageSourceBinding::new(
                 library_identity,
-                "omega-language-std",
+                "omega_language_std",
                 standard_library,
             ),
         ],
@@ -667,7 +667,7 @@ fn replacing_a_silent_console_provider_with_excluded_behavior_rejects() {
     let build_for = |provider: &str| {
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("silent-console-substitution");
+    builder.application("silent_console_substitution");
 {}    builder.select_provider<omega_language_std::Console, {}>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);
@@ -738,7 +738,7 @@ fn authored_exclude_crash_retains_exact_case_identity_and_authored_span() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("behavior-exclusion-crash");
+    builder.application("behavior_exclusion_crash");
     builder.exclude_crash(CrashCause::Trap);
 }
 "#,
@@ -787,7 +787,7 @@ fn repeated_and_reordered_exclusions_collapse_to_the_canonical_union() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("behavior-exclusion-union");
+    builder.application("behavior_exclusion_union");
     builder.exclude_crash(CrashCause::Abort);
     builder.exclude_crash(CrashCause::Trap);
     builder.exclude_crash(CrashCause::Abort);
@@ -819,7 +819,7 @@ fn a_reachable_helper_may_spell_the_selection_for_the_root() {
 }
 
 machine build(builder: &mut Build) {
-    builder.application("behavior-exclusion-helper");
+    builder.application("behavior_exclusion_helper");
     restrict(builder);
 }
 "#,
@@ -861,7 +861,7 @@ fn a_spelled_exclusion_that_never_executes_selects_nothing() {
 }
 
 machine build(builder: &mut Build) {
-    builder.application("behavior-exclusion-out-of-scope");
+    builder.application("behavior_exclusion_out_of_scope");
 }
 "#,
     );
@@ -881,7 +881,7 @@ fn a_selection_inside_an_untaken_branch_selects_nothing() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("behavior-exclusion-untaken");
+    builder.application("behavior_exclusion_untaken");
     let flag: bool = false;
     transition flag { true -> exclude(builder) false -> done() }
     state exclude(builder: &mut Build) { builder.exclude_crash(CrashCause::Trap); }
@@ -904,7 +904,7 @@ fn the_exclusion_argument_is_the_evaluated_cause_value() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("behavior-exclusion-indirect");
+    builder.application("behavior_exclusion_indirect");
     let cause: CrashCause = CrashCause::Trap;
     builder.exclude_crash(cause);
 }
@@ -942,7 +942,7 @@ const ANSWER: u32 = 42;
     );
     project.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.application(\"same-named-exclusion\"); }\n",
+        "machine build(builder: &mut Build) { builder.application(\"same_named_exclusion\"); }\n",
     );
 
     let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
@@ -1333,7 +1333,7 @@ reaches Sink
 "#;
 
 const LOGGER_KIT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("logger-kit");
+    builder.package("logger_kit");
     builder.select_provider<Sink, QuietSink>();
 }
 "#;
@@ -1367,7 +1367,7 @@ fn sink_composition_project(project: &TempProject, target: &str) {
         "app/build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("sink-physical");
+    builder.application("sink_physical");
     builder.depend(Source::Path {{ location: "../logger-kit" }});
     builder.select_provider<logger_kit::Sink, logger_kit::QuietSink>();
     builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);
@@ -1390,12 +1390,12 @@ fn sink_composition_request(
         vec![
             package_compilation::PackageSourceBinding::new(
                 root_identity,
-                "sink-physical",
+                "sink_physical",
                 project.0.join("app"),
             ),
             package_compilation::PackageSourceBinding::new(
                 library_identity,
-                "logger-kit",
+                "logger_kit",
                 project.0.join("logger-kit"),
             ),
         ],
@@ -1564,7 +1564,7 @@ reaches Sink
 
 fn loud_logger_kit_build() -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.package(\"logger-kit\");\n{}    builder.select_provider<Sink, QuietSink>();\n}}\n",
+        "machine build(builder: &mut Build) {{\n    builder.package(\"logger_kit\");\n{}    builder.select_provider<Sink, QuietSink>();\n}}\n",
         bundled_standard_library_dependency_declaration()
     )
 }
@@ -1600,7 +1600,7 @@ reaches
 fn loud_sink_composition_build(target: &str, extra: &str) -> String {
     format!(
         r#"machine build(builder: &mut Build) {{
-    builder.application("sink-physical-loud");
+    builder.application("sink_physical_loud");
     builder.depend(Source::Path {{ location: "../logger-kit" }});
 {std_dependency}    builder.select_provider<logger_kit::Sink, LoudSink>();
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
@@ -1625,17 +1625,17 @@ fn loud_sink_composition_request(
         vec![
             package_compilation::PackageSourceBinding::new(
                 root_identity,
-                "sink-physical-loud",
+                "sink_physical_loud",
                 project.0.join("app"),
             ),
             package_compilation::PackageSourceBinding::new(
                 library_identity,
-                "logger-kit",
+                "logger_kit",
                 project.0.join("logger-kit"),
             ),
             package_compilation::PackageSourceBinding::new(
                 fixture_package_identity(2),
-                "omega-language-std",
+                "omega_language_std",
                 bundled_standard_library_root(),
             ),
         ],
@@ -1914,7 +1914,7 @@ machine Main::main(&mut self) {
 
 fn foreign_boundary_build(exclusion: &str) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"foreign-boundary-exclusion\");\n    builder.exclude_physical_authority({exclusion});\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"foreign_boundary_exclusion\");\n    builder.exclude_physical_authority({exclusion});\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n"
     )
 }
 

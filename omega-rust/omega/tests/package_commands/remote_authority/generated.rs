@@ -47,7 +47,7 @@ fn pinned_ssh_pure_to_generated_authority_update_requires_review() {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "generated-table")
+        .find(|package| package.key().name().as_str() == "generated_table")
         .unwrap();
     let before = fixture.accepted_files();
     let output = fixture.omega(&["update", "generated_table", "--to", AUTHORITY]);
@@ -97,7 +97,7 @@ fn pinned_ssh_pure_to_generated_authority_update_requires_review() {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "generated-table")
+        .find(|package| package.key().name().as_str() == "generated_table")
         .unwrap();
     assert_eq!(old_package.key(), new_package.key());
     assert_ne!(old_package.resolution(), new_package.resolution());
@@ -127,7 +127,7 @@ fn check_generated_apis(fixture: &Fixture) {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "generated-table")
+        .find(|package| package.key().name().as_str() == "generated_table")
         .unwrap();
     let fresh = fixture.fresh_reviews(TARGET);
     let policy = fresh.review(package.key()).unwrap().policy();

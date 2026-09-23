@@ -8,7 +8,7 @@ use package_source::{
 fn external_local_resolution_uses_declared_name_and_immutable_snapshot() {
     let root = temp_root("external");
     let cache = temp_root("external-cache");
-    write_package(&root, "arithmetic-kernels");
+    write_package(&root, "arithmetic_kernels");
 
     let resolved = resolve_external_local_package_source_from_hardened_base(
         &root,
@@ -18,7 +18,7 @@ fn external_local_resolution_uses_declared_name_and_immutable_snapshot() {
     )
     .expect("resolve declared local package");
 
-    assert_eq!(resolved.key().name().as_str(), "arithmetic-kernels");
+    assert_eq!(resolved.key().name().as_str(), "arithmetic_kernels");
     assert!(matches!(
         resolved.key().source_lineage(),
         SourceLineage::ExternalLocal(_)
@@ -42,7 +42,7 @@ fn external_local_resolution_uses_declared_name_and_immutable_snapshot() {
 fn external_local_context_changes_key_without_changing_source_resolution() {
     let root = temp_root("context");
     let cache = temp_root("context-cache");
-    write_package(&root, "arithmetic-kernels");
+    write_package(&root, "arithmetic_kernels");
 
     let first = resolve_external_local_package_source_from_hardened_base(
         &root,

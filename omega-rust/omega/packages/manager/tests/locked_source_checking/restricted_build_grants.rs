@@ -41,7 +41,7 @@ fn confined_generator_checks_from_a_lock_without_restricted_host_decisions() {
         .reviews()
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "generated-table")
+        .find(|review| review.key().name().as_str() == "generated_table")
         .expect("the generated producer reviewed");
     assert!(
         producer.restricted_build_requests().is_empty(),

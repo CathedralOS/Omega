@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("horner-eval");
+    builder.application("horner_eval");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

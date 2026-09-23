@@ -20,6 +20,6 @@ reaches FilesystemHost
 machine build(builder: &mut Build)
 reaches FilesystemHost
 {
-    builder.application("build-service-name-spoof");
+    builder.application("build_service_name_spoof");
     configure_spoofed_stager(builder);
 }

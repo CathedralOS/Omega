@@ -45,7 +45,7 @@ fn compile_and_run_linux_hosted_receiver(explicit_exit: bool, bound_service: boo
         project.0.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("linux-hosted-receiver");
+    builder.application("linux_hosted_receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -237,7 +237,7 @@ fn linux_hosted_receiver_provisions_record_arrays_and_the_zero_tag_sum_case() {
         project.0.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("linux-hosted-receiver-sum-array");
+    builder.application("linux_hosted_receiver_sum_array");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -370,7 +370,7 @@ fn linux_free_unit_entry_runs_and_completes_with_status_zero() {
     let project = HostedProject(directory);
     fs::write(
         project.0.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"linux-free-unit-entry\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.application(\"linux_free_unit_entry\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n}\n",
     )
     .expect("write free-entry binding");
     fs::write(

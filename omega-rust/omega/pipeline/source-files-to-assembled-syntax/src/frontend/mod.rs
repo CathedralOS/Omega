@@ -686,11 +686,9 @@ fn known_package_spelling(
         .map(|(name, root)| format!("`{name}` (bundled at {})", root.display()))
 }
 
-/// The alias a dependency edge binds when the declaration names none: the
-/// canonical kebab-case package name with `-` written as `_`, the same rule
-/// the package manager applies when it reconciles `builder.depend(...)`.
-fn default_alias_spelling(package_name: &str) -> String {
-    package_name.replace('-', "_")
+/// An implicit dependency alias preserves the canonical package name.
+fn default_alias_spelling(package_name: &str) -> &str {
+    package_name
 }
 
 /// The declared names of the bundled library packages: the packages a root
@@ -714,7 +712,7 @@ fn bundled_package_roster() -> Vec<(String, PathBuf)> {
     roster
 }
 
-/// The literal of the one direct `builder.package("kebab-name")` statement a
+/// The literal of the one direct `builder.package("kebab_name")` statement a
 /// package build entry must carry (build-declarations pins that canonical
 /// shape). This reads the spelling for a diagnostic; it does not evaluate the
 /// build machine or validate the declaration.
@@ -1165,7 +1163,7 @@ mod missing_dependency_edge_tests {
             "{message}"
         );
         assert!(
-            message.contains("names package `omega-language-std` (bundled at")
+            message.contains("names package `omega_language_std` (bundled at")
                 && message.contains("as `omega_language_std`"),
             "{message}"
         );
@@ -1242,7 +1240,7 @@ mod missing_dependency_edge_tests {
         let roster = bundled_package_roster();
         let standard_library = roster
             .iter()
-            .find(|(name, _)| name == "omega-language-std")
+            .find(|(name, _)| name == "omega_language_std")
             .expect("the bundled std package declares its name");
         assert_eq!(
             standard_library

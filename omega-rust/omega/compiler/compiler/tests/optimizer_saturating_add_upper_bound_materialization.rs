@@ -38,7 +38,7 @@ fn return_only_saturating_add_upper_bound_materialization_rejoins_native_artifac
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-saturating-add-upper-bound-materialization-rejoin");
+    builder.application("optimizer_saturating_add_upper_bound_materialization_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingSaturatingAddUpperBoundMaterialization);
 }

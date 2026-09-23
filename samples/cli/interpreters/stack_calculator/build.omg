@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("stack-calculator");
+    builder.application("stack_calculator");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

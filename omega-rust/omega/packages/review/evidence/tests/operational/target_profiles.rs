@@ -39,7 +39,7 @@ fn review_distinguishes_profiles_that_share_a_native_target() {
     package.write("main.omg", "machine local() { }\n");
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -78,7 +78,7 @@ fn review_encoding_ignores_unreviewed_arena_insertion_order() {
         "main.omg",
         "machine unrelated() { }\nboundary machine host_ping();\n",
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);

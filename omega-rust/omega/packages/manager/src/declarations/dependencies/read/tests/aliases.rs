@@ -26,7 +26,7 @@ fn accepts_unique_aliases_over_the_whole_authored_set() {
     let dependencies = projection(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("unique-aliases");
+            builder.package("unique_aliases");
             builder.depend(Source::Path { location: "../portable" });
             builder.depend_as("native_api", Source::Path { location: "../native" });
         }
@@ -34,7 +34,7 @@ fn accepts_unique_aliases_over_the_whole_authored_set() {
     );
 
     dependencies
-        .validate_aliases(&package_names(&["portable-api", "platform-api"]))
+        .validate_aliases(&package_names(&["portable_api", "platform_api"]))
         .expect("the flat dependency set has unique aliases");
     assert_eq!(dependencies.authored_dependencies().len(), 2);
 }
@@ -44,7 +44,7 @@ fn rejects_explicit_alias_reuse_anywhere_in_the_set() {
     let dependencies = projection(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("explicit-alias-conflict");
+            builder.package("explicit_alias_conflict");
             builder.depend_as("shared", Source::Path { location: "../first" });
             builder.depend_as("shared", Source::Path { location: "../second" });
         }
@@ -66,7 +66,7 @@ fn rejects_default_alias_collisions_after_package_selection() {
     let dependencies = projection(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("default-alias-conflict");
+            builder.package("default_alias_conflict");
             builder.depend(Source::Path { location: "../first" });
             builder.depend(Source::Path { location: "../second" });
         }
@@ -74,7 +74,7 @@ fn rejects_default_alias_collisions_after_package_selection() {
     );
 
     assert!(matches!(
-        dependencies.validate_aliases(&package_names(&["same-name", "same-name"])),
+        dependencies.validate_aliases(&package_names(&["same_name", "same_name"])),
         Err(DependencyAliasError::DuplicateAlias {
             first_occurrence: 0,
             conflicting_occurrence: 1,
@@ -88,7 +88,7 @@ fn rejects_a_duplicate_alias_inside_the_build_scope() {
     let fixture = PackageFixture::with_source(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("build-alias-conflict");
+            builder.package("build_alias_conflict");
             builder.build_depend_as("tool", Source::Path { location: "../first" });
             builder.build_depend_as("tool", Source::Path { location: "../second" });
         }
@@ -105,7 +105,7 @@ fn rejects_a_duplicate_alias_inside_the_build_scope() {
     assert_eq!(
         projections.validate_aliases(
             DependencyPurpose::Build,
-            &package_names(&["first-tool", "second-tool"])
+            &package_names(&["first_tool", "second_tool"])
         ),
         Err(DependencyAliasError::DuplicateAlias {
             alias: AliasName::parse("tool").unwrap(),
@@ -120,7 +120,7 @@ fn rejects_an_incomplete_selected_package_roster() {
     let dependencies = projection(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("alias-roster");
+            builder.package("alias_roster");
             builder.depend(Source::Path { location: "../first" });
             builder.depend(Source::Path { location: "../second" });
         }

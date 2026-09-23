@@ -10,7 +10,7 @@ fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -69,7 +69,7 @@ fn review_projects_collection_capacity_as_an_exact_compiler_intrinsic() {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -128,7 +128,7 @@ fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -224,7 +224,7 @@ requires buffer.len > 0
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -283,7 +283,7 @@ requires (value as {target_type}) == 1
     };
     u16_cast.write("main.omg", &source("u16"));
     u32_cast.write("main.omg", &source("u32"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     u16_cast.write("build.omg", build);
     u32_cast.write("build.omg", build);
@@ -347,7 +347,7 @@ fn review_casts_retain_public_semantic_domains_and_reject_private_exposure() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let public = TempPackage::new();
     public.write(

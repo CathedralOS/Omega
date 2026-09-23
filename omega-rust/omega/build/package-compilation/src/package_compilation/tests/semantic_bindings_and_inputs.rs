@@ -440,7 +440,7 @@ fn source_input_projection_binds_names_roots_metadata_and_edges() {
     assert_ne!(
         baseline,
         inputs(
-            "renamed-root",
+            "renamed_root",
             root.clone(),
             first_dependency.clone(),
             "dependency",

@@ -67,7 +67,7 @@ fn seal_input(_root: &Path, _sealed: bool) {}
 const ROOT_BUILD: &str = r#"use first::main;
 use second::main;
 machine build(builder: &mut Build) {
-    builder.application("named-input-consumer");
+    builder.application("named_input_consumer");
     builder.artifact_only();
     builder.build_depend_as("first", Source::Path { location: "../first" });
     builder.build_depend_as("second", Source::Path { location: "../second" });
@@ -314,7 +314,7 @@ fn shared_dependency_activation_requires_equal_complete_input_assignments() {
         fixture.write(
             "workspace/consumer/build.omg",
             r#"machine build(builder: &mut Build) {
-    builder.application("shared-input-consumer");
+    builder.application("shared_input_consumer");
     builder.artifact_only();
     builder.build_depend_as("first", Source::Path { location: "../shared" });
     builder.build_depend_as("second", Source::Path { location: "../shared" });
@@ -331,7 +331,7 @@ fn shared_dependency_activation_requires_equal_complete_input_assignments() {
         fixture.write(
             "workspace/shared/build.omg",
             r#"machine build(builder: &mut Build) {
-    builder.package("shared-generator");
+    builder.package("shared_generator");
     let input: BuildSource = builder.inputs.get("template");
 }
 "#,
@@ -405,7 +405,7 @@ fn shared_dependency_activation_requires_equal_complete_input_assignments() {
                     .reviews()
                     .reviews()
                     .iter()
-                    .filter(|review| review.key().name().as_str() == "shared-generator")
+                    .filter(|review| review.key().name().as_str() == "shared_generator")
                     .count(),
                 1
             );

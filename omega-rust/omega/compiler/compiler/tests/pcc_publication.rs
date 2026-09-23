@@ -131,7 +131,7 @@ fn arbitrary_native_bytes_with_recomputed_custody_never_complete() {
 
 fn build_source(body_lines: &str) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"pcc-test\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n{body_lines}}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"pcc_test\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n{body_lines}}}\n"
     )
 }
 
@@ -176,7 +176,7 @@ fn write_gui_project_with(pcc_lines: &str) -> PathBuf {
     fs::write(
         dir.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.application(\"pcc-gui\");\n    builder.subsystem = Subsystem::Gui;\n    builder.identifier = \"com.omega.pcc-gui\";\n{pcc_lines}    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n"
+            "machine build(builder: &mut Build) {{\n    builder.application(\"pcc_gui\");\n    builder.subsystem = Subsystem::Gui;\n    builder.identifier = \"com.omega.pcc-gui\";\n{pcc_lines}    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n"
         ),
     )
     .expect("write build.omg");

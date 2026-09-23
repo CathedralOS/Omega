@@ -681,7 +681,7 @@ fn selected_program_entry_dispatches_by_exact_symbol_not_spelling() {
     TempTree::write(
         root.join("build.omg"),
         "machine build(builder: &mut Build) {\n\
-         \x20   builder.application(\"entry-symbol-exactness\");\n\
+         \x20   builder.application(\"entry_symbol_exactness\");\n\
          \x20   builder.roots.bind(windows_x86_64::ProgramEntry, dep::combat::launch);\n\
          }",
     );

@@ -99,7 +99,7 @@ impl Drop for MultiTargetFixture {
 fn checked_admission_and_compilation_do_not_write_debug_dumps() {
     let fixture = MultiTargetFixture::new(
         "machine main() { }",
-        r#"machine build(builder: &mut Build) { builder.application("no-dumps"); }"#,
+        r#"machine build(builder: &mut Build) { builder.application("no_dumps"); }"#,
     );
     let checked =
         crate::compile_to_checked(crate::CheckedCompileRequest::new(&fixture.main, None)).unwrap();
@@ -163,7 +163,7 @@ fn native_publication_writes_only_declared_products() {
     let fixture = MultiTargetFixture::new(
         "data Main { }\nmachine Main::main(&mut self) { }\n",
         r#"machine build(builder: &mut Build) {
-    builder.application("no-observation-products");
+    builder.application("no_observation_products");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
@@ -339,7 +339,7 @@ data ArmMain { }
 machine ArmMain::main(&mut self) { }
 "#,
         r#"machine build(builder: &mut Build) {
-    builder.application("target-specific-terminal-input");
+    builder.application("target_specific_terminal_input");
     builder.roots.bind(linux_x86_64::ProgramEntry, LinuxMain::main);
     builder.roots.bind(linux_arm64::ProgramEntry, ArmMain::main);
 }
@@ -388,7 +388,7 @@ fn exact_target_batch_is_canonical_and_matches_standalone() {
     let fixture = MultiTargetFixture::new(
         "const ANSWER: u32 = 42;\n",
         r#"machine build(builder: &mut Build) {
-    builder.application("multi-target-compiler");
+    builder.application("multi_target_compiler");
 }
 "#,
     );
@@ -446,7 +446,7 @@ fn shared_source_failure_is_retained_for_every_exact_target() {
     let fixture = MultiTargetFixture::new(
         "machine broken( {\n",
         r#"machine build(builder: &mut Build) {
-    builder.application("multi-target-source-failure");
+    builder.application("multi_target_source_failure");
 }
 "#,
     );
@@ -475,7 +475,7 @@ fn batch_manifest_binds_the_explicit_set_and_child_commitments() {
     let fixture = MultiTargetFixture::new(
         "const ANSWER: u32 = 42;\n",
         r#"machine build(builder: &mut Build) {
-    builder.application("batch-manifest-set");
+    builder.application("batch_manifest_set");
 }
 "#,
     );

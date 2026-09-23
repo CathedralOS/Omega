@@ -199,7 +199,7 @@ pub fn fixture_path_dependencies(project_root: &Path) -> Vec<FixturePathDependen
             FixturePathDependency {
                 alias: authored_alias
                     .clone()
-                    .unwrap_or_else(|| package_name.replace('-', "_")),
+                    .unwrap_or_else(|| package_name.clone()),
                 explicit_alias: authored_alias.is_some(),
                 package_name,
                 authored_location,
@@ -445,7 +445,7 @@ pub fn standard_library_package_inputs(
             PackageSourceBinding::new(root_identity, root_name, project_root.to_path_buf()),
             PackageSourceBinding::new(
                 standard_library_identity,
-                "omega-language-std",
+                "omega_language_std",
                 standard_library_root.to_path_buf(),
             ),
         ],
@@ -696,7 +696,7 @@ pub fn reviewed_repository_fixture_package_inputs(
 pub fn hosted_main_program_entry_build_for(canary: &Path, target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n{}    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n",
+        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted_main_program_entry\");\n{}    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n",
         fixture_dependency_declarations(canary)
     )
 }
@@ -723,7 +723,7 @@ pub fn hosted_program_entry_owner(target: &str) -> &'static str {
 pub fn cross_target_program_entry_build(canary: &Path, target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     let mut build =
-        "machine build(builder: &mut Build) {\n    builder.application(\"cross-target-canary\");\n"
+        "machine build(builder: &mut Build) {\n    builder.application(\"cross_target_canary\");\n"
             .to_owned();
     build.push_str(&fixture_dependency_declarations(canary));
     if target == "uefi_x86_64" {

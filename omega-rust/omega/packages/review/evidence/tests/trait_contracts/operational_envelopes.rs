@@ -19,7 +19,7 @@ pub boundary trait Worker {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -81,7 +81,7 @@ pub boundary trait SchedulerRuntime {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -144,7 +144,7 @@ pub boundary trait SchedulerRuntime {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -184,7 +184,7 @@ pub boundary trait SchedulerRuntime {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -270,7 +270,7 @@ pub boundary trait SchedulerRuntime {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 

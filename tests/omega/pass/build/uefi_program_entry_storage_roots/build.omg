@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("uefi-program-entry-storage-roots");
+    builder.application("uefi_program_entry_storage_roots");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;

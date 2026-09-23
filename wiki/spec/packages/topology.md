@@ -116,7 +116,7 @@ Illustrative root `build.omg` (schematic APIs and abbreviated error handling):
 use build_support::deployment;
 
 machine build(builder: &mut Build) {
-    builder.application("payments-deployment");
+    builder.application("payments_deployment");
     builder.build_depend_as("topology", Source::Path {
         location: "../topology"
     });

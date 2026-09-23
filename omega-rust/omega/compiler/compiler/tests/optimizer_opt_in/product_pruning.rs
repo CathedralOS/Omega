@@ -15,7 +15,7 @@ fn terminal_product_eliminates_unused_block_parameters_and_edge_arguments() {
         Some(
             r#"
 machine build(builder: &mut Build) {
-    builder.application("terminal-dead-block-parameters");
+    builder.application("terminal_dead_block_parameters");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::DeadPureScalarElimination);
 }
@@ -162,7 +162,7 @@ fn terminal_product_propagates_copies_through_block_parameters() {
         Some(
             r#"
 machine build(builder: &mut Build) {
-    builder.application("terminal-copy-propagation");
+    builder.application("terminal_copy_propagation");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::CopyPropagation);
 }
@@ -299,7 +299,7 @@ fn terminal_product_retains_the_exact_pending_physical_selection() {
         "selected-terminal-physical-proposal",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-selected-terminal-physical-proposal");
+    builder.application("optimizer_selected_terminal_physical_proposal");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
 }
@@ -396,7 +396,7 @@ fn package_aware_root_build_retains_its_exact_selection() {
         "package-root-selection",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-package-root-selection");
+    builder.application("optimizer_package_root_selection");
     builder.optimizations.enable(Optimization::GlobalValueNumbering);
 }
 "#,

@@ -78,7 +78,7 @@ fn packaged_root_resolves_declared_path_dependency_imports() {
     project.write(
         "root/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("inspect-root");
+    builder.package("inspect_root");
     builder.depend_as("facts", Source::Path { location: "../facts" });
 }
 "#,
@@ -143,7 +143,7 @@ fn standalone_root_keeps_resolving_sibling_path_imports() {
 /// the captured snapshot. Package inspection uses the manager's sponsored
 /// candidate session, whose staged outputs and captured inputs remain private.
 const SNAPSHOT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("inspect-snapshot-root");
+    builder.package("inspect_snapshot_root");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 7];

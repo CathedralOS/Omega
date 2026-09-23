@@ -115,10 +115,10 @@ fn write_callback_package(name: &str, source: &str) -> (PathBuf, PackageCompilat
     let inputs = PackageCompilationInputs::new_package(
         package,
         vec![
-            PackageSourceBinding::new(package, "calling-policy-fixture", directory),
+            PackageSourceBinding::new(package, "calling_policy_fixture", directory),
             PackageSourceBinding::new(
                 standard_library,
-                "omega-language-std",
+                "omega_language_std",
                 bundled_standard_library_root(),
             ),
         ],
@@ -473,7 +473,7 @@ machine Main::main(&mut self) { }
 
 const INTERRUPT_REPRESENTATION_BUILD: &str = r#"
 machine build(builder: &mut Build) {
-    builder.application("interrupt-entry");
+    builder.application("interrupt_entry");
     builder.select_representation<
         InterruptAcknowledgement,
         PicAckRepresentation
@@ -661,7 +661,7 @@ machine Main::main(&mut self) { }
 
 const FOREIGN_OPAQUE_BUILD: &str = r#"
 machine build(builder: &mut Build) {
-    builder.application("foreign-channel");
+    builder.application("foreign_channel");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.select_representation<ForeignToken, ForeignTokenRepresentation>();
 }

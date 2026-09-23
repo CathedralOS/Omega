@@ -26,7 +26,7 @@ fn absent_and_role_only_builds_select_no_optimizations() {
     let role_only = project(
         "role-only",
         Some(
-            "machine build(builder: &mut Build) {\n    builder.application(\"optimizer-role-only\");\n}\n",
+            "machine build(builder: &mut Build) {\n    builder.application(\"optimizer_role_only\");\n}\n",
         ),
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(
@@ -47,7 +47,7 @@ fn human_report_is_an_explicit_request_not_an_optimization_selection() {
         "human-report",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-human-report");
+    builder.application("optimizer_human_report");
     builder.optimizations.emit_report();
 }
 "#,
@@ -68,7 +68,7 @@ fn duplicate_human_report_requests_reject_during_build_evaluation() {
         "duplicate-human-report",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-duplicate-human-report");
+    builder.application("optimizer_duplicate_human_report");
     builder.optimizations.emit_report();
     builder.optimizations.emit_report();
 }
@@ -122,7 +122,7 @@ fn duplicate_enable_calls_reject_during_build_evaluation() {
         "duplicate",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-duplicate");
+    builder.application("optimizer_duplicate");
     builder.optimizations.enable(Optimization::GlobalValueNumbering);
     builder.optimizations.enable(Optimization::GlobalValueNumbering);
 }
@@ -143,7 +143,7 @@ fn ordinary_authored_build_does_not_replace_selected_toolchain_build() {
         "ordinary-build",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-ordinary-build");
+    builder.application("optimizer_ordinary_build");
 }
 "#,
         ),
@@ -167,7 +167,7 @@ fn ordinary_authored_lookalike_selection_field_cannot_spoof_toolchain_build() {
         "lookalike",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-lookalike");
+    builder.application("optimizer_lookalike");
 }
 "#,
         ),
@@ -272,7 +272,7 @@ fn return_only_selected_lowering_build_rejoins_native_artifact_production() {
         "fail-closed",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-fail-closed");
+    builder.application("optimizer_fail_closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
 }
@@ -316,7 +316,7 @@ fn partial_rollback_routes_the_remaining_psi_selection_to_preterminal() {
         "partial-rollback-fail-closed",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-partial-rollback-fail-closed");
+    builder.application("optimizer_partial_rollback_fail_closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
     builder.optimizations.enable(Optimization::CopyPropagation);
@@ -381,7 +381,7 @@ fn return_only_exact_subtract_rejoins_native_artifact_production() {
         "subtract-fail-closed",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-subtract-fail-closed");
+    builder.application("optimizer_subtract_fail_closed");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
 }
@@ -426,7 +426,7 @@ fn return_only_compare_immediate_rejoins_native_artifact_production() {
         "compare-rejoin",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-compare-rejoin");
+    builder.application("optimizer_compare_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);
 }
@@ -499,7 +499,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-selected-lowering-physical-child");
+    builder.application("optimizer_selected_lowering_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);
 }

@@ -66,7 +66,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         };
         let mut sources = vec![PackageSourceBinding::new(
             package_identity(),
-            "review-fixture",
+            "review_fixture",
             root.0.clone(),
         )];
         let mut dependencies = Vec::new();
@@ -75,7 +75,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
             root.write("main.omg", "use accepted_service::service;\n");
             sources.push(PackageSourceBinding::new(
                 owner,
-                "service-package",
+                "service_package",
                 dependency.0.clone(),
             ));
             dependencies.push(PackageDependencyBinding::new(
@@ -105,12 +105,12 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
             if console {
                 r#"use accepted_service::service;
 machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_provider<accepted_service::Console, accepted_service::ConsoleNativeProvider>();
 }
 "#
             } else {
-                "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n"
+                "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n"
             },
         );
         // The canonical FilesystemHost mint requires the toolchain's exact

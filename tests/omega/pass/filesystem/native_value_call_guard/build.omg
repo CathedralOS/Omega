@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("native-value-call-guard");
+    builder.application("native_value_call_guard");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -1,7 +1,7 @@
 // Deployable transparent-record frontier: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("linear-transparent-record-frontier");
+    builder.application("linear_transparent_record_frontier");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

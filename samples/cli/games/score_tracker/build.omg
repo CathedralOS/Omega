@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("score-tracker");
+    builder.application("score_tracker");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

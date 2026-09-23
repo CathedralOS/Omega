@@ -1,7 +1,7 @@
 // Register the freestanding x86-64 PE target used to inspect the entry stub.
 
 machine build(builder: &mut Build) {
-    builder.application("efi-float-entry-argument");
+    builder.application("efi_float_entry_argument");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

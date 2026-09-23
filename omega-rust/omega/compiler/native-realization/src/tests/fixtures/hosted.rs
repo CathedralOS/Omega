@@ -29,7 +29,7 @@ fn compile_hosted_entry(
     std::fs::write(
         dir.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.application(\"hosted-entry-fixture\");\n    builder.roots.bind({}::ProgramEntry, Main::launch);\n}}\n",
+            "machine build(builder: &mut Build) {{\n    builder.application(\"hosted_entry_fixture\");\n    builder.roots.bind({}::ProgramEntry, Main::launch);\n}}\n",
             profile.root_slot_owner_name(),
         ),
     )

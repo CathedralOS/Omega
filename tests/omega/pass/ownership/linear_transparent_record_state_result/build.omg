@@ -1,7 +1,7 @@
 // Deployable path-aligned state-result probe: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("linear-transparent-record-state-result");
+    builder.application("linear_transparent_record_state_result");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -22,7 +22,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
     );
     canonical.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let canonical_checked = compile_review_fixture(CheckedCompileRequest {
@@ -77,7 +77,7 @@ reaches MachineControl + PortIo + InterruptMaskControl + InterruptEntry + Extent
     );
     lookalike.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let lookalike_checked = compile_review_fixture(CheckedCompileRequest {
@@ -106,7 +106,7 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
     package.write("main.omg", "boundary data InternalToken;\n");
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -135,7 +135,7 @@ fn representation_tcb_retains_private_opaque_data_as_unbound() {
     control.write("main.omg", "data InternalToken { }\n");
     control.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let control_checked = compile_review_fixture(CheckedCompileRequest {
@@ -179,7 +179,7 @@ pub PublicTokenRepresentation:
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -272,7 +272,7 @@ pub CopyTokenRepresentation:
     package.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_representation<CopyToken, CopyTokenRepresentation>();
 }
 "#,
@@ -451,7 +451,7 @@ boundary trait TransferEntry: Calling<TwoParameterPolicy> {
     package.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_representation<TransferToken, TransferTokenRepresentation>();
 }
 "#,
@@ -600,7 +600,7 @@ fn dependency_owned_opaque_copy_receipt_belongs_to_the_selecting_package() {
         "build.omg",
         r#"use carrier::types;
 machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_representation<CopyToken, CopyTokenRepresentation>();
 }
 "#,
@@ -622,8 +622,8 @@ pub CopyTokenRepresentation:
     let inputs = PackageCompilationInputs::new_package(
         root_identity,
         vec![
-            PackageSourceBinding::new(root_identity, "review-fixture", root.0.clone()),
-            PackageSourceBinding::new(dependency_identity, "carrier-package", dependency.0.clone()),
+            PackageSourceBinding::new(root_identity, "review_fixture", root.0.clone()),
+            PackageSourceBinding::new(dependency_identity, "carrier_package", dependency.0.clone()),
         ],
         vec![
             PackageDependencyBinding::new(root_identity, "carrier", dependency_identity),

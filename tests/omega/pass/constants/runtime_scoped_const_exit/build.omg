@@ -1,7 +1,7 @@
 // Deployable constant canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-scoped-const-exit");
+    builder.application("runtime_scoped_const_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -15,7 +15,7 @@ fn compile(source: &str) -> (TempPackage, ReviewFixture) {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),

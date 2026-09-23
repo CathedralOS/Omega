@@ -35,7 +35,7 @@ fn return_only_bitwise_and_ones_identity_copy_rejoins_native_artifact_production
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-bitwise-and-ones-identity-copy-rejoin");
+    builder.application("optimizer_bitwise_and_ones_identity_copy_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy);
 }

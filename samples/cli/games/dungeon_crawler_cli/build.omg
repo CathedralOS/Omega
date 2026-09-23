@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("dungeon-crawler-cli");
+    builder.application("dungeon_crawler_cli");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -339,12 +339,12 @@ fn repeated_update_audit(dependency: &str) -> PackageLock {
         let old_dependency = old_source
             .packages()
             .iter()
-            .find(|package| package.key().name().as_str() == "command-dependency")
+            .find(|package| package.key().name().as_str() == "command_dependency")
             .unwrap();
         let new_dependency = new_source
             .packages()
             .iter()
-            .find(|package| package.key().name().as_str() == "command-dependency")
+            .find(|package| package.key().name().as_str() == "command_dependency")
             .unwrap();
         assert_eq!(old_dependency.key(), new_dependency.key());
         assert_ne!(old_dependency.resolution(), new_dependency.resolution());

@@ -27,7 +27,7 @@ impl Fixture {
     fn new(source: &str, foreign: Option<(&str, PackageKeyIdentity)>) -> Self {
         Self::with_build_and_foreign(
             source,
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
             foreign,
         )
     }
@@ -42,7 +42,7 @@ impl Fixture {
         root.write("build.omg", build);
         let mut sources = vec![PackageSourceBinding::new(
             package_identity(),
-            "review-fixture",
+            "review_fixture",
             root.0.clone(),
         )];
         let mut dependencies = Vec::new();
@@ -51,7 +51,7 @@ impl Fixture {
             package.write("helpers.omg", source);
             sources.push(PackageSourceBinding::new(
                 owner,
-                "helper-package",
+                "helper_package",
                 package.0.clone(),
             ));
             dependencies.push(PackageDependencyBinding::new(

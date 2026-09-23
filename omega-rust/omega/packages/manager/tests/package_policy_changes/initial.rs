@@ -82,7 +82,7 @@ fn the_same_root_key_retains_directional_package_application_role_changes() {
         tree.path("sources/root/build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.application(\"policy-fixture\");\n",
+            " builder.application(\"policy_fixture\");\n",
             " builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n",
             "}\n",
         ),

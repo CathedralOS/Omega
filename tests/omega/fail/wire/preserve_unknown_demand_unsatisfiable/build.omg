@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("preserve-unknown-demand-unsatisfiable");
+    builder.application("preserve_unknown_demand_unsatisfiable");
     builder.require_wire_compatibility<
         RelayChannel,
         MessageLineage,

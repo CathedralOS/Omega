@@ -39,7 +39,7 @@ impl SourceFixture {
             package,
             vec![PackageSourceBinding::new(
                 package,
-                "array-equations",
+                "array_equations",
                 self.root.clone(),
             )],
             Vec::new(),

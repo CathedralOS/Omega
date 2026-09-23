@@ -213,13 +213,13 @@ fn retained_filesystem_implementation_upgrade_recommends_audit_without_reapprova
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "file-journal")
+        .find(|package| package.key().name().as_str() == "file_journal")
         .unwrap();
     let new_package = new_target
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "file-journal")
+        .find(|package| package.key().name().as_str() == "file_journal")
         .unwrap();
     assert_eq!(old_package.key(), new_package.key());
     assert_ne!(old_package.resolution(), new_package.resolution());
@@ -306,7 +306,7 @@ fn false_filesystem_ceiling(installed: bool) {
     assert_status(&output, 1);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("checked compilation failed for package `file-journal`"),
+        stderr.contains("checked compilation failed for package `file_journal`"),
         "{stderr}"
     );
     assert!(!fixture.path("root/build/package-manager/proposal").exists());
@@ -344,7 +344,7 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
         .replace('"', "\\\"")
         .replace('\n', "\\n");
     let build = GENERATED_BUILD
-        .replace("builder.package(\"generated-table\");", "builder.package(\"generated-table\");\n    builder.depend(Source::Path { location: \"../host-services\" });\n    builder.select_provider<host_services::Console, host_services::ConsoleNativeProvider>();")
+        .replace("builder.package(\"generated_table\");", "builder.package(\"generated_table\");\n    builder.depend(Source::Path { location: \"../host-services\" });\n    builder.select_provider<host_services::Console, host_services::ConsoleNativeProvider>();")
         .replace("pub machine table_size() -> u64 {\\n    3\\n}\\n", &generated_source);
     assert!(build.contains(callable));
     // Imports belong to the pre-build source closure; generation adds the
@@ -377,7 +377,7 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
     let generated = fresh
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "generated-table")
+        .find(|review| review.key().name().as_str() == "generated_table")
         .unwrap();
     assert!(
         generated

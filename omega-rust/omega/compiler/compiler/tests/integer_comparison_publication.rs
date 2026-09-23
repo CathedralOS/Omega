@@ -39,7 +39,7 @@ machine Main::main(&mut self) {
             directory.join("build.omg"),
             r#"
 machine build(builder: &mut Build) {
-    builder.application("integer-comparison-publication");
+    builder.application("integer_comparison_publication");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -56,7 +56,7 @@ machine build(builder: &mut Build) {
             package_compilation::BuildDeclarationKind::Application,
             vec![package_compilation::PackageSourceBinding::new(
                 identity,
-                "integer-comparison-publication",
+                "integer_comparison_publication",
                 self.0.clone(),
             )],
             Vec::new(),

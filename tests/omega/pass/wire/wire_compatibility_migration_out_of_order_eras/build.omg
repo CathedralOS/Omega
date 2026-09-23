@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("wire-compatibility-migration-out-of-order-eras");
+    builder.application("wire_compatibility_migration_out_of_order_eras");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.require_wire_compatibility<
         ArchiveStore,

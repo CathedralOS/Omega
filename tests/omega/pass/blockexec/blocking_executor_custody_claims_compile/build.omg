@@ -3,7 +3,7 @@
 // entry even though the driving test only reaches checked trees.
 
 machine build(builder: &mut Build) {
-    builder.application("blocking-executor-custody-claims-compile");
+    builder.application("blocking_executor_custody_claims_compile");
     builder.select_provider<WorkerProvider, CanaryWorkerProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

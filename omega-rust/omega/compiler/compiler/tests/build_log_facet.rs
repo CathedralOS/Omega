@@ -42,7 +42,7 @@ impl PackageProject {
             package,
             vec![PackageSourceBinding::new(
                 package,
-                "build-log-package",
+                "build_log_package",
                 self.0.clone(),
             )],
             Vec::new(),
@@ -63,7 +63,7 @@ fn compile_package_build_log() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-log-package");
+    builder.application("build_log_package");
     builder.log.write_line("build: compiler-owned log");
 }
 "#,
@@ -164,7 +164,7 @@ fn sponsored_build_log_rejects_atomically_at_the_exact_closure_ceiling() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-log-ceiling");
+    builder.application("build_log_ceiling");
     builder.log.write_line("build: compiler-owned log");
 }
 "#,
@@ -228,7 +228,7 @@ machine accept_package_log(log: &mut BuildLog) {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-log-lookalike");
+    builder.application("build_log_lookalike");
     accept_package_log(&mut builder.log);
 }
 "#,

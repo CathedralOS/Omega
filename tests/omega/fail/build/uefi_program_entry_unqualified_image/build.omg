@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("uefi-program-entry-unqualified-image");
+    builder.application("uefi_program_entry_unqualified_image");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, launch);

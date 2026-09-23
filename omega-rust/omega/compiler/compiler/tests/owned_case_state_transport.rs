@@ -299,7 +299,7 @@ machine Main::main(&mut self) {
         fixture.0.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("owned-case-state");
+    builder.application("owned_case_state");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,

@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-view-linked-input-unrelated-ref-write-exit");
+    builder.application("runtime_view_linked_input_unrelated_ref_write_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

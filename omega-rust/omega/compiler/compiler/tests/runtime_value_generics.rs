@@ -69,7 +69,7 @@ fn try_publish(name: &str, source: &str) -> Result<Published, (Fixture, String)>
         fixture.0.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("runtime-value-generics");
+    builder.application("runtime_value_generics");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,

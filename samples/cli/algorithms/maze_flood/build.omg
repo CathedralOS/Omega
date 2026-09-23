@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("maze-flood");
+    builder.application("maze_flood");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

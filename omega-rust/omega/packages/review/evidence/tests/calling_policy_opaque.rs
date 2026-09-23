@@ -70,7 +70,7 @@ fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, ReviewFixt
     let dependency = foreign_types.then(TempPackage::new);
     let mut source_bindings = vec![PackageSourceBinding::new(
         package_identity(),
-        "review-fixture",
+        "review_fixture",
         package.0.clone(),
     )];
     source_bindings.push(standard_library_source());
@@ -91,7 +91,7 @@ fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, ReviewFixt
         let identity = PackageKeyIdentity::from_digest([42; 32]).unwrap();
         source_bindings.push(PackageSourceBinding::new(
             identity,
-            "carrier-package",
+            "carrier_package",
             dependency.0.clone(),
         ));
         dependency_bindings.push(PackageDependencyBinding::new(
@@ -116,7 +116,7 @@ fn fixture(foreign_types: bool) -> (TempPackage, Option<TempPackage>, ReviewFixt
         &format!(
             r#"{}
 machine build(builder: &mut Build) {{
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_representation<TransferToken, TransferTokenRepresentation>();
     builder.select_representation<UnusedToken, UnusedTokenRepresentation>();
 }}

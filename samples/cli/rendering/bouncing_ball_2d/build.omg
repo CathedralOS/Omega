@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("bouncing-ball-2d");
+    builder.application("bouncing_ball_2d");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

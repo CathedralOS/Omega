@@ -343,7 +343,7 @@ fn acquires_through_helper_return_original_main_entry_runs() {
     fs::write(
         source.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.application(\"acquires-helper-return-main\");\n    builder.select_provider<Desktop, DesktopProvider>();\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+            "machine build(builder: &mut Build) {{\n    builder.application(\"acquires_helper_return_main\");\n    builder.select_provider<Desktop, DesktopProvider>();\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
         ),
     )
     .expect("write Main::main entry binding with the Fused Desktop selection");

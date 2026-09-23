@@ -35,7 +35,7 @@ fn return_only_saturating_divide_one_identity_copy_rejoins_native_artifact_produ
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-saturating-divide-one-identity-copy-rejoin");
+    builder.application("optimizer_saturating_divide_one_identity_copy_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingSaturatingDivideOneIdentityCopy);
 }

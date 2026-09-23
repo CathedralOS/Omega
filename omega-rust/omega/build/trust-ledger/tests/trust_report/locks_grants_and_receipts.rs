@@ -37,7 +37,7 @@ fn modern_package_lock_does_not_settle_fresh_compiler_obligations() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("fresh-obligations");
+    builder.application("fresh_obligations");
     builder.accept_boundary<admitted>();
 }
 "#,
@@ -274,7 +274,7 @@ fn domain_and_unmatched_root_grants_reject_without_receipts() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("trust-grant");
+    builder.application("trust_grant");
     builder.accept_boundary<Meters>();
     builder.accept_boundary<walker_lib::collatz_cert_checked>();
 }
@@ -336,7 +336,7 @@ machine Main::exercise(&mut self) {}
     let build_with = |grant: &str| {
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("trust-grant-canonicalization");
+    builder.application("trust_grant_canonicalization");
     builder.accept_boundary<{grant}>();
 }}
 "#
@@ -400,7 +400,7 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("trust-lock");
+    builder.application("trust_lock");
     builder.accept_boundary<admitted>();
 }
 "#,
@@ -482,7 +482,7 @@ machine Main::exercise(&mut self) {}
             .join("\n");
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("trust-lock-grants");
+    builder.application("trust_lock_grants");
 {grants}
 }}
 "#
@@ -558,7 +558,7 @@ fn trust_lock_rejects_corrupt_and_duplicate_rows_without_repair() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("build.omg"),
-        r#"machine build(builder: &mut Build) { builder.application("trust-lock-corrupt"); builder.accept_boundary<Alpha>(); }
+        r#"machine build(builder: &mut Build) { builder.application("trust_lock_corrupt"); builder.accept_boundary<Alpha>(); }
 "#,
     )
     .expect("write build.omg");
@@ -636,7 +636,7 @@ fn granted_axiom_receipt_drifts_on_claim_edit() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("axiom-lock");
+    builder.application("axiom_lock");
     builder.accept_boundary<mul_comm_axiom>();
 }
 "#,
@@ -702,7 +702,7 @@ fn granted_axiom_receipt_drifts_on_published_contract_axis_edit() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("axiom-axis-lock");
+    builder.application("axiom_axis_lock");
     builder.accept_boundary<admitted_axis>();
 }
 "#,
@@ -771,7 +771,7 @@ fn granted_generic_axiom_receipt_pins_template_and_machine_requirement() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("generic-axiom-lock");
+    builder.application("generic_axiom_lock");
     builder.accept_boundary<admitted>();
 }
 "#,

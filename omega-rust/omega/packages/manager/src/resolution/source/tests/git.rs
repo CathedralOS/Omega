@@ -29,7 +29,7 @@ fn write_workspace(root: &Path, members: &[&str]) {
 fn git_binding_normalizes_known_transport_without_using_repository_name() {
     let repository = temp_root("git-binding-repository");
     let cache = temp_root("git-binding-cache");
-    write_package(&repository, "declared-package");
+    write_package(&repository, "declared_package");
     run_test_git(&repository, ["init", "--quiet"]);
     run_test_git(
         &repository,
@@ -65,7 +65,7 @@ fn git_binding_normalizes_known_transport_without_using_repository_name() {
     .expect("resolve SSH-lineage source");
 
     assert_eq!(https.key(), ssh.key());
-    assert_eq!(https.key().name().as_str(), "declared-package");
+    assert_eq!(https.key().name().as_str(), "declared_package");
     assert_eq!(https.resolution(), ssh.resolution());
 
     let _ = std::fs::remove_dir_all(&repository);
@@ -78,8 +78,8 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
     let repository = temp_root("git-named-errors-repository");
     let cache = temp_root("git-named-errors-cache");
     write_workspace(&repository, &["packages/first", "packages/second"]);
-    write_package(&repository.join("packages/first"), "same-name");
-    write_package(&repository.join("packages/second"), "same-name");
+    write_package(&repository.join("packages/first"), "same_name");
+    write_package(&repository.join("packages/second"), "same_name");
     run_test_git(&repository, ["init", "--quiet"]);
     run_test_git(
         &repository,
@@ -124,7 +124,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
         &GitPackageSourceRequest::new(
             acquisition,
             crate::declarations::PackageSelection::Named(
-                crate::declarations::PackageName::parse("same-name").unwrap(),
+                crate::declarations::PackageName::parse("same_name").unwrap(),
             ),
         ),
         &storage,
@@ -138,7 +138,7 @@ fn named_git_binding_rejects_missing_and_duplicate_declared_names() {
                 package_name,
                 member_paths,
             }
-        ) if package_name.as_str() == "same-name" && member_paths.len() == 2
+        ) if package_name.as_str() == "same_name" && member_paths.len() == 2
     ));
 
     drop(storage);
@@ -155,7 +155,7 @@ fn named_git_binding_rejects_symlink_member_navigation() {
     let repository = temp_root("git-named-symlink-repository");
     let cache = temp_root("git-named-symlink-cache");
     write_workspace(&repository, &["packages/linked"]);
-    write_package(&repository.join("actual"), "linked-package");
+    write_package(&repository.join("actual"), "linked_package");
     std::fs::create_dir_all(repository.join("packages")).expect("create packages directory");
     symlink("../actual", repository.join("packages/linked")).expect("create member symlink");
     run_test_git(&repository, ["init", "--quiet"]);
@@ -182,7 +182,7 @@ fn named_git_binding_rejects_symlink_member_navigation() {
         &GitPackageSourceRequest::new(
             acquisition,
             crate::declarations::PackageSelection::Named(
-                crate::declarations::PackageName::parse("linked-package").unwrap(),
+                crate::declarations::PackageName::parse("linked_package").unwrap(),
             ),
         ),
         &storage,
@@ -232,7 +232,7 @@ fn test_git_head(directory: &Path) -> String {
 #[test]
 fn conflicting_git_revisions_report_real_custody_and_both_request_paths() {
     let repository = temp_root("git-reconciliation-repository");
-    write_package(&repository, "shared-dependency");
+    write_package(&repository, "shared_dependency");
     run_test_git(&repository, ["init", "--quiet"]);
     run_test_git(
         &repository,
@@ -258,7 +258,7 @@ fn conflicting_git_revisions_report_real_custody_and_both_request_paths() {
         root.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.package("reconciliation-root");
+    builder.package("reconciliation_root");
     builder.depend_as("first_revision", Source::Git {{
         repository: "{canonical_repository}",
         revision: "{first_revision}"

@@ -372,7 +372,7 @@ machine Main::main(&mut self) reaches Console {
     // prelude source) -- build.omg authors only the machine.
     const BUILD_GUI: &str = r#"
 machine build(builder: &mut Build) {
-    builder.application("build-subsystem-gui");
+    builder.application("build_subsystem_gui");
     builder.subsystem = Subsystem::Gui;
 }
 "#;

@@ -10,13 +10,13 @@ use std::collections::BTreeMap;
 #[test]
 fn traverses_product_and_build_rows_with_purpose_and_scope_ordinals() {
     let product = custody(
-        "product-lib",
+        "product_lib",
         "product-lib",
         2,
         "/snapshots/product",
         vec![],
     );
-    let host = custody("host-tool", "host-tool", 3, "/snapshots/host", vec![]);
+    let host = custody("host_tool", "host-tool", 3, "/snapshots/host", vec![]);
     let root = custody_with_scopes(
         "application",
         "application",
@@ -89,13 +89,13 @@ fn traverses_product_and_build_rows_with_purpose_and_scope_ordinals() {
 #[test]
 fn the_same_alias_is_distinct_across_product_and_build_scopes() {
     let product = custody(
-        "product-lib",
+        "product_lib",
         "product-lib",
         2,
         "/snapshots/product",
         vec![],
     );
-    let host = custody("host-tool", "host-tool", 3, "/snapshots/host", vec![]);
+    let host = custody("host_tool", "host-tool", 3, "/snapshots/host", vec![]);
     let root = custody_with_scopes(
         "application",
         "application",
@@ -160,7 +160,7 @@ fn rejects_a_duplicate_alias_inside_the_build_scope() {
 #[test]
 fn nested_build_rows_retain_their_own_requester_and_purpose() {
     let product = custody_with_scopes(
-        "product-lib",
+        "product_lib",
         "product-lib",
         2,
         "/snapshots/product",
@@ -176,7 +176,7 @@ fn nested_build_rows_retain_their_own_requester_and_purpose() {
         vec![request("product")],
     );
 
-    let nested = custody("nested-host", "nested-host", 3, "/snapshots/nested", vec![]);
+    let nested = custody("nested_host", "nested-host", 3, "/snapshots/nested", vec![]);
     let closure = resolve_package_source_closure(
         git_root_request(&root),
         root,
@@ -249,7 +249,7 @@ fn an_unresolvable_build_request_reports_its_purpose_and_ordinal() {
         vec![request("missing-host")],
     );
     let product = custody(
-        "product-lib",
+        "product_lib",
         "product-lib",
         2,
         "/snapshots/product",

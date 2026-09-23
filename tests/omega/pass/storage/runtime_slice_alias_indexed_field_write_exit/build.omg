@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-slice-alias-indexed-field-write-exit");
+    builder.application("runtime_slice_alias_indexed_field_write_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

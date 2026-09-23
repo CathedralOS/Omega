@@ -22,7 +22,7 @@ satisfies CheckedMath::offset_zero
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -112,7 +112,7 @@ machine SecondUse::exercise(&mut self) {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -219,7 +219,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -346,7 +346,7 @@ satisfies CheckedMath::convert
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -434,7 +434,7 @@ satisfies CheckedMath::convert
     package.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_provider<CheckedMath::convert, ConvertProvider>();
 }
 "#,
@@ -508,7 +508,7 @@ satisfies GenericMath::identity
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -578,7 +578,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -672,7 +672,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -724,7 +724,7 @@ pub machine compare<Element>(left: Element, right: Element) -> bool {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -815,7 +815,7 @@ pub machine compare<Element>(left: Element, right: Element) -> bool {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -892,7 +892,7 @@ pub machine other<Element>(left: Element, right: Element) -> bool { true }
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -986,7 +986,7 @@ pub machine exercise_u64(value: u64) -> u64 {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -1059,7 +1059,7 @@ satisfies GenericMath::identity
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -1108,7 +1108,7 @@ satisfies ConstMath::identity
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -1176,7 +1176,7 @@ pub machine exercise(value: [u8; 4]) -> [u8; 4] {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -1242,7 +1242,7 @@ pub machine exercise(value: i32) -> i32 {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -1323,7 +1323,7 @@ satisfies GenericMath::identity
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let diagnostics = compile_review_fixture(CheckedCompileRequest {

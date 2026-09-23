@@ -17,7 +17,7 @@ fn check(source: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics::
         identity(1),
         vec![PackageSourceBinding::new(
             identity(1),
-            "generic-visibility",
+            "generic_visibility",
             root.clone(),
         )],
         Vec::new(),

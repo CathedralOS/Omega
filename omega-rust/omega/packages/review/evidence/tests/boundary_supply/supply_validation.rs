@@ -19,7 +19,7 @@ pub machine GenericProvider::identity<Value>(value: Value) -> Value
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -93,7 +93,7 @@ pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -143,7 +143,7 @@ machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -187,7 +187,7 @@ fn unsupported_external_boundary_operator_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let cases = [(
         "private-operator",
@@ -268,7 +268,7 @@ pub machine FloatProvider::maximum(left: f32, right: f32) -> f32
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -331,7 +331,7 @@ pub machine invoke_leaf()
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
@@ -391,7 +391,7 @@ pub machine invoke_leaf()
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

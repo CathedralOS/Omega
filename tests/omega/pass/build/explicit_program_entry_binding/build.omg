@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("explicit-program-entry-binding");
+    builder.application("explicit_program_entry_binding");
     builder.roots.bind(windows_x86_64::ProgramEntry, launch);
 }

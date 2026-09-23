@@ -25,7 +25,7 @@ fn checked_contract(_name: &str) -> compiler::CheckedCompilation {
         package,
         vec![PackageSourceBinding::new(
             package,
-            "omega-language-std",
+            "omega_language_std",
             standard_library_root.clone(),
         )],
         Vec::new(),
@@ -250,7 +250,7 @@ fn checked_arm64_contract(_name: &str) -> compiler::CheckedCompilation {
         package,
         vec![PackageSourceBinding::new(
             package,
-            "omega-language-std",
+            "omega_language_std",
             standard_library_root.clone(),
         )],
         Vec::new(),

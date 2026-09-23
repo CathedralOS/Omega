@@ -461,11 +461,11 @@ fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_ap
     );
     project.package(
         "left",
-        "shared-name",
+        "shared_name",
         "builder.depend_as(\"transitive\", Source::Path { location: \"../right\" });",
         "pub const LEFT: u64 = 1;\n",
     );
-    project.package("right", "shared-name", "", "pub const RIGHT: u64 = 2;\n");
+    project.package("right", "shared_name", "", "pub const RIGHT: u64 = 2;\n");
     let (source, reviews, _) = project.candidate("old", None);
     let baseline = lock(&source, &reviews);
     project.package(
@@ -521,13 +521,13 @@ fn changed_api_is_freshly_reported_without_retaining_old_meaning_or_requiring_ap
     let shared: Vec<_> = source
         .packages()
         .iter()
-        .filter(|package| package.key().name().as_str() == "shared-name")
+        .filter(|package| package.key().name().as_str() == "shared_name")
         .collect();
     assert_eq!(shared.len(), 2);
     assert_ne!(shared[0].key().identity(), shared[1].key().identity());
     for package in shared {
         assert!(text.contains(&format!(
-            "package \"shared-name\" {}",
+            "package \"shared_name\" {}",
             Hex(&package.key().identity().digest())
         )));
         assert!(text.contains(&package.resolution().content().to_hex()));
@@ -542,7 +542,7 @@ fn build_snapshot_section_reports_captured_inventory_and_settled_outputs() {
     let project = Project::new();
     project.package(
         "root",
-        "snapshot-inspection",
+        "snapshot_inspection",
         r#"let required: RequiredOutput = builder.output.require("artifact.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);

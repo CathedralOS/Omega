@@ -2,7 +2,7 @@
 // stdout/exit to OS calls on each hosted target.
 
 machine build(builder: &mut Build) {
-    builder.application("run-length-encode");
+    builder.application("run_length_encode");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -251,7 +251,7 @@ pub fn standard_library_package_inputs(
             PackageSourceBinding::new(root_identity, root_name, project_root.to_path_buf()),
             PackageSourceBinding::new(
                 standard_library_identity,
-                "omega-language-std",
+                "omega_language_std",
                 bundled_standard_library_root(),
             ),
         ],

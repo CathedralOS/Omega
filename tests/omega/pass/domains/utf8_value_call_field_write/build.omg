@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("utf8-value-call-field-write");
+    builder.application("utf8_value_call_field_write");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

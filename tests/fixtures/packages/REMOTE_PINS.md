@@ -5,6 +5,15 @@ Private GitHub mirrors under the `CathedralOS` organization.
 Use these exact commits for remote resolver/package-manager tests; do not use
 branch names in acceptance tests.
 
+These pins retain their historical hyphenated package declarations. Current
+local fixtures use underscore-separated names, so the pinned remote trees no
+longer match their current local declarations. Remote package-acceptance tests
+require publishing migrated fixture revisions and repinning them before they
+can pass the current name contract. The existing ignored network tests remain
+unverified; do not rewrite a pin's identity or claim current remote acceptance
+from the local metadata check. Repository URLs and local directory names stay
+unchanged.
+
 Optional network validation, requiring private `CathedralOS` repository access:
 
 ```text

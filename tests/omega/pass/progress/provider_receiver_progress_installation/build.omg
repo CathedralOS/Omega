@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("provider-receiver-progress-installation");
+    builder.application("provider_receiver_progress_installation");
     builder.select_provider<Scheduler, SchedulerProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

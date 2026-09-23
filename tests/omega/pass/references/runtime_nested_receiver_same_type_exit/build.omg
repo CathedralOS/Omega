@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-nested-receiver-same-type-exit");
+    builder.application("runtime_nested_receiver_same_type_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -11,7 +11,7 @@ fn review_projects_width_landed_float_literals_by_exact_bits() {
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -67,7 +67,7 @@ fn float_contract_review_rejects_missing_checked_width_landing() {
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -109,7 +109,7 @@ ensures result == 1.25
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -159,7 +159,7 @@ pub trait Measures {
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -180,7 +180,7 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -237,7 +237,7 @@ fn review_projects_exact_compiler_builtin_function_identity() {
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -307,7 +307,7 @@ fn builtin_function_review_rejects_checked_target_symbol_tamper() {
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -364,7 +364,7 @@ fn review_projects_exact_raw_byte_literals_in_public_contracts() {
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -434,7 +434,7 @@ requires matrix({literal})
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
@@ -489,7 +489,7 @@ requires values([source[0]])
     );
     nested.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

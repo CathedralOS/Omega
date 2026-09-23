@@ -200,7 +200,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     let [(owner, context, authority)] = dangerous_authorities.as_slice() else {
         panic!("graph-workbench must propagate one dependency-owned dangerous authority")
     };
-    assert_eq!(owner.name().as_str(), "file-journal");
+    assert_eq!(owner.name().as_str(), "file_journal");
     assert!(context.purpose().is_product());
     assert_eq!(
         authority.status(),
@@ -287,7 +287,7 @@ fn canonical_question_round_trips_and_freshly_reconstructs_complete_closure() {
     let file_journal = evidence
         .packages()
         .iter()
-        .find(|package| package.package().name().as_str() == "file-journal")
+        .find(|package| package.package().name().as_str() == "file_journal")
         .expect("dependency evidence retains its original package owner");
     assert_eq!(
         file_journal.artifact().package(),
@@ -312,7 +312,7 @@ fn fresh_closure_without_blockers_requires_and_reuses_project_acceptance() {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("claim-free");
+    builder.package("claim_free");
 }
 "#,
     )
@@ -409,7 +409,7 @@ fn accepted_evidence_rechecks_live_source_custody_after_review() {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("custody-canary");
+    builder.package("custody_canary");
 }
 "#,
     )

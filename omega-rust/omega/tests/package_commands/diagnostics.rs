@@ -69,7 +69,7 @@ fn unsupported_generated_declaration(command: &str) {
         "pub machine value() -> u64 { 7 }\n",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.package("arithmetic-kernels");
+    builder.package("arithmetic_kernels");
     let generated: BuildPath = builder.output.resolve("unsupported.generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let written: i64 = builder.output.write(descriptor, "trait GeneratedOperation<T> { machine apply(value: T) -> T; }\n");
@@ -149,7 +149,7 @@ fn rejected_candidate(command: &str, source: &str, build: Option<&str>, reasons:
         String::from_utf8_lossy(&output.stdout)
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let header = "checked compilation failed for package `arithmetic-kernels`";
+    let header = "checked compilation failed for package `arithmetic_kernels`";
     let (_, diagnostics) = stderr
         .split_once(header)
         .unwrap_or_else(|| panic!("{stderr}"));

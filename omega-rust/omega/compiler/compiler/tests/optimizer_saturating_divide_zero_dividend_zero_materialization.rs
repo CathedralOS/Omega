@@ -39,7 +39,7 @@ fn return_only_saturating_divide_zero_dividend_zero_materialization_rejoins_nati
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-saturating-divide-zero-dividend-zero-materialization-rejoin");
+    builder.application("optimizer_saturating_divide_zero_dividend_zero_materialization_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization);
 }

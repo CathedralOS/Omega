@@ -3,7 +3,7 @@
 // verdict.
 
 machine build(builder: &mut Build) {
-    builder.application("checking-assert-app");
+    builder.application("checking_assert_app");
     builder.depend(Source::Path { location: "../assert-kit" });
     builder.select_provider<assert_kit::main::Assert, assert_kit::main::CheckingAssert>();
     builder.optimizations.enable(Optimization::ControlFlowCleanup);

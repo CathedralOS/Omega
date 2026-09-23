@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("rpn-calculator");
+    builder.application("rpn_calculator");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

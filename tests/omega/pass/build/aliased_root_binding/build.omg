@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("aliased-root-binding");
+    builder.application("aliased_root_binding");
     let alias: &mut Build = &mut builder;
     bind_entry(alias);
 }

@@ -1,7 +1,7 @@
 // task_runner build sketch. Needs only stdout + process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("task-runner");
+    builder.application("task_runner");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

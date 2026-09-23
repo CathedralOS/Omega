@@ -485,7 +485,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
     // the recorded build selection cannot silently disappear.
     fs::write(
         tree.path("sources/root/build.omg"),
-        "machine build(builder: &mut Build) {\n builder.package(\"purpose-root\");\n builder.depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n}\n",
+        "machine build(builder: &mut Build) {\n builder.package(\"purpose_root\");\n builder.depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n}\n",
     )
     .unwrap();
     let storage = tree.storage("new-cache");
@@ -494,7 +494,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
         Err(ResolveLockedPackageClosureError::SourceMismatch {
             package,
             detail: "complete fresh dependency projection differs",
-        }) if package.name().as_str() == "purpose-root"
+        }) if package.name().as_str() == "purpose_root"
     ));
     assert!(matches!(
         recover_locked_sources(
@@ -529,7 +529,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
     // a product edge never broadens into build authority by relabeling.
     fs::write(
         tree.path("sources/root/build.omg"),
-        "machine build(builder: &mut Build) {\n builder.package(\"purpose-root\");\n builder.build_depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n builder.depend_as(\"host_tool\", Source::Path { location: \"../host\" });\n}\n",
+        "machine build(builder: &mut Build) {\n builder.package(\"purpose_root\");\n builder.build_depend_as(\"product_dep\", Source::Path { location: \"../product\" });\n builder.depend_as(\"host_tool\", Source::Path { location: \"../host\" });\n}\n",
     )
     .unwrap();
     assert!(matches!(
@@ -537,7 +537,7 @@ fn dropping_or_repurposing_a_build_row_rejects_locked_recovery() {
         Err(ResolveLockedPackageClosureError::SourceMismatch {
             package,
             detail: "complete fresh dependency projection differs",
-        }) if package.name().as_str() == "purpose-root"
+        }) if package.name().as_str() == "purpose_root"
     ));
 
     // Restoring the exact authored rows recovers the recorded graph: the

@@ -1,7 +1,7 @@
 // Xorshift32 PRNG sample build sketch. Needs only process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("xorshift-prng");
+    builder.application("xorshift_prng");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

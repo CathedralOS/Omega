@@ -581,7 +581,7 @@ fn opaque_movement_retains_native_ordinal_after_direct_callback_insertion() {
             .expect("callback package directory")
             .join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("opaque-direct-callback-ordinal");
+    builder.package("opaque_direct_callback_ordinal");
     builder.select_representation<CallbackToken, CallbackTokenRepresentation>();
 }
 "#,

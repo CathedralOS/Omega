@@ -55,7 +55,7 @@ machine Main::main(&mut self) reaches Move {
         fs::write(
             root.join("build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("flat-record-probe");
+    builder.application("flat_record_probe");
     builder.select_provider<Move, MoveProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
@@ -779,7 +779,7 @@ machine Main::main(&mut self) {
     fs::write(
         probe.root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("returning-requirement");
+    builder.application("returning_requirement");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 "#,
@@ -871,7 +871,7 @@ machine Main::main(&mut self) {
     fs::write(
         probe.root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("ranked-foreign-caller");
+    builder.application("ranked_foreign_caller");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
 "#,

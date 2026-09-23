@@ -47,7 +47,7 @@ fn changed_revision_or_authored_locator_resolves_normally() {
 #[test]
 fn new_repository_request_resolves_normally_under_preservation() {
     let fixture = Fixture::package("accepted-request", "original", false);
-    let new_source = Fixture::package("new-request", "new-package", false);
+    let new_source = Fixture::package("new-request", "new_package", false);
     let storage = fixture.storage("warm");
     let accepted = fixture.subject(&fixture.request(), &storage, false);
     let policy =
@@ -64,7 +64,7 @@ fn new_repository_request_resolves_normally_under_preservation() {
         current.source().commit(),
         test_git_head(&new_source.repository)
     );
-    assert_eq!(current.key().name().as_str(), "new-package");
+    assert_eq!(current.key().name().as_str(), "new_package");
     assert_ne!(
         current.key().source_lineage(),
         accepted.root().selected().key().source_lineage()
@@ -137,8 +137,8 @@ fn subject(closure: &ResolvedPackageSourceClosure) -> CanonicalSourceClosureSubj
 #[test]
 fn selected_repository_refresh_leaves_same_named_other_repository_pinned() {
     let root = Fixture::package("selective-consumer", "consumer", false);
-    let first = Fixture::package("selected-repository", "same-name", false);
-    let second = Fixture::package("unrelated-repository", "same-name", false);
+    let first = Fixture::package("selected-repository", "same_name", false);
+    let second = Fixture::package("unrelated-repository", "same_name", false);
     write_dependencies(&root, &[("first", &first), ("second", &second)]);
     let storage = root.storage("warm");
     let closure = resolve_dependencies(

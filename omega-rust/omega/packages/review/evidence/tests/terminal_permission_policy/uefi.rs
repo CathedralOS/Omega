@@ -31,7 +31,7 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
     root.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("review-fixture");
+    builder.application("review_fixture");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);
@@ -42,8 +42,8 @@ machine Boot::launch(&mut self, image: Extent in Granted, initial_storage: Exten
         package_identity(),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(package_identity(), "review-fixture", root.0.clone()),
-            PackageSourceBinding::new(standard_package, "ordinary-std", standard_library),
+            PackageSourceBinding::new(package_identity(), "review_fixture", root.0.clone()),
+            PackageSourceBinding::new(standard_package, "ordinary_std", standard_library),
         ],
         vec![PackageDependencyBinding::new(
             package_identity(),

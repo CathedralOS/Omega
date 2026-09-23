@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-slice-indexed-binary-rmw-exit");
+    builder.application("runtime_slice_indexed_binary_rmw_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

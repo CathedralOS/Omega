@@ -3,5 +3,5 @@
 // ("Library and foreign providers").
 
 machine build(builder: &mut Build) {
-    builder.package("blocking-executor");
+    builder.package("blocking_executor");
 }

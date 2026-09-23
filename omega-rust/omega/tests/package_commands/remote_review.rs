@@ -128,7 +128,7 @@ fn pinned_ssh_initial_boundary_claim_requires_decisions_and_remains_in_audit() {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "axiom-ledger")
+        .find(|package| package.key().name().as_str() == "axiom_ledger")
         .unwrap();
     let policy = fresh.review(package.key()).unwrap().policy();
     let [proposition] = policy.public_propositions() else {
@@ -203,7 +203,7 @@ fn pinned_ssh_claim_free_opaque_representation_stays_in_fresh_audit_without_cons
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "opaque-carrier")
+        .find(|package| package.key().name().as_str() == "opaque_carrier")
         .unwrap();
     let policy = fresh.review(package.key()).unwrap().policy();
     let [opaque] = policy.public_data() else {
@@ -354,7 +354,7 @@ fn assert_locked_graph(fixture: &Fixture, edges: &[(&str, &str, &str)]) {
     let source = lock.target(TARGET).unwrap().source();
     assert_eq!(
         source.root().selected().key().name().as_str(),
-        "cli-project"
+        "cli_project"
     );
     assert_eq!(source.packages().len(), edges.len() + 1);
     assert_eq!(source.dependency_requests().len(), edges.len());

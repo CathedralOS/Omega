@@ -151,12 +151,12 @@ fn filesystem_package_inputs(fixture: &Fixture) -> PackageCompilationInputs {
         vec![
             PackageSourceBinding::new(
                 root_identity,
-                "filesystem-cohort-witness",
+                "filesystem_cohort_witness",
                 fixture.root.clone(),
             ),
             PackageSourceBinding::new(
                 standard_library_identity,
-                "omega-language-std",
+                "omega_language_std",
                 standard_library_root.clone(),
             ),
         ],

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("utf8-byte-class");
+    builder.application("utf8_byte_class");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

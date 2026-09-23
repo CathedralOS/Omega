@@ -102,7 +102,7 @@ fn fresh_reviews_report_only_the_exact_package_with_changed_retained_policy() {
         .source()
         .packages()
         .iter()
-        .position(|source| source.key().name().as_str() == "same-name")
+        .position(|source| source.key().name().as_str() == "same_name")
         .unwrap();
     let key = accepted.source().packages()[index].key().clone();
     let mut baselines: Vec<_> = accepted

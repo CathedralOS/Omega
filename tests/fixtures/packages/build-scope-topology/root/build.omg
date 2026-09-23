@@ -5,7 +5,7 @@
 use topology::policies;
 
 machine build(builder: &mut Build) {
-    builder.application("payments-deployment");
+    builder.application("payments_deployment");
     builder.artifact_only();
     builder.build_depend_as("topology", Source::Path { location: "../topology" });
     builder.log.write_line(policies::banner());

@@ -39,7 +39,7 @@ fn return_only_saturating_subtract_upper_bound_subtrahend_zero_materialization_r
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-saturating-subtract-upper-bound-subtrahend-zero-materialization-rejoin");
+    builder.application("optimizer_saturating_subtract_upper_bound_subtrahend_zero_materialization_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization);
 }

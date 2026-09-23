@@ -19,7 +19,7 @@ pub fn candidate_linux_x86_64_entry_binding(
         package,
         vec![PackageSourceBinding::new(
             package,
-            "omega-language-std",
+            "omega_language_std",
             standard_library_root.to_path_buf(),
         )],
         Vec::new(),
@@ -56,7 +56,7 @@ pub fn candidate_linux_arm64_entry_binding(
         package,
         vec![PackageSourceBinding::new(
             package,
-            "omega-language-std",
+            "omega_language_std",
             standard_library_root.to_path_buf(),
         )],
         Vec::new(),

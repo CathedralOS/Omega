@@ -23,7 +23,7 @@ fn supplied_host_scope_requires_exact_retained_request_and_occurrence() {
     fs::write(
         fixture.0.join("package/build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("prepared-package");
+    builder.package("prepared_package");
     let path: BuildPath = builder.output.resolve("stamp.txt");
     let descriptor: i32 = builder.output.create(path, 420);
     let written: i64 = builder.output.write(descriptor, "x");
@@ -245,7 +245,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     fs::write(
         fixture.0.join("package/build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("prepared-package");
+    builder.package("prepared_package");
     let path: BuildPath = builder.output.resolve("stamp.txt");
     let descriptor: i32 = builder.output.create(path, 420);
     let written: i64 = builder.output.write(descriptor, "x");

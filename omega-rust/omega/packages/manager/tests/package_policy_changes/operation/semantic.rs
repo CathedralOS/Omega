@@ -35,7 +35,7 @@ fn unresolved_contracts_reject_for_the_root_and_transitive_packages() {
             closure
                 .custodies()
                 .iter()
-                .find(|custody| custody.key().name().as_str() == "unresolved-leaf")
+                .find(|custody| custody.key().name().as_str() == "unresolved_leaf")
                 .unwrap()
                 .key()
                 .clone()
@@ -70,7 +70,7 @@ fn invalid_proof_and_service_reach_remain_compiler_failures() {
                 closure
                     .custodies()
                     .iter()
-                    .find(|custody| custody.key().name().as_str() == "invalid-leaf")
+                    .find(|custody| custody.key().name().as_str() == "invalid_leaf")
                     .unwrap()
                     .key()
                     .clone()

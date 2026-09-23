@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("entity-list");
+    builder.application("entity_list");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

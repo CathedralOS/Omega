@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("sum-payload-range-narrowed-exit");
+    builder.application("sum_payload_range_narrowed_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

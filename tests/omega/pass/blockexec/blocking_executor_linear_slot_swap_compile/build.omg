@@ -3,7 +3,7 @@
 // borrowed array.
 
 machine build(builder: &mut Build) {
-    builder.application("blocking-executor-linear-slot-swap-compile");
+    builder.application("blocking_executor_linear_slot_swap_compile");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

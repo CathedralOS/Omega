@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("euclid-gcd");
+    builder.application("euclid_gcd");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

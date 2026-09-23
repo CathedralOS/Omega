@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("sysv-small-aggregate-import-compile");
+    builder.application("sysv_small_aggregate_import_compile");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

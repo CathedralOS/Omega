@@ -69,7 +69,7 @@ machine Main::advance(&mut self) {
         fixture.0.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("policy-array-storage");
+    builder.application("policy_array_storage");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,

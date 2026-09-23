@@ -18,7 +18,7 @@ const TEMPLATE: &str = "HELLO {{name}}\n";
 /// Reads the template through the Source facet, then declares, writes, seals
 /// and completes one required output.
 const COMPLETING_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 7];
@@ -38,7 +38,7 @@ const COMPLETING_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// Declares the same required output after the same template read but never
 /// completes it.
 const OMITTING_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 7];
@@ -52,7 +52,7 @@ const OMITTING_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// Settles its obligation with `fail`: the failure is sticky and the
 /// diagnostic reaches the customer.
 const FAILING_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     builder.output.fail(required, "generator unavailable");
 }
@@ -60,7 +60,7 @@ const FAILING_BUILD: &str = r#"machine build(builder: &mut Build) {
 
 /// Completes one obligation and fails another: no successful product set.
 const MIXED_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     let first: RequiredOutput = builder.output.require("first.txt");
     let second: RequiredOutput = builder.output.require("second.txt");
     let first_path: &[u8] = first.path();
@@ -77,7 +77,7 @@ const MIXED_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// halts before settlement, so the occurrence never reaches the staged
 /// custody path.
 const FORGED_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     let forged: RequiredOutput = RequiredOutput {};
     let artifact: BuildPath = builder.output.resolve("artifact.txt");
     let descriptor: i32 = builder.output.create(artifact, 438);
@@ -91,7 +91,7 @@ const FORGED_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// custody back through `OutputCompletion::Retry`, and completes once the
 /// writer is closed.
 const RETRYING_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     let required: RequiredOutput = builder.output.require("retry.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -209,7 +209,7 @@ fn package_build_reads_its_template_through_the_captured_snapshot_and_completes_
     let review = fresh
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "snapshot-root")
+        .find(|review| review.key().name().as_str() == "snapshot_root")
         .expect("the root package is reviewed");
     let observation = review
         .build_observation_summary()
@@ -336,7 +336,7 @@ fn completion_error_returns_custody_and_an_explicit_retry_completes() {
     let review = fresh
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "snapshot-root")
+        .find(|review| review.key().name().as_str() == "snapshot_root")
         .expect("the root package is reviewed");
     let observation = review
         .build_observation_summary()
@@ -355,7 +355,7 @@ const DEPENDENCY_TEMPLATE: &str = "DEPENDENCY BANNER\n";
 /// `templates/banner.tmpl` read and `artifact.txt` completion as the
 /// dependency's build — disambiguated only by package custody.
 const NAMES_ROOT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     builder.depend(Source::Path { location: "../dependency" });
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
@@ -377,7 +377,7 @@ const NAMES_ROOT_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// captured inventory; its template is longer so each package's sealed
 /// `artifact.txt` carries provably distinct bytes.
 const NAMES_DEPENDENCY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-dependency");
+    builder.package("snapshot_dependency");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 18];
@@ -397,7 +397,7 @@ const NAMES_DEPENDENCY_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// The root declares the dependency and requires `artifact.txt` but never
 /// completes it; the dependency's occurrence completes the same name.
 const OMITTING_ROOT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     builder.depend(Source::Path { location: "../dependency" });
     let required: RequiredOutput = builder.output.require("artifact.txt");
 }
@@ -406,7 +406,7 @@ const OMITTING_ROOT_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// Completes `artifact.txt` only under the Linux target: the macOS child
 /// leaves its identical obligation uncommitted.
 const TARGET_DIVERGENT_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("snapshot-root");
+    builder.package("snapshot_root");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     transition builder.target {
         TargetProfile::LinuxX86_64 -> complete(builder, required)
@@ -576,7 +576,7 @@ fn one_package_settles_independent_occurrences_under_each_requested_target() {
         let review = fresh
             .reviews()
             .iter()
-            .find(|review| review.key().name().as_str() == "snapshot-root")
+            .find(|review| review.key().name().as_str() == "snapshot_root")
             .expect("the root package is reviewed for each target");
         let observation = review
             .build_observation_summary()
@@ -646,7 +646,7 @@ fn one_targets_uncommitted_set_does_not_hide_another_targets_completion() {
 /// artifact-only half of the acceptance pair; the compiler suite covers the
 /// same admission through a hand-constructed `BuildSnapshotRequest`.
 const ARTIFACT_ONLY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-artifact-app");
+    builder.application("snapshot_artifact_app");
     builder.artifact_only();
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
@@ -668,7 +668,7 @@ const ARTIFACT_ONLY_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// still settles a companion required output through the same sealed staged
 /// custody — the executable-with-companion half of the acceptance pair.
 const EXECUTABLE_COMPANION_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-companion-app");
+    builder.application("snapshot_companion_app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     let required: RequiredOutput = builder.output.require("companion.txt");
     let required_path: &[u8] = required.path();
@@ -687,7 +687,7 @@ const EXECUTABLE_MAIN: &str = "data Main {}\nmachine Main::main(&mut self) { }\n
 /// `artifact_only` admits no executable route: binding a program root must
 /// reject even though the modifier is otherwise a valid declaration.
 const ARTIFACT_ONLY_ROOTS_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-artifact-roots");
+    builder.application("snapshot_artifact_roots");
     builder.artifact_only();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
@@ -696,7 +696,7 @@ const ARTIFACT_ONLY_ROOTS_BUILD: &str = r#"machine build(builder: &mut Build) {
 /// `artifact_only` without a completed required output publishes nothing:
 /// the modifier exists to ship artifacts, so an empty artifact set rejects.
 const ARTIFACT_ONLY_EMPTY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-artifact-empty");
+    builder.application("snapshot_artifact_empty");
     builder.artifact_only();
 }
 "#;
@@ -748,7 +748,7 @@ fn artifact_only_application_build_settles_its_required_output() {
     let review = fresh
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "snapshot-artifact-app")
+        .find(|review| review.key().name().as_str() == "snapshot_artifact_app")
         .expect("the root application is reviewed");
     let observation = review
         .build_observation_summary()
@@ -811,7 +811,7 @@ fn executable_application_build_settles_a_companion_required_output() {
     let review = fresh
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "snapshot-companion-app")
+        .find(|review| review.key().name().as_str() == "snapshot_companion_app")
         .expect("the root application is reviewed");
     let observation = review
         .build_observation_summary()

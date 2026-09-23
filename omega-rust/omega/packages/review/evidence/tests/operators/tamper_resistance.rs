@@ -23,7 +23,7 @@ requires observes(&mut input) == true
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -90,7 +90,7 @@ fn changing_checked_operator_realization_changes_only_the_callable_value() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let compile = |selected: &str| {
         let package = TempPackage::new();
@@ -192,7 +192,7 @@ ensures result == input
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -261,7 +261,7 @@ ensures result == input
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -358,7 +358,7 @@ fn unsupported_checked_operator_realization_neighbors_remain_fail_closed() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let private = TempPackage::new();
     private.write(
@@ -688,7 +688,7 @@ fn checked_operator_crash_routes_must_refine_the_declared_ceiling() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let compile = |provider_route: &str| {
         let package = TempPackage::new();

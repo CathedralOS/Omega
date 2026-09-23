@@ -95,7 +95,7 @@ pub(super) fn interpreter_package_inputs(
             PackageSourceBinding::new(root_identity, root_name.into_string(), project_root),
             PackageSourceBinding::new(
                 standard_library_identity,
-                "omega-language-std",
+                "omega_language_std",
                 repo_root().join("source/library/std"),
             ),
         ],

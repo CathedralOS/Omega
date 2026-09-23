@@ -8,7 +8,7 @@ fn review_projects_exact_outcome_specific_guarantees() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         compile_review_fixture(CheckedCompileRequest {
@@ -184,7 +184,7 @@ fn claim_free_boundary_supply_does_not_collapse_into_an_accepted_claim() {
     package.write("main.omg", "boundary machine host_ping();\n");
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

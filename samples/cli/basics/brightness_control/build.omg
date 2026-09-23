@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("brightness-control");
+    builder.application("brightness_control");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

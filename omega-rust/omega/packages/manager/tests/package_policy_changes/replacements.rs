@@ -223,7 +223,7 @@ fn transitive_replacement_belongs_to_its_exact_requester_and_alias() {
     assert_binding(&tree, &changes, &lock, &requester, "service");
     assert_eq!(
         changes.source_replacements()[0].candidate().name().as_str(),
-        "new-service"
+        "new_service"
     );
 }
 

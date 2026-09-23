@@ -90,7 +90,7 @@ fn exact_optimization_vocabulary_build(optimization: Optimization) -> String {
         ""
     };
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"optimizer-exact-vocabulary\");\n{root_binding}{enable_call}    builder.optimizations.emit_report();\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"optimizer_exact_vocabulary\");\n{root_binding}{enable_call}    builder.optimizations.emit_report();\n}}\n"
     )
 }
 
@@ -135,7 +135,7 @@ fn compile_source_native_evidence(
         "source-native-evidence",
         Some(&format!(
             "machine build(builder: &mut Build) {{\n\
-             builder.application(\"source-native-evidence\");\n\
+             builder.application(\"source_native_evidence\");\n\
              {dependency}\n\
              builder.roots.bind({target}::ProgramEntry, Main::main);\n\
              {optimization}\n}}\n"

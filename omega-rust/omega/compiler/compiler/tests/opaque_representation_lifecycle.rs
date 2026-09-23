@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 const BUILD: &str = r#"
 machine build(builder: &mut Build) {
-    builder.application("opaque-representation-lifecycle");
+    builder.application("opaque_representation_lifecycle");
     builder.select_representation<
         InterruptAcknowledgement,
         CarrierRepresentation
@@ -105,7 +105,7 @@ data Carrier { leaf: Leaf; bytes: [u8; 4]; }
 
 const COPY_BUILD: &str = r#"
 machine build(builder: &mut Build) {
-    builder.application("copyable-opaque-representation");
+    builder.application("copyable_opaque_representation");
     builder.select_representation<CopyToken, CopyCarrierRepresentation>();
 }
 "#;
@@ -176,7 +176,7 @@ data CopyCarrier [copy] { payloads: [CopyPayload; 2]; }
 fn copyable_opaque_rejects_missing_or_noncopyable_carrier_receipts() {
     let missing = project_with_build(
         &copy_source("data CopyCarrier [copy] { value: u64; }"),
-        "machine build(builder: &mut Build) { builder.application(\"missing-copy-receipt\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"missing_copy_receipt\"); }",
     );
     let rendered = compile_to_checked(CheckedCompileRequest::new(&missing, None))
         .expect_err("copyable opaque data without a selection must remain unadmitted")

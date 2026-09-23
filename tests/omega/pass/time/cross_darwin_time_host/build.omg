@@ -3,7 +3,7 @@
 // native confirmation needs a Mac.
 
 machine build(builder: &mut Build) {
-    builder.application("cross-darwin-time-host");
+    builder.application("cross_darwin_time_host");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

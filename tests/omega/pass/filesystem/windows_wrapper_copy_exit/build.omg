@@ -1,7 +1,7 @@
 // Deployable filesystem-copy canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-wrapper-copy-exit");
+    builder.application("windows_wrapper_copy_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

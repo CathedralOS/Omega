@@ -1,7 +1,7 @@
 // Deployable filesystem canary: the Darwin host selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("wrapper-times-owner-lstat-exit");
+    builder.application("wrapper_times_owner_lstat_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }

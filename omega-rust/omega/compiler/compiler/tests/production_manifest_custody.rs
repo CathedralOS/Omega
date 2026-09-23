@@ -126,7 +126,7 @@ fn package_project(
     );
     TempTree::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.package(\"host-app\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.package(\"host_app\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}\n",
     );
     TempTree::write(
         dep.join("lib.omg"),
@@ -136,9 +136,9 @@ fn package_project(
     let inputs = PackageCompilationInputs::new_package(
         identity(markers[0]),
         vec![
-            PackageSourceBinding::new(identity(markers[0]), "host-app", root.clone()),
-            PackageSourceBinding::new(identity(markers[1]), "dep-lib", dep),
-            PackageSourceBinding::new(identity(markers[2]), "leaf-ns", leaf),
+            PackageSourceBinding::new(identity(markers[0]), "host_app", root.clone()),
+            PackageSourceBinding::new(identity(markers[1]), "dep_lib", dep),
+            PackageSourceBinding::new(identity(markers[2]), "leaf_ns", leaf),
         ],
         vec![
             PackageDependencyBinding::new(identity(markers[0]), "dep_lib", identity(markers[1])),
@@ -1770,13 +1770,13 @@ fn ranked_machine_mints_complete_native_physical_evidence() {
     );
     TempTree::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"ranked-gap\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.application(\"ranked_gap\");\n    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}\n",
     );
     let inputs = PackageCompilationInputs::new_package(
         identity(31),
         vec![PackageSourceBinding::new(
             identity(31),
-            "ranked-gap",
+            "ranked_gap",
             root.clone(),
         )],
         Vec::new(),

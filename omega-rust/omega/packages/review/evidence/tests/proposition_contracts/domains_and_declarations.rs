@@ -18,7 +18,7 @@ requires value in u64::Trusted
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -76,7 +76,7 @@ requires value in u64::Hidden
     );
     hidden.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let diagnostics = compile_review_fixture(CheckedCompileRequest {
@@ -117,7 +117,7 @@ requires equivalent<Compared>(left, right)
 { }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -190,7 +190,7 @@ proposition hidden();
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -285,7 +285,7 @@ fn review_projects_unused_public_consts_with_exact_type_and_value_identity() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let project = |source: &str| {
         let package = TempPackage::new();

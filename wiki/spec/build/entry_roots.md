@@ -40,7 +40,7 @@ same shape, portable demands, target supply, authority, and lifecycle.
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.application("entry-example");
+    builder.application("entry_example");
     builder.roots.bind(windows_x86_64::ProgramEntry, Application::start);
     builder.select_provider<windows_x86_64::Console, TestConsole>();
 }

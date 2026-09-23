@@ -44,7 +44,7 @@ fn generated_dependency_reaches_requested_package_and_application_entries() {
             &format!(
                 r#"
 machine build(builder: &mut Build) {{
-    builder.{role}("generated-consumer");
+    builder.{role}("generated_consumer");
     builder.depend_as("generated_table", Source::Path {{ location: "../producer" }});
 }}
 "#

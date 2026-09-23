@@ -1,7 +1,7 @@
 // Print-a-number sample build sketch. Needs stdout + process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("print-number");
+    builder.application("print_number");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

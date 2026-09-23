@@ -4,7 +4,7 @@ use package_source::{
 };
 
 fn package_name() -> PackageName {
-    PackageName::parse("arithmetic-kernels").unwrap()
+    PackageName::parse("arithmetic_kernels").unwrap()
 }
 
 fn lineage(locator: &str) -> SourceLineage {
@@ -12,17 +12,17 @@ fn lineage(locator: &str) -> SourceLineage {
 }
 
 #[test]
-fn package_names_require_canonical_kebab_case_and_reject_spoofs() {
-    for valid in ["arithmetic-kernels", "sha256", "codec-2"] {
+fn package_names_require_canonical_snake_case_and_reject_spoofs() {
+    for valid in ["arithmetic_kernels", "sha256", "codec_2"] {
         assert_eq!(PackageName::parse(valid).unwrap().as_str(), valid);
     }
     for invalid in [
         "",
         "Arithmetic-kernels",
-        "arithmetic_kernels",
-        "-arithmetic",
-        "arithmetic-",
-        "arithmetic--kernels",
+        "arithmetic-kernels",
+        "_arithmetic",
+        "arithmetic_",
+        "arithmetic__kernels",
         "arithmetic.kernels",
         "123-tools",
         "arithmetіc-kernels",
@@ -69,7 +69,7 @@ fn source_or_name_change_replaces_a_package_key() {
         lineage("https://github.com/Other/arithmetic-kernels.git"),
     );
     let other_name = PackageKey::new(
-        PackageName::parse("arithmetic-core").unwrap(),
+        PackageName::parse("arithmetic_core").unwrap(),
         lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
     );
 
@@ -89,7 +89,7 @@ fn package_key_identity_uses_canonical_name_and_source_lineage() {
         lineage("git@github.com:cathedralos/arithmetic-kernels"),
     );
     let other_name = PackageKey::new(
-        PackageName::parse("arithmetic-core").unwrap(),
+        PackageName::parse("arithmetic_core").unwrap(),
         lineage("https://github.com/CathedralOS/arithmetic-kernels.git"),
     );
     let other_lineage = PackageKey::new(
@@ -103,9 +103,9 @@ fn package_key_identity_uses_canonical_name_and_source_lineage() {
     assert_eq!(
         https.identity().digest(),
         [
-            0x8a, 0xbb, 0x4a, 0x34, 0x3b, 0xf9, 0x0f, 0xa2, 0x95, 0x8e, 0x85, 0x8b, 0x18, 0xb0,
-            0x30, 0x66, 0xa1, 0xb7, 0x4d, 0xa2, 0x95, 0x20, 0xd5, 0x8a, 0x7e, 0xed, 0x84, 0x06,
-            0xa3, 0xe9, 0x63, 0xe5,
+            0xa2, 0xe8, 0x18, 0x6f, 0xbe, 0x29, 0x5a, 0x79, 0xd4, 0xe7, 0x88, 0x77, 0xa8, 0x58,
+            0x7b, 0x06, 0xb4, 0x1c, 0x4c, 0x53, 0xb9, 0x45, 0x95, 0x2d, 0x49, 0x7f, 0x1f, 0xa6,
+            0x19, 0xf4, 0x19, 0x0e,
         ]
     );
 }
@@ -123,9 +123,9 @@ fn workspace_package_key_identity_preserves_its_canonical_encoding() {
     assert_eq!(
         key.identity().digest(),
         [
-            0x86, 0x83, 0x17, 0xae, 0xe8, 0x66, 0x31, 0x16, 0x1c, 0xdf, 0x15, 0xf0, 0xe0, 0xd3,
-            0x8f, 0xc5, 0x6a, 0x0a, 0x96, 0x91, 0xcf, 0x04, 0x00, 0x84, 0x39, 0xc2, 0xc3, 0xaf,
-            0x71, 0x95, 0x58, 0x9a,
+            0x9f, 0x55, 0x50, 0xd9, 0x81, 0x35, 0x4a, 0xfa, 0x6c, 0x24, 0x54, 0x66, 0x3b, 0xe1,
+            0x54, 0x3c, 0x5e, 0x7d, 0x0d, 0x40, 0xfc, 0xb3, 0x9d, 0x70, 0x92, 0x80, 0x48, 0xa3,
+            0x96, 0xbc, 0x34, 0xdd,
         ]
     );
 }

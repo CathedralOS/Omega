@@ -13,7 +13,7 @@ fn canonical_row_sorting_keeps_exact_declaration_sources_paired() {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -97,7 +97,7 @@ pub machine api() {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -164,7 +164,7 @@ fn carried_transitive_types_project_exact_package_qualified_dependency_rows() {
     );
     root.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     middle.write(
@@ -276,7 +276,7 @@ pub machine make() -> Token { Token { value: 7u64 } }
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -364,7 +364,7 @@ invokes FilesystemHost;
     );
     canonical.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let candidate_checked = compile_review_fixture(CheckedCompileRequest {
@@ -467,7 +467,7 @@ invokes console;
     root.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.depend_as("accepted_console", Source::Path { location: "../console" });
     builder.select_provider<accepted_console::Console, accepted_console::ConsoleNativeProvider>();
 }
@@ -490,8 +490,8 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
         PackageCompilationInputs::new_package(
             root_package,
             vec![
-                PackageSourceBinding::new(root_package, "review-fixture", root.0.clone()),
-                PackageSourceBinding::new(console_package, "accepted-console", console.0.clone()),
+                PackageSourceBinding::new(root_package, "review_fixture", root.0.clone()),
+                PackageSourceBinding::new(console_package, "accepted_console", console.0.clone()),
             ],
             vec![PackageDependencyBinding::new(
                 root_package,

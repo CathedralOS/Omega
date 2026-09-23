@@ -62,7 +62,7 @@ fn write_diamond(tree: &TempTree) -> PathBuf {
     let sources = tree.path("sources");
     write_package(
         &sources.join("root"),
-        "root-package",
+        "root_package",
         concat!(
             "    builder.depend(Source::Path { location: \"../left\" });\n",
             "    builder.depend_as(\"right_branch\", Source::Path { location: \"../right\" });\n",
@@ -70,15 +70,15 @@ fn write_diamond(tree: &TempTree) -> PathBuf {
     );
     write_package(
         &sources.join("left"),
-        "left-package",
+        "left_package",
         "    builder.depend(Source::Path { location: \"../shared\" });\n",
     );
     write_package(
         &sources.join("right"),
-        "right-package",
+        "right_package",
         "    builder.depend_as(\"shared_override\", Source::Path { location: \"../right/../shared\" });\n",
     );
-    write_package(&sources.join("shared"), "shared-package", "");
+    write_package(&sources.join("shared"), "shared_package", "");
     sources.join("root")
 }
 
@@ -173,7 +173,7 @@ fn real_diamond_preserves_each_request_alias_and_canonical_reconstruction() {
     let root_requests = subject
         .dependency_requests()
         .iter()
-        .filter(|request| request.requester().name().as_str() == "root-package")
+        .filter(|request| request.requester().name().as_str() == "root_package")
         .collect::<Vec<_>>();
     assert_eq!(root_requests.len(), 2);
     assert_eq!(root_requests[0].dependency_index(), 0);
@@ -189,7 +189,7 @@ fn real_diamond_preserves_each_request_alias_and_canonical_reconstruction() {
     let shared_requests = subject
         .dependency_requests()
         .iter()
-        .filter(|request| request.selected().key().name().as_str() == "shared-package")
+        .filter(|request| request.selected().key().name().as_str() == "shared_package")
         .collect::<Vec<_>>();
     assert_eq!(
         shared_requests.len(),
@@ -198,14 +198,14 @@ fn real_diamond_preserves_each_request_alias_and_canonical_reconstruction() {
     );
     let left_request = shared_requests
         .iter()
-        .find(|request| request.requester().name().as_str() == "left-package")
+        .find(|request| request.requester().name().as_str() == "left_package")
         .expect("left requester occurrence");
     assert_eq!(left_request.dependency_index(), 0);
     assert_eq!(path_request(left_request.request()), (None, "../shared"));
     assert_eq!(left_request.alias().as_str(), "shared_package");
     let right_request = shared_requests
         .iter()
-        .find(|request| request.requester().name().as_str() == "right-package")
+        .find(|request| request.requester().name().as_str() == "right_package")
         .expect("right requester occurrence");
     assert_eq!(right_request.dependency_index(), 0);
     assert_eq!(
@@ -400,10 +400,10 @@ fn workspace_member_requests_round_trip_without_cache_identity() {
     let workspace = tree.path("workspace");
     write_package(
         &workspace.join("root"),
-        "workspace-root",
+        "workspace_root",
         "    builder.depend(Source::Path { location: \"../child\" });\n",
     );
-    write_package(&workspace.join("child"), "workspace-child", "");
+    write_package(&workspace.join("child"), "workspace_child", "");
     let workspace_source =
         SourceLineage::git("https://github.com/CathedralOS/source-subject-workspace.git")
             .expect("canonical workspace source identity");

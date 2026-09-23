@@ -3,7 +3,7 @@ use compiler::CheckedCompileRequest;
 use target::TargetProfile;
 
 pub(super) const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
 }
 "#;
 
@@ -96,14 +96,14 @@ impl Fixture {
         });
         let mut sources = vec![PackageSourceBinding::new(
             package_identity(),
-            "review-fixture",
+            "review_fixture",
             package.0.clone(),
         )];
         let mut dependencies = Vec::new();
         if let Some(dependency) = &dependency {
             sources.push(PackageSourceBinding::new(
                 foreign_identity(),
-                "binding-producer",
+                "binding_producer",
                 dependency.0.clone(),
             ));
             dependencies.push(PackageDependencyBinding::new(
@@ -186,7 +186,7 @@ satisfies CheckedMath::convert { input }
 "#;
 
 pub(super) const FAMILY_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_provider<CheckedMath::convert, ConvertProvider>();
 }
 "#;

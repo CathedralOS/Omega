@@ -75,9 +75,9 @@ fn expected_sample_application_name(root: &Path) -> String {
             .and_then(Path::file_name)
             .and_then(|name| name.to_str())
             .expect("duplicate sample name must have a UTF-8 category");
-        return format!("{category}-vending-machine");
+        return format!("{category}_vending_machine");
     }
-    leaf.replace('_', "-")
+    leaf.to_owned()
 }
 
 fn expected_omega_case_application_name(root: &Path) -> String {
@@ -88,15 +88,15 @@ fn expected_omega_case_application_name(root: &Path) -> String {
     if root.ends_with("pass/arithmetic/float_trapping_invalid_traps")
         || root.ends_with("pass/arithmetic/float_trapping_overflow_traps")
     {
-        return format!("arithmetic-{}", leaf.replace('_', "-"));
+        return format!("arithmetic_{leaf}");
     }
     if root.ends_with("pass/float/build_runtime_semantics_twins_windows_x64") {
-        return "windows-x64-baseline-float-semantic-edge-twin".to_owned();
+        return "windows_x64_baseline_float_semantic_edge_twin".to_owned();
     }
     if root.ends_with("pass/float/build_runtime_semantics_twins_x86_baseline") {
-        return "x86-baseline-float-semantic-edge-twin".to_owned();
+        return "x86_baseline_float_semantic_edge_twin".to_owned();
     }
-    leaf.replace('_', "-")
+    leaf.to_owned()
 }
 
 const DECLARATION_REJECTION_CASES: &[&str] = &["fail/build/build-machine-wrong-arity"];
@@ -122,26 +122,26 @@ const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
 const PACKAGE_MEMBER_CASES: &[(&str, &str)] = &[
     (
         "pass/proofs/quotient-define-managed-compile",
-        "quotient-define-managed-compile",
+        "quotient_define_managed_compile",
     ),
     (
         "pass/proofs/quotient-lift-managed-compile",
-        "quotient-lift-managed-compile",
+        "quotient_lift_managed_compile",
     ),
     (
         "pass/traits/equatable-qualified-field-reference-exit/leaf",
-        "qualified-region",
+        "qualified_region",
     ),
     ("pass/build/runtime-depend-mapping-exit/lib", "mylib"),
-    ("pass/modules/package-bare-cases", "package-bare-cases"),
-    ("pass/modules/package-bare-cases/leaf", "bare-case-values"),
+    ("pass/modules/package-bare-cases", "package_bare_cases"),
+    ("pass/modules/package-bare-cases/leaf", "bare_case_values"),
     (
         "pass/modules/qualified-case-membership",
-        "qualified-case-membership",
+        "qualified_case_membership",
     ),
     (
         "pass/modules/qualified-case-membership/leaf",
-        "membership-values",
+        "membership_values",
     ),
 ];
 
@@ -173,7 +173,7 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
     assert_eq!(
         extract_build_declaration(root.join("source/omega")).unwrap(),
         BuildDeclaration::Application(package_manager::declarations::ApplicationDeclaration {
-            name: PackageName::parse("omega-compiler").unwrap(),
+            name: PackageName::parse("omega_compiler").unwrap(),
             artifact_only: false,
         })
     );
@@ -186,7 +186,7 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
     assert_eq!(
         extract_build_declaration(root.join("source/library/std")).unwrap(),
         BuildDeclaration::Package(package_manager::declarations::PackageDeclaration {
-            name: PackageName::parse("omega-language-std").unwrap(),
+            name: PackageName::parse("omega_language_std").unwrap(),
         })
     );
 }
@@ -225,7 +225,7 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
     );
     assert_eq!(
         compiler_dependencies[1].target().name().as_str(),
-        "omega-language-std"
+        "omega_language_std"
     );
     let compiler_psi = compiler
         .graph()
@@ -264,7 +264,7 @@ fn compiler_product_and_parser_resolve_standard_library_as_an_ordinary_dependenc
     );
     assert_eq!(
         parser_standard_library.target().name().as_str(),
-        "omega-language-std"
+        "omega_language_std"
     );
 }
 

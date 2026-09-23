@@ -1,7 +1,7 @@
 // Deployable operator canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("integer-literal-suffix-exit");
+    builder.application("integer_literal_suffix_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-scalar-pun-shared-let-exit");
+    builder.application("runtime_scalar_pun_shared_let_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

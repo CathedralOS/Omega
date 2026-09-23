@@ -1,7 +1,7 @@
 // Deployable time canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-system-time-after-2026-exit");
+    builder.application("runtime_system_time_after_2026_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -46,7 +46,7 @@ fn checked(source: &str) -> (TempPackage, ReviewFixture) {
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs_with_std(&package.0)),

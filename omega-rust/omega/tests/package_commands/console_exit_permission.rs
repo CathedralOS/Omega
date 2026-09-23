@@ -122,7 +122,7 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
 
     // The application, not its std dependency, owns the permission decisions:
     // one per compiler-intrinsic Console leaf and nothing else.
-    let application = package_section(&document, "console-exit-app");
+    let application = package_section(&document, "console_exit_app");
     let decisions = permission_decisions(application);
     assert_eq!(
         application
@@ -132,7 +132,7 @@ fn console_exit_permission_is_an_explicit_decision_that_the_lock_retains() {
         PERMISSIONS.len(),
         "{application}"
     );
-    let standard_library = package_section(&document, "omega-language-std");
+    let standard_library = package_section(&document, "omega_language_std");
     assert!(
         !standard_library.contains("change terminal_permission"),
         "{standard_library}"

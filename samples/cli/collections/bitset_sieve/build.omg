@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("bitset-sieve");
+    builder.application("bitset_sieve");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

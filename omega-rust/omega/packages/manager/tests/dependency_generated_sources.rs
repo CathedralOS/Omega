@@ -99,12 +99,12 @@ fn dependency_generated_source_enters_consumer_without_rerunning_the_dependency_
     let producer = reviews
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "generated-table")
+        .find(|review| review.key().name().as_str() == "generated_table")
         .expect("producer review");
     let consumer = reviews
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "generated-consumer")
+        .find(|review| review.key().name().as_str() == "generated_consumer")
         .expect("consumer review");
     let [generated] = producer.generated_source_bundle().sources() else {
         panic!("producer should retain exactly one generated source")

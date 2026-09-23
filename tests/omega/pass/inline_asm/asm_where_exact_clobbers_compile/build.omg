@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-where-exact-clobbers-compile");
+    builder.application("asm_where_exact_clobbers_compile");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

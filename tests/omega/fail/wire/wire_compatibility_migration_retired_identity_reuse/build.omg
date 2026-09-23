@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("wire-compatibility-migration-retired-identity-reuse");
+    builder.application("wire_compatibility_migration_retired_identity_reuse");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.require_wire_compatibility<
         ArchiveStore,

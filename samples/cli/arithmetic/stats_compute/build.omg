@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("stats-compute");
+    builder.application("stats_compute");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

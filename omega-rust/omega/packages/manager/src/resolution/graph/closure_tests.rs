@@ -258,7 +258,7 @@ fn dependency_cycle_is_rejected() {
 fn the_same_alias_is_distinct_across_purposes() {
     let root = key("application", "application");
     let product = key("codec", "codec");
-    let host = key("host-tool", "host-tool");
+    let host = key("host_tool", "host-tool");
 
     let closure = ResolvedPackageClosure::new(
         root.clone(),
@@ -286,7 +286,7 @@ fn the_same_alias_is_distinct_across_purposes() {
 #[test]
 fn a_missing_build_dependency_target_reports_its_purpose() {
     let root = key("application", "application");
-    let missing = key("host-tool", "host-tool");
+    let missing = key("host_tool", "host-tool");
     let errors = ResolvedPackageClosure::new(
         root.clone(),
         crate::declarations::BuildDeclarationKind::Package,
@@ -316,7 +316,7 @@ fn a_missing_build_dependency_target_reports_its_purpose() {
 #[test]
 fn a_cycle_through_a_build_edge_is_rejected() {
     let root = key("application", "application");
-    let host = key("host-tool", "host-tool");
+    let host = key("host_tool", "host-tool");
     let errors = ResolvedPackageClosure::new(
         root.clone(),
         crate::declarations::BuildDeclarationKind::Package,

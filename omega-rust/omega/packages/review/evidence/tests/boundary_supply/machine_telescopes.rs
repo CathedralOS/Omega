@@ -26,7 +26,7 @@ via ForeignBinding::Syscall(60);
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -92,7 +92,7 @@ where machine Callback(value: u64) -> u64;
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {

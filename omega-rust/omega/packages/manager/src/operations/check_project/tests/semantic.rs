@@ -7,7 +7,7 @@ fn retained_check_root_uses_final_consumer_bindings_and_requested_entry() {
     let project = Project::new();
     project.write(
         "console/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"ordinary-console\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"ordinary_console\"); }\n",
     );
     project.write(
         "console/main.omg",
@@ -26,7 +26,7 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         "application/build.omg",
         r#"
 machine build(builder: &mut Build) {
-    builder.application("console-consumer");
+    builder.application("console_consumer");
     builder.depend_as("ordinary_console", Source::Path { location: "../console" });
     builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

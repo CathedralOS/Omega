@@ -99,7 +99,7 @@ data Main { trace: Binding<Trace>;",
         fixture.0.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("cyclic-receiver");
+    builder.application("cyclic_receiver");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,

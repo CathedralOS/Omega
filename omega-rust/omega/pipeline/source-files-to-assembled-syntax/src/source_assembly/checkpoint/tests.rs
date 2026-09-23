@@ -52,7 +52,7 @@ impl Fixture {
         fs::write(
             application.join("build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.package("checkpoint-root");
+    builder.package("checkpoint_root");
 }
 "#,
         )
@@ -67,8 +67,8 @@ impl Fixture {
         let inputs = PackageCompilationInputs::new_package(
             identity(1),
             vec![
-                PackageSourceBinding::new(identity(1), "checkpoint-root", application),
-                PackageSourceBinding::new(identity(2), "checkpoint-dependency", dependency.clone()),
+                PackageSourceBinding::new(identity(1), "checkpoint_root", application),
+                PackageSourceBinding::new(identity(2), "checkpoint_dependency", dependency.clone()),
             ],
             vec![PackageDependencyBinding::for_purpose(
                 identity(1),
@@ -382,7 +382,7 @@ fn exact_child_rejects_source_input_and_generated_physical_substitution() {
         vec![
             PackageSourceBinding::new(
                 fixture.inputs.root(),
-                "renamed-checkpoint-root",
+                "renamed_checkpoint_root",
                 fixture
                     .main
                     .parent()
@@ -391,7 +391,7 @@ fn exact_child_rejects_source_input_and_generated_physical_substitution() {
             ),
             PackageSourceBinding::new(
                 identity(2),
-                "checkpoint-dependency",
+                "checkpoint_dependency",
                 fixture.dependency.clone(),
             ),
         ],

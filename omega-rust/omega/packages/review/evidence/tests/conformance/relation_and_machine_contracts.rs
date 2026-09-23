@@ -34,7 +34,7 @@ where proposition Relation(left: Carrier, right: Carrier);
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -82,7 +82,7 @@ where proposition OtherRelation(value: Carrier);
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -202,7 +202,7 @@ requires value == value;
 { }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -301,7 +301,7 @@ where machine Selected satisfies Handler::call;
 { }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     package.write("build.omg", build);
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -370,7 +370,7 @@ where machine Sample(index: u64) -> u64;
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

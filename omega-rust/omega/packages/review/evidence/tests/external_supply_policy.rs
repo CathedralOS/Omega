@@ -21,7 +21,7 @@ fn project_with_foreign(
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let inputs = if let Some(owner) = foreign_owner {
         dependency.write(
@@ -31,8 +31,8 @@ fn project_with_foreign(
         PackageCompilationInputs::new_package(
             package_identity(),
             vec![
-                PackageSourceBinding::new(package_identity(), "review-fixture", package.0.clone()),
-                PackageSourceBinding::new(owner, "dependency-package", dependency.0.clone()),
+                PackageSourceBinding::new(package_identity(), "review_fixture", package.0.clone()),
+                PackageSourceBinding::new(owner, "dependency_package", dependency.0.clone()),
             ],
             vec![PackageDependencyBinding::new(
                 package_identity(),

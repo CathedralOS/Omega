@@ -3,7 +3,7 @@
 // parameters.
 
 machine build(builder: &mut Build) {
-    builder.application("efi-ref-param-call-arg");
+    builder.application("efi_ref_param_call_arg");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

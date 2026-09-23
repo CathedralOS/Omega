@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("scalar-host-call-field-store");
+    builder.application("scalar_host_call_field_store");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

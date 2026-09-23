@@ -31,7 +31,7 @@ fn write_package(root: &Path, main: &[u8]) {
     std::fs::write(
         root.join("build.omg"),
         b"machine build(builder: &mut Build) {\n\
-                  builder.package(\"source-review\");\n\
+                  builder.package(\"source_review\");\n\
               }\n",
     )
     .unwrap();

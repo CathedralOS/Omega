@@ -22,7 +22,7 @@ invokes Host;
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -137,7 +137,7 @@ where machine Work()
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -261,7 +261,7 @@ fn propagated_public_service_reach_changes_review_without_inventing_authored_loc
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -320,7 +320,7 @@ fn propagated_public_service_reach_rejects_tampered_published_row() {
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -372,7 +372,7 @@ invokes Host;
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

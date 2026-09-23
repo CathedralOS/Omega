@@ -21,7 +21,7 @@ fn write_project(label: &str, build: &str, main: &str) -> std::path::PathBuf {
 const MAIN: &str = "data Main {}\nmachine Main::main(&mut self) {}\n";
 
 const BUILD_BIND_ALPHA: &str = r#"machine build(builder: &mut Build) {
-    builder.application("alpha-profile");
+    builder.application("alpha_profile");
     builder.roots.bind(local_unchecked::ProgramEntry, Main::main);
     builder.roots.bind(alpha_bootstrap::ProgramEntry, Main::main);
 }
@@ -84,7 +84,7 @@ fn unknown_root_slot_owner_still_rejects() {
     let project = write_project(
         "unknown",
         r#"machine build(builder: &mut Build) {
-    builder.application("alpha-profile");
+    builder.application("alpha_profile");
     builder.roots.bind(local_unchecked::ProgramEntry, Main::main);
     builder.roots.bind(alpha_bootstraps::ProgramEntry, Main::main);
 }

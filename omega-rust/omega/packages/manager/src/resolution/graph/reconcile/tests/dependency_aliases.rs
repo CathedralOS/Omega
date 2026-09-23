@@ -6,14 +6,14 @@ use std::collections::BTreeMap;
 #[test]
 fn derives_default_alias_and_honors_explicit_alias() {
     let ordinary = custody(
-        "arithmetic-kernels",
+        "arithmetic_kernels",
         "arithmetic-kernels",
         2,
         "/snapshots/arithmetic-kernels",
         vec![],
     );
     let renamed = custody(
-        "exact-math",
+        "exact_math",
         "exact-math",
         3,
         "/snapshots/exact-math",

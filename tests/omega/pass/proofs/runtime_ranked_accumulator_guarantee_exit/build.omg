@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-ranked-accumulator-guarantee-exit");
+    builder.application("runtime_ranked_accumulator_guarantee_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.select_provider<Console, ConsoleNativeProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("stdin-rot1");
+    builder.application("stdin_rot1");
     builder.depend(Source::Path {
         location: "../../source/library/std"
     });

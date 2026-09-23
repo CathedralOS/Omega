@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("leap-year");
+    builder.application("leap_year");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

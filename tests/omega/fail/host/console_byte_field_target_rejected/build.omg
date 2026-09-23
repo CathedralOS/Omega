@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("console-byte-field-target-rejected");
+    builder.application("console_byte_field_target_rejected");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("slice-maximum");
+    builder.application("slice_maximum");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

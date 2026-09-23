@@ -1,7 +1,7 @@
 // Deployable operator canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("division-value-entry-selection");
+    builder.application("division_value_entry_selection");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

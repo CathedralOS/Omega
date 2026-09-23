@@ -76,7 +76,7 @@ pub fn author_hosted_receiver_project(
         directory.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("native-diff-hosted-receiver");
+    builder.application("native_diff_hosted_receiver");
 {}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }}

@@ -772,7 +772,7 @@ fn opaque_by_value_boundary_rejects_without_build_selection() {
     let rendered = compile_project_negative(
         "interrupt-missing-representation",
         INTERRUPT_POLICY,
-        "machine build(builder: &mut Build) { builder.application(\"interrupt-entry\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"interrupt_entry\"); }",
     );
     assert!(
         rendered.contains("InterruptAcknowledgement")
@@ -808,7 +808,7 @@ fn reference_only_opaque_boundary_retains_unused_selection_without_demanding_one
     let unselected = write_project(
         "interrupt-reference-only-unselected-representation",
         &source,
-        "machine build(builder: &mut Build) { builder.application(\"interrupt-entry\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"interrupt_entry\"); }",
     );
     let unselected = compile_to_checked(CheckedCompileRequest::new(&unselected, None))
         .expect("a reference-only opaque pointee must not demand representation closure");
@@ -1162,7 +1162,7 @@ machine Main::main(&mut self) { }
     let rendered = compile_project_negative(
         "unresolved-installation-reach",
         source,
-        "machine build(builder: &mut Build) { builder.application(\"unresolved-reach\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"unresolved_reach\"); }",
     );
     assert!(
         rendered.contains("retains 1 unresolved installation-bound requirement"),
@@ -1215,7 +1215,7 @@ machine Main::main(&mut self) { }
     let main_path = write_project(
         "resolved-installation-reach",
         source,
-        "machine build(builder: &mut Build) { builder.application(\"resolved-reach\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"resolved_reach\"); }",
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(&main_path, None))
         .expect("a nested row selected inside the closure substitutes rather than rejects");
@@ -1246,8 +1246,8 @@ machine Main::main(&mut self) { }
 #[test]
 fn opaque_by_value_custody_binds_the_selected_application_commitment() {
     let build = INTERRUPT_REPRESENTATION_BUILD.replacen(
-        "builder.application(\"interrupt-entry\");",
-        "builder.application(\"interrupt-entry\");\n    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);",
+        "builder.application(\"interrupt_entry\");",
+        "builder.application(\"interrupt_entry\");\n    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);",
         1,
     );
     // The checked-level fixture keeps its policy type private; publication of

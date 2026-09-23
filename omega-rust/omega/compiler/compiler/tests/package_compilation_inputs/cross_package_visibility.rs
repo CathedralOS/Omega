@@ -13,7 +13,7 @@ fn receiver_result_bound_package(
     let root = tree.package("receiver-probe");
     TempTree::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"receiver-probe\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"receiver_probe\"); }\n",
     );
     TempTree::write(
         root.join("alignment.omg"),
@@ -59,7 +59,7 @@ crashes Abort {
         identity(1),
         vec![PackageSourceBinding::new(
             identity(1),
-            "receiver-probe",
+            "receiver_probe",
             root.clone(),
         )],
         Vec::new(),

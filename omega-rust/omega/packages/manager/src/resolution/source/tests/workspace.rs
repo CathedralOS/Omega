@@ -18,14 +18,14 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
     let workspace = temp_root("workspace");
     let member = workspace.join("packages/arithmetic-kernels");
     let cache = temp_root("workspace-cache");
-    write_package(&member, "arithmetic-kernels");
+    write_package(&member, "arithmetic_kernels");
     std::fs::write(workspace.join("workspace-only.txt"), "not package source")
         .expect("write workspace-only file");
     std::fs::write(
         member.join("build.omg"),
         r#"
             machine build(builder: &mut Build) {
-                builder.package("arithmetic-kernels");
+                builder.package("arithmetic_kernels");
                 builder.depend(Source::Git {
                     repository: "https://github.com/CathedralOS/exact-math.git",
                     revision: "main"
@@ -57,7 +57,7 @@ fn workspace_member_resolution_binds_root_lineage_path_and_member_snapshot() {
     )
     .expect("resolve workspace member");
 
-    assert_eq!(resolved.key().name().as_str(), "arithmetic-kernels");
+    assert_eq!(resolved.key().name().as_str(), "arithmetic_kernels");
     let SourceLineage::Workspace(lineage) = resolved.key().source_lineage() else {
         panic!("workspace member must retain workspace lineage");
     };
@@ -102,7 +102,7 @@ fn workspace_member_resolution_rejects_member_path_symlink_escape() {
     let outside = temp_root("workspace-member-outside");
     let cache = temp_root("workspace-member-escape-cache");
     std::fs::create_dir_all(workspace.join("packages")).expect("create workspace packages");
-    write_package(&outside, "outside-package");
+    write_package(&outside, "outside_package");
     let member = workspace.join("packages/escaped");
     symlink(&outside, &member).expect("create escaping member symlink");
 
@@ -148,7 +148,7 @@ fn workspace_member_resolution_retains_member_tree_symlink_containment() {
     let member = workspace.join("packages/member");
     let outside = temp_root("workspace-tree-outside");
     let cache = temp_root("workspace-tree-escape-cache");
-    write_package(&member, "member-package");
+    write_package(&member, "member_package");
     std::fs::create_dir_all(&outside).expect("create outside directory");
     std::fs::write(outside.join("secret.omg"), "machine Secret::read() {}\n")
         .expect("write outside source");

@@ -67,13 +67,13 @@ fn locked_checking_rebuilds_generated_bundles_and_preserves_full_current_reviews
         .reviews()
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "generated-table")
+        .find(|review| review.key().name().as_str() == "generated_table")
         .unwrap();
     let consumer = checked
         .reviews()
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "generated-consumer")
+        .find(|review| review.key().name().as_str() == "generated_consumer")
         .unwrap();
     let [generated] = producer.generated_source_bundle().sources() else {
         panic!("fresh producer must retain the complete generated source bundle");

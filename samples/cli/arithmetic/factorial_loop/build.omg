@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("factorial-loop");
+    builder.application("factorial_loop");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

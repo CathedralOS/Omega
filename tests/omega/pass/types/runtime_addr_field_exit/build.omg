@@ -1,7 +1,7 @@
 // Deployable address-field canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-addr-field-exit");
+    builder.application("runtime_addr_field_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -1,7 +1,7 @@
 // Deployable fresh-result ownership handoff: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("linear-fresh-state-call-result-handoff");
+    builder.application("linear_fresh_state_call_result_handoff");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

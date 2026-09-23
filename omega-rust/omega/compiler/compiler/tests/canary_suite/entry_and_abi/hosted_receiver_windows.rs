@@ -48,7 +48,7 @@ fn compile_and_run_windows_hosted_receiver(bare_interface: bool) {
         project.0.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("windows-hosted-receiver");
+    builder.application("windows_hosted_receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }}

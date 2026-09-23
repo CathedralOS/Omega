@@ -1,7 +1,7 @@
 // Deployable nested indexed-write probe: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-machine-owned-indexed-nested-exit-write-exit");
+    builder.application("runtime_machine_owned_indexed_nested_exit_write_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

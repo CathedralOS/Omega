@@ -20,7 +20,7 @@ where
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -106,7 +106,7 @@ where N <= 8u64,
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -149,7 +149,7 @@ where count in u32::Small,
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -194,7 +194,7 @@ where count <= len,
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -454,7 +454,7 @@ where N <= 8u64,
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),

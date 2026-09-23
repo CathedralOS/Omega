@@ -34,7 +34,7 @@ fn return_only_copy_materialization_rejoins_native_artifact_production() {
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-copy-materialization-rejoin");
+    builder.application("optimizer_copy_materialization_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingLiteralCopyMaterialization);
 }

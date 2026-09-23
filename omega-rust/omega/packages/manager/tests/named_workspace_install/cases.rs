@@ -40,7 +40,7 @@ fn named_member_uses_declared_default_alias_and_member_relative_dependencies() {
             assert_named(edge.request(), "exact-math");
             let build = fixture.read("root/build.omg");
             assert!(!build.contains("depend_as"));
-            assert!(build.contains("PackageSelection::Named { package: \"exact-math\" }"));
+            assert!(build.contains("PackageSelection::Named { package: \"exact_math\" }"));
             assert!(!build.contains("modules/selected"));
         },
     );
@@ -72,7 +72,7 @@ fn named_member_alias_override_does_not_rename_the_selected_package() {
             );
             let edge = &source.dependency_requests()[0];
             assert_eq!(edge.alias().as_str(), "math");
-            assert_eq!(edge.selected().key().name().as_str(), "exact-math");
+            assert_eq!(edge.selected().key().name().as_str(), "exact_math");
             assert_named(edge.request(), "exact-math");
         },
     );

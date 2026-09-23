@@ -23,7 +23,7 @@ fn pinned_ssh_process_updates_review_removed_and_reintroduced_authority() {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "process-exit")
+        .find(|package| package.key().name().as_str() == "process_exit")
         .unwrap();
     let original_reviews = fixture.fresh_reviews(TARGET);
     let original_policy = original_reviews
@@ -119,7 +119,7 @@ fn pinned_ssh_process_updates_review_removed_and_reintroduced_authority() {
                     panic!("consumer must remain Git-pinned");
                 };
                 assert_eq!(commit.to_hex(), pin);
-            } else if current.key().name().as_str() == "host-services" {
+            } else if current.key().name().as_str() == "host_services" {
                 assert_eq!(current.resolution(), original_package.resolution());
                 let ImmutableSourceResolution::Git { commit, .. } = current.resolution() else {
                     panic!("host must remain Git-pinned");

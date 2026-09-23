@@ -1,7 +1,7 @@
 // Deployable plan-laid runtime canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-plan-laid-tiled-record-nested-array-view-exit");
+    builder.application("runtime_plan_laid_tiled_record_nested_array_view_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

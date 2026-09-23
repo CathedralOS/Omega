@@ -1,7 +1,7 @@
 // Deployable hard-link canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-hard-link-exit");
+    builder.application("windows_hard_link_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

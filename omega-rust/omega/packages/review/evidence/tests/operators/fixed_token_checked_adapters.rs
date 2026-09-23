@@ -3,7 +3,7 @@ use compiler::CheckedCompileRequest;
 use package_evidence::{project_checked_package_policy, project_checked_package_review};
 use target::TargetProfile;
 
-const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
 
 const BINARY_SUBTRACT: &str = r#"pub data CheckedMath {}

@@ -126,7 +126,7 @@ fn removed_package_choices_resolve_without_its_old_source_or_cache() {
     let removed = changes
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "removed-package")
+        .find(|package| package.key().name().as_str() == "removed_package")
         .unwrap();
     assert!(removed.candidate_resolution().is_none());
     assert!(removed.candidate_path().is_none());
@@ -184,7 +184,7 @@ fn root_role_choices_are_required_in_both_directions_and_sort_before_rows() {
         tree.path("sources/root/build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.application(\"policy-fixture\");\n",
+            " builder.application(\"policy_fixture\");\n",
             " builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}\n",
         ),
     )

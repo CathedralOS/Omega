@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("provider-type-slot-unknown");
+    builder.application("provider_type_slot_unknown");
     builder.select_provider<Pick, MissingProvider>();
 }

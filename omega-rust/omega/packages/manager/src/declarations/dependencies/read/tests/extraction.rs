@@ -13,7 +13,7 @@ fn projects_path_and_git_requests_in_authored_order() {
     let fixture = PackageFixture::with_source(
         r#"
         machine build(builder: &mut Build) {
-            builder.application("dependency-projection-probe");
+            builder.application("dependency_projection_probe");
             builder.depend(Source::Path { location: "../local" });
             builder.depend_as("arithmetic_kernels", Source::Git {
                 revision: "0123456789abcdef",
@@ -26,7 +26,7 @@ fn projects_path_and_git_requests_in_authored_order() {
     assert!(matches!(
         projection.declaration(),
         BuildDeclaration::Application(application)
-            if application.name.as_str() == "dependency-projection-probe"
+            if application.name.as_str() == "dependency_projection_probe"
     ));
     assert_eq!(
         projection.product_dependencies(),
@@ -50,7 +50,7 @@ fn projects_product_and_build_requests_in_scoped_authored_order() {
     let fixture = PackageFixture::with_source(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("dual-scope");
+            builder.package("dual_scope");
             builder.depend(Source::Path { location: "../product-a" });
             builder.build_depend(Source::Path { location: "../host-a" });
             builder.depend_as("product_b", Source::Path { location: "../product-b" });
@@ -92,7 +92,7 @@ fn product_and_build_scopes_keep_independent_alias_spaces() {
     let fixture = PackageFixture::with_source(
         r#"
         machine build(builder: &mut Build) {
-            builder.package("shared-alias");
+            builder.package("shared_alias");
             builder.depend_as("shared", Source::Path { location: "../product" });
             builder.build_depend_as("shared", Source::Path { location: "../host" });
         }
@@ -100,8 +100,8 @@ fn product_and_build_scopes_keep_independent_alias_spaces() {
     );
     let projection = extract_build_dependency_projection(&fixture.root).unwrap();
     let projections = projection.dependency_projections();
-    let product_names = vec![PackageName::parse("product-lib").unwrap()];
-    let build_names = vec![PackageName::parse("host-lib").unwrap()];
+    let product_names = vec![PackageName::parse("product_lib").unwrap()];
+    let build_names = vec![PackageName::parse("host_lib").unwrap()];
     projections
         .validate_aliases(DependencyPurpose::Product, &product_names)
         .expect("product scope validates alone");

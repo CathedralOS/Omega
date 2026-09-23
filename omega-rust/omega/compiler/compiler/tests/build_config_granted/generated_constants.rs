@@ -15,7 +15,7 @@ fn generated_bodies_use_retained_module_constants_after_build_execution() {
         "module settings; pub const ANSWER: u8 = 42; pub const ROW: [u8; 2] = [7, 9];\n",
     );
     project.write("build.omg", r#"machine build(builder: &mut Build) {
-        builder.package("generated-constants");
+        builder.package("generated_constants");
         let generated: BuildPath = builder.output.resolve("generated.omg");
         let descriptor: i32 = builder.output.create(generated, 438);
         let count: i64 = builder.output.write(descriptor,
@@ -92,7 +92,7 @@ fn generated_record_arguments_rejoin_retained_declarations() {
         "data Main {} data Point { value: u64; } data Other { value: u64; }\n",
     );
     project.write("build.omg", r#"machine build(builder: &mut Build) {
-        builder.package("generated-record-arguments");
+        builder.package("generated_record_arguments");
         let generated: BuildPath = builder.output.resolve("generated.omg");
         let descriptor: i32 = builder.output.create(generated, 438);
         let count: i64 = builder.output.write(descriptor,

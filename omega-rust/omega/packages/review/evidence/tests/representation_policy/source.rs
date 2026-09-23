@@ -85,7 +85,7 @@ impl Fixture {
         let dependency = foreign.then(TempPackage::new);
         let mut sources = vec![PackageSourceBinding::new(
             package_identity(),
-            "review-fixture",
+            "review_fixture",
             package.0.clone(),
         )];
         let mut dependencies = Vec::new();
@@ -93,7 +93,7 @@ impl Fixture {
             dependency.write("types.omg", &types);
             sources.push(PackageSourceBinding::new(
                 foreign_identity(),
-                "representation-producer",
+                "representation_producer",
                 dependency.0.clone(),
             ));
             dependencies.push(PackageDependencyBinding::new(
@@ -127,7 +127,7 @@ impl Fixture {
             &format!(
                 r#"{prefix}{}
 machine build(builder: &mut Build) {{
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     {}
 }}
 "#,

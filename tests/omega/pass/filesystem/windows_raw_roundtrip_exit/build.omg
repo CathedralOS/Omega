@@ -1,7 +1,7 @@
 // Windows raw-filesystem roundtrip proof: select the exact Windows entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-raw-roundtrip-exit");
+    builder.application("windows_raw_roundtrip_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

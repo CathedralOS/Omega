@@ -38,7 +38,7 @@ invokes FilesystemHost;
     write_file(
         application.join("build.omg"),
         &format!(
-            "machine build(builder: &mut Build) {{ builder.application(\"fs-consumer\"); builder.depend_as(\"omega_language_std\", Source::Path {{ location: {:?} }}); builder.roots.bind(linux_x86_64::ProgramEntry, Main::main); }}\n",
+            "machine build(builder: &mut Build) {{ builder.application(\"fs_consumer\"); builder.depend_as(\"omega_language_std\", Source::Path {{ location: {:?} }}); builder.roots.bind(linux_x86_64::ProgramEntry, Main::main); }}\n",
             standard_library.to_str().expect("fixture source path")
         ),
     );

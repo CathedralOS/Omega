@@ -13,16 +13,16 @@ use std::path::Path;
 
 #[test]
 fn resolves_diamond_once_while_visiting_every_authored_request() {
-    let shared = custody("shared-math", "shared-math", 4, "/snapshots/shared", vec![]);
+    let shared = custody("shared_math", "shared-math", 4, "/snapshots/shared", vec![]);
     let left = custody(
-        "left-math",
+        "left_math",
         "left-math",
         2,
         "/snapshots/left",
         vec![request("shared-from-left")],
     );
     let right = custody(
-        "right-math",
+        "right_math",
         "right-math",
         3,
         "/snapshots/right",
@@ -236,7 +236,7 @@ fn batch_explanation_paths_traverse_edges_once_and_preserve_breadth_first_choice
     let mut requests = Vec::new();
     // Deliberately oppose package-key order: authored order must decide ties.
     for ordinal in (0..32).rev() {
-        let name = format!("branch-{ordinal:02}");
+        let name = format!("branch_{ordinal:02}");
         requests.push(request(&name));
         packages.insert(
             name.clone(),
@@ -262,7 +262,7 @@ fn batch_explanation_paths_traverse_edges_once_and_preserve_breadth_first_choice
         .dependency_paths()
         .expect("validated graph has its root");
     assert_eq!(paths.traversed_edges, 97);
-    let shallow = DependencyRequestPaths::new(&closure, Some(&key("branch-31", "branch-31")))
+    let shallow = DependencyRequestPaths::new(&closure, Some(&key("branch_31", "branch_31")))
         .expect("first authored edge");
     assert_eq!(
         shallow.traversed_edges, 1,

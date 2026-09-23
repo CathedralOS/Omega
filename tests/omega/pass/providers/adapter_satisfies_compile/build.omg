@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("adapter-satisfies-compile");
+    builder.application("adapter_satisfies_compile");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.select_provider<Echo, EchoProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("status-report");
+    builder.application("status_report");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

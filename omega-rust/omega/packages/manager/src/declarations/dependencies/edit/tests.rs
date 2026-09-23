@@ -55,7 +55,7 @@ fn fixture_root() -> PathBuf {
 
 fn application_build(statements: &str) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"dependency-edit-probe\");\n{statements}}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"dependency_edit_probe\");\n{statements}}}\n"
     )
 }
 
@@ -97,7 +97,7 @@ fn rejects_dependency_edits_without_an_explicit_project_role() {
 #[test]
 fn appends_after_existing_build_work_and_preserves_it() {
     let source = r#"machine build(builder: &mut Build) {
-    builder.application("dependency-edit-probe");
+    builder.application("dependency_edit_probe");
     builder.target(Target::Host);
 }
 "#
@@ -127,7 +127,7 @@ fn adds_after_direct_dependencies_before_entry_transfer_or_nested_states() {
         for newline in ["\n", "\r\n"] {
             let source = format!(
                 r#"machine build(builder: &mut Build) {{
-    builder.application("dependency-edit-probe");
+    builder.application("dependency_edit_probe");
     builder.depend(Source::Path {{ location: "existing" }});
     builder.build_depend(Source::Path {{ location: "build-helper" }});
     // Keep ordinary work, comments, and keyword-like strings intact.
@@ -168,7 +168,7 @@ fn adds_after_direct_dependencies_before_entry_transfer_or_nested_states() {
 
 #[test]
 fn inline_entry_transfer_requires_manual_placement() {
-    let source = "machine build(builder: &mut Build) {\n    builder.application(\"dependency-edit-probe\"); transition { _ -> done() }\n    state done {}\n}\n";
+    let source = "machine build(builder: &mut Build) {\n    builder.application(\"dependency_edit_probe\"); transition { _ -> done() }\n    state done {}\n}\n";
     let plan = plan_dependency_addition_from_source(
         PathBuf::from("build.omg"),
         source.to_owned(),
@@ -186,7 +186,7 @@ fn inline_entry_transfer_requires_manual_placement() {
 
 #[test]
 fn noncanonical_signature_rejects_before_edit_planning() {
-    let source = "machine build(builder: &mut Build, profile: u32) {\n    builder.application(\"dependency-edit-probe\");\n}\n".to_owned();
+    let source = "machine build(builder: &mut Build, profile: u32) {\n    builder.application(\"dependency_edit_probe\");\n}\n".to_owned();
     assert!(matches!(
         plan_dependency_addition_from_source(PathBuf::from("build.omg"), source, &path("vendor")),
         Err(BuildDependencyEditError::InvalidBuild(
@@ -200,7 +200,7 @@ fn replaces_a_semantically_canonical_row_without_relying_on_formatting() {
     let accepted = git("https://example.test/repo.git", "old");
     let candidate = git("https://example.test/repo.git", "new");
     let source = r#"machine build(builder: &mut Build) {
-    builder.application("dependency-edit-probe");
+    builder.application("dependency_edit_probe");
     builder.depend(
         Source::Git {
             revision: "old",
@@ -232,7 +232,7 @@ fn comments_inside_a_replaced_row_force_manual_placement() {
     let accepted = path("vendor");
     let candidate = path("vendor-next");
     let source = r#"machine build(builder: &mut Build) {
-    builder.application("dependency-edit-probe");
+    builder.application("dependency_edit_probe");
     builder.depend(/* retained intent */ Source::Path { location: "vendor" });
 }
 "#
@@ -262,7 +262,7 @@ fn generated_rows_escape_all_caller_controlled_strings() {
         repository: "https://example.test/\"repo\n// injected".to_owned(),
         revision: "main\rnext".to_owned(),
         selection: PackageSelection::Named(
-            crate::declarations::PackageName::parse("selected-package").unwrap(),
+            crate::declarations::PackageName::parse("selected_package").unwrap(),
         ),
     };
     let statement = canonical_dependency_statement(DependencyPurpose::Product, &request);

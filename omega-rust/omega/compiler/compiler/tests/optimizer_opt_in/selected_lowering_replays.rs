@@ -32,7 +32,7 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
         root.join("build.omg"),
         format!(
             "machine build(builder: &mut Build) {{\n\
-             \x20   builder.application(\"optimizer-selected-lowering-boundary-settlement\");\n\
+             \x20   builder.application(\"optimizer_selected_lowering_boundary_settlement\");\n\
              {}\
              \x20   builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n\
              \x20   builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);\n\
@@ -284,7 +284,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-exact-add-physical-child");
+    builder.application("optimizer_exact_add_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
 }
@@ -506,7 +506,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-exact-subtract-physical-child");
+    builder.application("optimizer_exact_subtract_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
 }
@@ -729,7 +729,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-exact-divide-physical-child");
+    builder.application("optimizer_exact_divide_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingExactDivideIdentityCopy);
 }
@@ -976,7 +976,7 @@ machine Main::main() {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-eliminated-occurrence");
+    builder.application("optimizer_eliminated_occurrence");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12CompareImmediate);
 }
@@ -1295,7 +1295,7 @@ fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
         "x86-rel8-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-x86-rel8-selected");
+    builder.application("optimizer_x86_rel8_selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
 }
@@ -1346,7 +1346,7 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
         "aarch64-cbnz-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-aarch64-cbnz-selected");
+    builder.application("optimizer_aarch64_cbnz_selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
 }
@@ -1400,7 +1400,7 @@ fn aarch64_movn_materialization_selection_round_trips_but_remains_default_off() 
         "aarch64-movn-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-aarch64-movn-selected");
+    builder.application("optimizer_aarch64_movn_selected");
     builder.optimizations.enable(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1);
 }
 "#,
@@ -1433,7 +1433,7 @@ fn x86_xor_zero_materialization_selection_round_trips_but_remains_default_off() 
         "x86-xor-zero-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-x86-xor-zero-selected");
+    builder.application("optimizer_x86_xor_zero_selected");
     builder.optimizations.enable(Optimization::X86SelectXorZeroI64MaterializationV1);
 }
 "#,
@@ -1466,7 +1466,7 @@ fn x86_mov_r32_imm32_materialization_selection_round_trips_but_remains_default_o
         "x86-mov-r32-imm32-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-x86-mov-r32-imm32-selected");
+    builder.application("optimizer_x86_mov_r32_imm32_selected");
     builder.optimizations.enable(Optimization::X86SelectMovR32Imm32ZeroExtendedI64MaterializationV1);
 }
 "#,
@@ -1499,7 +1499,7 @@ fn x86_mov_r64_imm32_materialization_selection_round_trips_but_remains_default_o
         "x86-mov-r64-imm32-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-x86-mov-r64-imm32-selected");
+    builder.application("optimizer_x86_mov_r64_imm32_selected");
     builder.optimizations.enable(Optimization::X86SelectMovR64Imm32SignExtendedI64MaterializationV1);
 }
 "#,
@@ -1532,7 +1532,7 @@ fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() 
         "shared-entry-copy-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-shared-entry-copy-selected");
+    builder.application("optimizer_shared_entry_copy_selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
 }
@@ -1583,7 +1583,7 @@ fn active_resident_multi_use_rematerialization_selection_round_trips_but_remains
         "active-resident-rematerialization-selected",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-active-resident-rematerialization-selected");
+    builder.application("optimizer_active_resident_rematerialization_selected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1);
 }
@@ -1635,7 +1635,7 @@ fn selected_check_only_validates_without_entering_an_optimizer_backend() {
         "selected-check-only",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-selected-check-only");
+    builder.application("optimizer_selected_check_only");
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
 }
 "#,
@@ -1655,7 +1655,7 @@ fn terminal_product_routes_selected_psi_pass_to_preterminal_stage() {
         "selected-terminal-product",
         Some(
             r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-selected-terminal-product");
+    builder.application("optimizer_selected_terminal_product");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
 }
@@ -1701,7 +1701,7 @@ fn terminal_product_executes_and_can_disable_the_selected_psi_pass() {
         Some(
             r#"
 machine build(builder: &mut Build) {
-    builder.application("terminal-dead-scalars");
+    builder.application("terminal_dead_scalars");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::DeadPureScalarElimination);
 }

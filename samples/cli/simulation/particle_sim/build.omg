@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("particle-sim");
+    builder.application("particle_sim");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

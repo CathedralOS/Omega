@@ -34,7 +34,7 @@ use crate::{Command, CompileReport, Path, fs};
 fn write_cross_target_application_build(source_dir: &Path) {
     fs::write(
         source_dir.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.application(\"cross-target-canary\"); }\n",
+        "machine build(builder: &mut Build) { builder.application(\"cross_target_canary\"); }\n",
     )
     .expect("write target-independent application build source");
 }

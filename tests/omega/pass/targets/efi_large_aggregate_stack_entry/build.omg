@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("efi-large-aggregate-stack-entry");
+    builder.application("efi_large_aggregate_stack_entry");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

@@ -13,7 +13,7 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
     );
     default_package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -36,7 +36,7 @@ fn review_projects_trait_defaults_and_unnamed_contracts() {
     );
     abstract_package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let abstract_checked = compile_review_fixture(CheckedCompileRequest {
@@ -70,7 +70,7 @@ pub boundary trait SchedulerRuntime {
     );
     precondition_package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -139,7 +139,7 @@ fn public_trait_requires_and_ensures_change_comparison_identity() {
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
@@ -202,7 +202,7 @@ pub trait Worker {{
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {

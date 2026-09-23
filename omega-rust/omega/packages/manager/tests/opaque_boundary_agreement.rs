@@ -142,7 +142,7 @@ fn repository_root() -> PathBuf {
 fn producer_build(standard_library: &Path) -> String {
     format!(
         r#"machine build(builder: &mut Build) {{
-    builder.package("opaque-producer");
+    builder.package("opaque_producer");
     builder.depend(Source::Path {{
         location: "{}"
     }});
@@ -168,7 +168,7 @@ machine Main::main(&mut self) { }
 "#;
 
 const MATCHING_CONSUMER_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("opaque-consumer");
+    builder.application("opaque_consumer");
     builder.depend_as("producer", Source::Path {
         location: "../producer"
     });
@@ -195,7 +195,7 @@ machine Main::main(&mut self) { }
 "#;
 
 const MISMATCHING_CONSUMER_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("opaque-consumer");
+    builder.application("opaque_consumer");
     builder.depend_as("producer", Source::Path {
         location: "../producer"
     });
@@ -248,12 +248,12 @@ fn independently_compiled_opaque_boundary_agreement_rejoins_foreign_demand() {
     let producer = reviews
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "opaque-producer")
+        .find(|review| review.key().name().as_str() == "opaque_producer")
         .expect("producer review");
     let consumer = reviews
         .reviews()
         .iter()
-        .find(|review| review.key().name().as_str() == "opaque-consumer")
+        .find(|review| review.key().name().as_str() == "opaque_consumer")
         .expect("consumer review");
     assert!(!consumer.policy().representation().demands().is_empty());
     let producer_identity = producer.key().identity();

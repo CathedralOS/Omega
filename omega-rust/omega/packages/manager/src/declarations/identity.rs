@@ -17,7 +17,7 @@ impl PackageName {
     }
 
     pub fn default_alias(&self) -> AliasName {
-        AliasName(self.0.replace('-', "_"))
+        AliasName(self.0.clone())
     }
 }
 

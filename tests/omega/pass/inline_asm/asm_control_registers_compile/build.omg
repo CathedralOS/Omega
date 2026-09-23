@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-control-registers-compile");
+    builder.application("asm_control_registers_compile");
     builder.freestanding = true;
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

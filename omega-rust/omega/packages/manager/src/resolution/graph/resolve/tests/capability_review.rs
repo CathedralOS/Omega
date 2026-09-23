@@ -26,7 +26,7 @@ fn git_update_escalating_to_process_authority_blocks_and_requests_source_audit()
     std::fs::write(
         repository.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("process-exit");
+    builder.package("process_exit");
     builder.select_provider<Console, ConsoleNativeProvider>();
 }
 "#,

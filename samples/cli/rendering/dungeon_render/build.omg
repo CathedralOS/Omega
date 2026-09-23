@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("dungeon-render");
+    builder.application("dungeon_render");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

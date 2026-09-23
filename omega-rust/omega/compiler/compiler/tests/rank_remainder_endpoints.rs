@@ -55,7 +55,7 @@ impl Project {
             package,
             vec![PackageSourceBinding::new(
                 package,
-                "rank-remainder",
+                "rank_remainder",
                 self.0.clone(),
             )],
             Vec::new(),

@@ -13,7 +13,7 @@ fn public_data_and_numbered_wire_shape_changes_change_comparison_encoding() {
         "main.omg",
         "pub data Packet [copy] { #1 value: u64; }\ndata Private { changed: i64; }\n",
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -35,7 +35,7 @@ fn public_data_and_numbered_wire_shape_changes_change_comparison_encoding() {
 
 #[test]
 fn public_quotient_identity_binds_carrier_and_relation_but_not_proof_implementation() {
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let compile = |carrier: &str, relation: &str, evidence: &str, reverse_relation: bool| {
         let package = TempPackage::new();
@@ -108,7 +108,7 @@ fn public_quotient_review_rederives_formation_instead_of_trusting_typed_metadata
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -170,7 +170,7 @@ fn public_quotient_package_compilation_requires_a_public_relation() {
     package.write("main.omg", &source);
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let diagnostics = compile_review_fixture(CheckedCompileRequest {

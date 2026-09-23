@@ -1,5 +1,5 @@
 // package-manager fixture: accepted-claim admission, no build-host reach.
 
 machine build(builder: &mut Build) {
-    builder.package("axiom-ledger");
+    builder.package("axiom_ledger");
 }

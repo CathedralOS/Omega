@@ -14,7 +14,7 @@ requires valid_utf8({expression})
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     compile_review_fixture(CheckedCompileRequest {
@@ -226,7 +226,7 @@ pub proposition calls_package(value: &Wrapper) = as_slice(value);
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

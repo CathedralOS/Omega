@@ -14,7 +14,7 @@ pub(super) fn render(
     package: &PackageKey,
     diagnostics: &[Diagnostic],
 ) -> fmt::Result {
-    // PackageName admits only ASCII kebab-case, not arbitrary terminal text.
+    // PackageName admits only ASCII snake_case, not arbitrary terminal text.
     let name = package.name().as_str();
     let shown_name = name.len().min(MAXIMUM_PACKAGE_NAME_BYTES);
     write!(

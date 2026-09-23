@@ -59,7 +59,7 @@ machine Main::main(&mut self) {
 }
 "#,
         r#"machine build(builder: &mut Build) {
-    builder.application("ranked-foreign-caller");
+    builder.application("ranked_foreign_caller");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,

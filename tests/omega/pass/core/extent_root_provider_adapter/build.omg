@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("extent-root-provider-adapter");
+    builder.application("extent_root_provider_adapter");
     builder.accept_boundary<ExtentRootProvider>();
     builder.select_provider<ExtentRootProvider, ExtentRootProviderImpl>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

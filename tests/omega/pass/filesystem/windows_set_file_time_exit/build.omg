@@ -1,7 +1,7 @@
 // Windows-host canary: select the exact Windows entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-set-file-time-exit");
+    builder.application("windows_set_file_time_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

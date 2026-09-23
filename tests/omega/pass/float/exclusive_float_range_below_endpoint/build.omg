@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("exclusive-float-range-below-endpoint");
+    builder.application("exclusive_float_range_below_endpoint");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

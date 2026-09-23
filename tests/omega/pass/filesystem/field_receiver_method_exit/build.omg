@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("field-receiver-method-exit");
+    builder.application("field_receiver_method_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

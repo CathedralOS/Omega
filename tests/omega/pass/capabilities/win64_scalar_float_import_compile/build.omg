@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("win64-scalar-float-import-compile");
+    builder.application("win64_scalar_float_import_compile");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

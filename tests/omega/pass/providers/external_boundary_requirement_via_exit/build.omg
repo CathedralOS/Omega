@@ -2,7 +2,7 @@
 // binding producer and satisfying leaf.
 
 machine build(builder: &mut Build) {
-    builder.application("external-boundary-requirement-via-exit");
+    builder.application("external_boundary_requirement_via_exit");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

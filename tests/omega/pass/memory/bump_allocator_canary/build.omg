@@ -3,7 +3,7 @@
 // row instead of a hand-instantiated strategy copy.
 
 machine build(builder: &mut Build) {
-    builder.application("bump-allocator-canary");
+    builder.application("bump_allocator_canary");
     builder.depend(Source::Path {
         location: "../../../../../source/library/alloc"
     });

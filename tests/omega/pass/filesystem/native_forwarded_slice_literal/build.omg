@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("native-forwarded-slice-literal");
+    builder.application("native_forwarded_slice_literal");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

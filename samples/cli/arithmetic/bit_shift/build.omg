@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("bit-shift");
+    builder.application("bit_shift");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

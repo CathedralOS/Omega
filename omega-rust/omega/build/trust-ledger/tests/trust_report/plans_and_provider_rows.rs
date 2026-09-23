@@ -62,7 +62,7 @@ fn granted_plan_receipt_pins_the_fingerprint() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("plan-lock");
+    builder.application("plan_lock");
     builder.accept_boundary<Flags>();
 }
 "#,
@@ -551,7 +551,7 @@ fn routed_qualification_rows_retain_exact_root_grant_selectors() {
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("trust-abstract-issuer");
+    builder.application("trust_abstract_issuer");
     builder.accept_boundary<Issuer>();
 }
 "#,
@@ -799,7 +799,7 @@ fn slot_grant_pins_only_the_selected_provider_plan() {
     let build_with = |provider: &str| {
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("trust-provider-selection");
+    builder.application("trust_provider_selection");
     builder.accept_boundary<Pair>();
     builder.select_provider<Pair, {provider}>();
 }}

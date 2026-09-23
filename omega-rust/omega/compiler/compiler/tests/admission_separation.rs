@@ -11,7 +11,7 @@ fn ordinary_compilation_reports_obligations_without_creating_or_updating_policy(
     std::fs::write(
         project.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("admission-separation");
+    builder.application("admission_separation");
     builder.accept_boundary<admitted>();
 }
 "#,

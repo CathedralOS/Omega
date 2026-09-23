@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("uefi-program-entry-local-physical-contract");
+    builder.application("uefi_program_entry_local_physical_contract");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);

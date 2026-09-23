@@ -1,7 +1,7 @@
 // Windows authored-import runtime canary: select the exact supported entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-provides-import-exit");
+    builder.application("windows_provides_import_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

@@ -7,7 +7,7 @@
 // bundled toolchain libraries.
 
 machine build(builder: &mut Build) {
-    builder.application("interrupt-table-canary");
+    builder.application("interrupt_table_canary");
     builder.select_representation<
         InterruptAcknowledgement,
         CriticalAcknowledgementRepresentation

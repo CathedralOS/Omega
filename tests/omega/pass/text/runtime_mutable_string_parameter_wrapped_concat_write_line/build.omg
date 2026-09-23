@@ -1,7 +1,7 @@
 // Deployable wrapped mutable text output: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-mutable-string-parameter-wrapped-concat-write-line");
+    builder.application("runtime_mutable_string_parameter_wrapped_concat_write_line");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

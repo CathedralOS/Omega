@@ -237,7 +237,7 @@ fn readable_source_subject_preserves_platform_request_bytes_without_loss() {
         package_source::WorkspaceLineageIdentity::from_root_source(&workspace_root_source).unwrap();
     let source = ResolvedSourceIdentity::new(
         PackageKey::new(
-            PackageName::parse("byte-paths").unwrap(),
+            PackageName::parse("byte_paths").unwrap(),
             SourceLineage::Workspace(package_source::WorkspaceMemberLineage::new(
                 identity,
                 member_path.clone(),
@@ -689,8 +689,8 @@ fn noncanonical_unreachable_and_cyclic_package_state_rejects() {
 fn dual_purpose_edges_round_trip_through_binary_and_text() {
     let limits = CanonicalSourceClosureSubjectLimits::default();
     let application = git_source("application", "application", 1);
-    let host = git_source("host-tool", "host-tool", 2);
-    let product = git_source("product-lib", "product-lib", 3);
+    let host = git_source("host_tool", "host-tool", 2);
+    let product = git_source("product_lib", "product-lib", 3);
     let edge =
         |purpose: DependencyPurpose,
          dependency_index: usize,
@@ -759,7 +759,7 @@ fn dual_purpose_edges_round_trip_through_binary_and_text() {
 fn version_one_text_decodes_as_product_only_and_reencodes_as_version_two() {
     let limits = CanonicalSourceClosureSubjectLimits::default();
     let application = git_source("application", "application", 1);
-    let product = git_source("product-lib", "product-lib", 2);
+    let product = git_source("product_lib", "product-lib", 2);
     let original = finish(
         root_git_selection(
             "https://github.com/CathedralOS/application.git",
@@ -809,8 +809,8 @@ fn version_one_text_decodes_as_product_only_and_reencodes_as_version_two() {
 fn nested_build_selections_replay_only_with_their_exact_authored_occurrence() {
     let limits = CanonicalSourceClosureSubjectLimits::default();
     let application = git_source("application", "application", 1);
-    let host = git_source("host-tool", "host-tool", 2);
-    let nested = git_source("nested-host", "nested-host", 3);
+    let host = git_source("host_tool", "host-tool", 2);
+    let nested = git_source("nested_host", "nested-host", 3);
     let root_selection = root_git_selection(
         "https://github.com/CathedralOS/application.git",
         &application,

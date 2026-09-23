@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("wire-compatibility-preservation-unmet");
+    builder.application("wire_compatibility_preservation_unmet");
     builder.require_wire_compatibility<
         RelayChannel,
         MessageLineage,

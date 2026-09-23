@@ -1,7 +1,7 @@
 use crate::support::*;
 use compiler::CheckedCompileRequest;
 
-const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
 
 #[test]

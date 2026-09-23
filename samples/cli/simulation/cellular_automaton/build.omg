@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("cellular-automaton");
+    builder.application("cellular_automaton");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

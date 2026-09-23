@@ -38,7 +38,7 @@ fn offline_install_resume_publishes_the_reviewed_named_pin_after_head_moves() {
             let lock = fixture.lock();
             let edge = &lock.targets()[0].source().dependency_requests()[0];
             assert_eq!(edge.alias().as_str(), "math");
-            assert_eq!(edge.selected().key().name().as_str(), "exact-math");
+            assert_eq!(edge.selected().key().name().as_str(), "exact_math");
             assert!(!fixture.path("root/build/package-manager/proposal").exists());
         },
     );

@@ -61,7 +61,7 @@ fn resolves_explicit_workspace_path_closure() {
 fn workspace_project_entry_retains_application_root_role() {
     let workspace = temp_root("application-workspace");
     let cache = temp_root("application-workspace-cache");
-    write_application(&workspace.join("projects/console"), "driver-console", None);
+    write_application(&workspace.join("projects/console"), "driver_console", None);
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
         .expect("create retained workspace resolver storage");
 
@@ -88,7 +88,7 @@ fn workspace_project_entry_retains_application_root_role() {
         closure.root_role(),
         crate::declarations::BuildDeclarationKind::Application
     );
-    assert_eq!(closure.graph().root().name().as_str(), "driver-console");
+    assert_eq!(closure.graph().root().name().as_str(), "driver_console");
 
     drop(storage);
     let _ = std::fs::remove_dir_all(workspace);
@@ -101,15 +101,15 @@ fn resolves_nested_paths_relative_to_each_requester() {
     let cache = temp_root("nested-cache");
     write_package(
         &workspace.join("packages/root"),
-        "root-package",
+        "root_package",
         Some("../middle"),
     );
     write_package(
         &workspace.join("packages/middle"),
-        "middle-package",
+        "middle_package",
         Some("../leaf"),
     );
-    write_package(&workspace.join("packages/leaf"), "leaf-package", None);
+    write_package(&workspace.join("packages/leaf"), "leaf_package", None);
 
     let closure = resolve_workspace_package_closure_from_hardened_base(
         &fixture_lineage(),
@@ -123,7 +123,7 @@ fn resolves_nested_paths_relative_to_each_requester() {
 
     assert_eq!(closure.graph().packages().len(), 3);
     assert!(closure.custodies().iter().any(|custody| {
-        custody.key().name().as_str() == "leaf-package"
+        custody.key().name().as_str() == "leaf_package"
             && matches!(custody.key().source_lineage(), SourceLineage::Workspace(_))
     }));
 
@@ -138,8 +138,8 @@ fn contextual_workspace_escape_becomes_external_local_lineage() {
     let root = workspace.join("packages/root");
     let external = sources.join("external");
     let cache = temp_root("contextual-workspace-cache");
-    write_package(&root, "root-package", Some("../../../external"));
-    write_package(&external, "external-package", None);
+    write_package(&root, "root_package", Some("../../../external"));
+    write_package(&external, "external_package", None);
     let source_context = ExternalSourceContext::derive(b"workspace-consuming-lock");
 
     let closure = resolve_workspace_package_closure_in_context_from_hardened_base(
@@ -157,7 +157,7 @@ fn contextual_workspace_escape_becomes_external_local_lineage() {
     let external = closure
         .custodies()
         .iter()
-        .find(|custody| custody.key().name().as_str() == "external-package")
+        .find(|custody| custody.key().name().as_str() == "external_package")
         .expect("external dependency custody");
     assert!(matches!(
         external.key().source_lineage(),
@@ -165,7 +165,7 @@ fn contextual_workspace_escape_becomes_external_local_lineage() {
             if lineage.source_context() == &source_context
     ));
 
-    write_package(&root, "root-package", Some("../../../external/"));
+    write_package(&root, "root_package", Some("../../../external/"));
     let malformed = resolve_workspace_package_closure_in_context_from_hardened_base(
         &fixture_lineage(),
         SourceRelativePath::parse("packages/root").expect("root member"),
@@ -200,7 +200,7 @@ fn rejects_workspace_escape_before_resolving_the_target() {
         package.join("build.omg"),
         r#"
             machine build(builder: &mut Build) {
-                builder.package("root-package");
+                builder.package("root_package");
                 builder.depend(Source::Path { location: "../../../outside" });
             }
             "#,

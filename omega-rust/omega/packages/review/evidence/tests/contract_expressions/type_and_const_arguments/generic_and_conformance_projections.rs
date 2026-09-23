@@ -55,7 +55,7 @@ requires constant<{selected_const}>() == constant<{selected_const}>()
         "main.omg",
         &source("First", "Second", "Left", "Right", "First", "Right"),
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     for package in [&original, &renamed, &changed_type, &changed_const] {
         package.write("build.omg", build);
@@ -140,7 +140,7 @@ ensures result == tag<Wrapper<{nested_type}>>();
     };
     package.write("main.omg", &source("u64"));
     changed.write("main.omg", &source("i64"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -224,7 +224,7 @@ ensures result == tag<Card, {selected}<Card>>();
     };
     original.write("main.omg", &source("FieldOrder"));
     changed.write("main.omg", &source("AlternateOrder"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -323,7 +323,7 @@ ensures result == tag<Card, FieldOrder<Card, {rank}>>();
     };
     original.write("main.omg", &source(7));
     changed.write("main.omg", &source(8));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -413,7 +413,7 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
     };
     original.write("main.omg", &source(7, 1));
     changed.write("main.omg", &source(8, 2));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -571,7 +571,7 @@ ensures result == tag<Card, FieldOrder<Card, {selected}>>();
     original.write("main.omg", &source("Left", "Right", "Left"));
     renamed.write("main.omg", &source("First", "Second", "First"));
     changed.write("main.omg", &source("Left", "Right", "Right"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     for package in [&original, &renamed, &changed] {
         package.write("build.omg", build);
@@ -653,7 +653,7 @@ ensures result == tag<Card, FieldOrder<Card, 7>>();
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let mut checked = compile_review_fixture(CheckedCompileRequest {
@@ -705,7 +705,7 @@ ensures result == tag<Card, Slot<Card>>();
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -741,7 +741,7 @@ ensures result == tag<Card, FieldOrder<Card>>();
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let compile = || {

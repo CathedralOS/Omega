@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("heat-grid");
+    builder.application("heat_grid");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

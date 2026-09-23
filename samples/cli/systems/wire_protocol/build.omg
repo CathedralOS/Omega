@@ -1,7 +1,7 @@
 // wire_protocol build sketch. Needs only stdout + process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("wire-protocol");
+    builder.application("wire_protocol");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

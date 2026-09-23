@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("subslice-sum");
+    builder.application("subslice_sum");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

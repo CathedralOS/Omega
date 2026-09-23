@@ -36,7 +36,7 @@ fn return_only_wrapping_remainder_zero_dividend_rejoins_native_artifact_producti
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-wrapping-remainder-zero-dividend-rejoin");
+    builder.application("optimizer_wrapping_remainder_zero_dividend_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization);
 }

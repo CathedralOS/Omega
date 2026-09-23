@@ -3,7 +3,7 @@
 // parameters.
 
 machine build(builder: &mut Build) {
-    builder.application("efi-entry-arguments");
+    builder.application("efi_entry_arguments");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

@@ -1,7 +1,7 @@
 // account_ledger build file.
 
 machine build(builder: &mut Build) {
-    builder.application("account-ledger");
+    builder.application("account_ledger");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

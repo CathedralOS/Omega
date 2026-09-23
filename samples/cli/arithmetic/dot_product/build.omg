@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("dot-product");
+    builder.application("dot_product");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -52,7 +52,7 @@ fn compile_and_run_hosted_receiver(
         project.0.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("hosted-receiver");
+    builder.application("hosted_receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
@@ -422,7 +422,7 @@ fn hosted_erased_receiver_preserves_source_cleanup_eligibility() {
             format!(
                 r#"
 machine build(builder: &mut Build) {{
-    builder.application("erased-receiver");
+    builder.application("erased_receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     {provider}
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

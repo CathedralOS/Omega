@@ -31,7 +31,7 @@ pub machine consume()
 requires evidence: forwarded<i32>(1)
 { }
 "#;
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     direct.write("main.omg", direct_source);
     direct.write("build.omg", build);
@@ -224,7 +224,7 @@ pub proposition right_fact() evidence Evidence;
             "{prefix}pub machine consume()\nrequires right: right_fact()\nrequires left: left_fact()\n{{ }}\n"
         ),
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -271,7 +271,7 @@ requires selected<{binding}.modulus>()
     };
     original.write("main.omg", &source("proof"));
     renamed.write("main.omg", &source("evidence"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);

@@ -1,7 +1,7 @@
 // Deployable time canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-checked-time-arith-exit");
+    builder.application("runtime_checked_time_arith_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -194,7 +194,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-wrapping-remainder-physical-child");
+    builder.application("optimizer_wrapping_remainder_physical_child");
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingWrappingRemainderOneZeroMaterialization);
 }
@@ -410,7 +410,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-literal-copy-physical-child");
+    builder.application("optimizer_literal_copy_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingLiteralCopyMaterialization);
 }
@@ -625,7 +625,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-bitwise-and-zero-physical-child");
+    builder.application("optimizer_bitwise_and_zero_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingBitwiseAndZeroMaterialization);
 }
@@ -842,7 +842,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-bitwise-xor-zero-physical-child");
+    builder.application("optimizer_bitwise_xor_zero_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingBitwiseXorZeroIdentityCopy);
 }
@@ -1061,7 +1061,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-literal-extension-physical-child");
+    builder.application("optimizer_literal_extension_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingLiteralExtensionElimination);
 }
@@ -1279,7 +1279,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-wrapping-add-zero-physical-child");
+    builder.application("optimizer_wrapping_add_zero_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingWrappingAddZeroIdentityCopy);
 }
@@ -1499,7 +1499,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-bitwise-and-ones-physical-child");
+    builder.application("optimizer_bitwise_and_ones_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingBitwiseAndOnesIdentityCopy);
 }
@@ -1733,7 +1733,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-wrapping-remainder-zero-dividend-physical-child");
+    builder.application("optimizer_wrapping_remainder_zero_dividend_physical_child");
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization);
 }
@@ -1966,7 +1966,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-exact-divide-zero-dividend-physical-child");
+    builder.application("optimizer_exact_divide_zero_dividend_physical_child");
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingExactDivideZeroDividendZeroMaterialization);
 }
@@ -2199,7 +2199,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-load8-indexed-physical-child");
+    builder.application("optimizer_load8_indexed_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12Load8IndexedOffset);
 }
@@ -2418,7 +2418,7 @@ machine Main::main(&mut self) {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("structural-operator-physical-child");
+    builder.application("structural_operator_physical_child");
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
 }
 "#,
@@ -2629,7 +2629,7 @@ machine probe(left: i32, right: i32) -> bool {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("integer-comparison-physical-child");
+    builder.application("integer_comparison_physical_child");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,

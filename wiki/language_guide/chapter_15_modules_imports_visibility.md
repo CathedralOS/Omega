@@ -16,7 +16,7 @@ than repeating a package declaration. The package declares its own name:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.package("arithmetic-kernels");
+    builder.package("arithmetic_kernels");
 }
 ```
 
@@ -58,7 +58,7 @@ for build-only libraries. Both are direct unconditional root declarations:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.application("generated-tables");
+    builder.application("generated_tables");
     builder.build_depend_as("generator", Source::Path {
         location: "../table-generator"
     });
