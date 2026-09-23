@@ -1,22 +1,32 @@
-// Sum-payload-range narrowing through ARITHMETIC in a transition arg (2026-07-08).
-// Extends the direct pass-through (sum_payload_range_narrowed_exit): a bounded
-// payload operand narrows the arithmetic it feeds. `Dim { amount } -> apply(
-// amount * 10)` with `amount: [0..=10]` proves `amount * 10` fits `apply`'s
-// `target: [0..=100]` -- guarded_argument_constraints resolves the payload
-// operand's range under the matching arm's `Equal(self.c, Cmd::Dim)` guard and
-// folds it through `derived_binary_constraints`. Guard-gated: a too-wide result
-// (`amount * 100`) stays unproven (fail canary sum_payload_arith_too_wide).
+// Sum-payload narrowing through ARITHMETIC in a transition arg (2026-07-08),
+// migrated off the revoked `[0..=10]`/`[0..=100]` suffixes. The payload keeps
+// its declared bound as the explicit predicate domain `i32 in Ten`:
+// construction store-enforces it (`Cmd::Dim { amount: 100 }` is rejected),
+// and the domain membership discharges `scale`'s numeric requires. Inside
+// `scale` the requires-bounded operand proves `a * 10` exact and the hoisted
+// `scaled` local carries [0..=100] into `apply`'s contract (a binary
+// expression cannot be a requires argument's folded bound, so the multiply
+// happens one state earlier). Guard-gated: a too-wide result stays unproven
+// (fail canary sum_payload_arith_too_wide).
 // Cmd::Dim { amount: 7 } -> apply(7 * 10 = 70) -> exit 70.
 use omega_language_std::console;
 use omega::language::core::service;
-data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
+domain i32::Ten requires 0 <= self && self <= 10;
+data Cmd { case Dim(amount: i32 in Ten); case Off; }
 data Main { console: Binding<Console>; c: Cmd; }
 machine Main::main(&mut self) reaches Console {
     self.c = Cmd::Dim { amount: 7 };
     transition self.c {
-        Cmd::Dim { amount } -> apply(amount * 10)
+        Cmd::Dim { amount } -> scale(amount)
         Cmd::Off            -> apply(0)
     }
-    state apply(&mut self, target: i32 [0..=100]) { self.console.exit_process(target); }
+    state scale(&mut self, a: i32) requires a >= 0 && a <= 10 {
+        let scaled: i32 = a * 10;
+        transition { _ -> apply(scaled) }
+    }
+    state apply(&mut self, target: i32) requires 0 <= target && target <= 100 {
+        self.console.exit_process(target);
+    }
+    state bad(&mut self) { self.console.exit_process(1); }
 }
 machine Main::run(&mut self) { self.main(); }

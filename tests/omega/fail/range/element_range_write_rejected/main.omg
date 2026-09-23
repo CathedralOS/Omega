@@ -1,15 +1,21 @@
-// Element-range WRITE enforcement (const index): `cells: [i32 [0..=7]; 4]`
-// must reject `self.cells[2] = 100` -- before the indexed-target obligation,
-// element ranges were completely unenforced (the declaration was a lie).
+// Bounded-admission WRITE enforcement (const literal): the revoked element
+// suffix `[i32 [0..=7]; 4]` used to carry a per-element store obligation --
+// `self.cells[2] = 100` had to reject because the declaration was a
+// store-enforced invariant. The checked boundary now lives on the consumer's
+// requires contract: `use_cell(100)` cannot prove `v <= 7` and must reject.
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
-    cells: [i32 [0..=7]; 4];
+    cells: [i32; 4];
 }
 
-machine Main::main(&mut self) {
-    self.cells[2] = 100;
-    self.console.exit_process(1);
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> use_cell(100) }
+
+    state use_cell(&mut self, v: i32) requires 0 <= v && v <= 7 {
+        self.cells[2] = v;
+        self.console.exit_process(1);
+    }
 }

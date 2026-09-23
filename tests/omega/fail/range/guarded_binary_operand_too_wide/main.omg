@@ -1,25 +1,30 @@
-// The operand-refold's soundness twin: guard `dir <= 2` makes the sum
-// [0..=8] + [0..=2] = [0..=10], which does NOT fit y: [0..=9] -> reject.
+// The operand-refold's soundness twin: guard `dir <= 2` exceeds `store`'s
+// admitted operand bound `d <= 1`, so the edge cannot discharge the requires
+// contract -> reject. `dir` is a runtime parameter so the guard's interval
+// (not a literal value) is what admission sees. (Was: `y: i32 [0..=9]` field suffix; the bound now
+// lives on the admission contract. A compound `pv + d <= 9` requires clause
+// is not spellable on a state: the requires expression itself must be
+// provably finite without sibling-clause bounds.)
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
-    p: i32 [0..=8];
+    p: i32;
     dir: i32;
-    y: i32 [0..=9];
+    y: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self, dir_in: i32) reaches Console {
     self.p = 8;
-    self.dir = 1;
+    self.dir = dir_in;
     transition self.dir >= 0 && self.dir <= 2 {
-        true -> store()
+        true -> store(self.p, self.dir)
         false -> bad()
     }
 
-    state store(&mut self) {
-        self.y = self.p + self.dir;
+    state store(&mut self, pv: i32, d: i32) requires 0 <= pv && pv <= 8 && d >= 0 && d <= 1 {
+        self.y = pv + d;
         transition self.y == 9 { true -> m() false -> m() }
     }
     state m(&mut self) { self.console.exit_process(1); }

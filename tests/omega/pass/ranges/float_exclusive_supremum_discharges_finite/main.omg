@@ -1,15 +1,16 @@
-// An EXCLUSIVE float endpoint whose authored decimal overflows f64 keeps its
-// IEEE reading: `x < +inf` excludes +inf itself and NaN, so the range is still
-// `finite` evidence and the parameter delivers into `f64 in Finite`. The
-// endpoint is spelled non-integral so it stays a float range -- an integral
-// spelling such as 1e400 takes the exact-integer range path instead. The
-// inclusive twin `[0.0..=<endpoint>]` admits +inf and is not finite evidence:
-// range EXISTENCE is no longer permissive widening.
+// The revoked exclusive-endpoint float suffix `[0.0..<supremum>]` meant
+// "finite" whenever the authored supremum's IEEE reading excluded +inf --
+// exactly the membership `f64 in Finite` now declares directly on the
+// parameter. A finite literal discharges `in Finite` at the call, and the
+// domain-qualified parameter delivers into the `f64 in Finite` sink field by
+// nominal membership. The inclusive suffix twin admitted +inf and was not
+// finite evidence; spelling the membership requirement out keeps the same
+// proof boundary without range-syntax existence doing permissive widening.
 data Main {
     sink: f64 in Finite;
 }
 
-machine Main::deliver(&mut self, value: f64 [0.0..200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000.5]) { self.sink = value; }
+machine Main::deliver(&mut self, value: f64 in Finite) { self.sink = value; }
 
 machine Main::main(&mut self) {
     self.deliver(1.0);

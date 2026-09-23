@@ -1,31 +1,38 @@
-// ARRAY-ELEMENT RANGES (the de-Trapping sweep's wall): `cells: [i32 [0..=7]; 4]`
-// declares a range on the ELEMENT type, and the whole invariant machinery now
-// flows through indexed access:
-// - every indexed WRITE (const or runtime index) collects a bounded-assignment
-//   obligation (out-of-range stores reject);
-// - ZII requires 0 in the element range (a `[1..=7]` element rejects at the
-//   declaration);
-// - an indexed READ carries the element range, so `cells[i] * 2 + 1` proves
-//   into `next: i32 [0..=15]` with no guard -- the cells[rp]-style dataflow
-//   that kept grid samples partially Wrapping.
+// ARRAY-ELEMENT dataflow into a bounded admission: `cells: [i32; 4]` is a
+// plain carrier now that the revoked `[i32 [0..=7]; 4]` element suffix is
+// gone, so the element read is hoisted to `c` and a dominating guard supplies
+// the bound the declaration used to carry:
+// - `cells[self.i]` reads under the literal `i = 1` index bound;
+// - `transition 0 <= c && c <= 7` narrows the element copy, so
+//   `c * 2 + 1` lands in [1..=15] and discharges `store_next`'s requires
+//   contract -- the cells[rp]-style dataflow, now spelled through a checked
+//   admission boundary instead of an element-type suffix.
 // cells[1]=7 -> 7*2+1 = 15 -> exit 15.
 use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
-    cells: [i32 [0..=7]; 4];
-    i: u64 [0..=3];
-    next: i32 [0..=15];
+    cells: [i32; 4];
+    i: u64;
+    next: i32;
 }
 
 machine Main::main(&mut self) reaches Console {
     self.cells[1] = 7;
     self.i = 1;
-    self.next = self.cells[self.i] * 2 + 1;
-    transition self.next == 15 {
-        true -> matched()
+    let c: i32 = self.cells[self.i];
+    transition 0 <= c && c <= 7 {
+        true -> store_next(c)
         false -> unmatched()
+    }
+
+    state store_next(&mut self, cv: i32) requires 0 <= cv && cv <= 7 {
+        self.next = cv * 2 + 1;
+        transition self.next == 15 {
+            true -> matched()
+            false -> unmatched()
+        }
     }
     state matched(&mut self) { self.console.exit_process(15); }
     state unmatched(&mut self) { self.console.exit_process(0); }

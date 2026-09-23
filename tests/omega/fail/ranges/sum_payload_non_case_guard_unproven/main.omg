@@ -1,22 +1,25 @@
-// SOUNDNESS PIN for the sum-payload-range narrowing (landed 2026-07-08). The
-// narrowing requires a guard that proves `self.p`'s CASE -- not just any guard.
-// Here `self.p.v` is passed as a transition argument under a guard on a
-// DIFFERENT place (`self.flag`), which says nothing about `self.p`'s case
-// (`p = Two{w:900}`, so `self.p.v` reads `One`'s field on a `Two`-active value).
-// The payload range must NOT be admitted: `case_guard_proven_variant` finds no
-// `Equal(self.p, P::Case)` conjunct, so the argument stays unproven. MUST reject
-// with the expected fragment.
+// SOUNDNESS PIN for the sum-payload narrowing (landed 2026-07-08, migrated
+// off the revoked `[0..=50]`/`[0..=1000]` suffixes). The narrowing requires a
+// guard that proves `self.p`'s CASE -- not just any guard. Here `self.p.v` is
+// passed as a transition argument under a guard on a DIFFERENT place
+// (`self.flag`), which says nothing about `self.p`'s case (`p = Two{w:900}`,
+// so `self.p.v` reads `One`'s field on a `Two`-active value -- a checked
+// partial op). The payload must NOT be admitted: no `Equal(self.p, P::Case)`
+// conjunct exists, so the argument's domain membership stays unestablished.
+// MUST reject with the expected fragment.
 use omega::language::std::console;
 use omega::language::core::service;
-data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=1000]); }
+domain i32::Fifty requires 0 <= self && self <= 50;
+domain i32::Thousand requires 0 <= self && self <= 1000;
+data P { case One(v: i32 in Fifty); case Two(w: i32 in Thousand); }
 data Main { console: Binding<Console>; flag: bool; p: P; }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     self.p = P::Two { w: 900 };
     self.flag = true;
     transition self.flag {
         true -> use_v(self.p.v)
         false -> use_v(0)
     }
-    state use_v(&mut self, x: i32 [0..=50]) { self.console.exit_process(x); }
+    state use_v(&mut self, x: i32 in Fifty) { self.console.exit_process(x); }
 }
 machine Main::run(&mut self) { self.main(); }

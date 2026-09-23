@@ -1,28 +1,28 @@
-// The RUNTIME-index guarded element increment: `tallies[self.k] < 16` proves
-// `tallies[self.k] = tallies[self.k] + 1` into `[i32 [0..=16]; 4]`. Both sides
-// of the proof are DE-HOISTED: the operand hoist renames the element read
-// (`__hoist_N + 1`) and the indexed GUARD SUBJECT is frontend-hoisted to a
-// boolean local in the SOURCE state (`transition __hoist_M {..}`), so the
-// obligation resolves each through its state's call-free initializers before
-// the structural match. The stability gate re-collects read paths from the
-// de-hoisted operands (collection + index), so a k-reassignment or an
-// intervening collection write still drops the fact (fail twins).
+// The RUNTIME-index guarded element increment: `tallies[self.k]` is hoisted to
+// the local `t`, the guard `t < 16` admits it to `bump`'s bounded contract,
+// and `tallies[ki] = v + 1` is exact under `v < 16`. The revoked element
+// suffix `[i32 [0..=16]; 4]` and index suffix `k: u64 [0..=3]` moved to plain
+// carriers plus `bump`'s requires: `v < 16` is the increment bound, `ki < 4`
+// is the index bound (`self.k`'s literal 2 discharges it at the edge).
+// Requires admission matches the guard on the hoisted LOCAL rather than the
+// indexed path, so the operand-hoist rename no longer participates.
 // ZII tallies[2]=0 -> +1 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
     console: Binding<Console>;
-    tallies: [i32 [0..=16]; 4];
-    k: u64 [0..=3];
+    tallies: [i32; 4];
+    k: u64;
 }
 machine Main::main(&mut self) reaches Console {
     self.k = 2;
-    transition self.tallies[self.k] < 16 {
-        true -> bump()
+    let t: i32 = self.tallies[self.k];
+    transition t < 16 {
+        true -> bump(t, self.k)
         false -> full()
     }
-    state bump(&mut self) {
-        self.tallies[self.k] = self.tallies[self.k] + 1;
+    state bump(&mut self, v: i32, ki: u64) requires v < 16, ki < 4 {
+        self.tallies[ki] = v + 1;
         transition self.tallies[2] == 1 {
             true -> matched()
             false -> unmatched()

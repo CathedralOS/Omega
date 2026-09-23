@@ -1,26 +1,31 @@
-// The operand-refold's STABILITY twin: a write to `dir` inside the guarded
-// state before the sum invalidates the edge fact -- the stability gate must
-// drop the guard and the ranged store must reject.
+// The operand-refold's STABILITY twin: a write to `dir` before the bounded
+// call invalidates the edge fact -- at `stale`'s call edge `dir` is the fresh
+// 2000000000, so `store`'s `d <= 1` requires must reject (without
+// staleness, the stale guard's `dir <= 1` would "prove" the sum).
 use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;
-    p: i32 [0..=8];
+    p: i32;
     dir: i32;
-    y: i32 [0..=9];
+    y: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
+    self.p = 8;
     self.dir = 1;
     transition self.dir >= 0 && self.dir <= 1 {
-        true -> store()
+        true -> stale()
         false -> bad()
     }
 
-    state store(&mut self) {
+    state stale(&mut self) {
         self.dir = 2000000000;
-        self.y = self.p + self.dir;
+        transition { _ -> store(self.p, self.dir) }
+    }
+    state store(&mut self, pv: i32, d: i32) requires 0 <= pv && pv <= 8 && d >= 0 && d <= 1 {
+        self.y = pv + d;
         transition self.y == 9 { true -> m() false -> m() }
     }
     state m(&mut self) { self.console.exit_process(1); }

@@ -6,8 +6,12 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self, left_index: u64 [0..=3], mid: u64 [0..=4], other: u64 [0..=4], right_index: u64 [0..=3])
+machine Main::main(&mut self, left_index: u64, mid: u64, other: u64, right_index: u64)
 requires
+    left_index <= 3,
+    mid <= 4,
+    other <= 4,
+    right_index <= 3,
     left_index < mid && other <= right_index
 {
     let view: &mut [Entry] = self.entries.as_mut_slice();

@@ -1,11 +1,18 @@
-// A zero-excluding ELEMENT range gates the containing array and therefore the
-// machine data. Consuming Main before establishing its cells is rejected.
+// A zero-excluding invariant gates the machine data: `data Main where 1 <= y`
+// is never established (ZII stores 0), so `Main`'s default domain stays open
+// and consuming `self.console` before establishing `Main` is rejected. (Was:
+// `[i32 [1..=7]; 4]` element suffix -- a zero-excluding element range gated
+// the containing array; the where-clause is the surviving spell-out of a
+// field invariant the constructor must establish.)
 use omega::language::std::console;
 use omega::language::core::service;
 
-data Main {
+data Main
+where
+    1 <= y,
+{
     console: Binding<Console>;
-    cells: [i32 [1..=7]; 4];
+    y: i32;
 }
 
 machine Main::main(&mut self) {

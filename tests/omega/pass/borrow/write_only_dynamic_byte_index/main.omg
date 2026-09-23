@@ -1,7 +1,9 @@
 // PASS canary: a runtime byte index is content-independent and may write
-// through `&write` when its ordinary declared range proves it in bounds.
+// through `&write` when its requires-bounded contract proves it in bounds.
+// (Was: `index: u64 [0..=3]` param suffix; the bound is now the requires
+// clause `index <= 3`.)
 
-machine fill(bytes: &write [u8; 4], index: u64 [0..=3]) {
+machine fill(bytes: &write [u8; 4], index: u64) requires index <= 3 {
     bytes[index] = 1;
 }
 

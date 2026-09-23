@@ -1,20 +1,27 @@
-// The guarded element increment's STABILITY twin: a write into the SAME
-// collection (`tallies[2] = 5`) between the guard and the increment may alias
-// the guarded element (index-blind), so the fact drops and the store rejects.
+// The guarded element increment's STABILITY twin: a write to the SAME guarded
+// element (`tallies[1] = 20`) between the guard and the bounded call replaces
+// the fact's subject -- at `interpose`'s call edge the re-read `u` is the
+// fresh 20, so `bump`'s `v < 16` requires must reject. (Was: the increment's
+// bounded-assignment obligation on the revoked `[i32 [0..=16]; 4]` element
+// suffix; the bound now lives on the admission contract.)
 use omega::language::std::console;
 use omega::language::core::service;
 data Main {
     console: Binding<Console>;
-    tallies: [i32 [0..=16]; 4];
+    tallies: [i32; 4];
 }
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     transition self.tallies[1] < 16 {
-        true -> bump()
+        true -> interpose()
         false -> full()
     }
-    state bump(&mut self) {
-        self.tallies[2] = 5;
-        self.tallies[1] = self.tallies[1] + 1;
+    state interpose(&mut self) {
+        self.tallies[1] = 20;
+        let u: i32 = self.tallies[1];
+        transition { _ -> bump(u) }
+    }
+    state bump(&mut self, t: i32) requires t < 16 {
+        self.tallies[1] = t + 1;
         transition self.tallies[1] == 1 {
             true -> matched()
             false -> unmatched()
