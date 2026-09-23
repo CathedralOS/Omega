@@ -87,6 +87,39 @@ pub(crate) struct LoweredSelectedMachine {
     pub(crate) source_mapping: SourceMapping,
 }
 
+impl LoweredSelectedMachine {
+    /// A lowering whose source mapping is its entry machine alone.
+    pub(crate) fn entry_only(
+        terminal: LoweredPsi,
+        completion: LoweringCompletion,
+        source_machines: Vec<symbols::SymbolHandle>,
+    ) -> Self {
+        Self {
+            terminal,
+            source_machines,
+            completion,
+            source_mapping: SourceMapping::EntryOnly,
+        }
+    }
+
+    /// A lowering that published an exact catalog of its machine owners.
+    pub(crate) fn source_mapped(
+        lowered: SourceMappedLowered,
+        completion: LoweringCompletion,
+    ) -> Self {
+        Self {
+            terminal: lowered.terminal,
+            source_machines: lowered
+                .source_machine_ids
+                .iter()
+                .map(|(source, _)| *source)
+                .collect(),
+            completion,
+            source_mapping: SourceMapping::ExactCatalog(lowered.source_machine_ids),
+        }
+    }
+}
+
 pub(crate) struct SourceMappedLowered {
     pub(crate) terminal: LoweredPsi,
     /// Exact catalog owners, ordered by the emitted machine table.

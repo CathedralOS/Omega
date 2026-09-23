@@ -1,23 +1,16 @@
 //! Exact checked-plan selection and dispatch into one Terminal Psi machine family.
 
 use checked_trees::{
-    CheckedDynamicBindingKind, CheckedDynamicDispatchPlan, CheckedTerminalMachineSelection,
-    CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedDynamicBindingKind, CheckedDynamicDispatchPlan, CheckedReturnPlan,
+    CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
 };
 
 use crate::lowering_error::LoweringError;
 use crate::producer_result::{
     ConformancePublication, DebugPublication, LoweredSelectedMachine, LoweringCompletion,
-    OperandProofCompletion, SourceMappedLowered, SourceMapping,
+    OperandProofCompletion, SourceMapping,
 };
-use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
-use crate::returns::payloadless_case_return::lower_payloadless_case_return_machine;
-use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
-use crate::returns::structural_return::lower_structural_return_machine;
-use crate::returns::structural_scalar_return::{
-    lower_selected_operator_structural_scalar_return_machine,
-    lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
-};
+use crate::returns::lower_return_machine;
 use crate::scalar_graph::scalar_call_closure::{
     checked_scalar_call_closure, lower_scalar_call_closure,
 };
@@ -28,7 +21,6 @@ use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
 use crate::unit::unit_cleanup::{
     lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };
-use lowered_psi::LoweredPsi;
 
 /// Which checked Terminal machine one lowering selects.
 ///
@@ -69,36 +61,6 @@ pub fn select_terminal_machine<'checked>(
     }
 }
 
-fn selected_machine(
-    terminal: Result<LoweredPsi, LoweringError>,
-    completion: LoweringCompletion,
-    source_machines: Vec<symbols::SymbolHandle>,
-) -> Result<LoweredSelectedMachine, LoweringError> {
-    Ok(LoweredSelectedMachine {
-        terminal: terminal?,
-        source_machines,
-        completion,
-        source_mapping: SourceMapping::EntryOnly,
-    })
-}
-
-fn source_mapped_machine(
-    lowered: Result<SourceMappedLowered, LoweringError>,
-    completion: LoweringCompletion,
-) -> Result<LoweredSelectedMachine, LoweringError> {
-    let lowered = lowered?;
-    Ok(LoweredSelectedMachine {
-        terminal: lowered.terminal,
-        source_machines: lowered
-            .source_machine_ids
-            .iter()
-            .map(|(source, _)| *source)
-            .collect(),
-        completion,
-        source_mapping: SourceMapping::ExactCatalog(lowered.source_machine_ids),
-    })
-}
-
 fn unsupported<T>(message: &'static str) -> Result<T, LoweringError> {
     Err(LoweringError::Unsupported(message))
 }
@@ -118,78 +80,20 @@ pub(crate) fn lower_selected_machine(
             },
             ..Default::default()
         };
-        return match lower_dynamic_dispatch_machine(checked, plan)? {
+        return Ok(match lower_dynamic_dispatch_machine(checked, plan)? {
             LoweredDynamicDispatch::SourceMapped(lowered) => {
-                source_mapped_machine(Ok(lowered), completion)
+                LoweredSelectedMachine::source_mapped(lowered, completion)
             }
             LoweredDynamicDispatch::EntryOnly {
                 terminal,
                 source_machines,
-            } => selected_machine(Ok(terminal), completion, source_machines),
-        };
+            } => LoweredSelectedMachine::entry_only(terminal, completion, source_machines),
+        });
     }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .selected_operator_for_machine(selection.machine)
-    {
-        return selected_machine(
-            lower_selected_operator_structural_scalar_return_machine(checked, plan),
-            LoweringCompletion::default(),
-            vec![selection.machine, plan.realization_machine],
-        );
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_call_returns
-        .payloadless_guarded_for_machine(selection.machine)
-    {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("guarded payloadless call return requires an attached signature");
-        }
-        return selected_machine(
-            lower_payloadless_guarded_call_return_machine(checked, plan),
-            LoweringCompletion::default(),
-            vec![selection.machine, plan.target_machine],
-        );
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .trait_operator_for_machine(selection.machine)
-    {
-        return selected_machine(
-            lower_trait_operator_scalar_return_machine(checked, plan),
-            LoweringCompletion::default(),
-            vec![selection.machine, plan.realization_machine],
-        );
-    }
-    // A result-bearing structural plan owns both the scalar result and its
-    // post-result cleanup. It must win over overlapping Unit-only cleanup.
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_scalar_returns
-        .for_machine(selection.machine)
-    {
-        let expected_signature = if plan.attachment_type_identity.is_some() {
-            CheckedTerminalSignatureEligibility::Attached
-        } else {
-            CheckedTerminalSignatureEligibility::Eligible
-        };
-        if selection.signature != expected_signature {
-            return unsupported(
-                "structural scalar return plan disagrees with its selected signature",
-            );
-        }
-        return selected_machine(
-            lower_structural_scalar_return_machine(checked, plan),
-            LoweringCompletion::default(),
-            vec![selection.machine],
-        );
+    // A result-bearing plan owns both its result and the cleanup after it, so
+    // the return family is tried before the Unit-only cleanup plans below.
+    if let Some(plan) = select_return_plan(checked, selection)? {
+        return lower_return_machine(checked, plan);
     }
     let mut nominal_matches = checked
         .facts
@@ -215,14 +119,14 @@ pub(crate) fn lower_selected_machine(
                 "nominal affine Unit cleanup attachment disagrees with its signature",
             );
         }
-        return selected_machine(
-            lower_nominal_affine_unit_cleanup_machine(checked, plan),
+        return Ok(LoweredSelectedMachine::entry_only(
+            lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
                 operands: OperandProofCompletion::Finalize,
                 ..Default::default()
             },
             vec![selection.machine],
-        );
+        ));
     }
     let mut partial_matches = checked
         .facts
@@ -248,93 +152,14 @@ pub(crate) fn lower_selected_machine(
                 "partial affine Unit cleanup attachment disagrees with its signature",
             );
         }
-        return source_mapped_machine(
-            lower_partial_affine_unit_cleanup_machine(checked, plan),
+        return Ok(LoweredSelectedMachine::source_mapped(
+            lower_partial_affine_unit_cleanup_machine(checked, plan)?,
             LoweringCompletion {
                 operands: OperandProofCompletion::Finalize,
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
-        );
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_boundary_scalar_returns
-        .for_machine(selection.machine)
-    {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("result-bearing boundary custody requires an attached signature");
-        }
-        let lowered = lower_boundary_scalar_return_machine(checked, plan)?;
-        return Ok(LoweredSelectedMachine {
-            terminal: lowered.terminal,
-            source_machines: lowered
-                .source_machine_ids
-                .iter()
-                .map(|(source, _)| *source)
-                .collect(),
-            completion: LoweringCompletion::default(),
-            source_mapping: SourceMapping::ExactCatalog(lowered.source_machine_ids),
-        });
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_returns
-        .payloadless_case_for_machine(selection.machine)
-    {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported(
-                "payloadless structural case return requires an attached signature",
-            );
-        }
-        return selected_machine(
-            lower_payloadless_case_return_machine(checked, plan),
-            LoweringCompletion::default(),
-            vec![selection.machine],
-        );
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_returns
-        .for_machine(selection.machine)
-    {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("structural result transfer requires an attached signature");
-        }
-        return selected_machine(
-            lower_structural_return_machine(checked, plan),
-            LoweringCompletion::default(),
-            vec![selection.machine],
-        );
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_returns
-        .claim_free_affine_for_machine(selection.machine)
-    {
-        if !matches!(
-            selection.signature,
-            CheckedTerminalSignatureEligibility::Eligible
-                | CheckedTerminalSignatureEligibility::Attached
-        ) || plan.attachment_type_identity.is_some()
-            != (selection.signature == CheckedTerminalSignatureEligibility::Attached)
-        {
-            return unsupported(
-                "affine identity return requires an exact free or attached signature",
-            );
-        }
-        return selected_machine(
-            crate::returns::affine_return::lower_affine_return_machine(checked, selection.machine),
-            LoweringCompletion {
-                debug: DebugPublication::Omit,
-                ..Default::default()
-            },
-            vec![selection.machine],
-        );
+        ));
     }
     if let Some(plan) = checked
         .facts
@@ -354,20 +179,13 @@ pub(crate) fn lower_selected_machine(
                 "composed Unit control requires an exact free or attached signature",
             );
         }
-        let composed = lower_composed_unit_control_machine(checked, plan)?;
-        return Ok(LoweredSelectedMachine {
-            terminal: composed.terminal,
-            source_machines: composed
-                .source_machine_ids
-                .iter()
-                .map(|(source, _)| *source)
-                .collect(),
-            completion: LoweringCompletion {
+        return Ok(LoweredSelectedMachine::source_mapped(
+            lower_composed_unit_control_machine(checked, plan)?,
+            LoweringCompletion {
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
-            source_mapping: SourceMapping::ExactCatalog(composed.source_machine_ids),
-        });
+        ));
     }
     if let Some(plan) = checked
         .facts
@@ -378,11 +196,11 @@ pub(crate) fn lower_selected_machine(
         if selection.signature != CheckedTerminalSignatureEligibility::Attached {
             return unsupported("structural Unit control plan requires an attached signature");
         }
-        return selected_machine(
-            lower_structural_unit_control_machine(checked, plan),
+        return Ok(LoweredSelectedMachine::entry_only(
+            lower_structural_unit_control_machine(checked, plan)?,
             LoweringCompletion::default(),
             vec![selection.machine],
-        );
+        ));
     }
     // A scalar forwarding body can also have a Unit-closure plan. Its scalar
     // graph owns the source signature, operand, and affine-transfer custody;
@@ -404,14 +222,14 @@ pub(crate) fn lower_selected_machine(
             .for_machine(selection.machine)
             .is_some()
     {
-        return source_mapped_machine(
-            lower_unit_effect_closure(checked, selection.machine),
+        return Ok(LoweredSelectedMachine::source_mapped(
+            lower_unit_effect_closure(checked, selection.machine)?,
             LoweringCompletion {
                 operands: OperandProofCompletion::Finalize,
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
-        );
+        ));
     }
     match selection.signature {
         CheckedTerminalSignatureEligibility::Eligible => {}
@@ -424,14 +242,14 @@ pub(crate) fn lower_selected_machine(
                 .is_some() => {}
         CheckedTerminalSignatureEligibility::Attached
         | CheckedTerminalSignatureEligibility::FreeUnitEffect => {
-            return source_mapped_machine(
-                lower_unit_effect_closure(checked, selection.machine),
+            return Ok(LoweredSelectedMachine::source_mapped(
+                lower_unit_effect_closure(checked, selection.machine)?,
                 LoweringCompletion {
                     operands: OperandProofCompletion::Finalize,
                     debug: DebugPublication::Omit,
                     ..Default::default()
                 },
-            );
+            ));
         }
         CheckedTerminalSignatureEligibility::Unsupported => {
             return unsupported(
@@ -452,13 +270,13 @@ pub(crate) fn lower_selected_machine(
         checked,
         selection.machine,
     )? {
-        return source_mapped_machine(
-            crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine),
+        return Ok(LoweredSelectedMachine::source_mapped(
+            crate::unit::attached_unit::lower_scalar_effect_closure(checked, selection.machine)?,
             LoweringCompletion {
                 operands: OperandProofCompletion::Finalize,
                 ..Default::default()
             },
-        );
+        ));
     }
     let closure = checked_scalar_call_closure(checked, selection.machine)?;
     let terminal = if closure.len() == 1 {
@@ -508,6 +326,27 @@ fn select_dynamic_dispatch_plan<'checked>(
     };
     if selection.signature != CheckedTerminalSignatureEligibility::Attached {
         return unsupported("dynamic dispatch requires an attached caller");
+    }
+    Ok(Some(plan))
+}
+
+/// The one checked return plan `selection` lowers, if any. Every result kind
+/// shares this admission: the selection's signature is the one the plan's
+/// attachment implies — attached when the plan retains its owner, free
+/// otherwise. The operator-realized kinds constrain their realization rather
+/// than the caller's selection and admit any signature.
+fn select_return_plan<'checked>(
+    checked: &'checked CheckedTrees,
+    selection: &CheckedTerminalMachineSelection,
+) -> Result<Option<CheckedReturnPlan<'checked>>, LoweringError> {
+    let Some(plan) = CheckedReturnPlan::for_machine(&checked.facts.flow, selection.machine) else {
+        return Ok(None);
+    };
+    if plan
+        .expected_signature()
+        .is_some_and(|expected| expected != selection.signature)
+    {
+        return unsupported("return plan attachment disagrees with its selected signature");
     }
     Ok(Some(plan))
 }
