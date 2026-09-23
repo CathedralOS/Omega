@@ -1,7 +1,4 @@
 use crate::lowerer::lower_symbol_resolved_trees;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn sealed_quotient_request_rejects_conformance_shaped_proof_discovery() {
@@ -14,10 +11,7 @@ fn sealed_quotient_request_rejects_conformance_shaped_proof_discovery() {
             Quotient::define<representative, RepresentativeRespect>(value)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("a conformance must not stand in for an exact theorem machine");
 
     assert!(
@@ -38,10 +32,7 @@ fn sealed_quotient_define_requires_both_exact_static_identities() {
             Quotient::define<representative>(value)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("define without an exact named conformance must reject");
 
     assert!(
@@ -67,10 +58,7 @@ fn sealed_quotient_namespace_cannot_be_shadowed() {
             Quotient::lift<representative, RepresentativeRespect>(value)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("an authored Quotient namespace must not capture the sealed wrapper");
 
     assert!(
@@ -96,10 +84,7 @@ fn quotient_cannot_declare_structural_equatable_conformance() {
             as CarrierEquivalence;
         ExactQEquatable: ExactQ satisfies Equatable;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("a quotient must not synthesize representative equality");
 
     assert!(
@@ -131,10 +116,7 @@ fn quotient_cannot_choose_a_zero_value_representative() {
         {
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("a quotient must not expose a canonical zero representative");
 
     assert!(
@@ -164,10 +146,7 @@ fn quotient_field_cannot_enter_synthesized_container_equality() {
         data Wrapper { value: ExactQ; }
         WrapperEquatable: Wrapper satisfies Equatable;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("container synthesis must not compare a quotient representative field");
 
     assert!(
@@ -198,10 +177,7 @@ fn runtime_quotient_equality_requires_a_named_lifted_operation() {
             left == right
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let diagnostic = lower_symbol_resolved_trees(&resolved)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("runtime quotient equality must not observe representatives");
 
     assert!(
@@ -233,9 +209,7 @@ fn proof_position_quotient_equality_remains_for_congruence() {
         {
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
     lower_symbol_resolved_trees(&resolved)
         .expect("logical quotient equality must remain available to congruence validation");
 }
@@ -248,13 +222,7 @@ fn proposition_application_rejects_in_runtime_value_position() {
             related(value, value);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let diagnostic = lower_symbol_resolved_trees(&resolved_program)
+    let diagnostic = crate::front_end::typed_program_result(source)
         .expect_err("runtime proposition use must fail closed");
 
     assert!(diagnostic.message.contains("proof-only"));
@@ -276,13 +244,7 @@ fn transparent_proposition_alias_normalizes_to_its_expansion() {
         {
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
 
     let normalized = typed
         .machines()
@@ -321,14 +283,7 @@ fn lowers_dungeon_style_machine_program() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
 
     assert_eq!(typed_trees.data_definitions().len(), 1);
     assert_eq!(typed_trees.machines().len(), 1);
@@ -357,14 +312,7 @@ fn lowers_slice_range_surface_into_typed_trees() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("typed lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
 
     assert!(
         typed_trees
@@ -383,14 +331,7 @@ fn preserves_structural_recast_targets_through_typed_lowering() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("typed lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
     let machine = &typed_trees.machines()[0];
     let state = &typed_trees.machine_states(machine)[0];
     let locals = typed_trees
@@ -466,14 +407,7 @@ fn lowers_domain_definitions() {
     domain Player::Tagged;
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let (resolved_program, typed_trees) = crate::front_end::typed_program_with_resolution(source);
 
     assert_eq!(typed_trees.domain_definitions().len(), 3);
     let domain = typed_trees
@@ -531,12 +465,7 @@ fn lowers_case_union_domain_proofs_from_exact_resolved_symbols() {
         self in Command::Move | Command::Say;
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
+    let resolved_program = crate::front_end::resolved_program(source);
     let expected_symbols = resolved_program
         .data_definitions
         .iter()
@@ -617,10 +546,7 @@ fn normalizes_domain_constraints_by_short_name_and_carrier() {
         self >= 0;
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
 
     let signed_domain = typed
         .domain_definitions()
@@ -730,10 +656,7 @@ fn retains_closed_compiler_domain_subjects_and_layout_schema_report_fingerprint(
         layout: [u8; 32] in OmegaLayout<Save>;
     }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let holder = typed
         .data_definitions()
         .iter()
@@ -815,10 +738,7 @@ fn symbol_backed_domain_spelling_cannot_spoof_compiler_subject() {
 
     domain f64::Finite;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let holder = typed
         .data_definitions()
         .iter()
@@ -860,10 +780,7 @@ fn carry_alias_expansion_retains_closed_invalid_symbol_atoms() {
     }
     domain Token::Portable = Carry::Portable;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let holder = typed
         .data_definitions()
         .iter()
@@ -934,10 +851,7 @@ fn expands_transparent_domain_aliases_before_semantic_normalization() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
 
     let symbol_named = |name: &str| {
         typed
@@ -1038,10 +952,7 @@ fn parameter_domain_conjunction_synthesizes_each_membership_contract() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed.machines().first().expect("inspect machine");
     let state = typed.machine_states(machine).first().expect("entry state");
     let names: Vec<_> = typed
@@ -1088,10 +999,7 @@ fn internal_state_domain_constraint_does_not_leak_to_machine_entry() {
     }
     "#;
 
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed.machines().first().expect("carry machine");
     assert!(
         typed.machine_contracts(machine).is_empty(),
@@ -1116,14 +1024,7 @@ fn preserves_operator_declarations() {
         index < items.len;
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
 
     assert_eq!(typed_trees.operators().len(), 1);
     let operator = &typed_trees.operators()[0];
@@ -1175,14 +1076,7 @@ fn preserves_domain_operator_declarations() {
     operator Quantity::Additive::add(left: Quantity, right: Quantity) -> Quantity;
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
     let domain = typed_trees
         .domain_definitions()
         .iter()
@@ -1217,11 +1111,9 @@ fn lower_packaged_sources(
     typed_trees::TypedTrees,
 ) {
     use std::path::PathBuf;
-    use std::sync::Arc;
-    use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 
     let mut map = source::SourceMap::default();
-    let mut forests = Vec::new();
+    let mut texts = Vec::new();
     for &(package_root, text) in sources {
         let source_id = map
             .add_with_metadata(
@@ -1232,19 +1124,9 @@ fn lower_packaged_sources(
                 source::SourceOrigin::User,
             )
             .source_id;
-        let tokens = Lexer::new(text).tokenize().expect("tokenize source");
-        forests.push(parse_syntax_trees_with_id(source_id, &tokens).expect("parse source"));
+        texts.push((source_id, text));
     }
-    let mut syntax = forests.remove(0);
-    for forest in &forests {
-        syntax.extend_from(forest);
-    }
-    let resolved = resolve(ResolutionRequest {
-        syntax: &syntax,
-        sources: Some(Arc::new(map)),
-        top_level_bindings: Vec::new(),
-    })
-    .expect("resolve packaged sources");
+    let resolved = crate::front_end::resolved_program_from_merged_source_map(map, &texts);
     let typed = lower_symbol_resolved_trees(&resolved).expect("type packaged sources");
     (resolved, typed)
 }

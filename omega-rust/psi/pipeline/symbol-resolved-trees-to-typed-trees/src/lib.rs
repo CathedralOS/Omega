@@ -12,6 +12,17 @@
 //! `expressions` types expressions and statements; `type_reference` owns type
 //! references, domain aliases and constraint normalization.
 
+// The typing tests' front-end pipelines, one file shared with the `suite`
+// integration target; see its module documentation.
+#[cfg(test)]
+#[path = "../tests/support/front_end.rs"]
+mod front_end;
+
+// Lets the shared front-end module above spell this crate's typing entry point
+// the same way the integration target does.
+#[cfg(test)]
+extern crate self as symbol_resolved_trees_to_typed_trees;
+
 mod declarations {
     pub(crate) mod conformance;
     #[cfg(test)]

@@ -1,9 +1,4 @@
-use crate::lowerer::lower_symbol_resolved_trees;
 use crate::lowerer::seeded_continuation::retained_typed_base_is_exact_prefix;
-use crate::lowerer::tests::lower_source;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn numeric_result_policies_are_retained_without_result_annotations_or_input_ranges() {
@@ -13,10 +8,7 @@ fn numeric_result_policies_are_retained_without_result_annotations_or_input_rang
         "machine run(value: u64 [0..10] in Wrapping) { value; }",
         "machine run() { 1u64 as u64 in Wrapping; }",
     ] {
-        let tokens = Lexer::new(source).tokenize().expect("tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("typing");
+        let typed = crate::front_end::typed_program(source);
         let carrier = typed
             .symbols
             .child_handles(typed.symbols.root())
@@ -65,12 +57,7 @@ fn numeric_result_policies_are_retained_without_result_annotations_or_input_rang
 #[test]
 fn retained_base_rejects_type_identity_changes_hidden_by_display_snapshots() {
     use typed_trees::types::TypeReferenceNode;
-    let tokens = Lexer::new("machine main(value: u64) { value; }")
-        .tokenize()
-        .expect("type identity tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("type identity syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("type identity resolution");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type identity typing");
+    let typed = crate::front_end::typed_program("machine main(value: u64) { value; }");
     let parameter = &typed.state_parameters(&typed.machine_states(&typed.machines()[0])[0])[0];
     let mut changed = typed.clone();
     let TypeReferenceNode::Named { name, .. } = changed
@@ -97,12 +84,8 @@ fn retained_base_rejects_type_identity_changes_hidden_by_display_snapshots() {
 
 #[test]
 fn retained_base_rejects_a_changed_local_inference_origin() {
-    let tokens = Lexer::new("machine main() -> u64 { let value: u64 = 7; value }")
-        .tokenize()
-        .expect("local origin tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("local origin syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("local origin resolution");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("local origin typing");
+    let typed =
+        crate::front_end::typed_program("machine main() -> u64 { let value: u64 = 7; value }");
     let mut changed = typed.clone();
     let body = changed.machine_states(&changed.machines()[0])[0].statement_nodes;
     let typed_trees::statement::StatementNode::LocalData(local) =
@@ -131,12 +114,7 @@ fn inferred_types_do_not_depend_on_generated_binding_names() {
             runtime
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("binding origin tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("binding origin syntax");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve binding origins");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("infer unannotated binding types");
+    let typed = crate::front_end::typed_program(source);
     for name in ["selected", "runtime"] {
         let local = typed
             .machines()
@@ -184,12 +162,7 @@ fn proof_output_runtime_calls_copy_arguments_into_the_statement_arena() {
             let (; outgoing: witness) = effect(destination, selected; incoming);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize proof-output call");
-    let syntax = parse_syntax_trees(&tokens).expect("parse proof-output call");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve proof-output call");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type proof-output call");
+    let typed = crate::front_end::typed_program(source);
     let caller = typed
         .machines()
         .iter()
@@ -254,10 +227,7 @@ fn inherited_trait_default_realizations_settle_exact_requirement_symbols() {
         RightCounter: Right satisfies Counter;
         machine Right::set(&mut self, value: i32) { self.value = value; }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
-    let syntax = parse_syntax_trees(&tokens).expect("parse source");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let typed = crate::front_end::typed_program(source);
     let reset_requirement = typed
         .traits()
         .iter()
@@ -303,12 +273,13 @@ fn deep_left_associated_boolean_expression_types_on_the_default_test_stack() {
     let source =
         format!("data Root {{}} machine Root::measure(enabled: bool) -> bool {{ {expression} }}");
 
-    lower_source(&source).expect("type deep expression on default test stack");
+    crate::front_end::typed_program_result(&source)
+        .expect("type deep expression on default test stack");
 }
 
 #[test]
 fn exact_quoted_bytes_land_as_an_owned_fixed_u8_array() {
-    let typed = lower_source(
+    let typed = crate::front_end::typed_program_result(
         r#"
         machine bytes() -> [u8; 2] {
             "\x80A"
@@ -344,8 +315,10 @@ fn exact_quoted_bytes_land_as_an_owned_fixed_u8_array() {
 #[test]
 fn quoted_bytes_reject_short_and_long_owned_fixed_array_destinations() {
     for (width, literal_length) in [(3, 2), (1, 2)] {
-        let diagnostic = lower_source(&format!("machine bytes() -> [u8; {width}] {{ \"ab\" }}"))
-            .expect_err("fixed byte arrays neither pad nor truncate literals");
+        let diagnostic = crate::front_end::typed_program_result(&format!(
+            "machine bytes() -> [u8; {width}] {{ \"ab\" }}"
+        ))
+        .expect_err("fixed byte arrays neither pad nor truncate literals");
         assert!(
             diagnostic.message.contains(&format!(
                 "quoted byte literal has {literal_length} source byte(s)"
@@ -360,8 +333,9 @@ fn quoted_bytes_reject_short_and_long_owned_fixed_array_destinations() {
 
 #[test]
 fn quoted_bytes_reject_non_byte_fixed_array_destinations() {
-    let diagnostic = lower_source(r#"machine words() -> [u16; 2] { "ab" }"#)
-        .expect_err("quoted bytes must not acquire a non-byte element interpretation");
+    let diagnostic =
+        crate::front_end::typed_program_result(r#"machine words() -> [u16; 2] { "ab" }"#)
+            .expect_err("quoted bytes must not acquire a non-byte element interpretation");
     assert!(
         diagnostic.message.contains("element type must be `u8`"),
         "{}",
@@ -384,7 +358,7 @@ fn quoted_bytes_reject_nonliteral_or_undetermined_widths() {
             }
         "#,
     ] {
-        let diagnostic = lower_source(source)
+        let diagnostic = crate::front_end::typed_program_result(source)
             .expect_err("a parameter/call width is not a resolved literal extent");
         assert!(
             diagnostic
@@ -398,14 +372,8 @@ fn quoted_bytes_reject_nonliteral_or_undetermined_widths() {
 
 #[test]
 fn trait_machine_requirement_identity_reaches_typed_trees() {
-    let tokens = Lexer::new("trait PrivateCallbackSlot<machine Requirement> {}")
-        .tokenize()
-        .expect("tokenize trait machine requirement parameter");
-    let syntax = parse_syntax_trees(&tokens).expect("parse trait machine requirement parameter");
-    let resolved = resolve(ResolutionRequest::new(&syntax))
-        .expect("resolve trait machine requirement parameter");
-    let typed = lower_symbol_resolved_trees(&resolved)
-        .expect("lower trait machine requirement parameter to typed trees");
+    let typed =
+        crate::front_end::typed_program("trait PrivateCallbackSlot<machine Requirement> {}");
     let trait_definition = typed
         .traits()
         .iter()
@@ -432,12 +400,7 @@ fn exact_trait_requirement_argument_reaches_typed_conformance() {
         WndClassWindowProcedureSlot:
             WndClassLayout satisfies PrivateCallbackSlot<WindowProcedure::call>;
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize private callback slot");
-    let syntax = parse_syntax_trees(&tokens).expect("parse private callback slot");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve private callback slot");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type private callback slot");
+    let typed = crate::front_end::typed_program(source);
     let window_procedure = typed
         .traits()
         .iter()

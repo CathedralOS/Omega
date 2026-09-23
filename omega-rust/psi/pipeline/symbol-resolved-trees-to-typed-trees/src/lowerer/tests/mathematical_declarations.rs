@@ -4,12 +4,13 @@
 //! kernel elaboration — is the checked-trees leg, which refuses until then.
 
 use crate::lowerer::seeded_continuation::{SeededContinuationError, lower_seeded_extension};
-use crate::lowerer::tests::{lower_source, seeded_plain_data_inputs};
+use crate::lowerer::tests::seeded_plain_data_inputs;
 use typed_trees::mathematical::{MathematicalBody, MathematicalType};
 
 #[test]
 fn let_definition_types_into_typed_tree() {
-    let typed = lower_source("let double(x: u64): u64 = x;").expect("types");
+    let typed =
+        crate::front_end::typed_program_result("let double(x: u64): u64 = x;").expect("types");
 
     let definitions = typed.mathematical_definitions();
     assert_eq!(definitions.len(), 1);
@@ -42,7 +43,8 @@ fn let_definition_types_into_typed_tree() {
 
 #[test]
 fn boundary_let_types_as_named_assumption() {
-    let typed = lower_source("boundary let choose(inhabited: u64): u64;").expect("types");
+    let typed = crate::front_end::typed_program_result("boundary let choose(inhabited: u64): u64;")
+        .expect("types");
 
     let definitions = typed.mathematical_definitions();
     assert_eq!(definitions.len(), 1);
@@ -57,7 +59,8 @@ fn boundary_let_types_as_named_assumption() {
 
 #[test]
 fn parameterized_let_types_binders_and_visibility() {
-    let typed = lower_source("pub let id<A: core::Type>(x: A): A = x;").expect("types");
+    let typed = crate::front_end::typed_program_result("pub let id<A: core::Type>(x: A): A = x;")
+        .expect("types");
 
     let definition = &typed.mathematical_definitions()[0];
     assert!(definition.is_public);
@@ -69,7 +72,9 @@ fn parameterized_let_types_binders_and_visibility() {
 
 #[test]
 fn dependent_and_application_result_types_preserve_their_shape() {
-    let typed = lower_source("let fam(u: core::Level): A -> B -> C = term;").expect("types");
+    let typed =
+        crate::front_end::typed_program_result("let fam(u: core::Level): A -> B -> C = term;")
+            .expect("types");
     let definition = &typed.mathematical_definitions()[0];
     let MathematicalType::Arrow {
         binder,
@@ -89,8 +94,10 @@ fn dependent_and_application_result_types_preserve_their_shape() {
         MathematicalType::Arrow { .. }
     ));
 
-    let typed = lower_source("let dependent(u: core::Level): (value: A) -> F(value) = term;")
-        .expect("types");
+    let typed = crate::front_end::typed_program_result(
+        "let dependent(u: core::Level): (value: A) -> F(value) = term;",
+    )
+    .expect("types");
     let definition = &typed.mathematical_definitions()[0];
     let MathematicalType::Arrow {
         binder, codomain, ..
@@ -118,8 +125,10 @@ fn dependent_and_application_result_types_preserve_their_shape() {
 
 #[test]
 fn arrow_and_application_parameter_types_preserve_their_shape() {
-    let typed =
-        lower_source("let compose(f: A -> B, g: B -> C, x: A): C = g(f(x));").expect("types");
+    let typed = crate::front_end::typed_program_result(
+        "let compose(f: A -> B, g: B -> C, x: A): C = g(f(x));",
+    )
+    .expect("types");
 
     let definition = &typed.mathematical_definitions()[0];
     let parameters = typed.mathematical_parameters(definition.parameters);
@@ -137,7 +146,8 @@ fn arrow_and_application_parameter_types_preserve_their_shape() {
         MathematicalType::Ordinary(_)
     ));
 
-    let typed = lower_source("let apply(F: C(x, y), x: u64): F = term;").expect("types");
+    let typed = crate::front_end::typed_program_result("let apply(F: C(x, y), x: u64): F = term;")
+        .expect("types");
     let definition = &typed.mathematical_definitions()[0];
     let parameters = typed.mathematical_parameters(definition.parameters);
     let MathematicalType::Application { arguments, .. } = typed.mathematical_type(parameters[0].ty)
@@ -152,7 +162,8 @@ fn arrow_and_application_parameter_types_preserve_their_shape() {
 
 #[test]
 fn curried_application_result_preserves_nested_shape() {
-    let typed = lower_source("let fam(x: u64, y: u64): F(x)(y) = term;").expect("types");
+    let typed = crate::front_end::typed_program_result("let fam(x: u64, y: u64): F(x)(y) = term;")
+        .expect("types");
 
     let definition = &typed.mathematical_definitions()[0];
     let MathematicalType::Application { callee, arguments } =
@@ -172,7 +183,9 @@ fn curried_application_result_preserves_nested_shape() {
 
 #[test]
 fn boundary_let_retains_binders_and_visibility() {
-    let typed = lower_source("pub boundary let choose<A: core::Type>(x: A): A;").expect("types");
+    let typed =
+        crate::front_end::typed_program_result("pub boundary let choose<A: core::Type>(x: A): A;")
+            .expect("types");
 
     let definition = &typed.mathematical_definitions()[0];
     assert!(definition.is_public);
@@ -188,7 +201,8 @@ fn boundary_let_retains_binders_and_visibility() {
 
 #[test]
 fn definition_bodies_retain_call_expressions() {
-    let typed = lower_source("let f(x: u64): u64 = g(x);").expect("types");
+    let typed =
+        crate::front_end::typed_program_result("let f(x: u64): u64 = g(x);").expect("types");
 
     let MathematicalBody::Definition(term) = typed.mathematical_definitions()[0].body else {
         panic!("a `let` body types as a transparent definition term")
@@ -201,7 +215,8 @@ fn definition_bodies_retain_call_expressions() {
 
 #[test]
 fn erased_parameter_relevance_carries_through() {
-    let typed = lower_source("let keep(proof [erased]: P): Q = term;").expect("types");
+    let typed = crate::front_end::typed_program_result("let keep(proof [erased]: P): Q = term;")
+        .expect("types");
 
     let parameters = typed.mathematical_parameters(typed.mathematical_definitions()[0].parameters);
     assert_eq!(
@@ -212,9 +227,10 @@ fn erased_parameter_relevance_carries_through() {
 
 #[test]
 fn mathematical_definitions_keep_authored_order_alongside_ordinary_roots() {
-    let typed =
-        lower_source("let first(): u64 = 0; machine main() -> u64 { 0 } let second(): u64 = 1;")
-            .expect("types");
+    let typed = crate::front_end::typed_program_result(
+        "let first(): u64 = 0; machine main() -> u64 { 0 } let second(): u64 = 1;",
+    )
+    .expect("types");
 
     let names: Vec<String> = typed
         .mathematical_definitions()

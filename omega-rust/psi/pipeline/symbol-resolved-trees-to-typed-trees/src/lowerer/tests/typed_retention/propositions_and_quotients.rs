@@ -1,7 +1,4 @@
 use crate::lowerer::lower_symbol_resolved_trees;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn types_nested_index_hoists_from_explicit_local_collections() {
@@ -16,13 +13,7 @@ fn types_nested_index_hoists_from_explicit_local_collections() {
             g[i][j] = g[i][j] + 1;
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
 
     let machine = &typed.machines()[0];
     let state = &typed.machine_states(machine)[0];
@@ -76,13 +67,7 @@ fn generic_proposition_applications_remain_proof_facts_when_typed() {
             machine prove(value: C) ensures Relation(value, value);
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
 
     let trait_definition = &typed.traits()[0];
     let [_, relation] = typed.trait_type_parameters(trait_definition) else {
@@ -121,13 +106,7 @@ fn proposition_declarations_and_fact_applications_remain_distinct_when_typed() {
         {
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
 
     assert_eq!(typed.propositions().len(), 1);
     assert!(typed.propositions()[0].is_public);
@@ -166,12 +145,7 @@ fn const_declaration_visibility_survives_typed_lowering_and_snapshots() {
         pub const PUBLIC_LIMIT: u64 = 4;
         const Limits::PRIVATE_LIMIT: u64 = 2;
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize const visibility");
-    let syntax = parse_syntax_trees(&tokens).expect("parse const visibility");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve const visibility");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type const visibility");
+    let typed = crate::front_end::typed_program(source);
 
     assert_eq!(typed.const_declarations().len(), 2);
     assert!(typed.const_declarations()[0].is_public);
@@ -192,13 +166,7 @@ fn proposition_type_and_const_arguments_retain_categories_and_identity() {
         {
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved_program).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
 
     let [contract] = typed.machine_contracts(&typed.machines()[0]) else {
         panic!("machine should retain its proposition requirement");
@@ -245,13 +213,7 @@ fn proposition_static_arguments_reject_wrong_binder_categories_and_const_types()
             "cannot receive integer literal `1` as `bool`",
         ),
     ] {
-        let tokens = Lexer::new(source)
-            .tokenize()
-            .expect("tokenize should succeed");
-        let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-        let resolved_program =
-            resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-        let diagnostic = lower_symbol_resolved_trees(&resolved_program)
+        let diagnostic = crate::front_end::typed_program_result(source)
             .expect_err("wrong proposition binder category must reject");
         assert!(
             diagnostic.message.contains(expected),
@@ -271,12 +233,7 @@ fn proposition_type_and_const_arguments_forward_through_machine_binders() {
         {
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
+    let resolved_program = crate::front_end::resolved_program(source);
     let [resolved_contract] =
         resolved_program.machine_contracts(&resolved_program.roots.machines[0])
     else {
@@ -337,10 +294,7 @@ fn retains_exact_sealed_quotient_operation_request_without_admitting_it() {
             Quotient::lift<representative, representative_respects>(value)
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let request = typed
         .expression_table
         .iter_expressions()
