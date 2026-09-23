@@ -14,15 +14,16 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
         .machines
         .iter()
         .map(|graph| {
-            let machine = crate::lookup::machine_by_symbol(program, graph.machine)?;
             graph
                 .states
                 .iter()
                 .map(|state| {
-                    let source = program
-                        .machine_states(machine)
-                        .iter()
-                        .find(|source| source.symbol == state.state)?;
+                    // A fused graph holds states authored under sibling
+                    // machines; the source/flow/call rows for one state all
+                    // key on that state's own owner, not the graph's machine.
+                    let (machine, source) = crate::semantic::calls::find_state_with_machine(
+                        program, state.state,
+                    )?;
                     let flow = facts
                         .flow
                         .control
@@ -30,7 +31,8 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                         .iter()
                         .map(|(_, state)| state)
                         .find(|flow| {
-                            flow.machine_symbol == graph.machine && flow.state_symbol == state.state
+                            flow.machine_symbol == machine.symbol
+                                && flow.state_symbol == state.state
                         })?;
                     let calls = facts.flow.control.calls.span(flow.calls)?;
                     let mut structural_count = 0_u32;

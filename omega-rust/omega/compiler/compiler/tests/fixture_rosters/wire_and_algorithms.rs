@@ -59,6 +59,7 @@ pub(crate) const RUNTIME_VALUE_TRANSITION_UNSIGNED_GUARD_EXIT: &str =
 pub(crate) const RUNTIME_CONST_ARRAY_LENGTH_EXIT: &str = "comptime/runtime_const_array_length_exit";
 pub(crate) const RUNTIME_FIXED_VEC_ROUND_TRIP_EXIT: &str =
     "collections/runtime_fixed_vec_round_trip_exit";
+pub(crate) const RUNTIME_VEC_U32_GROWTH_EXIT: &str = "collections/runtime_vec_u32_growth_exit";
 pub(crate) const RUNTIME_FLOAT_NEGATIVE_OPS_EXIT: &str =
     "arithmetic/runtime_float_negative_ops_exit";
 pub(crate) const RUNTIME_FLOAT32_ARRAY_CONVERSION_EXIT: &str =
@@ -158,6 +159,7 @@ pub(crate) const PASS_CANARIES: &[&str] = &[
     RUNTIME_VALUE_TRANSITION_UNSIGNED_GUARD_EXIT,
     RUNTIME_CONST_ARRAY_LENGTH_EXIT,
     RUNTIME_FIXED_VEC_ROUND_TRIP_EXIT,
+    RUNTIME_VEC_U32_GROWTH_EXIT,
     RUNTIME_FLOAT_NEGATIVE_OPS_EXIT,
     RUNTIME_FLOAT32_ARRAY_CONVERSION_EXIT,
     RUNTIME_VALUE_CALL_LET_COMBINE_EXIT,

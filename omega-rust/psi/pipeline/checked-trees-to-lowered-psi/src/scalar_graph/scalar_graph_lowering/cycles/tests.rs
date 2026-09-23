@@ -74,7 +74,7 @@ fn validate(
         checked,
         machine,
         source,
-        state,
+        graph,
         graph.ranked_scc.as_ref().expect("rank"),
     )
 }

@@ -4,6 +4,7 @@ mod progress;
 mod ranking;
 
 pub(crate) use graph::named_transition_target_state_index;
+pub(crate) use ranking::proven_fused_nat_countdown_sccs_with_call_frames;
 #[cfg(test)]
 pub(crate) use ranking::proven_nat_countdown_sccs;
 pub(crate) use ranking::proven_nat_countdown_sccs_with_call_frames;

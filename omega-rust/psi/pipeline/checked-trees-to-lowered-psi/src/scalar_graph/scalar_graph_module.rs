@@ -122,6 +122,7 @@ fn emission_order(states: &[LoweredScalarBranchState]) -> Vec<usize> {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_scalar_graph_module(
     states: &[LoweredScalarBranchState],
+    state_symbols: &[symbols::SymbolHandle],
     result_type: QualifiedScalarType,
     scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
     contract: PreparedScalarContract,
@@ -136,6 +137,7 @@ pub(crate) fn build_scalar_graph_module(
 ) -> Result<LoweredPsi, LoweringError> {
     build_scalar_graph_module_in_namespace(
         states,
+        state_symbols,
         result_type,
         scalar_qualifications,
         contract,
@@ -154,6 +156,7 @@ pub(crate) fn build_scalar_graph_module(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_scalar_graph_module_in_namespace(
     states: &[LoweredScalarBranchState],
+    state_symbols: &[symbols::SymbolHandle],
     result_type: QualifiedScalarType,
     scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
     contract: PreparedScalarContract,
@@ -725,7 +728,13 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         selected_integer_comparison_occurrences: all_operations.selected_integer_comparisons,
     };
     if let Some(plan) = loop_plan {
-        ranking::retain(&mut lowered.semantic_module.machines[0], graph_entry, plan)?;
+        ranking::retain(
+            &mut lowered.semantic_module.machines[0],
+            graph_entry,
+            state_symbols,
+            identity_base,
+            plan,
+        )?;
     }
     Ok(lowered)
 }

@@ -942,6 +942,7 @@ pub(crate) fn lower_unit_closure(
         let mut lowered =
             crate::scalar_graph::scalar_graph_module::build_scalar_graph_module_in_namespace(
                 &machine.states,
+                &machine.state_symbols,
                 machine.result_type,
                 &machine.scalar_qualifications,
                 machine.contract,

@@ -6,6 +6,7 @@ use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
+use crate::expression_preparation::source_custody;
 use crate::scalar_graph::scalar_computations as computations;
 use crate::scalar_graph::scalar_graph_lowering::call_lowering::lower_scalar_graph_successor;
 use crate::scalar_graph::scalar_graph_lowering::contract_lowering::{
@@ -111,21 +112,21 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     next_place: &mut u64,
 ) -> Result<PreparedScalarMachine, LoweringError> {
     let states = &graph.states;
-    let source_machine = checked
+    if !checked
         .machines()
         .iter()
-        .find(|source| source.symbol == machine)
-        .ok_or(LoweringError::Unsupported(
+        .any(|source| source.symbol == machine)
+    {
+        return Err(LoweringError::Unsupported(
             "scalar graph has no source machine",
-        ))?;
+        ));
+    }
     for retained in states {
-        let source = checked
-            .machine_states(source_machine)
-            .iter()
-            .find(|source| source.symbol == retained.state)
-            .ok_or(LoweringError::Unsupported(
-                "scalar graph has no exact source state",
-            ))?;
+        // A fused graph retains a sibling machine's states beside its own;
+        // the exact authored state resolves through its owning machine.
+        let (_, source) = source_custody::authored_state(checked, retained.state).map_err(
+            |_| LoweringError::Unsupported("scalar graph has no exact source state"),
+        )?;
         // Qualified signatures carry these exact membership requirements.
         // Reconstruct the source obligation; a producer's missing contract row
         // cannot authorize erasing a predicate, route, or unrelated state clause.
@@ -233,7 +234,6 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         let prepared = bindings::prepare(
             checked,
             qualifications,
-            machine,
             state,
             parameter_types,
             erased_formal_types,
@@ -631,6 +631,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     };
     Ok(PreparedScalarMachine {
         source_machine: machine,
+        state_symbols: states.iter().map(|state| state.state).collect(),
         scalar_qualifications: qualifications.catalog().clone(),
         states: lowered_states,
         result_type,
