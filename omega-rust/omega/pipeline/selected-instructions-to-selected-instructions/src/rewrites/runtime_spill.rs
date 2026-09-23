@@ -338,7 +338,8 @@ pub(crate) struct BitsConversion<'source> {
 /// snapshot nothing.
 pub(crate) fn stored_transport_size(transport: SelectedStructuralTransport) -> Option<u32> {
     match transport {
-        SelectedStructuralTransport::Unused => None,
+        // An address transport stores a pointer it forms; it snapshots nothing.
+        SelectedStructuralTransport::Unused | SelectedStructuralTransport::Address { .. } => None,
         SelectedStructuralTransport::Descriptor { .. } => Some(16),
         SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(u32::from(byte_size)),
     }

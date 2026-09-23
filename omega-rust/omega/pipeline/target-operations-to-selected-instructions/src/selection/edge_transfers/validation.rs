@@ -43,6 +43,7 @@ pub(in crate::selection) fn project(
                                 matches!(
                                     instruction.kind,
                                     SelectedInstructionKind::CopyI64
+                                        | SelectedInstructionKind::AddressOffset { .. }
                                         | SelectedInstructionKind::Load64 { .. }
                                         | SelectedInstructionKind::Load32 { .. }
                                         | SelectedInstructionKind::Load16 { .. }
@@ -221,17 +222,29 @@ pub(in crate::selection) fn project(
                     )
                 })
                 .count();
-            let register_delta = active
+            let (address_instructions, address_registers) =
+                super::addresses::counts(&continuation.structural_bindings);
+            let descriptor_registers = active
                 .len()
                 .checked_mul(2)
                 .and_then(|count| count.checked_add(descriptor_words))
                 .and_then(|count| count.checked_add(addresses))
                 .ok_or_else(error)?;
+            let register_delta = descriptor_registers
+                .checked_add(address_registers)
+                .ok_or_else(error)?;
+            let descriptor_end = descriptor_registers
+                .checked_add(descriptor_words)
+                .ok_or_else(error)?;
             // A conditional false edge may need only a physical fallthrough
             // bridge. It still retains the exact semantic edge and continuation;
             // all instruction, provenance, operand and fuel checks below apply.
-            if (active.is_empty() && descriptor_words == 0 && !(conditional && position == 1))
-                || register_delta.checked_add(descriptor_words) != Some(bridge.instructions.len())
+            if (active.is_empty()
+                && descriptor_words == 0
+                && address_instructions == 0
+                && !(conditional && position == 1))
+                || descriptor_end.checked_add(address_instructions)
+                    != Some(bridge.instructions.len())
             {
                 return Err(error());
             }
@@ -241,8 +254,22 @@ pub(in crate::selection) fn project(
                 bridge,
                 continuation,
                 active.len(),
+                descriptor_end,
                 next_instruction,
                 next_register,
+                register_count,
+                constraints,
+            )?);
+            descriptor_accesses.extend(super::addresses::check(
+                function_index,
+                prepared,
+                bridge,
+                continuation,
+                descriptor_end,
+                next_instruction,
+                next_register
+                    .checked_add(descriptor_registers)
+                    .ok_or_else(error)?,
                 register_count,
                 constraints,
             )?);

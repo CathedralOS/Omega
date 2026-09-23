@@ -383,6 +383,14 @@ pub enum OptimizationUnitValidationError {
         node: u32,
         place: PlaceId,
     },
+    /// A root lent to a shared address join was moved, released, written,
+    /// exclusively borrowed or discarded while the join could observe it.
+    CurrentSharedJoinOriginDisturbed {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        place: PlaceId,
+    },
     CurrentCleanupMismatch {
         machine: MachineId,
         block: BlockId,

@@ -37,6 +37,7 @@ pub(super) fn validate_current_ownership_cfg(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     entry: CurrentOwnership,
 ) -> Result<(), OptimizationUnitValidationError> {
+    let pins = super::address_joins::AddressJoinPins::new(function, structural_types);
     let mut ready = BTreeSet::from([function.entry]);
     let mut incoming = BTreeMap::<BlockId, CurrentOwnership>::new();
     incoming.insert(function.entry, entry);
@@ -242,6 +243,20 @@ pub(super) fn validate_current_ownership_cfg(
             if let O::ReleaseReference { source, .. } = &node.operation {
                 consumed_places.push(*source);
             }
+            pins.check_operation(
+                function,
+                block_id,
+                node_index,
+                &node.operation,
+                consumed_places.iter().copied().chain(
+                    structural_arguments
+                        .iter()
+                        .filter(|argument| {
+                            !argument.path.is_empty() && argument.access == StructuralAccess::Owned
+                        })
+                        .map(|argument| argument.place),
+                ),
+            )?;
             for place in &consumed_places {
                 if frontier.partial_custody_paths.contains_key(place) {
                     return Err(
@@ -583,6 +598,14 @@ pub(super) fn validate_current_ownership_cfg(
             .expect("validated block is nonempty")
             .successors
         {
+            pins.check_edge(
+                function,
+                block_id,
+                u32::try_from(block.nodes.len() - 1)
+                    .expect("optimization-unit node position fits u32"),
+                edge,
+                &blocks[&edge.target].structural_parameters,
+            )?;
             let mut outgoing = frontier.clone();
             if matches!(
                 block

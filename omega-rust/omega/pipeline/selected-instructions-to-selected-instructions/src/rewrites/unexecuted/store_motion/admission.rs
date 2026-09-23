@@ -853,7 +853,9 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
         }
     }
     for binding in &successor.structural_bindings {
-        let (argument, destination) = match binding.transport {
+        // An address transport lends its root: moving a store to that root
+        // across the edge would change what the joined pointer observes.
+        let (argument, destination, lent) = match binding.transport {
             SelectedStructuralTransport::Unused => continue,
             SelectedStructuralTransport::WholeValue {
                 argument,
@@ -863,13 +865,31 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
             | SelectedStructuralTransport::Descriptor {
                 argument,
                 destination,
-            } => (argument, destination),
+            } => (Some(argument), destination, None),
+            SelectedStructuralTransport::Address {
+                base, destination, ..
+            } => (
+                match base {
+                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                        Some(argument)
+                    }
+                    selected_instructions::SelectedAddressBase::Local(_) => None,
+                },
+                destination,
+                Some(base),
+            ),
         };
         let touches = match moved.storage {
-            SubjectStorage::Place => destination.structural_place() == Some(moved.place),
-            SubjectStorage::Staging(slot) => destination == slot,
+            SubjectStorage::Place => {
+                destination.structural_place() == Some(moved.place)
+                    || (lent.is_some() && binding.semantic.argument.place == moved.place)
+            }
+            SubjectStorage::Staging(slot) => {
+                destination == slot
+                    || lent == Some(selected_instructions::SelectedAddressBase::Local(slot))
+            }
         };
-        if touches || writes(&argument) {
+        if touches || argument.is_some_and(|argument| writes(&argument)) {
             return true;
         }
     }

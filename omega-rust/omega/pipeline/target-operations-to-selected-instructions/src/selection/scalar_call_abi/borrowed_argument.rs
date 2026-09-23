@@ -156,7 +156,20 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
-    let shape = if let Some(shape) = aggregate {
+    // An address join lends its whole joined referent through the address
+    // its block entry loaded; it is neither a home nor a descriptor view.
+    let address_join = crate::selection::address_join_input::join(source, semantic.place);
+    let shape = if let Some((_, joined)) = address_join {
+        if semantic.access != StructuralAccess::SharedBorrow
+            || !semantic.path.is_empty()
+            || target.structural_type != joined.structural_type
+            || target.root_structural_type != joined.structural_type
+            || target.source_byte_offset != 0
+        {
+            return None;
+        }
+        crate::selection::address_join_input::argument_shape(source, joined)?
+    } else if let Some(shape) = aggregate {
         shape
     } else if let Some((offset, _)) = byte_view {
         if offset != target.source_byte_offset {
@@ -313,6 +326,14 @@ pub(super) fn validate_borrowed_argument(
             if target.root_structural_type != parameter.semantic.structural_type
                 || *placement != parameter.target.placement
             {
+                return None;
+            }
+        }
+        target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
+            if address_join.is_some() =>
+        {
+            let (owner, joined) = address_join?;
+            if *block != owner || *place != joined.place {
                 return None;
             }
         }

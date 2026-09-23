@@ -454,6 +454,23 @@ fn check_successor(
             }
             continue;
         }
+        if let Some((_, parameter)) =
+            crate::selection::address_join_input::join(function, semantic.parameter)
+        {
+            let expected = crate::selection::address_join_input::transport(
+                function,
+                source.target,
+                parameter,
+                &semantic.argument,
+                &replay.transport.pointers,
+                &replay.transport.local_slots,
+            )
+            .ok_or(SelectedInstructionError::SourceCustodyMismatch)?;
+            if actual.semantic != *semantic || actual.transport != expected {
+                return Err(SelectedInstructionError::SourceCustodyMismatch);
+            }
+            continue;
+        }
         let pointer = replay
             .transport
             .pointers

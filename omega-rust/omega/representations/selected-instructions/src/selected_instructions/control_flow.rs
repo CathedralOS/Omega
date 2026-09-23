@@ -175,6 +175,26 @@ pub enum SelectedStructuralTransport {
         argument: VirtualRegisterId,
         destination: super::LocalStorageSlotId,
     },
+    /// Store one borrowed referent's exact address in the destination slot.
+    /// The edge lends that place: it neither reads nor copies the referent's
+    /// `byte_count` bytes at `byte_offset` beneath `base`, and the root keeps
+    /// its owner and storage.
+    Address {
+        base: SelectedAddressBase,
+        byte_offset: u32,
+        byte_count: u32,
+        destination: super::LocalStorageSlotId,
+    },
+}
+
+/// The storage root an address transport offsets from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SelectedAddressBase {
+    /// A pointer already live where the edge runs: an incoming borrowed
+    /// parameter or an earlier address join.
+    Register(VirtualRegisterId),
+    /// A frame-resident home, addressed on the edge itself.
+    Local(super::LocalStorageSlotId),
 }
 
 /// A source transfer and its selected realization. Source identity alone cannot

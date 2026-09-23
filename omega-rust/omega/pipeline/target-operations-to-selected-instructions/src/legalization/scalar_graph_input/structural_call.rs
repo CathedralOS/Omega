@@ -52,6 +52,19 @@ pub(in crate::legalization) fn argument_at(
             &plan.structural_types,
         );
     }
+    // A shared address join lends its whole joined referent; its carrier is
+    // neither a producer home nor an entrance parameter.
+    if super::address_joins::parameter(caller, semantic.place, plan).is_some() {
+        return super::address_joins::call_argument(
+            semantic,
+            destination_parameter,
+            call_operation,
+            caller,
+            call,
+            parameter_ordinal,
+            plan,
+        );
+    }
     if semantic.access == StructuralAccess::Owned
         || plan.structural_types.iter().any(|declaration| {
             declaration.id == destination_parameter.structural_type

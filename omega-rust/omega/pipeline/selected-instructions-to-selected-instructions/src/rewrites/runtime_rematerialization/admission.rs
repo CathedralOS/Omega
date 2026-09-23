@@ -183,7 +183,11 @@ pub(super) fn admit<'source>(
                     if argument == register || parameter == register)
             }) || successor.structural_bindings.iter().any(|binding| {
                 matches!(binding.transport,
-                SelectedStructuralTransport::Descriptor { argument, .. } if argument == register)
+                SelectedStructuralTransport::Descriptor { argument, .. }
+                | SelectedStructuralTransport::Address {
+                    base: selected_instructions::SelectedAddressBase::Register(argument),
+                    ..
+                } if argument == register)
             }) || successor.structural_case.as_ref().is_some_and(|case| {
                 case.payloads.iter().any(|payload| match payload.transport {
                     SelectedCasePayloadTransport::Registers {

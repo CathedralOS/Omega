@@ -503,6 +503,17 @@ pub(super) fn admit<'source>(
                     .ok_or(RuntimeSpillError::IdentityOverflow)?;
             }
             for binding in &successor.structural_bindings {
+                // An address transport's base register is carried as edge
+                // evidence this rewrite does not relocate; spilling it stays
+                // closed.
+                if matches!(binding.transport,
+                    SelectedStructuralTransport::Address {
+                        base: selected_instructions::SelectedAddressBase::Register(argument),
+                        ..
+                    } if argument == register)
+                {
+                    return Err(RuntimeSpillError::UnsupportedUse);
+                }
                 let Some(byte_size) = stored_transport_size(binding.transport) else {
                     continue;
                 };

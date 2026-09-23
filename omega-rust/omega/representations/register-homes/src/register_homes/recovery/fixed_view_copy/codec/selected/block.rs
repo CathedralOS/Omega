@@ -278,6 +278,27 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 bytes.extend_from_slice(&argument.0.to_le_bytes());
                 destination.encode_identity(bytes);
             }
+            selected_instructions::SelectedStructuralTransport::Address {
+                base,
+                byte_offset,
+                byte_count,
+                destination,
+            } => {
+                bytes.push(3);
+                match base {
+                    selected_instructions::SelectedAddressBase::Register(register) => {
+                        bytes.push(0);
+                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                    }
+                    selected_instructions::SelectedAddressBase::Local(slot) => {
+                        bytes.push(1);
+                        slot.encode_identity(bytes);
+                    }
+                }
+                bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                bytes.extend_from_slice(&byte_count.to_le_bytes());
+                destination.encode_identity(bytes);
+            }
         }
     }
     encode_fuel(bytes, &successor.fuel);
@@ -352,6 +373,36 @@ fn decode_successor(
                 argument: VirtualRegisterId(cursor.u32()?),
                 destination: super::structural::decode_local_slot(cursor)?,
             },
+            3 => {
+                let base = match cursor.byte()? {
+                    0 => selected_instructions::SelectedAddressBase::Register(VirtualRegisterId(
+                        cursor.u32()?,
+                    )),
+                    1 => selected_instructions::SelectedAddressBase::Local(
+                        super::structural::decode_local_slot(cursor)?,
+                    ),
+                    _ => return Err(FixedViewCopyDecodeError::InvalidStructuralTransport),
+                };
+                let byte_offset = cursor.u32()?;
+                let byte_count = cursor.u32()?;
+                let destination = super::structural::decode_local_slot(cursor)?;
+                // The carrier slot is always a join's own block-owned slot; a
+                // home or outgoing slot cannot receive a lent address.
+                if byte_count == 0
+                    || !matches!(
+                        destination,
+                        selected_instructions::LocalStorageSlotId::StructuralBlockParameter { .. }
+                    )
+                {
+                    return Err(FixedViewCopyDecodeError::InvalidStructuralTransport);
+                }
+                selected_instructions::SelectedStructuralTransport::Address {
+                    base,
+                    byte_offset,
+                    byte_count,
+                    destination,
+                }
+            }
             tag => return Err(FixedViewCopyDecodeError::UnknownValueTransport(tag)),
         };
         structural_bindings.push(selected_instructions::SelectedStructuralBinding {

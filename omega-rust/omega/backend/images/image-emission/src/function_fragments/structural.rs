@@ -90,8 +90,9 @@ pub(super) fn published_call(
         // mandatory selected graph replay, just like aggregate results.
         // Borrowing a constructed home also belongs to that replay: its address
         // is activation-local storage, not an incoming pointer placement. Record
-        // joins own the same kind of payload home; legacy block-source records
-        // describe byte-view descriptors, not those owned record bytes.
+        // joins own the same kind of payload home, and an address join carries
+        // a referent pointer; legacy block-source records describe byte-view
+        // descriptors, not those owned record bytes or loaded addresses.
         // An inline owned input later borrowed by a helper likewise lives in
         // captured value storage. Its incoming register is not a pointer; the
         // full graph retains the capture, loan address, and call transport.
@@ -114,11 +115,20 @@ pub(super) fn published_call(
                     })
                 }
                 TargetStructuralArgumentSource::StructuralHome { .. } => true,
+                // Only a descriptor view has a block-owned residence the legacy
+                // record can name. An owned record join's payload home and a
+                // shared address join's loaded referent pointer both belong to
+                // the mandatory selected graph replay.
                 TargetStructuralArgumentSource::BlockParameter { .. } => {
-                    selected.structural.as_ref().is_some_and(|signature| {
+                    !selected.structural.as_ref().is_some_and(|signature| {
                         signature.structural_types.iter().any(|declaration| {
                             declaration.id == target.root_structural_type
-                                && matches!(declaration.shape, terminal_psi::StructuralTypeShape::Record { .. })
+                                && matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView
+                                    ) | terminal_psi::StructuralTypeShape::ElementView { .. }
+                                )
                         })
                     })
                 }

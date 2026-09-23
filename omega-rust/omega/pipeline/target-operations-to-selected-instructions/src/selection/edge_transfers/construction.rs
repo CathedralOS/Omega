@@ -163,6 +163,17 @@ pub(in crate::selection) fn prepare(
                 constraints,
                 catalog,
             )?;
+            super::addresses::store(
+                function_index,
+                &mut function.virtual_registers,
+                &mut function.memory_accesses,
+                &mut instructions,
+                &mut next_instruction,
+                successor.psi_edge,
+                &successor.structural_bindings,
+                constraints,
+                catalog,
+            )?;
             let mut position = 0;
             for binding in &mut continuation.bindings {
                 if let SelectedValueTransport::Registers { argument, .. } = &mut binding.transport {

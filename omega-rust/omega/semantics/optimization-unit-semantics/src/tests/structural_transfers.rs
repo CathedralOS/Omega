@@ -31,6 +31,7 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
+mod address_joins;
 mod mutable;
 mod owned;
 mod owned_authority;

@@ -50,6 +50,10 @@ struct LiveDefinitions {
     scalar_block_parameters: BTreeMap<ValueId, target_operations::TargetScalarBlockValue>,
     views: BTreeMap<PlaceId, (OperationId, StructuralTypeId)>,
     block_views: BTreeSet<PlaceId>,
+    /// Shared block parameters carried as their referent's address (see
+    /// `transfers::is_address_join`). They own no storage and are never
+    /// descriptor views, so byte and element operations cannot name them.
+    address_joins: BTreeSet<PlaceId>,
     owned_arrivals: BTreeSet<PlaceId>,
     lengths: BTreeMap<ValueId, PlaceId>,
     /// Live reference loans keyed by current carrier location. The map is the
@@ -219,6 +223,7 @@ pub(super) fn lower(
                         parameter,
                         structural_types,
                     )
+                    && !transfers::is_address_join(parameter, structural_types)
                     && !super::unobserved_owned::parameter(parameter))
                 || !places.insert(parameter.place)
             {
@@ -347,6 +352,7 @@ pub(super) fn lower(
         scalar_block_parameters: BTreeMap::new(),
         views: BTreeMap::new(),
         block_views: BTreeSet::new(),
+        address_joins: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),
         lengths: BTreeMap::new(),
         references: entry_references.clone(),
@@ -359,18 +365,22 @@ pub(super) fn lower(
         live.nonreturning = false;
         if position != entry_position {
             transfers::enter(&entries[position], &mut live);
-            live.block_views.extend(
-                entries[position]
-                    .structural_parameters
-                    .iter()
-                    .filter(|parameter| {
-                        matches!(
-                            parameter.access,
-                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                        )
-                    })
-                    .map(|parameter| parameter.place),
-            );
+            for parameter in entries[position]
+                .structural_parameters
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.access,
+                        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                    )
+                })
+            {
+                if transfers::is_address_join(parameter, structural_types) {
+                    live.address_joins.insert(parameter.place);
+                } else {
+                    live.block_views.insert(parameter.place);
+                }
+            }
             if !unobserved_owned {
                 for parameter in entries[position]
                     .structural_parameters

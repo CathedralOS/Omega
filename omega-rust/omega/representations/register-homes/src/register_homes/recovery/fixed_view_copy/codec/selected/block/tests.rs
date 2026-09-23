@@ -421,3 +421,74 @@ fn whole_value_transport_round_trips_exact_storage_and_rejects_invalid_extents()
         Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
     );
 }
+
+#[test]
+fn address_transport_round_trips_both_bases_and_rejects_forged_carriers() {
+    use selected_instructions::{
+        LocalStorageSlotId, SelectedAddressBase, SelectedStructuralBinding,
+        SelectedStructuralTransport,
+    };
+    let join = semantic_vocabulary::PlaceId::new(12).unwrap();
+    for base in [
+        SelectedAddressBase::Register(VirtualRegisterId(30)),
+        SelectedAddressBase::Local(LocalStorageSlotId::Structural {
+            operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+            place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+        }),
+    ] {
+        let mut original = successor();
+        original
+            .structural_bindings
+            .push(SelectedStructuralBinding {
+                semantic: abstract_operations::AbstractStructuralBinding {
+                    parameter: join,
+                    argument: terminal_psi::StructuralArgument {
+                        place: semantic_vocabulary::PlaceId::new(11).unwrap(),
+                        access: terminal_psi::StructuralAccess::SharedBorrow,
+                        path: vec![terminal_psi::StructuralPathSegment::Field("left".into())],
+                    },
+                },
+                transport: SelectedStructuralTransport::Address {
+                    base,
+                    byte_offset: 8,
+                    byte_count: 8,
+                    destination: LocalStorageSlotId::StructuralBlockParameter {
+                        block: original.source_target,
+                        place: join,
+                    },
+                },
+            });
+        let mut encoded = Vec::new();
+        encode_successor(&mut encoded, &original);
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(decode_successor(&mut cursor).unwrap(), original);
+        assert_eq!(cursor.remaining(), 0);
+        // An empty lent span or a carrier outside the join's own block slot
+        // is not an address transport.
+        for mutation in 0..2 {
+            let mut forged = original.clone();
+            let SelectedStructuralTransport::Address {
+                byte_count,
+                destination,
+                ..
+            } = &mut forged.structural_bindings[0].transport
+            else {
+                unreachable!()
+            };
+            if mutation == 0 {
+                *byte_count = 0;
+            } else {
+                *destination = LocalStorageSlotId::Structural {
+                    operation: semantic_vocabulary::OperationId::new(7).unwrap(),
+                    place: join,
+                };
+            }
+            let mut encoded = Vec::new();
+            encode_successor(&mut encoded, &forged);
+            assert_eq!(
+                decode_successor(&mut Cursor::new(&encoded)),
+                Err(FixedViewCopyDecodeError::InvalidStructuralTransport)
+            );
+        }
+    }
+}

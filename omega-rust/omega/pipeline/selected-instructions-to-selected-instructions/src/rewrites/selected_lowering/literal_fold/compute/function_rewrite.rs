@@ -209,6 +209,10 @@ fn redensify(
                 | selected_instructions::SelectedStructuralTransport::WholeValue {
                     argument,
                     ..
+                }
+                | selected_instructions::SelectedStructuralTransport::Address {
+                    base: selected_instructions::SelectedAddressBase::Register(argument),
+                    ..
                 } = &mut binding.transport
                 {
                     *argument = lower_register(function_index, *argument, removed_register)?;

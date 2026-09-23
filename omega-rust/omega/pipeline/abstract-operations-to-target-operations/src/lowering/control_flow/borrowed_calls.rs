@@ -133,6 +133,7 @@ pub(super) fn lower(
                     argument,
                     declaration,
                     destination,
+                    function,
                     prepared,
                     live,
                     types,
@@ -223,6 +224,9 @@ pub(super) fn argument(
             types,
         )?
         .ok_or_else(invalid);
+    }
+    if live.address_joins.contains(&argument.place) {
+        return address_join_argument(argument, declaration, destination, function, live, types);
     }
     // A live aggregate home lends one exact subtree through a borrow: the
     // producer keeps whole storage, and the argument transports the leaf's
@@ -338,6 +342,74 @@ pub(super) fn argument(
         fixed_array_length: None,
         element_stride: None,
         source,
+        destination: destination.placement.clone(),
+    })
+}
+
+/// An available address join lends its own joined referent, whole and shared:
+/// the callee receives the carried address, exactly as it would receive a
+/// caller's borrowed parameter. A projection through the join, a wider access
+/// or a substituted referent type needs its own place evidence and rejects.
+pub(super) fn address_join_argument(
+    argument: &terminal_psi::StructuralArgument,
+    declaration: &terminal_psi::StructuralParameterDeclaration,
+    destination: &TargetStructuralParameter,
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    types: &StructuralTypeLookup<'_>,
+) -> Result<TargetStructuralArgument, LoweringError> {
+    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    if !live.address_joins.contains(&argument.place)
+        || !argument.path.is_empty()
+        || argument.access != StructuralAccess::SharedBorrow
+        || declaration.access != StructuralAccess::SharedBorrow
+        || declaration.multiplicity != StructuralMultiplicity::Unrestricted
+        || !declaration.qualifications.is_empty()
+        || !declaration.projected_qualifications.is_empty()
+    {
+        return Err(invalid());
+    }
+    let (entry, parameter) = function
+        .block_entries
+        .iter()
+        .find_map(|entry| {
+            entry
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == argument.place)
+                .map(|parameter| (entry, parameter))
+        })
+        .ok_or_else(invalid)?;
+    let referent = crate::lowering::structural_layout::structural_shape(
+        parameter.structural_type,
+        types,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )?;
+    if !super::transfers::is_address_join(parameter, types)
+        || parameter.structural_type != declaration.structural_type
+        || destination.shape
+            != crate::lowering::structural_layout::structural_parameter_shape(
+                referent,
+                StructuralAccess::SharedBorrow,
+            )
+    {
+        return Err(invalid());
+    }
+    Ok(TargetStructuralArgument {
+        place: argument.place,
+        access: argument.access,
+        path: Vec::new(),
+        root_structural_type: parameter.structural_type,
+        structural_type: parameter.structural_type,
+        shape: destination.shape,
+        source_byte_offset: 0,
+        fixed_array_length: None,
+        element_stride: None,
+        source: TargetStructuralArgumentSource::BlockParameter {
+            block: entry.block,
+            place: parameter.place,
+        },
         destination: destination.placement.clone(),
     })
 }

@@ -30,6 +30,7 @@ pub(super) fn argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
     destination: &TargetStructuralParameter,
+    function: &abstract_operations::AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
@@ -37,6 +38,16 @@ pub(super) fn argument(
     let invalid = || LoweringError::UnknownStructuralType(declaration.structural_type);
     if !is_reference(declaration, types) || argument.access != declaration.access {
         return Err(invalid());
+    }
+    if live.address_joins.contains(&argument.place) {
+        return super::borrowed_calls::address_join_argument(
+            argument,
+            declaration,
+            destination,
+            function,
+            live,
+            types,
+        );
     }
     let (root_type, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
         if home.has_claims()

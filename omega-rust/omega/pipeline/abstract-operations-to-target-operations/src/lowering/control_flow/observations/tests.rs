@@ -40,6 +40,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
         scalar_block_parameters: BTreeMap::from([(value(4), block_parameter)]),
         views: BTreeMap::new(),
         block_views: BTreeSet::new(),
+        address_joins: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),
         lengths: BTreeMap::new(),
         references: BTreeMap::new(),

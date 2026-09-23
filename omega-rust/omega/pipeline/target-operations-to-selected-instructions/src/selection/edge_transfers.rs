@@ -4,6 +4,7 @@ use selected_instructions::{SelectedBlockOrigin, SelectedSuccessorRole, Selected
 use selected_instructions::{
     SelectedFunction, SelectedSuccessor, SelectedTerminator, VirtualRegisterId,
 };
+mod addresses;
 mod construction;
 #[cfg(test)]
 mod descriptor_tests;
@@ -62,7 +63,9 @@ fn stored_transport(
     bool,
 )> {
     match transport {
-        selected_instructions::SelectedStructuralTransport::Unused => None,
+        // An address transport stores a pointer it forms, never bytes it reads.
+        selected_instructions::SelectedStructuralTransport::Unused
+        | selected_instructions::SelectedStructuralTransport::Address { .. } => None,
         selected_instructions::SelectedStructuralTransport::Descriptor {
             argument,
             destination,

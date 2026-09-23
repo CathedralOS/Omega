@@ -18,6 +18,7 @@ use terminal_psi::{BoundaryMachineDeclaration, StructuralTypeDeclaration};
 
 use crate::OptimizationUnitValidationError;
 
+mod address_joins;
 mod block_parameters;
 mod cleanup;
 mod continuation;

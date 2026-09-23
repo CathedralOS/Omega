@@ -170,6 +170,14 @@ fn shareable(
                         destination,
                         ..
                     } => destination == slot,
+                    selected_instructions::SelectedStructuralTransport::Address {
+                        base,
+                        destination,
+                        ..
+                    } => {
+                        destination == slot
+                            || base == selected_instructions::SelectedAddressBase::Local(slot)
+                    }
                     selected_instructions::SelectedStructuralTransport::Unused => false,
                 })
                 || successor
@@ -222,19 +230,18 @@ fn shareable(
         // An address that crosses an edge could feed loads this scan never
         // sees; sharing is then unverifiable.
         for successor in super::control(&block.terminator).1.into_iter().flatten() {
-            let escapes = successor
-                .bindings
-                .iter()
-                .any(|binding| match binding.transport {
-                    selected_instructions::SelectedValueTransport::Registers {
-                        argument, ..
-                    } => slot_addresses.contains(&argument),
-                    selected_instructions::SelectedValueTransport::Unused => false,
-                })
-                || successor
-                    .structural_bindings
+            let escapes =
+                successor
+                    .bindings
                     .iter()
                     .any(|binding| match binding.transport {
+                        selected_instructions::SelectedValueTransport::Registers {
+                            argument,
+                            ..
+                        } => slot_addresses.contains(&argument),
+                        selected_instructions::SelectedValueTransport::Unused => false,
+                    }) || successor.structural_bindings.iter().any(|binding| {
+                    match binding.transport {
                         selected_instructions::SelectedStructuralTransport::WholeValue {
                             argument,
                             ..
@@ -243,9 +250,17 @@ fn shareable(
                             argument,
                             ..
                         } => slot_addresses.contains(&argument),
-                        selected_instructions::SelectedStructuralTransport::Unused => false,
-                    })
-                || successor.structural_case.as_ref().is_some_and(|case| {
+                        selected_instructions::SelectedStructuralTransport::Address {
+                            base: selected_instructions::SelectedAddressBase::Register(argument),
+                            ..
+                        } => slot_addresses.contains(&argument),
+                        selected_instructions::SelectedStructuralTransport::Address {
+                            base: selected_instructions::SelectedAddressBase::Local(_),
+                            ..
+                        }
+                        | selected_instructions::SelectedStructuralTransport::Unused => false,
+                    }
+                }) || successor.structural_case.as_ref().is_some_and(|case| {
                     case.payloads.iter().any(|payload| {
                         matches!(
                             payload.transport,
