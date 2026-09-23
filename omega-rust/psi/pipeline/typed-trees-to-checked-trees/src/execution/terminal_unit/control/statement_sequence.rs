@@ -525,7 +525,14 @@ pub(in crate::execution::terminal_unit) fn build(
         let mut structural_result = None;
         // A store whose source is this statement's own call is appended after
         // that call operation, in ordinary evaluation order.
-        let mut call_result_store = None;
+        let mut call_result_stores = Vec::new();
+        // A structural call-result field store also mints the moved-out
+        // displaced binding, so it consumes one more structural ordinal than
+        // the call's own result.
+        let mut structural_store_bindings = 0_usize;
+        // An affine field value displaced by the overwrite needs an explicit
+        // discard on the call's continuation; unrestricted drops for free.
+        let mut displaced_discard = None;
         let result = match statement {
             StatementNode::Assignment(assignment) => {
                 // One authored assignment can decompose into several stores —
@@ -579,32 +586,121 @@ pub(in crate::execution::terminal_unit) fn build(
                     program,
                     statement_call_target(program, assignment)?,
                 )?;
-                let primitive_type = program.primitive_type_reference(result_type)?;
-                let binding_ordinal = u32::try_from(scalar_count).ok()?;
-                let position = u32::try_from(scalar_parameters.len())
-                    .ok()?
-                    .checked_add(binding_ordinal)?;
-                assignment_phase("statement sequence: assignment: call result field store");
-                call_result_store = Some(
-                    super::super::structural_scalar_store::build_structural_call_result_field_store(
+                if let Some(primitive_type) = program.primitive_type_reference(result_type) {
+                    let binding_ordinal = u32::try_from(scalar_count).ok()?;
+                    let position = u32::try_from(scalar_parameters.len())
+                        .ok()?
+                        .checked_add(binding_ordinal)?;
+                    assignment_phase("statement sequence: assignment: call result field store");
+                    call_result_stores.push(
+                        super::super::structural_scalar_store::build_structural_call_result_field_store(
+                            program,
+                            facts,
+                            machine,
+                            state,
+                            structural_parameters,
+                            scalar_parameters,
+                            statement_index,
+                            assignment,
+                            (position, primitive_type),
+                            trace,
+                        )?,
+                    );
+                    scalar_count = scalar_count.checked_add(1)?;
+                    Some(CheckedUnitScalarResultBindingPlan {
+                        statement_index,
+                        binding_ordinal,
+                        primitive_type,
+                    })
+                } else if is_unit(program, result_type) {
+                    return None;
+                } else {
+                    // A structural call result stores into the field through
+                    // the ordinary window pair: move the displaced established
+                    // value out, then store the call's whole result into the
+                    // opened hole — the structural twin of the scalar
+                    // call-result store above.
+                    assignment_phase(
+                        "statement sequence: assignment: structural call result field store",
+                    );
+                    let mut result =
+                        checked_structural_result_type(program, shapes, result_type, &binders)?;
+                    // Overwriting a linear field would drop a live linear
+                    // obligation; that needs a consumption story, not a
+                    // displacement.
+                    if result.multiplicity == Multiplicity::Linear {
+                        return None;
+                    }
+                    result.statement_index = statement_index;
+                    let binding_ordinal = u32::try_from(structural_count).ok()?;
+                    let moved_ordinal = binding_ordinal.checked_add(1)?;
+                    let destination_place = crate::flow::canonical_place_from_expression_in_state(
                         program,
-                        facts,
+                        state.symbol,
+                        index,
+                        assignment.target,
+                    )?;
+                    let (position, path) = super::super::borrowed_windows::window_place(
+                        program,
                         machine,
                         state,
+                        program.statement_table.statements(state.statement_nodes),
+                        index,
                         structural_parameters,
-                        scalar_parameters,
+                        &destination_place,
+                    )?;
+                    call_result_stores.push(CheckedUnitEffectOperationPlan::MoveStructuralField {
+                        result: CheckedUnitStructuralResultBindingPlan {
+                            statement_index,
+                            binding_ordinal: moved_ordinal,
+                            type_identity: result.type_identity.clone(),
+                            multiplicity: result.multiplicity,
+                        },
+                        source: CheckedUnitStructuralArgumentPlan {
+                            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                parameter_index: position,
+                            },
+                            path: path.clone(),
+                            type_identity: result.type_identity.clone(),
+                            access: CheckedStructuralAccess::Owned,
+                        },
+                    });
+                    call_result_stores.push(CheckedUnitEffectOperationPlan::StoreStructuralField {
                         statement_index,
-                        assignment,
-                        (position, primitive_type),
-                        trace,
-                    )?,
-                );
-                scalar_count = scalar_count.checked_add(1)?;
-                Some(CheckedUnitScalarResultBindingPlan {
-                    statement_index,
-                    binding_ordinal,
-                    primitive_type,
-                })
+                        destination: CheckedUnitStructuralArgumentPlan {
+                            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                parameter_index: position,
+                            },
+                            path,
+                            type_identity: result.type_identity.clone(),
+                            access: CheckedStructuralAccess::Owned,
+                        },
+                        value: CheckedUnitStructuralArgumentPlan {
+                            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal,
+                            },
+                            path: Vec::new(),
+                            type_identity: result.type_identity.clone(),
+                            access: CheckedStructuralAccess::Owned,
+                        },
+                    });
+                    structural_store_bindings = 1;
+                    if result.multiplicity == Multiplicity::Affine {
+                        displaced_discard = Some(CheckedUnitPartialAffineDiscardPlan {
+                            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                binding_ordinal: moved_ordinal,
+                            },
+                            path: Vec::new(),
+                            type_identity: result.type_identity.clone(),
+                        });
+                    }
+                    // The store consumes this call's whole result, so the
+                    // binding stays anonymous: no local claims it, and the
+                    // discard gate below must not retire it before the store
+                    // runs as the call's immediate continuation.
+                    structural_result = Some((result, None));
+                    None
+                }
             }
             StatementNode::LocalData(local) => {
                 // Guard-group markers beneath the local-data phase keep the
@@ -1147,7 +1243,9 @@ pub(in crate::execution::terminal_unit) fn build(
         )?;
         call_phase("statement sequence: call: result binding");
         if let Some((result, None)) = &structural_result
-            && !completes_machine {
+            && !completes_machine
+            && call_result_stores.is_empty()
+        {
             // An explicit discard still invokes the value-returning machine.
             // Its anonymous result cannot enter the named-local operand roster.
             // Dispose plain affine contents on this normal continuation, before
@@ -1218,8 +1316,28 @@ pub(in crate::execution::terminal_unit) fn build(
         // The store consuming this call's scalar result is its immediate
         // continuation: the result is live, and no cleanup separates the call
         // from the field it was called to fill.
-        if let Some(store) = call_result_store {
+        for store in call_result_stores {
+            // The store consumes the call's minted result binding: record the
+            // consumption so an affine producer sheds its return-edge disposal.
+            consume_results(&mut operations, &store)?;
             operations.push(store);
+        }
+        structural_count = structural_count.checked_add(structural_store_bindings)?;
+        if let Some(discard) = displaced_discard {
+            let coordinate = operations
+                .iter()
+                .rev()
+                .find_map(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                        coordinate, ..
+                    } => Some(*coordinate),
+                    _ => None,
+                })?;
+            operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                coordinate,
+                affine_discards: vec![discard],
+            });
         }
         if !partial_temporaries.is_empty() {
             super::super::cleanup::anonymous::append_continuation(
@@ -2022,6 +2140,18 @@ pub(super) fn consume_results(
         {
             consume_result(operations, binding_ordinal, access, projected)?;
         }
+    }
+    // A whole-result field store consumes the minted binding the same way a
+    // call argument does: Owned access retires the producer's disposal debt.
+    if let CheckedUnitEffectOperationPlan::StoreStructuralField { value, .. } = consumer
+        && let Some(binding_ordinal) = value.source_structural_result_binding_ordinal()
+    {
+        consume_result(
+            operations,
+            binding_ordinal,
+            value.access,
+            !value.path.is_empty(),
+        )?;
     }
     Some(())
 }
