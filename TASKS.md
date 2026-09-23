@@ -411,6 +411,23 @@ the complete product bar; focused successes below do not establish that baseline
   effects are the concern. The decision-tree route preserves short-circuit by
   construction; eager materialization does not.
 
+  The ENABLER is already in place, which is the part that is not obvious:
+  `emission::boolean_control::emit_inlined_boolean_guard_blocks` takes its
+  TRUE and FALSE targets as arguments (`LoweredBooleanDecisionTarget`), so a
+  chain arm can expand its decision with true going to a jump block for that
+  arm's successor and false going to the NEXT arm's decision block, or to the
+  fallback for the last one. No new decision form is needed; the conditional
+  path just happens to pass a fixed pair of outcome blocks.
+  What the work costs is the staging around it. `guarded_drafts` is a 6-tuple
+  per later arm -- `(block, parameters, structural_parameters, operations,
+  guard VALUE id, namespace)` -- and the assembly turns each into one block
+  with `Terminator::Conditional { condition, .. }`. A direct guard makes an
+  arm several blocks instead of one, so the draft needs to carry a value id
+  OR a planned decision, the assembly needs to branch on which, and the first
+  arm (whose condition is the state's own terminator) needs the same
+  treatment. Block and edge identities are allocated densely with explicit
+  overflow guards, so the expansion has to keep that allocation deterministic.
+
   `providers/external_leaf_dllimport_compile` is DIAGNOSED and is FAIL-CLOSED
   BY POSTURE rather than broken. Its `satisfies Leaf::exit via leaf_binding()`
   demands a `NormalizedForeign` mechanism, and
