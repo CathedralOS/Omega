@@ -488,7 +488,10 @@ fn shared_nominal_argument(
     // The existing case call channel observes whole copy scalar sums. Nested
     // sums require a separate projected payload/custody channel, not this loan.
     let whole_scalar_sum = path.is_empty() && shapes.types.len() == 1
-        && program.type_multiplicity(reference) == Multiplicity::Unrestricted
+        && matches!(
+            program.type_multiplicity(reference),
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        )
         && shapes.types.get(&identity).is_some_and(|shape| {
             matches!(&shape.shape, CheckedUnitStructuralTypeShape::Sum { cases }
                 if !cases.is_empty() && cases.iter().all(|case| case.fields.iter().all(|field|
