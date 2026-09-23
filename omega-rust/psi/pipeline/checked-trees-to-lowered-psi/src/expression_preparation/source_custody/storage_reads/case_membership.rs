@@ -167,11 +167,10 @@ pub(crate) fn authored(
             || checked.symbols.get(machine.symbol).kind != symbols::SymbolKind::Machine
             || !matches!(checked.expression_table.name_path_members(subject.members),
                 [name] if name.is_self_receiver())
-            || checked
+            || !checked
                 .machine_states(machine)
-                .first()
-                .map(|entry| entry.symbol)
-                != Some(state.symbol)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
             || checked.symbols.get(state.symbol).parent != machine.symbol
         {
             return Ok(None);
