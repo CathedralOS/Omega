@@ -134,6 +134,28 @@ pub(crate) fn lower_selected_machine(
                 .terminal_scalar_graphs
                 .for_machine(selection.machine)
                 .is_some() => {}
+        // An attached machine whose only checked body is a scalar graph owns
+        // the scalar route outright: the Unit roster declined it, so the
+        // graph is its body rather than a competing plan.
+        CheckedTerminalSignatureEligibility::Attached
+            if checked
+                .facts
+                .flow
+                .terminal_scalar_graphs
+                .for_machine(selection.machine)
+                .is_some()
+                && checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .for_machine(selection.machine)
+                    .is_none()
+                && checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_for_machine(selection.machine)
+                    .is_none() => {}
         CheckedTerminalSignatureEligibility::Attached
         | CheckedTerminalSignatureEligibility::FreeUnitEffect => {
             return Ok(LoweredSelectedMachine::source_mapped(
