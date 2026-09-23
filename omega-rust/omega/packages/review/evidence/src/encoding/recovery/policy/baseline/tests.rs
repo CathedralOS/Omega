@@ -229,6 +229,38 @@ fn composed_nonempty_meaning_roundtrips_with_no_nested_envelopes() {
 }
 
 #[test]
+fn composed_policy_scale_headroom_admits_beyond_the_legacy_byte_ceiling() {
+    // Real packages now produce composed policies above the original 4 MiB
+    // ceiling: `semantic_dependencies` alone carried ~4 MiB on a ~84-file
+    // package. The product is format-consistent (self-describing fields with
+    // full nominal identities), so the cap is a resource bound that scales
+    // with package surface, not a wire-format parameter.
+    let mut value = fixture();
+    let template = value.semantic_dependencies[0].clone();
+    value.semantic_dependencies = (0..2_048)
+        .map(|ordinal| PackagePolicySemanticDependency {
+            dependency: identity(&format!(
+                "dependency_{ordinal:08}_{}",
+                "d".repeat(4_096)
+            )),
+            ..template.clone()
+        })
+        .collect();
+    let bytes = value
+        .canonical_bytes()
+        .expect("composed policy beyond the legacy 4 MiB ceiling encodes");
+    assert!(
+        bytes.len() > 4 * 1024 * 1024,
+        "canary must exceed the legacy ceiling: {}",
+        bytes.len()
+    );
+    assert_eq!(recover(&bytes).unwrap(), value);
+    let mut oversized = bytes;
+    oversized.resize(17 * 1024 * 1024, 0);
+    assert_eq!(recover(&oversized), Err(Error::InputTooLarge));
+}
+
+#[test]
 fn child_package_and_target_disagreement_is_rejected_after_recovery() {
     let original = fixture();
     let foreign = semantic_vocabulary::PackageKeyIdentity::from_digest([18; 32]).unwrap();
