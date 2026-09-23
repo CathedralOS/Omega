@@ -80,19 +80,18 @@ fn a_forwarded_byte_view_lowers_through_the_re_borrow_peel() {
 }
 
 #[test]
-fn the_non_byte_residual_is_the_successor_custody_verifier() {
-    // What still separates a non-byte view from the byte one above, stated by
-    // name. A forwarded `&mut` argument emits a fresh re-borrow place that the
-    // successor frontier cannot name, so this is custody accounting and not
-    // element views -- the admission and the argument presentation are both
-    // past. When this stops being true the assertion fails and says so, which
-    // is the point: it should not move silently.
+fn a_forwarded_element_view_lowers_through_mutable_view_custody() {
+    // The gap that separated a non-byte view from the byte one above was
+    // `mutable_availability`: it only counted `ByteSequence(BorrowedView)`
+    // parameters as mutable views, so an `ElementView` parameter's place was
+    // never seeded into a block's available set and the forwarded argument
+    // died at `InvalidStructuralSuccessorArgument`. Both machines lower now
+    // that the predicate covers the element-view shape too.
     for machine in ["Main::main", "Worker::drain"] {
-        let outcome = outcome("u64", machine);
-        assert!(
-            outcome.contains("InvalidStructuralSuccessorArgument"),
-            "expected the non-byte forwarding shape to stop at successor custody, \
-             got: {outcome}"
+        assert_eq!(
+            outcome("u64", machine),
+            "lowered",
+            "{machine} should forward a re-borrowed element view to its successor"
         );
     }
 }

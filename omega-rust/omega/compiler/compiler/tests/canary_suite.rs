@@ -345,11 +345,13 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     // Native production requires one exact selected program entry; the
     // fixture deliberately carries no entry binding.
     "slices/callee_non_byte_view_len_index_subslice",
-    // Native production now reaches the successor-custody verifier:
-    // `InvalidStructuralSuccessorArgument` — a borrowed `&mut` argument
-    // forwarded on a state edge emits a fresh re-borrow place the frontier
-    // cannot name; admission + edge binding + element-view array presentation
-    // all pass. Promote when successor custody names forwarded borrows.
+    // Successor custody names forwarded borrows now: the `&mut` slice-view
+    // argument binds the machine parameter's place and verifies end-to-end.
+    // Native production then fails one stage later at
+    // `MalformedStructuralFoundation("structural argument has the wrong
+    // concrete type")` — an argument concrete-type mismatch between the
+    // forwarded slice view and the callee's parameter. Promote when the
+    // forwarded-view concrete type agrees downstream.
     "entry/service_borrowed_slice_call",
     // Graduated from fail/: each pinned a checked-stage fence that has since
     // lifted, so checked semantics admits the source.
