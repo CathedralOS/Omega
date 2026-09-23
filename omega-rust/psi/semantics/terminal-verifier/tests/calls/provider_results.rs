@@ -3,9 +3,9 @@ use super::{
     ModuleError, OperationResult, PlaceId, ProofBundle, Proposition, ScalarTerm, ScalarType,
     StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
-    TerminalMachineResult, TerminalModule, Terminator, boolean_declaration, boolean_value,
-    boundary_id, call_module, edge_id, machine_id, provider_candidate_module, validate_module,
-    value_id, verify_module,
+    TerminalMachineResult, TerminalModule, Terminator, block_id, boolean_declaration,
+    boolean_value, boundary_id, call_module, edge_id, machine_id, provider_candidate_module,
+    validate_module, value_id, verify_module,
 };
 use semantic_vocabulary::{
     ClaimId, ContentAlgebra, ContentAlgebraKind, ContentDomainId, ContentProjectionExpression,
@@ -242,17 +242,24 @@ fn provider_result_conformance_admits_claimed_linear_results() {
 fn provider_result_conformance_rejects_claim_and_authority_drift() {
     let baseline = linear_provider_module();
     validate_module(&baseline).unwrap();
-    for mutation in 0..6 {
+    for mutation in 0..7 {
         let mut module = baseline.clone();
         match mutation {
-            // The candidate result must declare the boundary's published
-            // qualifications exactly.
+            // A candidate may not declare a domain the boundary does not
+            // promise. `75b27af297` relaxed the provider-result match from
+            // equality to this containment, because the boundary's
+            // `qualifications` fold the requirement's own `ensures` mints,
+            // which are replayed on the caller at the call site rather than
+            // carried by the candidate's signature. Containment is what is
+            // left to control, so drift is spelled as an EXTRA domain.
             0 => {
                 let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
                 else {
                     unreachable!()
                 };
-                result.qualifications.clear();
+                result
+                    .qualifications
+                    .push(StructuralDomainId::new(2).unwrap());
             }
             // A payload-path qualification has no boundary-side declaration to
             // join: projected qualifications stay outside installed-provider
@@ -322,14 +329,34 @@ fn provider_result_conformance_rejects_claim_and_authority_drift() {
                         domain: StructuralDomainId::new(2).unwrap(),
                     }]
             }
+            // The other direction of that containment is no longer an invalid
+            // candidate: a result declaring FEWER domains than the boundary
+            // promises passes the provider match and is caught where the
+            // signature itself is compared. Pinned so the rule is stated from
+            // both sides, and so this shape cannot quietly stop rejecting.
+            6 => {
+                let TerminalMachineResult::Structural(result) = &mut module.machines[1].result
+                else {
+                    unreachable!()
+                };
+                result.qualifications.clear();
+            }
             _ => unreachable!(),
         }
-        assert_eq!(
-            validate_module(&module).unwrap_err(),
+        let expected = if mutation == 6 {
+            ModuleError::StructuralReturnSignatureMismatch {
+                machine: machine_id(2),
+                block: block_id(2),
+            }
+        } else {
             ModuleError::InvalidProviderCandidate {
                 boundary: boundary_id(1),
-                candidate: machine_id(2)
-            },
+                candidate: machine_id(2),
+            }
+        };
+        assert_eq!(
+            validate_module(&module).unwrap_err(),
+            expected,
             "mutation {mutation}"
         );
     }
