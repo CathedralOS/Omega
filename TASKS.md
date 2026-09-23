@@ -2612,13 +2612,20 @@ syntax and other terminal services are not prerequisites.
     the folded `items[0 + 1]` still has no source-independent checked scalar
     control plan. The folded index needs the same checked plan in
     typed-trees-to-checked-trees before the pair meets one boundary again.
-  - Complete native shared-reference joins. Direct borrowed locals and
-    primitive shared joins already lower, verify and interpret. Omega's
-    `block_bindings.rs` still limits borrowed block parameters to byte views;
-    target `control_flow/transfers.rs` rejects projected borrowed edges,
-    although projected owned edges now have a route. Repair both consumers,
-    coordinating with **WRITE-ONLY-BORROW**, and observe both arms of
-    `borrowed_results::PRIMITIVE_CALL_SOURCE` natively.
+  - Complete native shared-reference joins beyond plain shared referents.
+    Shared joins over primitive scalars and plain records
+    (`abstract_operations::control_flow::address_joins`) lower, replay and
+    execute natively: both arms of
+    `borrowed_results::{PRIMITIVE,RECORD}_CALL_SOURCE` run on macOS ARM64
+    and publish on four targets
+    (`mbx nextest run -p omega-native-differential-test --test shared_borrow_joins`).
+    Remaining: exclusive and write-only joins (coordinate with
+    **WRITE-ONLY-BORROW**), referents that carry references or descriptors,
+    reads and projections through a join place, primitive-local origins, and
+    loan ends at the view's last use (Omega currently pins origins over the
+    join's whole dominated region). Separately, legalization's
+    single-provenance `branch_edges` rejects conditional edges threaded by
+    combined Psi rewrites, including scalar-only matches.
   - Complete exclusive and case-bearing borrowed joins under their own custody,
     and borrowed-subject successor lifecycle publication. Dynamic indexes,
     ranges, case members and computed borrowed roots need real place/loan

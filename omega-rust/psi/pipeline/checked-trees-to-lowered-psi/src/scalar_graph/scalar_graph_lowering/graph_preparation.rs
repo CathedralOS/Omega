@@ -169,8 +169,13 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     // declarations the machine emitted. A loop-reshaped roster can drop the
     // entry correspondence, in which case forwarded multi-state stays out of
     // scope.
-    let state_namespaces =
-        structural_namespaces(checked, states, structural_parameters, next_place)?;
+    let state_namespaces = structural_namespaces(
+        checked,
+        states,
+        structural_parameters,
+        loop_plan.is_some(),
+        next_place,
+    )?;
     let (identity_reshuffles, partition_compositions) =
         lower_content_evidence(checked, machine, entry_state.state)?;
     let return_sink = states
@@ -653,6 +658,7 @@ fn structural_namespaces(
     checked: &CheckedTrees,
     states: &[checked_trees::CheckedScalarStateGraph],
     emitted: &[StructuralParameterDeclaration],
+    loop_owns_entry: bool,
     next_place: &mut u64,
 ) -> Result<Vec<Vec<(u32, StructuralParameterDeclaration)>>, LoweringError> {
     let mut resolved =
@@ -673,6 +679,15 @@ fn structural_namespaces(
     for _ in 0..states.len() {
         let mut progress = false;
         for target_index in 0..states.len() {
+            // A single-state loop re-enters its entry through the loop plan
+            // (`cycles::prepare`), which rebinds the entry roster as loop
+            // header parameters and checks each back-edge transfer itself,
+            // including subslice and projected sources. The entry roster is
+            // the emitted signature either way, so its re-entry edges bind
+            // nothing here.
+            if target_index == 0 && loop_owns_entry {
+                continue;
+            }
             for formal_index in 0..states[target_index].structural_parameters.len() {
                 let mut declaration: Option<&StructuralParameterDeclaration> = None;
                 let mut resolved_source = false;
