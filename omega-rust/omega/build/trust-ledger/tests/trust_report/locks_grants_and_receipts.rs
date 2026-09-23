@@ -1,5 +1,31 @@
 use super::compile;
-use compiler::{CheckedCompileRequest, CompileOptions, compile_to_checked};
+use compiler::{CheckedCompilation, CheckedCompileRequest, CompileOptions, compile_to_checked};
+
+/// `65dc530cef` stopped ordinary compilation from writing the trust Markdown,
+/// so these tests reconstruct the same report from the checked program the way
+/// `admit_checked_compilation` does. The fact each one is about is unchanged;
+/// only its carrier is, and the rows are the structure the renderer used to
+/// print.
+fn trust_report(checked: &CheckedCompilation) -> artifacts::TrustReport {
+    trust_model::reconstruct_trust_report(
+        checked.terminal_production_trees(),
+        checked.root_grants(),
+        checked.provider_plans(),
+        checked.selected_provider_plans(),
+        checked.accepted_template_classifications(),
+    )
+    .expect("the trust report reconstructs from the checked program")
+}
+
+/// Commitment names in row order, for assertion messages that used to print the
+/// whole rendered document.
+fn commitments(report: &artifacts::TrustReport) -> Vec<&str> {
+    report
+        .rows
+        .iter()
+        .map(|row| row.commitment.as_str())
+        .collect()
+}
 
 #[test]
 fn modern_package_lock_does_not_settle_fresh_compiler_obligations() {
@@ -77,23 +103,17 @@ machine Main::exercise(&mut self) reaches Console {
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("domain program should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
+        .expect("domain program should reach checked facts");
+    let report = trust_report(&checked);
     assert!(
-        report.contains("admitted commitments: 0"),
-        "a domain declaration is semantic structure, not a trust admission:\n{report}"
+        report.rows.is_empty(),
+        "a domain declaration is semantic structure, not a trust admission:\n{:#?}",
+        commitments(&report)
     );
     assert!(
-        !report.contains("domain introduction:") && !report.contains("STANDING WARNING"),
-        "domain declarations must not masquerade as grantable trust rows:\n{report}"
+        report.provider_requirements.is_empty() && report.qualifications.is_empty(),
+        "domain declarations must not masquerade as grantable trust rows:\n{report:#?}"
     );
 
     let _ = std::fs::remove_dir_all(&project);
@@ -116,23 +136,17 @@ machine Main::exercise(&mut self) reaches Console {
     )
     .expect("write main.omg");
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("plain program should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("the empty report is still written -- the honest no-commitments statement");
-    let empty_selected_closure = effects::SelectedProviderPlanFacts::default().report_fingerprint();
-    assert!(report.contains(&format!(
-        "selected provider closure report fingerprint: {empty_selected_closure:016x}"
-    )));
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
+        .expect("plain program should reach checked facts");
+    let report = trust_report(&checked);
+    assert_eq!(
+        report.selected_provider_closure_report_fingerprint,
+        effects::SelectedProviderPlanFacts::default().report_fingerprint()
+    );
     assert!(
-        report.contains("admitted commitments: 0"),
-        "expected zero rows:\n{report}"
+        report.rows.is_empty(),
+        "expected zero rows:\n{:#?}",
+        commitments(&report)
     );
 
     let _ = std::fs::remove_dir_all(&project);
@@ -179,40 +193,35 @@ machine Main::exercise(&mut self) {}
         .expect("accepted claim contract plan")
         .report_fingerprint;
 
-    let build_dir = project.join("build");
-    compile(CompileOptions {
-        root_path: project.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-    })
-    .expect("claim-free boundary symbol program should compile");
-
-    let report = std::fs::read_to_string(build_dir.join("trust_report.md"))
-        .expect("trust report should be written");
-    assert!(
-        report.contains("admitted commitments: 1"),
-        "only the authored axiom is a commitment:\n{report}"
+    let report = trust_report(&checked);
+    assert_eq!(
+        commitments(&report),
+        ["accepted fact: combine_commutative"],
+        "only the authored axiom is a commitment, and a claim-free symbol \
+         asserts nothing and needs no grant"
     );
-    assert!(
-        report.contains("accepted fact: combine_commutative"),
-        "the authored axiom remains visible:\n{report}"
+    let accepted_row = &report.rows[0];
+    assert_eq!(
+        accepted_row.machine_contract_report_fingerprint,
+        Some(expected_contract_fingerprint)
     );
-    let accepted_row = report
-        .lines()
-        .find(|line| line.contains("accepted fact: combine_commutative"))
-        .expect("accepted claim row");
-    assert!(accepted_row.contains(&format!(
-        "machine contract report fingerprint: {expected_contract_fingerprint:016x}"
-    )));
-    assert!(accepted_row.contains("service reach: AlgebraAudit"));
-    assert!(accepted_row.contains("synchronous invocations: parameter:0"));
-    assert!(accepted_row.contains("may suspend: yes"));
-    assert!(accepted_row.contains("may block: yes"));
-    assert!(accepted_row.contains("termination guarantee: yes"));
-    assert!(accepted_row.contains("crash routes: Abort[true]"));
-    assert!(
-        !report.contains("accepted fact: Carrier::combine"),
-        "a claim-free symbol asserts nothing and needs no grant:\n{report}"
+    assert_eq!(
+        accepted_row.machine_service_reach.as_deref(),
+        Some(["AlgebraAudit".to_owned()].as_slice())
+    );
+    assert_eq!(
+        accepted_row.machine_synchronous_invocations.as_deref(),
+        Some(["parameter:0".to_owned()].as_slice())
+    );
+    assert_eq!(accepted_row.machine_may_suspend, Some(true));
+    assert_eq!(accepted_row.machine_may_block, Some(true));
+    assert_eq!(accepted_row.machine_terminates_guarantee, Some(true));
+    assert_eq!(
+        accepted_row.machine_crash_routes,
+        Some(vec![artifacts::TrustCrashRouteBucket {
+            cause: artifacts::TrustCrashCause::Abort,
+            alternative_guards: vec![artifacts::TrustCrashRouteGuard::Truth],
+        }])
     );
 
     let _ = std::fs::remove_dir_all(&project);
@@ -303,7 +312,6 @@ machine Main::exercise(&mut self) reaches Console {
         "expected the retired legacy-grant diagnostic:\n{rendered}"
     );
     assert!(!project.join("omega.admissions").exists());
-    assert!(!build_dir.join("trust_report.md").exists());
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -353,7 +361,6 @@ machine Main::exercise(&mut self) {}
         "expected exact grant ambiguity diagnostic:\n{rendered}",
     );
     assert!(!project.join("omega.admissions").exists());
-    assert!(!build_dir.join("trust_report.md").exists());
 
     std::fs::write(project.join("build.omg"), build_with("First::claim"))
         .expect("write exact grant");
@@ -363,20 +370,22 @@ machine Main::exercise(&mut self) {}
         std::fs::read_to_string(project.join("omega.admissions")).expect("trust lock written");
     assert!(lock.contains("accepted fact: First::claim"));
     assert!(!lock.contains("accepted fact: Second::claim"));
-    let report =
-        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
-    let granted = report
-        .lines()
-        .find(|line| line.contains("accepted fact: First::claim"))
-        .expect("exact granted accepted-machine row");
-    let foreign = report
-        .lines()
-        .find(|line| line.contains("accepted fact: Second::claim"))
-        .expect("same-leaf foreign accepted-machine row");
-    assert!(granted.contains("root grant (build.omg)"));
-    assert!(!granted.contains("STANDING WARNING"));
-    assert!(foreign.contains("own-package (dev-active)"));
-    assert!(foreign.contains("STANDING WARNING"));
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
+        .expect("exact qualified grant should reach checked facts");
+    let report = trust_report(&checked);
+    let row = |commitment: &str| {
+        report
+            .rows
+            .iter()
+            .find(|row| row.commitment == commitment)
+            .unwrap_or_else(|| panic!("{commitment}:\n{:#?}", commitments(&report)))
+    };
+    let granted = row("accepted fact: First::claim");
+    let foreign = row("accepted fact: Second::claim");
+    assert_eq!(granted.provenance, "root grant (build.omg)");
+    assert!(!granted.standing_warning);
+    assert_eq!(foreign.provenance, "own-package (dev-active)");
+    assert!(foreign.standing_warning);
 
     let _ = std::fs::remove_dir_all(&project);
 }
@@ -722,17 +731,19 @@ machine Main::exercise(&mut self) reaches Console {{
     compile(options()).expect("granted axiom project should compile");
     let lock = std::fs::read_to_string(project.join("omega.admissions")).expect("lock written");
     assert!(lock.contains("accepted fact: admitted_axis"));
-    let report =
-        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
+        .expect("granted axiom project should reach checked facts");
+    let report = trust_report(&checked);
     let admitted_row = report
-        .lines()
-        .find(|line| line.starts_with("- accepted fact: admitted_axis --"))
-        .expect("nongeneric accepted row");
-    assert!(
-        !admitted_row.contains("accepted template report fingerprint:"),
-        "nongeneric accepted rows have no universal template identity:\n{admitted_row}"
+        .rows
+        .iter()
+        .find(|row| row.commitment == "accepted fact: admitted_axis")
+        .unwrap_or_else(|| panic!("nongeneric accepted row:\n{:#?}", commitments(&report)));
+    assert_eq!(
+        admitted_row.machine_template_report_fingerprint, None,
+        "nongeneric accepted rows have no universal template identity"
     );
-    assert!(report.contains("generic accepted instances: 0"));
+    assert!(report.generic_accepted_instances.is_empty());
 
     std::fs::write(project.join("main.omg"), main_with("suspends;")).expect("rewrite main.omg");
     let message = format!(
@@ -821,39 +832,39 @@ machine Main::exercise(&mut self) reaches Console {{
             .bytes()
             .all(|byte| byte.is_ascii_hexdigit())
     );
-    let report =
-        std::fs::read_to_string(build_dir.join("trust_report.md")).expect("trust report written");
+    let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
+        .expect("granted generic axiom should reach checked facts");
+    let report = trust_report(&checked);
     let admitted_rows = report
-        .lines()
-        .filter(|line| line.starts_with("- accepted fact: admitted --"))
+        .rows
+        .iter()
+        .filter(|row| row.commitment == "accepted fact: admitted")
         .collect::<Vec<_>>();
     assert_eq!(
         admitted_rows.len(),
         1,
-        "one universal template grant should produce one trust row:\n{report}"
+        "one universal template grant should produce one trust row:\n{:#?}",
+        commitments(&report)
     );
-    let template_report_identity = admitted_rows[0]
-        .split_once("accepted template report fingerprint: ")
-        .and_then(|(_, suffix)| suffix.split_whitespace().next())
+    let template_report_fingerprint = admitted_rows[0]
+        .machine_template_report_fingerprint
         .expect("accepted template report coordinate");
-    assert_eq!(template_report_identity.len(), 16);
-    assert!(
-        template_report_identity
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit())
-    );
     let instance_rows = report
-        .lines()
-        .filter(|line| line.starts_with("- accepted template: admitted --"))
+        .generic_accepted_instances
+        .iter()
+        .filter(|row| row.template_commitment == "admitted")
         .collect::<Vec<_>>();
     assert_eq!(
         instance_rows.len(),
         2,
-        "two selected machine contracts instantiate one universal grant:\n{report}"
+        "two selected machine contracts instantiate one universal grant:\n{:#?}",
+        report.generic_accepted_instances
     );
-    assert!(instance_rows.iter().all(|line| line.contains(&format!(
-        "template report fingerprint: {template_report_identity}"
-    ))));
+    assert!(
+        instance_rows
+            .iter()
+            .all(|row| row.template_report_fingerprint == template_report_fingerprint)
+    );
     assert_ne!(
         instance_rows[0], instance_rows[1],
         "distinct selected contracts must retain distinct instance closure rows"
@@ -861,52 +872,48 @@ machine Main::exercise(&mut self) reaches Console {{
     assert!(
         instance_rows
             .iter()
-            .all(|line| line.contains("type argument identities: named(name(Card))")),
+            .all(|row| row.type_argument_identities == ["named(name(Card))"]),
         "each instance must retain its exact normalized type identity"
     );
-    assert!(
-        instance_rows
-            .iter()
-            .any(|line| line.contains("const argument identities: named(integer-const(1))"))
-            && instance_rows
+    for expected in ["named(integer-const(1))", "named(integer-const(2))"] {
+        assert!(
+            instance_rows
                 .iter()
-                .any(|line| line.contains("const argument identities: named(integer-const(2))")),
-        "each instance must retain its exact normalized const identity"
-    );
+                .any(|row| row.const_argument_identities == [expected]),
+            "each instance must retain its exact normalized const identity"
+        );
+    }
     assert!(
         instance_rows
             .iter()
-            .all(|line| !line.contains("machine argument contract report fingerprints: none")),
+            .all(|row| !row.machine_argument_contract_report_fingerprints.is_empty()),
         "each instance must retain its selected machine contract identity"
     );
     assert!(
         instance_rows
             .iter()
-            .all(|line| !line.contains("conformance argument report fingerprints: none")),
+            .all(|row| !row.conformance_argument_report_fingerprints.is_empty()),
         "each instance must retain its selected closed conformance identity"
     );
-    let manifest = std::fs::read_to_string(build_dir.join("05_machine_contracts.json"))
-        .expect("machine contract manifest written");
-    let instance_contract_fingerprints = instance_rows
+    // `65dc530cef` also stopped writing the machine-contract JSON this used to
+    // cross-check, so agreement is read from the same checked program the
+    // report was reconstructed from: every instance contract coordinate the
+    // trust report publishes must be a contract plan the compiler actually
+    // checked, not one the report synthesized.
+    let checked_contract_fingerprints = checked
+        .typed
+        .machines()
         .iter()
-        .map(|line| {
-            line.split_once("instance contract report fingerprint: ")
-                .and_then(|(_, rest)| rest.split_once(" --"))
-                .map(|(fingerprint, _)| fingerprint)
-                .expect("generic accepted instance must render its exact checked contract")
-        })
+        .filter_map(|machine| checked.facts.contract_plans.for_machine(machine.symbol))
+        .map(|plan| plan.report_fingerprint)
         .collect::<Vec<_>>();
-    for fingerprint in instance_contract_fingerprints {
+    for row in &instance_rows {
         assert!(
-            manifest.contains(&format!("\"report_fingerprint\": \"0x{fingerprint}\"")),
-            "the trust instance contract must be present verbatim in the machine-contract manifest:\n{manifest}"
+            checked_contract_fingerprints.contains(&row.instance_contract_report_fingerprint),
+            "instance contract {:016x} is not a checked contract plan",
+            row.instance_contract_report_fingerprint
         );
     }
-    assert!(manifest.contains("\"accepted_template_commitment\": \"admitted\""));
-    assert!(manifest.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));
-    assert!(manifest.contains("\"const_argument_identities\": [\"named(integer-const(1))\"]"));
-    assert!(manifest.contains("\"const_argument_identities\": [\"named(integer-const(2))\"]"));
-    assert!(manifest.contains("\"machine_argument_contract_report_fingerprints\": [\"0x"));
 
     // Changing the authored machine-parameter contract changes the universal
     // template statement under the existing grant. The lockfile gate runs
