@@ -13,8 +13,10 @@
 //! argument spelling stays opaque rather than guessed.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_at_site};
+use super::inference::FrameInference;
 use super::local_aliases::stable_alias_place_origins;
 use super::place_paths::{FramePlaceOrigin, coarse_place_path};
+use crate::declarations::symbols::TopLevelSymbols;
 use crate::value_custody::places::declared_place_type_raw;
 use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
@@ -48,6 +50,8 @@ pub(super) fn known_wire_codec_call_written_paths(
     isolated_local_roots: &[String],
     aliases: &[(String, FramePlaceOrigin)],
     divergent_aliases: &[(String, Vec<FramePlaceOrigin>)],
+    symbols: &TopLevelSymbols<'_>,
+    inference: &mut FrameInference,
 ) -> Option<Vec<String>> {
     let mut written = Vec::new();
     for argument in program.statement_table.expression_handles(call.arguments) {
@@ -98,6 +102,39 @@ pub(super) fn known_wire_codec_call_written_paths(
                     aliases,
                     divergent_aliases,
                     true,
+                )? {
+                    if !written.contains(&origin.path) {
+                        written.push(origin.path);
+                    }
+                }
+            }
+            // A helper result standing between the binding and the argument
+            // is the same finite candidate set, reached one hop later. Defer
+            // to the shared reference-origin resolver rather than teaching
+            // this leaf another spelling: its `Call` arm composes the callee's
+            // result through `transparent_call_result_origins`, which keeps
+            // the exact union across arms and leaves the whole result opaque
+            // when any route cannot be resolved.
+            //
+            // Only this arm is added. A member or indexed spelling still falls
+            // through: an interior reference load needs its own load evidence,
+            // not the enclosing carrier's path.
+            // A match argument is the same finite set spelled inline instead of
+            // through a helper. The shared resolver's `Match` arm unions its
+            // arms and recurses per arm, so each arm gets the treatment its own
+            // spelling earns -- including `carried_reference_origin`, which
+            // resolves a member or indexed arm only when its ROOT is an owned
+            // carrier with a declared reference leaf and refuses a load behind
+            // another reference. That is the load evidence this leaf requires,
+            // so reaching it through the shared resolver is not a way around
+            // the exclusion below.
+            ExpressionNode::Call(_) | ExpressionNode::Match(_) => {
+                for origin in super::reference_origins::exclusive_reference_origins(
+                    program,
+                    current_machine,
+                    *argument,
+                    symbols,
+                    inference,
                 )? {
                     if !written.contains(&origin.path) {
                         written.push(origin.path);

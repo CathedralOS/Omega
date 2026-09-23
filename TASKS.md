@@ -771,10 +771,25 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   `native-realization/src/{native_product/realization,native_realization/behavior_exclusions,retained_native_product}.rs`.
   TWO-AXIS-TERMINAL-AUTHORITY-REVIEW separately owns receiving permission.
 
-  Upgrade `sink_composition_physical_exclusion_reaches_native_custody_frontier`
-  in `compiler/tests/build_behavior_exclusions.rs` from its SourceCustodyMismatch
-  sentinel to native empty-output execution and independent retained-product
-  replay. Ordinary custody in `target-operations-to-selected-instructions/src/legalization`
+  That upgrade is DONE, and the row cited a test name that no longer exists.
+  `sink_composition_physical_exclusion_reaches_native_custody_frontier` was
+  renamed for what it now does: measured at `07ba2de339`,
+  `compiler --test build_behavior_exclusions -E 'test(sink_composition)'` is
+  6 run, 6 passed, and the sentinel is gone in both directions the row asked
+  for --
+  `sink_composition_physical_exclusion_reaches_native_execution` asserts a
+  retained native artifact on macos_arm64, linux_x86_64 and windows_x86_64;
+  `sink_composition_physical_exclusion_publishes_and_runs_empty_on_the_host`
+  publishes it and runs it, asserting an empty successful exit (host-gated,
+  with its own SKIP line elsewhere); and
+  `retained_sink_composition_replays_against_the_product_by_consumers`
+  is the independent retained-product replay. The loud-sink controls
+  (`loud_sink_composition_physical_exclusion_rejects_on_every_target`,
+  `retained_loud_sink_composition_replays_the_exclusion_rejection`) preserve
+  the semantic service-exclusion rejection the row required be kept.
+
+  What remains is the envelope carriage, not the test: ordinary custody in
+  `target-operations-to-selected-instructions/src/legalization`
   is the dependency; preserve the semantic service-exclusion rejection for
   that same invocation. Carry exclusion envelopes through image emission,
   COMPONENT-SUBSTRATE replacement, and WIRE-RUNTIME-AND-INSTALLATION.
@@ -2230,6 +2245,67 @@ syntax and other terminal services are not prerequisites.
   stays multiplicity blind, say in the spec which accounted disposition the
   receiver occurs in.
 
+- **CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.** (new-scope) Two
+  checked-side facts about the same edge disagree, and `c049c026b6`
+  ("constructed arguments and owned edge discards compose through the Unit
+  graph") added the consistency check that catches it. The check is right;
+  one of the two producers is wrong.
+
+  `composed_control/state_graph/edges.rs` now requires an edge's
+  `trivial_affine_discard_parameter_positions` to equal the positions its
+  `terminal_structural_control_cleanups` evidence names, at two sites (the
+  ordinary successor and the closed-sum arm), where both previously refused
+  any nonempty discard outright. Measured by instrumenting the refusal on
+  `optimization-unit-semantics`'s own fixture: state `inspect`, edge ordinal
+  1, `evidence=[1]`, `edge=[]`, `has_cleanup=true`.
+
+  Position 1 of `state inspect(out: &mut [u8], result: Outcome)` is the owned
+  sum `result`, and edge ordinal 1 is the `Outcome::Value { value } ->
+  writable(out, value)` arm -- a closed-sum arm that consumes `result` by
+  destructuring rather than forwarding it. So the question the disagreement
+  poses is whether destructuring a closed sum on a case arm IS a trivial
+  affine discard of the scrutinee: the cleanup evidence says yes, the edge
+  says no. `c049c026b6`'s own body distinguishes the closed-sum edge ("a
+  closed-sum case edge still refuses a forged discard"), so which fact is
+  authoritative there is that commit's call, not a free choice.
+
+  The governing clause narrows it rather than leaving it open.
+  [Terminal ownership](wiki/spec/terminal-psi/ownership.md) says every
+  incoming owned obligation on an ordinary continuing or returning edge
+  "occurs exactly once in the edge's transfer map, explicit terminal
+  consumption, eligible automatic cleanup, or validated no-code affine
+  discard" -- **exactly once**, across four routes. A case arm that
+  destructures its scrutinee consumes it; if that is "explicit terminal
+  consumption" (route two), then naming the same position a no-code affine
+  discard (route four) counts it twice, and the cleanup evidence is the side
+  that is wrong rather than the edge. Confirm that reading against the case
+  route before repairing, because the opposite reading -- that the arm
+  transfers the payload and discards the shell -- also lands on exactly one
+  route and would make the edge the wrong side instead.
+
+  Three tests, one cause, all green at `c049c026b6^` and red from
+  `c049c026b6`: `optimization-unit-semantics
+  tests::structural_cases::owned_results::{owned_call_result_transfers_to_case_parameter,
+  established_scalar_case_transfers_to_owned_block_parameter,
+  owned_result_transfer_rejects_current_custody_corruption}` -- 5 run / 5
+  passed at the parent, 5 run / 2 passed at the commit.
+
+  Acceptance: the two facts agree by construction rather than by a checker
+  comparing them after the fact, with the closed-sum arm's answer stated
+  where the disagreement was. Do not relax the new check to `is_empty()` on
+  either side: it is the control that found this.
+
+  Separately bracketed while measuring the same suite family, NOT this cause:
+  `terminal-verifier::suite structural_unit::partial_affine_moves::direct_field_partial_affine_return_rejects_forged_conservation_shapes`
+  expects `InvalidPartialAffineCleanup` and now gets
+  `UnitReturnAffineDiscardsMismatch`. The forged shape still rejects, so this
+  is refusal-ordering drift rather than an admission hole. It passes at
+  `6e8cb1f85c` and fails at `49533e07d3`; the culprit is in that range and is
+  NOT the `598e3d4811..702e461755` batch, which was ruled out by measuring at
+  `49533e07d3` (already red) before that batch's first commit. Narrowing
+  further needs a bisect over ~2176 first-parent commits whose older points
+  require full rebuilds.
+
 - **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT.** (new-scope) A borrowed-self
   record argument no longer lowers: `checked-trees-to-lowered-psi`'s
   `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`
@@ -2272,6 +2348,24 @@ syntax and other terminal services are not prerequisites.
   Passing the machine-named `reference` with the symbol swapped is not a
   repair -- the identity comparison would then reject on
   `"record operand changed its declared referent type"`.
+
+  It is not one site. Five places across three crates and both pipeline
+  stages reconstruct an attachment the same fragile way, by asking the
+  interning table for a `Named` node that only exists if some program
+  incidentally spells the type:
+
+  - `checked-trees-to-lowered-psi` `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs:176`
+    ("record source attachment has no declared type" -- the measured failure);
+  - `checked-trees-to-lowered-psi` `emission/call_source_custody/projected_receivers/aliases.rs:159`
+    ("receiver alias self lost its attachment"), whose whole-root-self branch
+    is the same shape line for line;
+  - `typed-trees-to-checked-trees` `execution/terminal_unit/calls/computation_arguments/mod.rs:295` and `:359`;
+  - `typed-trees-to-checked-trees` `execution/terminal_unit/receiver_aliases/mod.rs:161`.
+
+  Each fails closed with its own message, so repairing only the reported one
+  leaves four latent copies that surface later as unrelated-looking refusals.
+  Whatever route is chosen belongs behind one shared query on the machine,
+  not repeated at each call site.
 
   The fork is therefore upstream of this file, in how a machine's attachment
   is typed: intern a named reference for a machine's attached data so `self`
@@ -3041,19 +3135,37 @@ syntax and other terminal services are not prerequisites.
     own load evidence; the enclosing carrier's path is not the referent.
   - Carry the receiver/codec repairs through contextual-case, named-state and
     aggregate-result composition, preserving existing `write_frame_*` controls.
-    Measured at `c56d5ded89`, the two lanes now differ at exactly one shape.
-    The RECEIVER lane composes: `write_frame_candidate_origins.rs::divergent_receiver_candidates_survive_composition`
-    keeps the whole set through an aggregate result AND a rebind. The CODEC
-    lane keeps it through a rebind only --
-    `validation/tests/wire_codec_write_frames.rs::a_divergent_codec_cursor_survives_a_rebind`
-    pins that -- while `Blob::encode(.., hold(cursor))`, a helper result
-    standing between the binding and the argument, resolves to an opaque
-    frame. The cause is the asymmetry this row's architectural repair names:
-    `known_wire_codec_call_written_paths` looks its arguments up BY NAME among
-    the caller's aliases, so a call-expression argument has no entry to find,
-    where the receiver lane reaches the same shape through result-origin
-    composition. Share that propagation rather than adding a codec-side
-    recognizer for the call-argument spelling.
+    The receiver and codec lanes both compose now, measured at `a8a1cff2cc`.
+    The receiver lane already did:
+    `write_frame_candidate_origins.rs::divergent_receiver_candidates_survive_composition`
+    keeps the whole set through an aggregate result and a rebind. The codec
+    lane kept it through a rebind only -- a helper result standing between the
+    binding and the argument, `Blob::encode(.., hold(cursor))`, collapsed to an
+    opaque frame because `known_wire_codec_call_written_paths` resolved its
+    arguments BY NAME among the caller's aliases and a call expression had no
+    entry to find. Its `Call` arm now defers to the shared
+    `exclusive_reference_origins`, whose own `Call` arm composes through
+    `transparent_call_result_origins`, so this is the row's shared propagation
+    rather than a codec-side recognizer. `validation/tests/wire_codec_write_frames.rs`
+    pins both directions: a helper result publishes the buffer and both
+    referents, and an UNRESOLVABLE helper result still leaves the frame opaque.
+    Only that arm was added -- member and indexed spellings still fall through,
+    since an interior reference load needs its own load evidence.
+
+    Match arguments compose too, and the load-evidence question that held them
+    up is settled: `carried_reference_origin` walks to the root name, REFUSES
+    when that root is itself a reference, requires owned storage, and matches
+    the spelling against the carrier's declared reference leaves -- so it is
+    the own load evidence this row demands, and reaching member/indexed
+    spellings through the shared resolver is not a way around the exclusion.
+    `wire_codec_write_frames.rs` pins both sides: two borrowed arms union, and
+    an arm loading `carrier.body` where `carrier` is a `&mut View` leaves the
+    whole frame opaque. Nested helper hops (`hold(hold(cursor))`) confirm the
+    delegation is recursive rather than one-deep.
+
+    Also still open: named-state composition, and the acceptance's full
+    source-checking witnesses (coverage above stops at typed-tree frame
+    inference).
     Add full source-checking witnesses where coverage stops at typed-tree frame
     inference; retain conservative rejection at reference boundaries lacking
     independent origin/load evidence and unsupported recursive result routes.
@@ -3334,9 +3446,11 @@ syntax and other terminal services are not prerequisites.
   service ceiling (`reaches Console`), and behind it
   `control_flow/structural_case.rs::lower` requires a structural home rather
   than a parameter root.
-  `control_flow/record_pattern_arm_rename_guard_exit` stops at
-  `OperationProofUnavailable` for its guard's sum of two unconstrained `i32`
-  fields.
+  `control_flow/record_pattern_arm_rename_guard_exit` now widens its guard
+  (`x as i64 + vertical as i64 == 70`): validation refuses exact guard
+  arithmetic without a range proof (`693a39cd90`). It stops at the same
+  `UnsupportedControlFlow(MachineId(1))` on `Main::main`'s `CallUnit` into
+  `judge`, which also publishes `reaches Console`.
   Unread-`&mut self` roster defect, probed 2026-09-23: replacing the count
   comparison in the four store planners (`primitive_store.rs`,
   `structural_scalar_store/mod.rs`) with a position check that admits an
@@ -4246,53 +4360,6 @@ syntax and other terminal services are not prerequisites.
   reject independently. **FRAME-LAYOUT** in `TASKS_OPTIMIZER.md` owns final
   frame, probe, unwind and native replay. Do not add implicit variable-sized
   locals, provider-backed issuance, a new syntax category or an OS allocator.
-
-- **TRANSPARENT-TRAIT-REFINEMENTS.** Complete refinement application and exact
-  requirement selection under
-  [transparent refinements](wiki/spec/language/conformances.md#transparent-refinements).
-  Reach-subset checking, independent clause-local `_` rows, requirement
-  forwarding and concrete evidence-binder fit already exist; do not rebuild
-  them from the obsolete claim that refinements have no checked consumers.
-
-  **All three gaps this row named are closed, measured at `6e10ba077d`.**
-  `candidate_bounds.rs::conformance_application_arguments_match_candidate` now
-  instantiates `refines.arguments` -- it maps the bound's arguments,
-  substituted through the candidate bindings, onto the refinement's own type
-  parameters positionally and substitutes into the base head -- so a reordered
-  or partially applied head is compared after instantiation.
-  `refinement_fit.rs` carries `covering_clauses` (plural), returning the
-  wildcard and every targeted clause, and checking each in turn IS the
-  order-independent meet, so a targeted clause narrows alongside `machine *`
-  rather than replacing it. Targeted signature-free paths reject ambiguity at
-  the resolution site in
-  `symbol-resolved-trees-to-typed-trees/src/declarations/trait_definition.rs`,
-  which refuses a clause naming more than one overload of the base trait.
-
-  The acceptance list is covered by
-  `tests/generics/conformance_binders/refinement_binders.rs` (10 tests, all
-  passing): fitting and nonfitting parameterized applications, exact and
-  ambiguous targets, wildcard-plus-targeted narrowing, and a reordered head.
-  These are consumed-binder fixtures, not declaration-only ones -- each
-  instantiates its binder through a real call, which is what the row required.
-
-  The spec's "Multiple refinements combine by an order-independent meet" is
-  that same within-one-refinement meet, not a second mechanism: the language
-  admits no way to stack refinements. A chain rejects at resolution --
-  `syntax-trees-to-symbol-resolved-trees/src/symbols/top_level/traits.rs`
-  refuses "transparent refinement `Strict` refines `Quiet`, which is itself a
-  refinement; refine the nominal base directly" -- and a binder naming two
-  (`Log: Element satisfies Quiet + Calm`) is not grammar, failing at
-  "expected `>`, found punctuation `+`". Both measured. So the combining
-  refinements are the wildcard and targeted CLAUSES of one refinement, which
-  `covering_clauses` returns together and the wildcard-plus-targeted test
-  pins. Nothing further is owed here.
-
-  Preserve structural-bound (not nominal-target) semantics, inherited axes,
-  independent bounded rows, complete-contract fit and the order-independent
-  meet of combined refinements before normalization/fingerprinting. Acceptance:
-  fitting/nonfitting parameterized applications, exact/ambiguous targets,
-  wildcard-plus-targeted constraints and consumed binder fixtures. A declaration
-  fixture that never instantiates its binder does not establish usable fit.
 
 ## Rust compiler release closure
 

@@ -332,6 +332,8 @@ impl<'program> CallFrameResolver<'program> {
                                 prefix.isolated_locals,
                                 prefix.aliases,
                                 prefix.divergent,
+                                &self.symbols,
+                                inference,
                             );
                         }
                         let receiver = self

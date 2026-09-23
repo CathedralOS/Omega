@@ -11,7 +11,7 @@ machine Main::main(&mut self) -> u64 {
     }
 
     state choose(&mut self, entries: &[Entry], index: u64) -> u64 {
-        transition entries.len >= index + 1 {
+        transition index < 4096 && entries.len >= index + 1 {
             true -> length(entries[index..])
             false -> 0
         }
