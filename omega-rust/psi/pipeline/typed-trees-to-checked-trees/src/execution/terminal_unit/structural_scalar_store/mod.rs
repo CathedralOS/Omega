@@ -1220,7 +1220,97 @@ fn build_structural_field_store_at(
     {
         return None;
     }
-    let primitive_type = program.primitive_type_reference(field.type_reference)?;
+    let Some(primitive_type) = program.primitive_type_reference(field.type_reference) else {
+        trace.phase("structural field store: case field type");
+        // `root.<sum field> = <whole owned parameter>`: an initialized
+        // unrestricted-sum field overwritten by a whole place of the same
+        // declared type. The write copies whole, moves nothing, and needs no
+        // carrier borrow window -- member-read values, call results, payload
+        // sums, records and affine carriers keep declining.
+        if !(exact_frame || exact_sequence_frame)
+            || result_local.is_some()
+            || selected_result
+            || call_result.is_some()
+        {
+            return None;
+        }
+        let Some(field_data) = crate::facts::field_domain::data_definition_for_field_type(
+            program,
+            field.type_reference,
+        ) else {
+            return None;
+        };
+        if !unrestricted_sum(field_data, program) {
+            return None;
+        }
+        let value_place = crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index as usize,
+            assignment.value,
+        )?;
+        if !value_place.segments.is_empty() {
+            return None;
+        }
+        let facts::PlaceRoot::Symbol(value_root) = value_place.root else {
+            return None;
+        };
+        let value_position = source_parameters
+            .iter()
+            .position(|parameter| parameter.symbol == value_root)?;
+        let value_state_parameter = source_parameters.get(value_position)?;
+        if value_state_parameter.is_self {
+            return None;
+        }
+        let same_named_type = matches!(
+            (
+                program
+                    .type_reference_table
+                    .type_reference(field.type_reference),
+                program
+                    .type_reference_table
+                    .type_reference(value_state_parameter.type_reference),
+            ),
+            (
+                TypeReferenceNode::Named { symbol: field_name, .. },
+                TypeReferenceNode::Named { symbol: value_name, .. }
+            ) if field_name == value_name
+        );
+        if !same_named_type {
+            return None;
+        }
+        let value_plan = structural_parameters
+            .iter()
+            .find(|parameter| parameter.position as usize == value_position)?;
+        if value_plan.is_self
+            || value_plan.access != CheckedStructuralAccess::Owned
+            || value_plan.multiplicity != Multiplicity::Unrestricted
+            || !value_plan.qualifications.is_empty()
+            || !value_plan.projected_qualifications.is_empty()
+            || value_plan.fused_service_erasure.is_some()
+        {
+            return None;
+        }
+        return Some(CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(
+            checked_trees::CheckedStructuralCaseFieldStorePlan {
+                statement_index,
+                destination:
+                    checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+                        position: destination.position,
+                    },
+                carrier_path,
+                field_identity: terminal_field_identity(program, field.symbol)?,
+                value: checked_trees::CheckedUnitStructuralArgumentPlan {
+                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index: u32::try_from(value_position).ok()?,
+                    },
+                    path: Vec::new(),
+                    type_identity: value_plan.type_identity.clone(),
+                    access: CheckedStructuralAccess::Owned,
+                },
+            },
+        ));
+    };
     if !matches!(
         primitive_type,
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
@@ -1543,6 +1633,29 @@ fn plain_record(data: &typed_trees::data::DataDefinition, program: &TypedTrees) 
         && !data.zero_gated
         && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
             == DataShapeKind::Record
+}
+
+/// A closed payload-free pure-sum data declaration: CheckedShape supply, no
+/// lifetimes or type parameters, no quotient or where facts, unrestricted
+/// multiplicity, and every member a payload-free case. Copying a whole owned
+/// place into such a field moves nothing, so the store needs no carrier
+/// borrow window.
+fn unrestricted_sum(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+    data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
+        && data.lifetime_parameters.is_empty()
+        && program.data_type_parameters(data).is_empty()
+        && data.quotient.is_none()
+        && data.where_facts.is_empty()
+        && !data.zero_gated
+        && data.properties.multiplicity == language_semantics::Multiplicity::Unrestricted
+        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
+            == DataShapeKind::Enum
+        && program.data_members(data).iter().all(|member| {
+            let DataMember::Variant(variant) = member else {
+                return false;
+            };
+            program.data_payload_fields(variant).is_empty()
+        })
 }
 
 fn retained_record_owner_application(

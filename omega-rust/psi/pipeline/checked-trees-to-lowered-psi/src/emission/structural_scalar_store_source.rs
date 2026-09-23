@@ -172,6 +172,15 @@ pub(crate) fn validate(
         }) {
             continue;
         }
+        // A whole-sum field store covers its authored assignment with ordinary
+        // write custody; scalar-store validation does not apply to it.
+        if plan.operations.iter().any(|operation| {
+            matches!(operation,
+            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store)
+                if store.statement_index == statement_index)
+        }) {
+            continue;
+        }
         let matching = stores
             .iter()
             .filter(|store| store.statement_index == statement_index)

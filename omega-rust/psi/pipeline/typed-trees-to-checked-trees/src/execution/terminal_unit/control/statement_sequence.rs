@@ -407,6 +407,9 @@ fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> 
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
             Some(store.statement_index)
         }
+        CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
+            Some(store.statement_index)
+        }
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
             Some(store.statement_index)
         }

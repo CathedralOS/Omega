@@ -1215,6 +1215,9 @@ impl MachineEmission<'_> {
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore { .. } => {
                 self.structural_scalar_field_store(operation)?
             }
+            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_) => {
+                return unsupported("Unit structural case field store has no lowered operation");
+            }
             CheckedUnitEffectOperationPlan::MoveStructuralField { .. } => {
                 self.move_structural_field(operation)?
             }
