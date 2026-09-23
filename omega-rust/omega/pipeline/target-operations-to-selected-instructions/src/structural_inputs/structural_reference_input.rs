@@ -589,16 +589,8 @@ fn shape_inner(
                 .map(|case| {
                     case.fields
                         .iter()
-                        .map(|field| {
-                            if field.relevance.is_erased() {
-                                return None;
-                            }
-                            let ScalarType::Integer(integer) = field.field_type.scalar_type()?
-                            else {
-                                return None;
-                            };
-                            scalar_shape(ScalarType::Integer(integer))
-                        })
+                        .filter(|field| !field.relevance.is_erased())
+                        .map(|field| field_shape(&field.field_type, declarations, active))
                         .collect::<Option<Vec<_>>>()
                 })
                 .collect::<Option<Vec<_>>>()?;
@@ -669,7 +661,7 @@ fn shape_inner(
     result
 }
 
-fn field_shape(
+pub(crate) fn field_shape(
     field: &StructuralFieldType,
     declarations: &[StructuralTypeDeclaration],
     active: &mut Vec<StructuralTypeId>,

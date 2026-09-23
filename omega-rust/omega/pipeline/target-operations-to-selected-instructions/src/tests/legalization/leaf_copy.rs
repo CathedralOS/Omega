@@ -36,71 +36,191 @@ fn field(id: u64, identity: &str, field_type: StructuralFieldType) -> Structural
     }
 }
 
-pub(crate) fn fixture(
+fn case(
+    id: u64,
+    identity: &str,
+    fields: Vec<StructuralFieldDeclaration>,
+) -> terminal_psi::StructuralCaseDeclaration {
+    terminal_psi::StructuralCaseDeclaration {
+        id: semantic_vocabulary::StructuralCaseId::new(id).unwrap(),
+        identity: identity.into(),
+        fields,
+    }
+}
+
+fn declare(id: u64, identity: &str, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+    StructuralTypeDeclaration {
+        id: StructuralTypeId::new(id).unwrap(),
+        identity: identity.into(),
+        shape,
+    }
+}
+
+fn inner_type() -> StructuralTypeDeclaration {
+    declare(
+        10,
+        "test::Inner",
+        StructuralTypeShape::Record {
+            fields: vec![
+                field(1, "first", StructuralFieldType::Scalar(i64_type())),
+                field(2, "second", StructuralFieldType::Scalar(i32_type())),
+            ],
+        },
+    )
+}
+
+fn outer_type() -> StructuralTypeDeclaration {
+    declare(
+        20,
+        "test::Outer",
+        StructuralTypeShape::Record {
+            fields: vec![
+                field(1, "tag", StructuralFieldType::Scalar(i32_type())),
+                field(
+                    2,
+                    "inner",
+                    StructuralFieldType::Structural(StructuralTypeId::new(10).unwrap()),
+                ),
+            ],
+        },
+    )
+}
+
+fn scalar_i32_type() -> StructuralTypeDeclaration {
+    declare(30, "i32", StructuralTypeShape::PrimitiveScalar(i32_type()))
+}
+
+fn sum_type() -> StructuralTypeDeclaration {
+    declare(
+        40,
+        "test::Sum",
+        StructuralTypeShape::Sum {
+            cases: vec![
+                case(
+                    1,
+                    "Alpha",
+                    vec![field(1, "wide", StructuralFieldType::Scalar(i64_type()))],
+                ),
+                case(
+                    2,
+                    "Beta",
+                    vec![
+                        field(
+                            1,
+                            "inner",
+                            StructuralFieldType::Structural(StructuralTypeId::new(10).unwrap()),
+                        ),
+                        field(2, "code", StructuralFieldType::Scalar(i32_type())),
+                    ],
+                ),
+            ],
+        },
+    )
+}
+
+fn mixed_type() -> StructuralTypeDeclaration {
+    declare(
+        50,
+        "test::Mixed",
+        StructuralTypeShape::Mixed {
+            fields: vec![field(1, "common", StructuralFieldType::Scalar(i32_type()))],
+            cases: vec![case(
+                2,
+                "Ready",
+                vec![field(1, "wide", StructuralFieldType::Scalar(i64_type()))],
+            )],
+        },
+    )
+}
+
+fn array_type() -> StructuralTypeDeclaration {
+    declare(
+        60,
+        "test::Array",
+        StructuralTypeShape::FixedArray {
+            element: StructuralTypeId::new(10).unwrap(),
+            length: 2,
+        },
+    )
+}
+
+fn sequence_type() -> StructuralTypeDeclaration {
+    declare(
+        70,
+        "test::Sequence",
+        StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView),
+    )
+}
+
+fn view_type() -> StructuralTypeDeclaration {
+    declare(
+        80,
+        "test::View",
+        StructuralTypeShape::ElementView {
+            element: StructuralTypeId::new(30).unwrap(),
+        },
+    )
+}
+
+fn scalar_i64_type() -> StructuralTypeDeclaration {
+    declare(31, "i64", StructuralTypeShape::PrimitiveScalar(i64_type()))
+}
+
+fn reference_holder_type() -> StructuralTypeDeclaration {
+    declare(
+        91,
+        "test::ReferenceHolder",
+        StructuralTypeShape::Record {
+            fields: vec![field(
+                1,
+                "loan",
+                StructuralFieldType::Structural(StructuralTypeId::new(92).unwrap()),
+            )],
+        },
+    )
+}
+
+fn reference_type() -> StructuralTypeDeclaration {
+    declare(
+        92,
+        "test::Loan",
+        StructuralTypeShape::Reference {
+            referent: StructuralTypeId::new(31).unwrap(),
+            access: StructuralAccess::MutableBorrow,
+        },
+    )
+}
+
+fn catalog() -> Vec<StructuralTypeDeclaration> {
+    vec![
+        inner_type(),
+        outer_type(),
+        scalar_i32_type(),
+        sum_type(),
+        mixed_type(),
+        array_type(),
+        sequence_type(),
+        view_type(),
+        scalar_i64_type(),
+        reference_holder_type(),
+        reference_type(),
+    ]
+}
+
+/// A leaf copy whose parameter type, path, and result type vary per endpoint
+/// kind. `param` must be a record when `path` projects through fields; an
+/// empty `path` copies the whole root.
+pub(crate) fn endpoint_fixture(
     native: NativeTarget,
+    param: StructuralTypeDeclaration,
+    path: Vec<StructuralPathSegment>,
+    result_type: StructuralTypeId,
 ) -> (
     abstract_operations::AbstractOperationPlan,
     target_operations::TargetOperationPlan,
     optimization_unit::PsiOptimizationUnit,
 ) {
-    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
-    let inner = StructuralTypeId::new(10).unwrap();
-    let outer = StructuralTypeId::new(20).unwrap();
-    source
-        .structural_types
-        .make_mut()
-        .push(StructuralTypeDeclaration {
-            id: inner,
-            identity: "test::Inner".into(),
-            shape: StructuralTypeShape::Record {
-                fields: vec![
-                    field(1, "first", StructuralFieldType::Scalar(i64_type())),
-                    field(2, "second", StructuralFieldType::Scalar(i32_type())),
-                ],
-            },
-        });
-    source
-        .structural_types
-        .make_mut()
-        .push(StructuralTypeDeclaration {
-            id: outer,
-            identity: "test::Outer".into(),
-            shape: StructuralTypeShape::Record {
-                fields: vec![
-                    field(1, "tag", StructuralFieldType::Scalar(i32_type())),
-                    field(2, "inner", StructuralFieldType::Structural(inner)),
-                ],
-            },
-        });
-    source.functions[0]
-        .structural_parameters
-        .push(terminal_psi::StructuralParameterDeclaration {
-            place: PlaceId::new(1).unwrap(),
-            position: 0,
-            is_self: false,
-            structural_type: outer,
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            access: StructuralAccess::SharedBorrow,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-        });
-    source.functions[0].operations.insert(
-        0,
-        AbstractOperation::StructuralLeafCopy {
-            psi_operation: OperationId::new(1).unwrap(),
-            source: PlaceId::new(1).unwrap(),
-            path: vec![StructuralPathSegment::Field("inner".into())],
-            result: StructuralOperationResult {
-                qualification_establishments: Vec::new(),
-                place: PlaceId::new(2).unwrap(),
-                structural_type: inner,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                claims: Vec::new(),
-            },
-        },
-    );
+    let source = leaf_copy_source(param, path, result_type);
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &source,
         TargetLoweringRequest::new(native),
@@ -114,6 +234,147 @@ pub(crate) fn fixture(
     optimization_unit_semantics::validate_psi_optimization_unit(&unit)
         .expect("leaf copy graph keeps canonical custody");
     (source, target, unit)
+}
+
+/// The source half of `endpoint_fixture`, before lowering.
+fn leaf_copy_source(
+    param: StructuralTypeDeclaration,
+    path: Vec<StructuralPathSegment>,
+    result_type: StructuralTypeId,
+) -> abstract_operations::AbstractOperationPlan {
+    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    let mut declarations = catalog();
+    declarations.retain(|declaration| declaration.id != param.id);
+    declarations.push(param.clone());
+    declarations.sort_by_key(|declaration| declaration.id);
+    for declaration in declarations {
+        source.structural_types.make_mut().push(declaration);
+    }
+    source.functions[0]
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place: PlaceId::new(1).unwrap(),
+            position: 0,
+            is_self: false,
+            structural_type: param.id,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::SharedBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    source.functions[0].operations.insert(
+        0,
+        AbstractOperation::StructuralLeafCopy {
+            psi_operation: OperationId::new(1).unwrap(),
+            source: PlaceId::new(1).unwrap(),
+            path,
+            result: StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: PlaceId::new(2).unwrap(),
+                structural_type: result_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+        },
+    );
+    source
+}
+
+/// A record host whose `leaf` field lands at byte offset 8 behind a `pad`
+/// scalar, so every endpoint kind shares one expected offset.
+fn host(leaf_field_type: StructuralFieldType) -> StructuralTypeDeclaration {
+    declare(
+        90,
+        "test::Host",
+        StructuralTypeShape::Record {
+            fields: vec![
+                field(1, "pad", StructuralFieldType::Scalar(i32_type())),
+                field(2, "leaf", leaf_field_type),
+            ],
+        },
+    )
+}
+
+/// The retained leaf copy's `(byte_offset, shape)` in both target operations
+/// and the legalized scalar graph, asserting the stages agree.
+fn leaf_copy_rows(
+    target: &target_operations::TargetOperationPlan,
+    legal: &crate::ValidatedLegalizedOperations,
+) -> (u32, calling_conventions::ValueShape) {
+    let copies: Vec<_> = target.functions[0]
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation, TargetUnitOperation::StructuralLeafCopy { .. }))
+        .collect();
+    assert_eq!(copies.len(), 1, "one retained leaf copy row");
+    let TargetUnitOperation::StructuralLeafCopy { byte_offset, .. } = copies[0] else {
+        unreachable!()
+    };
+    let byte_offset = *byte_offset;
+    let rows: Vec<_> = legal.plan().scalar_functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| {
+            matches!(
+                row.kind,
+                LegalizedScalarInstructionKind::StructuralLeafCopy { .. }
+            )
+        })
+        .collect();
+    assert_eq!(rows.len(), 1, "one legalized leaf copy instruction");
+    let LegalizedScalarInstructionKind::StructuralLeafCopy {
+        byte_offset: legalized_offset,
+        shape,
+        ..
+    } = rows[0].kind
+    else {
+        unreachable!()
+    };
+    assert_eq!(legalized_offset, byte_offset);
+    (byte_offset, shape)
+}
+
+/// A leaf copy projected through a `leaf` structural field in `host` is the
+/// shared endpoint harness: lowering keeps the projection offset and
+/// legalization pairs it with the canonical leaf shape.
+fn field_leaf(
+    leaf_type: StructuralTypeDeclaration,
+    result_type: StructuralTypeId,
+) -> (
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
+) {
+    endpoint_fixture(
+        NativeTarget::linux_x64(),
+        host(structural_field(leaf_type)),
+        vec![StructuralPathSegment::Field("leaf".into())],
+        result_type,
+    )
+}
+
+fn structural_field(ty: StructuralTypeDeclaration) -> StructuralFieldType {
+    StructuralFieldType::Structural(ty.id)
+}
+
+pub(crate) fn fixture(
+    native: NativeTarget,
+) -> (
+    abstract_operations::AbstractOperationPlan,
+    target_operations::TargetOperationPlan,
+    optimization_unit::PsiOptimizationUnit,
+) {
+    endpoint_fixture(
+        native,
+        outer_type(),
+        vec![StructuralPathSegment::Field("inner".into())],
+        StructuralTypeId::new(10).unwrap(),
+    )
 }
 
 #[test]
@@ -296,4 +557,157 @@ fn leaf_copy_rejects_projection_and_home_substitution() {
             "mutation {mutation}"
         );
     }
+}
+
+#[test]
+fn leaf_copy_scalar_field_endpoint_lowers_and_legalizes() {
+    // An inline scalar leaf resolves through its canonical PrimitiveScalar
+    // declaration: the host's only field is the leaf at offset 0.
+    let (source, target, unit) = endpoint_fixture(
+        NativeTarget::linux_x64(),
+        declare(
+            90,
+            "test::ScalarHost",
+            StructuralTypeShape::Record {
+                fields: vec![field(1, "leaf", StructuralFieldType::Scalar(i32_type()))],
+            },
+        ),
+        vec![StructuralPathSegment::Field("leaf".into())],
+        StructuralTypeId::new(30).unwrap(),
+    );
+    let legal = legalize_target_operations(&target, &source, &unit)
+        .expect("a scalar leaf endpoint legalizes");
+    assert_eq!(
+        leaf_copy_rows(&target, &legal),
+        (0, calling_conventions::ValueShape::integer(4, 4))
+    );
+}
+
+#[test]
+fn leaf_copy_sum_mixed_and_view_endpoints_lower_and_legalize() {
+    // Sum (structural payload), Mixed, ByteSequence view, and ElementView
+    // endpoints all resolve through one `Structural` field at offset 8.
+    for (endpoint, result_type) in [
+        (sum_type(), StructuralTypeId::new(40).unwrap()),
+        (mixed_type(), StructuralTypeId::new(50).unwrap()),
+        (sequence_type(), StructuralTypeId::new(70).unwrap()),
+        (view_type(), StructuralTypeId::new(80).unwrap()),
+    ] {
+        let (source, target, unit) = field_leaf(endpoint, result_type);
+        let legal =
+            legalize_target_operations(&target, &source, &unit).expect("endpoint kind legalizes");
+        let (offset, shape) = leaf_copy_rows(&target, &legal);
+        assert_eq!(offset, 8, "every endpoint field sits behind pad");
+        assert!(shape.byte_size > 0, "endpoint carries a real extent");
+    }
+}
+
+#[test]
+fn leaf_copy_fixed_index_traversal_resolves_the_element() {
+    // `leaf.elements[1]` walks a FixedArray: offset = leaf(8) + stride(16).
+    let (source, target, unit) = endpoint_fixture(
+        NativeTarget::linux_x64(),
+        host(structural_field(array_type())),
+        vec![
+            StructuralPathSegment::Field("leaf".into()),
+            StructuralPathSegment::FixedIndex(1),
+        ],
+        StructuralTypeId::new(10).unwrap(),
+    );
+    let legal = legalize_target_operations(&target, &source, &unit)
+        .expect("a fixed array element endpoint legalizes");
+    assert_eq!(
+        leaf_copy_rows(&target, &legal),
+        (24, calling_conventions::ValueShape::integer(16, 8))
+    );
+}
+
+#[test]
+fn leaf_copy_whole_root_copy_lowers_and_legalizes() {
+    // An empty path copies the entire readable root; the parameter type is
+    // the endpoint directly.
+    let (source, target, unit) = endpoint_fixture(
+        NativeTarget::linux_x64(),
+        sum_type(),
+        Vec::new(),
+        StructuralTypeId::new(40).unwrap(),
+    );
+    let legal =
+        legalize_target_operations(&target, &source, &unit).expect("a whole-root copy legalizes");
+    let (offset, shape) = leaf_copy_rows(&target, &legal);
+    assert_eq!(offset, 0);
+    assert!(shape.byte_size > 0);
+}
+
+#[test]
+fn leaf_copy_rejects_reference_carrying_endpoint() {
+    // A record leaf containing a reference carrier would copy a loan handle,
+    // not owned storage: borrowed roots carrying references are rejected by
+    // the lowering boundary before the endpoint containment walk runs.
+    let source = leaf_copy_source(
+        host(StructuralFieldType::Structural(
+            StructuralTypeId::new(91).unwrap(),
+        )),
+        vec![StructuralPathSegment::Field("leaf".to_string())],
+        StructuralTypeId::new(91).unwrap(),
+    );
+    assert!(
+        abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(NativeTarget::linux_x64()),
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn leaf_copy_selects_fixed_array_copy() {
+    // A 32-byte FixedArray endpoint realizes as four chunked load/store
+    // pairs into its fresh structural slot.
+    let (source, target, unit) = field_leaf(array_type(), StructuralTypeId::new(60).unwrap());
+    let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+    let environment =
+        register_environment::baseline_target_register_environment(NativeTarget::linux_x64())
+            .unwrap();
+    let constraints = selection_constraints(&legal, &environment);
+    let selected = select_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .expect("a fixed array leaf copy reaches selection");
+    validate_selected_instructions(
+        &legal,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+        selected.plan().clone(),
+    )
+    .unwrap();
+    let function = &selected.plan().functions[0];
+    assert_eq!(function.local_storage_slots.len(), 1);
+    assert_eq!(function.local_storage_slots[0].byte_size, 32);
+    let loads: Vec<u32> = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| row.provenance.operations == [OperationId::new(1).unwrap()])
+        .filter_map(|row| match row.kind {
+            SelectedInstructionKind::Load64 { byte_offset } => Some(byte_offset),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(loads, [8, 16, 24, 32]);
+    let stores: Vec<u32> = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|row| row.provenance.operations == [OperationId::new(1).unwrap()])
+        .filter_map(|row| match row.kind {
+            SelectedInstructionKind::Store { byte_offset, .. } => Some(byte_offset),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stores, [0, 8, 16, 24]);
 }
