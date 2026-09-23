@@ -2254,6 +2254,20 @@ syntax and other terminal services are not prerequisites.
   closed-sum case edge still refuses a forged discard"), so which fact is
   authoritative there is that commit's call, not a free choice.
 
+  The governing clause narrows it rather than leaving it open.
+  [Terminal ownership](wiki/spec/terminal-psi/ownership.md) says every
+  incoming owned obligation on an ordinary continuing or returning edge
+  "occurs exactly once in the edge's transfer map, explicit terminal
+  consumption, eligible automatic cleanup, or validated no-code affine
+  discard" -- **exactly once**, across four routes. A case arm that
+  destructures its scrutinee consumes it; if that is "explicit terminal
+  consumption" (route two), then naming the same position a no-code affine
+  discard (route four) counts it twice, and the cleanup evidence is the side
+  that is wrong rather than the edge. Confirm that reading against the case
+  route before repairing, because the opposite reading -- that the arm
+  transfers the payload and discards the shell -- also lands on exactly one
+  route and would make the edge the wrong side instead.
+
   Three tests, one cause, all green at `c049c026b6^` and red from
   `c049c026b6`: `optimization-unit-semantics
   tests::structural_cases::owned_results::{owned_call_result_transfers_to_case_parameter,
