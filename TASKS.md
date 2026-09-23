@@ -315,10 +315,8 @@ the complete product bar; focused successes below do not establish that baseline
   `selected_dispatch::program_entry_service_requirements`; targetless checking
   has no selected entry and cannot exercise that nomination. Keep
   `filesystem/runtime_local_host_result_dispatch_exit` as the Linux
-  source-effect ordering probe. `capabilities/uses_caller_folder` also needs
-  service-carrier argument multiplicity; retain
-  `fail/providers/service_borrowed_parameter_rejected` until its borrowed
-  carrier contract is implemented, not bypassed.
+  source-effect ordering probe. Borrowed binding parameters and
+  `capabilities/uses_caller_folder` are owned by **ENTRY-CONTENT-ROOTS**.
 
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
@@ -915,6 +913,16 @@ syntax and other terminal services are not prerequisites.
     Finish remaining bare-carrier fixture/application migration without weakening
     source rejection or exact application identity. Installation, not compilation,
     owns actual occurrence custody.
+  - Complete borrowed `Binding<R>` parameter and argument transport. Migrate
+    `capabilities/uses_caller_folder` so `Librarian::archive` takes
+    `folder: &Binding<Folder>` and the borrowed `Main::main` lends its field;
+    preserve its caller-supplied authority and native service effect. Promote
+    `fail/providers/service_borrowed_parameter_rejected` to positive coverage
+    when the same general route works through checking, Unit/Terminal calls,
+    selected dispatch, interpretation, and native realization. Keep a negative
+    control that moving affine `Binding<R>` by value out of borrowed storage
+    without replacement rejects. Provider multiplicity, conformance, and fused
+    erasure must not change the carrier's declaration-owned affine semantics.
 
   Acceptance: published `number_guess`, `cli_mvp` and `generic_counters`
   retain their documented behavior with no test-supplied `self` or service

@@ -4,6 +4,8 @@
 // composition and installation, never by package-authored construction. A
 // fused build may erase the carrier only after joining it to the exact selected
 // provider for `R`; independent composition retains a runtime slot carrier.
+// The provider's own multiplicity does not change this carrier: installation
+// may retain a linear provider while affine bindings borrow its routed service.
 //
 // Service validity is intrinsic to the closed `Binding<R>` identity: the
 // carrier already denotes toolchain establishment, so no authored domain

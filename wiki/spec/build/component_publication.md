@@ -191,6 +191,10 @@ boundary requirement. `Binding` is declared as opaque boundary data in
 `omega::core`; binding establishment, custody, and realization are compiler
 semantics, not an implementation supplied by that source declaration. It is a
 service-binding carrier, not a general wrapper for trusted build-provided objects.
+Its affine multiplicity comes from the `Binding` data declaration and is unchanged
+by `R`, the selected provider, or whether realization is fused or independent.
+Passing `Binding<R>` by value moves that binding occurrence. Repeated service use
+borrows it; copying requires a checked protocol that establishes another binding.
 
 `Binding` is a core type name, not a keyword. It does not imply networking or
 asynchronous execution. The foreign-symbol locator is separately named
@@ -223,6 +227,14 @@ No new user-authored validity modifier or construction syntax is introduced.
 An independently installed binding names the stable slot, not one permanent era.
 A protocol may publish checked explicit duplication or stronger linear lifecycle
 obligations on the carrier; the requirement trait itself acquires no multiplicity.
+The provider implementation's multiplicity is separate: installation may retain
+one linear provider value while exposing affine bindings that route calls into its
+era. Provider teardown accounts for that provider value; it does not make each
+binding linear or each call consuming. Use a distinct linear session,
+registration, completion, or shutdown carrier when routing authority itself is
+not the exact-once obligation. Do not add `LinearBinding<R>` without a concrete
+protocol whose binding occurrence, rather than its provider or returned resource,
+must be consumed exactly once.
 
 Fused lowering may erase an established carrier into direct dispatch.
 Independent calls resolve the current era, enter exactly that era, and retain
