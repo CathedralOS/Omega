@@ -485,10 +485,16 @@ impl SelectedCompilerProgramEntry {
             .receiver()
             .normalized_type_identity()
             .ok_or("a free ProgramEntry cannot establish receiver fields")?;
-        establishments.sort_by(|left, right| left.field_identity().cmp(right.field_identity()));
+        // Key on the field ROUTE, not the leaf name. A service carrier
+        // contributes one establishment at whatever depth the receiver's
+        // record-field tree places it, which is how the producer both orders
+        // and de-duplicates them, so two bindings that differ only in their
+        // owning record -- `Main::console` and `Main::banner::console` --
+        // share a leaf name and are not a repeat.
+        establishments.sort_by(|left, right| left.field_path().cmp(right.field_path()));
         if establishments
             .windows(2)
-            .any(|pair| pair[0].field_identity() == pair[1].field_identity())
+            .any(|pair| pair[0].field_path() == pair[1].field_path())
             || establishments.iter().any(|establishment| {
                 establishment.source_signature_identity() != source_identity
                     || establishment.target_slot() != target_slot

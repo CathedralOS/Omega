@@ -291,9 +291,14 @@ the complete product bar; focused successes below do not establish that baseline
   `capabilities/uses_caller_folder`, `capabilities/acquires_through_helper_return`,
   `domains/explicit_domain_erasure`, `proofs/cauchy_predicates_compile`,
   `providers/external_leaf_dllimport_compile`,
-  `calls/nested_machine_continuation`,
   `control_flow/runtime_branching_helper_string` and
   `core/extent_root_provider_adapter`.
+  `calls/nested_machine_continuation` was a tenth and is FIXED: its `Fused root
+  establishments drifted from their selected ProgramEntry` was two consumers
+  keying a service establishment on the field's LEAF NAME while the producer
+  keys on the field ROUTE, so a nested `banner: Banner` binding named `console`
+  read as a repeat of the receiver's own `console`. It now compiles for the
+  native host.
 
   The 88-member plurality is NOT one blocker. Every member carries an
   `omitted at local construction at ...` site, and at `988aef22078` they fall

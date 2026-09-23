@@ -137,13 +137,18 @@ impl<'entry> NativeProgramEntrySettlement<'entry> {
                 || establishment.target_slot() != slot
                 || receiver_identity
                     .is_none_or(|receiver| establishment.receiver_type_identity() != receiver)
-                || previous_field.is_some_and(|field| field >= establishment.field_identity())
+                // Strictly increasing by the field ROUTE, not the leaf name:
+                // a service carrier contributes one establishment at whatever
+                // depth the receiver's record-field tree places it, so two
+                // bindings differing only in their owning record share a leaf
+                // name without being out of order or repeated.
+                || previous_field.is_some_and(|field| field >= establishment.field_path())
             {
                 return Err(
                     "Fused root establishments drifted from canonical ProgramEntry custody".into(),
                 );
             }
-            previous_field = Some(establishment.field_identity());
+            previous_field = Some(establishment.field_path());
         }
         Ok(())
     }
