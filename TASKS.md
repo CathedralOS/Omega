@@ -2273,6 +2273,24 @@ syntax and other terminal services are not prerequisites.
   repair -- the identity comparison would then reject on
   `"record operand changed its declared referent type"`.
 
+  It is not one site. Five places across three crates and both pipeline
+  stages reconstruct an attachment the same fragile way, by asking the
+  interning table for a `Named` node that only exists if some program
+  incidentally spells the type:
+
+  - `checked-trees-to-lowered-psi` `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs:176`
+    ("record source attachment has no declared type" -- the measured failure);
+  - `checked-trees-to-lowered-psi` `emission/call_source_custody/projected_receivers/aliases.rs:159`
+    ("receiver alias self lost its attachment"), whose whole-root-self branch
+    is the same shape line for line;
+  - `typed-trees-to-checked-trees` `execution/terminal_unit/calls/computation_arguments/mod.rs:295` and `:359`;
+  - `typed-trees-to-checked-trees` `execution/terminal_unit/receiver_aliases/mod.rs:161`.
+
+  Each fails closed with its own message, so repairing only the reported one
+  leaves four latent copies that surface later as unrelated-looking refusals.
+  Whatever route is chosen belongs behind one shared query on the machine,
+  not repeated at each call site.
+
   The fork is therefore upstream of this file, in how a machine's attachment
   is typed: intern a named reference for a machine's attached data so `self`
   has a declared type to reconstruct from, type the self formal by the data
