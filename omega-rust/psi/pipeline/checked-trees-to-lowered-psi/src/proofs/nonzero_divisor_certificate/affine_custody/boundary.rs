@@ -25,12 +25,13 @@ pub(in super::super) fn prove_from_root_after(
         definitions,
         root,
         minimum_axiom,
-        |witness| {
+        |definitions, witness| {
             completion::prove(
                 context,
                 goal,
                 assumptions,
                 semantic_axioms,
+                definitions,
                 minimum_axiom,
                 &root_bound,
                 witness,

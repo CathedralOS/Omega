@@ -78,8 +78,8 @@ pub(super) fn exact_add<'a>(
 ) -> Option<ExactAddDefinition<'a>> {
     let mut matches = definitions
         .output_definitions_before(operand, cutoff)
-        .iter()
-        .filter_map(|&index| {
+        .into_iter()
+        .filter_map(|index| {
             let proposition = semantic_axioms.get(index)?;
             let Proposition::Equal(first, second) = proposition else {
                 return None;

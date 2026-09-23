@@ -44,6 +44,9 @@ fn prove_discrete_endpoint(
     let Proposition::LessThan(left, right) = goal else {
         return None;
     };
+    // The endpoint/literal loops below ask many equality questions against
+    // one unchanged cited roster; the session resolves that roster once.
+    let session = exact::session(context, assumptions, semantic_axioms);
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut literals = Vec::new();
     for candidate in [left, right].into_iter().chain(
@@ -62,13 +65,9 @@ fn prove_discrete_endpoint(
     for (endpoint, target) in [left, right].into_iter().enumerate() {
         for literal in &literals {
             if literal.scalar_type() != target.scalar_type()
-                || exact::prove(
-                    context,
-                    &Proposition::Equal(target.clone(), literal.clone()),
-                    assumptions,
-                    semantic_axioms,
-                )
-                .is_none()
+                || session
+                    .prove(&Proposition::Equal(target.clone(), literal.clone()))
+                    .is_none()
             {
                 continue;
             }
@@ -103,7 +102,7 @@ fn prove_discrete_endpoint(
                     relation: Box::new(relation),
                 },
             };
-            if let Some(proof) = complete(context, goal, discrete, assumptions, semantic_axioms) {
+            if let Some(proof) = complete(&session, goal, discrete) {
                 return Some(proof);
             }
         }
@@ -129,14 +128,15 @@ fn prove_without_subtract(
     if let Some(closed) = closed_integer_relation(goal.clone()) {
         return Some(closed);
     }
+    // The fact walk and the literal search below ask many equality questions
+    // against one unchanged cited roster; the session resolves it once.
+    let session = exact::session(context, assumptions, semantic_axioms);
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut equalities = Vec::new();
     for fact in facts.iter().rev() {
         match fact.proposition {
             Proposition::LessThan(_, _) => {
-                if let Some(proof) =
-                    complete(context, goal, fact.proof(), assumptions, semantic_axioms)
-                {
+                if let Some(proof) = complete(&session, goal, fact.proof()) {
                     return Some(proof);
                 }
             }
@@ -153,9 +153,7 @@ fn prove_without_subtract(
                             relation: Box::new(fact.proof()),
                         },
                     };
-                    if let Some(proof) =
-                        complete(context, goal, discrete, assumptions, semantic_axioms)
-                    {
+                    if let Some(proof) = complete(&session, goal, discrete) {
                         return Some(proof);
                     }
                 }
@@ -175,20 +173,13 @@ fn prove_without_subtract(
             .find_map(|candidate| {
                 (candidate.integer_value().is_some()
                     && candidate.scalar_type() == term.scalar_type())
-                .then(|| {
-                    exact::prove(
-                        context,
-                        &Proposition::Equal(term.clone(), candidate.clone()),
-                        assumptions,
-                        semantic_axioms,
-                    )
-                })
+                .then(|| session.prove(&Proposition::Equal(term.clone(), candidate.clone())))
                 .flatten()
                 .map(|_| candidate.clone())
             })
     };
     let closed = closed_integer_relation(Proposition::LessThan(literal(left)?, literal(right)?))?;
-    complete(context, goal, closed, assumptions, semantic_axioms)
+    complete(&session, goal, closed)
 }
 
 fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
@@ -206,11 +197,9 @@ fn adjacent(literal: &ScalarTerm, increasing: bool) -> Option<ScalarTerm> {
 }
 
 fn complete(
-    context: &PropositionContext,
+    session: &exact::Session,
     goal: &Proposition,
     mut proof: ProofNode,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
     let Proposition::LessThan(goal_left, goal_right) = goal else {
         return None;
@@ -223,12 +212,7 @@ fn complete(
         if old == target {
             continue;
         }
-        let equality = exact::prove(
-            context,
-            &Proposition::Equal(old.clone(), target.clone()),
-            assumptions,
-            semantic_axioms,
-        )?;
+        let equality = session.prove(&Proposition::Equal(old.clone(), target.clone()))?;
         let conclusion = if endpoint == 0 {
             Proposition::LessThan(target.clone(), right.clone())
         } else {
@@ -267,7 +251,7 @@ mod tests {
             goal,
             assumptions,
             semantic_axioms,
-            &mut DefinitionIndex::new(semantic_axioms),
+            &mut DefinitionIndex::new(context, assumptions, semantic_axioms),
         )
     }
 

@@ -21,7 +21,7 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) fn prove(&self, budget: SearchBudget) -> SearchOutcome {
-        let definitions = DefinitionIndex::new(&self.axioms);
+        let definitions = DefinitionIndex::new(&self.context, &[], &self.axioms);
         super::super::prove_with_budget(
             &self.context,
             &self.goal,

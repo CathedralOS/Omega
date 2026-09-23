@@ -1,6 +1,6 @@
 //! Producer-local replay of one affine-definition frontier prefix.
 
-use proof_admission::{IntegerAffineWitness, check_integer_affine_witness};
+use proof_admission::IntegerAffineWitness;
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
 use super::super::DefinitionIndex;
@@ -37,16 +37,17 @@ pub(super) fn checked_target<'a>(
         ) else {
             return false;
         };
-        check_integer_affine_witness(
-            context,
-            semantic_axioms,
-            &IntegerAffineWitness {
-                root: root.clone(),
-                target: (*target).clone(),
-                literal_axioms,
-                definition_axioms: definition_axioms.to_vec(),
-            },
-        )
-        .is_ok()
+        definitions
+            .affine_form(
+                context,
+                semantic_axioms,
+                &IntegerAffineWitness {
+                    root: root.clone(),
+                    target: (*target).clone(),
+                    literal_axioms,
+                    definition_axioms: definition_axioms.to_vec(),
+                },
+            )
+            .is_some()
     })
 }

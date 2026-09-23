@@ -1,9 +1,13 @@
 //! Exact retained proposition proof custody.
 
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
+use std::rc::Rc;
+
 use proof_admission::{
     PrimitiveJudgment, ProofNode, ProofRule, check_value_equality_denotation, decide_primitive,
 };
-use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::super::integer_evidence::cited_facts;
 
@@ -20,80 +24,778 @@ const MAXIMUM_NORMALIZATION_ENDPOINTS: usize = 64;
 /// one missing edge into an unbounded search.
 const MAXIMUM_NORMALIZATION_PAIRS: usize = 96;
 
+/// Indexed rosters kept per worker thread. The bound/order producers re-enter
+/// `prove` hundreds of times against one unchanged cited roster within a
+/// single obligation; indexing that roster once — citation map, equality
+/// adjacency, definition tables — keeps each re-entry near the cost of the
+/// goal lookup itself instead of rescanning every cited fact per entry.
+const MAXIMUM_ROSTERS: usize = 8;
+
+/// A memo is a convenience, never a completeness gate: past each bound the
+/// producer simply recomputes the answer it would have cached.
+const MAXIMUM_ROSTER_RESULTS: usize = 8192;
+const MAXIMUM_MEMOIZED: usize = 65536;
+
+thread_local! {
+    /// Indexed cited-fact rosters this worker is proving under. `prove` is a
+    /// pure function of its `(context, goal, assumptions, semantic_axioms)`
+    /// inputs and every roster is matched by full content, never by position
+    /// or pointer, so a stale entry can at worst be rebuilt: the produced
+    /// proof still passes the kernel unchanged.
+    static ROSTERS: RefCell<Vec<Rc<Roster>>> = const { RefCell::new(Vec::new()) };
+
+    /// Distinct proposition contexts this worker has proved under. The index
+    /// doubles as the memo token below so hot lookups compare one integer
+    /// instead of re-walking the whole value-type table per call.
+    static CONTEXTS: RefCell<Vec<PropositionContext>> = const { RefCell::new(Vec::new()) };
+
+    /// Kernel-computed endpoint expansions, one map per context token, keyed
+    /// by the exact denotation input `(endpoint, equations)` — a memo of the
+    /// deterministic `check_value_equality_denotation` call, nothing more. A
+    /// hit replays nothing: the emitted `ValueEqualityTransport` edge still
+    /// cites the same equations and the kernel still replays the same
+    /// denotation on admission, so the memo can never smuggle a different
+    /// result past the receiver.
+    static DENOTATIONS: RefCell<
+        Vec<BTreeMap<(ScalarTerm, Vec<Proposition>), Option<ScalarTerm>>>,
+    > = const { RefCell::new(Vec::new()) };
+
+    /// `ClosedIntegerRelation` answers the kernel already gave, one map per
+    /// context token keyed by the ordered endpoint pair — the same
+    /// pure-input memo shape as `DENOTATIONS`.
+    static DECISIONS: RefCell<Vec<BTreeMap<(ScalarTerm, ScalarTerm), bool>>> =
+        const { RefCell::new(Vec::new()) };
+}
+
+/// The memo token for `context`, allocating a slot on first sight. Compared
+/// by content once per roster build; afterwards only the token travels.
+fn context_token(context: &PropositionContext) -> usize {
+    CONTEXTS.with(|cell| {
+        let mut cell = cell.borrow_mut();
+        match cell.iter().position(|existing| existing == context) {
+            Some(token) => token,
+            None => {
+                cell.push(context.clone());
+                cell.len() - 1
+            }
+        }
+    })
+}
+
+/// A cited-fact roster resolved once for a fixed scope, then consulted for
+/// many goals. Producers that ask a whole loop of equality questions under
+/// one unchanged `(assumptions, semantic_axioms)` pair resolve the session
+/// once — one full roster match — and then pay only the per-goal lookup
+/// instead of re-matching the whole cited roster per question.
+pub(super) struct Session {
+    roster: Rc<Roster>,
+}
+
+impl Session {
+    /// Same contract as `prove` under the session's fixed scope.
+    pub(super) fn prove(&self, goal: &Proposition) -> Option<ProofNode> {
+        self.roster.prove(goal)
+    }
+
+    /// Value terms a cited equality states directly against `endpoint`, each
+    /// carrying its `Equal(endpoint, alias)` certificate for the endpoint
+    /// substitution to cite. This is the roster's equality adjacency rather
+    /// than a cited-fact rescan per endpoint; the certificate still proves
+    /// the whole chain, so a partner joined through intermediate hops keeps
+    /// its full custody.
+    pub(super) fn value_aliases(&self, endpoint: &ScalarTerm) -> Vec<(ScalarTerm, ProofNode)> {
+        let mut aliases = Vec::new();
+        for &index in self.roster.adjacency.get(endpoint).into_iter().flatten() {
+            let Proposition::Equal(left, right) = &self.roster.equal_facts[index].conclusion else {
+                continue;
+            };
+            let alias = if left == endpoint { right } else { left };
+            if !matches!(alias, ScalarTerm::Value { .. })
+                || aliases.iter().any(|(root, _)| root == alias)
+            {
+                continue;
+            }
+            let Some(equality) = self.prove(&Proposition::Equal(endpoint.clone(), alias.clone()))
+            else {
+                continue;
+            };
+            aliases.push((alias.clone(), equality));
+        }
+        aliases
+    }
+
+    /// Memo of `integer_contradiction::prove` under the session's fixed
+    /// scope: the derived contradiction depends on `(context, assumptions,
+    /// semantic_axioms)` alone — its `DefinitionIndex` argument is itself a
+    /// pure memo — so every goal `prove_contradiction` visits under this
+    /// scope shares one derivation instead of re-running the legs for each.
+    /// The returned proof still cites this scope's facts for the kernel to
+    /// replay.
+    pub(super) fn contradiction(
+        &self,
+        derive: impl FnOnce() -> Option<ProofNode>,
+    ) -> Option<ProofNode> {
+        if let Some(derived) = &*self.roster.contradiction.borrow() {
+            return derived.clone();
+        }
+        let derived = derive();
+        *self.roster.contradiction.borrow_mut() = Some(derived.clone());
+        derived
+    }
+}
+
+/// Resolve the indexed roster for this scope once; the returned session
+/// shares it for every goal the surrounding producer asks.
+pub(super) fn session(
+    context: &PropositionContext,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Session {
+    Session {
+        roster: roster(context, assumptions, semantic_axioms),
+    }
+}
+
 pub(super) fn prove(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
-    cited_facts(assumptions, semantic_axioms)
-        .find(|(_, fact)| *fact == goal)
-        .map(|(citation, fact)| citation.proof(fact))
-        .or_else(|| equality_chain(context, goal, assumptions, semantic_axioms))
+    session(context, assumptions, semantic_axioms).prove(goal)
 }
 
-/// Follow explicitly cited equalities, proving every reversed edge. A machine
-/// result aliases its returned value, whose defining operation supplies the
-/// literal equation. No missing equation or implicit symmetry is assumed.
-/// When no cited chain reaches the goal, the kernel's licensed
-/// closed/open-term integer derivation may still certify an edge between two
-/// endpoints — `(acc + 1) + (remaining - 1) == acc + remaining` — which then
-/// composes like any cited fact; the kernel re-decides the same judgment on
-/// replay, so a wrong update or a stale endpoint still cannot pass.
-fn equality_chain(
+/// The most-recently-used indexed roster for `scope`, building it on first
+/// sight. Matching is always by full content.
+fn roster(
     context: &PropositionContext,
-    goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-) -> Option<ProofNode> {
-    let Proposition::Equal(left, right) = goal else {
-        return None;
-    };
-    if left == right {
-        return Some(ProofNode {
-            conclusion: goal.clone(),
-            rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-        });
+) -> Rc<Roster> {
+    ROSTERS.with(|cell| {
+        let mut rosters = cell.borrow_mut();
+        let index = match rosters
+            .iter()
+            .rposition(|roster| roster.matches(context, assumptions, semantic_axioms))
+        {
+            Some(index) => index,
+            None => {
+                rosters.push(Rc::new(Roster::new(context, assumptions, semantic_axioms)));
+                rosters.len() - 1
+            }
+        };
+        let roster = rosters.remove(index);
+        rosters.push(roster.clone());
+        if rosters.len() > MAXIMUM_ROSTERS {
+            rosters.remove(0);
+        }
+        roster
+    })
+}
+
+/// One cited-fact roster indexed for repeated `prove` entry: the citation map
+/// the direct lookup consults, the cited equalities flattened through
+/// unconditional conjunctions, an endpoint → equality adjacency for chain
+/// traversal, and the `value = term` definition tables transport expands
+/// endpoints through. Every field derives from `(context, assumptions,
+/// semantic_axioms)` alone, so content-matched reuse is transparent.
+struct Roster {
+    context: PropositionContext,
+    /// This context's slot in `CONTEXTS`; `denotation`/`decide` lookups
+    /// compare the token rather than the whole value-type table.
+    token: usize,
+    assumptions: Vec<Proposition>,
+    semantic_axioms: Vec<Proposition>,
+    /// First citation proof per top-level proposition, keeping cited order.
+    cited: BTreeMap<Proposition, ProofNode>,
+    /// Cited `Equal` proofs in the same order the flattening walk emits them.
+    equal_facts: Vec<ProofNode>,
+    /// Endpoint → `equal_facts` indices incident to it, either orientation.
+    adjacency: BTreeMap<ScalarTerm, Vec<usize>>,
+    /// Sorted distinct endpoints of `equal_facts`.
+    base_endpoints: Vec<ScalarTerm>,
+    /// `equal_facts` indices whose conclusion is `Equal(Value, _)`.
+    definitions: Vec<usize>,
+    /// First cited definition per value id — the substitution
+    /// `from_semantic_axioms` performs inside denotation — used to gather
+    /// exactly the equations an endpoint's expansion can consult.
+    first_definitions: BTreeMap<ValueId, usize>,
+    /// Every value id named on the left of a cited `Equal(Value, _)`.
+    defined: BTreeSet<ValueId>,
+    /// Cited-equality graph components: two endpoints share one exactly when
+    /// a cited chain joins them — the reachability `chain_through` traverses.
+    /// Leaf endpoints can move only along those edges, so leaves in distinct
+    /// components reject without a traversal.
+    components: BTreeMap<ScalarTerm, usize>,
+    /// Endpoint → `(expansion, closure indices)` already computed here, or
+    /// `None` when the endpoint has no expansion. The emitted edge cites the
+    /// closure subset rather than the whole definition roster, which keeps
+    /// each denotation proportional to the endpoint's own reach and lets the
+    /// global memo share results across rosters citing the same definitions.
+    transports: RefCell<BTreeMap<ScalarTerm, Option<(ScalarTerm, Vec<usize>)>>>,
+    /// `prove` answers for this fixed roster — the producer's own memo of a
+    /// pure function of `(roster, goal)`. A hit replays nothing: the returned
+    /// proof still cites this roster's equations and the kernel still replays
+    /// every step on admission.
+    results: RefCell<BTreeMap<Proposition, Option<ProofNode>>>,
+    /// The derived integer contradiction for this scope, or `None` once
+    /// derived — `integer_contradiction::prove` is a pure function of this
+    /// roster's scope, so `Session::contradiction` computes it at most once.
+    contradiction: RefCell<Option<Option<ProofNode>>>,
+}
+
+impl Roster {
+    fn matches(
+        &self,
+        context: &PropositionContext,
+        assumptions: &[Proposition],
+        semantic_axioms: &[Proposition],
+    ) -> bool {
+        self.assumptions.as_slice() == assumptions
+            && self.semantic_axioms.as_slice() == semantic_axioms
+            && self.context == *context
     }
-    let mut facts = Vec::new();
-    let mut pending_facts = cited_facts(assumptions, semantic_axioms)
-        .map(|(citation, fact)| citation.proof(fact))
-        .collect::<Vec<_>>();
-    while let Some(proof) = pending_facts.pop() {
-        match &proof.conclusion {
-            Proposition::Conjunction(conjuncts) => {
-                for (conjunct, conclusion) in conjuncts.iter().enumerate() {
-                    pending_facts.push(ProofNode {
-                        conclusion: conclusion.clone(),
-                        rule: ProofRule::ConjunctionElimination {
-                            conjunction: Box::new(proof.clone()),
-                            conjunct,
-                        },
-                    });
+
+    fn new(
+        context: &PropositionContext,
+        assumptions: &[Proposition],
+        semantic_axioms: &[Proposition],
+    ) -> Self {
+        let mut cited = BTreeMap::new();
+        let mut pending_facts = Vec::new();
+        for (citation, fact) in cited_facts(assumptions, semantic_axioms) {
+            cited
+                .entry(fact.clone())
+                .or_insert_with(|| citation.proof(fact));
+            pending_facts.push(citation.proof(fact));
+        }
+        let mut equal_facts = Vec::new();
+        while let Some(proof) = pending_facts.pop() {
+            match &proof.conclusion {
+                Proposition::Conjunction(conjuncts) => {
+                    for (conjunct, conclusion) in conjuncts.iter().enumerate() {
+                        pending_facts.push(ProofNode {
+                            conclusion: conclusion.clone(),
+                            rule: ProofRule::ConjunctionElimination {
+                                conjunction: Box::new(proof.clone()),
+                                conjunct,
+                            },
+                        });
+                    }
+                }
+                Proposition::Equal(_, _) => equal_facts.push(proof),
+                _ => {}
+            }
+        }
+        let mut adjacency = BTreeMap::<ScalarTerm, Vec<usize>>::new();
+        let mut base_endpoints = Vec::new();
+        for (index, fact) in equal_facts.iter().enumerate() {
+            let Proposition::Equal(source, destination) = &fact.conclusion else {
+                unreachable!("equal_facts holds only Equal conclusions")
+            };
+            adjacency.entry(source.clone()).or_default().push(index);
+            if destination != source {
+                adjacency
+                    .entry(destination.clone())
+                    .or_default()
+                    .push(index);
+            }
+            base_endpoints.push(source.clone());
+            base_endpoints.push(destination.clone());
+        }
+        base_endpoints.sort();
+        base_endpoints.dedup();
+        let mut definitions = Vec::new();
+        let mut first_definitions = BTreeMap::new();
+        let mut defined = BTreeSet::new();
+        for (index, fact) in equal_facts.iter().enumerate() {
+            let Proposition::Equal(left @ ScalarTerm::Value { id, .. }, right) = &fact.conclusion
+            else {
+                continue;
+            };
+            defined.insert(*id);
+            definitions.push(index);
+            // `from_semantic_axioms` skips self-equations and keeps the first
+            // definition per id; the closure mirror must choose identically.
+            if left != right {
+                first_definitions.entry(*id).or_insert(index);
+            }
+        }
+        // Components of the cited-equality graph, labelled once so a leaf
+        // endpoint pair in distinct components rejects without traversing.
+        let mut components = BTreeMap::<ScalarTerm, usize>::new();
+        let mut component = 0usize;
+        for start in &base_endpoints {
+            if components.contains_key(start) {
+                continue;
+            }
+            let mut pending = vec![start.clone()];
+            components.insert(start.clone(), component);
+            while let Some(current) = pending.pop() {
+                for &index in adjacency.get(&current).into_iter().flatten() {
+                    let Proposition::Equal(source, destination) = &equal_facts[index].conclusion
+                    else {
+                        continue;
+                    };
+                    for next in [source, destination] {
+                        if !components.contains_key(next) {
+                            components.insert(next.clone(), component);
+                            pending.push(next.clone());
+                        }
+                    }
                 }
             }
-            Proposition::Equal(_, _) => facts.push(proof),
-            _ => {}
+            component += 1;
+        }
+        Self {
+            token: context_token(context),
+            context: context.clone(),
+            assumptions: assumptions.to_vec(),
+            semantic_axioms: semantic_axioms.to_vec(),
+            cited,
+            equal_facts,
+            adjacency,
+            base_endpoints,
+            definitions,
+            first_definitions,
+            defined,
+            components,
+            transports: RefCell::new(BTreeMap::new()),
+            results: RefCell::new(BTreeMap::new()),
+            contradiction: RefCell::new(None),
         }
     }
-    chain_through(&facts, left, right).or_else(|| {
-        // The derivation fallback only pays for goals a cited chain could
-        // never close: a leaf-to-leaf goal has no hidden arithmetic for
-        // transport or normalization to expose, while the bound/order
-        // producers re-enter this producer thousands of times for leaf
-        // endpoint substitutions that must stay cheap.
-        if !compound(left) && !compound(right) {
+
+    /// The `prove` answer for `goal` under this roster, memoized per goal:
+    /// the result is a pure function of the roster's content and the goal,
+    /// and a hit still returns a certificate the kernel replays verbatim.
+    fn prove(&self, goal: &Proposition) -> Option<ProofNode> {
+        if let Some(result) = self.results.borrow().get(goal) {
+            return result.clone();
+        }
+        let result = self
+            .cited
+            .get(goal)
+            .cloned()
+            .or_else(|| self.equality_chain(goal));
+        if self.results.borrow().len() < MAXIMUM_ROSTER_RESULTS {
+            self.results
+                .borrow_mut()
+                .insert(goal.clone(), result.clone());
+        }
+        result
+    }
+
+    /// Follow explicitly cited equalities, proving every reversed edge. A
+    /// machine result aliases its returned value, whose defining operation
+    /// supplies the literal equation. No missing equation or implicit
+    /// symmetry is assumed. When no cited chain reaches the goal, the
+    /// kernel's licensed closed/open-term integer derivation may still
+    /// certify an edge between two endpoints —
+    /// `(acc + 1) + (remaining - 1) == acc + remaining` — which then composes
+    /// like any cited fact; the kernel re-decides the same judgment on
+    /// replay, so a wrong update or a stale endpoint still cannot pass.
+    fn equality_chain(&self, goal: &Proposition) -> Option<ProofNode> {
+        let Proposition::Equal(left, right) = goal else {
+            return None;
+        };
+        if left == right {
+            return Some(ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+            });
+        }
+        // A leaf endpoint carries no hidden arithmetic for transport or
+        // normalization to expose: it can move only along cited equality
+        // edges, so leaves in distinct cited components — including an
+        // endpoint no cited equality names at all — can never meet.
+        if !compound(left)
+            && !compound(right)
+            && self.components.get(left) != self.components.get(right)
+        {
             return None;
         }
-        let mut facts = facts;
-        // An update wraps cited names inside fresh compounds the cited chain
-        // cannot name: `(acc + 1) + (remaining - 1)` holds the cited `acc` and
-        // `remaining` only through the successor's own defining equations.
-        // Transport certifies each endpoint's cited-definition expansion
-        // before the kernel is asked to decide the exposed arithmetic.
-        facts.extend(transport_edges(context, &facts, left, right));
-        facts.extend(normalization_edges(context, &facts, left, right));
-        chain_through(&facts, left, right)
+        self.chain_through(&[], left, right).or_else(|| {
+            // The derivation fallback only pays for goals a cited chain could
+            // never close: a leaf-to-leaf goal has no hidden arithmetic for
+            // transport or normalization to expose, while the bound/order
+            // producers re-enter this producer thousands of times for leaf
+            // endpoint substitutions that must stay cheap.
+            if !compound(left) && !compound(right) {
+                return None;
+            }
+            // An update wraps cited names inside fresh compounds the cited
+            // chain cannot name: `(acc + 1) + (remaining - 1)` holds the cited
+            // `acc` and `remaining` only through the successor's own defining
+            // equations. Transport certifies each endpoint's cited-definition
+            // expansion before the kernel is asked to decide the exposed
+            // arithmetic.
+            let mut extra = self.transport_edges(left, right);
+            extra.extend(self.normalization_edges(left, right, &extra));
+            self.chain_through(&extra, left, right)
+        })
+    }
+
+    /// Breadth-first traversal over the cited equalities plus `extra` edges:
+    /// directed `Equal` edges, each traversed in either orientation with
+    /// explicit symmetry certificates, and every hop composed by transitivity
+    /// back to `left`.
+    fn chain_through(
+        &self,
+        extra: &[ProofNode],
+        left: &ScalarTerm,
+        right: &ScalarTerm,
+    ) -> Option<ProofNode> {
+        let mut extra_adjacency = BTreeMap::<ScalarTerm, Vec<usize>>::new();
+        for (index, edge) in extra.iter().enumerate() {
+            let Proposition::Equal(source, destination) = &edge.conclusion else {
+                continue;
+            };
+            extra_adjacency
+                .entry(source.clone())
+                .or_default()
+                .push(index);
+            if destination != source {
+                extra_adjacency
+                    .entry(destination.clone())
+                    .or_default()
+                    .push(index);
+            }
+        }
+        let mut pending = vec![(left.clone(), None::<ProofNode>)];
+        let mut reached = BTreeSet::new();
+        reached.insert(left.clone());
+        let mut index = 0;
+        while index < pending.len() {
+            let (current, prefix) = pending[index].clone();
+            index += 1;
+            let incident = self
+                .adjacency
+                .get(&current)
+                .into_iter()
+                .flatten()
+                .map(|&index| &self.equal_facts[index])
+                .chain(
+                    extra_adjacency
+                        .get(&current)
+                        .into_iter()
+                        .flatten()
+                        .map(|&index| &extra[index]),
+                );
+            for next in incident {
+                let Proposition::Equal(source, destination) = &next.conclusion else {
+                    continue;
+                };
+                let (destination, next) = if source == &current {
+                    (destination, next.clone())
+                } else if destination == &current {
+                    (
+                        source,
+                        ProofNode {
+                            conclusion: Proposition::Equal(destination.clone(), source.clone()),
+                            rule: ProofRule::EqualitySymmetry {
+                                equality: Box::new(next.clone()),
+                            },
+                        },
+                    )
+                } else {
+                    continue;
+                };
+                if reached.contains(destination) {
+                    continue;
+                }
+                let proof = if let Some(prefix) = prefix.clone() {
+                    ProofNode {
+                        conclusion: Proposition::Equal(left.clone(), destination.clone()),
+                        rule: ProofRule::EqualityTransitivity {
+                            left_equals_middle: Box::new(prefix),
+                            middle_equals_right: Box::new(next),
+                        },
+                    }
+                } else {
+                    next
+                };
+                if destination == right {
+                    return Some(proof);
+                }
+                reached.insert(destination.clone());
+                pending.push((destination.clone(), Some(proof)));
+            }
+        }
+        None
+    }
+
+    /// The sorted endpoint universe `endpoints()` used to compute per call:
+    /// `base_endpoints` merged with the goal endpoints and any extra terms.
+    fn universe(
+        &self,
+        left: &ScalarTerm,
+        right: &ScalarTerm,
+        extra: &[ScalarTerm],
+    ) -> Vec<ScalarTerm> {
+        let mut universe = self.base_endpoints.clone();
+        for endpoint in [left, right].into_iter().chain(extra.iter()) {
+            if let Err(position) = universe.binary_search(endpoint) {
+                universe.insert(position, endpoint.clone());
+            }
+        }
+        universe
+    }
+
+    /// Cited `value = term` definitions let transport expose the compounds an
+    /// endpoint wraps around still-cited names: `v_succ` carrying
+    /// `v_succ == add(v, 1)` inside `add(v_succ, w_succ)` expands to
+    /// `add(add(v, 1), w_succ)` through `ValueEqualityTransport`, which the
+    /// kernel rechecks under the same bounded denotation owner. The premise
+    /// is reflexivity of the unexpanded endpoint, so the edge asserts exactly
+    /// the cited equations and nothing more.
+    ///
+    /// The emitted edge cites only the definitions the endpoint's expansion
+    /// actually consults — the transitive closure of the value ids inside it —
+    /// rather than every cited definition. The kernel substitutes only the
+    /// first definition of each id, so the closure is the complete input the
+    /// denotation reads; replaying it yields the same expansion while keeping
+    /// each call proportional to the endpoint's own reach instead of the
+    /// whole roster.
+    fn transport_edges(&self, left: &ScalarTerm, right: &ScalarTerm) -> Vec<ProofNode> {
+        if self.definitions.is_empty() {
+            return Vec::new();
+        }
+        let mut edges = Vec::new();
+        for endpoint in self.universe(left, right, &[]) {
+            // A leaf's expansion is its own cited edge; only a compound hides
+            // cited names inside a constructor the chain cannot traverse.
+            if !compound(&endpoint) {
+                continue;
+            }
+            // An endpoint holding no defined value cannot expand, so skip it
+            // before paying the closure walk.
+            if !endpoint.any_value_id(|value| self.defined.contains(&value)) {
+                continue;
+            }
+            let Some((expanded, closure)) = self.transport(&endpoint) else {
+                continue;
+            };
+            if expanded == endpoint {
+                continue;
+            }
+            edges.push(ProofNode {
+                conclusion: Proposition::Equal(endpoint.clone(), expanded),
+                rule: ProofRule::ValueEqualityTransport {
+                    premise: Box::new(ProofNode {
+                        conclusion: Proposition::Equal(endpoint.clone(), endpoint),
+                        rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                    }),
+                    equalities: closure
+                        .iter()
+                        .map(|&index| self.equal_facts[index].clone())
+                        .collect(),
+                },
+            });
+        }
+        edges
+    }
+
+    /// The kernel-validated expansion of `endpoint` under its definition
+    /// closure, memoized per endpoint inside this roster.
+    fn transport(&self, endpoint: &ScalarTerm) -> Option<(ScalarTerm, Vec<usize>)> {
+        if let Some(result) = self.transports.borrow().get(endpoint) {
+            return result.clone();
+        }
+        let closure = self.closure_definitions(endpoint);
+        let mut equations = closure
+            .iter()
+            .map(|&index| self.equal_facts[index].conclusion.clone())
+            .collect::<Vec<_>>();
+        // Canonical order keeps the memo key independent of the roster's
+        // citation order; `from_semantic_axioms` keeps the first definition
+        // per id either way, and the closure holds at most one per id.
+        equations.sort();
+        let expanded = denotation(self.token, &self.context, endpoint, &equations);
+        let result = expanded.map(|expanded| (expanded, closure));
+        self.transports
+            .borrow_mut()
+            .insert(endpoint.clone(), result.clone());
+        result
+    }
+
+    /// `equal_facts` indices of the definitions `check_value_equality_
+    /// denotation` would substitute inside `endpoint`: the first definition
+    /// of every value id the endpoint reaches transitively through those
+    /// definitions. Ids with no cited definition substitute to themselves
+    /// and contribute nothing.
+    fn closure_definitions(&self, endpoint: &ScalarTerm) -> Vec<usize> {
+        let mut active = BTreeSet::new();
+        let mut collected = BTreeSet::new();
+        self.collect_definitions(endpoint, &mut active, &mut collected);
+        collected.into_iter().collect()
+    }
+
+    fn collect_definitions(
+        &self,
+        term: &ScalarTerm,
+        active: &mut BTreeSet<ValueId>,
+        collected: &mut BTreeSet<usize>,
+    ) {
+        let mut members = Vec::new();
+        term.visit_value_ids(|id| {
+            members.push(id);
+            true
+        });
+        for id in members {
+            let Some(&definition) = self.first_definitions.get(&id) else {
+                continue;
+            };
+            collected.insert(definition);
+            // `active` mirrors the kernel's substitution stack: an id already
+            // on the path means a cyclic definition, and the denotation call
+            // rejects the same expansion the kernel would.
+            if !active.insert(id) {
+                continue;
+            }
+            let Proposition::Equal(_, defined) = &self.equal_facts[definition].conclusion else {
+                unreachable!("definition indices name Equal(Value, _) facts")
+            };
+            self.collect_definitions(defined, active, collected);
+            active.remove(&id);
+        }
+    }
+
+    /// Edges `PrimitiveJudgment::ClosedIntegerRelation` itself decides between
+    /// the goal endpoints and every distinct cited endpoint. Each emitted
+    /// edge carries the primitive as its own proof, so custody stays explicit
+    /// and the receiver re-derives rather than trusts the producer's choice.
+    fn normalization_edges(
+        &self,
+        left: &ScalarTerm,
+        right: &ScalarTerm,
+        transport: &[ProofNode],
+    ) -> Vec<ProofNode> {
+        // The roster includes each transported expansion; the pair bound
+        // below — not this count — is what bounds kernel derivations.
+        let expansions = transport
+            .iter()
+            .filter_map(|edge| match &edge.conclusion {
+                Proposition::Equal(_, expanded) => Some(expanded.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let endpoints = self.universe(left, right, &expansions);
+        if endpoints.len() > MAXIMUM_NORMALIZATION_ENDPOINTS {
+            return Vec::new();
+        }
+        // Only a pair holding at least one compound endpoint can be a new
+        // decision: distinct atoms and literals were already closed-evaluated
+        // or stay distinct, so leaf pairs never certify an edge the cited
+        // roster lacked. The filter also keeps the kernel's own derivation
+        // cheap — it runs once per candidate pair, not per endpoint.
+        // Compound pairs go first: a transported expansion differs from its
+        // cited target only in shape, while a leaf-to-leaf question is the
+        // cited chain's own job, so sorted order must not let leaf pairs
+        // exhaust the candidate bound before the deciding pair is asked.
+        let compounds = endpoints
+            .iter()
+            .enumerate()
+            .filter(|(_, endpoint)| compound(endpoint))
+            .map(|(position, _)| position)
+            .collect::<Vec<_>>();
+        let mut pairs = Vec::new();
+        for (first, &source) in compounds.iter().enumerate() {
+            for &destination in &compounds[first + 1..] {
+                pairs.push((source, destination));
+            }
+        }
+        for &source in &compounds {
+            for (destination, endpoint) in endpoints.iter().enumerate() {
+                if !compound(endpoint) {
+                    pairs.push((source, destination));
+                }
+            }
+        }
+        let mut edges = Vec::new();
+        for (source, destination) in pairs.into_iter().take(MAXIMUM_NORMALIZATION_PAIRS) {
+            if decide(
+                self.token,
+                &self.context,
+                &endpoints[source],
+                &endpoints[destination],
+            ) {
+                edges.push(ProofNode {
+                    conclusion: Proposition::Equal(
+                        endpoints[source].clone(),
+                        endpoints[destination].clone(),
+                    ),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+                });
+            }
+        }
+        edges
+    }
+}
+
+/// The kernel's `check_value_equality_denotation` memoized on its exact
+/// input `(context token, endpoint, equations)`: a hit is the same `Ok`/`Err`
+/// the call would return, and the caller still emits an edge citing the same
+/// equations for the kernel to replay.
+fn denotation(
+    token: usize,
+    context: &PropositionContext,
+    endpoint: &ScalarTerm,
+    equations: &[Proposition],
+) -> Option<ScalarTerm> {
+    DENOTATIONS.with(|cell| {
+        let mut cell = cell.borrow_mut();
+        while cell.len() <= token {
+            cell.push(BTreeMap::new());
+        }
+        let map = &mut cell[token];
+        let key = (endpoint.clone(), equations.to_vec());
+        if let Some(result) = map.get(&key) {
+            return result.clone();
+        }
+        let premise = Proposition::Equal(endpoint.clone(), endpoint.clone());
+        let result = check_value_equality_denotation(context, &premise, equations.iter())
+            .ok()
+            .and_then(|denoted| match denoted {
+                Proposition::Equal(expanded, _) => Some(expanded),
+                _ => None,
+            });
+        if map.len() < MAXIMUM_MEMOIZED {
+            map.insert(key, result.clone());
+        }
+        result
+    })
+}
+
+/// The kernel's `decide_primitive` for `ClosedIntegerRelation` memoized on
+/// its exact input `(context token, ordered endpoint pair)`.
+fn decide(
+    token: usize,
+    context: &PropositionContext,
+    source: &ScalarTerm,
+    destination: &ScalarTerm,
+) -> bool {
+    DECISIONS.with(|cell| {
+        let mut cell = cell.borrow_mut();
+        while cell.len() <= token {
+            cell.push(BTreeMap::new());
+        }
+        let map = &mut cell[token];
+        let key = (source.clone(), destination.clone());
+        if let Some(&result) = map.get(&key) {
+            return result;
+        }
+        let conclusion = Proposition::Equal(source.clone(), destination.clone());
+        let result = decide_primitive(
+            context,
+            &conclusion,
+            PrimitiveJudgment::ClosedIntegerRelation,
+        )
+        .is_ok();
+        if map.len() < MAXIMUM_MEMOIZED {
+            map.insert(key, result);
+        }
+        result
     })
 }
 
@@ -104,212 +806,6 @@ fn compound(term: &ScalarTerm) -> bool {
         term,
         ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
     )
-}
-
-/// Distinct scalar endpoints offered by the goal and every cited equality.
-fn endpoints(facts: &[ProofNode], left: &ScalarTerm, right: &ScalarTerm) -> Vec<ScalarTerm> {
-    let mut endpoints = vec![left.clone(), right.clone()];
-    for fact in facts {
-        let Proposition::Equal(source, destination) = &fact.conclusion else {
-            continue;
-        };
-        endpoints.push(source.clone());
-        endpoints.push(destination.clone());
-    }
-    endpoints.sort();
-    endpoints.dedup();
-    endpoints
-}
-
-/// Cited `value = term` definitions let transport expose the compounds an
-/// endpoint wraps around still-cited names: `v_succ` carrying
-/// `v_succ == add(v, 1)` inside `add(v_succ, w_succ)` expands to
-/// `add(add(v, 1), w_succ)` through `ValueEqualityTransport`, which the
-/// kernel rechecks under the same bounded denotation owner. The premise is
-/// reflexivity of the unexpanded endpoint, so the edge asserts exactly the
-/// cited equations and nothing more.
-fn transport_edges(
-    context: &PropositionContext,
-    facts: &[ProofNode],
-    left: &ScalarTerm,
-    right: &ScalarTerm,
-) -> Vec<ProofNode> {
-    let definitions = facts
-        .iter()
-        .filter(|fact| {
-            matches!(
-                fact.conclusion,
-                Proposition::Equal(ScalarTerm::Value { .. }, _)
-            )
-        })
-        .collect::<Vec<_>>();
-    if definitions.is_empty() {
-        return Vec::new();
-    }
-    let defined = definitions
-        .iter()
-        .filter_map(|definition| match &definition.conclusion {
-            Proposition::Equal(ScalarTerm::Value { id, .. }, _) => Some(*id),
-            _ => None,
-        })
-        .collect::<std::collections::BTreeSet<_>>();
-    let mut edges = Vec::new();
-    for endpoint in endpoints(facts, left, right) {
-        // A leaf's expansion is its own cited edge; only a compound hides
-        // cited names inside a constructor the chain cannot traverse.
-        if !compound(&endpoint) {
-            continue;
-        }
-        // Denotation validation walks every cited equation; an endpoint
-        // holding no defined value cannot expand, so skip it before paying
-        // that walk.
-        if !endpoint.any_value_id(|value| defined.contains(&value)) {
-            continue;
-        }
-        let premise = Proposition::Equal(endpoint.clone(), endpoint.clone());
-        let Ok(denoted) = check_value_equality_denotation(
-            context,
-            &premise,
-            definitions.iter().map(|definition| &definition.conclusion),
-        ) else {
-            continue;
-        };
-        let Proposition::Equal(expanded, _) = denoted else {
-            continue;
-        };
-        if expanded == endpoint {
-            continue;
-        }
-        edges.push(ProofNode {
-            conclusion: Proposition::Equal(endpoint.clone(), expanded),
-            rule: ProofRule::ValueEqualityTransport {
-                premise: Box::new(ProofNode {
-                    conclusion: premise,
-                    rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-                }),
-                equalities: definitions
-                    .iter()
-                    .map(|definition| (*definition).clone())
-                    .collect(),
-            },
-        });
-    }
-    edges
-}
-
-/// Edges `PrimitiveJudgment::ClosedIntegerRelation` itself decides between
-/// the goal endpoints and every distinct cited endpoint. Each emitted edge
-/// carries the primitive as its own proof, so custody stays explicit and the
-/// receiver re-derives rather than trusts the producer's choice.
-fn normalization_edges(
-    context: &PropositionContext,
-    facts: &[ProofNode],
-    left: &ScalarTerm,
-    right: &ScalarTerm,
-) -> Vec<ProofNode> {
-    // The roster includes each transported expansion; the pair bound below —
-    // not this count — is what bounds kernel derivations.
-    let endpoints = endpoints(facts, left, right);
-    if endpoints.len() > MAXIMUM_NORMALIZATION_ENDPOINTS {
-        return Vec::new();
-    }
-    // Only a pair holding at least one compound endpoint can be a new
-    // decision: distinct atoms and literals were already closed-evaluated or
-    // stay distinct, so leaf pairs never certify an edge the cited roster
-    // lacked. The filter also keeps the kernel's own derivation cheap — it
-    // runs once per candidate pair, not per endpoint. Compound pairs go
-    // first: a transported expansion differs from its cited target only in
-    // shape, while a leaf-to-leaf question is the cited chain's own job, so
-    // sorted order must not let leaf pairs exhaust the candidate bound
-    // before the deciding pair is asked.
-    let compounds = endpoints
-        .iter()
-        .enumerate()
-        .filter(|(_, endpoint)| compound(endpoint))
-        .map(|(position, _)| position)
-        .collect::<Vec<_>>();
-    let mut pairs = Vec::new();
-    for (first, &source) in compounds.iter().enumerate() {
-        for &destination in &compounds[first + 1..] {
-            pairs.push((source, destination));
-        }
-    }
-    for &source in &compounds {
-        for (destination, endpoint) in endpoints.iter().enumerate() {
-            if !compound(endpoint) {
-                pairs.push((source, destination));
-            }
-        }
-    }
-    let mut edges = Vec::new();
-    for (source, destination) in pairs.into_iter().take(MAXIMUM_NORMALIZATION_PAIRS) {
-        let conclusion =
-            Proposition::Equal(endpoints[source].clone(), endpoints[destination].clone());
-        if decide_primitive(
-            context,
-            &conclusion,
-            PrimitiveJudgment::ClosedIntegerRelation,
-        )
-        .is_ok()
-        {
-            edges.push(ProofNode {
-                conclusion,
-                rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
-            });
-        }
-    }
-    edges
-}
-
-/// Breadth-first traversal over `facts`: directed `Equal` edges, each
-/// traversed in either orientation with explicit symmetry certificates, and
-/// every hop composed by transitivity back to `left`.
-fn chain_through(facts: &[ProofNode], left: &ScalarTerm, right: &ScalarTerm) -> Option<ProofNode> {
-    let mut pending = vec![(left.clone(), None::<ProofNode>)];
-    let mut index = 0;
-    while index < pending.len() {
-        let (current, prefix) = pending[index].clone();
-        index += 1;
-        for next in facts {
-            let Proposition::Equal(source, destination) = &next.conclusion else {
-                continue;
-            };
-            let (destination, next) = if source == &current {
-                (destination, next.clone())
-            } else if destination == &current {
-                (
-                    source,
-                    ProofNode {
-                        conclusion: Proposition::Equal(destination.clone(), source.clone()),
-                        rule: ProofRule::EqualitySymmetry {
-                            equality: Box::new(next.clone()),
-                        },
-                    },
-                )
-            } else {
-                continue;
-            };
-            if pending.iter().any(|(value, _)| value == destination) {
-                continue;
-            }
-            let proof = if let Some(prefix) = prefix.clone() {
-                ProofNode {
-                    conclusion: Proposition::Equal(left.clone(), destination.clone()),
-                    rule: ProofRule::EqualityTransitivity {
-                        left_equals_middle: Box::new(prefix),
-                        middle_equals_right: Box::new(next.clone()),
-                    },
-                }
-            } else {
-                next
-            };
-            if destination == right {
-                return Some(proof);
-            }
-            pending.push((destination.clone(), Some(proof)));
-        }
-    }
-    None
 }
 
 #[cfg(test)]

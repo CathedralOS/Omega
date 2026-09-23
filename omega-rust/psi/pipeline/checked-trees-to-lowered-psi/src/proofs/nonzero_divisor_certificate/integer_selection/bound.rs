@@ -13,6 +13,25 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
+    // The cascade below is a pure function of `(goal, scope)`; the index's
+    // memo replays it per goal instead of rescanning the cited roster for
+    // every endpoint substitution the strict/discrete producers attempt.
+    if let Some(proof) = definitions.cached_bound_proof(goal) {
+        return proof;
+    }
+    definitions.begin_bound_proof(goal);
+    let proof = prove_uncached(context, goal, assumptions, semantic_axioms, definitions);
+    definitions.cache_bound_proof(goal, proof.clone());
+    proof
+}
+
+fn prove_uncached(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
     if let Some(proof) = super::super::integer_evidence::integer_carrier_bound(context, goal) {
         return Some(proof);
     }
@@ -52,6 +71,26 @@ pub(super) fn prove(
 }
 
 pub(super) fn prove_candidate_endpoint(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
+    // Same one-question-per-goal memo as `prove`: wrapping evidence and shift
+    // endpoints ask this cascade for the same `operand <= bound` shapes many
+    // times within one scope.
+    if let Some(proof) = definitions.cached_endpoint_proof(goal) {
+        return proof;
+    }
+    definitions.begin_endpoint_proof(goal);
+    let proof =
+        prove_candidate_endpoint_uncached(context, goal, assumptions, semantic_axioms, definitions);
+    definitions.cache_endpoint_proof(goal, proof.clone());
+    proof
+}
+
+fn prove_candidate_endpoint_uncached(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],

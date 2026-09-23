@@ -36,7 +36,12 @@ pub(super) fn prove_contradiction(
                 )
             })
             .or_else(|| {
-                integer_contradiction::prove(context, assumptions, semantic_axioms, definitions)
+                // The derived legs depend on the scope alone, so the session
+                // memo computes them once and every goal visited under this
+                // scope shares the answer.
+                super::exact::session(context, assumptions, semantic_axioms).contradiction(|| {
+                    integer_contradiction::prove(context, assumptions, semantic_axioms, definitions)
+                })
             })?;
     Some(ProofNode {
         conclusion: goal.clone(),
@@ -118,7 +123,7 @@ mod tests {
                     &goal,
                     assumptions,
                     axioms,
-                    &mut DefinitionIndex::new(axioms),
+                    &mut DefinitionIndex::new(&context, assumptions, axioms),
                 )
                 .unwrap();
                 check_certificate(&context, &goal, assumptions, axioms, &proof).unwrap();
@@ -163,7 +168,7 @@ mod tests {
                     &goal,
                     std::slice::from_ref(&conditional),
                     &[],
-                    &mut DefinitionIndex::new(&[])
+                    &mut DefinitionIndex::new(&context, std::slice::from_ref(&conditional), &[])
                 )
                 .is_none()
             );
@@ -172,15 +177,21 @@ mod tests {
                     &context,
                     &goal,
                     &[],
-                    &[conditional],
-                    &mut DefinitionIndex::new(&[])
+                    std::slice::from_ref(&conditional),
+                    &mut DefinitionIndex::new(&context, &[], std::slice::from_ref(&conditional))
                 )
                 .is_none()
             );
         }
         assert!(
-            prove_contradiction(&context, &goal, &[], &[], &mut DefinitionIndex::new(&[]))
-                .is_none()
+            prove_contradiction(
+                &context,
+                &goal,
+                &[],
+                &[],
+                &mut DefinitionIndex::new(&context, &[], &[])
+            )
+            .is_none()
         );
     }
 
@@ -203,7 +214,7 @@ mod tests {
             &goal,
             &[],
             &axioms,
-            &mut DefinitionIndex::new(&axioms),
+            &mut DefinitionIndex::new(&context, &[], &axioms),
         )
         .unwrap();
         check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
@@ -217,7 +228,7 @@ mod tests {
                     &goal,
                     &[],
                     &changed,
-                    &mut DefinitionIndex::new(&changed)
+                    &mut DefinitionIndex::new(&context, &[], &changed)
                 )
                 .is_none()
             );
@@ -230,7 +241,7 @@ mod tests {
                 &goal,
                 &[],
                 &consistent,
-                &mut DefinitionIndex::new(&consistent)
+                &mut DefinitionIndex::new(&context, &[], &consistent)
             )
             .is_none()
         );
@@ -246,7 +257,7 @@ mod tests {
                 &goal,
                 &[],
                 &alternatives,
-                &mut DefinitionIndex::new(&alternatives)
+                &mut DefinitionIndex::new(&context, &[], &alternatives)
             )
             .is_none()
         );

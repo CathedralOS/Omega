@@ -17,7 +17,7 @@ mod relaxation;
 
 pub(super) use boundary::prove_from_root_after;
 pub(super) use candidates::{has_target_after, has_target_before};
-pub(super) use definition_index::DefinitionIndex;
+pub(super) use definition_index::{CheckedWord, DefinitionIndex};
 pub(super) use frontier::{definition_words_to_target, literal_axioms};
 pub(super) use mapped::prove_mapped_to_target_before;
 
@@ -36,12 +36,13 @@ pub(super) fn prove_from_root(
         semantic_axioms,
         definitions,
         root,
-        |witness| {
+        |definitions, witness| {
             completion::prove(
                 context,
                 goal,
                 assumptions,
                 semantic_axioms,
+                definitions,
                 &root_bound,
                 witness,
             )

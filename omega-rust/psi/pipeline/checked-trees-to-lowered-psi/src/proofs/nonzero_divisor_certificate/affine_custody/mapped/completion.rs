@@ -1,16 +1,15 @@
 //! Producer-local completion of one pre-boundary affine witness.
 
-use proof_admission::{
-    IntegerAffineWitness, ProofNode, ProofRule, check_certificate, check_integer_affine_witness,
-};
+use proof_admission::{IntegerAffineWitness, ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext};
 
-use super::super::relaxation;
+use super::super::DefinitionIndex;
 
 pub(super) fn prove(
     context: &PropositionContext,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     maximum_axiom: usize,
     root_bound: &ProofNode,
     witness: IntegerAffineWitness,
@@ -27,8 +26,8 @@ pub(super) fn prove(
     {
         return None;
     }
-    let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
-    let conclusion = relaxation::mapped_bound(&form, &root_bound.conclusion)?;
+    let form = definitions.affine_form(context, semantic_axioms, &witness)?;
+    let conclusion = definitions.affine_mapped(&form, &root_bound.conclusion)?;
     let proof = ProofNode {
         conclusion: conclusion.clone(),
         rule: ProofRule::IntegerAffineBound {

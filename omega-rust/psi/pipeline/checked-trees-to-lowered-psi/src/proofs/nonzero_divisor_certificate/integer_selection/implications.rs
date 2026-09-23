@@ -8,6 +8,8 @@
 //! conditional facts. The shared search budget and active implication roster
 //! prevent cyclic laws from manufacturing their own premises.
 
+use std::collections::BTreeMap;
+
 use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::Proposition;
 
@@ -27,6 +29,7 @@ pub(super) fn prove(
         ordinary,
         remaining: 4096,
         active: Vec::new(),
+        proved: BTreeMap::new(),
     }
     .goal(goal, assumptions, 0, true)
 }
@@ -36,6 +39,12 @@ struct Search<'input, Ordinary> {
     ordinary: Ordinary,
     remaining: usize,
     active: Vec<Proposition>,
+    /// `ordinary` answers one `(goal, assumptions)` question under this
+    /// search's fixed context, axioms, and machine parameters, and every
+    /// cached proof cites that same scope for the kernel to replay. The memo
+    /// only skips re-derivation when the search revisits a scope — through
+    /// implication elimination, a conjunction's own split, or a case branch.
+    proved: BTreeMap<(Proposition, Vec<Proposition>), Option<ProofNode>>,
 }
 
 impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_, Ordinary> {
@@ -50,7 +59,16 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             return None;
         }
         self.remaining = self.remaining.checked_sub(1)?;
-        if let Some(proof) = (self.ordinary)(goal, assumptions) {
+        let key = (goal.clone(), assumptions.to_vec());
+        let ordinary = match self.proved.get(&key) {
+            Some(proof) => proof.clone(),
+            None => {
+                let proof = (self.ordinary)(goal, assumptions);
+                self.proved.insert(key, proof.clone());
+                proof
+            }
+        };
+        if let Some(proof) = ordinary {
             return Some(proof);
         }
         let logical = match goal {
