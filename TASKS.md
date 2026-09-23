@@ -4297,16 +4297,31 @@ but report the missing runtime leg explicitly; it does not close that host row.
   RC-PORTABLE-PSI gate passes and explicitly open closure; do not recreate the
   recorder or claim records are absent.
 
-  Fix its incomplete contract mapping before trusting a closure result:
-  RC-BUILD-AND-PACKAGES omits the required six-target compiler integration
-  command, and RC-DIAGNOSTICS omits `proof_and_domain_canaries` from its
-  exact test name. The existing
-  `ManifestPinsContract.test_every_gate_command_appears_in_the_contract`
-  fails on the latter and checks only recorder-to-contract inclusion, so it
-  cannot catch a missing command. Require complete command coverage.
-  Align the formatting invocation with AGENTS.md's portable `tools/fmt.py`
-  route without reducing coverage. Correct the host procedure drafts'
-  nonexistent `--all` option and missing required `--native-execution`.
+  The contract-mapping defects this row listed are CLOSED; re-measured at
+  `3a23169788` before spending on them again. `release_record.py`'s
+  RC-BUILD-AND-PACKAGES carries all six compiler integration targets
+  (`build_config_granted`, `build_log_facet`, `build_target_activation`,
+  `checked_build_machine_identity`, `evaluated_via_binding`,
+  `package_compilation_inputs`); RC-DIAGNOSTICS carries the exact
+  `proof_and_float_suites::proof_and_domain_canaries::fail_canaries_reject_with_expected_diagnostic_fragment`
+  name; complete command coverage is required in both directions, because
+  `test_every_contract_command_appears_in_a_gate` now walks the contract's
+  own fenced blocks and backticked gate commands and fails on one the
+  recorder never runs; and the formatting leg is the portable
+  `python tools/fmt.py --check`. No host procedure draft references the
+  recorder at all, so the `--all`/`--native-execution` correction has nothing
+  left to correct: `--native-execution` is a required argument
+  (`release_record.py` refuses a runner row without it) and is documented in
+  `tools/release/README.md`.
+  `ce47803c97` closed the last of them on the other half of the tooling:
+  `release_matrix.py` still ran `cargo fmt --all -- --check` while the
+  recorder ran the portable route, so the two disagreed about what the
+  formatting gate is.
+
+  What remains is the evidence, not the mapping: `python3 -m unittest`
+  over `tools.tests.test_release_record` and `tools.tests.test_release_matrix`
+  is 41 tests OK, and the two committed records still contain only
+  RC-PORTABLE-PSI passes with closure explicitly open.
 
   Acceptance: recorder tests detect omitted commands, stale filters,
   incomplete runs and inconsistent closure. Produce and revalidate records
