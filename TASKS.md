@@ -351,6 +351,34 @@ the complete product bar; focused successes below do not establish that baseline
   compile, so its blast radius wants measuring before it is spent; the second
   widens what a build file may name and is a visibility-policy decision.
   Do not "fix" the fixture -- there is no spelling that works today.
+  `dungeon/runtime_direct_boolean_conjunction_dispatch` is DIAGNOSED and
+  REDUCED. Its `transition (self.current_room, self.fountain_used)` with arms
+  `(1, true)` / `(1, false)` / `_` lowers each arm's pattern to a CONJUNCTION
+  guard, and `state_graph/emission/state.rs` refuses it with `guarded jump
+  chain has a short-circuit guard`. The reduction, measured on four variants of
+  one program:
+
+  | guard shape | arms | result |
+  | --- | --- | --- |
+  | simple equality (`self.current_room`) | 2 + default | lowers |
+  | conjunction (`a == 1 && b`) | 1 + default | lowers |
+  | tuple pattern (a conjunction) | 1 + default | lowers |
+  | tuple pattern (a conjunction) | 2 + default | REFUSED |
+
+  So neither the conjunction nor the chain is the blocker on its own -- only
+  their combination is. One guarded arm plus a default is a `Conditional`
+  terminator, and that path already carries a DIRECT boolean guard: when
+  `branch_guard` returns an expression rather than a computation root, it sets
+  `condition = None` and `planned_guard` runs it through
+  `emission::boolean_control::lower_boolean_control_decision`, which the
+  terminator assembly consumes. Two guarded arms make it a `GuardedJumps`
+  chain, whose emission requires every guard to come back from `guard_value`
+  and refuses a direct one at both its first-arm and later-arm sites.
+  The work is therefore to give the chain the direct-guard route the
+  conditional already has, per arm -- not a new decision form. Assembly for
+  `planned_guard` is written for one condition; extending it to N ordered arms
+  is the actual task.
+
   `providers/external_leaf_dllimport_compile` is DIAGNOSED and is FAIL-CLOSED
   BY POSTURE rather than broken. Its `satisfies Leaf::exit via leaf_binding()`
   demands a `NormalizedForeign` mechanism, and
