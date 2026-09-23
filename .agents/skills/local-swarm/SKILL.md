@@ -34,6 +34,10 @@ coordinator's procedure — the agents get rendered prompts, not this file.
    work, `python3 tools/corpus_gate.py --filter <domain>` diffs the touched
    fixture domain against the recorded corpus golden in seconds-to-minutes —
    a much cheaper validation surface than chaining per-crate nextest suites.
+   Same CPU discipline on gates: one touched crate's `--lib`, attribute reds
+   by re-running only the failing test names on the base commit, and never a
+   local `cargo build --release` for evidence — a local binary does not need
+   to exist when the swarm-binaries release can be fetched.
    Prefer items whose evidence the slot can actually produce. Read
    `tools/swarm/README.md` coordinator selection rules first. Reserve one
    path-disjoint item for the coordinator's own slot — it goes in the wave

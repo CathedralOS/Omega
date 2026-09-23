@@ -60,6 +60,14 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    link. Workers NEVER merge, NEVER touch board files, NEVER run landing.py.
 4. "Reuse your existing clone/worktree when present" — suspended workers
    resume on the same VM; a re-clone plus cold build is measured leg-time tax.
+   Never `cargo clean` and never build `omega` from source for evidence:
+   fetch the `swarm-binaries` release binary — a local
+   `cargo build --release` is the single largest measured leg-time waste.
+   Gates scope to ONE touched crate's `--lib`; multi-crate sweeps only when
+   the change crosses crates. Attribute unexpected reds by re-running ONLY
+   the failing test names on the stashed base (seconds), never a full
+   stashed suite rerun. Squalr legs: `verify.py check --omega <touched pkg>`
+   for touched packages only, not the whole repo sweep.
 5. Final message = bare JSON verdict, nothing fenced:
    `{"verdict":"lane_pushed|blocked|landed","lane":"leaf/<item>",
    "commits":[<sha>...],"gate":"<commands + counts>","witness":"<evidence>",
