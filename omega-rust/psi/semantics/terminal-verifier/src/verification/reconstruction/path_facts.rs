@@ -8,7 +8,8 @@ use std::{
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::super::substitution::{
-    proposition_mentions_substituted_value, substitute_proposition_values,
+    proposition_mentions_substituted_value, substitute_proposition_places,
+    substitute_proposition_values,
 };
 
 mod conditions;
@@ -91,6 +92,48 @@ pub(super) fn bind_successor_axioms(
                     certified,
                 });
             }
+        }
+    }
+    rewritten_facts
+}
+
+/// Restate established facts whose place roots an edge's structural arguments
+/// name, under the target block's bound formals. The edge's structural binding
+/// row is the licensed premise these emissions ride on; no fixed-shape
+/// transport certificate covers a place rewrite yet, so every emission is
+/// reported uncertified under the binding row's license.
+pub(super) fn bind_successor_structural_axioms(
+    axioms: &mut Vec<Proposition>,
+    target_block: &terminal_psi::Block,
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    rewrite_path_facts: bool,
+) -> Vec<RewrittenSuccessorFact> {
+    if !rewrite_path_facts || target_block.structural_parameters.is_empty() {
+        return Vec::new();
+    }
+    // A projected actual names a value beneath its root, so facts rooted at
+    // the declared place do not restate against the bound formal. Only whole
+    // actuals join the substitution map.
+    let substitutions = target_block
+        .structural_parameters
+        .iter()
+        .zip(structural_arguments)
+        .filter(|(_, argument)| argument.path.is_empty())
+        .map(|(parameter, argument)| (argument.place, parameter.place))
+        .collect::<BTreeMap<_, _>>();
+    if substitutions.is_empty() {
+        return Vec::new();
+    }
+    let established = axioms.clone();
+    let mut rewritten_facts = Vec::new();
+    for proposition in established.iter() {
+        let rewritten = substitute_proposition_places(proposition, &substitutions);
+        if rewritten != *proposition && !axioms.contains(&rewritten) {
+            axioms.push(rewritten.clone());
+            rewritten_facts.push(RewrittenSuccessorFact {
+                proposition: rewritten,
+                certified: false,
+            });
         }
     }
     rewritten_facts

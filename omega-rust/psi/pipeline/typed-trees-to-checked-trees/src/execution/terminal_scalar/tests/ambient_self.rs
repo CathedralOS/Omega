@@ -39,3 +39,64 @@ fn scalar_graph_admits_ambient_borrowed_self_field_reads() {
         .expect("scalar machine reading a borrowed receiver keeps its graph");
     assert_eq!(graph.states.len(), 3);
 }
+
+#[test]
+fn scalar_graph_admits_mixed_multi_state_ambient_self_reads() {
+    let source = r#"
+        data Alignment { bytes: u64; }
+        data Filter { width: u64; }
+        machine Filter::region_size(&self) -> u64 {
+            self.width
+        }
+        machine Filter::count(&self, width: u64, alignment: Alignment) -> u64
+        crashes Abort
+        {
+            let bytes: u64 = alignment.bytes;
+            transition self.width >= width && bytes > 0 {
+                true -> divide(width, bytes)
+                false -> violated()
+            }
+            state violated(&self) -> u64 {
+                crash Abort;
+            }
+            state divide(&self, width: u64, bytes: u64) -> u64 {
+                let size: u64 = self.region_size();
+                transition {
+                    _ -> (size / bytes)
+                }
+            }
+        }
+    "#;
+    let checked = checked_program_result(source)
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("::count"))
+        .unwrap();
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine.symbol)
+        .expect("mixed scalar machine reading a borrowed receiver keeps its graph");
+    assert_eq!(graph.states.len(), 3);
+    assert!(
+        graph.states[0]
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+    );
+    assert!(
+        graph.states[0]
+            .structural_parameters
+            .iter()
+            .any(|parameter| !parameter.is_self)
+    );
+    assert!(
+        graph.states[1]
+            .structural_parameters
+            .iter()
+            .all(|parameter| !parameter.is_self)
+    );
+}

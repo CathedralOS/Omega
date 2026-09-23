@@ -301,6 +301,7 @@ pub(crate) fn lower_scalar_graph_successor(
         .ok_or(LoweringError::Unsupported(
             "scalar successor lost its source state",
         ))?;
+    let (_, source_state_typed) = source_custody::authored_state(checked, source_state)?;
     let mut structural_arguments = plans
         .structural_transfers
         .span(successor.structural_transfers)
@@ -317,9 +318,29 @@ pub(crate) fn lower_scalar_graph_successor(
             let parameter = source.structural_parameters.get(index as usize).ok_or(
                 LoweringError::Unsupported("scalar successor transfer parameter is absent"),
             )?;
+            // A transfer's `source.index` counts the checked forwarded roster,
+            // while an argument plan's `parameter_index` addresses the state's
+            // authored structural namespace, where the ambient receiver keeps
+            // its authored position ahead of that roster.
+            let parameter_index = checked
+                .typed
+                .state_parameters(source_state_typed)
+                .iter()
+                .take(parameter.position as usize)
+                .filter(|parameter| {
+                    !parameter.relevance.is_erased()
+                        && checked
+                            .primitive_type_reference(parameter.type_reference)
+                            .is_none()
+                })
+                .count();
             scalar_bindings.owned_argument(&checked_trees::CheckedUnitStructuralArgumentPlan {
                 source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                    parameter_index: index,
+                    parameter_index: u32::try_from(parameter_index).ok().ok_or(
+                        LoweringError::Unsupported(
+                            "scalar successor transfer parameter index exceeds the host type",
+                        ),
+                    )?,
                 },
                 path: Vec::new(),
                 type_identity: parameter.type_identity.clone(),
