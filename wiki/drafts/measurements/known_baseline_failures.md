@@ -1232,6 +1232,59 @@ diagnostic, not by module:
   complete the set. Unbisected; none of the 46 names overlap the recorded
   row.
 
+## native-differential RC-NATIVE-MATRIX (macOS arm64, first reading)
+
+`cargo nextest run -p omega-native-differential-test --all-targets
+--no-fail-fast` at `0e64720850` (2026-09-23, macOS aarch64, cargo -- mbx
+absent, `RUST_MIN_STACK=67108864`): **1158 run, 1140 passed (67 slow), 18
+failed, 1 skipped**, 2498.6 s wall clock. This is the RC-NATIVE-MATRIX gate
+command, measured on the matching host for the `macos_arm64` lane, which had
+no reading of any kind before this one.
+
+It is NOT the Linux profile and must not be read across: the recorded
+`linux_x86_64` row for the same command at `a0b906db93` is 1006 passed / 116
+failed / 1 skipped of 1122, dominated there by a `Service<R>`-spelling
+fixture family. Six of the eighteen here are one family this host does not
+share with that list.
+
+The exact 18, by test binary:
+
+- `terminal_psi_record_returns` (6):
+  `bare_incoming_record_return_is_an_observation_without_a_write_companion`,
+  `caller_observes_preserved_record_and_ordered_write`,
+  `four_byte_record_uses_the_same_owned_return_transport`,
+  `incoming_record_return_composes_with_writes_and_calls_on_hosted_targets`,
+  `incoming_record_return_replay_rejects_substituted_source_placement_and_capture`,
+  `two_register_record_returns_preserve_both_fragments_across_calls`.
+- `scalar_case_results` (2):
+  `record_reads::call_requirements::receiver_scalar_call_replay_preserves_exact_ordered_requirements`,
+  `record_reads::parameters::owned_record_parameter_return_survives_an_observable_call`.
+- `owned_control_cycles` (2):
+  `whole_owned_backedge_swaps_execute_zero_and_several_iterations`,
+  `whole_owned_backedge_swaps_publish_on_four_targets`.
+- one each:
+  `abstract_publication tests::control_flow::non_adjacent_block_merges_replay_and_lower_in_both_target_families`,
+  `coverage filesystem_path_subslice_domain`,
+  `gui_headless window_demo_runs_headless_to_native_exit`,
+  `physical_child_replay structural_result_operator_occurrence_replays_one_exact_physical_child`,
+  `pipeline_ownership tests::stages::allocation::register_allocation::post_allocation_manifest_mutation_matrix::wire::every_closed_wire_tag_and_envelope_fails_with_its_exact_error`,
+  `terminal_byte_views mutable_writes::admission::mutable_write_selection_rejects_changed_address_width_value_and_proof`,
+  `terminal_psi_calls scalar_i32_call_has_exact_exportable_terminal_bytes`,
+  `terminal_psi_runnable source_bounded_root_service_reach_reaches_verified_optimizer_admission`.
+
+The one skip is accounted for by name, as the contract requires rather than
+as a count: `source_custody_artifact product_semantics_observe_source_custody_fixture`,
+carrying `#[ignore = "run by the source-custody artifact gate with its exact
+fixture"]`. It is an expected skip, not an unlisted one — identified by
+diffing `cargo nextest list --all-targets` (1158) against the same list with
+`--run-ignored all` (1159).
+
+These eighteen are a reading, not an attribution: none is bisected to a
+culprit here, so a worker hitting one still owes it a cause. What this entry
+establishes is the denominator — that the macOS arm64 lane runs this gate at
+all, and that its red set is 18 rather than the 116 a Linux reading would
+have implied.
+
 ## native-differential `terminal_psi_source`
 
 `cargo nextest run -p omega-native-differential-test --test terminal_psi_source
