@@ -437,13 +437,22 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         }
         (_, PreparedScalarContract::Empty) => (Vec::new(), Vec::new(), Vec::new()),
         (_, PreparedScalarContract::Predicates(plan)) => {
-            let requires = scalar_contracts::clauses(
+            // One published requires row per authored conjunct: callers pair
+            // their obligation roster positionally with these rows, so each
+            // authored requirement discharges as its own obligation rather
+            // than inside a single canonical conjunction.
+            let mut requires = Vec::new();
+            for proposition in scalar_contracts::clause_propositions(
                 &scalar_contracts::covered_requires(&plan)?,
                 &parameters,
                 &erased_scalar_formals,
-            )?
-            .into_iter()
-            .collect();
+            )? {
+                match proposition {
+                    Proposition::Conjunction(parts) => requires.extend(parts),
+                    proposition => requires.push(proposition),
+                }
+            }
+            scalar_contracts::canonicalize_requires(&mut requires)?;
             // Retained authored floating ranges are not propositions: publish
             // the exact IEEE endpoints against the dense entry parameter
             // identities so independently replayed call deliveries are

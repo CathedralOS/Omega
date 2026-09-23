@@ -248,18 +248,21 @@ fn case_payload_edge_rejects_target_drift() {
 }
 
 #[test]
-fn case_payload_body_markers_stay_the_residual() {
-    // The `__arm_destructure` locals a payload-bearing case pair mints have
-    // no body-accounting lane under a Conditional terminator — marker
-    // validation is ClosedSum-only — so the composed plan still does not
-    // lower end to end. Naming the wall explicitly.
+fn case_payload_terminal_channel_stays_the_residual() {
+    // The minted case pair now admits end to end: `subject == Opened` paired
+    // with `subject == Failed` is the closed-sum complement the producer
+    // minted, and `__arm_destructure` markers account under every terminator
+    // but a closed sum. The remaining wall is emission — the
+    // `subject.Case::field` transfer has no Terminal channel under a
+    // Conditional terminator. Naming the wall explicitly.
     let (checked, plan) = fixture();
-    let error = match admission::admit(&checked, &plan) {
+    admission::admit(&checked, &plan).expect("case-payload pair admission");
+    let error = match super::super::super::lower_composed_unit_control_machine(&checked, &plan) {
         Err(error) => error,
-        Ok(_) => panic!("the marker residual stands"),
+        Ok(_) => panic!("the Terminal-channel residual stands"),
     };
     assert!(
-        format!("{error}").contains("dropped or added a body effect"),
-        "the structural destructure markers are the residual: {error}"
+        format!("{error}").contains("case-payload transfer has no Terminal channel"),
+        "the Terminal channel is the residual: {error}"
     );
 }

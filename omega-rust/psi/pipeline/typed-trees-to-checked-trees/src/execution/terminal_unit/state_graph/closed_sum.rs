@@ -11,7 +11,9 @@ use super::{
     TypeReferenceNode, TypedTrees,
 };
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
-use crate::execution::terminal_unit::state_graph::{SuccessorEdge, successor_bindings};
+use crate::execution::terminal_unit::state_graph::{
+    SuccessorEdge, SuccessorGuard, successor_bindings,
+};
 
 pub(super) fn build(
     program: &TypedTrees,
@@ -341,6 +343,23 @@ pub(super) fn build(
                 SuccessorEdge::ClosedCase,
                 trace,
             )?;
+            trace.phase(SuccessorEdge::ClosedCase.phase(SuccessorGuard::EdgeCleanup));
+            trace.statement(Some(ordinal));
+            // A case edge carries its owned-parameter discards like every
+            // other edge: an owned parameter the target does not receive
+            // dies where control leaves the state, and lowering rejoins
+            // each position to this checked cleanup evidence.
+            let cleanup = facts.flow.terminal_structural_control_cleanups.for_edge(
+                machine.symbol,
+                state.symbol,
+                ordinal,
+            )?;
+            if cleanup.target_state != successor.target_state {
+                return None;
+            }
+            let mut successor = successor;
+            successor.trivial_affine_discard_parameter_positions =
+                cleanup.trivial_affine_discard_parameter_positions.clone();
             if successor.transfers.iter().any(|transfer| match (&subject.source, &transfer.source) {
                 (
                     CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },

@@ -1265,7 +1265,7 @@ pub(super) enum SuccessorEdge {
 }
 
 #[derive(Clone, Copy)]
-enum SuccessorGuard {
+pub(super) enum SuccessorGuard {
     TransitionForm,
     TargetState,
     ArgumentCount,

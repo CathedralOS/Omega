@@ -157,27 +157,44 @@ pub(crate) enum PreparedScalarContract {
     Predicates(ClosedScalarValueContractPlan),
 }
 
+/// The proposition emitter flattens a requires clause's top-level `And`
+/// spine into one published row per conjunct, so obligation counts walk the
+/// same spine here.
+fn conjunct_leaves(predicate: &CheckedBooleanExpression) -> usize {
+    match predicate {
+        CheckedBooleanExpression::And { left, right } => {
+            conjunct_leaves(left) + conjunct_leaves(right)
+        }
+        _ => 1,
+    }
+}
+
 impl PreparedScalarContract {
     pub(crate) fn requirement_count(&self) -> usize {
         match self {
             Self::Empty => 0,
             Self::ClosedLiteral(_) => 1,
-            // The predicate plan's source clauses are published as one
-            // canonical conjunction, including implicit integer parameter
-            // ranges. Floating entry range clauses publish no proposition:
-            // they discharge through the retained catalog rows at call
-            // delivery, so a range-only requires tail contributes no
-            // obligation.
-            Self::Predicates(plan) => usize::from(plan.requires().iter().any(|clause| {
-                matches!(
-                    clause,
+            // Each retained requires conjunct publishes its own proposition
+            // row, so the caller's obligation roster pairs one entry per
+            // authored requirement. Floating entry range clauses publish no
+            // proposition: they discharge through the retained catalog rows
+            // at call delivery, so a range-only requires tail contributes
+            // no obligation.
+            Self::Predicates(plan) => plan
+                .requires()
+                .iter()
+                .map(|clause| match clause {
+                    Some(ClosedScalarContractValue::Predicate(predicate)) => {
+                        conjunct_leaves(predicate)
+                    }
                     Some(
-                        ClosedScalarContractValue::Predicate(_)
-                            | ClosedScalarContractValue::Boolean(_)
-                            | ClosedScalarContractValue::Integer(_)
-                    )
-                )
-            })),
+                        ClosedScalarContractValue::Boolean(_)
+                        | ClosedScalarContractValue::Integer(_)
+                        | ClosedScalarContractValue::FloatMeaningEquality { .. },
+                    ) => 1,
+                    _ => 0,
+                })
+                .sum(),
         }
     }
 }

@@ -671,13 +671,35 @@ pub(crate) fn lower_unit_closure(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    // A caller's obligation count must equal the callee's emitted
+    // `contract.requires` row count: the verifier zips the two positionally,
+    // and the emitted roster is the machine signature's row list verbatim.
+    // The prepared plan's `requirement_count` summarizes the authored clauses
+    // as one canonical conjunction, so machines routed through the prepared
+    // graph still allocate by their signature rows; the prepared summary only
+    // stands for callees with no emitted signature (boundary machines).
     let scalar_requirement_counts = prepared_scalar_machines
         .iter()
-        .map(|machine| (machine.source_machine(), machine.requirement_count()))
+        .map(|machine| {
+            let source = machine.source_machine();
+            let count = machine_signatures
+                .iter()
+                .find(|signature| signature.source == source)
+                .map_or_else(
+                    || machine.requirement_count(),
+                    |signature| signature.requires.len(),
+                );
+            (source, count)
+        })
         .chain(machine_signatures.iter().filter_map(|signature| {
             plans
                 .for_machine(signature.source)
                 .filter(|plan| plan.scalar_result.is_some() || plan.scalar_control.is_some())
+                .filter(|_| {
+                    !prepared_scalar_machines
+                        .iter()
+                        .any(|machine| machine.source_machine() == signature.source)
+                })
                 .map(|_| (signature.source, signature.requires.len()))
         }))
         .collect::<Vec<_>>();

@@ -133,6 +133,34 @@ fn lower_machine_contents(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
         )?;
     }
+    // A machine's attachment always has a declared nominal type: the nominal
+    // argument and receiver-alias fences reconstruct a whole-root self
+    // source's referent through `find_named_type_reference` on the attached
+    // data symbol, which resolves only when some authored spelling interned a
+    // `Named` node for that data. Programs declaring `data X` yet reaching it
+    // solely through `self` receivers never spell the name in a type
+    // position, so the node is absent and those fences fail closed. Bind the
+    // attachment's `Named` node where the machine takes the attachment so the
+    // declared-type guarantee does not depend on incidental spelling.
+    if machine.attached_data_symbol.is_valid()
+        && lowerer
+            .typed_trees
+            .type_reference_table
+            .find_named_type_reference(machine.attached_data_symbol)
+            .is_none()
+    {
+        lowerer
+            .typed_trees
+            .type_reference_table
+            .insert(typed::types::TypeReferenceNode::Named {
+                symbol: machine.attached_data_symbol,
+                name: machine
+                    .attached_data
+                    .clone()
+                    .map(|name| crate::lowerer::name::lower_name(&name))
+                    .unwrap_or_default(),
+            });
+    }
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::lowerer::name::lower_name(&machine.name),

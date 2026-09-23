@@ -614,6 +614,9 @@ pub(super) fn validate_fallback(
     if builtin_equality_complement(checked, true_expression, false_expression) {
         return Ok(());
     }
+    if closed_case_complement(checked, true_expression, false_expression) {
+        return Ok(());
+    }
     unsupported("Unit graph fallback is not the inverse source label")
 }
 
@@ -657,6 +660,57 @@ fn builtin_equality_complement(
         && builtin_operator(checked, false_expression)
         && reevaluation_stable(checked, true_binary.left)
         && reevaluation_stable(checked, true_binary.right)
+}
+
+/// The producer side's `closed_case_complement` mirror: `subject == C1`
+/// paired with `subject == C2` over one stable subject is the exact Boolean
+/// split when C1 and C2 are the only variants of their owning closed sum.
+/// The second arm is skipped when the first guard holds, so the subject must
+/// re-evaluate to the value the first guard observed — the same
+/// `reevaluation_stable` boundary as the `==`/`!=` complement.
+fn closed_case_complement(
+    checked: &CheckedTrees,
+    true_expression: checked_trees::expression::ExpressionHandle,
+    false_expression: checked_trees::expression::ExpressionHandle,
+) -> bool {
+    let (Some((true_subject, true_case)), Some((false_subject, false_case))) = (
+        super::cases::case_test(checked, true_expression),
+        super::cases::case_test(checked, false_expression),
+    ) else {
+        return false;
+    };
+    if true_case == false_case
+        || !checked
+            .expression_table
+            .expressions_structurally_equal(true_subject, false_subject)
+        || !reevaluation_stable(checked, true_subject)
+    {
+        return false;
+    }
+    let variant_owner = |case| {
+        checked.data_definitions().iter().find(|definition| {
+            checked.data_members(definition).iter().any(|member| {
+                matches!(
+                    member,
+                    checked_trees::data::DataMember::Variant(variant)
+                        if variant.symbol == case
+                )
+            })
+        })
+    };
+    let Some(owner) = variant_owner(true_case) else {
+        return false;
+    };
+    let Some(other) = variant_owner(false_case) else {
+        return false;
+    };
+    if owner.symbol != other.symbol {
+        return false;
+    }
+    checked.data_members(owner).iter().all(|member| {
+        matches!(member, checked_trees::data::DataMember::Variant(variant)
+            if variant.symbol == true_case || variant.symbol == false_case)
+    })
 }
 
 fn builtin_operator(

@@ -25,7 +25,7 @@ const SOURCE: &str = "
 ";
 
 #[test]
-fn projected_self_borrow_does_not_require_an_interned_owner_type() {
+fn projected_self_borrow_uses_the_guaranteed_owner_type() {
     let checked = crate::front_end::checked_program(
         "data Inner { value: u64; }
          data Outer { inner: Inner; sibling: Inner; }
@@ -37,12 +37,16 @@ fn projected_self_borrow_does_not_require_an_interned_owner_type() {
         .iter()
         .find(|data| data.name.as_str() == "Outer")
         .unwrap();
+    // Every machine attachment declares its owner type, independent of
+    // incidental authored type spellings: the interned `Named` is the
+    // guaranteed declared type, not evidence the projected borrow consumed
+    // it — `self.inner` still resolves through its declared endpoint below.
     assert!(
         checked
             .type_reference_table
             .find_named_type_reference(outer.symbol)
-            .is_none(),
-        "self-only attachments need no incidental authored Outer type reference"
+            .is_some(),
+        "self attachments intern their declared owner type"
     );
     let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Outer::read"))
         .expect("projected self loan uses its declared endpoint");

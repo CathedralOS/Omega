@@ -64,45 +64,70 @@ pub(crate) fn covered_requires(
     Ok(retained)
 }
 
+fn clause_proposition(
+    clause: &ClosedScalarContractValue,
+    namespace: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+) -> Result<Proposition, LoweringError> {
+    match clause {
+        ClosedScalarContractValue::Predicate(predicate) => {
+            proposition(predicate, namespace, erased)
+        }
+        // The checked selection gate established builtin reflexivity.
+        ClosedScalarContractValue::Boolean(_) | ClosedScalarContractValue::Integer(_) => {
+            Ok(Proposition::Truth)
+        }
+        // Floating entry ranges discharge through the retained scalar
+        // qualification catalog, never as propositions; covered_requires
+        // strips them before this conversion.
+        ClosedScalarContractValue::FloatRange(_) => {
+            unsupported("scalar floating entry range is not a proposition clause")
+        }
+        // A float-meaning equality clause cites its checked equality row
+        // as the vocabulary-level `Atom` the proof admission replays;
+        // the row's dense position derives that identity for producer
+        // and verifier alike. An unresolved coordinate — never rejoined
+        // in graph preparation — stays a hard failure rather than a
+        // claim erased toward Truth.
+        ClosedScalarContractValue::FloatMeaningEquality { equality, .. } => {
+            let Some(equality) = equality else {
+                return unsupported(
+                    "float-meaning equality clause was never rejoined to its checked equality row",
+                );
+            };
+            Ok(Proposition::Atom(
+                terminal_psi::float_meaning_equality_proposition_id(equality.0),
+            ))
+        }
+    }
+}
+
+/// One proposition row per covered clause: call obligation rosters pair
+/// positionally with the callee's published `requires` rows, so each authored
+/// requirement stays its own row rather than folding into one conjunction.
+pub(crate) fn clause_propositions(
+    clauses: &[Option<ClosedScalarContractValue>],
+    namespace: &[ValueDeclaration],
+    erased: &[ValueDeclaration],
+) -> Result<Vec<Proposition>, LoweringError> {
+    clauses
+        .iter()
+        .map(|clause| {
+            let Some(clause) = clause else {
+                return unsupported("scalar contract clause has no checked predicate");
+            };
+            clause_proposition(clause, namespace, erased)
+        })
+        .collect()
+}
+
 pub(crate) fn clauses(
     clauses: &[Option<ClosedScalarContractValue>],
     namespace: &[ValueDeclaration],
     erased: &[ValueDeclaration],
 ) -> Result<Option<Proposition>, LoweringError> {
     let mut combined = None;
-    for clause in clauses {
-        let proposition = match clause {
-            Some(ClosedScalarContractValue::Predicate(predicate)) => {
-                proposition(predicate, namespace, erased)?
-            }
-            // The checked selection gate established builtin reflexivity.
-            Some(ClosedScalarContractValue::Boolean(_) | ClosedScalarContractValue::Integer(_)) => {
-                Proposition::Truth
-            }
-            // Floating entry ranges discharge through the retained scalar
-            // qualification catalog, never as propositions; covered_requires
-            // strips them before this conversion.
-            Some(ClosedScalarContractValue::FloatRange(_)) => {
-                return unsupported("scalar floating entry range is not a proposition clause");
-            }
-            // A float-meaning equality clause cites its checked equality row
-            // as the vocabulary-level `Atom` the proof admission replays;
-            // the row's dense position derives that identity for producer
-            // and verifier alike. An unresolved coordinate — never rejoined
-            // in graph preparation — stays a hard failure rather than a
-            // claim erased toward Truth.
-            Some(ClosedScalarContractValue::FloatMeaningEquality { equality, .. }) => {
-                let Some(equality) = equality else {
-                    return unsupported(
-                        "float-meaning equality clause was never rejoined to its checked equality row",
-                    );
-                };
-                Proposition::Atom(terminal_psi::float_meaning_equality_proposition_id(
-                    equality.0,
-                ))
-            }
-            None => return unsupported("scalar contract clause has no checked predicate"),
-        };
+    for proposition in clause_propositions(clauses, namespace, erased)? {
         combined = Some(if let Some(previous) = combined {
             connective(previous, proposition, true)?
         } else {
