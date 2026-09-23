@@ -1,0 +1,173 @@
+{
+    "wave": "macw7",
+    "max_acu_limit": 1,
+    "bypass_approval": false,
+    "resumable": true,
+    "tags": [],
+    "owner_label_prefix": "Devin / macw7",
+    "exclusions": [],
+    "sessions": [
+        {
+            "name": "c2l-blowup",
+            "board": "TASKS.md",
+            "item": "C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/nonzero_divisor_certificate",
+                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
+                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/tests/nominal_affine_source"
+            ],
+            "suggested_first_slice": "resume parked WIP: merge or rebase branch swarm/macw4-c2l-blowup (97228fe69f — unvalidated drain checkpoint spanning nonzero_divisor_certificate integer_selection + affine_custody + cast_custody/chain refactor) into your worktree first, review or discard it, then re-measure the named nominal_affine integer_comparison test with an explicit timeout — ebd634e638's exact.rs gating may already resolve the historical stall",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "backend-vocab-audit",
+            "board": "TASKS.md",
+            "item": "BACKEND-VOCABULARY-REJECTION-AUDIT",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization",
+                "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection"
+            ],
+            "suggested_first_slice": "trace admission ordering and downstream filtering for one admitted-but-unrealizable operation family — establish whether it selects on each applicable ISA or returns a structured refusal through the public compiler, with exact operation/target diagnostics and no panic or silent omission",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "termination-ranking",
+            "board": "TASKS.md",
+            "item": "TERMINATION-RANKING-CHECKS",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+                "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range",
+                "omega-rust/psi/semantics/validation/src/machine_calls/call_cycles/runtime_ranking",
+                "omega-rust/omega/compiler/compiler/tests/rank_remainder_endpoints.rs",
+                "omega-rust/omega/compiler/compiler/tests/rank_endpoint_borrows.rs"
+            ],
+            "suggested_first_slice": "extend non-polynomial actual-argument substitution to one further unsupported constituent operation or an exact-arrival/write-frame/cycle-descent acceptance row — covered so far: / % << >> (2f546a6da0 + 4743a48c14; OpaqueTerm::{ShiftLeft,ShiftRight}, install_nonpolynomial_terms recursion, F8 count obligation, floor-division semantics for signed >>); saved let-locals stay inadmissible (a separate feature)",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "domain-issuer-routes",
+            "board": "TASKS.md",
+            "item": "DOMAIN-ISSUER-ROUTES",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit.rs",
+                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit",
+                "omega-rust/psi/semantics/terminal-verifier/tests/calls/qualification_establishments.rs",
+                "omega-rust/psi/semantics/terminal-verifier/tests/straight_line/scalar_qualifications.rs"
+            ],
+            "suggested_first_slice": "ordinary attached units publish no conformance applications — retain the missing ordinary callee/conformance identities in attached_unit.rs/catalog.rs and connect checked establishment evidence to its exact invocation result (call_result_qualification_establishments currently emits only boundary-requirement bindings backed by an exact CallEnsures receipt)",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "exact-machine-2",
+            "board": "TASKS_OPTIMIZER.md",
+            "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/catalog.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/module_catalog.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/block_edges.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/window_hazards.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/test_support.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/mod.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs"
+            ],
+            "suggested_first_slice": "execute one currently-external rewrite family (address, compare/test, or scheduling — extension landed at 16e7050320 via the generalized PreAllocationPolicy + joint catalog executor) through exact-named selection from the public stage; follow the now-established pattern: exact selection name, ordered catalog descriptor, candidate discovery binding source/selection identities, independently reconstructed legality. Exclude runtime_spill (claimed by linw4), selected_lowering + analyses/legality (sibling macw7 slot), copy_removal and redundant_extension (both landed)",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "declarative-peepholes",
+            "board": "TASKS_OPTIMIZER.md",
+            "item": "DECLARATIVE-PEEPHOLES",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/legality",
+                "omega-rust/omega/representations/optimization-core"
+            ],
+            "suggested_first_slice": "declare one further currently-impossible pair relationship — flag-consuming, clobbering, or tied-operand form (zero-compare value partition landed at 3e8da4d90e via PairImmediateBound::EncodingNonZero) — in literal_fold/pair_rule.rs with independent replay coverage in literal_fold/validate; the validator restates every grammar from instruction records and never reads a descriptor",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "proof-cert-bridge",
+            "board": "TASKS.md",
+            "item": "PROOF-CERTIFICATION-BRIDGE",
+            "host": "local",
+            "layer": 1,
+            "owning_paths": [
+                "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs",
+                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants",
+                "omega-rust/psi/semantics/proof-admission/src/integer_rules/open_terms.rs",
+                "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc",
+                "omega-rust/omega/compiler/compiler/tests/pcc_publication.rs"
+            ],
+            "suggested_first_slice": "extend the certified source-derivation route ebd634e638 landed (kernel ClosedIntegerRelation lifts Exact compounds on Fixed carriers through open-term ring normalization; lowering transport fallback gated to compound endpoints) to multi-state carried values — the single-state free-loop order claim already runs natively; storage-changing self transitions and the checked-only proof_inductive fixtures may follow if the slice stays bounded",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "pcc-ledger",
+            "board": "TASKS.md",
+            "item": "PCC-CANONICAL-SEMANTIC-LEDGER",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface",
+                "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface.rs",
+                "omega-rust/psi/semantics/terminal-verifier/src/lib.rs"
+            ],
+            "suggested_first_slice": "discharge one ExplicitlyTrusted trusted_surface row family (reconstruction, normalization, scope, invalidation, or call/cycle-composition) with checked evidence and exact dependencies — the inventory mechanically covers dispatch/reconstructed-facts/dependencies; coverage and a Proved label are not proofs; preserve PROVED_ENTRIES and unfinished-dependency checks; revalidate justifications before refreshing any source digest in lib.rs",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "placed-access",
+            "board": "TASKS.md",
+            "item": "PLACED-ACCESS-NATIVE-OPS",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/primitive_store.rs",
+                "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/emission",
+                "omega-rust/psi/semantics/terminal-interpreter/tests/unit"
+            ],
+            "suggested_first_slice": "extend the contract-fact index derivation d61f983d6a added to proven_runtime_index (authored requires conjuncts folded into the closed interval) to one further placed-access operation beyond the indexed store — contract/domain facts only, no revived bracketed-range annotation syntax",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        }
+    ]
+}

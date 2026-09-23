@@ -392,7 +392,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   rewritten kinds, operand shape, immediate bound, result disposition, unit
   effects and machine effects, and the
   [exact-rule inventory](omega-rust/omega/representations/optimization-core/rules.md)
-  lists the implemented `SelectedIncoming*` selections. Every landed pair
+  lists the implemented `SelectedIncoming*` selections. `3e8da4d90e` (macw7)
+  showed the descriptor's bound field carries value partitions:
+  `PairImmediateBound::EncodingNonZero(4095)` on the immediate pairs versus
+  `Exactly(0)` on new `COMPARE_ZERO`/`COMPARE_LEFT_ZERO` pairs restored the
+  retired left-zero `CompareI64Zero` refinement, with the validator
+  re-deriving the realization from the removed literal's recorded
+  value/position. Every landed pair
   eliminates an effect-isolated `MaterializeI64` that immediately precedes its
   single consumer in the same block. The candidate is one pressure-recovery
   `ImmediateU64RematerializationCandidate` per function and fixed-point
@@ -455,9 +461,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   Owner: `omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/`.
   `ad5cb24ec6` (macw4) connected the same-block copy-removal family through
   exact-named selection from `optimize_analyzed_selected_instructions`
-  (`CopyRemovalIdentity`, repaired re-export `cb21535d0a`); extension,
-  address, compare/test, and scheduling families still run outside the public
-  stage.
+  (`CopyRemovalIdentity`, repaired re-export `cb21535d0a`). `16e7050320`
+  (macw7) connected the redundant-extension family through a generalized
+  `PreAllocationPolicy` + joint catalog executor
+  (`SelectedRedundantExtensionRemovalV1` = tag 46); address, compare/test,
+  and scheduling families still run outside the public stage. Parked WIP:
+  branch `swarm/macw7-exact-machine-2` at `54435f01e0` holds an unvalidated
+  drain checkpoint on `SelectedAddressOffsetFoldV1` — resume by reviewing or
+  discarding; its acceptance test coverage lives under `tests/` paths held
+  by PACKAGE-NAME-UNDERSCORE-MIGRATION's claim at checkpoint time.
 
   Add exact selection names, ordered catalog descriptors, candidate discovery
   binding source/selection identities, and execution from
