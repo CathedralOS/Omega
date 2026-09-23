@@ -24,6 +24,14 @@ A test, experiment, benchmark, or implementation task cannot be the sole
 motivation, and machinery introduced only to support such work is removed or
 kept non-authoritative rather than promoted into an owner decision.
 
+Application ports, including Squalr, are implementation customers, not a separate
+class of owner questions. Port shape, API adaptation, missing library operations,
+and compiler rejections stay with the implementer under the existing contracts.
+Escalate only a specific unresolved language, architecture, or trust rule, citing
+the contracts that leave it open. The application may motivate that question;
+its name or a workaround does not establish one. Do not ask the owner to approve
+ordinary port choices or treat a workaround as permission to reduce acceptance.
+
 Apply the same test to security machinery. Omega owns only claims it can
 enforce at its actual compiler, package, and artifact boundaries. A proposal
 that merely restates host operating-system, credential, transport, or operator
@@ -376,30 +384,6 @@ it instantiates. A reviewer verifies those citations before the framing.
     across unmanaged owners stay forbidden and the toolchain library's
     declarations are exempted instead. Until then MODULE-NAMESPACE-RESOLUTION
     keeps `domains.rs`'s independent collision rejection.
-
-## Squalr scalar-scan port: surface-driven shape choices
-
-The SCALAR-SCAN-AND-DISPATCH port hit four language-surface limits that forced
-interface-shape decisions; none are silent semantic changes, but each is worth a
-ruling or at least a note so later legs make the same choice:
-
-- `Vec<T>` has no constructor until `Allocation<T>` can borrow an `Arena`, so
-  the upstream eager `Vec<SnapshotRegionFilter>` result was ported as a pull
-  driver (`next() -> EmittedRegion`). Emission order/content identical; the
-  caller drains instead of receiving a buffer.
-- `Optional<T>` scrutinees whose payload is a foreign-package type cannot be
-  matched in states ("not a declared ... type in this state"), so
-  `Option<ScanFunctionScalar>` became `has_scan_function_scalar: bool` beside a
-  `[copy]` payload field, and encoder emissions became a package-local
-  `EmittedRegion` enum instead of `Optional<SnapshotRegionFilter>`.
-- The legacy range-annotated scan port restates an `index < slice.len` guard
-  on each call arm, forwarding plain `u64` between states. Migrate the leaf's
-  bound to `requires index < sibling.len` under
-  **REMOVE-BRACKETED-RANGE-ANNOTATIONS**, then distinguish any remaining
-  fact-transport limitation from the retired annotation syntax.
-- Bare `machine Name::state` only resolves when `Name` is a declared data type;
-  upstream unit-struct namespaces became `[copy]` marker data (e.g.
-  `ScannerScalarSingleElement`).
 
 7. **Which half owns the step from a materialization plan to the post-handoff
    writer program?** (named decision: `post-handoff-writer-ownership`).
