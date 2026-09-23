@@ -44,6 +44,8 @@ it decomposes an existing item. Items added before 2026-09-14 are untagged.
   Helper/test counts, smaller files, and preserving current limits are not goals.
   Compare simpler implementations and coherent private-capacity changes before
   adding workarounds; preserve required semantics and fail-closed behavior.
+  Routine limit changes need no owner approval; follow
+  [private capacity changes](bootstrap/MINIMIZATION.md#private-capacity-changes).
 - No intermediate self-hosting, hypothetical reuse, permanent compatibility
   layers, host semantic stages, or customer-specific acceptance shortcuts.
   Host tools may invoke, stamp, compare, and report, never manufacture authority.
@@ -234,6 +236,12 @@ prerequisite to every lower-rung milestone.
     host without unavailable-host success or an undisclosed authority substitute.
     Apply ALPHA-SEED-MEMSIZE-NATIVE-VALIDATION before claiming the corrected
     macOS extent.
+  - Complete [Delta's cumulative pair containment](bootstrap/3_delta/implementation/boundary/execution_storage.md#remaining-obligation)
+    for the selected Gamma profile. Scaled allocation projections and individual
+    full-extent runs do not cover every admitted composition. Derive the complete
+    bound, coherently reprovision if needed, and validate the actual Epsilon
+    closure and resource-boundary controls without substituting raw evaluator
+    failure for the compiler outcome. Capacity tuning is not owner-blocked.
 
   Acceptance is the complete offline self-host chain, not another passing
   subset or an aggregate of incompatible source/profile pins.

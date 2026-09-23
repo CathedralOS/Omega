@@ -38,9 +38,6 @@ pub(crate) fn lower_domain_definition(
         .map(|route| route.iter().map(lower_name).collect())
         .collect();
     let facts = lower_proof_facts(lowerer, syntax_trees, domain.facts)?;
-    // Visibility inheritance for domain-owned operators remains owner question
-    // Q1. Their implementation expressions stay private until that source rule
-    // is settled; the domain's own predicate facts retain the domain exposure.
     let operators = lowerer.with_authored_expression_exposure(
         language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation,
         |lowerer| lower_domain_operators(lowerer, syntax_trees, domain.operators),

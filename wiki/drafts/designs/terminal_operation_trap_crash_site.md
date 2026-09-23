@@ -1,8 +1,8 @@
 # Terminal operation-level trap crash site — profile row proposal
 
 Design record for **NEW-APR-TRAP-CRASH-SITE-PROFILE-PROPOSAL** (TASKS.md,
-planner-scoped draft). Feeds OWNER_QUESTIONS.md question 3
-(`terminal-operation-level-trap-crash-site`), which the DESIGN-BLOCKED
+planner-scoped draft). Feeds
+[`terminal-operation-level-trap-crash-site`](../../../OWNER_QUESTIONS.md), which the DESIGN-BLOCKED
 Terminal Trapping family legs wait on. Audited at `12ea4941eb` on linux
 x86-64. Delete this draft once that question is answered and the chosen row
 shape moves the observation profile.

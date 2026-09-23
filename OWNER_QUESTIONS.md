@@ -59,58 +59,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 Proposed solutions below are recommendations, not owner rulings. Where a
 contract already answers a question, the entry says so explicitly.
 
-### Q1 - Must a mutable method preserve its receiver's declared field domains?
-
-Named decision: `mutable-self-receiver-declared-field-rows`.
-
-**Context:** [Default domains](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization)
-must hold at calls, but newly zeroed machine storage may contain inaccessible
-fields. The contract does not explicitly join these rules for `&mut self`.
-
-**Problem:** After `player.update()`, the caller can lose a previously proved
-bound on `player.health`. Ordinary `&mut` parameters preserve their declared
-field domains; receivers currently preserve only zero-satisfiable or framed-off
-facts. This blocks receiver handback in **NOMINAL-FIELD-FLOW**.
-
-**Proposed solution:** Treat `&mut self` like other mutable referents: callers
-prove declared field domains, callees assume them and re-prove them on return.
-Keep partially initialized construction distinct from readable method entry.
-
-**Alternatives:**
-- Keep receiver defaults internal; require explicit `requires`/`ensures` for
-  non-zero-satisfiable domains. This preserves construction flexibility but
-  makes receiver contracts different from ordinary parameters.
-- Tempting but wrong: retain the caller's facts without checking the callee's
-  writes and return obligations. That preserves unproved invariants.
-
-### Q2 - How must Delta report exhaustion of its evaluator's pair storage?
-
-Named decision: `delta-compiler-pair-arena-profile`.
-
-**Context:** [Delta's request contract](bootstrap/3_delta/LANGUAGE.md) requires
-compiler-owned outcomes. [Gamma status 252](bootstrap/2_gamma/EVALUATOR_PROFILE.md)
-reports evaluator heap failure with no compiler output.
-
-**Problem:** An admitted input exhausted the former 40,265,318-pair arena.
-The selected arena is now 3,422,453,760 pairs; the
-[allocation study](bootstrap/3_delta/implementation/boundary/execution_storage.md#whole-producer-pair-study-measured)
-projects 417,063,339, but that projection is not a proof covering every admitted
-input. **DELTA-COMPILER** still needs containment or a compiler-owned failure.
-
-**Proposed solution:** Complete containment for the selected arena first.
-Provisioning is engineering work under [minimization](bootstrap/MINIMIZATION.md),
-not a new language decision. Escalate only a required change to the observation
-contract if containment cannot be established.
-
-**Alternatives:**
-- Add an allocation ledger and a specified `DCOUT` resource outcome below the
-  evaluator limit. This gives explicit failure but adds compiler/checker cost.
-- Ratify raw status 252 as a request outcome. This changes the current guarantee
-  and needs an explicit owner decision.
-- Tempting but wrong: call measured headroom a proof, or invent a `DCOUT` heap
-  code without changing its contract.
-
-### Q3 - How should Terminal Psi identify crashes from trapping arithmetic?
+### Q1 - How should Terminal Psi identify crashes from trapping arithmetic?
 
 Named decision: `terminal-operation-level-trap-crash-site`.
 
@@ -135,7 +84,7 @@ and update independent reconstruction together.
 - Tempting but wrong: fabricate an edge or boundary identity, or silently change
   the existing wire schema. Neither preserves the published observation contract.
 
-### Q4 - How should the compiler bound aggregate proof work?
+### Q2 - How should the compiler bound aggregate proof work?
 
 Named decision: `compile-time-proof-work-ceiling`.
 
@@ -161,7 +110,7 @@ No owner permission is needed for the already-settled outcome distinction.
   add only a warning and claim execution is bounded. A cap also does not excuse
   the known algorithmic defect.
 
-### Q5 - Does AArch64 need a separate semantic entry wrapper?
+### Q3 - Does AArch64 need a separate semantic entry wrapper?
 
 Named decision: `aarch64-semantic-wrapper-arrival-shape`.
 
@@ -185,7 +134,7 @@ against their authored plans; do not invent a profile to justify wrapper tests.
 - Tempting but wrong: pass pointers under the same value-register plan fingerprint,
   copy x64 shadow-space rules, or patch an AArch64 branch as a raw x86 displacement.
 
-### Q6 - How should interpreted components execute checked inline assembly?
+### Q4 - How should interpreted components execute checked inline assembly?
 
 Named decision: `interpreted-inline-assembly`.
 
@@ -211,7 +160,7 @@ Validate one real device sequence and one idle/external-entry sequence.
 - Tempting but wrong: replace hardware idle with interpreter pause, redefine
   instructions through provider names, or move OS policy into the compiler.
 
-### Q7 - Does Psi or Omega own post-handoff writer plans?
+### Q5 - Does Psi or Omega own post-handoff writer plans?
 
 Named decision: `post-handoff-writer-ownership`.
 
@@ -235,7 +184,7 @@ validation owner rather than copies in each consumer.
 - Tempting but wrong: rename consumer modules and call the ownership fixed, or
   weaken the firewall merely to legitimize the current placement.
 
-### Q8 - Is passing a Binding by value a move or a copy?
+### Q6 - Is passing a Binding by value a move or a copy?
 
 Named decision: `service-carrier-argument-multiplicity`.
 
@@ -258,7 +207,7 @@ of borrowed storage, and close the stale escalation through the owning task.
 - Tempting but wrong: make Binding copyable only in argument position, or merely
   reclassify the pass fixture without preserving its legitimate borrowed-call use.
 
-### Q9 - How should Terminal represent structural replacement, recast views, and fresh linear values?
+### Q7 - How should Terminal represent structural replacement, recast views, and fresh linear values?
 
 Named decision: `terminal-vocabulary-for-unit-bodies`.
 
@@ -283,7 +232,7 @@ alone needs no owner ruling; isolate any genuinely new semantic rule first.
 - Tempting but wrong: remove repair checks, fake a move window, trust a producer's
   claim assertion, or equate fresh linear custody with permission to mint authority.
 
-### Q10 - What portable identity should a root without a package declaration have?
+### Q8 - What portable identity should a root without a package declaration have?
 
 Named decision: `unmanaged-root-package-identity`.
 
@@ -308,7 +257,7 @@ route. Keep ordinary local compilation separate from portable publication.
 - Tempting but wrong: use host paths or import order, exempt toolchain declarations,
   or assume distinct owner identities make competing visible names unambiguous.
 
-### Q11 - Should a bare case name resolve as a value?
+### Q9 - Should a bare case name resolve as a value?
 
 Named decision: `bare-case-value-names`.
 
@@ -333,7 +282,7 @@ solely to make it pass.
 - Tempting but wrong: choose the first matching case by import order or silently
   prefer a case over a local binding.
 
-### Q12 - Does normal completion consume an owned receiver, including an affine one?
+### Q10 - Does normal completion consume an owned receiver, including an affine one?
 
 Named decision: `owned-self-receiver-implicit-retirement`.
 

@@ -429,23 +429,22 @@ instead of copying up to 63 sibling rows, so that product no longer multiplies
 departed levels by row count. The capture merge term is logarithmic in batch
 count per collection, and its aggregate over nested helper captures is closed
 by the emission audit's injective `(origin, ancestor cut)` charge at
-`sum(T) <= 32*N + 512*N*N`. Whether the per-occurrence products stay below
-the pair arena for every admitted shape is settled by measurement rather than
-by this envelope, which exceeds the arena from `N = 238`: the
+`sum(T) <= 32*N + 512*N*N`. A bound covering every admitted composition remains
+owed: this envelope exceeds the arena from `N = 238`. The
 [measured worst-shape
 study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 projects 417,063,339 pairs at full admitted extents — 8.2× under the
-3,422,453,760-pair arena — so an admitted source does not end in a raw Gamma
-heap failure. Under the retired 40,265,318-pair profile the answer was
-negative: the
+3,422,453,760-pair arena. That supports the provision but is not a proof that
+no admitted source can exhaust it. Under the retired 40,265,318-pair profile, the
 [measured whole-producer study](execution_storage.md#whole-producer-pair-study-measured)
 drove each extent to its profile boundary, composed the two ledger-orthogonal
 drivers — arithmetic nodes (240 pairs each, capped by the syntax ledger) and
 identifier bytes (three pairs each, ledger-free) — and observed a fully
 admitted 4,194,288-byte source end in raw halt 252 at exactly 40,265,318
-cumulative pairs, that arena's limit, with no DCOUT row. That remains the
-recorded owner-escalation finding behind the filed
-`delta-compiler-pair-arena-profile` decision.
+cumulative pairs, that arena's limit, with no DCOUT row. The
+[`delta-compiler-pair-arena-profile` rule](../../../MINIMIZATION.md#private-capacity-changes)
+delegates coherent reprovisioning and containment work without further owner
+approval; the old limit hit is not an open design decision.
 
 ### Arithmetic allocation probe
 
@@ -578,14 +577,12 @@ no new refusal code or profile limit. Generated function storage fits by the
 request bound, and transformed bodies fit the height and static-environment
 bounds; a generated program's non-tail contexts and immutable allocation
 remain resources of that program's execution, not a compiler outcome. The
-producer's own execution storage is bounded by the
-[execution-storage audit](execution_storage.md) and its cumulative pair
-allocation by the measured worst-shape study cited above, so no admitted
-compile ends in a raw Gamma heap failure under the selected profile; the
-retired 40,265,318-pair profile did admit one measured halt-252 exhaustion
-(the whole-producer study above), and the filed
-`delta-compiler-pair-arena-profile` decision still owes the contract
-reading. Those empty-output evaluator
+producer's own execution storage is covered by the
+[execution-storage audit](execution_storage.md); complete cumulative pair
+containment remains owed beyond the measured projections. The enlarged arena
+is selected, and further coherent private-capacity tuning is delegated under
+[minimization](../../../MINIMIZATION.md#private-capacity-changes), not blocked
+on a contract ruling. Empty-output evaluator
 statuses must not be decoded as DCOUT or synthesized into frames by a runner.
 The generated ConformanceBytesV1 program's statuses are separately owned by
 its adapter. Successful compiler output remains the exact unwrapped Gamma
