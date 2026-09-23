@@ -40,8 +40,12 @@ impl ConsoleUse {
 /// The dangerous standard-library services one checked program requires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RequiredDangerousServices {
-    /// The program selected the standard library's `FilesystemHost` provider.
+    /// The selected entry's receiver demands the standard library's
+    /// `FilesystemHost` boundary through a `Binding<FilesystemHost>` field.
     pub filesystem: bool,
+    /// The selected entry's receiver demands the standard library's
+    /// `TimeHost` boundary through a `Binding<TimeHost>` field.
+    pub time: bool,
     /// The operations the program resolves against the standard library's
     /// selected `Console` provider; `None` when it selected no such provider
     /// or resolves no operation against it.
@@ -53,21 +57,33 @@ pub struct RequiredDangerousServices {
 
 impl RequiredDangerousServices {
     pub const fn any(self) -> bool {
-        self.filesystem || self.console.is_some() || self.process_exit
+        self.filesystem || self.time || self.console.is_some() || self.process_exit
     }
 }
 
 /// Project the dangerous services `checked` requires from the standard
 /// library bound under `standard_library`.
 ///
-/// A service counts only through a selected provider plan the standard
-/// library owns: the `FilesystemHost` and `Console` schemas are its own
-/// boundary traits, while `ProcessExit` is toolchain-owned and is attributed
+/// `Console` counts through a selected provider plan whose schema the
+/// standard library owns, and `ProcessExit`, which is toolchain-owned,
 /// through the selected provider type instead, exactly as the binding
-/// constructors attribute it. Console and ProcessExit operations are the
-/// trait signatures the program's call statements resolved to — a
-/// `Binding<R>` receiver resolves its call target to `R`'s signature whatever
-/// the receiver's shape — so a fixture that imports a service and never calls
+/// constructors attribute it.
+///
+/// `FilesystemHost` and `TimeHost` are canonical toolchain-settled slots and
+/// cannot count through a selected plan: no package may author a conformance
+/// for them, and provider settlement mints their plan only after the build
+/// has accepted the slot's semantic binding (`provider_settlement` in
+/// build-evaluation). Keying their acceptance on a selected plan therefore
+/// could never fire, and every entry holding one of these carriers stopped
+/// at establishment's missing-Fused-provider rejection even on the targets
+/// whose settlement table does realize the slot. Their demand is instead the
+/// selected entry's own `Binding<R>` field requirements — the same surface
+/// consumer package review nominates these bindings from — which is why the
+/// preliminary compile tolerates the still-unsettled fields.
+///
+/// Console and ProcessExit operations are the trait signatures the program's
+/// call statements resolved to — a `Binding<R>` receiver resolves its call
+/// target to `R`'s signature whatever the receiver's shape — so a fixture that imports a service and never calls
 /// it accepts nothing.
 pub fn required_dangerous_services(
     checked: &CheckedCompilation,
@@ -87,7 +103,6 @@ pub fn required_dangerous_services(
     {
         let schema = provenance.provider.schema.symbol();
         match plan.schema.trait_name.as_str() {
-            "FilesystemHost" if owned_by_standard_library(schema) => services.filesystem = true,
             "Console" if owned_by_standard_library(schema) => {
                 for method in resolved_boundary_call_names(program, schema) {
                     match method {
@@ -104,10 +119,30 @@ pub fn required_dangerous_services(
                     .provider_type
                     .is_some_and(owned_by_standard_library) =>
             {
-                services.process_exit |= resolved_boundary_call_names(program, schema)
-                    .iter()
-                    .any(|method| *method == "exit_process");
+                services.process_exit |=
+                    resolved_boundary_call_names(program, schema).contains(&"exit_process");
             }
+            _ => {}
+        }
+    }
+    for requirement in checked.selected_program_entry_service_requirements() {
+        let Some(definition) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.is_boundary && definition.symbol == requirement)
+        else {
+            continue;
+        };
+        if !owned_by_standard_library(definition.symbol) {
+            continue;
+        }
+        match program
+            .symbols
+            .display_path(definition.symbol, "::")
+            .as_str()
+        {
+            "FilesystemHost" => services.filesystem = true,
+            "TimeHost" => services.time = true,
             _ => {}
         }
     }
