@@ -3008,10 +3008,18 @@ syntax and other terminal services are not prerequisites.
   rather than treating each source arrangement as another unsupported feature.
   Remaining concrete joins:
 
-  - `demand.rs` still rejects a receiver mentioning a divergent local before
-    contextual substitution, despite supporting a directly computed receiver.
-    Carry the proven finite candidate set through the same receiver relation;
-    retain opacity for unknown callees, private escapes and unproved rebinds.
+  - ~~`demand.rs` rejects a receiver mentioning a divergent local.~~ Done,
+    measured at `c5fa2cf467`: no receiver-level divergent bail remains in
+    `demand.rs` -- both surviving `mentions_divergent` calls compute
+    `has_divergent_actual` over ARGUMENTS, which is the next bullet's subject.
+    The repair carries the proven finite candidate set, and does so through
+    composition rather than only at the direct hop:
+    `write_frame_candidate_origins.rs::divergent_computed_receiver_unions_candidate_writes`
+    and `::divergent_receiver_candidates_survive_composition` both pass, the
+    second asserting the whole candidate set survives an aggregate result
+    standing between the binding and the call and a rebind onto a second
+    binding. Opacity for unknown callees, private escapes and unproved rebinds
+    is retained by the surrounding cases in that same file.
   - `demand.rs` and `state_write_walk.rs` reject wire arguments mentioning a
     divergent alias before `wire_codecs.rs` can resolve its candidate set. Remove that
     mismatch by carrying checked argument origins through the caller and
