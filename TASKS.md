@@ -295,6 +295,31 @@ the complete product bar; focused successes below do not establish that baseline
   `control_flow/runtime_branching_helper_string` and
   `core/extent_root_provider_adapter`.
 
+  The 88-member plurality is NOT one blocker. Every member carries an
+  `omitted at local construction at ...` site, and at `988aef22078` they fall
+  into fifteen distinct ones, four of which carry 61 of the 88 -- and each of
+  those four clusters into a directory, so they are bounded slices rather than
+  one wall:
+
+  | n | omission site | clusters in |
+  | --- | --- | --- |
+  | 19 | `statement sequence: local data: structural call binding` | `recast` (14 of 19) |
+  | 16 | `statement sequence: call: call operation` | spread; `filesystem` 5 |
+  | 13 | `state graph: terminator: conditional successors: guard expression` | `filesystem` (10 of 13) |
+  | 13 | `structural field store: pure source` | `float` (9 of 13) |
+  | 7 | `structural field store: destination parameter` | |
+  | 4 | `statement sequence: local data: scalar local: pure initializer` | |
+  | 4 | `state graph: state signature: parameter signature: attached data shape` | |
+  | 3 | `structural field store: scalar field type` | |
+  | 2 | `state graph: result signature` | |
+  | 2 | `state graph: terminator: jump successor: parameter transfer` | |
+  | 1 each | `signature`, `structural result shape`, `jump successor: scalar arguments`, `unsupported tail: transition chain`, `prefix initializers: bound expression` | |
+
+  Take one site, not the cohort. `recast` at structural call binding and
+  `float` at pure-source field store are the two tightest: a single directory
+  and a single site each, so a repair there is measurable against a set that
+  is already isolated.
+
   The 17 WERE exactly the entry-free subset this row describes below,
   so that paragraph is corroborated rather than superseded. The 84-member
   plurality is the same family recorded in
