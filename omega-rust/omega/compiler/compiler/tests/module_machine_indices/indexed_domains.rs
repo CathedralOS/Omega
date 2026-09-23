@@ -309,12 +309,12 @@ fn unused_carrier_polymorphic_constants_check_the_complete_application() {
         (
             "domain<T, const Enabled: bool> T::Gate<Enabled> requires Enabled;",
             "Gate<false>",
-            "for const `UNUSED` is false",
+            "for the const leaf value is false",
         ),
         (
             "domain<T, const Enabled: bool> T::Gate<Enabled> requires !Enabled;",
             "Gate<true>",
-            "for const `UNUSED` is false",
+            "for the const leaf value is false",
         ),
         (
             "domain<T, const Enabled: bool> T::Gate<Enabled>;",
@@ -784,7 +784,10 @@ fn same_leaf_domain_owners_do_not_hide_a_false_foreign_predicate() {
          machine read() -> u64 { settings::VALUE }",
     );
     let error = rejection(&root, package_inputs(&root, &library));
-    assert!(error.contains("for const `VALUE` is false"), "{error}");
+    assert!(
+        error.contains("`VALUE`") && error.contains("for the const leaf value is false"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -1459,7 +1462,10 @@ fn unused_nested_indexed_constants_reject_false_facts() {
             ),
         );
         let error = rejection(&root, super::root_inputs(&root));
-        assert!(error.contains("for const `UNUSED` is false"), "{error}");
+        assert!(
+            error.contains("`UNUSED`") && error.contains("for the const leaf value is false"),
+            "{error}"
+        );
     }
 }
 
@@ -1717,7 +1723,7 @@ fn boolean_domain_indices_reject_false_unused_declarations() {
         );
         let error = rejection(&root, super::root_inputs(&root));
         assert!(
-            error.contains("for const `UNUSED` is false"),
+            error.contains("`UNUSED`") && error.contains("for the const leaf value is false"),
             "{argument}: {error}"
         );
     }
@@ -1935,13 +1941,13 @@ fn computed_boolean_domain_indices_do_not_publish_placeholder_membership() {
         "use library::settings; machine read() -> u64 { settings::RESULT }",
     );
     for (initializer, argument, extra, expected) in [
-        ("!true", "ENABLED", "", "for const `VALUE` is false"),
-        ("!false", "(!true)", "", "for const `VALUE` is false"),
+        ("!true", "ENABLED", "", "for the const leaf value is false"),
+        ("!false", "(!true)", "", "for the const leaf value is false"),
         (
             "!false",
             "ENABLED",
             " & policy::u64::Small",
-            "domain constraint `policy::u64::Small` for const `VALUE` is false",
+            "domain constraint `policy::u64::Small` for the const leaf value is false",
         ),
         (
             "1u8 == 1u64",
