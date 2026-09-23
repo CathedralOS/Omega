@@ -32,21 +32,8 @@ fn nested_sum_equality_executes_only_the_active_payload_comparison() {
                  transition compare(left, right) {{ true -> 7 false -> 11 }}
              }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("symbols");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("types");
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            typed,
-            &typed_trees_to_checked_trees::CheckingRequest::settled(),
-        )
-        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
+        let checked = crate::front_end::checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:?}"));
         let outcome = checked_interpreter::interpret_entry(
             &checked,
             BuildMachineEntry::Name("main"),

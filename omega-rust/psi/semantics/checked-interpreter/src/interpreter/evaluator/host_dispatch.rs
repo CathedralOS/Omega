@@ -540,23 +540,8 @@ mod tests {
     use super::super::{CheckedTrees, Frame};
     use super::{Evaluator, Halt, Value};
     use crate::value::Cell;
-    use source_files_to_tokens::Lexer;
     use std::collections::BTreeMap;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
     use typed_trees::statement::{StatementNode, TableCall};
-    use typed_trees_to_checked_trees::CheckingRequest;
-    use typed_trees_to_checked_trees::lower_typed_trees;
-
-    pub(super) fn checked(source: &str) -> CheckedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("host-call tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("host-call syntax");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("host-call symbols");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("host-call types");
-        lower_typed_trees(typed, &CheckingRequest::settled())
-            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"))
-    }
 
     /// Compile `Helper::take(&mut self.line...)` — an ordinary static call the
     /// single-source harness resolves — then retarget the statement's leaf and
@@ -660,7 +645,7 @@ mod tests {
 
     #[test]
     fn bounded_read_line_serves_line_read_result_by_signature() {
-        let checked = checked(BOUNDED_CONSOLE_SOURCE);
+        let checked = crate::front_end::checked_program(BOUNDED_CONSOLE_SOURCE);
         let call = read_line_call(&checked, "Console");
         let machine_symbol = checked
             .machines()
@@ -740,7 +725,7 @@ mod tests {
                 "Helper::take(&mut self.line);",
                 &format!("Helper::take(&mut self.line{destination});"),
             );
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let call = read_line_call(&checked, "Console");
             let machine_symbol = checked
                 .machines()
@@ -782,7 +767,7 @@ mod tests {
 
     #[test]
     fn unit_returning_read_line_keeps_the_legacy_fallback() {
-        let checked = checked(
+        let checked = crate::front_end::checked_program(
             "pub domain [u8]::LineUtf8
             requires
                 valid_utf8(self);
@@ -833,7 +818,7 @@ mod tests {
             "machine ConsoleNativeProvider::write_byte(byte: i32)
                 satisfies Console::write_byte via Binding::CompilerIntrinsic;",
         ] {
-            let checked = checked(&format!(
+            let checked = crate::front_end::checked_program(&format!(
                 "pub boundary trait Console {{
                     machine write_byte(byte: i32) reaches Console;
                 }}
@@ -880,7 +865,7 @@ mod tests {
             "transition block ConsoleNativeProvider::read_byte() {\n                    ByteRead::Eof -> done()\n                    ByteRead::Byte { value } -> emit(value)",
         );
         for source in [source.to_owned(), guarded] {
-            let checked = checked(&source);
+            let checked = crate::front_end::checked_program(&source);
             let input = (0..=255).collect::<Vec<u8>>();
             let mut evaluator = Evaluator::new_checked(&checked, &input);
             for consumed in 1..=input.len() {
@@ -908,7 +893,7 @@ mod tests {
 
     #[test]
     fn byte_input_guard_does_not_memoize_a_separately_authored_successor_call() {
-        let checked = checked(
+        let checked = crate::front_end::checked_program(
             "pub data ByteRead { case Eof; case Byte(value: i32 [0..=255]); }
             pub boundary trait Console {
                 machine read_byte() -> ByteRead reaches Console blocks; crashes Trap;
@@ -952,7 +937,7 @@ mod tests {
                 "machine ConsoleNativeProvider::exit_process(code: i32)
                     satisfies Console::exit_process via Binding::CompilerIntrinsic;"
             };
-            let checked = checked(&format!(
+            let checked = crate::front_end::checked_program(&format!(
                 "pub boundary trait Console {{
                     machine exit_process(code: i32) reaches Console;
                     machine write_byte(byte: i32) reaches Console;
@@ -1031,7 +1016,7 @@ mod tests {
                 "ConsoleNativeProvider::write_byte",
             ),
         ] {
-            let checked = checked(&format!(
+            let checked = crate::front_end::checked_program(&format!(
                 "pub boundary trait Console {{
                     machine write_byte(byte: {primitive}) reaches Console;
                 }}

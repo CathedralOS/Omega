@@ -22,6 +22,7 @@ checked-trees = { path = "../../representations/checked-trees" }
 validation = { path = "../validation" }
 
 [dev-dependencies]
+diagnostics = { path = "../../foundation/diagnostics" }
 source-files-to-tokens = { path = "../../pipeline/source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }

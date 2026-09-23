@@ -3,16 +3,7 @@ use super::{BinaryOperator, Evaluator, ExpressionHandle, ExpressionNode, Halt};
 use crate::BuildMachineEntry;
 use crate::InterpretOptions;
 fn program(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("symbols");
-    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("types");
+    let mut program = crate::front_end::typed_program(source);
     // Isolate execution from synthesis: preserve resolved membership operands,
     // then exercise the explicit typed operation directly.
     let memberships = program.expression_table.expression_entries().filter_map(|(handle, node)| {
@@ -161,16 +152,7 @@ fn case_membership_executes_checked_nested_structural_equality_synthesis() {
                  transition left == right {{ true -> 7 false -> 0 }}
              }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .expect("tokens");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("symbols");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("types");
+        let typed = crate::front_end::typed_program(&source);
         assert!(typed.expression_table.expression_entries().any(|(_, node)| {
             matches!(node, ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::CaseMembership)
         }));

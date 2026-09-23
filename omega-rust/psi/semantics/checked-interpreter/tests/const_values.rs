@@ -1,25 +1,10 @@
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
 use checked_interpreter::interpret_entry;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
-    GenericDataRequest, normalize_generic_data,
-};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
 
 fn assert_seven(source: &str) {
-    let tokens = Lexer::new(source).tokenize().expect("const value tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("const value syntax");
-    let syntax =
-        normalize_generic_data(GenericDataRequest::new(syntax)).expect("canonical const arguments");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("const value symbols");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("const value types");
-    let checked =
-        lower_typed_trees(typed, &CheckingRequest::settled()).expect("checked const values");
+    let checked = crate::front_end::checked_program_with_generic_data_result(source)
+        .expect("checked const values");
     let outcome = interpret_entry(
         &checked,
         BuildMachineEntry::Name("main"),

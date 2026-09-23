@@ -1,5 +1,4 @@
 use super::super::{CheckedTrees, ExpressionHandle};
-use super::tests::checked;
 use super::{Evaluator, Value};
 use typed_trees::data::DataMember;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceNode};
@@ -28,7 +27,7 @@ fn source(declaration: &str, target: &str, callee_blocks: bool) -> String {
 }
 
 fn canonical() -> CheckedTrees {
-    checked(&source(
+    crate::front_end::checked_program(&source(
         "machine ConsoleNativeProvider::read_byte() -> ByteRead
             satisfies Console::read_byte via Binding::CompilerIntrinsic
             crashes Trap blocks;",
@@ -39,7 +38,7 @@ fn canonical() -> CheckedTrees {
 
 #[test]
 fn byte_input_spelling_does_not_reclassify_a_scalar_to_unit_intrinsic() {
-    let program = checked(
+    let program = crate::front_end::checked_program(
         "pub boundary trait Console { machine read_byte(value: i32) reaches Console; }
         pub data ConsoleNativeProvider {}
         machine ConsoleNativeProvider::read_byte(value: i32)
@@ -269,7 +268,8 @@ fn concrete_byte_input_lookalikes_do_not_gain_host_authority() {
             false,
         ),
     ] {
-        let program = checked(&source(declaration, target, callee_blocks));
+        let program =
+            crate::front_end::checked_program(&source(declaration, target, callee_blocks));
         let machine = program
             .machines()
             .iter()

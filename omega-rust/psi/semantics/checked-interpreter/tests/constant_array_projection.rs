@@ -1,11 +1,6 @@
 use checked_interpreter::evaluate_const_machine;
 use source::{SourceMap, SourceOrigin};
-use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
-use std::sync::Arc;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 use typed_trees::expression::ExpressionNode;
 
 #[test]
@@ -44,17 +39,10 @@ fn typed_array_projection_cannot_execute_authored_indexing_as_builtin() {
                 SourceOrigin::User,
             )
             .source_id;
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize projection");
-        let mut syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse projection");
-        let tokens = Lexer::new(settings).tokenize().expect("tokenize settings");
-        parse_syntax_trees_into_with_id(&mut syntax, settings_id, &tokens).expect("parse settings");
-        let resolved = resolve(ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        })
-        .expect("resolve projection");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type projection");
+        let typed = crate::front_end::typed_program_from_source_map(
+            sources,
+            &[(source_id, &source), (settings_id, settings)],
+        );
         assert!(
             typed
                 .expression_table
