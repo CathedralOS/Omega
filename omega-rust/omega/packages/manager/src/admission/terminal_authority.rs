@@ -68,6 +68,18 @@ pub fn accepted_terminal_authority_permission_policy(
             permission.permitted().clone(),
         ));
     }
+    // The accepted set is a union over every package in the closure: two
+    // packages may propagate the identical permission, and a set holds each
+    // row once. Rows sharing (schema, requirement) but differing in
+    // `permitted` stay adjacent after the sort and still fail the policy
+    // builder's duplicate-key validation.
+    rows.sort_by(|left, right| {
+        left.service_schema()
+            .as_bytes()
+            .cmp(right.service_schema().as_bytes())
+            .then_with(|| left.requirement_identity().cmp(right.requirement_identity()))
+    });
+    rows.dedup();
     terminal_authority_permission_policy_with_rows(rows)
         .map_err(AcceptedTerminalAuthorityPermissionPolicyError::InvalidPolicy)
 }
