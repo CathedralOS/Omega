@@ -2038,37 +2038,6 @@ syntax and other terminal services are not prerequisites.
   `retained_content_custody` and `retention/retained_borrow_custody` controls.
   Registration-specific lease custody remains REGISTERED-CALLBACK-LIFETIME.
 
-- **GENERIC-RETURNED-VIEW-LIFETIMES.** Resolved — every acceptance clause is
-  covered by the named test, checked clause by clause at `ab6047d012` rather
-  than taken on report.
-  `generic_frontiers/static_calls.rs::exact_static_callable_substitution_allows_only_closed_view_free_results`
-  now drives the view-bearing `Outcome<i32, Job>` customer and asserts the
-  loan's original backing (`root_symbol == job`), path
-  (`["Rejected", "arguments", "value"]`) and shared access; writes to the live
-  source reject while an unrelated backing write passes; a conflicting callable
-  substitution rejects; and an unresolved frontier rejects. It passes at this
-  commit. Landed by `00ab30ee5d`. Everything below is the original scope.
-
-  Complete caller-side attribution of
-  generic returned views under
-  [returned views](wiki/spec/language/lifetimes.md#returned-views).
-  Exact selected callable/argument substitution currently admits template-dependent
-  results only when the complete instantiated frontier is view-free. Carry the
-  instantiated result-to-input relation and exact loans for view-bearing results.
-  Owners: `checks/borrows/elision/templates.rs`, `borrow/view_link.rs` and caller
-  loan attribution. Reuse the shared complete-frontier query; unresolved structure
-  is not an empty frontier, and discarding a result cannot bypass call admission.
-
-  Acceptance: extend
-  `generic_frontiers/static_calls.rs::exact_static_callable_substitution_allows_only_closed_view_free_results`
-  to its view-bearing `Outcome<i32, Job>` customer, retaining original backing,
-  path and access. Reject writes to every possible live source, unrelated/local
-  backing, access escalation, missing/conflicting callable substitution and
-  unresolved frontiers. Preserve view-free admission, concrete carriers and
-  ambiguous-elision rejection. Explicit same-lifetime multi-source unions already
-  work; general authored outlives syntax is outside the current contract, not an
-  implementation prerequisite.
-
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Complete portable lowering and native realization of borrowed non-byte
   `&[T]` views: runtime length, element access and subslices with exact
