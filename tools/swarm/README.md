@@ -121,7 +121,10 @@ and each agent claims, works, lands, and releases exactly like a cloud session.
 drain, collect worker evidence notes first: `python3 tools/claims.py notes`
 lists findings workers attached to their claim tickets; fold what they
 justify into one board sweep commit (landing it takes `--board-update`), then
-`python3 tools/claims.py sweep` marks them consumed. Then write the per-slot
+`python3 tools/claims.py sweep --owner <wave>` marks this wave's notes
+consumed while leaving sibling waves' pending evidence alone. Finish with
+`python3 tools/swarm/fill.py --manifest tools/swarm/waves/<wave>.json close`
+so the ledger stops proposing refills, then write the per-slot
 tally (result, commits, `item_closed`) to
 `tools/swarm/waves/<wave>.outcomes.json` so local waves stay measurable the
 same way cloud waves do.
