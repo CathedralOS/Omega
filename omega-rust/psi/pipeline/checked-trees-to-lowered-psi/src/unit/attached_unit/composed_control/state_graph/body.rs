@@ -82,22 +82,43 @@ pub(super) fn validate(
     .map_err(|_| LoweringError::Unsupported("Unit graph scalar binding count overflow"))?;
     let mut cursor = prefix;
     for (index, operation) in state.operations.iter().enumerate() {
+        let mut check_structural_binding =
+            |result: &checked_trees::CheckedUnitStructuralResultBindingPlan|
+             -> Result<(), LoweringError> {
+                if result.binding_ordinal != next_structural_binding {
+                    return unsupported("Unit graph structural binding namespace drifted");
+                }
+                next_structural_binding = next_structural_binding.checked_add(1).ok_or(
+                    LoweringError::Unsupported("Unit graph structural binding count overflow"),
+                )?;
+                Ok(())
+            };
         match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result, calls, ..
+            } => {
+                // A nested call's result binds in authored evaluation order
+                // before the construction that consumes it.
+                for call in calls {
+                    let CheckedUnitEffectOperationPlan::StructuralCall {
+                        result: call_result,
+                        ..
+                    } = call.operation()
+                    else {
+                        return unsupported(
+                            "Unit graph structural call result lost its operation",
+                        );
+                    };
+                    check_structural_binding(call_result)?;
+                }
+                check_structural_binding(result)?;
+            }
+            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
             // The displaced field value is a fresh structural binding in the
             // same namespace as the call result that replaces it.
             | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
-                if result.binding_ordinal != next_structural_binding {
-                    return unsupported("Unit graph structural binding namespace drifted");
-                }
-                next_structural_binding =
-                    next_structural_binding
-                        .checked_add(1)
-                        .ok_or(LoweringError::Unsupported(
-                            "Unit graph structural binding count overflow",
-                        ))?;
+                check_structural_binding(result)?;
             }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
                 if result.binding_ordinal != next_scalar_binding {

@@ -28,6 +28,33 @@ pub(in crate::unit::attached_unit::composed_control) fn retain_call_target<'a>(
         state.state,
         operation,
     )?;
+    retain_call_target_body(checked, root, state, operation, plans, targets)
+}
+
+/// A `StructuralCall` bound inside an `EstablishStructuralValue`'s `calls`
+/// shares the construction's statement custody: the owner's source-custody
+/// rejoin accounts the member call's result as part of the value rather than
+/// as the statement's own result destination. Only the callee retention
+/// applies to the member call itself.
+pub(in crate::unit::attached_unit::composed_control) fn retain_value_call_target<'a>(
+    checked: &'a CheckedTrees,
+    root: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+    plans: UnitPlans<'a>,
+    targets: &mut Vec<(UnitBody<'a>, String)>,
+) -> Result<(), LoweringError> {
+    retain_call_target_body(checked, root, state, operation, plans, targets)
+}
+
+fn retain_call_target_body<'a>(
+    checked: &'a CheckedTrees,
+    root: symbols::SymbolHandle,
+    state: &checked_trees::CheckedComposedUnitControlStatePlan,
+    operation: &CheckedUnitEffectOperationPlan,
+    plans: UnitPlans<'a>,
+    targets: &mut Vec<(UnitBody<'a>, String)>,
+) -> Result<(), LoweringError> {
     let (
         coordinate,
         target_machine,

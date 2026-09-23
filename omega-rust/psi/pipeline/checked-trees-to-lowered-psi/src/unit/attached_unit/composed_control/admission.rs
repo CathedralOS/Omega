@@ -394,10 +394,7 @@ pub(super) fn retain_call_targets<'a>(
     let mut boundaries = Vec::new();
     let mut internal_targets = Vec::new();
     for state in call_states.iter().copied() {
-        for operation in state
-            .operation_dependencies()
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        {
+        for operation in state.operation_dependencies() {
             match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall { .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
@@ -424,10 +421,24 @@ pub(super) fn retain_call_targets<'a>(
                 CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
                     retain_scalar_call(checked, machine, state, operation)?;
                 }
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } => {
+                    // A call bound inside the construction shares its owner's
+                    // statement custody; only the callee's own retention
+                    // applies to the member call.
+                    for call in calls {
+                        internal_calls::admission::retain_value_call_target(
+                            checked,
+                            machine,
+                            state,
+                            call.operation(),
+                            plans,
+                            &mut internal_targets,
+                        )?;
+                    }
+                }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }

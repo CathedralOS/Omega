@@ -395,3 +395,112 @@ fn payloadless_case_return_plan_fences_wider_result_and_body_shapes() {
         "the fence fixture keeps one independent exact constructor canary"
     );
 }
+
+#[test]
+fn nested_structural_record_result_keeps_composed_plan() {
+    let checked = checked(
+        r#"
+        data Pair { left: u64; right: u64; }
+        data Boxed { pair: Pair; tag: u64; }
+        machine choose_boxed(pick_left: bool) -> Boxed {
+            transition pick_left {
+                true -> left()
+                _ -> right()
+            }
+            state left() -> Boxed { Boxed { pair: Pair { left: 1, right: 0 }, tag: 0 } }
+            state right() -> Boxed { Boxed { pair: Pair { left: 2, right: 0 }, tag: 0 } }
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "choose_boxed"))
+        .expect("a record result with a nested structural carrier stays composed");
+    let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
+        panic!("the nested record result stays structural");
+    };
+    assert!(
+        result.type_identity.contains("Boxed"),
+        "the result names the authored record, found {}",
+        result.type_identity
+    );
+}
+
+#[test]
+fn structural_payload_sum_result_keeps_composed_plan() {
+    let checked = checked(
+        r#"
+        data Inner { value: u64; }
+        data Outcome { case Valued(inner: Inner); case Empty; }
+        machine choose_outcome(pick_value: bool) -> Outcome {
+            transition pick_value {
+                true -> first()
+                _ -> second()
+            }
+            state first() -> Outcome { Outcome::Empty }
+            state second() -> Outcome { Outcome::Empty }
+        }
+        machine choose_valued(pick_value: bool) -> Outcome {
+            transition pick_value {
+                true -> valued()
+                _ -> empty()
+            }
+            state valued() -> Outcome { Outcome::Valued { inner: Inner { value: 3 } } }
+            state empty() -> Outcome { Outcome::Empty }
+        }
+    "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "choose_outcome"))
+        .expect("a sum result with a structural payload case stays composed");
+    let checked_trees::CheckedControlResultPlan::Structural(result) = &plan.result else {
+        panic!("the structural-payload sum result stays structural");
+    };
+    assert!(
+        result.type_identity.contains("Outcome"),
+        "the result names the authored sum, found {}",
+        result.type_identity
+    );
+    // Establishing a structural case payload is a separate construction gate:
+    // the signature admits the shape but the payload body still declines.
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine_named(&checked, "choose_valued"))
+            .is_none(),
+        "structural case-payload construction stays outside this slice"
+    );
+}
+
+#[test]
+fn byte_sequence_field_record_result_still_declines_composed() {
+    let checked = checked(
+        r#"
+        data Framed { bytes: [u8; 4]; tag: u64; }
+        machine choose_framed(pick_left: bool) -> Framed {
+            transition pick_left {
+                true -> left()
+                _ -> right()
+            }
+            state left() -> Framed { Framed { tag: 1 } }
+            state right() -> Framed { Framed { tag: 2 } }
+        }
+    "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_for_machine(machine_named(&checked, "choose_framed"))
+            .is_none(),
+        "a byte-sequence field stays outside the composed result signature"
+    );
+}

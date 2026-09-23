@@ -194,16 +194,8 @@ pub(super) fn emit_call_operations(
                         return unsupported("record operand is not a structural call");
                     };
                     let callee = lookup_machine_id(call_context.machine_ids, *target_machine)?;
-                    let shared =
-                        catalogs
-                            .shared_units
-                            .as_ref()
-                            .ok_or(LoweringError::Unsupported(
-                                "nested structural target has no shared closure",
-                            ))?;
-                    let target = shared
-                        .semantic_module
-                        .machines
+                    let target = catalogs
+                        .internal_targets
                         .iter()
                         .find(|target| target.id == callee)
                         .ok_or(LoweringError::Unsupported(
@@ -216,13 +208,13 @@ pub(super) fn emit_call_operations(
                         *target_machine,
                     )?
                     .entry()?;
-                    if entry.structural_parameters.len() != target.structural_parameters.len() {
+                    if entry.structural_parameters.len() != target.lowered_parameters.len() {
                         return unsupported("nested target predicate roster differs");
                     }
                     let predicates = entry
                         .structural_parameters
                         .iter()
-                        .zip(&target.structural_parameters)
+                        .zip(&target.lowered_parameters)
                         .map(|(source, parameter)| StructuralParameterDeclaration {
                             position: source.position,
                             ..parameter.clone()
@@ -241,12 +233,12 @@ pub(super) fn emit_call_operations(
                         ),
                         operand,
                         super::super::ordinary_calls::Target {
-                            parameters: &target.structural_parameters,
-                            scalar_parameters: &target.parameters,
-                            erased_scalar_parameters: &target.contract.erased_scalar_formals,
+                            parameters: &target.lowered_parameters,
+                            scalar_parameters: &target.lowered_scalar_parameters,
+                            erased_scalar_parameters: &target.erased_scalar_formals,
                             predicate_parameters: &predicates,
-                            requires: &target.contract.requires,
-                            runtime_requirements: &target.contract.requires,
+                            requires: &target.requires,
+                            runtime_requirements: &target.requires,
                         },
                         evaluated,
                         &operand_values,
