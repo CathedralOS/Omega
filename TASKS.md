@@ -1997,6 +1997,26 @@ syntax and other terminal services are not prerequisites.
   path still rejects projected result qualifications and admits affine results
   only without claims/qualifications
   (`terminal-interpreter/src/calls.rs`).
+
+  Measured at `fb9f064bbb`, that rejection is an admission FENCE and not a
+  missing mechanism, which narrows what this bullet actually owes:
+
+  - The verifier already validates a structural result's projected
+    qualification roster. `validate_projected_qualification_roster` runs on
+    results at two sites in
+    `terminal-verifier/src/validation/foundation/machine_foundations.rs`, the
+    same routine the parameter lane uses.
+  - The interpreter never holds qualifications as runtime state. Every mention
+    in `terminal-interpreter/src` either asserts emptiness or writes
+    `Vec::new()`; only CLAIMS enter live state, through `live_claims`. So
+    admitting a projected result qualification costs the interpreter no
+    bookkeeping.
+
+  What is left is therefore the authored provider/customer and the
+  case-conditional sum, not the plumbing. Do not simply drop the
+  `projected_qualifications.is_empty()` gate to make a fixture pass: removing a
+  fence only widens acceptance, so the customer has to come first and carry the
+  evidence that a wrong roster still rejects.
   Success must join the exact live-registration capacity occurrence to the
   external root and code/component leases; rejection preserves that capacity
   without a root. Teardown requires quiescence before lease release.
