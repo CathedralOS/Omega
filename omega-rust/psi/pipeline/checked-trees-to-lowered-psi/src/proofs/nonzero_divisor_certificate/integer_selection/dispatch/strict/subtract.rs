@@ -14,7 +14,7 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    let Proposition::LessThan(_, goal_right) = goal else {
+    let Proposition::LessThan(goal_left, goal_right) = goal else {
         return None;
     };
     // Each subtract candidate asks endpoint equalities against this same
@@ -40,6 +40,17 @@ pub(super) fn prove(
             },
         )
         .ok()?;
+        // Both completions below conclude `measured < _` and reach the goal's
+        // left endpoint only through a session equality. A difference that
+        // cannot reach it never completes, so skip its positivity and minuend
+        // searches rather than discard them after the fact.
+        if measured != goal_left
+            && session
+                .prove(&Proposition::Equal(measured.clone(), goal_left.clone()))
+                .is_none()
+        {
+            continue;
+        }
         // Positivity uses existing exact/discrete order rules, not recursive
         // subtraction search through potentially cyclic asserted equations.
         let Some(positive) = super::prove_without_subtract(
