@@ -251,6 +251,31 @@ the complete product bar; focused successes below do not establish that baseline
   revision with filters unset. Keep detailed logs outside the board; do not
   migrate fixtures during a measured run.
 
+  Unfiltered census at `c109b93faf` (macOS arm64, `-E test(pass_canaries_compile)`,
+  1488s): **160 distinct members fail**, of 1470 selected. By diagnostic
+  shape, which is the useful split -- the directory split is not, since the
+  members spread across 14 of them (recast 22, filesystem 20, control_flow 17,
+  calls 17, float 14, targets 8, core 8, storage 6, then a long tail):
+
+  | count | shape |
+  | --- | --- |
+  | 84 | `selected ProgramEntry establishment rejoins 0 Terminal attachment identities` |
+  | 25 | `native-artifact Terminal production failed` |
+  | 17 | `native-artifact production requires one exact selected program entry` |
+  | 15 | `selected ProgramEntry Service field ...` |
+  | 7 | `cannot transfer a non-copy value out of borrowed storage ...` |
+  | 2 | `data <D> literal cannot prove the default domain` |
+  | 2 | `domain [u8; N] ...` |
+
+  The 17 are exactly the entry-free subset this row already describes below,
+  so that paragraph is corroborated rather than superseded. The 84-member
+  plurality is the same family recorded in
+  [the checking-cost record](wiki/drafts/checking_contract_exit_fact_cost.md):
+  its reported stage names the CALLER's reason, and `UnavailableCallee` now
+  chains to the callee's own recorded reason (`d782d2a5ee`), so re-read those
+  diagnostics before attributing them -- they name a different site than they
+  did when most of this row was written.
+
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
   actual missing operation/facts, not just its phase label. The diagnostic route
