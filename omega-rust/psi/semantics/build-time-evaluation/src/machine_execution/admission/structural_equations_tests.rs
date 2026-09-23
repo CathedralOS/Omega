@@ -3,7 +3,6 @@ use crate::machine_execution::build_machines::{
     BuildMachineExecutionMode, BuildMachineInvocation, PreparedBuildMachine,
     PreparedBuildMachineProgram, evaluate_build_machine_measured,
 };
-use source_files_to_tokens::Lexer;
 
 #[test]
 fn provisional_wrapper_cannot_execute_a_specialized_pending_equation() {
@@ -12,8 +11,7 @@ fn provisional_wrapper_cannot_execute_a_specialized_pending_equation() {
         machine wrapper() -> u64 { extent<[u8; 7], u8, 8>() }
         const ANSWER: u64 = 5;
         machine independent() -> u64 { ANSWER }";
-    let tokens = Lexer::new(source).tokenize().unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let syntax = crate::front_end::syntax_program(source);
     let resolved = syntax_trees_to_symbol_resolved_trees::pre_resolution::resolve_numeric_probe(
         syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
     )

@@ -110,15 +110,12 @@ mod tests {
 
     #[test]
     fn pending_index_probe_retains_unrelated_constant_qualifications() {
-        let tokens = source_files_to_tokens::Lexer::new(
+        let original = crate::front_end::syntax_program(
             "domain<const Enabled: bool> u64::Gate<Enabled> requires Enabled;
              domain u64::Small requires self < 3;
              const VALUE: u64 in Gate<(!false)> & Small = 7;
              const OTHER: u64 in Small = 7;",
-        )
-        .tokenize()
-        .expect("probe tokens");
-        let original = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("probe syntax");
+        );
         let arguments = syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&original),
         ).expect("exact domain index discovery");

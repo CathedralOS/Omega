@@ -882,7 +882,6 @@ fn exact_points_drop_past_their_bounds() {
 
 #[test]
 fn rational_bounds_visit_result_operations_once_without_subject_execution() {
-    use source_files_to_tokens::Lexer;
     use typed_trees::statement::StatementNode;
 
     for (term, operation, expected_operator) in [
@@ -901,16 +900,7 @@ fn rational_bounds_visit_result_operations_once_without_subject_execution() {
             .collect::<Vec<_>>()
             .join(operation);
         let source = format!("machine choose() -> u8 {{ {expression} }}");
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(
-            &Lexer::new(&source).tokenize().expect("tokens"),
-        )
-        .expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolved");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typed");
+        let program = crate::front_end::typed_program(&source);
         let machine = &program.machines()[0];
         let state = &program.machine_states(machine)[0];
         let StatementNode::Expression(root) =

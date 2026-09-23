@@ -1,22 +1,14 @@
-use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
+// The front-end pipeline these tests run, shared with the crate's unit tests
+// and the other integration target through `src/lib.rs`; see its module
+// documentation.
+#[path = "support/front_end.rs"]
+mod front_end;
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokenize exact-symbol fixture");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse exact-symbol fixture");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve exact-symbol fixture");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type exact-symbol fixture")
-}
+use build_time_evaluation::{BuildTimeAdmissionPlan, BuildTimeInvocationCustody, BuildTimeValue};
 
 #[test]
 fn exact_symbol_structured_evaluation_never_reselects_a_sibling_by_name() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         data Left {}
         data Right {}
@@ -58,7 +50,7 @@ fn exact_symbol_structured_evaluation_never_reselects_a_sibling_by_name() {
 
 #[test]
 fn exact_symbol_structured_evaluation_rejects_a_non_machine_symbol() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         data BindingLookalike {}
 

@@ -855,25 +855,14 @@ mod tests {
             machine probe() -> u8 { match true { _ -> helper() } }
             machine helper() -> u8 { touch(); BASE + 0u8 }
             machine touch() { let ignored: u8 = BASE; }";
-        let tokens = source_files_to_tokens::Lexer::new(source)
-            .tokenize()
-            .expect("tokens");
         let mut sources = source::SourceMap::default();
         let source_id = sources
             .add(std::path::PathBuf::from("main.omg"), source.to_owned())
             .source_id;
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-            },
-        )
-        .expect("resolved");
-        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("typed");
+        let (syntax, typed) = crate::front_end::typed_program_from_source_map_with_syntax(
+            sources,
+            &[(source_id, source)],
+        );
         let checked = typed_trees_to_checked_trees::lower_typed_trees(
             typed,
             &typed_trees_to_checked_trees::CheckingRequest::settled(),

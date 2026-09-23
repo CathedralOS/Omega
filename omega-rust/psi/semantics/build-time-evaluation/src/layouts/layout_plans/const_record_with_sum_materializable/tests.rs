@@ -13,10 +13,6 @@ use layout_plans::{
     ConventionalSumCaseLayoutReport, ConventionalSumPayloadFieldLayoutReport,
     LayoutFieldEntryReport,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 use crate::layouts::layout_plans::normalized_schema_report_fingerprint;
 use crate::layouts::layout_plans::{checked_align_up, reflected_nested_member_layout};
@@ -55,13 +51,6 @@ const SOURCE: &str = r#"
     data QuotientEnvelope [copy] { choice: Choice; quotient: Quotient; }
     data GenericEnvelope<T [copy]> [copy] { choice: Choice; value: T; }
 "#;
-
-fn typed() -> TypedTrees {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn conventional_sum_layout(typed: &TypedTrees, schema_name: &str) -> ConventionalSumLayoutReport {
     let data = unique_data_by_name(typed, schema_name).expect("sum definition");
@@ -272,7 +261,7 @@ fn envelope_value() -> BuildTimeValue {
 
 #[test]
 fn one_nested_sum_retains_both_layouts_selection_byte_order_and_zero_padding() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let nested = conventional_sum_layout(&typed, "Choice");
     let outer = outer_layout(&typed, "Envelope", &[0, 4, 18], 20, 4);
     let value = envelope_value();
@@ -342,7 +331,7 @@ fn one_nested_sum_retains_both_layouts_selection_byte_order_and_zero_padding() {
 
 #[test]
 fn replay_rejects_outer_nested_selection_byte_and_compact_coordinate_drift_atomically() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let nested = conventional_sum_layout(&typed, "Choice");
     let outer = outer_layout(&typed, "Envelope", &[0, 4, 18], 20, 4);
     let value = envelope_value();
@@ -455,7 +444,7 @@ fn replay_rejects_outer_nested_selection_byte_and_compact_coordinate_drift_atomi
 
 #[test]
 fn multiple_direct_sums_retain_complete_ordered_occurrences_and_reject_row_drift() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let choice = conventional_sum_layout(&typed, "Choice");
     let outer = outer_layout(&typed, "TwoChoices", &[0, 12], 24, 4);
     let rows = direct_sum_rows(
@@ -580,7 +569,7 @@ fn multiple_direct_sums_retain_complete_ordered_occurrences_and_reject_row_drift
 
 #[test]
 fn one_sum_array_retains_each_index_and_atomically_materializes_different_cases() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let choice = conventional_sum_layout(&typed, "Choice");
     let outer = outer_layout(&typed, "ChoiceArray", &[0], 24, 4);
     let row = sum_array_row(&outer, "choices", 2, choice);
@@ -699,7 +688,7 @@ fn one_sum_array_retains_each_index_and_atomically_materializes_different_cases(
 
 #[test]
 fn multiple_sum_arrays_retain_authored_fields_and_reject_row_set_drift() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let choice = conventional_sum_layout(&typed, "Choice");
     let outer = outer_layout(&typed, "TwoChoiceArrays", &[0, 12], 36, 4);
     let rows = vec![
@@ -877,7 +866,7 @@ fn multiple_sum_arrays_retain_authored_fields_and_reject_row_set_drift() {
 
 #[test]
 fn zero_multiple_nested_and_recursive_sum_shapes_remain_fenced() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let nested = conventional_sum_layout(&typed, "Choice");
 
     let cases = [(
@@ -1046,7 +1035,7 @@ fn zero_multiple_nested_and_recursive_sum_shapes_remain_fenced() {
 
 #[test]
 fn mixed_sum_array_materializes_common_field_and_case_payload_per_element() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let element = conventional_sum_layout(&typed, "MixedChoice");
     let outer = outer_layout(&typed, "MixedChoiceArray", &[0], 16, 4);
     let row = sum_array_row(&outer, "choices", 2, element);
@@ -1090,7 +1079,7 @@ fn mixed_sum_array_materializes_common_field_and_case_payload_per_element() {
 
 #[test]
 fn nan_reference_text_dynamic_quotient_and_generic_shapes_remain_fenced() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
 
     let floating_nested = conventional_sum_layout(&typed, "FloatingChoice");
     let floating_outer = outer_layout(&typed, "FloatingEnvelope", &[0], 16, 8);

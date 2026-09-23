@@ -281,25 +281,16 @@ fn symbol_identity(symbol: symbols::SymbolHandle) -> Result<(u32, u32), Material
 #[cfg(test)]
 mod tests {
     use super::{DataMember, SumReachability, TypeReferenceNode};
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]
     fn reachability_validates_siblings_after_an_already_found_sum() {
-        let tokens = Lexer::new(
+        let typed = crate::front_end::typed_program(
             r#"
             data Choice [copy] { case Empty; }
             data Trap [copy] { choice: Choice; later: u8; }
             data Root [copy] { trap: Trap; }
             "#,
-        )
-        .tokenize()
-        .expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        );
         let trap = typed
             .data_definitions()
             .iter()

@@ -4,11 +4,9 @@ use super::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
-use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use tokens_to_syntax_trees::parse_syntax_trees_with_id;
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::FixedArrayLength;
@@ -23,8 +21,7 @@ const CONST_ARRAY_SOURCE: &str = r#"
 
 #[test]
 fn standalone_request_preserves_the_two_stage_evaluation() {
-    let tokens = Lexer::new(CONST_ARRAY_SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees_with_id(source::SourceId(0), &tokens).expect("parse");
+    let syntax = crate::front_end::syntax_program(CONST_ARRAY_SOURCE);
     let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
         syntax_trees: syntax,
         source_context: None,
@@ -59,14 +56,10 @@ fn request_retains_exact_loader_module_alias_binding() {
             declaration_text.to_owned(),
         )
         .source_id;
-    let mut syntax = syntax_trees::SyntaxTrees::default();
-    for (source_id, text) in [(requester, requester_text), (declaration, declaration_text)] {
-        let tokens = Lexer::new(text)
-            .tokenize()
-            .expect("tokenize module alias probe");
-        tokens_to_syntax_trees::parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-            .expect("parse module alias probe");
-    }
+    let syntax = crate::front_end::syntax_program_from_texts(&[
+        (requester, requester_text),
+        (declaration, declaration_text),
+    ]);
     let bindings = [symbols::SourceScopedTopLevelBinding::module_import(
         requester,
         declaration,
@@ -145,8 +138,7 @@ fn parsed_source(
             SourceOrigin::User,
         )
         .source_id;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+    let syntax = crate::front_end::syntax_program_with_id(source_id, source);
     (syntax, Arc::new(sources))
 }
 

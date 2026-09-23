@@ -38,17 +38,7 @@ machine length() -> u64 {{
 {receiver}
 "#
     );
-    let tokens = source_files_to_tokens::Lexer::new(&source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let mut typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut typed = crate::front_end::typed_program(&source);
     validation::land_float_literal_destinations(&mut typed);
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
     let rows = facts
@@ -184,18 +174,7 @@ fn independent_and_selected_lengths_share_full_width_integer_decoding() {
         let source = format!(
             "machine length() -> {carrier} {{ {result} }} data Main {{ bytes: [u8; length()]; }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens)
-                .unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap();
-        let mut selected =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let mut selected = crate::front_end::typed_program(&source);
         let mut independent = selected.clone();
         let independent_result = evaluate_const_array_lengths(&mut independent, None);
         let selected_result = evaluate_selected_array_lengths(
@@ -280,17 +259,7 @@ machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remain
 machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
 data Main { bytes:[u8;length()]; }
 "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::front_end::typed_program(source);
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
     let rows = facts
         .uses_with_status(checked_trees::CheckedOperatorResolutionStatus::Resolved)
@@ -333,17 +302,7 @@ machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remain
 machine length() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (Math::remainder(left, right)) } }
 data Main { bytes:[u8;length()]; }
 "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let typed =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::front_end::typed_program(source);
     let facts = typed_trees_to_checked_trees::derive_pre_flow_operator_selections(&typed);
     let rows = facts
         .named_uses()

@@ -5,19 +5,8 @@ use super::{
     construct_semantic_schema_graph, replay_semantic_schema_graph,
 };
 use crate::machine_execution::reflection::schema_graph::graph_replay::graph_revision;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::TypedTrees;
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn subject(typed: &TypedTrees, name: &str) -> SymbolHandle {
     typed
@@ -50,7 +39,7 @@ fn field<'graph>(graph: &'graph SemanticSchemaGraph, name: &str) -> &'graph Fiel
 
 #[test]
 fn record_graph_describes_qualified_members() {
-    let typed = typed("data Player { health: u32; speed: f32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; speed: f32; }");
     let graph = construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning())
         .expect("record schema constructs");
 
@@ -80,7 +69,8 @@ fn record_graph_describes_qualified_members() {
 
 #[test]
 fn erased_and_empty_members_remain_described() {
-    let typed = typed("data Rec { proof [erased]: i32; tag: u8; } data Empty {}");
+    let typed =
+        crate::front_end::typed_program("data Rec { proof [erased]: i32; tag: u8; } data Empty {}");
     let graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Rec"), owning()).expect("ok");
     let proof = field(&graph, "proof");
@@ -95,7 +85,9 @@ fn erased_and_empty_members_remain_described() {
 
 #[test]
 fn sum_graph_keeps_nullary_cases_distinct_and_owns_payloads() {
-    let typed = typed("data Outcome { case Ready(value: u32); case Empty; case Done; }");
+    let typed = crate::front_end::typed_program(
+        "data Outcome { case Ready(value: u32); case Empty; case Done; }",
+    );
     let graph = construct_semantic_schema_graph(&typed, subject(&typed, "Outcome"), owning())
         .expect("sum schema constructs");
     let cases: Vec<_> = graph.cases().collect();
@@ -121,7 +113,9 @@ fn sum_graph_keeps_nullary_cases_distinct_and_owns_payloads() {
 
 #[test]
 fn recursive_reference_is_an_edge_not_expansion() {
-    let typed = typed("data List { case Nil; case Cons(head: u32, tail: List); }");
+    let typed = crate::front_end::typed_program(
+        "data List { case Nil; case Cons(head: u32, tail: List); }",
+    );
     let graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "List"), owning()).expect("ok");
     let cases: Vec<_> = graph.cases().collect();
@@ -143,8 +137,9 @@ fn recursive_reference_is_an_edge_not_expansion() {
 
 #[test]
 fn foreign_references_deduplicate_into_shared_nodes() {
-    let typed =
-        typed("data Inner { x: u8; } data Outer { inner: Inner; items: [Inner; 2]; tag: u8; }");
+    let typed = crate::front_end::typed_program(
+        "data Inner { x: u8; } data Outer { inner: Inner; items: [Inner; 2]; tag: u8; }",
+    );
     let graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Outer"), owning()).expect("ok");
     let inner = field(&graph, "inner");
@@ -164,7 +159,7 @@ fn foreign_references_deduplicate_into_shared_nodes() {
 
 #[test]
 fn foreign_scope_requires_a_public_subject() {
-    let typed = typed("data Secret { x: u8; } pub data Open { x: u8; }");
+    let typed = crate::front_end::typed_program("data Secret { x: u8; } pub data Open { x: u8; }");
     let denied = construct_semantic_schema_graph(&typed, subject(&typed, "Secret"), foreign());
     let error = denied.expect_err("private subject must reject under a foreign scope");
     assert!(error.contains("not public"), "{error}");
@@ -175,7 +170,7 @@ fn foreign_scope_requires_a_public_subject() {
 
 #[test]
 fn quotient_subjects_reject() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         "data Carrier { case Unit; } proposition same(left: Carrier, right: Carrier) = left == right; data Bucket = Carrier % same;",
     );
     let error = construct_semantic_schema_graph(&typed, subject(&typed, "Bucket"), owning())
@@ -185,7 +180,7 @@ fn quotient_subjects_reject() {
 
 #[test]
 fn non_data_subjects_reject() {
-    let typed = typed("machine helper() -> u8 { 7 } data Rec { x: u8; }");
+    let typed = crate::front_end::typed_program("machine helper() -> u8 { 7 } data Rec { x: u8; }");
     let machine = typed
         .machines()
         .iter()
@@ -199,7 +194,7 @@ fn non_data_subjects_reject() {
 
 #[test]
 fn replay_rejects_forged_member_identity() {
-    let typed = typed("data Player { health: u32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning()).expect("ok");
     let handle = graph.declaration().members[0];
@@ -215,7 +210,7 @@ fn replay_rejects_forged_member_identity() {
 
 #[test]
 fn replay_rejects_wrong_qualified_type() {
-    let typed = typed("data Player { health: u32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning()).expect("ok");
     let handle = graph.declaration().members[0];
@@ -231,7 +226,7 @@ fn replay_rejects_wrong_qualified_type() {
 
 #[test]
 fn replay_rejects_dropped_member() {
-    let typed = typed("data Player { health: u32; speed: f32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; speed: f32; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning()).expect("ok");
     graph.nodes[graph.root.index()] = {
@@ -252,7 +247,7 @@ fn replay_rejects_dropped_member() {
 
 #[test]
 fn replay_rejects_stale_stable_number() {
-    let typed = typed("data Rec { #3 x: u8; #7 y: u8; }");
+    let typed = crate::front_end::typed_program("data Rec { #3 x: u8; #7 y: u8; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Rec"), owning()).expect("ok");
     let handle = graph.declaration().members[0];
@@ -268,7 +263,8 @@ fn replay_rejects_stale_stable_number() {
 
 #[test]
 fn replay_rejects_misowned_payload() {
-    let typed = typed("data Outcome { case Ready(value: u32); case Empty; }");
+    let typed =
+        crate::front_end::typed_program("data Outcome { case Ready(value: u32); case Empty; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Outcome"), owning()).expect("ok");
     let empty_case = graph
@@ -294,7 +290,7 @@ fn replay_rejects_misowned_payload() {
 
 #[test]
 fn replay_rejects_extra_orphan_node() {
-    let typed = typed("data Player { health: u32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning()).expect("ok");
     let SchemaNode::Field(orphan) = graph.node(graph.declaration().members[0]).clone() else {
@@ -309,7 +305,7 @@ fn replay_rejects_extra_orphan_node() {
 
 #[test]
 fn replay_rejects_tampered_revision() {
-    let typed = typed("data Player { health: u32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning()).expect("ok");
     graph.revision = graph.revision.wrapping_add(1);
@@ -320,7 +316,7 @@ fn replay_rejects_tampered_revision() {
 
 #[test]
 fn replay_rejects_unresolvable_owner() {
-    let typed = typed("data Player { health: u32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning()).expect("ok");
     let SchemaNode::Declaration(root) = &mut graph.nodes[graph.root.index()] else {
@@ -335,7 +331,7 @@ fn replay_rejects_unresolvable_owner() {
 
 #[test]
 fn replay_rejects_forged_root_presentation() {
-    let typed = typed("data Player { health: u32; }");
+    let typed = crate::front_end::typed_program("data Player { health: u32; }");
     let mut graph =
         construct_semantic_schema_graph(&typed, subject(&typed, "Player"), owning()).expect("ok");
     let SchemaNode::Declaration(root) = &mut graph.nodes[graph.root.index()] else {
@@ -351,7 +347,7 @@ fn replay_rejects_forged_root_presentation() {
 
 #[test]
 fn replay_rejects_foreign_scope_over_private_subject() {
-    let typed = typed("data Secret { x: u8; }");
+    let typed = crate::front_end::typed_program("data Secret { x: u8; }");
     let mut graph = construct_semantic_schema_graph(&typed, subject(&typed, "Secret"), owning())
         .expect("owning scope admits a private subject");
     graph.authority = foreign();
@@ -363,7 +359,7 @@ fn replay_rejects_foreign_scope_over_private_subject() {
 
 #[test]
 fn requester_derives_owning_scope_in_source_free_trees() {
-    let typed = typed("machine helper() -> u8 { 7 } data Rec { x: u8; }");
+    let typed = crate::front_end::typed_program("machine helper() -> u8 { 7 } data Rec { x: u8; }");
     let machine = typed
         .machines()
         .iter()

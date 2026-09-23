@@ -4,22 +4,9 @@ use super::{
     pending_endpoints,
 };
 use crate::SelectedBuildTimeOperators;
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 #[test]
 fn runtime_receivers_are_not_pending_endpoints() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Limits {} machine Limits::capacity(&self) -> u64 { 256 }
          machine bounded(limits: Limits, value: u64[0..=limits.capacity()]) {}",
     );
@@ -29,7 +16,7 @@ fn runtime_receivers_are_not_pending_endpoints() {
 #[test]
 fn inferred_endpoint_calls_use_closed_argument_types_and_reject_conflicts() {
     for argument in ["7u64", "(7u8 as u64)", "identity(7u64)"] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine identity<T>(value: T) -> T {{ value }}
              machine keep(value: u64[0..=identity({argument})]) {{}}"
         ));
@@ -43,7 +30,7 @@ fn inferred_endpoint_calls_use_closed_argument_types_and_reject_conflicts() {
         "data Limits {} machine Limits::capacity<const N: u64>() -> u64 { 7 }
          machine keep(value: u64[0..=Limits::capacity()]) {}",
     ] {
-        let mut program = typed(source);
+        let mut program = crate::front_end::typed_program(source);
         let pending = pending_endpoints(&program).unwrap();
         assert_eq!(pending.len(), 1);
         let expression = pending[0].expression;
@@ -56,7 +43,7 @@ fn inferred_endpoint_calls_use_closed_argument_types_and_reject_conflicts() {
 
 #[test]
 fn explicit_endpoint_type_stays_fixed_while_other_arguments_are_inferred() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine pick<T, Other>(value: T, ignored: Other) -> T { value }
          machine keep(value: u64[0..=pick<u64[0..=7]>(7u64, true)]) {}",
     );
@@ -73,7 +60,7 @@ fn explicit_endpoint_type_stays_fixed_while_other_arguments_are_inferred() {
 
 #[test]
 fn pending_type_bound_keeps_even_an_unused_application_unreplaced() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine limit() -> u64 { 7 }
          machine ignored<T>() -> u64 { 7 }
          machine keep(value: u64[0..=ignored<u64[0..=limit()]>()]) {}",
@@ -107,7 +94,7 @@ fn pending_type_bound_keeps_even_an_unused_application_unreplaced() {
 
 #[test]
 fn pending_type_bound_blocks_transitive_invocation_before_interpretation() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine limit() -> u64 { 7 }
          machine ignored<T>() -> u64 { 7 }
          machine wrapper() -> u64 { ignored<u64[0..=limit()]>() }
@@ -157,7 +144,7 @@ fn pending_type_bound_blocks_transitive_invocation_before_interpretation() {
 
 #[test]
 fn failed_type_bound_restores_folds_and_does_not_discharge_an_unused_argument() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine limit() -> u64 { 7 }
          machine ignored<T>() -> u64 { 7 }
          machine keep(first: u64[0..=limit()], second: u64[0..=ignored<u64[0..=limit() / 0]>()]) {}",
@@ -183,7 +170,7 @@ fn failed_type_bound_restores_folds_and_does_not_discharge_an_unused_argument() 
 
 #[test]
 fn substituted_target_cannot_borrow_another_type_qualifier() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data Limits {} data Other {}
          machine Limits::capacity() -> u64 { 256 }
          machine Other::capacity() -> u64 { 512 }
@@ -218,7 +205,7 @@ fn closed_integer_arguments_keep_carriers_and_exact_landings() {
         ("u8", "255", "255"),
         ("u64", "7u64 / 2 * 2", "6"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine endpoint(value: {parameter}) -> {parameter} {{ value }}
              machine bounded(value: {parameter}[0..=endpoint({argument})]) {{}}"
         ));
@@ -251,7 +238,7 @@ fn ignored_arguments_cannot_hide_invalid_or_unsupported_inputs() {
         ("u64", "1, 2", "argument count"),
         ("u64", "input", "unsupported node"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine endpoint(ignored: {parameter}) -> u64 {{ 256 }}
              machine bounded(input: u64, value: u64[0..=endpoint({arguments})]) {{}}"
         ));
@@ -278,7 +265,7 @@ fn ignored_arguments_cannot_hide_invalid_or_unsupported_inputs() {
 #[test]
 fn argument_landing_retains_nested_fractional_warnings() {
     for argument in ["1 / 2 * 512", "1u64 + (1 / 2 * 510)"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "machine endpoint(value: u64) -> u64 {{ value }}
              machine bounded(value: u64[0..=endpoint({argument})]) {{}}"
         ));
@@ -317,7 +304,7 @@ fn nested_calls_compose_without_erasing_their_integer_carriers() {
         ),
         ("u8", "endpoint(127) + endpoint(128)", "255"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine endpoint(value: {parameter}) -> {parameter} {{ value }}
              machine bounded(value: {parameter}[0..=endpoint({argument})]) {{}}"
         ));
@@ -344,7 +331,7 @@ fn failed_outer_calls_restore_successful_inner_calls() {
         ("bool", "true", "u64", "inner()"),
         ("u64", "256", "u64", "inner(1)"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine inner() -> {result_type} {{ {result} }}
              machine endpoint(ignored: {parameter}) -> u64 {{ 256 }}
              machine bounded(input: u64, value: u64[0..=endpoint({argument})]) {{}}"
@@ -367,7 +354,7 @@ fn failed_outer_calls_restore_successful_inner_calls() {
 
 #[test]
 fn endpoint_discovery_rejects_cyclic_expression_graphs() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine limit() -> u64 { 256 }
          machine bounded(value: u64[0..=limit() + 1]) {}",
     );
@@ -389,7 +376,7 @@ fn endpoint_discovery_rejects_cyclic_expression_graphs() {
 #[test]
 fn folded_arguments_still_require_their_original_selection_authority() {
     use semantic_vocabulary::PackageKeyIdentity;
-    use std::{path::PathBuf, sync::Arc};
+    use std::path::PathBuf;
     struct Selection(bool);
     impl crate::BuildTimeSelectionAuthority for Selection {
         fn allows_declaration_selection(
@@ -421,19 +408,8 @@ fn folded_arguments_still_require_their_original_selection_authority() {
                 source::SourceOrigin::User,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: Some(Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-            },
-        )
-        .unwrap();
         let program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+            crate::front_end::typed_program_from_source_map(sources, &[(source_id, text)]);
         let pending = pending_endpoints(&program).unwrap();
         let endpoint = pending.last().unwrap();
         let mut evaluated = program.clone();
@@ -479,7 +455,7 @@ fn folded_arguments_still_require_their_original_selection_authority() {
 
 #[test]
 fn signature_bounds_are_dependencies_even_when_declared_after_the_consumer() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine bounded(value: u64[0..=endpoint(256)]) {}
          machine endpoint(value: u64[1..=limit()]) -> u64[0..=limit()] {value}
          machine limit() -> u64 {256}",
@@ -512,7 +488,7 @@ fn cyclic_signature_bounds_do_not_depend_on_source_order_or_retries() {
          machine second(value: u64[0..=first(0)]) -> u64 {256}
          machine bounded(value: u64[0..=first(0)]) {}",
     ] {
-        let mut program = typed(source);
+        let mut program = crate::front_end::typed_program(source);
         let errors = evaluate_const_range_endpoints(&mut program, None)
             .expect_err("a signature bound cannot depend on its own invocation");
         assert!(
@@ -562,25 +538,18 @@ fn generic_record_arguments_fold_endpoint_calls_before_synthesis() {
                  upper_bound(bounded.value)
              }}"
         );
-        let tokens = source_files_to_tokens::Lexer::new(&source)
-            .tokenize()
-            .unwrap();
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens)
-                .unwrap();
+        let syntax = crate::front_end::syntax_program(&source);
         let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
             syntax_trees: syntax,
             source_context: None,
         })
         .unwrap_or_else(|errors| panic!("{argument}: pre-resolution: {errors:?}"));
         let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .unwrap_or_else(|errors| panic!("{argument}: resolution: {errors:?}"));
         let mut program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-                .unwrap_or_else(|error| panic!("{argument}: typed lowering: {error:?}"));
+            crate::front_end::typed_program_from_evaluated_syntax_result(&syntax, None)
+                .unwrap_or_else(|errors| {
+                    panic!("{argument}: resolution or typed lowering: {errors:?}")
+                });
         let instance = program
             .data_definitions()
             .iter()
@@ -645,7 +614,7 @@ fn domain_qualified_callee_positions_fold_members_and_reject_nonmembers() {
             Err("range endpoint value `0` is outside domain `Positive`"),
         ),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations}
              machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
@@ -676,7 +645,7 @@ fn domain_qualified_callee_positions_fold_members_and_reject_nonmembers() {
 fn domain_qualified_result_positions_check_the_returned_value() {
     // A result domain is checked on the value the callee actually returned:
     // `zero()` returns 0 into `u64 in Positive` and must not fold.
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "domain u64::Positive requires self > 0;
          machine zero() -> u64 in Positive { 0 }
          machine keep(value: u64[0..=zero()]) {}",
@@ -710,7 +679,7 @@ fn proved_parameter_domains_do_not_stand_down_the_fence_for_other_premises() {
          machine outer(value: u64) -> u64 { inner(value) }
          machine keep(value: u64[0..=outer(256)]) {}",
     ] {
-        let mut program = typed(source);
+        let mut program = crate::front_end::typed_program(source);
         let errors = evaluate_const_range_endpoints(&mut program, None)
             .expect_err("an unproved premise keeps the closure fence");
         assert_eq!(errors.len(), 1, "{source}: {errors:?}");
@@ -747,7 +716,7 @@ fn boolean_arguments_and_boolean_helpers_fold_into_integer_endpoints() {
         ("pick(false || true)", "512"),
         ("pick(is_wide()) + 1", "257"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations}
              machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
@@ -800,7 +769,7 @@ fn boolean_results_never_become_range_bounds_and_mismatched_arguments_reject() {
         ("pick(256)", "constant"),
         ("endpoint(false)", "destination carrier"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations}
              machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
@@ -839,7 +808,7 @@ fn fully_supplied_static_applications_fold_through_their_specialized_instance() 
         ("bounded<256>(0)", "256"),
         ("identity<256>() + identity<1>()", "257"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations}
              machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
@@ -877,7 +846,7 @@ fn fully_supplied_static_applications_fold_through_their_specialized_instance() 
 #[test]
 fn closed_type_arguments_use_the_specialized_endpoint_signature() {
     for (carrier, value) in [("u8", "255"), ("u64", "18446744073709551615")] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine identity<T>(value: T) -> T {{ value }}
              machine keep(value: {carrier}[0..=identity<{carrier}>({value})]) {{}}"
         ));
@@ -922,7 +891,7 @@ fn typed_endpoint_applications_preserve_argument_and_contract_rejections() {
             "require",
         ),
     ] {
-        let mut program = typed(source);
+        let mut program = crate::front_end::typed_program(source);
         let pending = pending_endpoints(&program).unwrap();
         assert_eq!(pending.len(), 1, "{source}");
         let errors = evaluate_const_range_endpoints(&mut program, None)
@@ -940,7 +909,7 @@ fn typed_endpoint_applications_preserve_argument_and_contract_rejections() {
 
 #[test]
 fn endpoint_type_and_const_arguments_share_the_ordinary_complete_tuple() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data Marker {}
          machine bound<T, const N: u64>() -> u64 { N }
          machine keep(value: u64[0..=bound<Marker, 7>()]) {}",
@@ -979,7 +948,7 @@ fn underdetermined_and_partial_static_applications_stay_rejected() {
     let declarations = "machine identity<const N: u64>() -> u64 { N }
          machine two<const A: u64, const B: u64>() -> u64 { A + B }
          machine bounded<const N: u64>(value: u64[0..=N]) -> u64 { N }";
-    let program = typed(&format!(
+    let program = crate::front_end::typed_program(&format!(
         "{declarations}
          machine keep(value: u64[0..=bounded(0)]) {{}}"
     ));
@@ -990,7 +959,7 @@ fn underdetermined_and_partial_static_applications_stay_rejected() {
         ("two<1>()", "cannot be derived"),
         ("bounded<256>(300)", "outside declared range `0..=256`"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations}
              machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
@@ -1003,21 +972,13 @@ fn underdetermined_and_partial_static_applications_stay_rejected() {
 }
 
 fn checked_pipeline(source: &str) -> Result<(), Vec<Diagnostic>> {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let syntax = crate::front_end::syntax_program(source);
     let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
         syntax_trees: syntax,
         source_context: None,
     })?;
     let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )?;
-    let mut program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .map_err(|error| vec![error])?;
+    let mut program = crate::front_end::typed_program_from_evaluated_syntax_result(&syntax, None)?;
     pre_check.evaluate(&mut program)?;
     typed_trees_to_checked_trees::lower_typed_trees(
         program,
@@ -1057,7 +1018,7 @@ fn generic_record_arguments_still_reject_unclosable_endpoint_calls() {
 /// fold 1, so a folded bound of 7 is the positive witness that the provider
 /// machine -- not host arithmetic -- ran.
 fn provider_endpoint_fixture() -> (TypedTrees, Vec<crate::SelectedBuildTimeProviderBody>) {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Math {}
          boundary operator % Math::remainder(left: u64, right: u64) -> u64;
          data Provider {}
@@ -1130,7 +1091,7 @@ fn provider_boundary_endpoint_waits_for_selected_execution() {
         super::pending_endpoint_calls_need_operator_selection(&program, None).unwrap(),
         "a boundary-operator callee must defer its endpoint until selected rows exist"
     );
-    let independent = typed(
+    let independent = crate::front_end::typed_program(
         "machine limit() -> u64 { 7 }
          machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }",
     );
@@ -1142,7 +1103,7 @@ fn provider_boundary_endpoint_waits_for_selected_execution() {
 
 #[test]
 fn pending_type_bound_does_not_hide_the_callees_provider_dependency() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data Math {}
          boundary operator % Math::remainder(left: u64, right: u64) -> u64;
          data Provider {}
@@ -1200,7 +1161,7 @@ fn provider_boundary_endpoint_executes_the_selected_body() {
 
 #[test]
 fn inferred_endpoint_still_waits_for_and_executes_its_selected_provider() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "data Math {}
          boundary operator % Math::remainder(left: u64, right: u64) -> u64;
          data Provider {}
@@ -1254,23 +1215,14 @@ machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remain
 machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
 machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }
 "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let syntax = crate::front_end::syntax_program(source);
     let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
         syntax_trees: syntax,
         source_context: None,
     })
     .unwrap();
     let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let mut program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut program = crate::front_end::typed_program_from_evaluated_syntax(&syntax, None);
     let Some(pending) = pre_check.evaluate_or_defer(&mut program).unwrap() else {
         panic!("a provider-dependent endpoint must defer its pre-check continuation");
     };
@@ -1315,23 +1267,14 @@ machine Provider::remainder(left: u64, right: u64) -> u64 satisfies Math::remain
 machine limit() -> u64 { let left:u64 = 7; let right:u64 = 2; transition { _ -> (left % right) } }
 machine take_bounded(value: u64[0..=(match true { true -> limit(), false -> 0u64 })]) -> u64 { value }
 "#;
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let syntax = crate::front_end::syntax_program(source);
     let evaluated = crate::evaluate_pre_resolution(crate::BuildTimeEvaluationRequest {
         syntax_trees: syntax,
         source_context: None,
     })
     .unwrap();
     let (syntax, pre_check) = evaluated.into_syntax_and_pre_check();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    let mut program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let mut program = crate::front_end::typed_program_from_evaluated_syntax(&syntax, None);
     let Some(pending) = pre_check.evaluate_or_defer(&mut program).unwrap() else {
         panic!("a provider-dependent endpoint must defer its pre-check continuation");
     };
@@ -1385,7 +1328,7 @@ fn template_signature_bounds_with_endpoint_calls_close_under_explicit_applicatio
         ("result_bounded<256>()", "256"),
         ("bounded<256>(limit() - 256)", "256"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations}
              machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
@@ -1413,7 +1356,7 @@ fn template_signature_bounds_with_endpoint_calls_close_under_explicit_applicatio
             "{endpoint}"
         );
     }
-    let mut program = typed(&format!(
+    let mut program = crate::front_end::typed_program(&format!(
         "{declarations}
          machine keep(value: u64[0..=bounded<256>(300)]) {{}}"
     ));
@@ -1436,7 +1379,7 @@ fn rounds_stop_without_progress_and_restore_every_published_fold() {
     // progress and reports the unclosed signature bound. Every fold
     // published by the first round is restored so the rejected program
     // keeps its authored calls and their deferral marks.
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine limit() -> u64 { 256 }
          machine unclosable<const N: u64>(cap: u64, value: u64[0..=cap]) -> u64 { N }
          machine keep(first: u64[0..=(match true { true -> limit(), false -> limit() })], second: u64[0..=unclosable<256>(256, 0)]) {}",
@@ -1464,7 +1407,7 @@ fn rounds_stop_without_progress_and_restore_every_published_fold() {
 
 #[test]
 fn whole_endpoint_comparison_customer_uses_shared_evaluation() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine pick(wide: bool) -> u64 { transition wide { true -> 512 false -> 256 } } machine keep(value: u64[0..=pick(1u64 < 2u64)]) {}",
     );
     evaluate_const_range_endpoints(&mut program, None)
@@ -1488,7 +1431,7 @@ fn whole_endpoint_composes_calls_match_and_original_carriers() {
         ),
         ("18446744073709551616", "18446744073709551616"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations} machine keep(value: u64[0..{endpoint}]) {{}}"
         ));
         evaluate_const_range_endpoints(&mut program, None)
@@ -1506,11 +1449,11 @@ fn whole_endpoint_rejects_overflow_and_preserves_qualified_operator_meaning() {
     let declarations = "domain u64::Small requires self < 100; machine qualified() -> u64 in Small { 1 } machine pick(value: bool) -> u64 { transition value { true -> 512 false -> 256 } }";
     let source =
         format!("{declarations} machine keep(value: u64[0..=pick(qualified() < 2u64)]) {{}}");
-    let mut program = typed(&source);
+    let mut program = crate::front_end::typed_program(&source);
     evaluate_const_range_endpoints(&mut program, None)
         .expect("domain-qualified result with builtin comparison");
     assert_eq!(folded_maximum(&program).as_deref(), Some("512"));
-    let mut program = typed(&format!(
+    let mut program = crate::front_end::typed_program(&format!(
         "{source} machine < u64::Small::compare(left: u64, right: u64) -> bool {{ false }}"
     ));
     assert!(
@@ -1521,7 +1464,7 @@ fn whole_endpoint_rejects_overflow_and_preserves_qualified_operator_meaning() {
         "pick((255u8 + 1u8) == 0u8)",
         "pick(true) + 18446744073709551615u64",
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
         assert!(
@@ -1542,7 +1485,7 @@ fn whole_endpoint_checks_skipped_shapes_but_only_demanded_domain_values() {
             false,
         ),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
         let roots: Vec<_> = pending_endpoints(&program)
@@ -1572,7 +1515,7 @@ fn whole_endpoint_checks_skipped_shapes_but_only_demanded_domain_values() {
 fn whole_endpoint_computed_result_metadata_keeps_actual_carrier() {
     let declarations = "machine count() -> u8 { 1 } machine pick(value: bool) -> u64 { transition value { true -> 512 false -> 256 } }";
     let endpoint = "pick((1u64 << count()) < 4u64)";
-    let mut program = typed(&format!(
+    let mut program = crate::front_end::typed_program(&format!(
         "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
     ));
     evaluate_const_range_endpoints(&mut program, None).unwrap();
@@ -1585,7 +1528,7 @@ fn whole_endpoint_computed_result_metadata_keeps_actual_carrier() {
         "1u64 + qualified()",
         "match true { true -> qualified(), false -> 1 }",
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "{declarations} machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
         assert!(
@@ -1597,7 +1540,7 @@ fn whole_endpoint_computed_result_metadata_keeps_actual_carrier() {
 
 #[test]
 fn whole_endpoint_discovery_retains_distinct_roots_with_shared_call() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine endpoint() -> u64 { 256 } machine keep(first: u64[0..=endpoint() + 1], second: u64[0..=endpoint() + 2]) {}",
     );
     let pending = pending_endpoints(&program).unwrap();
@@ -1624,7 +1567,7 @@ fn whole_endpoint_discovery_retains_distinct_roots_with_shared_call() {
 
 #[test]
 fn whole_endpoint_without_calls_uses_the_same_shared_evaluator() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine keep(value: u64[0..=(match false { true -> 512u64, false -> 256u64 }) + 1]) {}",
     );
     assert!(pending_endpoints(&program).unwrap().is_empty());
@@ -1644,7 +1587,7 @@ fn optional_endpoint_probes_preserve_dependent_bounds_and_invalid_roots() {
         "cap + 1",
         "match true { true -> cap, false -> 0u64 }",
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine keep(cap: u64, value: u64[0..={endpoint}]) {{}}"
         ));
         let plan = super::endpoint_plan(&program).unwrap();
@@ -1666,8 +1609,9 @@ fn optional_endpoint_probes_preserve_dependent_bounds_and_invalid_roots() {
             assert_eq!(program.expression_table.expression(root), &original);
         }
     }
-    let mut program =
-        typed("machine keep(value: u64[0..=(match true { true -> false, false -> true })]) {}");
+    let mut program = crate::front_end::typed_program(
+        "machine keep(value: u64[0..=(match true { true -> false, false -> true })]) {}",
+    );
     evaluate_const_range_endpoints(&mut program, None).unwrap();
     assert!(
         typed_trees_to_checked_trees::lower_typed_trees(
@@ -1681,7 +1625,7 @@ fn optional_endpoint_probes_preserve_dependent_bounds_and_invalid_roots() {
 
 #[test]
 fn optional_endpoint_preparation_failure_leaves_authored_roots_unchanged() {
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine two<const A: u64, const B: u64>() -> u64 { A + B }
          machine unrelated() -> u64 { two<1>() }
          machine keep(value: u64[0..=(match false { true -> 512u64, false -> 256u64 }) + 1]) {}",
@@ -1731,7 +1675,7 @@ fn policy_parameters_execute_the_declared_width_without_changing_initial_landing
             "machine endpoint(value: u8 in {policy}) -> u64 {{ (value + 2) as u64 }} machine flag() -> bool {{ true }}"
         );
         for argument in ["255", "(match flag() { true -> 254, false -> 0 }) + 1"] {
-            let mut program = typed(&format!(
+            let mut program = crate::front_end::typed_program(&format!(
                 "{declarations} machine keep(value: u64[0..=endpoint({argument})]) {{}}"
             ));
             evaluate_const_range_endpoints(&mut program, None)
@@ -1751,7 +1695,7 @@ fn policy_parameters_execute_the_declared_width_without_changing_initial_landing
             "255u8",
             "match true { true -> 255, false -> 0u8 }",
         ] {
-            let mut program = typed(&format!(
+            let mut program = crate::front_end::typed_program(&format!(
                 "{declarations} machine keep(value: u64[0..=endpoint({argument})]) {{}}"
             ));
             assert!(
@@ -1769,7 +1713,7 @@ fn policy_parameter_admission_checks_skipped_calls_and_implicit_erasure() {
         "exact_result(wrapping_result())",
         "wrapping_result() + 1u8",
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine wrapping(value: u8 in Wrapping) -> u64 {{ (value + 2) as u64 }} machine wrapping_result() -> u8 in Wrapping {{ 1 }} machine exact_result(value: u8) -> u64 {{ value as u64 }} machine keep(value: u64[0..={endpoint}]) {{}}"
         ));
         assert!(
@@ -1785,7 +1729,7 @@ fn policy_endpoint_publication_retains_its_landed_policy() {
         ("Wrapping", ArithmeticDomain::Wrapping, "1"),
         ("Saturating", ArithmeticDomain::Saturating, "255"),
     ] {
-        let mut program = typed(&format!(
+        let mut program = crate::front_end::typed_program(&format!(
             "machine seed() -> u8 in {policy} {{ 255 }}
              machine keep(value: u64[0..=seed() + 2]) {{}}"
         ));
@@ -1819,7 +1763,7 @@ fn completed_endpoint_queries_keep_policy_in_surrounding_arithmetic() {
         (ArithmeticDomain::Saturating, Some("255")),
         (ArithmeticDomain::Exact, None),
     ] {
-        let mut program = typed(
+        let mut program = crate::front_end::typed_program(
             "machine wrapping() -> u8 in Wrapping { 0 }
              machine saturating() -> u8 in Saturating { 0 }",
         );

@@ -8,11 +8,7 @@ use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
 
 fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
+    let syntax = crate::front_end::syntax_program(source);
     // Concrete generic instances are materialized by pre-resolution
     // evaluation: generic data normalization owns the named `FixedBuffer<7>`
     // definition and its carried membership facts.

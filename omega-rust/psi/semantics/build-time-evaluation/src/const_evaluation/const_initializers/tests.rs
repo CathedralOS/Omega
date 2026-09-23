@@ -10,37 +10,32 @@ mod generic_invocations;
 
 use language_semantics::const_value::CanonicalConstIdentity;
 use source::SourceMap;
-use source_files_to_tokens::Lexer;
 use std::path::PathBuf;
 use std::sync::Arc;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::item::{ConstDefinition, Item};
-use tokens_to_syntax_trees::{parse_syntax_trees_into_with_id, parse_syntax_trees_with_id};
 
 fn parse(text: &str) -> (SyntaxTrees, Arc<SourceMap>) {
     let mut sources = SourceMap::default();
     let source_id = sources
         .add(PathBuf::from("main.omg"), text.to_owned())
         .source_id;
-    let tokens = Lexer::new(text).tokenize().expect("initializer tokens");
-    let syntax = parse_syntax_trees_with_id(source_id, &tokens).expect("initializer syntax");
+    let syntax = crate::front_end::syntax_program_with_id(source_id, text);
     (syntax, Arc::new(sources))
 }
 
 fn parse_files(files: &[(&str, &str)]) -> (SyntaxTrees, Arc<SourceMap>, Vec<source::SourceId>) {
     let mut sources = SourceMap::default();
-    let mut syntax = SyntaxTrees::default();
-    let mut ids = Vec::new();
+    let mut texts = Vec::new();
     for (path, text) in files {
         let source_id = sources
             .add(PathBuf::from(path), (*text).to_owned())
             .source_id;
-        let tokens = Lexer::new(text).tokenize().expect("initializer tokens");
-        parse_syntax_trees_into_with_id(&mut syntax, source_id, &tokens)
-            .expect("initializer syntax");
-        ids.push(source_id);
+        texts.push((source_id, *text));
     }
+    let ids = texts.iter().map(|(source_id, _)| *source_id).collect();
+    let syntax = crate::front_end::syntax_program_from_texts(&texts);
     (syntax, Arc::new(sources), ids)
 }
 
