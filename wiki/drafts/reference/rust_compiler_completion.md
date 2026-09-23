@@ -46,7 +46,7 @@ completion surface. Unaccepted experiments are not counted as accepted features.
 `RC-REPOSITORY` is:
 
 ```bash
-cargo fmt --all -- --check
+python tools/fmt.py --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx nextest run -p omega-architecture-test --all-targets --no-fail-fast
 mbx check --workspace --all-targets
