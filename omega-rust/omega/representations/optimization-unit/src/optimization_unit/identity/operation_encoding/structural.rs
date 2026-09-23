@@ -1,7 +1,7 @@
 //! Structural establishment and write-only storage tags.
 
 use super::super::{
-    encode_abstract_result, encode_canonical_path, encode_place_declaration,
+    encode_abstract_result, encode_canonical_path, encode_ids, encode_place_declaration,
     encode_structural_argument, encode_structural_operation_result, encode_structural_parameter,
     encode_structural_path_segment, encode_structural_type,
 };
@@ -164,6 +164,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             place,
             structural_type,
             bytes: literal,
+            qualifications,
         } => {
             bytes.u8(1);
             bytes.id(*psi_operation);
@@ -171,6 +172,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_type(bytes, structural_type);
             bytes.len(literal.len());
             bytes.bytes(literal);
+            encode_ids(bytes, qualifications);
         }
         O::EstablishTrivialAffineLocal {
             psi_operation,

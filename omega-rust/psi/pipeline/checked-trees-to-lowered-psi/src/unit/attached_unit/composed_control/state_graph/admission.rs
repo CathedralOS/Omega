@@ -587,11 +587,13 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 "Unit graph attached boundary requires exact linear receiver custody",
             );
         }
-        if !boundary.domain_requirements.is_empty()
-            || !(boundary.result.is_unit()
-                || matches!(&boundary.result,
-                CheckedBoundaryMachineResultPlan::Structural { multiplicity: Multiplicity::Affine, qualifications, .. }
-                if qualifications.is_empty()))
+        // Domain requirements on borrowed inputs lower into the emitted
+        // boundary's `requires` rows; qualified affine results mint their
+        // caller-side establishments at emission.
+        if !(boundary.result.is_unit()
+            || matches!(&boundary.result,
+                CheckedBoundaryMachineResultPlan::Structural { multiplicity: Multiplicity::Affine, .. }
+                ))
         {
             return unsupported(
                 "Unit graph boundary requires additional provider or result custody",

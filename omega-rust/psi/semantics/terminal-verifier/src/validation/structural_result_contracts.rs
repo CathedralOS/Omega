@@ -68,11 +68,41 @@ pub(super) fn call_result_matches(
     matches_function_result(operation_signature(result), callee)
 }
 
+/// Domains minted onto a return source by its producing operation's
+/// qualification establishment rows. Those memberships are authorized
+/// body-internal evidence — each row replays an authorized establishment
+/// route — but they belong to the callee's contract, not the returning
+/// machine's own signature, so they shed at the return edge: the
+/// caller-visible result carries only the declared domains.
+pub(super) fn minted_source_qualification_domains(
+    machine: &TerminalMachine,
+    source: PlaceId,
+) -> BTreeSet<StructuralDomainId> {
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            operation.result.structural().and_then(|result| {
+                (result.place == source).then(|| {
+                    result
+                        .qualification_establishments
+                        .iter()
+                        .map(|binding| binding.domain)
+                        .collect::<BTreeSet<_>>()
+                })
+            })
+        })
+        .unwrap_or_default()
+}
+
 /// A `ReturnStructural` source matches the machine's declared result when the
 /// result introduces at least the source's whole-root qualifications: the
 /// signature's `established by` authority mints declared domains onto the
 /// returned value at the edge, so the source need not already carry them.
-/// The source may never carry a qualification the result does not declare.
+/// The source may never carry a qualification the result does not declare,
+/// except domains minted onto it by its producer's authorized qualification
+/// establishment rows — those shed at the contract edge instead.
 pub(super) fn matches_return_source(
     source: StructuralResultSignature<'_>,
     result: &terminal_psi::StructuralResultDeclaration,
@@ -98,6 +128,10 @@ pub(super) fn has_empty_qualification_rosters(
 /// merely because its producer was a call rather than a parameter.
 /// Operation validation checks the callee/result contract; the frontier still
 /// checks that this exact owned result is live and has not been partially moved.
+/// A call result whose only qualification rosters are domains minted by its
+/// own authorized establishment rows is plain here as well: minted
+/// memberships are discharged evidence that sheds at the contract edge, not
+/// custody the terminator owes claims for.
 pub(super) fn plain_owned_call_result(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -112,16 +146,26 @@ pub(super) fn plain_owned_call_result(
                 operation.kind,
                 OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::BoundaryCall { .. }
             ) && operation.result.structural().is_some_and(|result| {
+                let minted = result
+                    .qualification_establishments
+                    .iter()
+                    .map(|binding| binding.domain)
+                    .collect::<BTreeSet<_>>();
                 result.place == source
                     && matches!(
                         result.multiplicity,
                         StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
                     )
-                    && has_empty_qualification_rosters(
-                        &result.qualifications,
-                        &result.projected_qualifications,
-                    )
+                    && result
+                        .qualifications
+                        .iter()
+                        .all(|domain| minted.contains(domain))
+                    && result
+                        .projected_qualifications
+                        .iter()
+                        .all(|projection| minted.contains(&projection.domain))
                     && result.claims.is_empty()
                     && has_plain_owned_shape(module, result.structural_type)
             })

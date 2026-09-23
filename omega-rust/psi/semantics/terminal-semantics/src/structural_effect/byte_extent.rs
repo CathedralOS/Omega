@@ -18,7 +18,7 @@ pub fn literal_length_equation(
     let StructuralEffectObservation::ByteSequenceLengthRead { source, result } = observation else {
         return Ok(None);
     };
-    let OperationKind::EstablishByteSequenceLiteral { destination, bytes } = &producer.kind else {
+    let OperationKind::EstablishByteSequenceLiteral { destination, bytes, .. } = &producer.kind else {
         return Ok(None);
     };
     if source != destination {

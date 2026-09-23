@@ -670,7 +670,42 @@ fn close_return_structural(
             place: *source,
         });
     }
-    if !super::super::structural_result_contracts::matches_return_source(source_signature, result) {
+    // Memberships minted onto the source by its producer's authorized
+    // qualification establishment rows are body-internal evidence: they
+    // shed at the contract edge rather than widening the declared result.
+    let minted_domains =
+        super::super::structural_result_contracts::minted_source_qualification_domains(
+            machine, *source,
+        );
+    let source_matches_result = if minted_domains.is_empty() {
+        super::super::structural_result_contracts::matches_return_source(
+            source_signature,
+            result,
+        )
+    } else {
+        let qualifications = source_signature
+            .qualifications
+            .iter()
+            .copied()
+            .filter(|domain| !minted_domains.contains(domain))
+            .collect::<Vec<_>>();
+        let projected_qualifications = source_signature
+            .projected_qualifications
+            .iter()
+            .filter(|projection| !minted_domains.contains(&projection.domain))
+            .cloned()
+            .collect::<Vec<_>>();
+        super::super::structural_result_contracts::matches_return_source(
+            super::super::structural_result_contracts::StructuralResultSignature {
+                structural_type: source_signature.structural_type,
+                multiplicity: source_signature.multiplicity,
+                qualifications: &qualifications,
+                projected_qualifications: &projected_qualifications,
+            },
+            result,
+        )
+    };
+    if !source_matches_result {
         return Err(ModuleError::StructuralReturnSignatureMismatch {
             machine: machine.id,
             block: block.id,

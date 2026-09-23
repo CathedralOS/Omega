@@ -3,9 +3,12 @@
 
 use super::{
     CheckedTrees, CheckedUnitPlanOmissionStage, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralTypeShape, CompositionMode, DataMember, Diagnostic,
-    SelectedProviderReviewProvenance, data_field_identity,
+    CheckedUnitStructuralTypeShape, CompositionMode, DataDefinition, DataField, DataMember,
+    Diagnostic, SelectedProviderReviewProvenance, data_field_identity,
 };
+use checked_trees::{CheckedUnitStructuralFieldPlan, CheckedUnitStructuralTypePlan};
+use typed_trees::service::ExactServiceCarrier;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 pub fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
     source: &program_entry_plan::SelectedProgramEntrySourceSignature,
@@ -75,22 +78,14 @@ pub fn derive_fused_program_entry_establishments(
     }
     let mut diagnostics = Vec::new();
     let mut service_fields = Vec::new();
-    for member in checked.data_members(owner) {
-        let DataMember::Field(field) = member else {
-            continue;
-        };
-        match typed_trees::service::classify_exact_bound_service_carrier(
-            checked,
-            field.type_reference,
-        ) {
-            Ok(Some(carrier)) => service_fields.push((field, carrier)),
-            Ok(None) => {}
-            Err(reason) => diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry field `{}::{}` has invalid Service establishment shape: {reason}",
-                owner.name, field.name,
-            ))),
-        }
-    }
+    collect_service_fields(
+        checked,
+        owner,
+        owner,
+        &mut Vec::new(),
+        &mut service_fields,
+        &mut diagnostics,
+    );
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -103,7 +98,7 @@ pub fn derive_fused_program_entry_establishments(
     // attachment, otherwise a missing provider appears to be a lowering bug.
     // This diagnoses absence only; the field, digest and selected provenance
     // still rejoin independently below before any establishment is issued.
-    for (field, carrier) in &service_fields {
+    for (field, carrier, _path) in &service_fields {
         if checked.fused_service_erasure(carrier.requirement).is_none() {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Service field `{}::{}` requires a selected Fused provider for boundary `{}`",
@@ -190,20 +185,21 @@ pub fn derive_fused_program_entry_establishments(
     };
 
     let mut rows = Vec::new();
-    for (field, carrier) in service_fields {
+    for (field, carrier, field_path) in service_fields {
         let field_identity = data_field_identity(field);
-        let matching_fields = fields
-            .iter()
-            .filter(|candidate| candidate.identity == field_identity)
-            .collect::<Vec<_>>();
-        let [checked_field] = matching_fields.as_slice() else {
-            diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` rejoins {} Terminal fields; expected one",
-                owner.name,
-                field.name,
-                matching_fields.len(),
-            )));
-            continue;
+        let checked_field = match checked_field_for_path(
+            &checked.facts.flow.terminal_unit_effects.structural_types,
+            fields,
+            &field_path,
+        ) {
+            Ok(checked_field) => checked_field,
+            Err(message) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "selected ProgramEntry Service field `{}::{}` {message}",
+                    owner.name, field.name,
+                )));
+                continue;
+            }
         };
         let CheckedUnitStructuralFieldType::FusedServiceBacked {
             provider_type_identity,
@@ -286,6 +282,7 @@ pub fn derive_fused_program_entry_establishments(
             receiver_identity.to_owned(),
             attachment_type_identity.clone(),
             field_identity,
+            field_path,
             carrier_type_identity,
             carrier_base_identity,
             program_entry_plan::ProgramEntryFusedServiceEstablishment::requirement_identity_for_schema(&schema),
@@ -298,16 +295,141 @@ pub fn derive_fused_program_entry_establishments(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    rows.sort_by(|left, right| left.field_identity().cmp(right.field_identity()));
+    rows.sort_by(|left, right| left.field_path().cmp(right.field_path()));
     if rows
         .windows(2)
-        .any(|pair| pair[0].field_identity() == pair[1].field_identity())
+        .any(|pair| pair[0].field_path() == pair[1].field_path())
     {
         return Err(vec![Diagnostic::error(
-            "selected ProgramEntry repeats one Fused Service establishment field",
+            "selected ProgramEntry repeats one Fused Service establishment field route",
         )]);
     }
     Ok(rows)
+}
+
+/// Collect every authored bound-service field on the receiver's record-field
+/// tree. A service carrier contributes one (field, carrier, route) triple at
+/// whatever depth nested record fields place it; a plain nested-record field
+/// only extends the route through its own members. Nested `data` definitions
+/// rejoin exactly like the eligibility walk — nominal, non-generic, and free
+/// of authored `where` facts — so both sides discover the same roster.
+fn collect_service_fields<'a>(
+    checked: &'a CheckedTrees,
+    owner: &DataDefinition,
+    source: &'a DataDefinition,
+    field_path: &mut Vec<String>,
+    service_fields: &mut Vec<(&'a DataField, ExactServiceCarrier, Vec<String>)>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for member in checked.data_members(source) {
+        let DataMember::Field(field) = member else {
+            continue;
+        };
+        let field_identity = data_field_identity(field);
+        match typed_trees::service::classify_exact_bound_service_carrier(
+            checked,
+            field.type_reference,
+        ) {
+            Ok(Some(carrier)) => {
+                field_path.push(field_identity);
+                service_fields.push((field, carrier, field_path.clone()));
+                field_path.pop();
+            }
+            Ok(None) => {
+                let Some(nested) = nested_source_record(checked, field.type_reference) else {
+                    continue;
+                };
+                field_path.push(field_identity);
+                collect_service_fields(
+                    checked,
+                    owner,
+                    nested,
+                    field_path,
+                    service_fields,
+                    diagnostics,
+                );
+                field_path.pop();
+            }
+            Err(reason) => diagnostics.push(Diagnostic::error(format!(
+                "selected ProgramEntry field `{}::{}` has invalid Service establishment shape: {reason}",
+                owner.name, field.name,
+            ))),
+        }
+    }
+}
+
+/// The nested source data definition a record field names, under the same
+/// guards the receiver-eligibility walk applies: a nominal non-generic
+/// definition with no authored `where` facts. Refined references stay
+/// unresolved rather than stripping a constraint to reach nested fields.
+fn nested_source_record<'a>(
+    checked: &'a CheckedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<&'a DataDefinition> {
+    let TypeReferenceNode::Named { symbol, .. } =
+        checked.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    checked.data_definitions().iter().find(|definition| {
+        definition.symbol == *symbol
+            && checked.data_type_parameters(definition).is_empty()
+            && checked
+                .proof_facts
+                .span_or_empty(definition.where_facts)
+                .is_empty()
+    })
+}
+
+/// Rejoin one collected service field's route to its checked structural
+/// field: each intermediate segment must be an exact `Structural` record
+/// child, and the leaf lands on the field the route ends at.
+fn checked_field_for_path<'a>(
+    structural_types: &'a [CheckedUnitStructuralTypePlan],
+    fields: &'a [CheckedUnitStructuralFieldPlan],
+    field_path: &[String],
+) -> Result<&'a CheckedUnitStructuralFieldPlan, String> {
+    let mut current_fields = fields;
+    for (index, segment) in field_path.iter().enumerate() {
+        let matching = current_fields
+            .iter()
+            .filter(|candidate| candidate.identity == *segment)
+            .collect::<Vec<_>>();
+        let [field] = matching.as_slice() else {
+            return Err(format!(
+                "rejoins {} checked fields at route segment `{segment}`; expected one",
+                matching.len(),
+            ));
+        };
+        if index + 1 == field_path.len() {
+            return Ok(field);
+        }
+        let CheckedUnitStructuralFieldType::Structural { type_identity } = &field.field_type else {
+            return Err(format!(
+                "route segment `{segment}` does not stay a nested record field"
+            ));
+        };
+        let matching_plans = structural_types
+            .iter()
+            .filter(|plan| plan.identity == *type_identity)
+            .collect::<Vec<_>>();
+        let [child_plan] = matching_plans.as_slice() else {
+            return Err(format!(
+                "route segment `{segment}` rejoins {} checked record plans; expected one",
+                matching_plans.len(),
+            ));
+        };
+        current_fields = match &child_plan.shape {
+            CheckedUnitStructuralTypeShape::Record { fields }
+            | CheckedUnitStructuralTypeShape::Mixed { fields, .. } => fields.as_slice(),
+            _ => {
+                return Err(format!(
+                    "route segment `{segment}` does not stay a nested record field"
+                ));
+            }
+        };
+    }
+    Err("route has no field segments".to_owned())
 }
 
 /// The unit-effects omission ledger already records where a machine left the

@@ -51,6 +51,7 @@ fn fixture(bytes: &[u8]) -> (TerminalModule, ProofBundle) {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: place,
                 bytes: bytes.to_vec(),
+                qualifications: Vec::new(),
             },
         },
         Operation {
@@ -218,6 +219,7 @@ fn redirected_source_and_repeated_reads_keep_exact_place_and_value_identity() {
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: PlaceId::new(2).unwrap(),
                 bytes: b"Z".to_vec(),
+                qualifications: Vec::new(),
             },
         },
     );

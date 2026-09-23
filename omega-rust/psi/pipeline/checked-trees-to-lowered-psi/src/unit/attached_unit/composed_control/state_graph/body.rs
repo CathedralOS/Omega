@@ -35,7 +35,7 @@ pub(super) fn validate(
     let prefix = state.bindings.len();
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
     let tail_value = usize::from(matches!(state.terminator, CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. })
-        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))));
+        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))));
     // Result cleanup shares its producing call's authored statement rather
     // than consuming a new one.
     let continuation_count = state
@@ -287,7 +287,9 @@ pub(super) fn validate(
                     discard_result_on_return,
                     ..
                 },
-                StatementNode::LocalData(_) | StatementNode::Call(_),
+                StatementNode::LocalData(_)
+                | StatementNode::Call(_)
+                | StatementNode::Expression(_),
             ) if completion_receipts.is_empty()
                 && coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0

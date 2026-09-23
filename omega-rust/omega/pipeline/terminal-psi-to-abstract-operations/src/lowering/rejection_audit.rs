@@ -388,6 +388,7 @@ fn byte_sequence_literal_without_declared_place_rejects() {
         OperationKind::EstablishByteSequenceLiteral {
             destination: PlaceId::new(1).unwrap(),
             bytes: vec![0xAA],
+            qualifications: Vec::new(),
         },
     );
     let module = module(vec![machine(

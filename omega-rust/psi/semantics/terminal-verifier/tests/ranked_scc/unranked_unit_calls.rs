@@ -136,6 +136,7 @@ fn literal_cycle() -> TerminalModule {
         kind: OperationKind::EstablishByteSequenceLiteral {
             destination: id(1, PlaceId::new),
             bytes: vec![0, 255, 10],
+            qualifications: Vec::new(),
         },
     });
     let call = helper_call(&mut module, 1);

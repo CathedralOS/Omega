@@ -10,6 +10,8 @@
 //! same field must refuse before any binding is admitted.
 
 use std::path::{Path, PathBuf};
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use compiler::{

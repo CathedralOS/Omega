@@ -6,8 +6,8 @@
 //! continuation, and completes through exit_group.
 
 use crate::{
-    CanaryCompileProduct, CanaryCompileSpec, CompileReport, PathBuf, compile, fs, repo_root,
-    unique_no_output_build_dir,
+    CanaryCompileProduct, CanaryCompileSpec, Command, CompileReport, PathBuf, Stdio, compile, fs,
+    repo_root, unique_no_output_build_dir,
 };
 
 struct HostedProject(PathBuf);
@@ -465,6 +465,23 @@ fn linux_hosted_receiver_number_guess_runs_to_documented_exit_70() {
     let directory = unique_no_output_build_dir();
     fs::create_dir(&directory).expect("create exclusively owned number-guess project");
     let project = HostedProject(directory);
+    // Publication consumes the retained artifact, so the image-backed
+    // receiver binding is witnessed on a retained compile and the executable
+    // on a second publish compile.
+    compile(CanaryCompileSpec {
+        root_path: repo_root().join("samples/cli/basics/number_guess/main.omg"),
+        build_dir: Some(project.0.join("retain")),
+        target_name: Some("linux_x86_64".into()),
+        product: CanaryCompileProduct::NativeArtifact,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("number_guess hosted receiver must produce its artifact: {diagnostics:#?}")
+    })
+    .retained_native_artifact()
+    .expect("retain admitted native object")
+    .object()
+    .hosted_receiver_binding()
+    .expect("number_guess provisions an image-backed receiver");
     let report = compile(CanaryCompileSpec {
         root_path: repo_root().join("samples/cli/basics/number_guess/main.omg"),
         build_dir: Some(project.0.join("build")),
@@ -474,12 +491,6 @@ fn linux_hosted_receiver_number_guess_runs_to_documented_exit_70() {
     .unwrap_or_else(|diagnostics| {
         panic!("number_guess hosted receiver must produce its executable: {diagnostics:#?}")
     });
-    report
-        .retained_native_artifact()
-        .expect("retain admitted native object")
-        .object()
-        .hosted_receiver_binding()
-        .expect("number_guess provisions an image-backed receiver");
     let executable = report
         .checked_native_executable_path()
         .expect("exact executable publication receipt");

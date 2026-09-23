@@ -259,6 +259,7 @@ pub(super) fn validate_structural(
                 if matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
                 ) {
                     crate::unit::attached_unit::structural_calls::validate_custody(
                         checked,

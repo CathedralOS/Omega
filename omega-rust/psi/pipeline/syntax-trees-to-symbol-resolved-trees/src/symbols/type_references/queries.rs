@@ -38,17 +38,20 @@ fn type_reference_symbol(
     }
 }
 
-/// Whether `symbol` is the toolchain `core/service.omg` `Service` carrier
-/// declaration. The full carrier shape is classified later by typed-trees;
+/// Whether `symbol` is the toolchain routed-service carrier declaration
+/// (`core/service.omg` `Service`, or `core/binding.omg` `Binding` under its
+/// ratified name). The full carrier shape is classified later by typed-trees;
 /// resolution needs only the exact source identity to route receiver calls
 /// through the carrier's closed requirement.
 fn exact_service_carrier_data(symbols: &SymbolTable, symbol: SymbolHandle) -> bool {
-    if !symbol.is_valid()
-        || symbols.get(symbol).kind != SymbolKind::Data
-        || symbols.name(symbol) != "Service"
-    {
+    if !symbol.is_valid() || symbols.get(symbol).kind != SymbolKind::Data {
         return false;
     }
+    let carrier_source = match symbols.name(symbol) {
+        "Service" => "service.omg",
+        "Binding" => "binding.omg",
+        _ => return false,
+    };
     let Some(span) = symbols.symbol_source_span(symbol) else {
         return false;
     };
@@ -60,7 +63,7 @@ fn exact_service_carrier_data(symbols: &SymbolTable, symbol: SymbolHandle) -> bo
             .path
             .strip_prefix(&source.package_root)
             .ok()
-            .is_some_and(|path| path == std::path::Path::new("service.omg"))
+            .is_some_and(|path| path == std::path::Path::new(carrier_source))
 }
 
 pub(in crate::symbols) fn call_target_for_type_reference(

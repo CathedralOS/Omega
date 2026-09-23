@@ -40,6 +40,12 @@ pub(super) fn evaluate(
             target_machine,
             scalar_arguments,
             ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            target_machine,
+            scalar_arguments,
+            ..
         } => {
             let target = catalogs
                 .lowered_boundaries
@@ -85,6 +91,13 @@ pub(super) fn evaluate(
         .iter()
         .map(|parameter| parameter.position as usize)
         .collect::<Vec<_>>();
+    // A literal occurrence's qualification evidence is its target parameter's
+    // declared domain set; clone the roster so the call machinery can borrow
+    // the catalogs mutably below.
+    let parameter_qualifications = target_parameters
+        .iter()
+        .map(|parameter| parameter.qualifications.clone())
+        .collect::<Vec<_>>();
     let authored =
         crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
     let signature = crate::emission::call_source_custody::authored::target_signature(
@@ -129,7 +142,16 @@ pub(super) fn evaluate(
         if positions.get(structural_ordinal) == Some(&argument_position) {
             let argument = &arguments[structural_ordinal];
             if argument.byte_sequence_literal().is_some() {
-                byte_places.push(establish(argument, catalogs, operations)?);
+                byte_places.push(establish(
+                    argument,
+                    parameter_qualifications
+                        .get(structural_ordinal)
+                        .ok_or(LoweringError::Unsupported(
+                            "literal call target parameter is absent",
+                        ))?,
+                    catalogs,
+                    operations,
+                )?);
             }
             structural_ordinal += 1;
         } else if scalar_positions.get(scalar_slots.len()) == Some(&argument_position) {
@@ -171,6 +193,7 @@ pub(super) fn evaluate(
 
 fn establish(
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameter_qualifications: &[language_semantics::SemanticDomainId],
     catalogs: &mut catalogs::ComposedCatalogs,
     operations: &mut OperationBuffer,
 ) -> Result<PlaceId, LoweringError> {
@@ -192,6 +215,10 @@ fn establish(
     {
         return unsupported("literal call argument is not a whole immutable byte view");
     }
+    let qualifications = parameter_qualifications
+        .iter()
+        .map(|domain| super::super::lookup_domain_id(&catalogs.domain_ids, *domain))
+        .collect::<Result<Vec<_>, _>>()?;
     let destination = place_id(allocate_dense(&mut catalogs.next_place)?);
     let declaration_ordinal = u32::try_from(catalogs.temporary_places.len())
         .map_err(|_| LoweringError::Unsupported("literal call declaration ordinal exceeds u32"))?;
@@ -211,6 +238,11 @@ fn establish(
         kind: OperationKind::EstablishByteSequenceLiteral {
             destination,
             bytes: bytes.to_vec(),
+            // The callee's required parameter domains are the memberships
+            // checking already discharged for this literal occurrence; the
+            // establishment carries them as the argument's qualification
+            // evidence.
+            qualifications,
         },
     });
     Ok(destination)

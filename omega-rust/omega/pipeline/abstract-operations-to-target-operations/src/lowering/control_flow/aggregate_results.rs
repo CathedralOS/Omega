@@ -61,10 +61,10 @@ pub(in crate::lowering) fn result_home_layout(
     result: &terminal_psi::StructuralResultDeclaration,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralHomeLayout, LoweringError> {
-    if result.multiplicity == StructuralMultiplicity::Linear
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-    {
+    // Qualification rosters are caller-visible custody evidence replayed
+    // through the requirement's origin; they do not change the carrier's
+    // physical layout, so only linear multiplicity still rejects here.
+    if result.multiplicity == StructuralMultiplicity::Linear {
         return Err(LoweringError::UnsupportedStructuralSum(
             result.structural_type,
         ));

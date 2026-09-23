@@ -174,7 +174,9 @@ pub(super) fn checked_unit_provider_candidates(
                     multiplicity,
                     qualifications,
                 } => {
-                    let (body, result) = if plans.composed_for_machine(machine.symbol).is_some() {
+                    let (body, result) = if plans.for_machine(machine.symbol).is_some()
+                        || plans.composed_for_machine(machine.symbol).is_some()
+                    {
                         let candidate = callable_candidate(checked, machine.symbol)?;
                         let checked_trees::CheckedControlResultPlan::Structural(result) =
                             candidate.result()?
@@ -188,12 +190,20 @@ pub(super) fn checked_unit_provider_candidates(
                         let candidate = affine_candidate(checked, machine.symbol)?;
                         (ProviderBody::AffineIdentity, candidate.result.clone())
                     };
+                    // The requirement's result qualifications and argument
+                    // domain requirements are minted on the caller side by the
+                    // checked boundary plan and its claim transfers; the
+                    // selected conformance has already joined the provider's
+                    // own contract to them. The provider's declared result
+                    // must still be the exact carrier, and any qualifications
+                    // it declares itself must be authorized by the requirement.
                     if *multiplicity != Multiplicity::Affine
-                        || !qualifications.is_empty()
                         || result.type_identity != *type_identity
                         || result.multiplicity != *multiplicity
-                        || !result.qualifications.is_empty()
-                        || !boundary.domain_requirements.is_empty()
+                        || result
+                            .qualifications
+                            .iter()
+                            .any(|domain| !qualifications.contains(domain))
                     {
                         return unsupported(
                             "provider affine result disagrees with its boundary requirement",

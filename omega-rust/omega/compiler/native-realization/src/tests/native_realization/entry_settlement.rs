@@ -310,6 +310,7 @@ fn establishment_for_source(
         receiver_type_identity.into(),
         attachment_type_identity.into(),
         field_identity.into(),
+        vec![field_identity.into()],
         carrier_type_identity.into(),
         carrier_type_identity.into(),
         "Evidence#test".into(),

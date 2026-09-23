@@ -427,6 +427,7 @@ pub(crate) fn structural_source_contract(
                     let O::EstablishByteSequenceLiteral {
                         place: declaration,
                         structural_type,
+                        qualifications,
                         ..
                     } = &node.operation
                     else {
@@ -436,7 +437,7 @@ pub(crate) fn structural_source_contract(
                         structural_type: structural_type.id,
                         multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
                         access: terminal_psi::StructuralAccess::SharedBorrow,
-                        qualifications: &[],
+                        qualifications: qualifications.as_slice(),
                         projected_qualifications: &[],
                     })
                 })

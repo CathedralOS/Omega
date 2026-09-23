@@ -47,13 +47,23 @@ pub enum CheckedProgramEntryReceiverCleanup {
 pub struct CheckedProgramEntryFusedServiceField {
     field_identity: String,
     carrier_type_identity: String,
+    field_path: Vec<String>,
 }
 
 impl CheckedProgramEntryFusedServiceField {
-    pub fn new(field_identity: String, carrier_type_identity: String) -> Self {
+    /// `field_path` is the complete route from the receiver root through each
+    /// enclosing record field down to the service field itself, so its last
+    /// segment is always `field_identity`. A direct receiver field carries a
+    /// single segment.
+    pub fn new(
+        field_identity: String,
+        carrier_type_identity: String,
+        field_path: Vec<String>,
+    ) -> Self {
         Self {
             field_identity,
             carrier_type_identity,
+            field_path,
         }
     }
 
@@ -63,6 +73,12 @@ impl CheckedProgramEntryFusedServiceField {
 
     pub fn carrier_type_identity(&self) -> &str {
         &self.carrier_type_identity
+    }
+
+    /// The receiver-root-to-field route through enclosing record fields,
+    /// ending at the service field's own identity.
+    pub fn field_path(&self) -> &[String] {
+        &self.field_path
     }
 }
 

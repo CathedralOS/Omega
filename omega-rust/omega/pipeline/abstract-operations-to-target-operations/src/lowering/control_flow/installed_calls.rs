@@ -61,10 +61,19 @@ pub(super) fn resolve(
             AbstractFunctionResult::Structural(candidate_result),
         ) if result.structural_type == candidate_result.structural_type
             && result.multiplicity == candidate_result.multiplicity
-            && result.qualifications == candidate_result.qualifications
-            && result.projected_qualifications == candidate_result.projected_qualifications
-            && result.claims.is_empty() =>
+            && result.claims.is_empty()
+            && matches!(
+                &installed.result,
+                terminal_psi::OperationResult::Structural(admitted)
+                    if admitted == result
+            ) =>
         {
+            // The caller-visible occurrence joins the exact admitted
+            // caller-local result, not the candidate's declared roster: the
+            // provider's ensured qualifications mint at its return and are
+            // covered by the verifier-admitted conformance in
+            // `installed.provider`, while this projection only needs the same
+            // carrier shape and multiplicity for ABI compatibility.
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
                 result: result.clone(),

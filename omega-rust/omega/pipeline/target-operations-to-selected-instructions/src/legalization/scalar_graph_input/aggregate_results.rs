@@ -732,10 +732,10 @@ pub(in crate::legalization) fn home_layout(
                     | StructuralTypeShape::Reference { .. }
             )
     }) {
+        // Qualifications ride the home origin verbatim as custody evidence;
+        // the layout is the carrier's physical shape alone.
         if result.multiplicity == StructuralMultiplicity::Linear
             || !result.claims.is_empty()
-            || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
         {
             return Err(LegalizationError::SourceCustodyMismatch);
         }

@@ -347,11 +347,13 @@ pub(super) fn admit_call_targets<'a>(
 pub(super) fn validate_claim_free_boundary(
     boundary: &CheckedBoundaryMachinePlan,
 ) -> Result<(), LoweringError> {
+    // Borrowed structural inputs ride the same argument/transfer replay the
+    // ordinary path emits; their domain requirements lower to the emitted
+    // boundary's `requires` rows and result qualifications mint caller-side
+    // establishments, so neither disqualifies a claim-free boundary.
     if boundary.attachment_type_identity.is_some()
         || boundary.structural_parameters.iter().any(|parameter| {
-            parameter.multiplicity != Multiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
+            !parameter.projected_qualifications.is_empty()
                 || parameter.fused_service_erasure.is_some()
                 || !matches!(
                     parameter.access,
@@ -359,12 +361,11 @@ pub(super) fn validate_claim_free_boundary(
                         | checked_trees::CheckedStructuralAccess::MutableBorrow
                 )
         })
-        || !boundary.domain_requirements.is_empty()
         || !(boundary.result.is_unit()
             || matches!(&boundary.result,
                 CheckedBoundaryMachineResultPlan::Structural {
-                    multiplicity: Multiplicity::Affine | Multiplicity::Unrestricted, qualifications, ..
-                } if qualifications.is_empty()))
+                    multiplicity: Multiplicity::Affine | Multiplicity::Unrestricted, ..
+                }))
     {
         return unsupported(
             "composed Unit boundary escaped claim-free borrowed-input/result custody",
@@ -552,14 +553,18 @@ pub(super) fn retain_call_boundary<'a>(
             // input independently; the result keeps its exact declared type and
             // multiplicity. Copy results owe dominance, affine results also owe
             // the per-edge disposal checked by result_custody.
+            // Qualified results are admitted: the caller-side establishment
+            // mint for each declared result domain is replayed at emission
+            // from the CallEnsures evidence (call_result_qualification_
+            // establishments), so the boundary keeps its declared quals.
             if !completion_receipts.is_empty()
                 || !matches!(
                     result.multiplicity,
                     Multiplicity::Affine | Multiplicity::Unrestricted
                 )
                 || !matches!(&target.result, CheckedBoundaryMachineResultPlan::Structural {
-                    type_identity, multiplicity, qualifications,
-                } if type_identity == &result.type_identity && *multiplicity == result.multiplicity && qualifications.is_empty())
+                    type_identity, multiplicity, ..
+                } if type_identity == &result.type_identity && *multiplicity == result.multiplicity)
             {
                 return unsupported(
                     "composed Unit local result escaped its claim-free return custody",

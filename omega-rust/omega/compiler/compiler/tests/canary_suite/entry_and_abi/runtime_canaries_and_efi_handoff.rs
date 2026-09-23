@@ -2,7 +2,8 @@ use super::assert_native_exit_code;
 use super::fixture_roster;
 use crate::{
     CanaryCompileProduct, CanaryCompileSpec, compile, compile_rooted_canary_for_native_host, fs,
-    hosted_main_program_entry_build_for, pass_canary,
+    hosted_main_program_entry_build_for, hosted_program_entry_owner, native_hosted_target,
+    pass_canary,
 };
 
 #[test]
@@ -317,4 +318,50 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
         "expected `mov rax, [rcx+8]; call rax` (named vtable-field dispatch) in .text"
     );
     let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn acquires_through_helper_return_original_main_entry_runs() {
+    // ENTRY-CONTENT-ROOTS: the entry receiver's routed-Service custody sits
+    // three records deep -- `Main{ backup: Backup{ vault: Vault{ desktop:
+    // Service<Desktop> }}}` erases to a zero-extent receiver whose only
+    // remaining obligation is the transitive Fused field's provisioned
+    // occurrence. Binding `Main::main` (not the probe shim the fixture's
+    // authored build selects) must replay that erased field against its
+    // selected provider plan and run the original nested binding/
+    // helper-return chain natively: `main -> Backup::stage -> Vault::pick
+    // -> Desktop::choose_folder` through `DesktopProvider`, exiting clean.
+    let canary = pass_canary(fixture_roster::ACQUIRES_THROUGH_HELPER_RETURN);
+    let target = native_hosted_target();
+    let scratch = std::env::temp_dir().join(format!("omega-acquires-entry-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&scratch);
+    let source = scratch.join("source");
+    fs::create_dir_all(&source).expect("create acquires scratch source directory");
+    fs::copy(canary.join("main.omg"), source.join("main.omg"))
+        .expect("copy acquires_through_helper_return source");
+    let root_owner = hosted_program_entry_owner(target);
+    fs::write(
+        source.join("build.omg"),
+        format!(
+            "machine build(builder: &mut Build) {{\n    builder.application(\"acquires-helper-return-main\");\n    builder.select_provider<Desktop, DesktopProvider>();\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+        ),
+    )
+    .expect("write Main::main entry binding with the Fused Desktop selection");
+    let build_dir = scratch.join("out");
+    let compilation = compile(CanaryCompileSpec {
+        root_path: source.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(target.into()),
+        product: CanaryCompileProduct::NativeArtifactAndPublish,
+    })
+    .unwrap_or_else(|diagnostics| {
+        panic!("nested-Service program entry must produce its executable: {diagnostics:#?}")
+    });
+    assert_native_exit_code(
+        &compilation,
+        0,
+        "acquires_through_helper_return Main::main",
+        "the erased transitive Fused field must provision its occurrence and run the helper-return chain",
+    );
+    let _ = fs::remove_dir_all(&scratch);
 }

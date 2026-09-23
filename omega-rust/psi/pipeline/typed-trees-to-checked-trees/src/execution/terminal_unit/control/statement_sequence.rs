@@ -1373,6 +1373,28 @@ pub(in crate::execution::terminal_unit) fn build(
         }
         Some(returned)
     } else if let Some(binding) = returned_call {
+        // A call result forwarded straight to the machine's structural return
+        // is consumed by that return; it must not also carry disposal debt.
+        for operation in &mut operations {
+            match operation {
+                CheckedUnitEffectOperationPlan::StructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                }
+                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                    result,
+                    discard_result_on_return,
+                    ..
+                } if result.binding_ordinal == binding.binding_ordinal => {
+                    if binding.multiplicity == Multiplicity::Affine && !*discard_result_on_return {
+                        return None;
+                    }
+                    *discard_result_on_return = false;
+                }
+                _ => {}
+            }
+        }
         Some(binding.into())
     } else if validation::is_closed_primitive_array_type(program, state.return_type) {
         trace.phase("statement sequence: structural result: returned scalar array");

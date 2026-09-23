@@ -364,17 +364,20 @@ pub(super) fn validate_operation(
                 place,
                 structural_type,
                 bytes,
+                qualifications,
             },
             AbstractOperation::EstablishByteSequenceLiteral {
                 psi_operation: expected_operation,
                 place: expected_place,
                 structural_type: expected_type,
                 bytes: expected_bytes,
+                qualifications: expected_qualifications,
             },
         ) if psi_operation == expected_operation
             && place == expected_place
             && structural_type == expected_type
-            && bytes == expected_bytes => {}
+            && bytes == expected_bytes
+            && qualifications == expected_qualifications => {}
         (
             TargetUnitOperation::WriteOnlyPrimitiveStore { .. },
             AbstractOperation::WriteOnlyPrimitiveStore { .. },

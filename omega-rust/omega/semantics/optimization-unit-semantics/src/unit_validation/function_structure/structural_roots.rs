@@ -554,6 +554,7 @@ pub(crate) fn validate_structural_root_operations(
                                     parameter.multiplicity,
                                     parameter.qualifications.as_slice(),
                                     parameter.projected_qualifications.as_slice(),
+                                    BTreeSet::new(),
                                 )
                             })
                             .or_else(|| {
@@ -606,17 +607,36 @@ pub(crate) fn validate_structural_root_operations(
                                             result.multiplicity,
                                             result.qualifications.as_slice(),
                                             result.projected_qualifications.as_slice(),
+                                            result
+                                                .qualification_establishments
+                                                .iter()
+                                                .map(|binding| binding.domain)
+                                                .collect::<BTreeSet<_>>(),
                                         ))
                                     }
                                     _ => None,
                                 })
                             });
                     if source_contract.is_none_or(
-                        |(structural_type, multiplicity, qualifications, projected)| {
+                        |(structural_type, multiplicity, qualifications, projected, minted)| {
+                            // Mirror the Terminal return-edge rule: domains
+                            // minted onto the source by its producer's
+                            // authorized qualification establishments shed at
+                            // the contract edge, so the remaining source
+                            // qualifications must live inside the declared
+                            // result roster rather than equal it.
                             structural_type != signature.structural_type
                                 || multiplicity != signature.multiplicity
-                                || qualifications != signature.qualifications.as_slice()
-                                || projected != signature.projected_qualifications.as_slice()
+                                || !qualifications
+                                    .iter()
+                                    .filter(|domain| !minted.contains(domain))
+                                    .all(|domain| signature.qualifications.contains(domain))
+                                || projected
+                                    .iter()
+                                    .filter(|projection| !minted.contains(&projection.domain))
+                                    .cloned()
+                                    .collect::<Vec<_>>()
+                                    != signature.projected_qualifications
                         },
                     ) {
                         return Err(

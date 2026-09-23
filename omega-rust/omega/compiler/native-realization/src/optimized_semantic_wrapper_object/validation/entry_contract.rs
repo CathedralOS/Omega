@@ -170,10 +170,21 @@ pub(crate) fn receiver_layout(
     let Some(declaration) = declarations.next() else {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
-    if declarations.next().is_some()
-        || !matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-            if fields.iter().all(|field| zero_valid_field(
-                structural.structural_types.as_slice(), field, &mut vec![receiver.semantic.structural_type])))
+    if declarations.next().is_some() {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    }
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
+    };
+    let mut erased = 0;
+    if !validate_receiver_fields(
+        structural.structural_types.as_slice(),
+        fields,
+        settlement.fused_service_establishments(),
+        &mut Vec::new(),
+        &mut vec![receiver.semantic.structural_type],
+        &mut erased,
+    ) || erased != settlement.fused_service_establishments().len()
     {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
@@ -181,6 +192,96 @@ pub(crate) fn receiver_layout(
         u32::from(shape.byte_size),
         u32::from(shape.alignment),
     )))
+}
+
+/// Mirrors the hosted-receiver bridge's discipline exactly: every erased
+/// field in the receiver's record-field tree must rejoin one Fused
+/// establishment row by its complete field route — its erased bytes are
+/// installed by the selected provider, not by zero-fill — and every other
+/// leaf stays zero-valid. `Structural` record children extend the route;
+/// array elements and sum cases cannot name one and keep their nested-erased
+/// rejection.
+fn validate_receiver_fields(
+    declarations: &[terminal_psi::StructuralTypeDeclaration],
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    rows: &[program_entry_plan::ProgramEntryFusedServiceEstablishment],
+    field_path: &mut Vec<String>,
+    visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+    erased: &mut usize,
+) -> bool {
+    fields.iter().all(|field| {
+        if field.relevance.is_erased()
+            || matches!(field.field_type, StructuralFieldType::Erased { .. })
+        {
+            let StructuralFieldType::Erased { type_identity } = &field.field_type else {
+                return false;
+            };
+            field_path.push(field.identity.clone());
+            let joined = rows
+                .iter()
+                .filter(|row| {
+                    row.field_path() == field_path.as_slice()
+                        && row.carrier_type_identity() == type_identity.as_str()
+                })
+                .count()
+                == 1;
+            field_path.pop();
+            if joined {
+                *erased += 1;
+            }
+            joined
+        } else {
+            match field.field_type {
+                StructuralFieldType::Scalar(
+                    ScalarType::Boolean | ScalarType::Integer(_) | ScalarType::IeeeFloat(_),
+                )
+                | StructuralFieldType::IeeeFloat(_) => true,
+                StructuralFieldType::BoundedInteger(integer) => {
+                    integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
+                        || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
+                }
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
+                    true
+                }
+                StructuralFieldType::Structural(child) => {
+                    if visiting.contains(&child) {
+                        return false;
+                    }
+                    let nested = declarations
+                        .iter()
+                        .filter(|declaration| declaration.id == child)
+                        .collect::<Vec<_>>();
+                    let [nested_declaration] = nested.as_slice() else {
+                        return false;
+                    };
+                    match &nested_declaration.shape {
+                        StructuralTypeShape::Record {
+                            fields: nested_fields,
+                        }
+                        | StructuralTypeShape::Mixed {
+                            fields: nested_fields, ..
+                        } => {
+                            visiting.push(child);
+                            field_path.push(field.identity.clone());
+                            let valid = validate_receiver_fields(
+                                declarations,
+                                nested_fields,
+                                rows,
+                                field_path,
+                                visiting,
+                                erased,
+                            );
+                            field_path.pop();
+                            visiting.pop();
+                            valid
+                        }
+                        _ => zero_valid_record_storage(declarations, child, visiting),
+                    }
+                }
+                _ => false,
+            }
+        }
+    })
 }
 
 /// Whether zero-filled storage is an established value of one nested

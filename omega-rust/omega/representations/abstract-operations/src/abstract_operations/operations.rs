@@ -250,6 +250,10 @@ pub enum AbstractOperation {
         place: StructuralPlaceDeclaration,
         structural_type: StructuralTypeDeclaration,
         bytes: Vec<u8>,
+        /// Domain memberships the literal mints onto its destination. They are
+        /// the verified literal's own establishment authority, replayed as the
+        /// place's qualification roster.
+        qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     },
     EstablishTrivialAffineLocal {
         psi_operation: OperationId,
