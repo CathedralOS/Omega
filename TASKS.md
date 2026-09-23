@@ -182,7 +182,13 @@ the complete product bar; focused successes below do not establish that baseline
   checked semantics, native products for authored targets, and documented
   exit/output on matching hosts. `compiler/tests/samples_compile.rs`, sample
   commands and the actual failing stage own integration; application submodules
-  remain **SQUALR-HEADLESS** and language fixtures **CANARY-CORPUS**.
+  remain **SQUALR-HEADLESS** and language fixtures **CANARY-CORPUS**. The
+  harness is not yet a measurement: `compile_sample_to_checked` builds a fresh
+  `CheckedCompileRequest` per sample, so each re-prepares package evidence and
+  re-checks std, and on Windows x86-64 in the dev profile at `117f2abc9c` the
+  checked-trees test was still inside its first sample after 38 minutes with
+  nothing compiled. Sharing one std check and one acceptance across the
+  sweep is what would let `tools/progress.py` report a samples number.
 
   Preserve each algorithm, storage and observable behavior during legitimate
   surface migration. Migrate remaining bare or authored-`Bound` service fields
