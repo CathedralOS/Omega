@@ -1,0 +1,58 @@
+// FAIL CANARY (element-argument type checking at machine-call boundaries):
+// a value call passes an element-view argument whose element type DISAGREES
+// with the callee's declared parameter: `s` is a `&[i32 in Wrapping]` view
+// bound into a `&[u8]` parameter. Value-position calls never run the
+// reference shape gate (text/byte/`addr` spellings make it a false-positive
+// minefield), so this used to check silently and only failed deep in
+// lowering when the call's argument binder dropped it -- the callee then had
+// no admitted body. The argument's element type must equal the parameter's.
+//
+// expected error: argument `s` for state `Walker::walk::walk` expects element
+// type `u8`, but the argument supplies `i32[in Wrapping]`
+
+data Walker {}
+
+data Main {
+    arr: [i32 in Wrapping; 4];
+    walker: Walker;
+}
+
+machine Walker::walk(&mut self, s: &[u8]) -> i32
+terminates by s -> Slice::Length;
+{
+    transition { _ -> scan(s) }
+
+    state scan(s: &[u8]) -> i32 {
+        transition s.len > 0 {
+            true -> emit(s[0], s[1..])
+            false -> done()
+        }
+    }
+
+    state emit(b: u8, s: &[u8]) -> i32 {
+        transition s.len > 0 {
+            true -> emit(s[0], s[1..])
+            false -> done()
+        }
+    }
+
+    state done() -> i32 { (0) }
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 5;
+    self.arr[1] = 10;
+    self.arr[2] = 15;
+    self.arr[3] = 20;
+
+    let s: &[i32 in Wrapping] = self.arr.as_slice();
+    let n: i32 = self.walker.walk(s);
+
+    transition n == 0 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {}
+    state bad(&mut self) {}
+}
