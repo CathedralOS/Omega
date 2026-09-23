@@ -1,0 +1,145 @@
+{
+  "wave": "macw6",
+  "max_acu_limit": 1,
+  "bypass_approval": false,
+  "resumable": true,
+  "tags": [],
+  "owner_label_prefix": "Jarod / macos-w6",
+  "exclusions": [],
+  "sessions": [
+    {
+      "name": "finite-dispatch",
+      "board": "TASKS.md",
+      "item": "FINITE-GENERIC-DISPATCH",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/dynamic_scalar_calls",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/monomorphization/dynamic_families.rs",
+        "omega-rust/psi/representations/terminal-psi/src/terminal_module/boundary/dynamic_dispatch.rs",
+        "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/finite_family.rs",
+        "omega-rust/psi/representations/checked-trees/src/checked_trees/flow/dynamic_scalar_calls.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/tests/dynamic_conformances",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/dynamic_composed_unit.rs",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/tests/dynamic_composed_unit.rs"
+      ],
+      "suggested_first_slice": "Parked WIP exists on branch swarm/macw5-finite-dispatch (one unvalidated commit, ~600 lines across dynamic_scalar_calls/, finite_family.rs and dynamic trait declarations) - fetch it, review the draft, and either continue it in your worktree or discard it and start fresh. Then: In execution/terminal_unit/dynamic_scalar_calls/, replace the static-only dynamic_family_tuple path for runtime-capable calls with checked roster membership and generated selection among the closed bodies: one scalar binder, one common concrete result, dispatch around a region-sized operation. Unproved membership rejects.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "general-licm",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "GENERAL-LICM",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
+        "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface",
+        "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc"
+      ],
+      "suggested_first_slice": "Extend invariant motion in ranked_rewrites/loop_invariant_scalar_motion/ beyond the authenticated shared-source preheader: pick the next uncovered establishment/custody family and carry it through independent admission/replay in src/validation/.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "module-namespaces",
+      "board": "TASKS.md",
+      "item": "MODULE-NAMESPACE-RESOLUTION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/preparation",
+        "omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees/tests/module_namespace_residuals.rs",
+        "omega-rust/psi/semantics/validation/src/proof_contracts/domains.rs",
+        "omega-rust/psi/semantics/validation/src/proof_contracts/domains",
+        "omega-rust/psi/semantics/validation/src/proof_contracts/bound_expression_meaning.rs",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_evaluation/const_initializers",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_evaluation/const_initializers.rs",
+        "omega-rust/psi/semantics/build-time-evaluation/src/const_evaluation/const_generic_expressions",
+        "omega-rust/psi/semantics/build-time-evaluation/src/machine_execution/admission",
+        "omega-rust/psi/semantics/build-time-evaluation/src/machine_execution/admission.rs",
+        "omega-rust/psi/representations/typed-trees/src/typed_trees/declarations/operator/spellings.rs"
+      ],
+      "suggested_first_slice": "Finish typed/checked/Terminal transport for generic type-scoped constant attachments: extend module_namespace_residuals' resolver-only operator/case tests through their remaining consumers rather than adding another namespace recognizer.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "plan-laid-views",
+      "board": "TASKS.md",
+      "item": "PLAN-LAID-VIEWS",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations",
+        "omega-rust/omega/compiler/native-realization/src/native_realization/optimized_fragment_projection.rs",
+        "omega-rust/omega/backend/images/image-emission/src/hosted_receiver.rs",
+        "omega-rust/omega/compiler/compiler/tests/access_plans/source_access_policies.rs"
+      ],
+      "suggested_first_slice": "Bridge emission's rejection of a settlement with bound establishments: carry each loan for the invocation's duration in hosted_receiver.rs and retire it at completion, then extend direct_placed_view_input_survives_codec_and_native_replay toward actual source access (view.status.read()).",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "coordinator-cml4",
+      "board": "TASKS.md",
+      "item": "CML4",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_cleanup.rs",
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
+        "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering"
+      ],
+      "suggested_first_slice": "Fix whole/residual scheduling across dying roots: the multi-temporary path in execution/terminal_unit/cleanup/anonymous.rs::append_continuation appends residuals in operand order; make it the required cleanup schedule (independent dying roots clean in reverse declaration order).",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "termination-ranking",
+      "board": "TASKS.md",
+      "item": "TERMINATION-RANKING-CHECKS",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/checks/termination/ranking",
+        "omega-rust/psi/semantics/validation/src/proof_contracts/contract_entailment/ranking_range",
+        "omega-rust/psi/semantics/validation/src/machine_calls/call_cycles/runtime_ranking",
+        "omega-rust/omega/compiler/compiler/tests/rank_remainder_endpoints.rs",
+        "omega-rust/omega/compiler/compiler/tests/rank_endpoint_borrows.rs"
+      ],
+      "suggested_first_slice": "Extend non-polynomial actual-argument substitution beyond supported quotient/remainder endpoints: recheck constituent operations at each exact arrival; cancellation, equal intervals and unoriented disequality do not establish divisor validity, absence of overflow or subject identity. Reuse rank_ranges/{field_endpoint_arithmetic,call_components}.rs and stored-reference arrival/reseating controls.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "domain-issuer-routes",
+      "board": "TASKS.md",
+      "item": "DOMAIN-ISSUER-ROUTES",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit.rs",
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/unit/attached_unit/catalog.rs",
+        "omega-rust/psi/semantics/terminal-verifier/tests/calls/qualification_establishments.rs",
+        "omega-rust/psi/semantics/terminal-verifier/tests/straight_line/scalar_qualifications.rs"
+      ],
+      "suggested_first_slice": "In checked-trees-to-lowered-psi/src/unit/attached_unit.rs and its catalog.rs: ordinary attached units publish no conformance applications and call_result_qualification_establishments emits only boundary-requirement bindings backed by an exact CallEnsures admitted receipt. Retain the missing ordinary callee/conformance identities and connect checked establishment evidence to its exact invocation result; establish a source-produced qualified boundary-result roundtrip.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    }
+  ]
+}

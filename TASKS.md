@@ -2641,8 +2641,13 @@ syntax and other terminal services are not prerequisites.
     rebound selected instance. Test-constructed tuple rows do not close this.
     Parked WIP: `swarm/macw5-finite-dispatch` (one unvalidated commit, ~600
     lines across `dynamic_scalar_calls/`, `finite_family.rs` and dynamic trait
-    declarations) covers roster-membership drafting toward the first bullet —
-    review before resuming.
+    declarations) covers roster-membership drafting toward the first bullet;
+    `swarm/macw6-finite-dispatch` (one unvalidated commit 54a1609a64, family
+    membership and forwarded-call subjects) drafts further along the same
+    path — review both before resuming. Separately, `c48b78d7ae` landed one
+    checked dynamic dispatch plan carrying binding kind and result shape
+    through `dynamic_composed_unit/` and `dynamic_scalar_calls/`; reconcile
+    the parked drafts against that structure.
 
   Acceptance: source pass/fail/run cases dispatch widths 16/32/64 from a runtime
   value through one selected conformance and execute natively without
@@ -3012,11 +3017,23 @@ syntax and other terminal services are not prerequisites.
     fixed (fc0fc77463): `execution/terminal_unit/cleanup/anonymous.rs::
     append_continuation` emits each temporary's residual group
     latest-established first, and the lowering validator and terminal
-    verifier independently rebuild that schedule. Remaining:
-    construction-local roots, partial construction and mixed dying roots,
-    retaining maximal untouched subtrees and empty complements.
-    No runtime liveness flags, expansion of untouched arrays into leaves, or
-    cleanup deferred until final return.
+    verifier independently rebuild that schedule. Parameter-rooted
+    projections at ordinary Unit return are fixed too (de08bc6b46): the
+    partial-affine carrier owns every machine that moves an owned
+    structural parameter through a projected argument — one residual
+    parameter root alongside whole-root sibling discards, projected
+    parameters sharing a consumer with dying temporaries and scalar
+    operands across multi-block bodies, and empty complements where
+    projections cover the root (the machine keeps `ReturnUnit` but
+    stays out of the root-only lane). The verifier keeps machine-scoped
+    parameter custody distinct from continuation-edge cleanup and
+    still rejects a second residual parameter root; lowering
+    independently reconstructs the complement from the checked type
+    plan. Remaining: construction-local roots, partial construction, a
+    second partially-moved parameter root (the return-edge vocabulary
+    holds one), and mixed dying roots beyond the parameter/temporary
+    pair. No runtime liveness flags, expansion of untouched arrays into
+    leaves, or cleanup deferred until final return.
   - Generalize projected temporary cleanup beyond empty, effect-free Unit
     consumers: compose other argument effects, non-Unit consumers,
     borrowed/owned temporary mixtures and retained claims/qualifications
