@@ -255,7 +255,7 @@ fn check_authored_call_result_cleanup(boundary: bool, attached: bool, anonymous:
                 TerminalMachineSelection::Name(entry_name)
             ),
             Err(checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                "partial affine Unit cleanup attachment disagrees with its signature"
+                "Unit plan attachment disagrees with its selected signature"
             ))
         ));
         let terminal = checked_trees_to_lowered_psi::lower_machine(
