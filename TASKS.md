@@ -1352,14 +1352,19 @@ syntax and other terminal services are not prerequisites.
   profiles, not a policy DSL. **MACOS-APPLICATION-PUBLICATION** owns actual bundle
   execution, not this evidence.
 
-  Also close producer-side failed publication in
-  `compilation-report/src/compile_report.rs`: flat publication currently writes
-  Psi bytes before their companion, so a later write/replacement failure can
-  leave the new artifact beside the old proof. Stage and validate requested
-  pairs before success; failure must not associate stale evidence with new bytes
-  or downgrade requested PCC to ordinary success. Exercise failure between pair
-  members, request-on/request-off replacement and retry, separately from receiver
-  mismatch rejection. Successful republication tests do not cover interruption.
+  ~~Also close producer-side failed publication in
+  `compilation-report/src/compile_report.rs`: flat publication writes Psi bytes
+  before their companion.~~ Done, measured at `5c99ddbec8`. Publication now
+  stages every requested product first -- `stage_exact_bytes` collects them and
+  `install_staged_products` installs the set -- so a failure between pair
+  members cannot leave a new artifact beside the old proof.
+  `executable_publication.rs::a_failed_pair_member_leaves_the_previous_pair_intact`
+  pins exactly that interruption, which the row correctly noted a successful
+  republication test cannot cover; the crate is green at 65 of 65.
+
+  Still owed by this clause: request-on/request-off replacement and retry
+  exercised against the staged route, and receiver mismatch rejection kept
+  separate from it.
 
 - **PSIIR.** Complete source-free Terminal execution and logical-work bounds
   across canonical encoding, independent reconstruction, interpretation,
