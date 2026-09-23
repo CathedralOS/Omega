@@ -299,16 +299,35 @@ fn build_machine_graph(
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
             });
-            let (structural_parameters, scalar_parameters, mut shapes) = if mixed {
-                // Whole structural forwarding is bounded to the same authored
-                // state; additional state signatures remain a separate slice.
-                // An attached machine whose receiver is a borrowed `self` keeps
-                // the receiver ambient, so the attachment needs no graph slot;
-                // a selfless attached machine keeps the receiver discipline.
-                if source_states.len() != 1
-                    || (machine.attached_data.is_some()
-                        && !parameters.iter().any(|parameter| parameter.is_self))
-                {
+            let (structural_parameters, scalar_parameters, mut shapes) = if mixed
+                && machine.attached_data.is_some()
+                && !parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self && parameter.is_mutable)
+            {
+                // An attached machine's graph carries the whole mixed
+                // signature per state: the ambient receiver lands on the
+                // entry roster while each state's own structural formals
+                // forward across the edges that reach it. The carrier
+                // contract stays the ordinary scalar-graph admission, so a
+                // structural parameter the graph cannot carry keeps the
+                // whole machine off the graph.
+                if !crate::execution::terminal_unit::structural_scalar_graph_parameter_admission(
+                    program, state,
+                ) {
+                    return None;
+                }
+                crate::execution::terminal_unit::calls::mixed_ambient_scalar_graph_signature(
+                    program,
+                    machine,
+                    state,
+                    source_states[0].symbol,
+                )?
+            } else if mixed {
+                // Whole structural forwarding for a free machine is bounded
+                // to the same authored state; additional state signatures
+                // remain a separate slice.
+                if source_states.len() != 1 {
                     return None;
                 }
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?

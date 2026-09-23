@@ -41,6 +41,7 @@ pub(super) fn append_terminator(
             edge,
             target,
             arguments,
+            structural_arguments,
             ..
         } => {
             if ignored_backedges.contains(edge) {
@@ -53,6 +54,12 @@ pub(super) fn append_terminator(
                 arguments,
                 value_term,
                 proposition_context,
+                reconstruct_path_facts,
+            );
+            path_facts::bind_successor_structural_axioms(
+                &mut axioms,
+                target_block,
+                structural_arguments,
                 reconstruct_path_facts,
             );
             incoming.entry(*target).or_default().push(axioms);
@@ -93,6 +100,12 @@ pub(super) fn append_terminator(
                     &successor.arguments,
                     value_term,
                     proposition_context,
+                    reconstruct_path_facts,
+                );
+                path_facts::bind_successor_structural_axioms(
+                    &mut arm_axioms,
+                    target_block,
+                    &successor.structural_arguments,
                     reconstruct_path_facts,
                 );
                 if reconstruct_path_facts && let Some(condition_fact) = condition_fact {

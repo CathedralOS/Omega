@@ -455,6 +455,29 @@ pub(crate) fn ambient_self_scalar_graph_signature(
     Some((structural, scalar, shapes.types.into_values().collect()))
 }
 
+/// An attached machine's mixed signature as a scalar graph sees it: the
+/// ambient `&self` receiver appears only on the entry state's roster while
+/// every state's own structural formals forward across the edges that reach
+/// it. Non-entry rosters therefore carry the same traced signature minus the
+/// receiver entry.
+pub(crate) fn mixed_ambient_scalar_graph_signature(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    entry_state: SymbolHandle,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<CheckedUnitStructuralTypePlan>,
+)> {
+    let (mut structural, scalar, shapes) =
+        ambient_self_scalar_graph_signature(program, machine, state)?;
+    if state.symbol != entry_state {
+        structural.retain(|parameter| !parameter.is_self);
+    }
+    Some((structural, scalar, shapes))
+}
+
 pub(crate) fn free_structural_scalar_signature(
     program: &TypedTrees,
     shapes: &mut ShapeCollector<'_>,
