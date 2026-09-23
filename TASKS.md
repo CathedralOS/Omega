@@ -2672,8 +2672,15 @@ syntax and other terminal services are not prerequisites.
     [retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)
     for navigation, not as a current census. Tokenless boundary rows depend on
     **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, including generic requirements.
-    Trait/domain token signatures need ordinary `machine` grammar: the trait
-    parser still reads token spelling only after `operator`. Rejoin
+    Trait token signatures now take the ordinary `machine` grammar, measured at
+    `d29035cc1f`: the trait head admits `machine < before(...)` using the same
+    vocabulary and non-punctuation/semicolon guard `declarations::machines`
+    applies to every `machine`-headed form, which is the grammar
+    `expressions.md`'s executable-supply table gives and a concrete crowned
+    declaration already used. `operator <` still parses, and
+    `validation/tests/trait_token_heads.rs` checks the two heads agree past the
+    parser -- both record the same spelling on the typed requirement through
+    resolution and validation. DOMAIN token signatures were not touched. Rejoin
     `SpelledOperator`, provider planning, selected build-time execution,
     package evidence and result-domain dispatch to the surviving declarations.
     Preserve semantic identities or explicitly reject stale schemas.
