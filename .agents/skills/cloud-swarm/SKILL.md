@@ -58,6 +58,12 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
    the recorded golden instead of chained suites; `mbx` if present).
 3. The lane: `git push -f origin HEAD:leaf/<kebab-item>` — one lane per chain
    link. Workers NEVER merge, NEVER touch board files, NEVER run landing.py.
+   Commits on the lane are semantically whole: run `python tools/fmt.py`
+   BEFORE `git commit` so reformatting folds into the change commit — never
+   push a commit whose only payload is mechanical reflow (`fmt:`/whitespace),
+   and never land one on main; reviewers and the ledger read lanes
+   commit-by-commit. If a later gate re-formats your diff, fold it into the
+   next functional commit on the same lane.
 4. "Reuse your existing clone/worktree when present" — suspended workers
    resume on the same VM; a re-clone plus cold build is measured leg-time tax.
    Never `cargo clean` and never build `omega` from source for evidence:
