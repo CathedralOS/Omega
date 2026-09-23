@@ -2846,20 +2846,28 @@ syntax and other terminal services are not prerequisites.
   Keep rejection fixtures until their complete custody is implemented.
   Terminal execution is not native acceptance.
 
-- **NOMINAL-FIELD-FLOW.** Finish receiver default-field contract handling and
-  its dungeon customer under
-  [default domains and invariant windows](wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization).
-  Owner: Psi `typed-trees-to-checked-trees` semantic field facts,
+- **NOMINAL-FIELD-FLOW.** Remove the receiver-specific default-domain exception
+  under [ordinary mutable-receiver contracts](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
+  and close the dungeon checking customer. `&mut self` is an ordinary `&mut T`
+  argument; this is implementation cleanup, not an owner-blocked design choice.
+  Owners: `typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`,
   `checks/contracts/`, and `flow/call_phases/referents.rs`.
 
-  Receiver widening is blocked by
-  [`mutable-self-receiver-declared-field-rows`](OWNER_QUESTIONS.md):
-  current `&mut self` entry assumptions, return checks and call handback use
-  only ZII-admitted `MachineFieldDomain` rows. Established non-ZII receiver
-  facts otherwise survive through precise frames or authored contracts.
-  Do not widen entry assumptions or handback independently of the owner ruling.
-  Readable mutable arguments and whole-extent collection-field coverage already
-  have a shared checked route; preserve it rather than rebuilding it.
+  Consolidate receiver and named mutable-argument domain obligations across
+  call admission, entry assumptions, return checks, and fact handback. Remove
+  receiver-only ZII filtering and superseded special cases rather than adding
+  stronger facts alongside the old path. Keep ZII seeding for actual zeroed
+  storage establishment; never infer incoming value validity from allocation.
+  Reuse nominal-input and whole-extent collection-field checking. Update comments
+  and tests that encode the receiver exception without removing real construction,
+  invalidation, or restoration controls.
+
+  Add paired method/free-machine regressions over the same `&mut T`: established
+  non-ZII field domains survive valid mutation and return; invalid incoming values,
+  unclosed invariant windows, and stale facts after writes reject. Exercise nested
+  fields and explicit receiver `requires`/`ensures`; stronger input-only domains
+  are not implicit postconditions. The tests must expose the old discrepancy and
+  pass through the shared path, not a receiver-only compatibility branch.
 
   Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`,
   retaining `RoomLookup`, `MazeBuilder` and game-state field obligations.
@@ -2874,9 +2882,9 @@ syntax and other terminal services are not prerequisites.
   measured blocker; canonical plan minting now exists. Attribute any reproduced
   package/native stop to its owner, not field-fact machinery.
 
-  Acceptance: apply the receiver ruling consistently at entry, call and return,
-  then close the dungeon checking customer without bypassing its field
-  obligations. Preserve indexing/view/copy/call transport and finite
+  Acceptance: equivalent receiver/argument programs have the same checked domain
+  obligations, the superseded receiver path is removed, and the unchanged dungeon
+  command passes without bypassing field validity. Preserve indexing/view/copy/call transport and finite
   candidate-origin coverage in `tests/contracts/{element_fields,nominal_parameter_fields}.rs`;
   corrupted elements and stale aliases reject at calls, transitions and returns.
   Nominal annotations never resurrect retired facts, unresolved selectors

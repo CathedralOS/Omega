@@ -32,16 +32,18 @@ before committing to it. "Names concrete files" does not mean "small".
 | BLOCKED-OWNER | 5 | needs a language or semantics ruling |
 | **Total** | **105** | plus one row closed on 2026-09-23 |
 
-## Design-blocked, and where the decision lives
+## Design-blocked at the recorded revision
 
-Every one of the five names its decision, so none is silently stuck:
+These are the snapshot's classifications, not current blockers. Mutable receiver
+contracts are now explicit in the specification; NOMINAL-FIELD-FLOW is
+implementation cleanup. Other decisions use stable names rather than queue numbers.
 
-| Row | Named decision in OWNER_QUESTIONS.md |
+| Row | Decision reference |
 | --- | --- |
-| MODULE-NAMESPACE-RESOLUTION | `unmanaged-root-package-identity` (question 10) |
-| NOMINAL-FIELD-FLOW | `mutable-self-receiver-declared-field-rows` (question 1) |
-| NATIVE-WRAPPER-ENCODING-AARCH64 | `aarch64-semantic-wrapper-arrival-shape` (question 5) |
-| OWNED-SELF-RECEIVER-AFFINE-DISCARD | `owned-self-receiver-implicit-retirement` (question 12, filed 2026-09-23) |
+| MODULE-NAMESPACE-RESOLUTION | `unmanaged-root-package-identity` |
+| NOMINAL-FIELD-FLOW | [mutable-self-receiver-declared-field-rows](../../spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains), settled |
+| NATIVE-WRAPPER-ENCODING-AARCH64 | `aarch64-semantic-wrapper-arrival-shape` |
+| OWNED-SELF-RECEIVER-AFFINE-DISCARD | `owned-self-receiver-implicit-retirement` |
 | ARITHMETIC-POLICY-REALIZATION | `terminal-operation-level-trap-crash-site` -- one lane only; the row says the rest "is implementation work, not a reason to mark this whole row owner-blocked" |
 
 `SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT` reads as owner-blocked and is

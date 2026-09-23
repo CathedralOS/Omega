@@ -157,14 +157,15 @@ The cumulative question those per-occurrence products left open — whether
 the coarse envelope (at most `295*S + 34*N + 149` pairs for checking,
 lowering, and shared names, before the normalizer's `45*G + 7*F + 1`) plus
 the closed capture envelope `60,672*N*N + 5,680*N + 2,980*S + 1,118` fits the
-selected arena — is settled by measurement, not by the envelope itself: the
+selected arena — remains open as a general containment proof: the
 envelope exceeds the 3,422,453,760-pair arena from `N = 238`, so it cannot
 serve as the containment proof. The
 [measured worst-shape study](../../../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
 runs the canonical closure under an instrumented reference interpreter that
-counts every immutable-pair allocation, measures the scaled worst shape on
+counts every immutable-pair allocation, measures selected scaled shapes on
 each admitted extent axis, and projects 417,063,339 pairs at the full
-extents — 8.2× under the arena. The capture-chain regime at full width is
+extents — 8.2× under the arena. This supports the selected provision but does
+not establish a bound for every admitted composition. The capture-chain regime at full width is
 bounded independently by the exact `(origin, ancestor cut)` incidence count
 and witnessed by canonical full-extent completions. This audit neither
 supplies a DCOUT heap refusal nor converts an outer Gamma failure into one.
@@ -250,18 +251,15 @@ The finding was therefore negative for that selected profile: admitted
 Delta sources existed whose compilation allocated past the immutable-pair
 arena, and the boundary contract has no resource row for cumulative pair
 allocation — the [arithmetic probe](README.md#arithmetic-allocation-probe)
-separately rules out inventing a general DCOUT heap code. Under
-[owner-escalation](../../../MINIMIZATION.md#owner-escalation) this is the
-recorded finding that the compiler's private pair bound could not receive
-an explicit fail-closed profile under the evaluator then selected; closing
-it needs the owner decision among a larger evaluator arena, a new
-compiler-owned allocation ledger with its own DCOUT identity, or explicit
-contract acceptance of the raw status-252 observation. The evaluator has
-since adopted the 3,422,453,760-pair extent — option (a) in substance —
-with containment re-measured by the instrumented study cited above, but the
-named `delta-compiler-pair-arena-profile` decision itself remains to be
-recorded. The per-occurrence charges
-above remain the accounting of record for where those pairs are spent.
+separately rules out inventing a general DCOUT heap code. The evaluator has
+since adopted the 3,422,453,760-pair extent. The
+[`delta-compiler-pair-arena-profile` rule](../../../MINIMIZATION.md#private-capacity-changes)
+delegates further coherent capacity tuning without owner approval; complete
+containment and customer validation remain engineering obligations. The old
+exhaustion does not establish a fundamental limit of the selected design.
+Keep the per-occurrence accounting above, and escalate only if feasible
+reprovisioning cannot preserve the contract or a changed observation/trust
+guarantee is proposed. Raw status 252 remains an evaluator failure, not DCOUT.
 
 Generated Delta applications are different programs. Their recursion and live
 storage can still exhaust the selected evaluator or diverge. The compiler's

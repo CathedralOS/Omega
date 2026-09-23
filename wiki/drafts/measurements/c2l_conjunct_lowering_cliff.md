@@ -18,10 +18,12 @@ runs, SIGTERM'd at 1480.871s in the `d936717f` census.
 Measured at `de5798c306`: this is **not a proof search and nothing diverges**.
 Tracing producer calls over 200ms at the cliff: 192 calls, 99.6s total, all
 192 returned a proof. The relaxed fallback was never reached and the kernel's
-`StepCeiling` was never hit. There is no non-converging obligation to contain,
-so **do not bound the search** — every traced obligation is provable, and
-bounding abandons obligations the compiler demonstrably proves. Fail-closed
-refusal is design-blocked (OWNER_QUESTIONS.md question 4).
+`StepCeiling` was never hit. These measurements identify aggregate work, not a
+non-converging individual obligation. Repair the redundant work; an aggregate
+resource limit may report `Incomplete` under the
+[proof outcome contract](../../spec/proofs/publication.md#outcomes), never falsehood
+or successful completion without the required evidence. Accounting is discussed
+under `compile-time-proof-work-ceiling` in [OWNER_QUESTIONS.md](../../../OWNER_QUESTIONS.md).
 
 `OMEGA_PROOF_MEASUREMENTS` does not instrument this stage at all: on the
 terminating reduction it reports `obligations=1 ... decided_elsewhere=1`, all

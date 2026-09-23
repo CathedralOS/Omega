@@ -302,11 +302,11 @@ source, compiler/evaluator route, receipt, and execution checks.
 
 ## Measured worst-shape pair containment
 
-The cumulative-allocation question the per-occurrence audits left open —
-whether an admitted source can drive cumulative compiler allocation past the
-selected evaluator's immutable-pair arena — is settled here by measurement
-rather than by the closed envelope (which exceeds the arena from `N = 238`
-and so cannot serve as the proof). `pair_study.py` runs the pinned Delta
+This study supplies measured allocations and projections toward cumulative
+pair containment, not a proof covering every admitted source composition.
+The closed envelope exceeds the arena from `N = 238` and cannot supply that
+proof; fitted rates below are projections, not proven upper bounds.
+`pair_study.py` runs the pinned Delta
 compiler closure under an instrumented copy of
 `tests/alpha/reference/alpha_ref.py` on the bound Gamma evaluator tape: the
 instrument increments one counter at the evaluator's `0x50414952`-marked

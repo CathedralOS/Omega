@@ -80,9 +80,30 @@ next-compiler closure and eventual Omega self-host source. Record:
 
 Distinguish measured peaks, conservative bounds, constructed recipe costs, and
 unmeasured work. Lines and bytes are inventory, not an auditability score.
-Private capacities are engineering choices; changing one requires a coherent
-containment and failure argument, not an isolated constant edit. Sharing terms
-does not establish sharing of state-dependent proofs or full-certificate fit.
+Sharing terms does not establish sharing of state-dependent proofs or
+full-certificate fit.
+
+### Private capacity changes
+
+Private capacities are delegated engineering choices. Within the accepted
+semantics and trust boundary, implementers may increase limits, reprovision
+storage, and adjust resource accounting without owner approval, including later
+increases. A limit hit alone is not a design failure or an owner question.
+Prefer coherent reprovisioning over a new subsystem whose only purpose is to
+preserve an arbitrary private limit.
+
+The implementer owns containment and failure arguments, coupled profile/artifact
+updates, and customer and boundary validation; an isolated constant edit or fitted
+allocation rate does not complete that work. Escalate when ordinary algorithmic
+cleanup and feasible reprovisioning cannot meet the required contract, or when a
+repair would change semantics, observations, identity, or trust guarantees.
+Changing an audited seed or ratified memory boundary remains governed by its
+own approval rules, not this private-capacity delegation.
+
+For `delta-compiler-pair-arena-profile`, use the enlarged selected Gamma arena
+and complete Delta's cumulative-allocation containment. Further coherent capacity
+tuning needs no new ruling. Raw evaluator status 252 is not a compiler-owned
+`DCOUT` outcome; replacing that guarantee would require a separate decision.
 
 ## Completion and continuation
 
@@ -107,7 +128,8 @@ workaround. Investigation and non-authoritative experiments may proceed without
 an owner ruling:
 
 - representative interpreted-D-to-omega0 or omega0-to-omega work has prohibitive
-  time, memory, or tape size after ordinary algorithmic/diagnostic cleanup;
+  time, memory, or tape size after ordinary algorithmic/diagnostic cleanup and
+  feasible reprovisioning;
 - Alpha appears too weak or verbose, including pressure for a new opcode,
   widened encoding, or higher-language primitive;
 - certificates or checking remain prohibitive after DAG sharing, compositional
@@ -118,8 +140,9 @@ an owner ruling:
   Epsilon instead of Alpha realization or the Omega product boundary;
 - an edge requires an older rung or host semantic transformation outside the
   explicitly selected source/evaluator composition in the [contract](CONTRACT.md);
-- realistic compiler source exhausts a private bound, requires undefined Alpha
-  behavior, or cannot receive an explicit fail-closed resource profile;
+- realistic compiler source requires undefined Alpha behavior or cannot receive
+  an explicit fail-closed resource profile after ordinary cleanup and feasible
+  reprovisioning; exhausting the previous private bound alone is not escalation;
 - an edge appears to require a new trusted axiom or checker rule;
 - conforming Alpha realizations disagree on identical tape and input;
 - legacy retention requires a second accepted chain, duplicated semantic owner,
