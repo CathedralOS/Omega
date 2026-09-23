@@ -7,17 +7,6 @@ use crate::BuildTimeAdmissionPlan;
 use numerics::bignum::BigInt;
 use typed_trees::types::TypeReferenceNode;
 
-fn typed(text: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 fn parameter_type(program: &TypedTrees, ordinal: usize) -> TypeReferenceHandle {
     let machine = &program.machines()[0];
     let entry = &program.machine_states(machine)[0];
@@ -51,7 +40,8 @@ fn closed_range_positions_keep_full_width_and_empty_boundaries() {
             vec![BigInt::from_i64(0), BigInt::from_u64(u64::MAX)],
         ),
     ] {
-        let program = typed(&format!("machine endpoint(value: {parameter}) {{}}"));
+        let program =
+            crate::front_end::typed_program(&format!("machine endpoint(value: {parameter}) {{}}"));
         let admission = BuildTimeAdmissionPlan::infer(&program, None);
         let position =
             IntegerPosition::prepare(&program, &program, parameter_type(&program, 0), None)
@@ -74,7 +64,9 @@ fn closed_range_positions_keep_full_width_and_empty_boundaries() {
 
 #[test]
 fn every_range_shell_contributes_to_value_admission() {
-    let mut program = typed("machine endpoint(first: u64[0..=5], second: u64[3..7]) {}");
+    let mut program = crate::front_end::typed_program(
+        "machine endpoint(first: u64[0..=5], second: u64[3..7]) {}",
+    );
     let first = parameter_type(&program, 0);
     let second = parameter_type(&program, 1);
     let TypeReferenceNode::Constrained { constraints, .. } =
@@ -115,7 +107,7 @@ fn declared_domain_positions_prove_membership_of_the_concrete_value() {
         ("u64 in Positive", vec![1, 8, 9], vec![0]),
         ("u64 in BufferSize", vec![1, 8], vec![0, 9]),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "domain u64::Positive requires self > 0;
              domain u64::BufferSize requires self in Positive; self <= 8;
              machine endpoint(value: {parameter}) {{}}"
@@ -147,7 +139,7 @@ fn declared_domain_positions_prove_membership_of_the_concrete_value() {
 fn domain_positions_report_the_evaluator_boundary_instead_of_truncating() {
     // The domain-fact evaluator stores i64; a wider unsigned value must be
     // reported as unprovable here, never wrapped into a signed member.
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "domain u64::Positive requires self > 0;
          machine endpoint(value: u64 in Positive) {}",
     );
@@ -163,7 +155,7 @@ fn domain_positions_report_the_evaluator_boundary_instead_of_truncating() {
 #[test]
 fn nominal_trapping_and_invalid_type_handles_do_not_become_integer_positions() {
     for parameter in ["Token", "u64 in Trapping"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Token {{}} machine endpoint(value: {parameter}) {{}}"
         ));
         assert!(
@@ -173,7 +165,7 @@ fn nominal_trapping_and_invalid_type_handles_do_not_become_integer_positions() {
         );
     }
 
-    let mut program = typed("machine endpoint(value: u64[0..=8]) {}");
+    let mut program = crate::front_end::typed_program("machine endpoint(value: u64[0..=8]) {}");
     let reference = parameter_type(&program, 0);
     let stale =
         TypeReferenceHandle::from_parts(reference.arena_index(), reference.generation() + 1);
@@ -256,21 +248,8 @@ fn retained_constant_bound_selection_is_admitted_before_the_body() {
                 source::SourceOrigin::User,
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(&text)
-            .tokenize()
-            .unwrap();
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: Some(Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-            },
-        )
-        .unwrap();
         let mut program =
-            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+            crate::front_end::typed_program_from_source_map(sources, &[(source_id, &text)]);
         let machine = program
             .machines()
             .iter()
@@ -326,7 +305,8 @@ fn retained_constant_bound_selection_is_admitted_before_the_body() {
 
 #[test]
 fn bare_boolean_parameters_are_boolean_positions_and_ranges_stay_integer() {
-    let program = typed("machine endpoint(flag: bool, count: u64[0..=8]) {}");
+    let program =
+        crate::front_end::typed_program("machine endpoint(flag: bool, count: u64[0..=8]) {}");
     assert!(matches!(
         ScalarPosition::prepare(&program, &program, parameter_type(&program, 0), None,).unwrap(),
         ScalarPosition::Boolean

@@ -8,10 +8,6 @@ use super::{
     validate_const_materializable_conventional_sum,
 };
 use layout_plans::ConventionalSumPayloadFieldLayoutReport;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
         data Inner [copy] { enabled: bool; code: u32; }
@@ -25,13 +21,6 @@ const SOURCE: &str = r#"
         data BorrowedChoice [copy] { case Empty; case Borrowed(value: &u8); }
         data MixedChoice [copy] { common: u8; case Empty; case Number(value: u8); }
     "#;
-
-fn typed() -> TypedTrees {
-    let tokens = Lexer::new(SOURCE).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn layout(typed: &TypedTrees, schema: &str) -> ConventionalSumLayoutReport {
     let data = unique_data_by_name(typed, schema).unwrap();
@@ -138,7 +127,7 @@ fn layout(typed: &TypedTrees, schema: &str) -> ConventionalSumLayoutReport {
 
 #[test]
 fn active_case_writes_tag_payload_and_zero_padding_in_both_byte_orders() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "Choice");
     let value = BuildTimeValue::Case {
         variant: "Wide".into(),
@@ -187,7 +176,7 @@ fn active_case_writes_tag_payload_and_zero_padding_in_both_byte_orders() {
 
 #[test]
 fn payloadless_case_zeros_the_complete_inactive_overlay() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "Choice");
     let value = BuildTimeValue::Case {
         variant: "Empty".into(),
@@ -206,7 +195,7 @@ fn payloadless_case_zeros_the_complete_inactive_overlay() {
 
 #[test]
 fn active_nested_record_is_encoded_at_the_selected_payload_offset() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "Choice");
     let value = BuildTimeValue::Case {
         variant: "Nested".into(),
@@ -237,7 +226,7 @@ fn active_nested_record_is_encoded_at_the_selected_payload_offset() {
 
 #[test]
 fn replay_rejects_case_layout_value_byte_order_and_byte_drift_atomically() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "Choice");
     let value = BuildTimeValue::Case {
         variant: "Number".into(),
@@ -292,7 +281,7 @@ fn replay_rejects_case_layout_value_byte_order_and_byte_drift_atomically() {
 
 #[test]
 fn replay_rejects_sum_layout_substitution_when_compact_report_fingerprint_is_forced_equal() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "Choice");
     let value = BuildTimeValue::Case {
         variant: "Number".into(),
@@ -326,7 +315,7 @@ fn replay_rejects_sum_layout_substitution_when_compact_report_fingerprint_is_for
 
 #[test]
 fn only_selected_value_payload_is_checked_but_all_case_geometry_replays() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let floating_layout = layout(&typed, "FloatingChoice");
     let empty = BuildTimeValue::Case {
         variant: "Empty".into(),
@@ -388,7 +377,7 @@ fn only_selected_value_payload_is_checked_but_all_case_geometry_replays() {
 
 #[test]
 fn malformed_active_case_payload_and_mixed_shape_fail_closed() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "Choice");
     for value in [
         BuildTimeValue::Case {
@@ -489,7 +478,7 @@ fn malformed_active_case_payload_and_mixed_shape_fail_closed() {
 
 #[test]
 fn mixed_shape_writes_common_field_and_selected_case_payload() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "MixedChoice");
     // common: u8 packs at offset 4 right after the tag; the payload base and
     // Number.value land at offset 5 under its 1-byte alignment.
@@ -538,7 +527,7 @@ fn mixed_shape_writes_common_field_and_selected_case_payload() {
 
 #[test]
 fn mixed_shape_rejects_drifted_common_geometry_and_unmerged_spelling() {
-    let typed = typed();
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "MixedChoice");
     let value = BuildTimeValue::Case {
         variant: "Number".into(),

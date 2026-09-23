@@ -1,5 +1,4 @@
 use numerics::bignum::BigInt;
-use source_files_to_tokens::Lexer;
 use syntax_trees::{
     SyntaxTrees,
     types::{IntegerRangeNormalization, TypeReferenceHandle, TypeReferenceNode},
@@ -15,8 +14,7 @@ fn parse(arguments: &[&str]) -> SyntaxTrees {
     let text = format!(
         "data RangeValue<T> [copy] {{ value: T; }} machine read({parameters}) -> u64 {{ 0 }}"
     );
-    let tokens = Lexer::new(&text).tokenize().expect("range argument tokens");
-    tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("range argument syntax")
+    crate::front_end::syntax_program(&text)
 }
 
 fn range_arguments(syntax: &SyntaxTrees) -> Vec<TypeReferenceHandle> {
@@ -112,8 +110,7 @@ fn range_argument_observations_execute_declared_call_endpoints() {
     let text = "machine limit() -> u64 { 256 }
         data RangeValue<T> [copy] { value: T; }
         machine read(value: RangeValue<u64[0..=limit()]>, other: RangeValue<u64[0..limit() + 1]>) -> u64 { 0 }";
-    let tokens = Lexer::new(text).tokenize().expect("call endpoint tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("call endpoint syntax");
+    let syntax = crate::front_end::syntax_program(text);
     let syntax = super::evaluate(syntax, None, &[], None).expect("observe call endpoints");
     let ranges = range_arguments(&syntax);
     assert_eq!(ranges.len(), 2);
@@ -180,11 +177,7 @@ fn completed_typed_replay_rejects_forged_equal_range_observations() {
         syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
     )
     .expect("synthesis consumes forged observation");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve forged shared application");
-    let error = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+    let error = crate::front_end::typed_program_from_evaluated_syntax_result(&syntax, None)
         .expect_err("completed typing must reconstruct both original intervals");
     assert!(format!("{error:?}").contains(
         "generated generic application does not match its exact retained instance origin"
@@ -197,11 +190,7 @@ fn range_argument_probe_cannot_capture_a_shadowed_builtin_carrier() {
         "data RangeValue<T> [copy] { value: T; } machine read<u64>(value: RangeValue<u64[0..=256]>) -> u32 { 0 }",
         "data RangeValue<T> [copy] { value: T; } data Outer<u64> { value: RangeValue<u64[0..=256]>; }",
     ] {
-        let tokens = Lexer::new(text)
-            .tokenize()
-            .expect("shadowed carrier tokens");
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("shadowed carrier syntax");
+        let syntax = crate::front_end::syntax_program(text);
         let ranges = range_arguments(&syntax);
         assert!(!ranges.is_empty());
         if let Ok(syntax) = super::evaluate(syntax, None, &[], None) {
@@ -227,8 +216,7 @@ fn named_const_range_normalization_is_independent_of_unrelated_machine_equations
              machine read(value: RangeValue<u64[0..=RANGE_CAPACITY]>) -> u64 {{ 0 }}
              {declaration}"
         );
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+        let syntax = crate::front_end::syntax_program(&source);
         let syntax = super::evaluate(syntax, None, &[], None).expect("closed named range probe");
         let ranges = range_arguments(&syntax);
         assert_eq!(ranges.len(), 1);

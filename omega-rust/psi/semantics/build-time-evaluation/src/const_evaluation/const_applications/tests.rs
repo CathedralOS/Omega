@@ -10,25 +10,12 @@ use crate::SelectedBuildTimeOperators;
 use typed_trees::TypedTrees;
 use typed_trees::types::TypeReferenceNode;
 
-fn typed(source: &str) -> TypedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .unwrap();
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(0), &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap();
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
-}
-
 /// A `Buffer<limit()>` data field whose `limit` callee computes `left | right`
 /// = 7 through a selected boundary-operator provider where builtin `%` folds
 /// 1, so the folded argument is the positive witness that the provider machine
 /// -- not host arithmetic -- ran.
 fn provider_application_fixture() -> (TypedTrees, Vec<crate::SelectedBuildTimeProviderBody>) {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Math {}
          boundary operator % Math::remainder(left: u64, right: u64) -> u64;
          data Provider {}
@@ -102,7 +89,7 @@ fn provider_boundary_const_application_waits_for_selected_execution() {
         pending_const_applications_need_operator_selection(&program, None).unwrap(),
         "a boundary-operator callee must defer its const application until selected rows exist"
     );
-    let independent = typed(
+    let independent = crate::front_end::typed_program(
         "machine limit() -> u64 { 7 }
          data Buffer<const N: u64> { values: [u8; N]; }
          data Main { value: Buffer<limit()>; }",
@@ -154,7 +141,7 @@ fn pending_const_application_executes_the_selected_provider_body() {
 
 #[test]
 fn pending_const_application_folds_let_and_return_destinations() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Math {}
          boundary operator % Math::remainder(left: u64, right: u64) -> u64;
          data Provider {}
@@ -233,7 +220,7 @@ fn provider_free_const_application_folds_without_selected_rows() {
     // A retained application whose closure never needed a provider still folds
     // on this route: it reaches typed trees only when pre-resolution retained
     // it, and closed evaluation answers it exactly.
-    let mut program = typed(
+    let mut program = crate::front_end::typed_program(
         "machine limit() -> u64 { 7 }
          data Buffer<const N: u64> { values: [u8; N]; }
          data Main { value: Buffer<limit()>; }",

@@ -498,10 +498,6 @@ pub fn evaluate_and_materialize_typed_owned_layout_into(
 #[cfg(test)]
 mod tests {
     use super::{normalized_schema_report_fingerprint, schema_fields};
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
 
     #[test]
     fn semantic_schema_report_fingerprint_distinguishes_common_and_payload_field_relevance() {
@@ -511,10 +507,7 @@ mod tests {
             data PayloadRelevant { case Certified(proof: i32); }
             data PayloadErased { case Certified(proof [erased]: i32); }
         "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = crate::front_end::typed_program(source);
         let identity = |name: &str| {
             let data = typed
                 .data_definitions()
@@ -536,10 +529,7 @@ mod tests {
             data Bucket = Carrier % same;
             data Envelope { bucket: Bucket; tag: u8; }
         "#;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = crate::front_end::typed_program(source);
 
         let direct = schema_fields(&typed, "Bucket").expect_err("quotient schema must reject");
         assert!(direct.contains("schema reflection cannot observe quotient `Bucket`"));

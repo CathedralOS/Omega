@@ -1,3 +1,9 @@
+// The front-end pipeline these tests run, shared with the crate's unit tests
+// and the other integration target through `src/lib.rs`; see its module
+// documentation.
+#[path = "support/front_end.rs"]
+mod front_end;
+
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildTimeValue,
@@ -5,10 +11,6 @@ use build_time_evaluation::{
     evaluate_zero_argument_machine,
 };
 use build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachine};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const SOURCE: &str = r#"
     boundary trait FilesystemHost {
@@ -66,7 +68,7 @@ fn empty_build_selection() -> BuildTimeValue {
 
 #[test]
 fn prepared_entries_select_exact_scoped_machines_with_the_same_short_name() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         data Build { selected: u16; }
         data First {}
@@ -140,8 +142,10 @@ fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
             value.selected = 7;
         }
     "#;
-    let first = PreparedBuildMachineProgram::prepare(&typed(source)).expect("first preparation");
-    let second = PreparedBuildMachineProgram::prepare(&typed(source)).expect("second preparation");
+    let first = PreparedBuildMachineProgram::prepare(&crate::front_end::typed_program(source))
+        .expect("first preparation");
+    let second = PreparedBuildMachineProgram::prepare(&crate::front_end::typed_program(source))
+        .expect("second preparation");
     let first_symbol = first
         .typed()
         .machines()
@@ -184,7 +188,7 @@ fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
 
 #[test]
 fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     let value = admission
@@ -201,7 +205,7 @@ fn admission_plan_owns_result_machine_lookup_gate_and_evaluation() {
 #[test]
 fn exported_wrapper_reach_controls_evaluation_admission() {
     for declaration in ["", "reaches Host"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "pub boundary trait Host {{}}\n\
              machine helper() -> u64 {declaration} {{ 7 }}\n\
              machine memberless() -> u64 reaches {{ helper() }}\n\
@@ -240,7 +244,7 @@ fn nominal_callback_selection_controls_const_array_length_admission() {
         } else {
             source.to_owned()
         };
-        let mut program = typed(&source);
+        let mut program = crate::front_end::typed_program(&source);
         let result = evaluate_const_array_lengths(&mut program, None);
         if reaches_console {
             let diagnostics =
@@ -280,7 +284,7 @@ fn nominal_and_structural_callbacks_keep_distinct_specialized_reach() {
              terminates; {{ Step(value) }}\n\
              machine length() -> u64 {{ traverse<quiet>(7) }}"
         );
-        let program = typed(&source);
+        let program = crate::front_end::typed_program(&source);
         let prepared = PreparedBuildMachineProgram::prepare(&program)
             .expect("both fixed and nominal callback contracts accept the quiet implementation");
         let admission =
@@ -320,7 +324,7 @@ fn selected_quiet_callbacks_do_not_narrow_operational_requirements() {
                  terminates; {{ {acknowledgement} Step(value) }}\n\
                  machine length() -> u64 {{ {acknowledgement} traverse<quiet>(7) }}"
             );
-            let program = typed(&source);
+            let program = crate::front_end::typed_program(&source);
             let prepared = PreparedBuildMachineProgram::prepare(&program)
                 .expect("a quiet implementation satisfies either operational upper bound");
             let admission =
@@ -335,7 +339,7 @@ fn selected_quiet_callbacks_do_not_narrow_operational_requirements() {
 
 #[test]
 fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         machine is_positive(value: u64) -> bool { value > 0 }
         "#,
@@ -355,7 +359,7 @@ fn invocation_const_boundary_admits_an_exact_boolean_snapshot() {
 
 #[test]
 fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     let value = admission
@@ -369,7 +373,7 @@ fn exact_width_quoted_literal_evaluates_as_an_owned_raw_byte_array() {
 
 #[test]
 fn closed_copy_record_and_realized_copy_sum_case_cross_as_owned_snapshots() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let admission = build_time_evaluation::BuildTimeAdmissionPlan::infer(&typed, None);
 
     assert_eq!(
@@ -403,7 +407,7 @@ fn closed_copy_record_and_realized_copy_sum_case_cross_as_owned_snapshots() {
 
 #[test]
 fn opt_in_const_boundary_rejects_an_affine_nominal_record() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         data Receipt { code: u8; }
         machine receipt() -> Receipt { Receipt { code: 1 } }
@@ -426,7 +430,7 @@ fn opt_in_const_boundary_rejects_an_affine_nominal_record() {
 
 #[test]
 fn zero_argument_integer_position_uses_const_evaluable_admission_and_exact_int_decoding() {
-    let mut typed = typed(
+    let mut typed = crate::front_end::typed_program(
         r#"
         data Receipt { code: u8; }
         machine count() -> u64 { 3 }
@@ -471,7 +475,7 @@ fn zero_argument_integer_position_uses_const_evaluable_admission_and_exact_int_d
 
 #[test]
 fn integer_const_positions_decode_the_callees_declared_carrier() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "machine wide() -> u64 { 18446744073709551615 }
          machine high_bit() -> u64 { 9223372036854775808 }
          machine negative() -> i64 { -1 }
@@ -497,7 +501,7 @@ fn integer_const_positions_decode_the_callees_declared_carrier() {
 
 #[test]
 fn sum_admission_walks_only_the_realized_case_payload() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         data Decision {
             case Accepted(code: u8);
@@ -530,7 +534,7 @@ fn sum_admission_walks_only_the_realized_case_payload() {
 
 #[test]
 fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let argument = BuildTimeValue::Struct {
         type_name: "Build".to_owned(),
@@ -623,7 +627,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
 
 #[test]
 fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let argument = || BuildTimeValue::Struct {
         type_name: "Build".to_owned(),
@@ -733,7 +737,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
 
 #[test]
 fn sponsored_build_rejects_cell_allocation_before_exceeding_the_live_ceiling() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let sponsor = BuildEvaluationSponsor::new(
         BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1, 1024, 1024, 1024)
@@ -763,7 +767,7 @@ fn sponsored_build_rejects_cell_allocation_before_exceeding_the_live_ceiling() {
 
 #[test]
 fn sponsored_build_rejects_text_materialization_above_the_live_byte_ceiling() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let sponsor = BuildEvaluationSponsor::new(
         BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1024, 1, 1024, 1024)
@@ -793,7 +797,7 @@ fn sponsored_build_rejects_text_materialization_above_the_live_byte_ceiling() {
 
 #[test]
 fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let argument = || BuildTimeValue::Struct {
         type_name: "Build".to_owned(),
@@ -857,7 +861,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
 
 #[test]
 fn sponsored_build_rejects_result_custody_above_the_shared_ceiling() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let prepared = PreparedBuildMachineProgram::prepare(&typed).expect("prepare build program");
     let sponsor = BuildEvaluationSponsor::new(
         BuildEvaluationSponsorLimits::new(100_000, 1024, 1024, 64, 1024, 1024, 1, 1024)
@@ -886,7 +890,7 @@ fn sponsored_build_rejects_result_custody_above_the_shared_ceiling() {
 
 #[test]
 fn prepared_build_program_specializes_static_machine_helpers() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         data Build { selected: u16; }
 
@@ -934,7 +938,7 @@ fn prepared_build_program_specializes_static_machine_helpers() {
 #[test]
 fn admission_rejects_explicit_self_loops_before_interpretation() {
     for witness in ["", "terminates by remaining in 0..=5;"] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "machine spin(remaining: u32 [0..=5]) {witness}
              -> u32 {{ transition {{ _ -> self }} }}
              machine length() -> u32 {{ spin(3) }}"
@@ -965,7 +969,7 @@ fn admission_rejects_explicit_self_loops_before_interpretation() {
 
 #[test]
 fn admission_rejects_a_transitive_progress_premise_before_interpretation() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         r#"
         data SchedulerHandle {}
         domain SchedulerHandle::WeakFair
@@ -1009,16 +1013,9 @@ fn admission_rejects_a_transitive_progress_premise_before_interpretation() {
     assert!(error.contains("callable contract `wait`"), "{error}");
 }
 
-fn typed(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
-
 #[test]
 fn case_membership_evaluates_tags_without_comparing_payloads() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Choice [copy] { case Ready(value: u64); case Empty; }
          data Wrapper [copy] { choices: [Choice; 1]; }
          machine ready() -> bool {
@@ -1051,7 +1048,7 @@ fn case_membership_accepts_temporary_values() {
         ("Choice::Empty", "Empty", true),
         ("Choice::Empty", "Ready", false),
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "data Choice [copy] {{ case Ready(value: u64); case Empty; }}
              machine member() -> bool {{ {subject} in Choice::{case} }}"
         ));
@@ -1064,7 +1061,7 @@ fn case_membership_accepts_temporary_values() {
 
 #[test]
 fn case_membership_requires_a_value_subject_not_a_payload_domain() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Choice [copy] { case Ready(value: u64); case Empty; }
          machine member() -> bool { Choice::Ready in Choice::Ready }",
     );
@@ -1079,7 +1076,7 @@ fn case_membership_requires_a_value_subject_not_a_payload_domain() {
 
 #[test]
 fn case_membership_is_distinct_from_authored_equality() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Choice [copy] { case Ready; case Empty; }
          operator == Choice::equal(left: Choice, right: Choice) -> bool;
          machine member() -> bool {
@@ -1112,7 +1109,7 @@ fn case_membership_is_distinct_from_authored_equality() {
 
 #[test]
 fn authored_binary_operator_cannot_fall_back_to_builtin_during_evaluation() {
-    let program = typed(
+    let program = crate::front_end::typed_program(
         "data Math {}
          boundary operator % Math::remainder(left: u64, right: u64) -> u64;
          data Provider {}
@@ -1143,7 +1140,7 @@ fn unrelated_typed_operator_does_not_prevent_builtin_evaluation() {
         "operator + u64::add(left: u64, right: u64) -> u64;",
         "operator % i32::remainder(left: i32, right: i32) -> i32;",
     ] {
-        let program = typed(&format!(
+        let program = crate::front_end::typed_program(&format!(
             "{declaration} machine count() -> u64 {{ 7u64 % 2 }}"
         ));
         let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
@@ -1156,7 +1153,8 @@ fn unrelated_typed_operator_does_not_prevent_builtin_evaluation() {
 #[test]
 fn builtin_evaluation_does_not_inherit_a_bound_proof_depth_limit() {
     let expression = vec!["1u64"; 140].join(" + ");
-    let program = typed(&format!("machine count() -> u64 {{ {expression} }}"));
+    let program =
+        crate::front_end::typed_program(&format!("machine count() -> u64 {{ {expression} }}"));
     let value = build_time_evaluation::BuildTimeAdmissionPlan::infer(&program, None)
         .evaluate_const_evaluable_machine(&program, "count", vec![])
         .expect("builtin meaning is checked at each visited node");
@@ -1171,7 +1169,7 @@ fn builtin_evaluation_does_not_inherit_a_bound_proof_depth_limit() {
 /// authored source custody and retained evaluator usage.
 #[test]
 fn closed_generic_binding_result_is_const_evaluable_for_invocation() {
-    let program = typed_normalized_generic_binding(
+    let program = crate::front_end::typed_program_with_generic_data(
         r#"
         data DllImport<const ObjectLength: u64, const SymbolLength: u64, const VersionLength: u64> {
             case PeByName(library: [u8; ObjectLength], export: [u8; SymbolLength]);
@@ -1262,7 +1260,7 @@ fn closed_generic_binding_result_is_const_evaluable_for_invocation() {
 /// carries the synthesized nominal name and a substituted fixed-array member.
 #[test]
 fn closed_generic_record_result_is_const_evaluable() {
-    let program = typed_normalized_generic_binding(
+    let program = crate::front_end::typed_program_with_generic_data(
         r#"
         data Holder<T> [copy] { slot: T; }
         machine write_holder() -> Holder<[u8; 2]> {
@@ -1294,15 +1292,4 @@ fn closed_generic_record_result_is_const_evaluable() {
             )],
         }
     );
-}
-
-fn typed_normalized_generic_binding(source: &str) -> typed_trees::TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
-    )
-    .expect("synthesize closed generic instances");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
 }

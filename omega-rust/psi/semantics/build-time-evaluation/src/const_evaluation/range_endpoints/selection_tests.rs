@@ -54,18 +54,7 @@ fn program_with_retained_requester(text: &str) -> (TypedTrees, source::SourceSpa
             source::SourceOrigin::User,
         )
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .unwrap();
-    let program =
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let program = crate::front_end::typed_program_from_source_map(sources, &[(source_id, text)]);
     (
         program,
         source::SourceSpan::new(retained_source, source::Span::new(0, 6)),

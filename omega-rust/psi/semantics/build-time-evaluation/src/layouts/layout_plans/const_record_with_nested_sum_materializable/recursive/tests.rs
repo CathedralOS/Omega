@@ -10,23 +10,15 @@ use layout_plans::{
     ConventionalSumLayoutReport, ConventionalSumPayloadFieldLayoutReport, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
-    GenericDataRequest, normalize_generic_data,
-};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 fn fixture() -> (
     TypedTrees,
     ConventionalRecursiveRecordSumPathsLayoutReport,
     BuildTimeValue,
 ) {
-    let tokens = Lexer::new("data Choice [copy] { case Zero; case One(value: u8); } data Leaf [copy] { choice: Choice; } data Root [copy] { inner: Leaf; route: Choice; neighbors: [Leaf; 2]; }").tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::front_end::typed_program(
+        "data Choice [copy] { case Zero; case One(value: u8); } data Leaf [copy] { choice: Choice; } data Root [copy] { inner: Leaf; route: Choice; neighbors: [Leaf; 2]; }",
+    );
     let fingerprint = |name| {
         normalized_schema_report_fingerprint(&typed, unique_data_by_name(&typed, name).unwrap())
     };
@@ -230,10 +222,9 @@ fn retained_recursive_bytes_identity_and_coordinates_are_not_authority() {
 
 #[test]
 fn recursive_mixed_sum_array_materializes_common_and_case_members_per_element() {
-    let tokens = Lexer::new("data Mixed [copy] { sequence: u8; case Empty; case Hit(value: u8); } data Leaf [copy] { hits: [Mixed; 2]; } data Root [copy] { inner: Leaf; }").tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::front_end::typed_program(
+        "data Mixed [copy] { sequence: u8; case Empty; case Hit(value: u8); } data Leaf [copy] { hits: [Mixed; 2]; } data Root [copy] { inner: Leaf; }",
+    );
     let fingerprint = |name| {
         normalized_schema_report_fingerprint(&typed, unique_data_by_name(&typed, name).unwrap())
     };
@@ -395,12 +386,9 @@ fn recursive_record_path_carries_a_closed_generic_instance_interior() {
     // the synthesized `Log<2>` instance reaches the recursion as one closed
     // record whose substituted members are already literal. The retained
     // report names the instance by its exact synthesized identity.
-    let tokens = Lexer::new("data Event [copy] { case Idle; case Hit(code: u64); } data Log<const N: u64> [copy] { events: [Event; N]; } data Root [copy] { log: Log<2>; }").tokenize().unwrap();
-    let syntax = parse_syntax_trees(&tokens).unwrap();
-    let syntax =
-        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).unwrap();
-    let typed = lower_symbol_resolved_trees(&resolved).unwrap();
+    let typed = crate::front_end::typed_program_with_generic_data(
+        "data Event [copy] { case Idle; case Hit(code: u64); } data Log<const N: u64> [copy] { events: [Event; N]; } data Root [copy] { log: Log<2>; }",
+    );
     let fingerprint = |name| {
         normalized_schema_report_fingerprint(&typed, unique_data_by_name(&typed, name).unwrap())
     };

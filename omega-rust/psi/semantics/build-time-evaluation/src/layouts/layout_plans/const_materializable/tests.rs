@@ -6,13 +6,6 @@ use super::{
     unique_data_by_name, validate_const_materializable_typed_owned_layout,
 };
 use layout_plans::{LayoutFieldEntryReport, LayoutPlacementReport};
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
-    GenericDataRequest, normalize_generic_data,
-};
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 use crate::layouts::layout_plans::schema_fields;
 
@@ -44,7 +37,7 @@ const UNSUPPORTED_SOURCE: &str = r#"
 
 #[test]
 fn nested_records_and_arrays_replay_exact_bytes_and_zero_padding() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = sample_layout(&typed);
     let value = sample_value();
 
@@ -97,7 +90,7 @@ fn nested_records_and_arrays_replay_exact_bytes_and_zero_padding() {
 
 #[test]
 fn replay_rejects_every_retained_input_axis_and_preserves_destination() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = sample_layout(&typed);
     let value = sample_value();
     let carrier = validate_const_materializable_typed_owned_layout(
@@ -216,7 +209,7 @@ fn replay_rejects_every_retained_input_axis_and_preserves_destination() {
 
 #[test]
 fn replay_rejects_layout_substitution_when_compact_report_fingerprint_is_forced_equal() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = sample_layout(&typed);
     let value = sample_value();
     let mut carrier = validate_const_materializable_typed_owned_layout(
@@ -247,7 +240,7 @@ fn replay_rejects_layout_substitution_when_compact_report_fingerprint_is_forced_
 
 #[test]
 fn non_nan_float_leaves_retain_exact_format_bits_and_byte_order() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
     let layout = layout(&typed, "FloatSample", &[0, 8, 16, 24], 32, 8);
     let value = BuildTimeValue::Struct {
         type_name: "FloatSample".into(),
@@ -307,7 +300,7 @@ fn non_nan_float_leaves_retain_exact_format_bits_and_byte_order() {
 
 #[test]
 fn unsupported_or_malformed_value_shapes_fail_closed() {
-    let typed = typed(SOURCE);
+    let typed = crate::front_end::typed_program(SOURCE);
 
     let float_layout = one_field_layout(&typed, "Floating", 8, 8);
     let float = BuildTimeValue::Struct {
@@ -402,7 +395,7 @@ fn unsupported_or_malformed_value_shapes_fail_closed() {
 
 #[test]
 fn generic_opaque_slice_dynamic_and_quotient_shapes_fail_closed() {
-    let typed = typed(UNSUPPORTED_SOURCE);
+    let typed = crate::front_end::typed_program(UNSUPPORTED_SOURCE);
 
     let cases = [
         ("Opaque", BuildTimeValue::Unit, "generic, opaque, quotient"),
@@ -459,13 +452,6 @@ fn generic_opaque_slice_dynamic_and_quotient_shapes_fail_closed() {
         .expect_err("unsupported shape must reject before byte materialization");
         assert!(error.0.contains(expected), "{schema}: {error:?}");
     }
-}
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
 fn sample_layout(typed: &TypedTrees) -> LayoutPlanReport {
@@ -534,7 +520,7 @@ fn closed_generic_instance_members_carry_substituted_literal_arrays() {
     // `Root.pair`'s `Pair<2>` member reaches the value walk as one closed
     // synthesized record whose substituted member is already literal. The
     // open template stays fenced and the instance encodes at exact offsets.
-    let typed = typed_generic(
+    let typed = crate::front_end::typed_program_with_generic_data(
         "data Pair<const N: u64> [copy] { items: [u64; N]; }
          data Root [copy] { pair: Pair<2>; tail: u8; }",
     );
@@ -593,13 +579,4 @@ fn closed_generic_instance_members_carry_substituted_literal_arrays() {
     )
     .expect_err("the open generic template stays fenced");
     assert!(error.0.contains("generic, opaque, quotient"), "{error:?}");
-}
-
-fn typed_generic(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let syntax =
-        normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
 }

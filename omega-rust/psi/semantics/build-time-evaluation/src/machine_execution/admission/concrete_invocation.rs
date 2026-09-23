@@ -152,17 +152,6 @@ fn append_invocation_probe(
 mod tests {
     use super::zero_argument_invocation_discharges;
     use crate::BuildTimeAdmissionPlan;
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
-
-    fn typed(source: &str) -> typed_trees::TypedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        lower_symbol_resolved_trees(&resolved).expect("type")
-    }
 
     fn admission(program: &typed_trees::TypedTrees) -> BuildTimeAdmissionPlan {
         BuildTimeAdmissionPlan::infer(program, None)
@@ -181,7 +170,7 @@ mod tests {
 
     #[test]
     fn zero_argument_probe_discharges_a_provable_machine_requires() {
-        let program = typed(
+        let program = crate::front_end::typed_program(
             r#"
 machine length() -> u64
 requires true;
@@ -205,7 +194,7 @@ machine Main::main(&mut self) { }
 
     #[test]
     fn zero_argument_probe_keeps_the_fence_for_an_unprovable_requires() {
-        let program = typed(
+        let program = crate::front_end::typed_program(
             r#"
 machine length() -> u64
 requires false;
@@ -229,7 +218,7 @@ machine Main::main(&mut self) { }
 
     #[test]
     fn zero_argument_probe_discharges_state_and_callee_premises() {
-        let program = typed(
+        let program = crate::front_end::typed_program(
             r#"
 machine nonzero() -> u64
 requires true;

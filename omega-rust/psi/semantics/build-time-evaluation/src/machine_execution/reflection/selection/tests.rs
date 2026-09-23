@@ -9,10 +9,6 @@ use crate::machine_execution::reflection::schema_graph::{
     SchemaQueryAuthority, SemanticSchemaGraph,
 };
 use crate::machine_execution::reflection::selection::snapshots::snapshot_revision;
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 /// A program exercising both choice families: authored `satisfies`
 /// machines, closed conformance applications naming realizations, and a
@@ -86,13 +82,6 @@ const SUM_PROGRAM: &str = "
     machine Outcome::encode(&self) -> u64 satisfies Encode::encode { 0 }
     OutcomeEnc: Outcome satisfies Encode { Encode::encode = Outcome::encode; }
 ";
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn subject(typed: &TypedTrees, name: &str) -> SymbolHandle {
     typed
@@ -226,7 +215,7 @@ fn reseal(snapshot: &mut SelectionSnapshot) {
 
 #[test]
 fn complete_machine_selection_freezes_and_replays() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     receiver
@@ -250,7 +239,7 @@ fn complete_machine_selection_freezes_and_replays() {
 
 #[test]
 fn conformance_choices_refine_and_replay() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     receiver
@@ -271,7 +260,7 @@ fn conformance_choices_refine_and_replay() {
 
 #[test]
 fn equal_selections_freeze_to_equal_snapshots() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = {
         let mut receiver = receiver(&typed, &graph, "Encode");
@@ -313,7 +302,7 @@ fn equal_selections_freeze_to_equal_snapshots() {
 
 #[test]
 fn closed_conformance_row_admits_machine_choice() {
-    let typed = typed(CLOSED_PROGRAM);
+    let typed = crate::front_end::typed_program(CLOSED_PROGRAM);
     let graph = graph(&typed, "Board");
     let mut receiver = receiver(&typed, &graph, "Shape");
     // `Circle::code` carries no authored `satisfies` edge; only the
@@ -330,7 +319,7 @@ fn closed_conformance_row_admits_machine_choice() {
 
 #[test]
 fn attached_conformance_admits_its_machines() {
-    let typed = typed(ATTACHED_PROGRAM);
+    let typed = crate::front_end::typed_program(ATTACHED_PROGRAM);
     let graph = graph(&typed, "Board");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -372,7 +361,7 @@ fn attached_conformance_admits_its_machines() {
 
 #[test]
 fn pinned_requirement_accepts_the_exact_row_and_rejects_siblings() {
-    let typed = typed(CODEC_PROGRAM);
+    let typed = crate::front_end::typed_program(CODEC_PROGRAM);
     let graph = graph(&typed, "Wrap");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -396,7 +385,7 @@ fn pinned_requirement_accepts_the_exact_row_and_rejects_siblings() {
 
 #[test]
 fn missing_selection_rejects_at_freeze() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     receiver
@@ -413,7 +402,7 @@ fn missing_selection_rejects_at_freeze() {
 
 #[test]
 fn selecting_twice_rejects() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     let health = receiver.member("health").expect("key");
@@ -445,7 +434,7 @@ fn selecting_twice_rejects() {
 
 #[test]
 fn stale_key_rejects() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     let mut health = receiver.member("health").expect("key");
@@ -458,7 +447,7 @@ fn stale_key_rejects() {
 
 #[test]
 fn erased_member_is_outside_the_runtime_scope() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         "trait Encode { machine encode(&self) -> u64; } \
          machine Rec::encode(&self) -> u64 satisfies Encode::encode { 0 } \
          RecEnc: Rec satisfies Encode { Encode::encode = Rec::encode; } \
@@ -503,7 +492,7 @@ fn erased_member_is_outside_the_runtime_scope() {
 
 #[test]
 fn insufficient_contract_rejects_at_selection() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     let health = receiver.member("health").expect("key");
@@ -523,7 +512,7 @@ fn insufficient_contract_rejects_at_selection() {
 
 #[test]
 fn unresolvable_requirement_rejects_at_open() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let error = ScopedSelectionReceiver::new(
         &typed,
@@ -542,7 +531,7 @@ fn unresolvable_requirement_rejects_at_open() {
 
 #[test]
 fn partial_coverage_retains_exclusions() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -572,7 +561,7 @@ fn partial_coverage_retains_exclusions() {
 
 #[test]
 fn complete_coverage_rejects_exclusions() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     let error = receiver
@@ -609,7 +598,7 @@ fn complete_coverage_rejects_exclusions() {
 
 #[test]
 fn explicit_member_projection_scopes_the_selection() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -658,7 +647,7 @@ fn explicit_member_projection_scopes_the_selection() {
 
 #[test]
 fn sum_cases_and_payloads_select_operations() {
-    let typed = typed(SUM_PROGRAM);
+    let typed = crate::front_end::typed_program(SUM_PROGRAM);
     let graph = graph(&typed, "Outcome");
     let mut receiver = receiver(&typed, &graph, "Encode");
     let keys: Vec<_> = receiver.members().collect();
@@ -684,7 +673,7 @@ fn sum_cases_and_payloads_select_operations() {
 
 #[test]
 fn receiver_is_storage_independent_of_the_graph() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     // The receiver and its frozen snapshot carry owned data only: the
     // graph is dropped before any selection is recorded.
     let mut receiver = {
@@ -709,7 +698,9 @@ fn receiver_is_storage_independent_of_the_graph() {
 
 #[test]
 fn empty_subject_records_nothing() {
-    let typed = typed("trait Encode { machine encode(&self) -> u64; } data Empty {}");
+    let typed = crate::front_end::typed_program(
+        "trait Encode { machine encode(&self) -> u64; } data Empty {}",
+    );
     let graph = graph(&typed, "Empty");
     let receiver = receiver(&typed, &graph, "Encode");
     assert_eq!(receiver.members().count(), 0);
@@ -719,7 +710,7 @@ fn empty_subject_records_nothing() {
 
 #[test]
 fn foreign_scope_snapshot_replays_under_its_claim() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         "trait Encode { machine encode(&self) -> u64; } \
          data Health { v: u32; } \
          machine Health::encode(&self) -> u64 satisfies Encode::encode { 0 } \
@@ -781,7 +772,7 @@ fn foreign_scope_snapshot_replays_under_its_claim() {
 
 #[test]
 fn replay_rejects_forged_member_identity() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     receiver
@@ -806,7 +797,7 @@ fn replay_rejects_forged_member_identity() {
 
 #[test]
 fn replay_rejects_stale_qualified_type() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     receiver
@@ -831,7 +822,7 @@ fn replay_rejects_stale_qualified_type() {
 
 #[test]
 fn replay_rejects_dropped_and_duplicated_records() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     receiver
@@ -881,7 +872,7 @@ fn receiver_dummy(typed: &TypedTrees, graph: &SemanticSchemaGraph) -> SelectionS
 
 #[test]
 fn replay_rejects_forged_choice_identities() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
 
     // An identity that resolves nowhere.
@@ -913,7 +904,7 @@ fn replay_rejects_forged_choice_identities() {
 
 #[test]
 fn replay_rejects_forged_requirement() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut snapshot = receiver_dummy(&typed, &graph);
     snapshot.requirement = requirement(&typed, "Hash", None);
@@ -925,7 +916,7 @@ fn replay_rejects_forged_requirement() {
 
 #[test]
 fn replay_rejects_projection_drift() {
-    let typed = typed(
+    let typed = crate::front_end::typed_program(
         "trait Encode { machine encode(&self) -> u64; } \
          machine Rec::encode(&self) -> u64 satisfies Encode::encode { 0 } \
          RecEnc: Rec satisfies Encode { Encode::encode = Rec::encode; } \
@@ -959,7 +950,7 @@ fn replay_rejects_projection_drift() {
 
 #[test]
 fn replay_rejects_unresolvable_subject() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut snapshot = receiver_dummy(&typed, &graph);
     snapshot.subject_owner_identity = "Forged::Owner".to_owned();
@@ -971,7 +962,7 @@ fn replay_rejects_unresolvable_subject() {
 
 #[test]
 fn replay_rejects_tampered_revision() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut snapshot = receiver_dummy(&typed, &graph);
     snapshot.revision = snapshot.revision.wrapping_add(1);
@@ -982,7 +973,7 @@ fn replay_rejects_tampered_revision() {
 
 #[test]
 fn demanded_application_accepts_the_pinned_application() {
-    let typed = typed(APPLICATION_PROGRAM);
+    let typed = crate::front_end::typed_program(APPLICATION_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -1005,7 +996,7 @@ fn demanded_application_accepts_the_pinned_application() {
 
 #[test]
 fn demanded_application_rejects_realizations_at_another_application() {
-    let typed = typed(APPLICATION_PROGRAM);
+    let typed = crate::front_end::typed_program(APPLICATION_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -1033,7 +1024,7 @@ fn demanded_application_rejects_realizations_at_another_application() {
 
 #[test]
 fn undemanded_application_accepts_any_application() {
-    let typed = typed(APPLICATION_PROGRAM);
+    let typed = crate::front_end::typed_program(APPLICATION_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = receiver(&typed, &graph, "Encode");
     receiver
@@ -1047,7 +1038,7 @@ fn undemanded_application_accepts_any_application() {
 
 #[test]
 fn replay_rechecks_the_demanded_application() {
-    let typed = typed(APPLICATION_PROGRAM);
+    let typed = crate::front_end::typed_program(APPLICATION_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -1073,7 +1064,7 @@ fn replay_rechecks_the_demanded_application() {
 
 #[test]
 fn demanded_application_checks_arity_at_construction() {
-    let typed = typed(APPLICATION_PROGRAM);
+    let typed = crate::front_end::typed_program(APPLICATION_PROGRAM);
     let definition = typed
         .traits()
         .iter()

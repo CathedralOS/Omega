@@ -4,8 +4,6 @@ use language_semantics::declaration_selection::{
     AuthoredDeclarationSelectionTarget as Target,
 };
 use numerics::arithmetic::ArithmeticDomain;
-use source_files_to_tokens::Lexer;
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -13,16 +11,8 @@ use typed_trees::{
 };
 
 fn typed_binary() -> (TypedTrees, ExpressionHandle) {
-    let tokens = Lexer::new("machine run() -> u64 { transition { _ -> 1u64 + 2u64 } }")
-        .tokenize()
-        .expect("tokenize builtin probe");
-    let syntax = parse_syntax_trees(&tokens).expect("parse builtin probe");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolve builtin probe");
-    let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("type builtin probe");
+    let typed =
+        crate::front_end::typed_program("machine run() -> u64 { transition { _ -> 1u64 + 2u64 } }");
     let expression = typed
         .expression_table
         .iter_expressions()
@@ -149,14 +139,7 @@ fn index_destination_rejects_range_constraints_even_under_exact_policy() {
 fn boolean_index_probe_retains_exact_literal_value_and_rejects_missing_nodes() {
     for value in [false, true] {
         let text = format!("machine run() -> bool {{ {value} }}");
-        let tokens = Lexer::new(&text).tokenize().expect("Boolean probe tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("Boolean probe syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("Boolean probe resolution");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("Boolean probe typing");
+        let program = crate::front_end::typed_program(&text);
         let machine = program.machines().iter().next().expect("Boolean machine");
         let state = &program.machine_states(machine)[0];
         assert_eq!(
@@ -248,9 +231,7 @@ fn call_free_index_custody_accepts_only_its_selected_constants_inherited_calls()
         .add(std::path::PathBuf::from("main.omg"), source.to_owned())
         .source_id;
     let sources = std::sync::Arc::new(sources);
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax =
-        tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("syntax");
+    let syntax = crate::front_end::syntax_program_with_id(source_id, source);
     let syntax = crate::const_evaluation::const_initializers::evaluate(
         syntax,
         Some(sources.clone()),
@@ -258,16 +239,7 @@ fn call_free_index_custody_accepts_only_its_selected_constants_inherited_calls()
         None,
     )
     .expect("machine constants normalize");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(sources),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("normalized declarations resolve");
-    let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("normalized declarations type");
+    let program = crate::front_end::typed_program_from_evaluated_syntax(&syntax, Some(sources));
     let machine = program
         .machines()
         .iter()
@@ -396,7 +368,7 @@ fn folded_literal_cannot_promote_unresolved_operator_custody() {
 
 #[test]
 fn data_index_discovery_excludes_shadowed_machine_scope() {
-    let tokens = Lexer::new(
+    let syntax = crate::front_end::syntax_program(
         r#"
         const SIZE: u64 = 2;
         data Buffer<const N: u64> { value: u64; }
@@ -406,10 +378,7 @@ fn data_index_discovery_excludes_shadowed_machine_scope() {
             transition { _ -> 0u64 }
         }
     "#,
-    )
-    .tokenize()
-    .expect("tokenize owner scopes");
-    let syntax = parse_syntax_trees(&tokens).expect("parse owner scopes");
+    );
     let positions =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
@@ -449,8 +418,7 @@ fn aggregate_indices_reject_runtime_qualified_roots_at_each_machine_frontier() {
              const Sizes::SIZE: Index = Index {{ value: 1 }};
              data Indexed<const Selected: Index> {{ value: u8; }} {body}"
         );
-        let tokens = Lexer::new(&source).tokenize().expect("aggregate tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("aggregate syntax");
+        let syntax = crate::front_end::syntax_program(&source);
         let diagnostics = super::evaluate(syntax, None, &[], None)
             .expect_err("runtime roots must not acquire static aggregate identity");
         assert!(
@@ -473,8 +441,7 @@ fn aggregate_indices_preserve_static_paths_before_later_local_bindings() {
             let before: Indexed<Sizes::SIZE>;
             let Sizes: Index;
         }";
-    let tokens = Lexer::new(source).tokenize().expect("aggregate tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("aggregate syntax");
+    let syntax = crate::front_end::syntax_program(source);
     let positions =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_machine_const_arguments(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
@@ -495,14 +462,7 @@ fn aggregate_indices_preserve_static_paths_before_later_local_bindings() {
 fn short_circuit_anonymous_landing_warns_once_whether_executed_or_skipped() {
     for left in [false, true] {
         let text = format!("machine run() -> bool {{ {left} || (7u8 == (7 / 2 * 2)) }}");
-        let tokens = Lexer::new(&text).tokenize().expect("probe tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("probe syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("probe resolution");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("probe typing");
+        let program = crate::front_end::typed_program(&text);
         let machine = program.machines().iter().next().expect("probe machine");
         let state = &program.machine_states(machine)[0];
         let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");
@@ -531,14 +491,7 @@ fn short_circuit_anonymous_landing_warns_once_whether_executed_or_skipped() {
 fn anonymous_rational_comparisons_do_not_create_integer_landing_warnings() {
     for left in [false, true] {
         let text = format!("machine run() -> bool {{ {left} || (7 / 2 == 3.5) }}");
-        let tokens = Lexer::new(&text).tokenize().expect("probe tokens");
-        let syntax = parse_syntax_trees(&tokens).expect("probe syntax");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("probe resolution");
-        let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("probe typing");
+        let program = crate::front_end::typed_program(&text);
         let machine = program.machines().iter().next().expect("probe machine");
         let state = &program.machine_states(machine)[0];
         let expression = program.expression_table.iter_expressions().find_map(|(handle, node)| matches!(node, ExpressionNode::Binary(binary) if binary.operator == typed_trees::expression::BinaryOperator::Or).then_some(handle)).expect("Boolean root");

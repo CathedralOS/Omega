@@ -8,11 +8,7 @@ use crate::machine_execution::reflection::{
     SchemaQueryAuthority, ScopedSelectionReceiver, SelectionCoverage, SelectionProjection,
     SemanticSchemaGraph, construct_semantic_schema_graph,
 };
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const ENCODE_PROGRAM: &str = "
         trait Encode { machine encode(&self) -> u64; }
@@ -51,13 +47,6 @@ const ERASED_PROGRAM: &str = "
         TagEnc: Tag satisfies Encode { Encode::encode = Tag::encode; }
         data Rec { secret [erased]: Health; tag: Tag; }
     ";
-
-fn typed(source: &str) -> TypedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved).expect("type")
-}
 
 fn subject(typed: &TypedTrees, name: &str) -> SymbolHandle {
     typed
@@ -176,7 +165,7 @@ fn rec_snapshot(typed: &TypedTrees, graph: &SemanticSchemaGraph) -> SelectionSna
 
 #[test]
 fn record_plan_composes_calls_in_declaration_order() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = player_snapshot(&typed, &graph);
     let plan = RuntimeVisitationPlan::compose(&typed, &snapshot).expect("plan composes");
@@ -223,7 +212,7 @@ fn machine_choice_identity(typed: &TypedTrees, name: &str) -> String {
 
 #[test]
 fn sum_plan_covers_cases_and_payloads_with_member_kinds() {
-    let typed = typed(SUM_PROGRAM);
+    let typed = crate::front_end::typed_program(SUM_PROGRAM);
     let graph = graph(&typed, "Outcome");
     let snapshot = snapshot(&typed, &graph, "Encode", &|member| match member {
         "Outcome::Ready" | "Outcome::Empty" => conformance_choice(&typed, "OutcomeEnc"),
@@ -264,7 +253,7 @@ fn sum_plan_covers_cases_and_payloads_with_member_kinds() {
 
 #[test]
 fn erased_member_with_a_selection_rejects_at_compose() {
-    let typed = typed(ERASED_PROGRAM);
+    let typed = crate::front_end::typed_program(ERASED_PROGRAM);
     let graph = graph(&typed, "Rec");
     // A declared-scope selection may legitimately select an operation for
     // the erased member; a runtime visitation plan over it cannot emit
@@ -278,7 +267,7 @@ fn erased_member_with_a_selection_rejects_at_compose() {
 
 #[test]
 fn erased_member_under_runtime_scope_visits_the_rest() {
-    let typed = typed(ERASED_PROGRAM);
+    let typed = crate::front_end::typed_program(ERASED_PROGRAM);
     let graph = graph(&typed, "Rec");
     let snapshot = snapshot_scoped(
         &typed,
@@ -299,7 +288,7 @@ fn erased_member_under_runtime_scope_visits_the_rest() {
 
 #[test]
 fn excluded_member_produces_no_call() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let mut receiver = ScopedSelectionReceiver::new(
         &typed,
@@ -332,7 +321,9 @@ fn excluded_member_produces_no_call() {
 
 #[test]
 fn empty_subject_composes_an_empty_plan() {
-    let typed = typed("trait Encode { machine encode(&self) -> u64; } data Empty {}");
+    let typed = crate::front_end::typed_program(
+        "trait Encode { machine encode(&self) -> u64; } data Empty {}",
+    );
     let graph = graph(&typed, "Empty");
     let snapshot = snapshot(&typed, &graph, "Encode", &|_| unreachable!("no members"));
     let plan = RuntimeVisitationPlan::compose(&typed, &snapshot).expect("plan composes");
@@ -342,12 +333,14 @@ fn empty_subject_composes_an_empty_plan() {
 
 #[test]
 fn compose_rejects_a_snapshot_that_does_not_replay() {
-    let program = typed(ENCODE_PROGRAM);
+    let program = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&program, "Player");
     let snapshot = player_snapshot(&program, &graph);
     // The same snapshot presented against a program without the subject
     // fails the snapshot replay inside compose before any call is made.
-    let other = typed("trait Encode { machine encode(&self) -> u64; } data Other { x: u8; }");
+    let other = crate::front_end::typed_program(
+        "trait Encode { machine encode(&self) -> u64; } data Other { x: u8; }",
+    );
     let error = RuntimeVisitationPlan::compose(&other, &snapshot)
         .expect_err("an unbound subject cannot compose a plan");
     assert!(error.contains("does not resolve"), "{error}");
@@ -355,7 +348,7 @@ fn compose_rejects_a_snapshot_that_does_not_replay() {
 
 #[test]
 fn replay_rejects_header_mismatch() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = player_snapshot(&typed, &graph);
     let mut plan = RuntimeVisitationPlan::compose(&typed, &snapshot).expect("plan composes");
@@ -377,7 +370,7 @@ fn replay_rejects_header_mismatch() {
 
 #[test]
 fn replay_rejects_dropped_reordered_and_extra_calls() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = player_snapshot(&typed, &graph);
 
@@ -406,7 +399,7 @@ fn replay_rejects_dropped_reordered_and_extra_calls() {
 
 #[test]
 fn replay_rejects_stale_field_info() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = player_snapshot(&typed, &graph);
     let mut plan = RuntimeVisitationPlan::compose(&typed, &snapshot).expect("plan composes");
@@ -426,7 +419,7 @@ fn replay_rejects_stale_field_info() {
 
 #[test]
 fn replay_rejects_forged_operation() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = player_snapshot(&typed, &graph);
     let mut plan = RuntimeVisitationPlan::compose(&typed, &snapshot).expect("plan composes");
@@ -441,7 +434,7 @@ fn replay_rejects_forged_operation() {
 
 #[test]
 fn replay_rejects_a_snapshot_the_plan_cannot_expand() {
-    let typed = typed(ERASED_PROGRAM);
+    let typed = crate::front_end::typed_program(ERASED_PROGRAM);
     let graph = graph(&typed, "Rec");
     // The declared-scope snapshot selecting the erased member's operation
     // replays as a selection but has no valid runtime expansion; a plan
@@ -463,7 +456,7 @@ fn replay_rejects_a_snapshot_the_plan_cannot_expand() {
 
 #[test]
 fn replay_rejects_tampered_revision() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = player_snapshot(&typed, &graph);
     let mut plan = RuntimeVisitationPlan::compose(&typed, &snapshot).expect("plan composes");
@@ -475,7 +468,7 @@ fn replay_rejects_tampered_revision() {
 
 #[test]
 fn replay_rejects_plan_against_the_wrong_snapshot() {
-    let typed = typed(ENCODE_PROGRAM);
+    let typed = crate::front_end::typed_program(ENCODE_PROGRAM);
     let graph = graph(&typed, "Player");
     let snapshot = player_snapshot(&typed, &graph);
     // A plan composed over a partial-coverage snapshot cannot be presented

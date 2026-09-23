@@ -653,10 +653,6 @@ fn kind(value: &BuildTimeValue) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use source_files_to_tokens::Lexer;
-    use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-    use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-    use tokens_to_syntax_trees::parse_syntax_trees;
 
     use super::{BuildTimeValue, require_const_evaluable_result};
 
@@ -682,7 +678,7 @@ mod tests {
     /// nominal name and substituted member types.
     #[test]
     fn closed_generic_instance_snapshots_are_value_sensitive() {
-        let typed = typed_normalized(
+        let typed = crate::front_end::typed_program_with_generic_data(
             r#"
             data Holder<T> [copy] { slot: T; }
             machine holder_value() -> Holder<[u8; 2]> {
@@ -766,7 +762,7 @@ mod tests {
                 ("valid".to_owned(), BuildTimeValue::Bool(true)),
             ],
         };
-        let mut typed = typed(SOURCE);
+        let mut typed = crate::front_end::typed_program(SOURCE);
         let return_type = {
             let machine = typed
                 .machines()
@@ -813,7 +809,7 @@ mod tests {
 
     #[test]
     fn malformed_snapshots_reject_without_panicking() {
-        let typed = typed(SOURCE);
+        let typed = crate::front_end::typed_program(SOURCE);
 
         let array_error = reject(
             &typed,
@@ -883,23 +879,5 @@ mod tests {
             .expect("machine");
         require_const_evaluable_result(typed, machine, &value)
             .expect_err("the malformed or ineligible value must reject")
-    }
-
-    fn typed(source: &str) -> typed_trees::TypedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        lower_symbol_resolved_trees(&resolved).expect("type")
-    }
-
-    fn typed_normalized(source: &str) -> typed_trees::TypedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-            syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
-        )
-        .expect("synthesize closed generic instances");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        lower_symbol_resolved_trees(&resolved).expect("type")
     }
 }

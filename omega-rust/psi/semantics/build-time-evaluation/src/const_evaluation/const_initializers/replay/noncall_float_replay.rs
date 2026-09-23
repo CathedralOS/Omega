@@ -12,21 +12,11 @@ fn source_fixture(text: &str) -> TypedTrees {
     let source_id = sources
         .add(PathBuf::from("main.omg"), text.to_owned())
         .source_id;
-    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+    let syntax = crate::front_end::syntax_program_with_id(source_id, text);
     let sources = Arc::new(sources);
     let evaluated = super::super::evaluate(syntax, Some(sources.clone()), &[], None)
         .expect("anonymous float declaration evaluates");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &evaluated,
-            sources: Some(sources),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("float normalization receipt resolves");
-    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("float normalization receipt types")
+    crate::front_end::typed_program_from_evaluated_syntax(&evaluated, Some(sources))
 }
 
 #[test]

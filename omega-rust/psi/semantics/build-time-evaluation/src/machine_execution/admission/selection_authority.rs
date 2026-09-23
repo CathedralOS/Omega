@@ -834,20 +834,7 @@ mod tests {
         late_bound_selection_symbol, unresolved_operator_candidates_are_confined,
         unresolved_spelling_confinement,
     };
-    use source_files_to_tokens::Lexer;
     use std::path::PathBuf;
-    use std::sync::Arc;
-    use tokens_to_syntax_trees::parse_syntax_trees;
-
-    fn typed_from_source(source: &str) -> TypedTrees {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-        )
-        .expect("resolve");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
-    }
 
     fn named_call(program: &TypedTrees, name: &str) -> ExpressionHandle {
         program
@@ -872,7 +859,7 @@ mod tests {
                 transition { _ -> result }
             }
         "#;
-        let typed = typed_from_source(source);
+        let typed = crate::front_end::typed_program(source);
         let expression = named_call(&typed, "same");
         let operator = typed
             .operators()
@@ -909,7 +896,7 @@ mod tests {
 
     #[test]
     fn ambiguous_named_operator_call_does_not_manufacture_early_identity() {
-        let typed = typed_from_source(
+        let typed = crate::front_end::typed_program(
             r#"
                 data Math {}
 
@@ -973,7 +960,7 @@ mod tests {
 
     #[test]
     fn builtin_static_argument_uses_exact_compiler_type_identity() {
-        let mut typed = typed_from_source("machine probe() -> u64 { 7 }");
+        let mut typed = crate::front_end::typed_program("machine probe() -> u64 { 7 }");
         let builtin = typed
             .symbols
             .child_handles(typed.symbols.root())
@@ -1010,7 +997,7 @@ mod tests {
 
     #[test]
     fn builtin_static_argument_does_not_admit_missing_symbol_custody() {
-        let mut typed = typed_from_source("machine probe() -> u64 { 7 }");
+        let mut typed = crate::front_end::typed_program("machine probe() -> u64 { 7 }");
         let missing = symbols::SymbolHandle::invalid();
         assert_eq!(typed.symbols.builtin_type_atom(missing), None);
         assert!(matches!(
@@ -1049,7 +1036,7 @@ mod tests {
     // confined no matter who requests it and the authority is never consulted.
     #[test]
     fn builtin_only_operator_occurrence_is_vacuously_confined() {
-        let typed = typed_from_source(
+        let typed = crate::front_end::typed_program(
             r#"
                 data Math {}
 
@@ -1164,7 +1151,7 @@ mod tests {
 
     #[test]
     fn destructure_payload_member_resolves_to_its_exact_owner_not_a_same_spelled_member() {
-        let typed = typed_from_source(PAYLOAD_PROJECTION_SOURCE);
+        let typed = crate::front_end::typed_program(PAYLOAD_PROJECTION_SOURCE);
         for name in ["first_field", "field_count"] {
             let expression = payload_projection(&typed, name);
             let ExpressionNode::Member(member) = typed.expression_table.expression(expression)
@@ -1216,18 +1203,7 @@ mod tests {
                 source::SourceOrigin::User,
             )
             .source_id;
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        let syntax =
-            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax: &syntax,
-                sources: Some(Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-            },
-        )
-        .expect("resolve");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type")
+        crate::front_end::typed_program_from_source_map(sources, &[(source_id, source)])
     }
 
     // Exact-owner resolution confines the payload projection on its owner's

@@ -1,5 +1,4 @@
 use super::evaluate;
-use source_files_to_tokens::Lexer;
 use typed_trees::{
     TypedTrees,
     expression::{ExpressionHandle, ExpressionNode},
@@ -8,16 +7,7 @@ use typed_trees::{
 
 fn program(body: &str) -> (TypedTrees, ExpressionHandle) {
     let source = format!("machine choose() -> u8 {{ {body} }}");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(
-        &Lexer::new(&source).tokenize().expect("tokens"),
-    )
-    .expect("syntax");
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolved");
-    let program = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-        .expect("typed");
+    let program = crate::front_end::typed_program(&source);
     let state = &program.machine_states(&program.machines()[0])[0];
     let [typed_trees::statement::StatementNode::Expression(expression)] =
         program.statement_table.statements(state.statement_nodes)

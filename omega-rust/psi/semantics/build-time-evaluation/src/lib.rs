@@ -11,6 +11,12 @@
 //! by subject: `const_evaluation/`, `layouts/` and `machine_execution/`, each
 //! opened by a route file that lists its modules.
 
+// The build-time-evaluation tests' front-end pipelines, one file shared with
+// the integration targets; see its module documentation.
+#[cfg(test)]
+#[path = "../tests/support/front_end.rs"]
+mod front_end;
+
 mod build_time_evaluation;
 mod const_evaluation;
 mod layouts;
