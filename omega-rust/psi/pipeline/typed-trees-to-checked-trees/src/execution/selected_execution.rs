@@ -66,6 +66,11 @@ pub struct SettledRequirementCall {
     /// A `self` row forwards the call's receiver place as the realization's
     /// leading argument instead of only clearing it.
     pub forward_receiver: bool,
+    /// The borrow the forwarded receiver place takes, from the
+    /// requirement's declared `self` receiver type: `Some(access)` splices
+    /// the place inside a `Borrow` node (`&place` for a `&self`
+    /// requirement), `None` splices the owned place itself.
+    pub receiver_access: Option<language_core::ReferenceAccess>,
     /// Statement sites only: the exact field symbol of each projected member
     /// after the receiver-path root (the leaf repeats the receiver symbol).
     /// Expression sites reuse the authored receiver expression and carry none.
@@ -209,8 +214,27 @@ fn apply_requirement_call(checked: &mut CheckedTrees, rewrite: &SettledRequireme
                 // authored receiver expression is spliced in as argument 0,
                 // where the adapter's ordinary leading parameter binds it; the
                 // caller's member-call custody claim on the receiver place is
-                // preserved.
-                let mut arguments = vec![call.receiver];
+                // preserved. A `&self` requirement declared the receiver a
+                // shared borrow, so the spliced argument is `&recv`, matching
+                // the adapter's `&Owner` leading parameter.
+                let receiver = match rewrite.receiver_access {
+                    Some(access) => {
+                        let span = checked.typed.expression_table.source_span(call.receiver);
+                        let borrow = checked
+                            .typed
+                            .expression_table
+                            .insert(ExpressionNode::Borrow(
+                                typed_trees::expression::TableBorrowExpression {
+                                    target: call.receiver,
+                                    access,
+                                },
+                            ));
+                        checked.typed.expression_table.set_source_span(borrow, span);
+                        borrow
+                    }
+                    None => call.receiver,
+                };
+                let mut arguments = vec![receiver];
                 arguments.extend(
                     checked
                         .typed
@@ -284,6 +308,21 @@ fn apply_requirement_call(checked: &mut CheckedTrees, rewrite: &SettledRequireme
                                     member_symbol: *member_symbol,
                                     member: member.clone(),
                                     case_variant: None,
+                                },
+                            ));
+                }
+                // A `&self` requirement borrows the receiver place: the
+                // adapter's leading `&Owner` parameter takes `&path`, not
+                // the owned place.
+                if let Some(access) = rewrite.receiver_access {
+                    receiver_expression =
+                        checked
+                            .typed
+                            .expression_table
+                            .insert(ExpressionNode::Borrow(
+                                typed_trees::expression::TableBorrowExpression {
+                                    target: receiver_expression,
+                                    access,
                                 },
                             ));
                 }

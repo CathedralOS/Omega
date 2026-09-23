@@ -70,18 +70,21 @@ pub(super) fn validate_machine_call_type_parameter_bounds(
 }
 
 /// Whether a top-level `boundary requirement` may be called directly: public,
-/// free of static generic binders, and at most an owned `self` receiver. A
-/// receiver-free requirement is called `Owner::name(...)`; an owned-`self`
-/// requirement is called through a member receiver `place.name(...)`. An
-/// erased lifetime telescope (`Owner::name<'a>(...)`) is admitted: it carries
-/// no static application arguments, so the call executes through the same
-/// selected provider row a nongeneric requirement uses. Such a call executes
+/// free of static generic binders, and at most an owned `self` or shared
+/// `&self` receiver. A receiver-free requirement is called
+/// `Owner::name(...)`; a `self`/`&self` requirement is called through a
+/// member receiver `place.name(...)`. An erased lifetime telescope
+/// (`Owner::name<'a>(...)`) is admitted: it carries no static application
+/// arguments, so the call executes through the same selected provider row a
+/// nongeneric requirement uses. A shared `&self` borrows the receiver place
+/// for the call, so the member call settles through the same forwarding row
+/// with `&place` as the adapter's leading argument. Such a call executes
 /// only through the selected provider row that selected-dispatch settles
 /// after provider planning, which rejects a called requirement with no
 /// selected provider; a private or generic requirement keeps the symbol
-/// fence. A borrowed or qualified `self` receiver (`&self`, `self in
-/// Pending`) keeps it too: receiver custody and obligation transfer are a
-/// separate settlement shape.
+/// fence. A mutating, write-only or qualified `self` receiver (`&mut self`,
+/// `self in Pending`) keeps it too: receiver custody and obligation
+/// transfer are a separate settlement shape.
 fn is_directly_callable_top_level_requirement(
     program: &TypedTrees,
     callee_machine: &Machine,
@@ -96,12 +99,22 @@ fn is_directly_callable_top_level_requirement(
             .iter()
             .filter(|parameter| parameter.is_self)
             .all(|parameter| {
-                matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    typed_trees::types::TypeReferenceNode::Named { .. }
-                )
+                match program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference)
+                {
+                    typed_trees::types::TypeReferenceNode::Named { .. } => true,
+                    typed_trees::types::TypeReferenceNode::Reference {
+                        referee, access, ..
+                    } => {
+                        *access == language_core::ReferenceAccess::Shared
+                            && matches!(
+                                program.type_reference_table.type_reference(*referee),
+                                typed_trees::types::TypeReferenceNode::Named { .. }
+                            )
+                    }
+                    _ => false,
+                }
             })
 }
 

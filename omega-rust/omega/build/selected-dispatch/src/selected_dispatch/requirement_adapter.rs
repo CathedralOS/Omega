@@ -175,6 +175,35 @@ pub(super) fn plan_selected_requirement_rewrites(
             )));
             continue;
         };
+        // The requirement's declared `self` receiver decides how the member
+        // call's receiver place forwards: an owned `self` splices the place
+        // itself as argument 0, a `&self` splices `&place`. Settlement
+        // admitted only those two receiver shapes on a forwarding row, so a
+        // `Reference` node here is the requirement's declared borrow access.
+        let receiver_access = if row.forward_receiver {
+            typed
+                .machine_states(requirement)
+                .first()
+                .and_then(|entry| {
+                    typed
+                        .state_parameters(entry)
+                        .iter()
+                        .find(|parameter| parameter.is_self)
+                })
+                .and_then(|parameter| {
+                    match typed
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    {
+                        typed_trees::types::TypeReferenceNode::Reference { access, .. } => {
+                            Some(*access)
+                        }
+                        _ => None,
+                    }
+                })
+        } else {
+            None
+        };
         // Statement-position direct calls (`Owner::name(...);`, including
         // `_ = call();`) follow the same settled route. The site carries no
         // authored expression, so its flow occurrence is the caller state's
@@ -284,6 +313,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                         call_ordinal,
                         requirement_state: row.requirement,
                         forward_receiver: row.forward_receiver,
+                        receiver_access,
                         receiver_member_symbols: std::mem::take(&mut receiver_member_symbols),
                         machine: realization.name.as_str().to_owned(),
                         entry_symbol: row.realization_state,
@@ -351,6 +381,7 @@ pub(super) fn plan_selected_requirement_rewrites(
                 call_ordinal,
                 requirement_state: row.requirement,
                 forward_receiver: row.forward_receiver,
+                receiver_access,
                 receiver_member_symbols: Vec::new(),
                 machine: realization.name.as_str().to_owned(),
                 entry_symbol: row.realization_state,
@@ -448,6 +479,29 @@ mod tests {
             .machine_states(machine)
             .first()
             .expect("entry state")
+            .symbol
+    }
+
+    /// The symbol of parameter `parameter_name` on `machine_name`'s entry
+    /// state.
+    fn entry_parameter_symbol_for(
+        checked: &checked_trees::CheckedTrees,
+        machine_name: &str,
+        parameter_name: &str,
+    ) -> symbols::SymbolHandle {
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == machine_name)
+            .unwrap_or_else(|| panic!("missing machine `{machine_name}`"));
+        checked
+            .typed
+            .machine_states(machine)
+            .iter()
+            .flat_map(|state| checked.typed.state_parameters(state))
+            .find(|parameter| parameter.name.as_str() == parameter_name)
+            .unwrap_or_else(|| panic!("missing parameter `{machine_name}`::{parameter_name}"))
             .symbol
     }
 
@@ -928,6 +982,157 @@ mod tests {
         assert_eq!(authored.target_symbol, requirement);
         assert_eq!(authored.target.as_str(), "head");
         assert_eq!(authored.receiver_symbol, owner);
+        assert!(authored.discards_result);
+    }
+
+    const BORROWED_RECEIVER_SOURCE: &str = r#"
+        pub data Token {}
+        pub boundary requirement Token::inspect(&self) -> i32;
+
+        data TokenProvider {}
+        machine TokenProvider::inspect_impl(token: &Token) -> i32
+        satisfies Token::inspect
+        {
+            transition { _ -> (41) }
+        }
+
+        data Client {}
+        machine Client::value(&mut self, token: Token) -> i32 {
+            transition { _ -> (token.inspect()) }
+        }
+        machine Client::statement(&mut self, token: Token) -> i32 {
+            _ = token.inspect();
+            transition { _ -> (7) }
+        }
+    "#;
+
+    /// A shared `&self` requirement borrows the receiver place for the call:
+    /// each member call settles the same receiver-place-keyed forwarding row
+    /// an owned `self` uses, and the rewrite splices `&place` — a `Borrow`
+    /// node with shared access around the reified place — as the adapter's
+    /// leading argument in both call positions. The journal restores the
+    /// authored requirement call.
+    #[test]
+    fn a_shared_borrow_self_requirement_forwards_a_borrowed_place() {
+        let (checked, plans) = requirement_fixture(BORROWED_RECEIVER_SOURCE);
+        let selected = selected_all(&plans);
+        let requirement = entry_symbol(&checked, "Token::inspect");
+        let realization = entry_symbol(&checked, "TokenProvider::inspect_impl");
+        let statement_token = entry_parameter_symbol_for(&checked, "Client::statement", "token");
+
+        let settled = Arc::new(checked);
+        let (settled, edits) =
+            crate::settle_selected_execution_dispatch_with_source_edits(settled, &selected)
+                .expect("a member call on a shared-borrow `&self` requirement settles");
+        let rows = &settled.facts.boundary_adapter_dispatch;
+        assert_eq!(rows.len(), 2, "one row per receiver place: {rows:?}");
+        assert!(
+            rows.iter()
+                .all(|row| row.requirement == requirement && row.forward_receiver)
+        );
+
+        // The value call `token.inspect()` redirects to the adapter with the
+        // authored receiver place borrowed: `inspect_impl(&token)`.
+        let value_call = settled
+            .typed
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::Call(call)
+                    if call.target.as_str() == "TokenProvider::inspect_impl" =>
+                {
+                    Some(call)
+                }
+                _ => None,
+            })
+            .expect("the rewritten value call");
+        assert_eq!(value_call.target_symbol, realization);
+        assert!(!value_call.receiver.is_valid());
+        let value_arguments = settled
+            .typed
+            .expression_table
+            .expression_handles(value_call.arguments)
+            .to_vec();
+        assert_eq!(value_arguments.len(), 1);
+        let ExpressionNode::Borrow(borrow) = settled
+            .typed
+            .expression_table
+            .expression(value_arguments[0])
+        else {
+            panic!("the forwarded `&self` receiver is a borrow expression");
+        };
+        assert_eq!(borrow.access, language_core::ReferenceAccess::Shared);
+        let ExpressionNode::Name(root) = settled.typed.expression_table.expression(borrow.target)
+        else {
+            panic!("the borrowed receiver is a place name");
+        };
+        assert_eq!(
+            root.symbol,
+            entry_parameter_symbol_for(&settled, "Client::value", "token")
+        );
+
+        // The statement call `_ = token.inspect();` redirects the same way,
+        // reifying the place and wrapping it in the shared borrow.
+        let statement = settled
+            .typed
+            .machines()
+            .iter()
+            .flat_map(|machine| settled.typed.machine_states(machine))
+            .flat_map(|state| {
+                settled
+                    .typed
+                    .statement_table
+                    .iter_statements(state.statement_nodes)
+            })
+            .find_map(|(handle, statement)| match statement {
+                typed_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() == "TokenProvider::inspect_impl" =>
+                {
+                    Some((handle, call))
+                }
+                _ => None,
+            })
+            .expect("the rewritten statement call");
+        assert_eq!(statement.1.target_symbol, realization);
+        assert!(statement.1.receiver.is_empty() && !statement.1.receiver_symbol.is_valid());
+        let statement_arguments = settled
+            .typed
+            .statement_table
+            .expression_handles(statement.1.arguments)
+            .to_vec();
+        assert_eq!(statement_arguments.len(), 1);
+        let ExpressionNode::Borrow(statement_borrow) = settled
+            .typed
+            .expression_table
+            .expression(statement_arguments[0])
+        else {
+            panic!("the forwarded statement receiver is a borrow expression");
+        };
+        assert_eq!(
+            statement_borrow.access,
+            language_core::ReferenceAccess::Shared
+        );
+        let ExpressionNode::Name(statement_root) = settled
+            .typed
+            .expression_table
+            .expression(statement_borrow.target)
+        else {
+            panic!("the borrowed statement receiver is a place name");
+        };
+        assert_eq!(statement_root.symbol, statement_token);
+
+        // The journal restores the authored requirement statement.
+        let source = edits
+            .source_trees(&settled.typed)
+            .expect("restore the journaled source");
+        let typed_trees::statement::StatementNode::Call(authored) =
+            source.statement_table.statement(statement.0)
+        else {
+            panic!("the restored statement is a call");
+        };
+        assert_eq!(authored.target_symbol, requirement);
+        assert_eq!(authored.target.as_str(), "inspect");
+        assert_eq!(authored.receiver_symbol, statement_token);
         assert!(authored.discards_result);
     }
 }

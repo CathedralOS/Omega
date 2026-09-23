@@ -439,16 +439,153 @@ fn a_member_call_on_a_self_requirement_forwards_the_receiver_as_argument_zero() 
     assert!(authored.discards_result);
 }
 
+const BORROWED_SELF_REQUIREMENT_SOURCE: &str = r#"
+    pub data Token {}
+    pub boundary requirement Token::inspect(&self) -> i32;
+
+    data TokenProvider {}
+    machine TokenProvider::inspect_impl(token: &Token) -> i32
+    satisfies Token::inspect
+    {
+        transition { _ -> (41) }
+    }
+
+    data Client {}
+    machine Client::run(&mut self, token: Token) -> i32 {
+        _ = token.inspect();
+        transition { _ -> (7) }
+    }
+"#;
+
+/// A public `&self` requirement is called through a member receiver the
+/// same way an owned `self` requirement is: the call borrows the receiver
+/// place for its duration, so settlement keys one forwarding row on the
+/// place's own symbol and the settled call splices `&place` — a `Borrow`
+/// node with shared access — as the adapter's leading `&Token` argument.
 #[test]
-fn a_borrowed_self_requirement_settles_no_direct_call_row() {
+fn a_shared_borrow_self_requirement_settles_a_forwarding_row() {
+    let (checked, plans) = requirement_fixture(BORROWED_SELF_REQUIREMENT_SOURCE);
+    assert_eq!(plans.len(), 1, "one derived `&self`-requirement plan");
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "Token::inspect");
+    let realization = entry_symbol(&checked, "TokenProvider::inspect_impl");
+    let token = entry_parameter_symbol(&checked, "Client::run", "token");
+
+    let mut settled = Arc::new(checked);
+    settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect("a member call on a shared-borrow receiver settles");
+    let rows = &settled.facts.boundary_adapter_dispatch;
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let row = &rows[0];
+    assert_eq!(row.receiver, token);
+    assert_eq!(row.requirement, requirement);
+    assert_eq!(row.realization_state, realization);
+    assert!(row.forward_receiver && row.family_tuple.is_empty());
+}
+
+/// The statement member call `_ = token.inspect();` on a `&self`
+/// requirement redirects to the adapter entry with the place borrowed as
+/// argument 0 — the settled program reads `inspect_impl(&token)` — and the
+/// journal restores the authored requirement call.
+#[test]
+fn a_member_call_on_a_borrowed_self_requirement_forwards_a_borrow() {
+    let (checked, plans) = requirement_fixture(BORROWED_SELF_REQUIREMENT_SOURCE);
+    let selected = selected_all(&plans);
+    let requirement = entry_symbol(&checked, "Token::inspect");
+    let realization = entry_symbol(&checked, "TokenProvider::inspect_impl");
+    let token = entry_parameter_symbol(&checked, "Client::run", "token");
+    let statement = checked
+        .typed
+        .machines()
+        .iter()
+        .flat_map(|machine| checked.typed.machine_states(machine))
+        .flat_map(|state| {
+            checked
+                .typed
+                .statement_table
+                .iter_statements(state.statement_nodes)
+        })
+        .find_map(|(handle, statement)| match statement {
+            typed_trees::statement::StatementNode::Call(call)
+                if call.target.as_str() == "inspect" =>
+            {
+                Some(handle)
+            }
+            _ => None,
+        })
+        .expect("the statement member call");
+
+    let settled = Arc::new(checked);
+    let (settled, edits) = settle_selected_execution_dispatch_with_source_edits(settled, &selected)
+        .expect("a member call on a `&self` requirement settles");
+    let typed_trees::statement::StatementNode::Call(call) =
+        settled.typed.statement_table.statement(statement)
+    else {
+        panic!("the journaled statement call is still a call");
+    };
+    assert_eq!(call.target_symbol, realization);
+    assert_eq!(call.target.as_str(), "TokenProvider::inspect_impl");
+    assert!(
+        call.receiver.is_empty() && !call.receiver_symbol.is_valid(),
+        "the receiver moved into the argument list"
+    );
+    let arguments = settled
+        .typed
+        .statement_table
+        .expression_handles(call.arguments)
+        .to_vec();
+    assert_eq!(arguments.len(), 1, "the receiver is argument 0");
+    let ExpressionNode::Borrow(borrow) = settled.typed.expression_table.expression(arguments[0])
+    else {
+        panic!("the forwarded `&self` receiver is a borrow expression")
+    };
+    assert_eq!(borrow.access, language_core::ReferenceAccess::Shared);
+    let ExpressionNode::Name(name) = settled.typed.expression_table.expression(borrow.target)
+    else {
+        panic!("the borrowed receiver is a place name")
+    };
+    assert_eq!(name.symbol, token);
+    assert!(
+        settled
+            .facts
+            .flow
+            .control
+            .calls
+            .iter()
+            .any(|(_, occurrence)| {
+                !occurrence.authored_expression.is_valid()
+                    && occurrence.target_symbol == realization
+                    && !occurrence.has_receiver
+            })
+    );
+    let source = edits
+        .source_trees(&settled.typed)
+        .expect("restore the journaled source");
+    let typed_trees::statement::StatementNode::Call(authored) =
+        source.statement_table.statement(statement)
+    else {
+        panic!("the restored statement is a call");
+    };
+    assert_eq!(authored.target_symbol, requirement);
+    assert_eq!(authored.target.as_str(), "inspect");
+    assert!(authored.receiver_symbol.is_valid());
+    assert!(authored.discards_result);
+}
+
+/// A `&mut self` requirement is still closed at settlement: receiver
+/// custody and obligation transfer for a mutating borrow are a separate
+/// shape this row does not settle. The member call itself is already
+/// fenced at checking, so this fixture carries no call site.
+#[test]
+fn a_mutating_self_requirement_settles_no_direct_call_row() {
     let source = REQUIREMENT_SOURCE
         .replace(
             "pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32;",
-            "pub boundary requirement CheckedMath::offset_zero(&self, value: i32) -> i32;",
+            "pub boundary requirement CheckedMath::offset_zero(&mut self, value: i32) -> i32;",
         )
         .replace(
             "machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32",
-            "machine CheckedMathProvider::offset_zero_impl(math: &CheckedMath, input: i32) -> i32",
+            "machine CheckedMathProvider::offset_zero_impl(math: &mut CheckedMath, input: i32) -> i32",
         )
         .replace(
             "let selected: i32 = CheckedMath::offset_zero(35);\n        transition { _ -> (selected) }",
@@ -457,18 +594,48 @@ fn a_borrowed_self_requirement_settles_no_direct_call_row() {
     let (checked, plans) = requirement_fixture(&source);
     let selected = selected_all(&plans);
     let mut settled = Arc::new(checked);
-    let outcome = settle_selected_boundary_adapter_dispatch(&mut settled, &selected);
-    match outcome {
-        Ok(()) => assert!(settled.facts.boundary_adapter_dispatch.is_empty()),
-        Err(diagnostics) => assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains(
-                    "takes a borrowed `self` receiver; only an owned `self` receiver settles"
-                )),
-            "{diagnostics:?}"
-        ),
-    }
+    let diagnostics = settle_selected_boundary_adapter_dispatch(&mut settled, &selected)
+        .expect_err("a `&mut self` requirement has no direct-call dispatch row");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "takes a `&mut self`, write-only or qualified `self` receiver; only an owned `self` or shared `&self` receiver settles"
+        )),
+        "{diagnostics:?}"
+    );
+}
+
+/// A `&self` requirement's adapter must take the owner as a `&Owner`
+/// leading parameter: an owned `Owner` leading parameter forwards a custody
+/// the call never declared, so the `satisfies` conformance check rejects it
+/// before settlement.
+#[test]
+fn a_borrowed_self_requirement_rejects_an_owned_receiver_adapter() {
+    let source = BORROWED_SELF_REQUIREMENT_SOURCE.replace(
+        "machine TokenProvider::inspect_impl(token: &Token) -> i32",
+        "machine TokenProvider::inspect_impl(token: Token) -> i32",
+    );
+    assert_ne!(source, BORROWED_SELF_REQUIREMENT_SOURCE);
+    let tokens = source_files_to_tokens::Lexer::new(&source)
+        .tokenize()
+        .expect("tokenize");
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("parse");
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .expect("resolve");
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).expect("type");
+    let diagnostics = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect_err("an owned leading parameter cannot serve a `&self` requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic.message.contains(
+            "must realize the requirement receiver as exact carrier `Token` with the same reference shape"
+        )),
+        "{diagnostics:?}"
+    );
 }
 
 #[test]

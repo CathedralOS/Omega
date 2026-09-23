@@ -327,15 +327,18 @@ fn plan_selected_boundary_adapter_dispatch(
         }
     }
 
-    // A by-value `self` requirement is called through a member receiver
+    // A `self`/`&self` requirement is called through a member receiver
     // (`token.consume()` or a projected place like `holder.inner.token.consume()`),
     // whose retained receiver symbol is the receiver PLACE leaf -- a per-site
     // parameter, `self` binding, local, or projected field member -- not the
     // nominal owner. Register the receiver place of each member call that
     // targets a settled self row after verifying its declared type is the
     // requirement owner; the row's forward_receiver flag carries that place
-    // into the adapter's leading argument. Borrowed receivers do not reach
-    // here: settlement already rejected a `&self`/`&mut self` requirement
+    // into the adapter's leading argument. A shared `&self` requirement
+    // registers the same place: the member call borrows the place for the
+    // call, and the rewrite splices `&place` as the adapter's leading
+    // argument. Mutating, write-only and qualified receivers do not reach
+    // here: settlement already rejected a `&mut self`/qualified requirement
     // row, and a receiver place that does not resolve to the owner keeps no
     // field, so its call is diagnosed below.
     let self_adapters = adapters

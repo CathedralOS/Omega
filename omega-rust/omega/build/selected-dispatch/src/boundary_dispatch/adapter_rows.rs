@@ -339,11 +339,15 @@ pub(crate) fn resolve_selected_adapter_row(
         .iter()
         .filter(|parameter| !parameter.is_self)
         .collect::<Vec<_>>();
+    // A trait requirement's receiver is never the adapter's leading
+    // parameter: the adapter's own `self` belongs to the provider, so a
+    // forwarded receiver here is always an owned `Owner` argument.
     let forward_receiver = match exact_adapter_receiver_shape(
         typed,
         &actual_parameters,
         method.parameter_count,
         requirement_owner.symbol,
+        None,
     ) {
         Some(forward_receiver) => forward_receiver,
         None => {
@@ -385,8 +389,12 @@ pub(crate) fn resolve_selected_adapter_row(
 /// requirement (`Owner::name(self, ...)`) admits only an adapter taking the
 /// owner as its leading parameter; the row forwards the member call's
 /// receiver place as argument zero, so the row keys on each receiver place's
-/// own symbol instead of the owner. Borrowed or qualified receivers stay
-/// closed: their custody and obligation transfer are a separate shape.
+/// own symbol instead of the owner. A shared `&self` requirement
+/// (`Owner::name(&self, ...)`) admits the same forwarding shape with the
+/// adapter's leading parameter declared `&Owner`; the rewrite splices
+/// `&place` as argument zero so the borrow the requirement declared is the
+/// borrow the adapter receives. Mutating, write-only or qualified receivers
+/// stay closed: their custody and obligation transfer are a separate shape.
 /// Execution consumes the association while Terminal retains the
 /// requirement.
 fn resolve_top_level_requirement_adapter_row(
@@ -413,21 +421,40 @@ fn resolve_top_level_requirement_adapter_row(
             "selected top-level boundary requirement `{requirement_name}` has no exact entry-state symbol",
         )));
     }
-    // `self` types as a plain `Named` `Self` reference; `&self`/`&mut self`
-    // carry a `Reference` node and an `in`-qualified receiver a `Constrained`
-    // node, both of which stay closed here -- borrowed-receiver custody and
+    // `self` types as a plain `Named` `Self` reference and `&self`/`&mut
+    // self` carry a `Reference` node whose referee is that same `Named`
+    // owner; an `in`-qualified receiver carries a `Constrained` node. A
+    // shared `&self` borrows the receiver place for the duration of the
+    // call, so it forwards `&place` to the adapter's leading `&Owner`
+    // parameter -- the same member-call settlement an owned `self` uses,
+    // with the borrow recorded on the spliced argument. `&mut`, write-only
+    // and qualified receivers stay closed here: their custody and
     // obligation transfer are separate shapes this row does not settle.
     let self_receiver = typed
         .state_parameters(entry)
         .iter()
         .find(|parameter| parameter.is_self);
-    if let Some(self_receiver) = self_receiver
-        && named_type_symbol(typed, self_receiver.type_reference).is_none()
-    {
-        return Err(Diagnostic::error(format!(
-            "selected top-level boundary requirement `{requirement_name}` takes a borrowed `self` receiver; only an owned `self` receiver settles a direct-call dispatch row",
-        )));
-    }
+    let receiver_access = match self_receiver {
+        Some(self_receiver) => match typed
+            .type_reference_table
+            .type_reference(self_receiver.type_reference)
+        {
+            typed_trees::types::TypeReferenceNode::Named { .. } => None,
+            typed_trees::types::TypeReferenceNode::Reference {
+                referee, access, ..
+            } if *access == language_core::ReferenceAccess::Shared
+                && named_type_symbol(typed, *referee).is_some() =>
+            {
+                Some(language_core::ReferenceAccess::Shared)
+            }
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "selected top-level boundary requirement `{requirement_name}` takes a `&mut self`, write-only or qualified `self` receiver; only an owned `self` or shared `&self` receiver settles a direct-call dispatch row",
+                )));
+            }
+        },
+        None => None,
+    };
     if plan.provider_type.is_empty() {
         return Err(Diagnostic::error(format!(
             "selected checked-adapter ProviderPlan `{}` has no nominal provider type",
@@ -487,6 +514,7 @@ fn resolve_top_level_requirement_adapter_row(
         &actual_parameters,
         method.parameter_count,
         requirement.attached_data_symbol,
+        receiver_access,
     ) {
         Some(forward_receiver) => forward_receiver,
         None => {
@@ -499,7 +527,7 @@ fn resolve_top_level_requirement_adapter_row(
     };
     if self_receiver.is_some() != forward_receiver {
         return Err(Diagnostic::error(format!(
-            "selected checked adapter `{machine_identity}` receiver shape does not match top-level boundary requirement `{}`: a `self` requirement forwards the receiver place to a leading owner parameter, a receiver-free requirement takes the exact declared arity",
+            "selected checked adapter `{machine_identity}` receiver shape does not match top-level boundary requirement `{}`: a `self`/`&self` requirement forwards the receiver place to a leading owner parameter of the same access, a receiver-free requirement takes the exact declared arity",
             method.requirement_identity,
         )));
     }
@@ -648,6 +676,7 @@ fn resolve_family_adapter_row(
         &actual_parameters,
         method.parameter_count,
         requirement_owner.symbol,
+        None,
     ) {
         Some(forward_receiver) => forward_receiver,
         None => {

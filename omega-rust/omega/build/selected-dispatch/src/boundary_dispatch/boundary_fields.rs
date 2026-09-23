@@ -111,23 +111,56 @@ pub(crate) fn named_type_symbol(
     symbol.is_valid().then_some(*symbol)
 }
 
+/// The exact receiver shape a selected adapter row takes: `None` forward
+/// when the adapter's declared parameters equal the requirement's, `Some`
+/// forward when the adapter prepends one leading parameter that carries the
+/// requirement owner exactly. `receiver_access` is the requirement's
+/// declared `self` receiver form: `None` splices the owned place, so the
+/// leading parameter must be `Owner`; `Some(access)` splices a borrow, so
+/// the leading parameter must be `&Owner`/`&mut Owner` with the same access.
 pub(crate) fn exact_adapter_receiver_shape(
     typed: &TypedTrees,
     actual_parameters: &[&typed_trees::signature::StateParameter],
     requirement_parameter_count: usize,
     requirement_owner: symbols::SymbolHandle,
+    receiver_access: Option<language_core::ReferenceAccess>,
 ) -> Option<bool> {
     match actual_parameters.len() {
         count if count == requirement_parameter_count => Some(false),
         count
             if requirement_parameter_count.checked_add(1) == Some(count)
                 && actual_parameters.first().is_some_and(|parameter| {
-                    named_type_symbol(typed, parameter.type_reference) == Some(requirement_owner)
+                    receiver_parameter_matches_owner(
+                        typed,
+                        parameter.type_reference,
+                        requirement_owner,
+                        receiver_access,
+                    )
                 }) =>
         {
             Some(true)
         }
         _ => None,
+    }
+}
+
+fn receiver_parameter_matches_owner(
+    typed: &TypedTrees,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    requirement_owner: symbols::SymbolHandle,
+    receiver_access: Option<language_core::ReferenceAccess>,
+) -> bool {
+    match receiver_access {
+        None => named_type_symbol(typed, type_reference) == Some(requirement_owner),
+        Some(access) => matches!(
+            typed.type_reference_table.type_reference(type_reference),
+            typed_trees::types::TypeReferenceNode::Reference {
+                referee,
+                access: parameter_access,
+                ..
+            } if *parameter_access == access
+                && named_type_symbol(typed, *referee) == Some(requirement_owner)
+        ),
     }
 }
 
