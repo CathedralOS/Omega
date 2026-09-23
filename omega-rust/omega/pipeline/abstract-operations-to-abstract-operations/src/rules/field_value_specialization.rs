@@ -19,13 +19,15 @@ use crate::{
 /// whose stored value the unit itself proves: an `EstablishRecord` producer
 /// on the observed operation-result place at an empty path, an
 /// `EstablishScalarCase` producer whose `result_case` matches at a lone
-/// `Case` path, or a declared `BoundedInteger` singleton bound at the
-/// position the observation's path resolves to. A constant initializer or
-/// bound folds the read to a `BooleanConstant`/`IntegerConstant` in place,
-/// keeping the read's custody; a proven nonconstant initializer substitutes
-/// itself at every use of the read's result and retires the observation
-/// node, fusing the read's custody into the following node. Machines holding
-/// an authenticated cyclic component stay frozen.
+/// `Case` path, the same two proofs reached through `Field` descents across
+/// owned, complete structural children, or a declared `BoundedInteger`
+/// singleton bound at the position the observation's path resolves to. A
+/// constant initializer or bound folds the read to a
+/// `BooleanConstant`/`IntegerConstant` in place, keeping the read's custody;
+/// a proven nonconstant initializer substitutes itself at every use of the
+/// read's result and retires the observation node, fusing the read's custody
+/// into the following node. Machines holding an authenticated cyclic
+/// component stay frozen.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FieldValueSpecializationRule;
 

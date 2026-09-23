@@ -224,9 +224,12 @@ pub enum FieldValueResolution {
 /// with the exact site, custody identity, observed place, canonical path,
 /// field, proof witness, and resolution. `producer` is the establishing
 /// operation the row's proof draws on — `Some` for an `EstablishRecord`
-/// basis at an empty path or an `EstablishScalarCase` basis at a lone
-/// `Case` path, `None` when the field's declared `BoundedInteger` bound
-/// closes over exactly one value independently of how the place arrived.
+/// basis at an empty path, an `EstablishScalarCase` basis at a lone `Case`
+/// path, or the same two reached through `Field` descents across owned,
+/// complete structural children — where `Some` names the operation
+/// establishing the position `path` resolves to. `None` when the field's
+/// declared `BoundedInteger` bound closes over exactly one value
+/// independently of how the place arrived.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FieldValueRow {
     pub site: NodeLocation,
