@@ -3,7 +3,7 @@ use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+use semantic_vocabulary::ScalarType;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetUnitOperation, TerminalPsiProvenance};
 
@@ -75,8 +75,10 @@ pub(super) fn copy(
                 .ok()
                 .and_then(|position| function.parameters.get(position).copied())
                 .ok_or_else(invalid)?;
-            let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
-            if parameter.scalar_type != ScalarType::Integer(unsigned_64) {
+            let ScalarType::Integer(index_type) = parameter.scalar_type else {
+                return Err(invalid());
+            };
+            if index_type.bits() > 64 {
                 return Err(invalid());
             }
             Ok(target_operations::TargetStructuralRuntimeIndex {

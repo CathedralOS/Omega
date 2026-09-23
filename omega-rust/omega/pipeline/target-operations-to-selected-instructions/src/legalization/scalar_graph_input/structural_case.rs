@@ -234,8 +234,9 @@ pub(in crate::legalization) fn membership_layout(
 /// canonical shape. The path's endpoint type must be the declared result type
 /// and the result must keep the copy's unrestricted empty custody.
 /// `RuntimeIndex` segments additionally yield `(selector, stride)` pairs in
-/// path order: each named dense parameter must exist and carry a `u64`
-/// index, mirroring the indexed-store operand contract.
+/// path order: each named dense parameter must exist and carry an integer
+/// index no wider than the address model, mirroring the indexed-store
+/// operand contract.
 pub(in crate::legalization) fn leaf_copy_layout(
     function: &PsiOptimizationFunction,
     source: PlaceId,
@@ -268,14 +269,14 @@ pub(in crate::legalization) fn leaf_copy_layout(
         return Err(invalid);
     }
     for (selector, _) in &indices {
-        let unsigned_64 =
-            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
-                .map_err(|_| invalid.clone())?;
         let parameter = usize::try_from(*selector)
             .ok()
             .and_then(|position| function.parameters.get(position))
             .ok_or(invalid.clone())?;
-        if parameter.scalar_type != semantic_vocabulary::ScalarType::Integer(unsigned_64) {
+        let semantic_vocabulary::ScalarType::Integer(index_type) = parameter.scalar_type else {
+            return Err(invalid);
+        };
+        if index_type.bits() > 64 {
             return Err(invalid);
         }
     }

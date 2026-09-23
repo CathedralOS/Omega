@@ -1,6 +1,6 @@
 //! Replay the durable-root leaf copy into fresh activation storage.
 use super::{
-    IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+    IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedMemoryAccessRole, memory,
 };
@@ -78,12 +78,38 @@ pub(super) fn copy(
     for index in indices {
         let (_, index_register, _, index_type) =
             replay.resolve(index.operand.value).ok_or_else(invalid)?;
-        let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
-        if index.operand.scalar_type != ScalarType::Integer(unsigned_64)
-            || index_type != index.operand.scalar_type
-        {
+        let ScalarType::Integer(integer) = index.operand.scalar_type else {
+            return Err(invalid());
+        };
+        if integer.bits() > 64 || index_type != index.operand.scalar_type {
             return Err(invalid());
         }
+        let index_register = match integer.bits() {
+            64 => index_register,
+            bits => {
+                let kind = match (integer.sign(), bits) {
+                    (IntegerSign::Unsigned, 8) => SelectedInstructionKind::ZeroExtendU8,
+                    (IntegerSign::Unsigned, 16) => SelectedInstructionKind::ZeroExtendU16,
+                    (IntegerSign::Unsigned, 32) => SelectedInstructionKind::ZeroExtendU32,
+                    (IntegerSign::Signed, 8) => SelectedInstructionKind::SignExtendI8,
+                    (IntegerSign::Signed, 16) => SelectedInstructionKind::SignExtendI16,
+                    (IntegerSign::Signed, 32) => SelectedInstructionKind::SignExtendI32,
+                    _ => return Err(invalid()),
+                };
+                let extended = super::result(replay, *source, *byte_offset)?;
+                replay.check_instruction(
+                    kind,
+                    replay.constraints.keys.copy_i64,
+                    &[index_register, extended],
+                    &SelectedInstructionProvenance {
+                        operations: vec![row.operation],
+                        values: vec![index.operand.value],
+                        ..Default::default()
+                    },
+                )?;
+                extended
+            }
+        };
         let stride = super::result(replay, *source, *byte_offset)?;
         replay.check_instruction(
             SelectedInstructionKind::MaterializeI64 {
