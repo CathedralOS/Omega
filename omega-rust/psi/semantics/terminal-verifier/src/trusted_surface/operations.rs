@@ -407,7 +407,7 @@ static OP_ESTABLISH_SCALAR_ARRAY: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_BYTE_SEQUENCE_LITERAL: TrustedSurfaceEntry = entry(
     "operation:establish-byte-sequence-literal",
-    "a validated byte-sequence literal establishment",
+    "a validated byte-sequence literal establishment carrying the byte-predicate domain memberships its check discharged as occurrence qualifications",
     "the literal's extent observation where the schema declares one",
     &[
         "fact:structural-effect-observation",
