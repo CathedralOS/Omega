@@ -1122,6 +1122,16 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "recast/inline_guard_view_compile",
     "recast/inline_call_argument_view_compile",
     "recast/nested_operand_view_compile",
+    // Ran on no roster until 2026-09-22; each checks. The three `runtime_*`
+    // members carry no `build.omg` entry binding, so native production stops
+    // at "requires one exact selected program entry" before any compiler
+    // capability is exercised; promote them once their bindings are authored.
+    "arithmetic/runtime_contained_range_write",
+    "control_flow/runtime_entry_builtin_result_exit",
+    "control_flow/runtime_entry_comparison_result_exit",
+    "terminal_psi/integer_control_contract",
+    "terminal_psi/member_crash_contract_boundary",
+    "terminal_psi/structural_content_passthrough",
 ];
 
 const CHECKED_ONLY_FAIL_CANARIES: &[&str] = &[

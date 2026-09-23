@@ -112,6 +112,10 @@ Dated cost and failure evidence, superseded by a later run.
 - [Benchmark records](measurements/benchmarks.md): methodology and host coverage for the
   committed compile/memory/size/runtime records; delete once the harness
   README owns the method and the host-coverage account.
+- [Compiler progress](measurements/compiler_progress.md): how much of Omega the
+  reference compiler compiles and runs, as fractions with named denominators
+  from `tools/progress.py`; delete once a generated report is published beside
+  the release gates.
 - [C2L conjunct-lowering cliff](measurements/c2l_conjunct_lowering_cliff.md): measured
   hotspots behind the lowering member that never returns; delete once hotspot
   2 is repaired and the subject fixture returns a verdict.
