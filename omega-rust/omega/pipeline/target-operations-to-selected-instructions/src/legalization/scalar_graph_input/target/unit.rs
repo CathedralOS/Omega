@@ -65,6 +65,7 @@ pub(super) fn validate_operation(
         function,
         available: Some(sources),
         optimized,
+        types: unit.structural_types.as_slice(),
     };
     match (target, abstracted) {
         (
@@ -384,6 +385,8 @@ pub(super) fn validate_operation(
             TargetUnitOperation::ScalarDefinition { result_home, .. },
             AbstractOperation::ByteSequenceLength { .. }
             | AbstractOperation::ByteSequenceRead { .. }
+            | AbstractOperation::ElementViewLength { .. }
+            | AbstractOperation::ElementViewRead { .. }
             | AbstractOperation::IntegerEqual { .. }
             | AbstractOperation::IntegerLessThan { .. }
             | AbstractOperation::IntegerLessOrEqual { .. }
@@ -426,6 +429,37 @@ pub(super) fn validate_operation(
             if result != expected
                 || !matches!(view, target_operations::TargetByteView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.byte_view(view, result.place, &[])
+            {
+                return Err(invalid);
+            }
+        }
+        (
+            TargetUnitOperation::ElementViewSubslice { result, view },
+            AbstractOperation::ElementViewSubslice {
+                result: expected,
+                psi_operation,
+                ..
+            },
+        ) => {
+            if result != expected
+                || !matches!(view, target_operations::TargetElementView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
+                || !checker.element_view(view, result.place, &[])
+            {
+                return Err(invalid);
+            }
+        }
+        (
+            TargetUnitOperation::EstablishElementView { result, view },
+            AbstractOperation::EstablishElementView {
+                result: expected,
+                destination,
+                psi_operation,
+                ..
+            },
+        ) => {
+            if result != expected
+                || !matches!(view, target_operations::TargetElementView::Established { psi_operation: operation, .. } if operation == psi_operation)
+                || !checker.element_view(view, *destination, &[])
             {
                 return Err(invalid);
             }

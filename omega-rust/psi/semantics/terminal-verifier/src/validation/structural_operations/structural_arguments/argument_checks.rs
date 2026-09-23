@@ -202,9 +202,11 @@ pub(super) fn validate_structural_argument(
                             && argument.access == StructuralAccess::SharedBorrow
                             && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
                                 || (ordinary_call && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults))
-                            && crate::validation::byte_sequence_subslice::borrowed_result(caller, argument.place).is_some() =>
+                            && (crate::validation::byte_sequence_subslice::borrowed_result(caller, argument.place).is_some()
+                                || crate::validation::element_view_subslice::borrowed_result(caller, argument.place).is_some()) =>
                     {
                         let result = crate::validation::byte_sequence_subslice::borrowed_result(caller, argument.place)
+                            .or_else(|| crate::validation::element_view_subslice::borrowed_result(caller, argument.place))
                             .expect("exact borrowed result checked above");
                         Some((result.structural_type, StructuralMultiplicity::Unrestricted,
                             StructuralAccess::SharedBorrow, &[][..], &[][..]))

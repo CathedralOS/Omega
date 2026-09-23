@@ -274,9 +274,7 @@ pub(super) fn validate_bindings(
             checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 ..
             } => {
-                return unsupported(
-                    "element view subslice transfer has no Terminal descriptor",
-                );
+                return unsupported("element view subslice transfer has no Terminal descriptor");
             }
         }
     }

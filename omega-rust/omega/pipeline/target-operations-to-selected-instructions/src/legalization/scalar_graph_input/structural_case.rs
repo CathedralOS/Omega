@@ -37,6 +37,21 @@ pub(in crate::legalization) fn source_result(
                 result,
                 ..
             }
+            | AbstractOperation::EstablishElementView {
+                psi_operation,
+                result,
+                ..
+            }
+            | AbstractOperation::ElementViewSubslice {
+                psi_operation,
+                result,
+                ..
+            }
+            | AbstractOperation::ByteSequenceSubslice {
+                psi_operation,
+                result,
+                ..
+            }
             | AbstractOperation::CallStructural {
                 psi_operation,
                 result,

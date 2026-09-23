@@ -327,6 +327,10 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
         | AbstractOperation::ByteSequenceRead { psi_operation, .. }
         | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
         | AbstractOperation::ByteSequenceLength { psi_operation, .. }
+        | AbstractOperation::EstablishElementView { psi_operation, .. }
+        | AbstractOperation::ElementViewLength { psi_operation, .. }
+        | AbstractOperation::ElementViewRead { psi_operation, .. }
+        | AbstractOperation::ElementViewSubslice { psi_operation, .. }
         | AbstractOperation::IntegerStructuralField { psi_operation, .. }
         | AbstractOperation::BooleanNot { psi_operation, .. }
         | AbstractOperation::BooleanEqual { psi_operation, .. }

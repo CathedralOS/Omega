@@ -147,9 +147,11 @@ fn a_scalar_computation_call_loans_the_view_local_whole() {
             checked_trees::CheckedScalarComputationKind::Call {
                 structural_arguments,
                 ..
-            } => Some(computations.structural_arguments.span_or_empty(
-                *structural_arguments,
-            )),
+            } => Some(
+                computations
+                    .structural_arguments
+                    .span_or_empty(*structural_arguments),
+            ),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -192,15 +194,10 @@ fn a_scalar_computation_call_loans_the_view_local_whole() {
         .expect("the authored view local is present");
     assert_eq!(
         view_argument.source,
-        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
-            symbol: view_local
-        }
+        CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol: view_local }
     );
     assert!(view_argument.path.is_empty());
-    assert_eq!(
-        view_argument.access,
-        CheckedStructuralAccess::SharedBorrow
-    );
+    assert_eq!(view_argument.access, CheckedStructuralAccess::SharedBorrow);
 }
 
 /// The lent place must hold the very elements the view carries. A view whose

@@ -29,6 +29,7 @@ pub(crate) struct OperationBuffer {
     pub(crate) operations: Vec<Operation>,
     /// Temporary observations available on the current emission path only.
     pub(crate) byte_lengths: Vec<(PlaceId, ValueId)>,
+    pub(crate) element_lengths: Vec<(PlaceId, ValueId)>,
     pub(crate) source_calls: Vec<LoweredSourceCallOccurrence>,
     pub(crate) selected_ieee_float_fmas: Vec<LoweredSelectedIeeeFloatFmaOccurrence>,
 }
@@ -42,6 +43,7 @@ impl OperationBuffer {
                 .expect("operation identity base admits one-based identities"),
             operations: Vec::new(),
             byte_lengths: Vec::new(),
+            element_lengths: Vec::new(),
             source_calls: Vec::new(),
             selected_ieee_float_fmas: Vec::new(),
             selected_ieee_float_comparisons: Vec::new(),

@@ -128,8 +128,10 @@ pub(crate) fn lowered_direct_scalar_term(
         }
         LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
-        | LoweredDirectExpression::ByteSequenceRead { .. } => {
-            return unsupported("byte observation has no retained crash predicate term");
+        | LoweredDirectExpression::ByteSequenceRead { .. }
+        | LoweredDirectExpression::ElementViewLength { .. }
+        | LoweredDirectExpression::ElementViewRead { .. } => {
+            return unsupported("view observation has no retained crash predicate term");
         }
         LoweredDirectExpression::Parameter {
             position,

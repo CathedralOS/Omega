@@ -442,6 +442,10 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 76 | WriteOnlyIndexedPrimitiveStore | canonical structural field + index value id + value id + obligation id |
 | 77 | MoveStructuralField | source place id + structural path + field id |
 | 78 | StoreStructuralField | destination place id + structural path + field id + structural argument |
+| 79 | EstablishElementView | destination place id + source place id + element type id |
+| 80 | ElementViewLength | source place id |
+| 81 | ElementViewRead | source place id + index value id + length value id + obligation id |
+| 82 | ElementViewSubslice | source place id + start value id + end value id + length value id + obligation id |
 
 Tags 51 (retired literal field row) and 67 (retired scalar-only record
 operand) reject; their payloads are not reinterpreted as current forms. Tags

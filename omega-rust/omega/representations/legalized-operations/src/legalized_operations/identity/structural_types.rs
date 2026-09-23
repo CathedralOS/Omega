@@ -96,6 +96,12 @@ pub(super) fn encode_target_structural_argument(
             bytes.push(1);
             bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
         }
+        target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+            psi_operation,
+        } => {
+            bytes.push(6);
+            bytes.extend_from_slice(&psi_operation.get().to_le_bytes());
+        }
     }
     encode_placement(bytes, &argument.destination);
 }

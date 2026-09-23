@@ -322,6 +322,18 @@ fn validate_operation_foundation(
         OperationKind::ByteSequenceSubslice { .. } => {
             storage_foundations::validate_byte_sequence_subslice(module, machine, operation)?
         }
+        OperationKind::EstablishElementView { .. } => {
+            storage_foundations::validate_establish_element_view(module, machine, operation)?
+        }
+        OperationKind::ElementViewLength { .. } => {
+            storage_foundations::validate_element_view_length(operation)?
+        }
+        OperationKind::ElementViewRead { .. } => {
+            storage_foundations::validate_element_view_read(module, machine, operation)?
+        }
+        OperationKind::ElementViewSubslice { .. } => {
+            storage_foundations::validate_element_view_subslice(module, machine, operation)?
+        }
         OperationKind::ByteSequenceWrite { .. } => {
             if operation.result != OperationResult::Unit {
                 return malformed("byte-sequence write requires a Unit result");

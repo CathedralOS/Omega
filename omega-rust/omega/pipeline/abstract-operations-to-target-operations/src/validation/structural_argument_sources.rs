@@ -40,6 +40,9 @@ enum ExpectedSource<'a> {
     /// A byte-view descriptor established by one exact literal or subslice
     /// producer. Views are never structural homes.
     ByteView(OperationId),
+    /// An element-view descriptor established by one exact establishment or
+    /// subslice producer.
+    ElementView(OperationId),
     /// A structural call result home. Projected borrows may name the
     /// producing call's own result placement instead of the operation home.
     CallResult {
@@ -200,6 +203,16 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 result,
                 ..
             } => (result.place, ExpectedSource::ByteView(*psi_operation)),
+            AbstractOperation::EstablishElementView {
+                psi_operation,
+                destination,
+                ..
+            } => (*destination, ExpectedSource::ElementView(*psi_operation)),
+            AbstractOperation::ElementViewSubslice {
+                psi_operation,
+                result,
+                ..
+            } => (result.place, ExpectedSource::ElementView(*psi_operation)),
             AbstractOperation::CallStructural {
                 psi_operation,
                 result,
@@ -283,6 +296,10 @@ fn matches_home(
         (
             Some(ExpectedSource::ByteView(producer)),
             TargetStructuralArgumentSource::EstablishedByteView { psi_operation },
+        ) => psi_operation == producer,
+        (
+            Some(ExpectedSource::ElementView(producer)),
+            TargetStructuralArgumentSource::EstablishedElementView { psi_operation },
         ) => psi_operation == producer,
         (
             Some(ExpectedSource::CallResult { operation, .. }),

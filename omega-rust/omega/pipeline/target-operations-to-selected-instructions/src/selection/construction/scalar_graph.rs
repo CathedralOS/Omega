@@ -291,6 +291,10 @@ pub(super) fn build_with_environment(
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
                         structural::byte_observation(source, &mut builder, operation)?
                     }
+                    LegalizedScalarInstructionKind::ElementViewRead { .. }
+                    | LegalizedScalarInstructionKind::ElementViewLength { .. } => {
+                        structural::element_observation(source, &mut builder, operation)?
+                    }
                     LegalizedScalarInstructionKind::Compare { .. } => {
                         boolean_value::emit_branch_comparison(
                             function,
@@ -1152,7 +1156,9 @@ pub(super) fn build_with_environment(
                     | LegalizedScalarInstructionKind::NormalizedForeignCall(_)
                     | LegalizedScalarInstructionKind::DynamicParameterCall(_)
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. } => {
+                    | LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
+                    | LegalizedScalarInstructionKind::EstablishElementView { .. }
+                    | LegalizedScalarInstructionKind::ElementViewSubslice { .. } => {
                         return Err(invalid());
                     }
                     LegalizedScalarInstructionKind::Call(_) => {

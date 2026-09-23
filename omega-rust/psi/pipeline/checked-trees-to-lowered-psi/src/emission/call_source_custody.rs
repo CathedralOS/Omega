@@ -110,7 +110,9 @@ pub(crate) fn validate_store_and_initializer_calls(
                     // op is established by this operation; it owns the authored
                     // call unless one of its nested calls already does.
                     CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result, calls, ..
+                        result,
+                        calls,
+                        ..
                     } => {
                         result.statement_index == statement_index
                             && calls.iter().all(|call| {

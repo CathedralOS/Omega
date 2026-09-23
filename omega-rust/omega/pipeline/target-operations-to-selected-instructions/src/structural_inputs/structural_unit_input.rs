@@ -125,11 +125,13 @@ pub(crate) fn accepts_borrowed_parameters(
         let record = matches!(declaration.shape, StructuralTypeShape::Record { .. });
         let byte_view = declaration.shape
             == StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
+        let element_view = matches!(declaration.shape, StructuralTypeShape::ElementView { .. });
         // Each borrowed parameter retains its own exact referent and placement;
         // neighboring inputs do not change the admissibility of that pointer.
         if result_shape.is_some()
             && !record
             && !byte_view
+            && !element_view
             && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
             && !matches!(declaration.shape,
                 StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
@@ -156,7 +158,7 @@ pub(crate) fn accepts_borrowed_parameters(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || semantic.access == StructuralAccess::SharedBorrow
-                && (primitive || record || byte_view))
+                && (primitive || record || byte_view || element_view))
             || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && !matches!(
@@ -270,10 +272,12 @@ pub(crate) fn accepts_borrowed_view(
                 && parameter.target.placement == call_plan.parameters[scalar_count + position]
                 && structural_types.iter().any(|declaration| {
                     declaration.id == parameter.semantic.structural_type
-                        && declaration.shape
-                            == StructuralTypeShape::ByteSequence(
+                        && matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BorrowedView,
-                            )
+                            ) | StructuralTypeShape::ElementView { .. }
+                        )
                 })
         })
 }

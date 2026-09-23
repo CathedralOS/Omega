@@ -28,6 +28,8 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
+        | O::ElementViewLength { result, .. }
+        | O::ElementViewRead { result, .. }
         | O::StructuralByteSequenceFieldLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
@@ -193,6 +195,7 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             .collect(),
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::ElementViewRead { index, length, .. } => vec![*index, *length],
         O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,
@@ -207,6 +210,9 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             ..
         } => vec![*index, *value, *length],
         O::ByteSequenceSubslice {
+            start, end, length, ..
+        } => vec![*start, *end, *length],
+        O::ElementViewSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],
         O::Call { arguments, .. }

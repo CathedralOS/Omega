@@ -539,7 +539,10 @@ pub(super) fn call_is_exact(
                 // and incoming descriptor snapshots; a bare stack shape is not admission.
                 *place == argument.place && local_view_source_is_exact(argument, frame_bytes)
             }
-            InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { psi_operation } => {
+            InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { psi_operation }
+            | InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
+                psi_operation,
+            } => {
                 let attribution_count = record
                     .semantic_code_attribution
                     .iter()

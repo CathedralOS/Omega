@@ -40,6 +40,8 @@ pub(in crate::legalization) fn admit(
     node: &OptimizationNode,
 ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
+    | AbstractOperation::ElementViewSubslice { psi_operation, .. }
+    | AbstractOperation::EstablishElementView { psi_operation, .. }
     | AbstractOperation::EstablishRecord { psi_operation, .. }
     | AbstractOperation::EstablishReference { psi_operation, .. }
     | AbstractOperation::ReleaseReference { psi_operation, .. }
@@ -143,6 +145,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         }
+        | AbstractOperation::ElementViewLength {
+            psi_operation,
+            result,
+            ..
+        }
         | AbstractOperation::StructuralByteSequenceFieldLength {
             psi_operation,
             result,
@@ -150,6 +157,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if result.scalar_type == ScalarType::Integer(u64_type()) => {
             Ok((*psi_operation, result.value))
         }
+        AbstractOperation::ElementViewRead {
+            psi_operation,
+            result,
+            ..
+        } if scalar_shape(result.scalar_type).is_some() => Ok((*psi_operation, result.value)),
         AbstractOperation::IntegerConstant {
             psi_operation,
             result,
@@ -476,6 +488,47 @@ pub(super) fn validate(
             }
             continue;
         }
+        if let AbstractOperation::ElementViewSubslice {
+            source,
+            start,
+            end,
+            length,
+            ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !super::byte_views::contains_view(optimized, *source)
+                || [start, end, length].iter().any(|value| {
+                    value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
+                })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
+        if let AbstractOperation::EstablishElementView {
+            psi_operation,
+            result: op_result,
+            destination,
+            ..
+        } = &node.operation
+        {
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !optimized.structural_places.iter().any(|place| {
+                    place.id == *destination
+                        && place.kind
+                            == (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                                producer: *psi_operation,
+                                structural_type: op_result.structural_type,
+                            })
+                })
+            {
+                return Err(invalid);
+            }
+            continue;
+        }
         if let AbstractOperation::StructuralByteSequenceFieldStore { length, .. } = &node.operation
         {
             if result.is_some()
@@ -677,6 +730,27 @@ pub(super) fn validate(
                 ScalarType::Integer(u8_type())
             }
             AbstractOperation::ByteSequenceLength { source, .. } => {
+                if !super::byte_views::contains_view(optimized, *source) {
+                    return Err(invalid);
+                }
+                ScalarType::Integer(u64_type())
+            }
+            AbstractOperation::ElementViewRead {
+                result,
+                source,
+                index,
+                length,
+                ..
+            } => {
+                if !super::byte_views::contains_view(optimized, *source)
+                    || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
+                    || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                {
+                    return Err(invalid);
+                }
+                result.scalar_type
+            }
+            AbstractOperation::ElementViewLength { source, .. } => {
                 if !super::byte_views::contains_view(optimized, *source) {
                     return Err(invalid);
                 }

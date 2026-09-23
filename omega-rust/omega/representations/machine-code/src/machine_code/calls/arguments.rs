@@ -60,6 +60,11 @@ pub enum InternalUnitStructuralArgumentSourceRecord {
     EstablishedByteView {
         psi_operation: OperationId,
     },
+    /// Same slot/descriptor contract as the byte view; the view's element
+    /// stride scales index-to-byte addressing rather than changing residence.
+    EstablishedElementView {
+        psi_operation: OperationId,
+    },
     BlockParameter {
         block: BlockId,
         place: PlaceId,
@@ -74,6 +79,7 @@ impl InternalUnitStructuralArgumentSourceRecord {
             Self::Placement(placement) => Some(placement),
             Self::EstablishedPrimitiveLocal { .. }
             | Self::EstablishedByteView { .. }
+            | Self::EstablishedElementView { .. }
             | Self::BlockParameter { .. } => None,
         }
     }

@@ -401,6 +401,10 @@ fn operation_effect(
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }
+        | O::EstablishElementView { .. }
+        | O::ElementViewLength { .. }
+        | O::ElementViewRead { .. }
+        | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
         | O::ReturnStructural { .. } => (EffectClass::StructuralState, No, Yes, No, No),

@@ -160,9 +160,32 @@ pub(super) fn validate(
                 psi_operation,
                 result,
                 ..
+            }
+            | AbstractOperation::ElementViewSubslice {
+                psi_operation,
+                result,
+                ..
             } = &node.operation
             {
                 Some((*psi_operation, result))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    let establishes = optimized
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| {
+            if let AbstractOperation::EstablishElementView {
+                psi_operation,
+                result,
+                destination,
+                ..
+            } = &node.operation
+            {
+                Some((*psi_operation, result, *destination))
             } else {
                 None
             }
@@ -214,6 +237,7 @@ pub(super) fn validate(
                         node.operation,
                         AbstractOperation::EstablishPrimitiveLocal { .. }
                             | AbstractOperation::EstablishByteSequenceLiteral { .. }
+                            | AbstractOperation::EstablishElementView { .. }
                     )
                 })
                 .count()
@@ -239,7 +263,18 @@ pub(super) fn validate(
             }
             return Err(invalid);
         }
-        if let Ok((producer, result)) = super::structural_case::source_result(optimized, place.id) {
+        if let Some((producer, result)) = super::structural_case::source_result(optimized, place.id)
+            .ok()
+            .filter(|(producer, _)| {
+                // Element/byte-view producers admit through their own arms
+                // below; the conventional byte-read layout applies only to
+                // boundary results.
+                !subslices.iter().any(|(operation, _)| operation == producer)
+                    && !establishes
+                        .iter()
+                        .any(|(operation, _, _)| operation == producer)
+            })
+        {
             // A borrowed-view activation may also own a completed boundary
             // result. Keep its producer/type custody separate from descriptors;
             // target replay still validates the exact selected settlement.
@@ -287,22 +322,26 @@ pub(super) fn validate(
                 && parameter.projected_qualifications.is_empty()
                 && plan.structural_types.iter().any(|declaration| {
                     declaration.id == parameter.structural_type
-                        && declaration.shape
-                            == terminal_psi::StructuralTypeShape::ByteSequence(
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BorrowedView,
-                            )
+                            ) | terminal_psi::StructuralTypeShape::ElementView { .. }
+                        )
                 })
         }) {
             continue;
         }
-        if !subslices.iter().any(|(operation, result)| {
+        if !(subslices.iter().any(|(operation, result)| {
             place.id == result.place
                 && plan.structural_types.iter().any(|declaration| {
                     declaration.id == result.structural_type
-                        && declaration.shape
-                            == terminal_psi::StructuralTypeShape::ByteSequence(
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
                                 terminal_psi::ByteSequenceCarrier::BorrowedView,
-                            )
+                            ) | terminal_psi::StructuralTypeShape::ElementView { .. }
+                        )
                 })
                 && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && result.qualifications.is_empty()
@@ -313,7 +352,18 @@ pub(super) fn validate(
                         producer: *operation,
                         structural_type: result.structural_type,
                     })
-        }) {
+        }) || establishes.iter().any(|(operation, result, destination)| {
+            place.id == *destination
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty()
+                && place.kind
+                    == (semantic_vocabulary::StructuralPlaceKind::OperationResult {
+                        producer: *operation,
+                        structural_type: result.structural_type,
+                    })
+        })) {
             return Err(invalid);
         }
     }
@@ -344,7 +394,7 @@ pub(super) fn mutable_parameter(
 }
 
 // Whole-unit validation checks the exact producer and dominance. This predicate
-// restricts the native route to parameters and derived immutable byte views.
+// restricts the native route to parameters and derived immutable views.
 pub(super) fn contains_view(
     function: &PsiOptimizationFunction,
     place: semantic_vocabulary::PlaceId,
@@ -353,5 +403,6 @@ pub(super) fn contains_view(
         || function.structural_parameters.iter().any(|parameter| parameter.place == place)
         || function.blocks.iter().any(|block| block.structural_parameters.iter().any(|parameter| parameter.place == place))
         || function.blocks.iter().flat_map(|block| &block.nodes).any(|node|
-            matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } if result.place == place))
+            matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } | AbstractOperation::ElementViewSubslice { result, .. } if result.place == place)
+            || matches!(&node.operation, AbstractOperation::EstablishElementView { destination, .. } if *destination == place))
 }

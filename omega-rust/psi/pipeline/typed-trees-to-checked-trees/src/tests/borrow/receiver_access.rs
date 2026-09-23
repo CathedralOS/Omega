@@ -508,8 +508,7 @@ fn mutable_self_literal_indexed_element_can_supply_shared_receiver() {
                     ..
                 } => structural_arguments.iter().collect::<Vec<_>>(),
                 checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-                    value:
-                        checked_trees::CheckedCallScalarArgument::Computation(root),
+                    value: checked_trees::CheckedCallScalarArgument::Computation(root),
                     ..
                 } => {
                     let computations = &checked.facts.values.scalar_computations;

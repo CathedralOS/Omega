@@ -14,6 +14,7 @@ use checked_trees::{
 };
 use symbols::SymbolHandle;
 
+mod borrowed_slice_view;
 mod owned_places;
 pub(crate) use owned_places::validate as validate_owned_place;
 mod owned_selection;
@@ -249,10 +250,18 @@ pub(crate) fn validate(
             return unsupported("structural construction exchanged authored value occurrences");
         }
         match node.kind.clone() {
-            // Terminal Psi carries no runtime-length view descriptor, so a
-            // borrowed `&[T]` view rejects here instead of losing its extent.
-            CheckedStructuralValueKind::BorrowedSliceView { .. } => {
-                return unsupported("borrowed slice view has no Terminal descriptor");
+            // A borrowed `&[T]` view rejoins its shared loan exactly: the
+            // retained argument names the lent collection root and path, and
+            // `EstablishElementView` carries the runtime extent descriptor.
+            CheckedStructuralValueKind::BorrowedSliceView { source: argument } => {
+                borrowed_slice_view::validate(
+                    checked,
+                    owner,
+                    source,
+                    result.statement_index,
+                    expression,
+                    &argument,
+                )?;
             }
             CheckedStructuralValueKind::Place(argument) => {
                 if let Some(receipt) = selection {
@@ -496,9 +505,8 @@ pub(crate) fn validate(
                 };
                 let expected = validation::unwrapped_type_reference(&checked.typed, reference)
                     .ok_or(LoweringError::Unsupported("array carrier missing"))?;
-                let checked_trees::types::TypeReferenceNode::FixedArray {
-                    element_type, ..
-                } = checked.type_reference_table.type_reference(expected)
+                let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+                    checked.type_reference_table.type_reference(expected)
                 else {
                     return unsupported("array establishment substituted its carrier");
                 };
@@ -1409,6 +1417,13 @@ pub(crate) fn shared_borrow_record_referent(
     if checked.primitive_type_reference(*referee).is_some() {
         return validation::has_linear_owned_contents(&checked.typed, *referee).then_some(*referee);
     }
+    // `&[T]` names the slice view itself as the borrowed record: element custody
+    // belongs to the view, so there are no plain owned contents to require.
+    if let checked_trees::types::TypeReferenceNode::Slice { .. } =
+        checked.type_reference_table.type_reference(*referee)
+    {
+        return Some(*referee);
+    }
     let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
         checked.type_reference_table.type_reference(*referee)
     else {
@@ -1457,7 +1472,7 @@ pub(crate) fn plain_record(
 /// borrow itself and constraint shells qualify the slice without changing it.
 /// The byte element keeps its established `ByteSequence` carrier, whose
 /// length, read and subslice obligations are already reconstructed.
-fn borrowed_slice_view_referent(
+pub(crate) fn borrowed_slice_view_referent(
     checked: &CheckedTrees,
     mut reference: checked_trees::types::TypeReferenceHandle,
 ) -> Option<checked_trees::types::TypeReferenceHandle> {

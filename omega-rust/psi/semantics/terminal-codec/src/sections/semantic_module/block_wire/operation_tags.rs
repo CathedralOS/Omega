@@ -150,3 +150,11 @@ pub(super) const WRITE_ONLY_INDEXED_PRIMITIVE_STORE: u8 = 76;
 pub(super) const MOVE_STRUCTURAL_FIELD: u8 = 77;
 /// `OperationKind::StoreStructuralField`.
 pub(super) const STORE_STRUCTURAL_FIELD: u8 = 78;
+/// `OperationKind::EstablishElementView`.
+pub(super) const ESTABLISH_ELEMENT_VIEW: u8 = 79;
+/// `OperationKind::ElementViewLength`.
+pub(super) const ELEMENT_VIEW_LENGTH: u8 = 80;
+/// `OperationKind::ElementViewRead`.
+pub(super) const ELEMENT_VIEW_READ: u8 = 81;
+/// `OperationKind::ElementViewSubslice`.
+pub(super) const ELEMENT_VIEW_SUBSLICE: u8 = 82;

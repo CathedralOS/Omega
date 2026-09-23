@@ -1010,19 +1010,13 @@ impl Builder<'_, '_> {
             return None;
         }
         let reference = validation::unwrapped_type_reference(self.program, expected)?;
-        let TypeReferenceNode::FixedArray { element_type, .. } = self
-            .program
-            .type_reference_table
-            .type_reference(reference)
+        let TypeReferenceNode::FixedArray { element_type, .. } =
+            self.program.type_reference_table.type_reference(reference)
         else {
             return None;
         };
         let mut elements = Vec::new();
-        for element in self
-            .program
-            .expression_table
-            .expression_handles(literal)
-        {
+        for element in self.program.expression_table.expression_handles(literal) {
             elements.push(self.structural_value(*element, *element_type, values, pure)?);
         }
         Some(CheckedStructuralValueKind::FixedArray { elements })

@@ -181,7 +181,9 @@ pub(crate) fn evaluate_direct_expression(
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
-        | LoweredDirectExpression::ByteSequenceFieldLength { .. } => None,
+        | LoweredDirectExpression::ByteSequenceFieldLength { .. }
+        | LoweredDirectExpression::ElementViewLength { .. }
+        | LoweredDirectExpression::ElementViewRead { .. } => None,
         LoweredDirectExpression::IntegerBinary {
             kind,
             scalar_type,

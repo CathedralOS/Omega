@@ -84,6 +84,8 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
+                    LegalizedScalarInstructionKind::ElementViewSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
+                    LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => *index == value || *length == value,
                     LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => *length == value,
                     LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
@@ -98,6 +100,8 @@ impl LegalizedScalarInstruction {
                     | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                     | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
+                    | LegalizedScalarInstructionKind::EstablishElementView { .. }
+                    | LegalizedScalarInstructionKind::ElementViewLength { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::DynamicParameterCall(_) => false,
                     LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
@@ -303,6 +307,34 @@ pub enum LegalizedScalarInstructionKind {
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ByteSequenceLength {
+        source: semantic_vocabulary::PlaceId,
+        length_byte_offset: u32,
+    },
+    /// Establish one immutable element descriptor over a structural collection
+    /// projection; custody and extent were discharged before lowering.
+    EstablishElementView {
+        result: terminal_psi::StructuralOperationResult,
+        destination: semantic_vocabulary::PlaceId,
+        source: terminal_psi::StructuralArgument,
+        element: semantic_vocabulary::StructuralTypeId,
+    },
+    ElementViewSubslice {
+        result: terminal_psi::StructuralOperationResult,
+        source: semantic_vocabulary::PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    ElementViewRead {
+        source: semantic_vocabulary::PlaceId,
+        index: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    ElementViewLength {
         source: semantic_vocabulary::PlaceId,
         length_byte_offset: u32,
     },

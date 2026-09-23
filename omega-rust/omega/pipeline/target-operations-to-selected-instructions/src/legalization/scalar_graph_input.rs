@@ -263,6 +263,25 @@ pub(super) fn match_input(
         {
             return Err(invalid);
         }
+        if let AbstractOperation::EstablishElementView {
+            result, element, ..
+        } = &node.operation
+            && (!unit.structural_types.iter().any(|declaration| {
+                declaration.id == result.structural_type
+                    && matches!(declaration.shape,
+                        terminal_psi::StructuralTypeShape::ElementView { element: declared }
+                            if declared == *element)
+            }) || !plan
+                .structural_types
+                .iter()
+                .any(|declaration| declaration.id == result.structural_type)
+                || !unit
+                    .structural_types
+                    .iter()
+                    .any(|declaration| declaration.id == *element))
+        {
+            return Err(invalid);
+        }
         if let AbstractOperation::ExactIntegerAdd {
             psi_operation,
             obligation,
@@ -322,6 +341,16 @@ pub(super) fn match_input(
             ..
         }
         | AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::ElementViewRead {
+            psi_operation,
+            obligation,
+            ..
+        }
+        | AbstractOperation::ElementViewSubslice {
             psi_operation,
             obligation,
             ..

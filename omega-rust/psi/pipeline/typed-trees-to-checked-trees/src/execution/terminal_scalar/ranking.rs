@@ -16,13 +16,11 @@ pub(super) fn plan(
     if machine.termination_plan.implementation_witness.is_none() {
         return Some(None);
     }
-    let Some(components) =
-        crate::checks::termination::proven_nat_countdown_sccs_with_call_frames(
-            program,
-            machine,
-            call_frames,
-        )
-    else {
+    let Some(components) = crate::checks::termination::proven_nat_countdown_sccs_with_call_frames(
+        program,
+        machine,
+        call_frames,
+    ) else {
         // The Nat countdown is only one ranking order. A cyclic machine proven
         // under another order (`Slice::Length`, struct views) leaves its
         // judgment in the shared natural ranks; this lane publishes a ranked

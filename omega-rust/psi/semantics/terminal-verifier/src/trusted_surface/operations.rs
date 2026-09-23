@@ -465,6 +465,40 @@ static OP_BYTE_SEQUENCE_SUBSLICE: TrustedSurfaceEntry = entry(
         VAL_BYTES_SUBSLICE,
     ],
 );
+static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
+    "operation:establish-element-view",
+    "a validated element-view establishment over a contiguous collection",
+    "the establishment observation; it invalidates nothing and publishes no scalar equation",
+    EFFECT_DEPS,
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+);
+static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(
+    "operation:element-view-length",
+    "a validated element-view length observation",
+    "the length observation's local equation where the schema declares one",
+    &[
+        "fact:structural-effect-observation",
+        "formation:operation-validation",
+    ],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+);
+static OP_ELEMENT_VIEW_READ: TrustedSurfaceEntry = entry(
+    "operation:element-view-read",
+    "a validated in-bounds element read",
+    "the read observation's local equation where the schema declares one",
+    EFFECT_DEPS,
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+);
+static OP_ELEMENT_VIEW_SUBSLICE: TrustedSurfaceEntry = entry(
+    "operation:element-view-subslice",
+    "a validated element-view subslice over a known extent",
+    "the subslice observation and its extent equation where the schema declares one",
+    &[
+        "fact:structural-effect-observation",
+        "formation:operation-validation",
+    ],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+);
 static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
     "operation:establish-trivial-affine-local",
     "a validated trivial-affine local establishment",
@@ -954,6 +988,10 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_BYTE_SEQUENCE_WRITE,
     OP_BYTE_SEQUENCE_READ,
     OP_BYTE_SEQUENCE_SUBSLICE,
+    OP_ESTABLISH_ELEMENT_VIEW,
+    OP_ELEMENT_VIEW_LENGTH,
+    OP_ELEMENT_VIEW_READ,
+    OP_ELEMENT_VIEW_SUBSLICE,
     OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL,
     OP_ESTABLISH_RECORD,
     OP_STORE_DYNAMIC_DESCRIPTOR,
@@ -1038,6 +1076,10 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::ByteSequenceWrite => &OP_BYTE_SEQUENCE_WRITE,
         OperationSemanticTag::ByteSequenceRead => &OP_BYTE_SEQUENCE_READ,
         OperationSemanticTag::ByteSequenceSubslice => &OP_BYTE_SEQUENCE_SUBSLICE,
+        OperationSemanticTag::EstablishElementView => &OP_ESTABLISH_ELEMENT_VIEW,
+        OperationSemanticTag::ElementViewLength => &OP_ELEMENT_VIEW_LENGTH,
+        OperationSemanticTag::ElementViewRead => &OP_ELEMENT_VIEW_READ,
+        OperationSemanticTag::ElementViewSubslice => &OP_ELEMENT_VIEW_SUBSLICE,
         OperationSemanticTag::EstablishTrivialAffineLocal => &OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL,
         OperationSemanticTag::EstablishRecord => &OP_ESTABLISH_RECORD,
         OperationSemanticTag::StoreDynamicDescriptor => &OP_STORE_DYNAMIC_DESCRIPTOR,

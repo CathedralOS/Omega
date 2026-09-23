@@ -108,6 +108,7 @@ impl TerminalExecution {
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -238,6 +239,7 @@ impl TerminalExecution {
             self.structural_values = caller.structural_values;
             self.scalar_case_values = caller.scalar_case_values;
             self.scalar_array_values = caller.scalar_array_values;
+            self.element_view_values = caller.element_view_values;
             self.byte_sequence_values = caller.byte_sequence_values;
             self.live_affine_frontier = caller.live_affine_frontier;
             self.live_claims = caller.live_claims;
@@ -600,6 +602,7 @@ impl TerminalExecution {
                 byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                 scalar_case_values: std::mem::take(&mut self.scalar_case_values),
                 scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+                element_view_values: std::mem::take(&mut self.element_view_values),
                 live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                 live_claims: std::mem::take(&mut self.live_claims),
                 dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -635,6 +638,7 @@ impl TerminalExecution {
             self.structural_values = caller.structural_values;
             self.scalar_case_values = caller.scalar_case_values;
             self.scalar_array_values = caller.scalar_array_values;
+            self.element_view_values = caller.element_view_values;
             self.byte_sequence_values = caller.byte_sequence_values;
             self.live_affine_frontier = caller.live_affine_frontier;
             self.live_claims = caller.live_claims;
@@ -697,6 +701,7 @@ impl TerminalExecution {
             self.structural_values = caller.structural_values;
             self.scalar_case_values = caller.scalar_case_values;
             self.scalar_array_values = caller.scalar_array_values;
+            self.element_view_values = caller.element_view_values;
             self.byte_sequence_values = caller.byte_sequence_values;
             self.live_affine_frontier = caller.live_affine_frontier;
             self.live_claims = caller.live_claims;
@@ -734,6 +739,7 @@ impl TerminalExecution {
                             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
                             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
                             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+                            element_view_values: std::mem::take(&mut self.element_view_values),
                             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
                             live_claims: std::mem::take(&mut self.live_claims),
                             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -774,6 +780,7 @@ impl TerminalExecution {
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
                         self.scalar_array_values = caller.scalar_array_values;
+                        self.element_view_values = caller.element_view_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -794,6 +801,7 @@ impl TerminalExecution {
                         self.structural_values = caller.structural_values;
                         self.scalar_case_values = caller.scalar_case_values;
                         self.scalar_array_values = caller.scalar_array_values;
+                        self.element_view_values = caller.element_view_values;
                         self.byte_sequence_values = caller.byte_sequence_values;
                         self.live_affine_frontier = caller.live_affine_frontier;
                         self.live_claims = caller.live_claims;
@@ -927,6 +935,7 @@ impl TerminalExecution {
                 self.structural_values = caller.structural_values;
                 self.scalar_case_values = caller.scalar_case_values;
                 self.scalar_array_values = caller.scalar_array_values;
+                self.element_view_values = caller.element_view_values;
                 self.byte_sequence_values = caller.byte_sequence_values;
                 if self
                     .scalar_case_values
@@ -1081,6 +1090,7 @@ impl TerminalExecution {
             self.structural_values = caller.structural_values;
             self.scalar_case_values = caller.scalar_case_values;
             self.scalar_array_values = caller.scalar_array_values;
+            self.element_view_values = caller.element_view_values;
             self.byte_sequence_values = caller.byte_sequence_values;
             if self.structural_values.insert(result.place, value).is_some() {
                 return Err(TerminalInterpretError::VerifiedOperationMalformed);

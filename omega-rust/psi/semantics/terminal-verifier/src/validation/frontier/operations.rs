@@ -188,6 +188,7 @@ pub(super) fn apply_operation(
     // still enter this transaction even when their carrier is copyable.
     if let OperationResult::Structural(result) = &operation.result
         && super::super::byte_sequence_subslice::borrowed_result(machine, result.place).is_none()
+        && super::super::element_view_subslice::borrowed_result(machine, result.place).is_none()
         && super::super::primitive_storage::local_result(machine, result.place).is_none()
         && !super::super::scalar_array::plain_return_source(module, machine, result.place)
         && !(result.multiplicity == StructuralMultiplicity::Unrestricted

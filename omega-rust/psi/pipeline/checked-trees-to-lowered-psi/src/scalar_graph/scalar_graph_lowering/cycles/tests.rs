@@ -320,7 +320,7 @@ fn source_rank_custody_rejoins_successors_instead_of_matching_two_retained_roste
         validate(&checked, &changed).is_err(),
         "missing executable edge cannot be covered by a retained rank row"
     );
-    assert!(prepare(&checked, &changed, &[], &mut 10).is_err());
+    assert!(prepare(&checked, &changed, &[], &[], &mut 10).is_err());
 }
 
 #[test]
@@ -341,7 +341,7 @@ fn loop_descriptor_positions_are_dense_without_changing_invocation_positions() {
     };
     let invocation = vec![parameter(1, 1), parameter(2, 3)];
     let mut next_place = 10;
-    let plan = prepare(&checked, graph, &invocation, &mut next_place)
+    let plan = prepare(&checked, graph, &invocation, &[], &mut next_place)
         .unwrap()
         .unwrap();
     assert!(plan.rank.is_none());

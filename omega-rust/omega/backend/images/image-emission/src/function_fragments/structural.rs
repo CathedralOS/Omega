@@ -447,6 +447,14 @@ pub(super) fn populate(
                     },
                     established_views::location(source, selected, target, *psi_operation)?,
                 ),
+                target_operations::TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation,
+                } => (
+                    InternalUnitStructuralArgumentSourceRecord::EstablishedElementView {
+                        psi_operation: *psi_operation,
+                    },
+                    established_views::location(source, selected, target, *psi_operation)?,
+                ),
                 target_operations::TargetStructuralArgumentSource::BlockParameter {
                     block,
                     place,

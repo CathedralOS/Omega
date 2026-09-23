@@ -3,7 +3,6 @@
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 use crate::execution::terminal_unit::byte_subslice;
-use crate::execution::terminal_unit::element_subslice;
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
 };
@@ -14,6 +13,7 @@ use crate::execution::terminal_unit::calls::boundary_admission::{
 use crate::execution::terminal_unit::calls::computation_arguments;
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
+use crate::execution::terminal_unit::element_subslice;
 use crate::execution::terminal_unit::types::{
     borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
 };

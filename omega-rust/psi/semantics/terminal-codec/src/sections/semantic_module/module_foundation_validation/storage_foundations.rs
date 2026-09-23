@@ -273,6 +273,168 @@ pub(super) fn validate_byte_sequence_subslice(
     Ok(())
 }
 
+/// The structural type one place carries, read through the machine's declared
+/// parameter rows and produced-place table.
+fn place_structural_type(
+    machine: &TerminalMachine,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<semantic_vocabulary::StructuralTypeId> {
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+    {
+        return Some(parameter.structural_type);
+    }
+    if let Some(parameter) = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .find(|parameter| parameter.place == place)
+    {
+        return Some(parameter.structural_type);
+    }
+    machine.structural_places.iter().find_map(|row| {
+        if row.id != place {
+            return None;
+        }
+        match row.kind {
+            StructuralPlaceKind::OperationResult {
+                structural_type, ..
+            }
+            | StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            } => Some(structural_type),
+            _ => None,
+        }
+    })
+}
+
+/// The shared result-place shape for element-view producers: an exact
+/// unrestricted unqualified `ElementView` structural result owned by this
+/// operation.
+fn element_view_result_place(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    result: &terminal_psi::StructuralOperationResult,
+) -> bool {
+    result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.claims.is_empty()
+        && module.structural_types.iter().any(|row| {
+            row.id == result.structural_type
+                && matches!(row.shape, StructuralTypeShape::ElementView { .. })
+        }) && machine.structural_places.iter().any(|row| {
+        row.id == result.place
+            && matches!(row.kind, StructuralPlaceKind::OperationResult { producer, structural_type }
+                    if producer == operation.id && structural_type == result.structural_type)
+    })
+}
+
+pub(super) fn validate_establish_element_view(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishElementView { .. } = &operation.kind else {
+        unreachable!("dispatched validate_establish_element_view")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("element-view establishment requires a structural result");
+    };
+    if !element_view_result_place(module, machine, operation, result) {
+        return malformed("element-view establishment requires its exact borrowed result place");
+    }
+    // Full module validation independently checks source access, the
+    // collection's declared element type, custody, and establishment order.
+    Ok(())
+}
+
+pub(super) fn validate_element_view_subslice(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::ElementViewSubslice { .. } = &operation.kind else {
+        unreachable!("dispatched validate_element_view_subslice")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("element-view subslice requires a structural result");
+    };
+    if !element_view_result_place(module, machine, operation, result) {
+        return malformed(
+            "element-view subslice requires its exact immutable borrowed result place",
+        );
+    }
+    Ok(())
+}
+
+pub(super) fn validate_element_view_length(operation: &Operation) -> Result<(), CodecError> {
+    let OperationKind::ElementViewLength { .. } = &operation.kind else {
+        unreachable!("dispatched validate_element_view_length")
+    };
+    let expected = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+    );
+    if operation
+        .result
+        .scalar()
+        .is_none_or(|result| result.scalar_type != expected)
+    {
+        return malformed("element-view length requires an unsigned 64-bit scalar result");
+    }
+    // Full module validation independently checks source custody and the
+    // result's exact extent provenance.
+    Ok(())
+}
+
+pub(super) fn validate_element_view_read(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::ElementViewRead { source, .. } = &operation.kind else {
+        unreachable!("dispatched validate_element_view_read")
+    };
+    let Some(source_type) = place_structural_type(machine, *source) else {
+        return malformed("element-view read has an undeclared source place");
+    };
+    let Some(element) =
+        module
+            .structural_types
+            .iter()
+            .find_map(|row| match (row.id == source_type, &row.shape) {
+                (true, StructuralTypeShape::ElementView { element }) => Some(*element),
+                _ => None,
+            })
+    else {
+        return malformed("element-view read requires an element-view source");
+    };
+    let Some(expected) =
+        module
+            .structural_types
+            .iter()
+            .find_map(|row| match (row.id == element, &row.shape) {
+                (true, StructuralTypeShape::PrimitiveScalar(scalar_type)) => Some(*scalar_type),
+                _ => None,
+            })
+    else {
+        return malformed("element-view read requires a primitive scalar element");
+    };
+    if operation
+        .result
+        .scalar()
+        .is_none_or(|result| result.scalar_type != expected)
+    {
+        return malformed("element-view read requires the element's scalar result");
+    }
+    // Full module validation independently checks length provenance, custody,
+    // operand types and dominance before encoding or after decoding.
+    Ok(())
+}
+
 pub(super) fn validate_structural_case_membership(operation: &Operation) -> Result<(), CodecError> {
     let OperationKind::StructuralCaseMembership { .. } = &operation.kind else {
         unreachable!("dispatched validate_structural_case_membership")

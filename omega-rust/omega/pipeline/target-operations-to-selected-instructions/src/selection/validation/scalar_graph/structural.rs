@@ -7,6 +7,7 @@ use super::{
 };
 use crate::SelectedInstructionError;
 use crate::selection::byte_view_homes::ByteViewHomes;
+use crate::selection::element_view_homes::ElementViewHomes;
 use crate::selection::validation::scalar_graph::Replay;
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
 use selected_instructions::{
@@ -25,6 +26,9 @@ mod literals;
 mod local_storage;
 pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
 mod case_membership;
+mod element_establishment;
+mod element_subslice;
+mod element_views;
 mod primitive_locals;
 pub(super) use case_membership::observe;
 pub(super) mod indirect_results;
@@ -36,12 +40,14 @@ mod scalar_store;
 mod subslice;
 
 pub(super) use byte_views::byte_observation;
+pub(super) use element_views::element_observation;
 
 #[derive(Default)]
 pub(super) struct Transport {
     pub(super) pointers: Vec<(PlaceId, VirtualRegisterId)>,
     pub(super) result_pointer: Option<VirtualRegisterId>,
     views: Vec<ByteViewHomes>,
+    element_views: Vec<ElementViewHomes>,
     pub fragments: Vec<(PlaceId, u32, VirtualRegisterId)>,
     pub slots: Vec<SelectedOutgoingArgumentSlot>,
     pub local_slots: Vec<selected_instructions::SelectedLocalStorageSlot>,
@@ -253,6 +259,20 @@ pub(super) fn operation(
         LegalizedScalarInstructionKind::ByteSequenceSubslice { .. }
     ) {
         subslice::create(source, replay, node)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::EstablishElementView { .. }
+    ) {
+        element_establishment::establish(source, replay, node)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
+        LegalizedScalarInstructionKind::ElementViewSubslice { .. }
+    ) {
+        element_subslice::create(source, replay, node)?;
         return Ok(true);
     }
     // Reference custody is compile-time metadata: the rows carry operation

@@ -567,15 +567,18 @@ pub(crate) fn declarations(
     operations
         .iter()
         .filter_map(|operation| match (&operation.kind, &operation.result) {
-            (OperationKind::EstablishRecord { .. }, OperationResult::Structural(result)) => {
-                Some(StructuralPlaceDeclaration {
-                    id: result.place,
-                    kind: StructuralPlaceKind::OperationResult {
-                        producer: operation.id,
-                        structural_type: result.structural_type,
-                    },
-                })
-            }
+            (
+                OperationKind::EstablishRecord { .. }
+                | OperationKind::ByteSequenceSubslice { .. }
+                | OperationKind::ElementViewSubslice { .. },
+                OperationResult::Structural(result),
+            ) => Some(StructuralPlaceDeclaration {
+                id: result.place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: operation.id,
+                    structural_type: result.structural_type,
+                },
+            }),
             _ => None,
         })
 }

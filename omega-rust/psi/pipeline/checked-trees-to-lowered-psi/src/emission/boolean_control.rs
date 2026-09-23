@@ -722,6 +722,8 @@ pub(crate) fn build_scalar_conditional_target(
             | LoweredDirectExpression::ByteSequenceLength { .. }
             | LoweredDirectExpression::ByteSequenceFieldLength { .. }
             | LoweredDirectExpression::ByteSequenceRead { .. }
+            | LoweredDirectExpression::ElementViewLength { .. }
+            | LoweredDirectExpression::ElementViewRead { .. }
             | LoweredDirectExpression::IeeeFloatLiteral { .. }
             | LoweredDirectExpression::IntegerBinary { .. }
             | LoweredDirectExpression::IntegerBitwiseNot { .. }

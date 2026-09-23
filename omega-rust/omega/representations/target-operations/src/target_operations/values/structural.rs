@@ -75,6 +75,12 @@ pub enum TargetStructuralArgumentSource {
     EstablishedByteView {
         psi_operation: OperationId,
     },
+    /// Exact element-view establishment or subslice producer; its retained
+    /// operation owns the descriptor derivation, and source validation
+    /// independently establishes dominance.
+    EstablishedElementView {
+        psi_operation: OperationId,
+    },
 }
 
 impl From<ValuePlacement> for TargetStructuralArgumentSource {

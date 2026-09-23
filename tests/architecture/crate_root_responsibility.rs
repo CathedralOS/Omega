@@ -394,6 +394,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
             "calls",
             "custody",
             "effects",
+            "element_views",
             "errors",
             "execution",
             "primitive_storage",
