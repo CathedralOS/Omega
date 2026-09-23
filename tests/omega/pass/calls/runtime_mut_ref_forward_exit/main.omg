@@ -11,7 +11,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Counter { n: i32 in Wrapping; }
-data Main { console: Service<Console>; c: Counter; }
+data Main { console: Binding<Console>; c: Counter; }
 
 machine Main::main(&mut self) reaches Console {
     transition { _ -> enter(&mut self.c) }

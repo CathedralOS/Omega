@@ -6,7 +6,7 @@
 // ZII fill idiom and pointee writes respectively).
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; out: i32; }
+data Main { console: Binding<Console>; out: i32; }
 machine Main::main(&mut self) {
     let x: u32 = 1;
     x = 2;

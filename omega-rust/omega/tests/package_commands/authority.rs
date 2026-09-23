@@ -324,7 +324,7 @@ use host_services::console;
 use host_services::filesystem_host;
 use omega::language::core::service;
 
-pub machine write_and_exit(console: Service<Console>, files: Service<FilesystemHost>, descriptor: i32, line: &[u8])
+pub machine write_and_exit(console: Binding<Console>, files: Binding<FilesystemHost>, descriptor: i32, line: &[u8])
 reaches FilesystemHost + Console
 invokes console;
 invokes files;

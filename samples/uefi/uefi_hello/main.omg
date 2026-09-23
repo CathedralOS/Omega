@@ -30,7 +30,7 @@ data EfiTextOutputProtocol {
     reset: addr;
     output_string: addr;
 }
-uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: &[u16; 19]) satisfies TextOutput::output_string via Binding::VtableField(output_string);
+uefi_x86_64 machine EfiTextOutputProtocol::text_output_leaf(this: addr, text: &[u16; 19]) satisfies TextOutput::output_string via ForeignBinding::VtableField(output_string);
 
 // The fields of the EFI System Table we care about; con_out lands at +64 under
 // the C layout (sequential placement with natural alignment).
@@ -50,7 +50,7 @@ pub data EfiSystemTable {
 }
 
 pub data Main {
-    out: Service<TextOutput>;
+    out: Binding<TextOutput>;
     // "Hello from Omega\r\n\0" as UTF-16 CHAR16 code units.
     msg: [u16; 19];
 }

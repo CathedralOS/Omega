@@ -462,14 +462,14 @@ fn concrete_task_start_fixture() -> (
         ) -> Task<T>
         where machine Target(arguments: Arguments) -> T suspends; blocks;
         satisfies TaskRuntime::start
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
         machine LocalTaskRuntime::try_start<T, Arguments, machine Target>(
             &self,
             arguments: Arguments
         ) -> StartOutcome<T, Arguments>
         where machine Target(arguments: Arguments) -> T suspends; blocks;
         satisfies TaskRuntime::try_start
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
 
         pub boundary data Sleeper;
         boundary machine Sleeper::park(token: i32) suspends;
@@ -567,14 +567,14 @@ fn nested_task_call_fixture() -> (
         ) -> Task<T>
         where machine Target(arguments: Arguments) -> T suspends; blocks;
         satisfies TaskRuntime::start
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
         machine LocalTaskRuntime::try_start<T, Arguments, machine Target>(
             &self,
             arguments: Arguments
         ) -> StartOutcome<T, Arguments>
         where machine Target(arguments: Arguments) -> T suspends; blocks;
         satisfies TaskRuntime::try_start
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
 
         pub boundary data Sleeper;
         boundary machine Sleeper::park(token: i32) suspends;

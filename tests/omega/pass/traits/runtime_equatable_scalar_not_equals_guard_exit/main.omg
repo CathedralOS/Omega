@@ -30,7 +30,7 @@ trait Equatable {
 PairEquatable: Pair satisfies Equatable;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     left: Pair;
     right: Pair;
 }

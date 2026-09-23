@@ -12,7 +12,7 @@
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::dec(&mut self, n: u32) -> u32 {
     transition n > 0 {

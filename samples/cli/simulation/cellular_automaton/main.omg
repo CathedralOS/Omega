@@ -31,8 +31,8 @@ requires
 pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     cells: [i32 [0..=1]; 64]; // current generation -- elements PROVABLY 0/1
     next: [i32 [0..=1]; 64];  // next generation
     line: [u8; 64] in Utf8; // render buffer

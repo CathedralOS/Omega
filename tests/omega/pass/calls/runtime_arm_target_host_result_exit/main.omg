@@ -9,7 +9,7 @@
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; host: Service<FilesystemHost>; fd: i32; a: i32; b: i32; }
+data Main { console: Binding<Console>; host: Binding<FilesystemHost>; fd: i32; a: i32; b: i32; }
 machine Main::e1(&mut self) -> i32 reaches FilesystemHost {
     let rc: i32 = self.host.errno();
     rc

@@ -12,7 +12,7 @@
 // exits: 8 - 6 = 2.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main where count <= 11 { console: Service<Console>; count: u32; j: u32; out: i32; }
+data Main where count <= 11 { console: Binding<Console>; count: u32; j: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 8;
     self.j = 6;

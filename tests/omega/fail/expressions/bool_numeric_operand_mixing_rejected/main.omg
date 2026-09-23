@@ -5,7 +5,7 @@
 // (`let n: i32 = a < b`) is a DIFFERENT, intended coercion and stays valid.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; b: bool; }
+data Main { console: Binding<Console>; b: bool; }
 machine Main::main(&mut self) {
     self.b = true;
     let n: i32 = self.b + 5;

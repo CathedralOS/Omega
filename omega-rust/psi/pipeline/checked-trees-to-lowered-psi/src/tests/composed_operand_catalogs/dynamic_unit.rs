@@ -14,7 +14,7 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 fn source(route: usize, qualified: bool, trailing: bool) -> String {
     let source = DYNAMIC_CONTINUATION_SOURCE
-        .replace("console: Service<Console>; ", "")
+        .replace("console: Binding<Console>; ", "")
         .replace(
             "data Main {",
             r#"
@@ -126,7 +126,7 @@ fn dynamic_routes_share_ordinary_bodies_and_scalar_helpers() {
 fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement() {
     for route in 0..4 {
         let source = source(route, true, true)
-            .replace("data Main {", "data Main { console: Service<Console>;");
+            .replace("data Main {", "data Main { console: Binding<Console>;");
         let checked = checked_source_with_core_service(&source);
         let lowered = roundtrip(&checked);
         assert_closure(&checked, &lowered, route);
@@ -152,7 +152,7 @@ fn unused_root_provider_field_retains_identity_without_a_fabricated_requirement(
         assert_eq!(provider.relevance, terminal_psi::BindingRelevance::Relevant);
         assert!(
             matches!(&provider.field_type, terminal_psi::StructuralFieldType::Erased { type_identity }
-            if type_identity == "generic(name(Service),named(name(Console)))")
+            if type_identity == "generic(name(Binding),named(name(Console)))")
         );
         assert!(!root.structural_places.iter().any(|place| matches!(
             place.kind,
@@ -333,7 +333,7 @@ impl TerminalEffectHandler for Observe {
 fn dynamic_boolean_result_executes_only_the_selected_ordinary_unit_leaf() {
     for route in 0..4 {
         let source = source(route, true, true)
-            .replace("data Main {", "data Main { console: Service<Console>;")
+            .replace("data Main {", "data Main { console: Binding<Console>;")
             .replace(
                 "machine measure(&self) -> i32",
                 "machine measure(&self) -> bool",

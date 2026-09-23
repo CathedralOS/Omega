@@ -29,7 +29,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     source: [u8; 4];
     buffer: [u8; 64];
     buffer2: [u8; 64];

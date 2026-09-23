@@ -3,7 +3,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 
-data Main { console: Service<Console>; flag: bool; }
+data Main { console: Binding<Console>; flag: bool; }
 
 machine Main::negated(&mut self) -> bool {
     self.flag = false;

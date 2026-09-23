@@ -10,7 +10,7 @@ data P { x: i32; y: i32; }
 data Q { a: i32; b: i32; }
 PEquatable: P satisfies Equatable;
 QEquatable: Q satisfies Equatable;
-data Main { console: Service<Console>; p: P; q: Q; }
+data Main { console: Binding<Console>; p: P; q: Q; }
 machine Main::main(&mut self) {
     self.p = P { x: 1, y: 2 };
     self.q = Q { a: 1, b: 2 };

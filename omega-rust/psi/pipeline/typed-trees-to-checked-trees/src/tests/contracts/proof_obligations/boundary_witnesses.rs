@@ -11,7 +11,7 @@ fn boundary_witness_survives_disjoint_internal_call_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             other: u32;
             small: u32 [0..=8];
@@ -44,7 +44,7 @@ fn boundary_witness_survives_disjoint_recast_local_call_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             other: u32;
             small: u32 [0..=8];
@@ -78,7 +78,7 @@ fn boundary_witness_dies_under_overlapping_recast_local_call_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -117,7 +117,7 @@ fn boundary_witness_survives_disjoint_local_alias_call_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             other: u32;
             small: u32 [0..=8];
@@ -157,7 +157,7 @@ fn boundary_witness_dies_when_internal_call_frame_writes_place() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -195,7 +195,7 @@ fn boundary_witness_dies_when_local_alias_call_frame_writes_place() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -243,7 +243,7 @@ fn boundary_witness_survives_disjoint_projected_alias_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             cell: Cell;
             small: u32 [0..=8];
         }
@@ -282,7 +282,7 @@ fn boundary_witness_dies_under_overlapping_projected_alias_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             cell: Cell;
             small: u32 [0..=8];
         }
@@ -327,7 +327,7 @@ fn boundary_witness_survives_disjoint_member_indexed_alias_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             group: Group;
             small: u32 [0..=8];
         }
@@ -364,7 +364,7 @@ fn boundary_witness_dies_under_member_indexed_alias_collection_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             group: Group;
             small: u32 [0..=8];
         }
@@ -410,7 +410,7 @@ fn boundary_witness_survives_disjoint_direct_member_after_index_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             cells: [Cell; 2];
             other: u32;
             small: u32 [0..=8];
@@ -448,7 +448,7 @@ fn boundary_witness_dies_under_direct_member_after_index_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             cells: [Cell; 2];
             small: u32 [0..=8];
         }
@@ -489,7 +489,7 @@ fn boundary_witness_survives_caller_isolated_local_collection_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -523,7 +523,7 @@ fn boundary_witness_survives_transparently_forwarded_local_collection() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             small: u32 [0..=8];
         }
@@ -562,7 +562,7 @@ fn boundary_witness_survives_transparent_call_result_alias_chain() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -602,7 +602,7 @@ fn boundary_witness_survives_transparent_result_with_pure_call_scratch() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -645,7 +645,7 @@ fn boundary_witness_dies_when_transparent_result_scratch_call_writes_it() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -699,7 +699,7 @@ fn boundary_witness_survives_disjoint_projected_call_result_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             n: u32;
             values: [u32; 2];
             small: u32 [0..=8];
@@ -737,7 +737,7 @@ fn boundary_witness_dies_under_projected_call_result_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             values: [u32; 2];
             small: u32 [0..=8];
         }
@@ -782,7 +782,7 @@ fn boundary_witness_survives_disjoint_indexed_alias_collection_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             cells: [u32; 2];
             other: u32;
             small: u32 [0..=8];
@@ -818,7 +818,7 @@ fn boundary_witness_dies_under_indexed_alias_collection_frame() {
         }
 
         data Main {
-            fw: Service<Firmware>;
+            fw: Binding<Firmware>;
             cells: [u32; 2];
             small: u32 [0..=8];
         }
@@ -1071,7 +1071,7 @@ fn bounded_byte_domain_membership_projects_to_matching_slice_domain() {
             valid_utf8(self);
 
         data Main {
-            sink: Service<Sink>;
+            sink: Binding<Sink>;
             text: [u8; 4] in Utf8;
         }
 
@@ -1104,7 +1104,7 @@ fn bounded_byte_domain_projection_proves_the_requested_predicate_independently()
             valid_utf8(self);
 
         data Main {
-            sink: Service<Sink>;
+            sink: Binding<Sink>;
             text: [u8; 4] in Text;
         }
 

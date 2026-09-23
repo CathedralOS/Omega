@@ -1,13 +1,13 @@
 // Stable routed authority for one exact closed boundary requirement.
 //
-// `Service<R>` is opaque and affine. Its values are established by build-time
+// `Binding<R>` is opaque and affine. Its values are established by build-time
 // composition and installation, never by package-authored construction. A
 // fused build may erase the carrier only after joining it to the exact selected
 // provider for `R`; independent composition retains a runtime slot carrier.
 //
-// Service validity is intrinsic to the closed `Service<R>` identity: the
+// Service validity is intrinsic to the closed `Binding<R>` identity: the
 // carrier already denotes toolchain establishment, so no authored domain
-// qualification exists for it and any `Service<R> in <domain>` spelling is
+// qualification exists for it and any `Binding<R> in <domain>` spelling is
 // rejected during source checking.
 
-pub boundary data Service<R>;
+pub boundary data Binding<R>;

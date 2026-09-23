@@ -8,7 +8,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Msg { case Move(dx: i32 [0..=15]); case Stay; }
-data Main { console: Service<Console>; m: Msg; }
+data Main { console: Binding<Console>; m: Msg; }
 machine Main::main(&mut self) reaches Console {
     self.m = Msg::Move { dx: 7 };
     transition self.m { Msg::Move { dx } -> check(dx * 10) Msg::Stay -> bad() }

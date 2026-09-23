@@ -186,8 +186,8 @@ pub boundary trait Process {
     machine ping();
 }
 
-macos_arm64 machine ping_binding() -> Binding<26, 7, 0> {
-    Binding::DllImport {
+macos_arm64 machine ping_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_getpid",
@@ -197,7 +197,7 @@ macos_arm64 machine ping_binding() -> Binding<26, 7, 0> {
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
-data Main { process: Service<Process>; }
+data Main { process: Binding<Process>; }
 machine Main::main(&mut self) reaches Process {
     self.process.ping();
 }
@@ -223,8 +223,8 @@ pub boundary trait Process {
     machine ping();
 }
 
-windows_x86_64 machine ping_binding() -> Binding<12, 24, 0> {
-    Binding::DllImport {
+windows_x86_64 machine ping_binding() -> ForeignBinding<12, 24, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "FlushProcessWriteBuffers",
@@ -234,7 +234,7 @@ windows_x86_64 machine ping_binding() -> Binding<12, 24, 0> {
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
-data Main { process: Service<Process>; }
+data Main { process: Binding<Process>; }
 machine Main::main(&mut self) reaches Process {
     let fused: f32 = F32::fused_multiply_add(
         1.00000011920928955078125f32,
@@ -266,8 +266,8 @@ pub boundary trait Process {
     machine sleep(milliseconds: u32);
 }
 
-windows_x86_64 machine current_id_binding() -> Binding<12, 19, 0> {
-    Binding::DllImport {
+windows_x86_64 machine current_id_binding() -> ForeignBinding<12, 19, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "GetCurrentProcessId",
@@ -275,8 +275,8 @@ windows_x86_64 machine current_id_binding() -> Binding<12, 19, 0> {
     }
 }
 
-windows_x86_64 machine sleep_binding() -> Binding<12, 5, 0> {
-    Binding::DllImport {
+windows_x86_64 machine sleep_binding() -> ForeignBinding<12, 5, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "Sleep",
@@ -292,7 +292,7 @@ machine sleep_leaf(milliseconds: u32)
     satisfies Process::sleep
     via sleep_binding();
 
-data Main { process: Service<Process>; }
+data Main { process: Binding<Process>; }
 machine Main::main(&mut self) reaches Process {
     let current: u32 = self.process.current_id();
     self.process.sleep(current);
@@ -320,8 +320,8 @@ pub boundary trait Process {{
     machine ping();
 }}
 
-linux_x86_64 machine ping_binding() -> Binding<9, 6, 11> {{
-    Binding::DllImport {{
+linux_x86_64 machine ping_binding() -> ForeignBinding<9, 6, 11> {{
+    ForeignBinding::DllImport {{
         import: DllImport::ElfVersioned {{
             object: "libc.so.6",
             symbol: "getpid",
@@ -332,7 +332,7 @@ linux_x86_64 machine ping_binding() -> Binding<9, 6, 11> {{
 
 machine ping_leaf() satisfies Process::ping via ping_binding();
 
-data Main {{ process: Service<Process>; }}
+data Main {{ process: Binding<Process>; }}
 machine Main::main(&mut self) reaches Process {{
     {marker}
     self.process.ping();
@@ -367,8 +367,8 @@ pub boundary requirement ForeignMath::exit_with(code: i32);
 
 data ForeignMathProvider {}
 
-linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
-    Binding::DllImport {
+linux_x86_64 machine foreign_exit_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "exit",
@@ -409,8 +409,8 @@ pub boundary trait Delay {
     machine wait(seconds: u32);
 }
 
-macos_arm64 machine wait_binding() -> Binding<26, 6, 0> {
-    Binding::DllImport {
+macos_arm64 machine wait_binding() -> ForeignBinding<26, 6, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_sleep",
@@ -420,7 +420,7 @@ macos_arm64 machine wait_binding() -> Binding<26, 6, 0> {
 
 machine wait_leaf(seconds: u32) satisfies Delay::wait via wait_binding();
 
-data Main { delay: Service<Delay>; }
+data Main { delay: Binding<Delay>; }
 machine Main::main(&mut self) reaches Delay {
     self.delay.wait(3);
 }
@@ -449,8 +449,8 @@ pub boundary trait Process {
     machine process_id() -> i32;
 }
 
-macos_arm64 machine process_id_binding() -> Binding<26, 7, 0> {
-    Binding::DllImport {
+macos_arm64 machine process_id_binding() -> ForeignBinding<26, 7, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_getpid",
@@ -462,7 +462,7 @@ machine process_id_leaf() -> i32
     satisfies Process::process_id
     via process_id_binding();
 
-data Main { process: Service<Process>; }
+data Main { process: Binding<Process>; }
 machine Main::main(&mut self) reaches Process {
     let observed_pid: i32 = self.process.process_id();
 }

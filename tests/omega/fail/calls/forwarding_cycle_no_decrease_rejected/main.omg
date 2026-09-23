@@ -4,7 +4,7 @@
 // spin forever. The ranking witness stays unproven and refuses.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::sum(&mut self, n: u64 [0..=100], acc: u64 [0..=5050])
 terminates by n;
 -> u64

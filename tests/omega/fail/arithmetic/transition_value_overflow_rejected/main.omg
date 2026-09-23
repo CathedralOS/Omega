@@ -15,7 +15,7 @@ pub boundary trait Console {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::sum(&mut self, x: i32, y: i32) -> i32 {

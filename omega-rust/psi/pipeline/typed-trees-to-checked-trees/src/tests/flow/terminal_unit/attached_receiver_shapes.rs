@@ -15,7 +15,7 @@ pub boundary trait Host {{
     machine exit(code: i32);
 }}
 {part}
-pub data Root {{ host: Service<Host>; part: Part; }}
+pub data Root {{ host: Binding<Host>; part: Part; }}
 machine Root::run(&mut self) reaches Host {{
     transition {{ _ -> done() }}
     state done(&mut self) {{ self.host.exit(0); }}

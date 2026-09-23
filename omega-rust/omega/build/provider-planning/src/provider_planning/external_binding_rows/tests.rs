@@ -432,7 +432,7 @@ fn external_top_level_requirement_extracts_its_exact_carrier_abi() {
 
         machine LinuxCounter::write(counter: Counter, value: u64)
         satisfies Counter::write
-        via Binding::Syscall(1);
+        via ForeignBinding::Syscall(1);
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

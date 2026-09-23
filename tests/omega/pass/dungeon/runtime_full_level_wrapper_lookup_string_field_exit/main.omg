@@ -118,7 +118,7 @@ data View {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     view: View;
     level: Level;
     line: [u8; 32] in Utf8;

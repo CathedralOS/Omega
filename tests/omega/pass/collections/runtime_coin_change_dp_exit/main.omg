@@ -8,7 +8,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     coins: [i32; 3] in Wrapping;
     dp: [i32; 7] in Wrapping;  // dp[0..6]; 99 = "infinity"
     a: i32 in Wrapping;

@@ -1285,7 +1285,7 @@ use omega::language::core::service;
 
 data Entry { value: i32; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     entries: [Entry; 4];
     index: u64;
 }
@@ -1355,7 +1355,7 @@ use omega::language::core::service;
 
 data Entry { value: i32; }
 data Room { entries: [Entry; 4]; }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let room: Room = Room {
@@ -1465,7 +1465,7 @@ fn compiler_body_double_indexed_integer_write_footprints_reach_artifacts() {
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     grid: [[i32; 4]; 3];
 }
 

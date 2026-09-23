@@ -13,7 +13,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     pause: [u8; 256];
     digits: [i32; 11];
     r: i32 [-1..=10];

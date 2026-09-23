@@ -27,7 +27,7 @@ data Command {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     brightness: i32 [0..=100];
     command: Command;
 }

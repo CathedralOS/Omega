@@ -7,7 +7,7 @@ machine pick(x: i32) -> i32 {
     }
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     x: i32 in Wrapping;
 }
 machine Main::main(&mut self) {

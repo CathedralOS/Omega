@@ -21,7 +21,7 @@ machine keep(n: i32, witness [erased]: Proof) -> i32 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

@@ -35,7 +35,7 @@ machine Store::build(&mut self, out: &mut Level) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     store: Store;
     level: Level;
 }

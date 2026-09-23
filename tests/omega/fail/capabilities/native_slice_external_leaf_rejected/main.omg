@@ -2,7 +2,7 @@ boundary trait NativeSlice {
     machine send(value: &[u8]);
 }
 
-machine send(value: &[u8]) satisfies NativeSlice::send via Binding::Syscall(60);
+machine send(value: &[u8]) satisfies NativeSlice::send via ForeignBinding::Syscall(60);
 
 data Main { }
 machine Main::main(&mut self) { }

@@ -22,7 +22,7 @@ machine Calc::pick(&mut self, saturate: bool) -> u64 in Wrapping {
         transition { _ -> (floor) }
     }
 }
-data Main { console: Service<Console>; calc: Calc; }
+data Main { console: Binding<Console>; calc: Calc; }
 machine Main::main(&mut self) reaches Console {
     let ceiling: u64 in Wrapping = self.calc.pick(true);
     let floor: u64 in Wrapping = self.calc.pick(false);

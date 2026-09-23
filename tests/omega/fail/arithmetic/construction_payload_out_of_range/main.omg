@@ -4,7 +4,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data Slot { case Found(index: i32 [0..=15]); case Full; }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::run(&mut self, s: Slot) {
     transition s { Slot::Found { index } -> done(index) Slot::Full -> stop() }
     state done(&mut self, n: i32) { self.console.exit_process(0); }

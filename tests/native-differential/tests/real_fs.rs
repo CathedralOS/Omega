@@ -84,8 +84,8 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     dir_mode: i32;
     mode: i32;
     read_flags: i32;
@@ -201,8 +201,8 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     fd: i32;
     duplicate_fd: i32;
     count: i64;
@@ -284,8 +284,8 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     mode: i32;
     rd: i32;
     cap: u64;
@@ -450,8 +450,8 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     rc: i64;
     error: i64;
     dirfd: i32;
@@ -682,7 +682,7 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    console: Service<Console>;
+    console: Binding<Console>;
     fs: Filesystem;
     io_result: IoResult;
     stats_result: DirStatsResult;
@@ -838,7 +838,7 @@ data Build {{ target_index: i64; staged: i64; }}
 // real disk — dividend/divisor divides by zero under Trapping, so the
 // create call never reaches the filesystem.
 data IgnoredOperandProbe {{
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     dividend: i32 in Trapping;
     divisor: i32 in Trapping;
     fd: i32;
@@ -855,7 +855,7 @@ machine IgnoredOperandProbe::run(&mut self, build: &mut Build) reaches Filesyste
 }}
 
 data InvalidOutputProbe {{
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     buffer: [u8; 1];
     n: i64;
 }}
@@ -866,7 +866,7 @@ machine InvalidOutputProbe::run(&mut self, build: &mut Build) reaches Filesystem
 }}
 
 data CanonicalizeOutputProbe {{
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     buffer: [u8; 1023];
     result: i64;
 }}
@@ -877,7 +877,7 @@ machine CanonicalizeOutputProbe::run(&mut self, build: &mut Build) reaches Files
 }}
 
 data CrossDomainProbe {{
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     descriptor: i32;
     handle: i64;
     filetime: [u8; 8];
@@ -1075,7 +1075,7 @@ use omega::language::std::filesystem_host;
 data Build {{ target_index: i64; staged: i64; }}
 
 data SourceReadProbe {{
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     flags: i32;
     capacity: u64;
     fd: i32;
@@ -1093,7 +1093,7 @@ machine SourceReadProbe::run(&mut self, build: &mut Build) reaches FilesystemHos
     build.target_index = self.read_count;
 }}
 
-data MissingParentProbe {{ fs: Service<FilesystemHost>; fd: i32; error: i64; }}
+data MissingParentProbe {{ fs: Binding<FilesystemHost>; fd: i32; error: i64; }}
 
 machine MissingParentProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.fd = self.fs.create("{out}/missing/artifact", 438);
@@ -1101,7 +1101,7 @@ machine MissingParentProbe::run(&mut self, build: &mut Build) reaches Filesystem
     build.target_index = self.error;
 }}
 
-data ResourceProbe {{ fs: Service<FilesystemHost>; fd: i32; written: i64; }}
+data ResourceProbe {{ fs: Binding<FilesystemHost>; fd: i32; written: i64; }}
 
 machine ResourceProbe::run(&mut self, build: &mut Build) reaches FilesystemHost {{
     self.fd = self.fs.create("{out}/artifact", 438);
@@ -1208,8 +1208,8 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    console: Service<Console>;
-    fs: Service<FilesystemHost>;
+    console: Binding<Console>;
+    fs: Binding<FilesystemHost>;
     mode: i32;
     fd: i32;
     dirfd: i32;
@@ -1356,8 +1356,8 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    console: Service<Console>;
-    fs: Service<FilesystemHost>;
+    console: Binding<Console>;
+    fs: Binding<FilesystemHost>;
     mode: i32;
     fd: i32;
     dirfd: i32;
@@ -1561,8 +1561,8 @@ use omega::language::std::filesystem_host;
 
 
 data Main {{
-    console: Service<Console>;
-    fs: Service<FilesystemHost>;
+    console: Binding<Console>;
+    fs: Binding<FilesystemHost>;
     mode: i32;
     fd: i32;
     n: i64;

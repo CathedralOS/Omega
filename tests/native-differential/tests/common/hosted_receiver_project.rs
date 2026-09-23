@@ -2,7 +2,7 @@
 //! compile.
 //!
 //! `hosted_receiver` and `hosted_receiver_checked_entry` each witness the same
-//! contract — an authored `Service<Console>`-carrying receiver reaches a
+//! contract — an authored `Binding<Console>`-carrying receiver reaches a
 //! published process image under exact custody, and a bare interface spelling
 //! of the same field refuses — so the project they compile, the package graph
 //! it is bound into, and the two acceptance rows it needs are written once
@@ -64,7 +64,7 @@ pub fn project_directory(name: &str) -> PathBuf {
 
 /// Author the hosted receiver program and its build declaration into a
 /// fresh project directory. `bound_service` selects the intrinsic
-/// `Service<Console>` carrier or the bare `Console` interface that must
+/// `Binding<Console>` carrier or the bare `Console` interface that must
 /// refuse; `explicit_exit` completes through `exit_process(37)` so the
 /// provider's own status survives the hosted bridge.
 pub fn author_hosted_receiver_project(
@@ -91,7 +91,7 @@ pub fn author_hosted_receiver_project(
         ""
     };
     let console_type = if bound_service {
-        "Service<Console>"
+        "Binding<Console>"
     } else {
         "Console"
     };

@@ -6,7 +6,7 @@
 // storage the author sizes.)
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::triple(&mut self, n: u64) -> u64
 terminates by n;
 {

@@ -8,7 +8,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     speed: f32 in Wrapping;
 }
 machine Main::main(&mut self) {

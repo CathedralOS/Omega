@@ -9,7 +9,7 @@ use omega::language::core::service;
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::forward(&mut self, receipt: Receipt) -> Receipt { receipt }
 

@@ -11,12 +11,12 @@
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
 use omega::language::core::service;
-data Probe { host: Service<FilesystemHost>; fd: i32; }
+data Probe { host: Binding<FilesystemHost>; fd: i32; }
 machine Probe::shutdown(&mut self, fd: i32) -> i32 reaches FilesystemHost {
     self.fd = fd;
     self.host.close(self.fd)
 }
-data Main { console: Service<Console>; probe: Probe; rc: i32; }
+data Main { console: Binding<Console>; probe: Probe; rc: i32; }
 machine Main::main(&mut self) reaches Console {
     self.rc = self.probe.shutdown(3);
     transition self.rc == 0 { true -> good() _ -> good() }

@@ -43,7 +43,7 @@ machine Parser::navigation(&mut self, choice: Command, destination: i32) -> Navi
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     line: [u8; 256];
     parser: Parser;
     navigation: Navigation;

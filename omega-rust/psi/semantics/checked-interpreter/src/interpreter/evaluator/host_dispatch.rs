@@ -319,7 +319,7 @@ impl<'program> Evaluator<'program> {
                 .iter()
                 .find(|definition| definition.is_boundary && definition.symbol == type_symbol)
                 .or_else(|| {
-                    // `Service<Console>` carriers: the boundary trait is the
+                    // `Binding<Console>` carriers: the boundary trait is the
                     // carrier's type argument.
                     if let TypeReferenceNode::Generic { arguments, .. } = self
                         .program
@@ -816,7 +816,7 @@ mod tests {
             "boundary machine ConsoleNativeProvider::write_byte(byte: i32)
                 satisfies Console::write_byte;",
             "machine ConsoleNativeProvider::write_byte(byte: i32)
-                satisfies Console::write_byte via Binding::CompilerIntrinsic;",
+                satisfies Console::write_byte via ForeignBinding::CompilerIntrinsic;",
         ] {
             let checked = crate::front_end::checked_program(&format!(
                 "pub boundary trait Console {{
@@ -847,7 +847,7 @@ mod tests {
             }
             pub data ConsoleNativeProvider {}
             machine ConsoleNativeProvider::read_byte() -> ByteRead
-                satisfies Console::read_byte via Binding::CompilerIntrinsic
+                satisfies Console::read_byte via ForeignBinding::CompilerIntrinsic
                 crashes Trap blocks;
             boundary machine ConsoleNativeProvider::write_byte(byte: i32)
                 satisfies Console::write_byte;
@@ -901,7 +901,7 @@ mod tests {
             }
             pub data ConsoleNativeProvider {}
             machine ConsoleNativeProvider::read_byte() -> ByteRead
-                satisfies Console::read_byte via Binding::CompilerIntrinsic
+                satisfies Console::read_byte via ForeignBinding::CompilerIntrinsic
                 crashes Trap blocks;
             boundary machine ConsoleNativeProvider::write_byte(byte: i32)
                 satisfies Console::write_byte;
@@ -935,7 +935,7 @@ mod tests {
                     satisfies Console::exit_process;"
             } else {
                 "machine ConsoleNativeProvider::exit_process(code: i32)
-                    satisfies Console::exit_process via Binding::CompilerIntrinsic;"
+                    satisfies Console::exit_process via ForeignBinding::CompilerIntrinsic;"
             };
             let checked = crate::front_end::checked_program(&format!(
                 "pub boundary trait Console {{
@@ -983,14 +983,14 @@ mod tests {
                 "custom intrinsic provider",
                 "i32",
                 "machine OtherProvider::write_byte(byte: i32)
-                    satisfies Console::write_byte via Binding::CompilerIntrinsic;",
+                    satisfies Console::write_byte via ForeignBinding::CompilerIntrinsic;",
                 "OtherProvider::write_byte",
             ),
             (
                 "custom intrinsic method",
                 "i32",
                 "machine ConsoleNativeProvider::custom_write(byte: i32)
-                    satisfies Console::write_byte via Binding::CompilerIntrinsic;",
+                    satisfies Console::write_byte via ForeignBinding::CompilerIntrinsic;",
                 "ConsoleNativeProvider::custom_write",
             ),
             (
@@ -998,7 +998,7 @@ mod tests {
                 "i32",
                 "machine ConsoleNativeProvider::write_byte(byte: i32)
                     satisfies Console::write_byte
-                    via Binding::Syscall(60);",
+                    via ForeignBinding::Syscall(60);",
                 "ConsoleNativeProvider::write_byte",
             ),
             (

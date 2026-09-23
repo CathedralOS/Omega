@@ -17,7 +17,7 @@ fn mixed_fixture() -> (CheckedTrees, SelectedProviderPlanFacts) {
         boundary operator F32::fused_multiply_add(left: f32, right: f32, addend: f32) -> f32;
         data FloatProvider {}
         machine FloatProvider::fused_multiply_add(left: f32, right: f32, addend: f32) -> f32
-        satisfies F32::fused_multiply_add via Binding::CompilerIntrinsic;
+        satisfies F32::fused_multiply_add via ForeignBinding::CompilerIntrinsic;
 
         data Root {}
         machine Root::enter(&mut self) {

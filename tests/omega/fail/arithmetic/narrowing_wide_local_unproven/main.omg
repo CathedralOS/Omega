@@ -4,7 +4,7 @@
 // truncate. Widening (i32 -> i64) stays implicit; only narrowing needs `as`.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; r: i32; }
+data Main { console: Binding<Console>; r: i32; }
 machine Main::main(&mut self) {
     let big: i64 = 3000000123;
     self.r = big;

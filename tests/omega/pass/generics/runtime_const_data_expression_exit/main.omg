@@ -9,7 +9,7 @@ data FixedBuffer<const N: u64> {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     eight: FixedBuffer<2 * (3 + 1)>;
     four: FixedBuffer<32 >> 3 | 0>;
 }

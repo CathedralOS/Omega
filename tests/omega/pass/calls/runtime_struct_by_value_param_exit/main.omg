@@ -26,7 +26,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 // takes a record by value and reads every field

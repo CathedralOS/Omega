@@ -18,7 +18,7 @@ use omega::language::core::service;
 data Calc {}
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     base: i32 in Wrapping;
     calc: Calc;
 }

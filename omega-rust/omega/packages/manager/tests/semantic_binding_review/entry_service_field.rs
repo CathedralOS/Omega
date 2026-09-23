@@ -24,7 +24,7 @@ fn entry_service_field_nominates_filesystem_host_binding() {
         r#"use omega_language_std::filesystem_host;
 use omega::language::core::service;
 
-data Main { raw_fs: Service<FilesystemHost>; }
+data Main { raw_fs: Binding<FilesystemHost>; }
 
 machine Main::main(&mut self)
 reaches FilesystemHost
@@ -63,13 +63,13 @@ invokes FilesystemHost;
         SemanticBindingReview::Discover,
         None,
     )
-    .expect("consumer review nominates from the entry Service field requirement");
+    .expect("consumer review nominates from the entry Binding field requirement");
     let review = candidate.reviews().review(closure.graph().root()).unwrap();
     let entry = review
         .semantic_bindings()
         .iter()
         .find(|binding| binding.role() == AcceptedSemanticBindingRole::FilesystemHostService)
-        .expect("entry Service<FilesystemHost> field nominates the service binding");
+        .expect("entry Binding<FilesystemHost> field nominates the service binding");
     assert_eq!(entry.declaration_path(), "FilesystemHost");
     assert_ne!(entry.package(), closure.graph().root().identity());
     // Accepting the proposed decisions replays every discovered binding: the
@@ -91,7 +91,7 @@ invokes FilesystemHost;
         &temporary.0.join("strict-bound"),
         SemanticBindingReview::Explicit(&accepted),
     )
-    .expect("accepted binding settles the entry Service field without discovery");
+    .expect("accepted binding settles the entry Binding field without discovery");
     assert_eq!(
         strict
             .review(closure.graph().root())

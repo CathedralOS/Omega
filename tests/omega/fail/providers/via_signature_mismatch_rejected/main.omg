@@ -4,7 +4,7 @@ boundary trait Process {
     machine exit(code: i32);
 }
 
-machine exit_leaf(code: u32) satisfies Process::exit via Binding::Syscall(60);
+machine exit_leaf(code: u32) satisfies Process::exit via ForeignBinding::Syscall(60);
 
 data Main { }
 machine Main::main(&mut self) { }

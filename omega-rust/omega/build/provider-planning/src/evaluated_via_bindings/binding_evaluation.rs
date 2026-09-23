@@ -119,14 +119,14 @@ pub(crate) fn evaluate_one(
             let number = u32::try_from(*number).map_err(|_| {
                 at(
                     source_span,
-                    "ordinary Binding::Syscall number does not fit u32",
+                    "ordinary ForeignBinding::Syscall number does not fit u32",
                 )
             })?;
             if !matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64) {
                 return Err(at(
                     source_span,
                     format!(
-                        "ordinary Binding::Syscall is not applicable to selected target `{}`",
+                        "ordinary ForeignBinding::Syscall is not applicable to selected target `{}`",
                         target.target_name(),
                     ),
                 ));
@@ -212,7 +212,7 @@ pub(crate) fn exact_binding_vocabulary(
             })
             .collect::<Vec<_>>()
     };
-    let bindings = exact("Binding");
+    let bindings = exact("ForeignBinding");
     let imports = exact("DllImport");
     let ([binding], [dll_import]) = (bindings.as_slice(), imports.as_slice()) else {
         return Err(vec![Diagnostic::error(
@@ -359,12 +359,12 @@ fn validate_binding_shape(
     };
     let [field] = typed.data_payload_fields(import_variant) else {
         return Err(vec![Diagnostic::error(
-            "compiler-owned Binding::DllImport payload drifted",
+            "compiler-owned ForeignBinding::DllImport payload drifted",
         )]);
     };
     if import_variant.name.as_str() != "DllImport" || field.name.as_str() != "import" {
         return Err(vec![Diagnostic::error(
-            "compiler-owned Binding::DllImport names drifted",
+            "compiler-owned ForeignBinding::DllImport names drifted",
         )]);
     }
     let TypeReferenceNode::Generic {
@@ -403,7 +403,7 @@ fn validate_binding_shape(
     }
     let [number] = typed.data_payload_fields(syscall_variant) else {
         return Err(vec![Diagnostic::error(
-            "compiler-owned Binding::Syscall payload drifted",
+            "compiler-owned ForeignBinding::Syscall payload drifted",
         )]);
     };
     if syscall_variant.name.as_str() != "Syscall"
@@ -411,7 +411,7 @@ fn validate_binding_shape(
         || typed.primitive_type_reference(number.type_reference) != Some(PrimitiveType::U64)
     {
         return Err(vec![Diagnostic::error(
-            "compiler-owned Binding::Syscall must retain one u64 `number` field",
+            "compiler-owned ForeignBinding::Syscall must retain one u64 `number` field",
         )]);
     }
     Ok(())
@@ -477,7 +477,7 @@ fn binding_widths(
         .type_reference_table
         .type_reference_handles(*arguments);
     if *base_symbol != binding_symbol || arguments.len() != 3 {
-        return Err("ordinary external `via` producer must return the exact compiler-owned Binding<ObjectLength, SymbolLength, VersionLength>".to_owned());
+        return Err("ordinary external `via` producer must return the exact compiler-owned ForeignBinding<ObjectLength, SymbolLength, VersionLength>".to_owned());
     }
     let mut widths = [0u64; 3];
     for (index, argument) in arguments.iter().enumerate() {

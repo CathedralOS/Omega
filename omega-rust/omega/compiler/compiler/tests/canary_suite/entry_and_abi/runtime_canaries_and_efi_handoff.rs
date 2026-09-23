@@ -324,7 +324,7 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
 fn acquires_through_helper_return_original_main_entry_runs() {
     // ENTRY-CONTENT-ROOTS: the entry receiver's routed-Service custody sits
     // three records deep -- `Main{ backup: Backup{ vault: Vault{ desktop:
-    // Service<Desktop> }}}` erases to a zero-extent receiver whose only
+    // Binding<Desktop> }}}` erases to a zero-extent receiver whose only
     // remaining obligation is the transitive Fused field's provisioned
     // occurrence. Binding `Main::main` (not the probe shim the fixture's
     // authored build selects) must replay that erased field against its

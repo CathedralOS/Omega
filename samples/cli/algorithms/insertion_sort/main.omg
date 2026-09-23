@@ -53,7 +53,7 @@ data Sorter [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     s: Sorter;
     pause: [u8; 256];
 }

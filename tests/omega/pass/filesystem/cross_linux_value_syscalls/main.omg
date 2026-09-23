@@ -9,9 +9,9 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     semantic_fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;

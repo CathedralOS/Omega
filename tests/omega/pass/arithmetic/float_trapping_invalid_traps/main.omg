@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 // exits: 7 = SAILED PAST the trap.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; z: f32 in Trapping; r: f32 in Trapping; }
+data Main { console: Binding<Console>; z: f32 in Trapping; r: f32 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     self.r = self.z / self.z;
     self.console.exit_process(7);

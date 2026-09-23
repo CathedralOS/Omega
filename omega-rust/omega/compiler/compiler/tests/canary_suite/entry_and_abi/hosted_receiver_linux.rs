@@ -26,7 +26,7 @@ impl Drop for HostedProject {
 }
 
 /// Compile one authored Linux x86-64 receiver application. `bound_service`
-/// selects between `Service<Console>` and a bare interface field that must
+/// selects between `Binding<Console>` and a bare interface field that must
 /// fail closed; `explicit_exit` routes normal completion through
 /// `exit_process(37)` so the provider's own status survives the bridge.
 fn compile_and_run_linux_hosted_receiver(explicit_exit: bool, bound_service: bool) {
@@ -56,7 +56,7 @@ fn compile_and_run_linux_hosted_receiver(explicit_exit: bool, bound_service: boo
         ""
     };
     let console_type = if bound_service {
-        "Service<Console>"
+        "Binding<Console>"
     } else {
         "Console"
     };
@@ -108,7 +108,7 @@ machine Main::main(&mut self) reaches Console {{
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
-                .contains("the intrinsic `Service<R>` carrier is the only service value spelling")),
+                .contains("the intrinsic `Binding<R>` carrier is the only service value spelling")),
             "unexpected bare-carrier rejection: {diagnostics:#?}"
         );
         return;
@@ -270,7 +270,7 @@ data Main {
     tags: [Event; 2];
     event: Event;
     mixed: Mixed;
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -456,7 +456,7 @@ fn linux_hosted_receiver_rejects_bare_interface_field() {
 }
 
 /// The committed `samples/cli/basics/number_guess` application — a published
-/// `Service<Console>` receiver process carrying a `[copy]` search record and a
+/// `Binding<Console>` receiver process carrying a `[copy]` search record and a
 /// 256-byte pause buffer — compiles to a Linux x86-64 native artifact and runs
 /// to its documented exit 70 through the same kernel entry bridge. The pause
 /// read completes on EOF, so stdin is closed rather than scripted.

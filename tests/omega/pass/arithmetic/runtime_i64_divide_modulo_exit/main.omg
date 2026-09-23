@@ -13,7 +13,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: i64 in Trapping;
     b: i64 in Trapping;
     r: i64 in Trapping;

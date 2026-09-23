@@ -54,7 +54,7 @@ data Catalog {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     catalog: Catalog;
     pause: [u8; 256];
 }

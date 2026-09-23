@@ -29,8 +29,8 @@ pub boundary trait Clock { machine sleep(milliseconds: u32); }
 // (vj/vk/val) are plain i32: they are only copied and compared, never used in
 // arithmetic, so they carry no obligation.
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     arr: [i32; 8];
     home: [u8; 3] in Utf8;
     line: [u8; 8] in Utf8;

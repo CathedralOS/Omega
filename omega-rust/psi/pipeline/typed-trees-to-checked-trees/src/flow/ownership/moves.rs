@@ -89,7 +89,7 @@ pub(super) fn append_move_events_for_expression(
         ) {
             // A value read through borrowed storage can be a detached copy
             // rather than a custody transfer: an indexed element read across a
-            // purely shared chain observes its element, and a `Service<R>`/
+            // purely shared chain observes its element, and a `Binding<R>`/
             // boundary-trait receiver call marshals a caller-owned ABI copy of
             // the argument's runtime contents. Every other reach keeps the
             // real move so the borrowed-window and shared-loan rejections

@@ -15,7 +15,7 @@ data Exit {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     total: u32 in Wrapping;
 }
 

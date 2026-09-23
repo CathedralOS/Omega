@@ -19,7 +19,7 @@ machine SignedValue::value<const N: i8>(&self) -> i8 in Wrapping {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     signed: SignedValue<-2 ^ 7>;
     shifted_left: SignedValue<-2 << 2>;
     shifted_right: SignedValue<-2 >> 1>;

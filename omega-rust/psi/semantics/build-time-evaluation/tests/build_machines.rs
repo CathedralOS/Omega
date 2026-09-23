@@ -1162,7 +1162,7 @@ fn builtin_evaluation_does_not_inherit_a_bound_proof_depth_limit() {
 }
 
 /// EVALUATED-FOREIGN-BINDINGS: a `via` producer evaluates to an ordinary
-/// closed `Binding<ObjectLength, SymbolLength, VersionLength>` value. The
+/// closed `ForeignBinding<ObjectLength, SymbolLength, VersionLength>` value. The
 /// result is a synthesized const-generic instance — a closed nominal
 /// aggregate whose fixed byte-array widths are literal — and it crosses the
 /// semantic const boundary through the exact-symbol invocation entry with
@@ -1177,20 +1177,20 @@ fn closed_generic_binding_result_is_const_evaluable_for_invocation() {
             case ElfVersioned(object: [u8; ObjectLength], symbol: [u8; SymbolLength], version: [u8; VersionLength]);
             case MachODylibSymbol(install_name: [u8; ObjectLength], symbol: [u8; SymbolLength]);
         }
-        data Binding<const ObjectLength: u64, const SymbolLength: u64, const VersionLength: u64> {
+        data ForeignBinding<const ObjectLength: u64, const SymbolLength: u64, const VersionLength: u64> {
             case DllImport(import: DllImport<ObjectLength, SymbolLength, VersionLength>);
             case Syscall(number: u64);
         }
-        machine write_binding() -> Binding<12, 11, 0> {
-            Binding::DllImport {
+        machine write_binding() -> ForeignBinding<12, 11, 0> {
+            ForeignBinding::DllImport {
                 import: DllImport::PeByName {
                     library: "kernel32.dll",
                     export: "ExitProcess",
                 },
             }
         }
-        machine write_syscall() -> Binding<0, 0, 0> {
-            (Binding::Syscall { number: 60 })
+        machine write_syscall() -> ForeignBinding<0, 0, 0> {
+            (ForeignBinding::Syscall { number: 60 })
         }
         "#,
     );
@@ -1246,7 +1246,7 @@ fn closed_generic_binding_result_is_const_evaluable_for_invocation() {
             Vec::new(),
             build_time_evaluation::BuildTimeInvocationCustody::Source(Default::default()),
         )
-        .expect("the zero-width `Binding::Syscall` result is also ConstEvaluable");
+        .expect("the zero-width `ForeignBinding::Syscall` result is also ConstEvaluable");
     assert_eq!(
         value,
         BuildTimeValue::Case {

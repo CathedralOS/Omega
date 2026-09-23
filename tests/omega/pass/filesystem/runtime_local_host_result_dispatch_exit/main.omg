@@ -13,7 +13,7 @@
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; host: Service<FilesystemHost>; }
+data Main { console: Binding<Console>; host: Binding<FilesystemHost>; }
 machine Main::main(&mut self) reaches Console + FilesystemHost {
     let fd: i32 = self.host.open("omega_definitely_absent_9x7.dat", 0);
     transition fd < 0 { true -> good() _ -> bad(71) }

@@ -1,1 +1,1 @@
-unknown Binding case `Frobnicate`
+unknown ForeignBinding case `Frobnicate`

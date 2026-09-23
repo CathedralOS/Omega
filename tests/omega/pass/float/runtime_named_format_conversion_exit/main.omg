@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::service;
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let halfway: f64 = 1.000000059604644775390625;

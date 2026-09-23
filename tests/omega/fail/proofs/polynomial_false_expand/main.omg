@@ -5,7 +5,7 @@
 use omega::language::core::nat;
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 
 machine binomial_wrong(a: Nat, b: Nat, c: Nat, d: Nat) -> Nat

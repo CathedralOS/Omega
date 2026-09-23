@@ -4,5 +4,5 @@
 // own semantics and do not justify array arithmetic.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; xs: [i32; 3]; ys: [i32; 3]; }
+data Main { console: Binding<Console>; xs: [i32; 3]; ys: [i32; 3]; }
 machine Main::main(&mut self) { let r: bool = self.xs < self.ys; self.console.exit_process(0); }

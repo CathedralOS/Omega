@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // below advances only on the IEEE-correct outcome; any wrong arm falls to `bad` (71).
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; z: f64; nan: f64; g: f64; }
+data Main { console: Binding<Console>; z: f64; nan: f64; g: f64; }
 machine Main::main(&mut self) reaches Console {
     self.z = 0.0;
     self.nan = self.z / self.z;

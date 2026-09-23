@@ -23,7 +23,7 @@ data Change {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     sales_count: i32 in Wrapping;
     a: i32 in Wrapping;
     b: i32 in Wrapping;

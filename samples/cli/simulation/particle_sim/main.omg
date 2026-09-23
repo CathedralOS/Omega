@@ -31,7 +31,7 @@ data Particle [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     p: Particle;
     pause: [u8; 256];
 }

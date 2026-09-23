@@ -35,8 +35,8 @@ pub boundary trait Console {
     machine write(value: u8);
 }
 
-windows_x86_64 machine write_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+windows_x86_64 machine write_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "ExitProcess",
@@ -295,7 +295,7 @@ pub boundary trait Leaf {{
 
 {leaf_declaration}
 
-data Main {{ p: Service<Leaf>; }}
+data Main {{ p: Binding<Leaf>; }}
 machine Main::main(&mut self) reaches Leaf {{
     let rc: i32 = self.p.exit(70);
     let keep: i32 = rc;
@@ -323,8 +323,8 @@ impl Drop for CalledLeafFixture {
     }
 }
 
-const CALLED_LEAF_DECLARATION: &str = r#"windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+const CALLED_LEAF_DECLARATION: &str = r#"windows_x86_64 machine exit_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "ExitProcess",
@@ -542,18 +542,18 @@ fn uncalled_evaluated_import_compiles_with_or_without_policy_row() {
     }
 }
 
-/// A called legacy `via Binding::DllImport("module", "symbol")` leaf is
+/// A called legacy `via ForeignBinding::DllImport("module", "symbol")` leaf is
 /// refused at source admission: raw foreign strings are data, never binding
 /// authority, so the retired magic spelling never enters the pipeline.
 #[test]
 fn called_legacy_string_backed_leaf_is_refused_at_source_admission() {
     let diagnostics = compile_called_leaf(
-        r#"machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via Binding::DllImport("kernel32.dll", "ExitProcess");"#,
+        r#"machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via ForeignBinding::DllImport("kernel32.dll", "ExitProcess");"#,
     )
     .expect_err("a called legacy leaf must not reach native emission");
     assert!(
         diagnostics.iter().any(|message| {
-            message.contains("`Binding::DllImport(\"module\", \"symbol\")` is retired")
+            message.contains("`ForeignBinding::DllImport(\"module\", \"symbol\")` is retired")
         }),
         "the called legacy leaf must be refused at source admission: \
          {diagnostics:?}"

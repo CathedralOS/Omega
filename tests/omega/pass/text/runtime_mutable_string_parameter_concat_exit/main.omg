@@ -10,7 +10,7 @@ requires
     valid_utf8(self);
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     line: [u8; 16] in Utf8;
     suffix: [u8; 8] in Utf8;
 }

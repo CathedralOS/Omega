@@ -3,7 +3,7 @@
 // discharged" refusal class.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 domain i64::Km
 requires
     self >= 10;

@@ -20,7 +20,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     text: [u8; 5] in Utf8;
     i: u64 in Wrapping;
     j: u64 in Wrapping;

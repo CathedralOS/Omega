@@ -41,7 +41,7 @@ satisfies PreservingDecode<PreservePolicy, LocalMessage>::decode_preserving
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buffer: [u8; 3];
 }
 

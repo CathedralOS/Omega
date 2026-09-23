@@ -40,7 +40,7 @@ satisfies WindowProcedure::call
 }
 
 data RegistrarUser {
-    registrar: Service<WindowRegistrar>;
+    registrar: Binding<WindowRegistrar>;
     specification: Spread<ForeignRecord>;
 }
 
@@ -186,8 +186,8 @@ machine Main::main(&mut self) reaches WindowRegistrar {
             )
             .replacen(
                 "data Main { }",
-                r#"windows_x86_64 machine install_binding() -> Binding<12, 24, 0> {
-    Binding::DllImport {
+                r#"windows_x86_64 machine install_binding() -> ForeignBinding<12, 24, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "FlushProcessWriteBuffers",

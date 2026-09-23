@@ -19,7 +19,7 @@ pub boundary trait Console {
 pub data ConsoleNativeProvider {}
 windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
     );
     project.write(
@@ -42,7 +42,7 @@ machine build(builder: &mut Build) {
         r#"
 use ordinary_console::main;
 use omega::language::core::service;
-data Main { console: Service<Console> in Bound; }
+data Main { console: Binding<Console> in Bound; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 "#,
     );

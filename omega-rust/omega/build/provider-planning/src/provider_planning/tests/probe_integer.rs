@@ -1,5 +1,5 @@
 //! Coverage for the primitive integer comparison execution identity: what
-//! `boundary machine ==` plus a `satisfies ... via Binding::CompilerIntrinsic`
+//! `boundary machine ==` plus a `satisfies ... via ForeignBinding::CompilerIntrinsic`
 //! provider derives, and that the closed identity commits to the authored
 //! spelling and exact operand type.
 use super::{derive_satisfies_plans, typed_fixture};
@@ -18,7 +18,7 @@ fn integer_comparison_satisfies_provider_binds_the_exact_requirement() {
 
         machine IntProvider::equal_impl(left: i32, right: i32) -> bool
         satisfies Comparison::equal
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
 
         machine use_it(left: i32, right: i32) -> bool {
             left == right

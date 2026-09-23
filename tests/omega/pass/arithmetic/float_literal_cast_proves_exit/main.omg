@@ -6,7 +6,7 @@
 // exits: 71 = positive truncation wrong; 72 = negative truncation wrong.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: i32; b: i32; }
+data Main { console: Binding<Console>; a: i32; b: i32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 10.5 as i32;
     self.b = ((0.0 - 3.7) as i32 in Saturating) as i32; // expression source needs policy, then explicit erasure

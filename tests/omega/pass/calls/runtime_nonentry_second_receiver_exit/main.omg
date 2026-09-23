@@ -25,7 +25,7 @@ machine Holder::run(&mut self) -> i32 in Wrapping {
     transition true { true -> done(total) }
     state done(&mut self, total: i32 in Wrapping) -> i32 in Wrapping { total }
 }
-data Main { console: Service<Console>; holder: Holder; }
+data Main { console: Binding<Console>; holder: Holder; }
 machine Main::main(&mut self) reaches Console {
     let total: i32 in Wrapping = self.holder.run();
     transition total == 21 { true -> good() _ -> bad(total) }

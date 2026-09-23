@@ -19,7 +19,7 @@ requires
     self.health <= 5;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     player: Player;
 }
 

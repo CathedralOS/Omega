@@ -21,7 +21,7 @@ data Entry {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     entries: [Entry; 4];
     total: u32 in Wrapping;
 }

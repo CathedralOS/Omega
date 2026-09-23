@@ -18,7 +18,7 @@ data Cell {
     y: i32;
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     rows: [Row; 3];
     boards: [[Cell; 2]; 2];
     i: u64 [0..=2];

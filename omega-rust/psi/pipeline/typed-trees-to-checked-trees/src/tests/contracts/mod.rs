@@ -55,10 +55,10 @@ fn parse_typed_trees(source: &str) -> typed_trees::TypedTrees {
 }
 
 /// Same prelude as `parse_typed_trees`, with the toolchain `core/service.omg`
-/// resident so fixtures can spell the intrinsic `Service<R>` carrier, plus the
+/// resident so fixtures can spell the intrinsic `Binding<R>` carrier, plus the
 /// settled fused-service erasure authorizations
 /// `bind_fixture_fused_service_erasures` supplies — without one an authored
-/// `Service<R>` field stays unshaped and the machine's unit plan fails closed.
+/// `Binding<R>` field stays unshaped and the machine's unit plan fails closed.
 fn parse_typed_trees_with_service(source: &str) -> typed_trees::TypedTrees {
     let mut typed = crate::tests::front_end::typed_program_with_core_service(&format!(
         "boundary trait MachineControl {{}}\nboundary trait PortIo {{}}\n{source}"

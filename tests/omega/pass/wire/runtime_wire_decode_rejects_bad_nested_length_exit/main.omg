@@ -50,7 +50,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     read: u64;
     verdict: WireVerdict;
 }

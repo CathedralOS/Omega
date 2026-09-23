@@ -20,8 +20,8 @@ machine ConvertProvider::saturating(value: i32) -> i32 in Saturating satisfies C
 }
 
 data Main {
-    console: Service<Console>;
-    converter: Service<Convert>;
+    console: Binding<Console>;
+    converter: Binding<Convert>;
 }
 
 machine Main::main(&mut self)

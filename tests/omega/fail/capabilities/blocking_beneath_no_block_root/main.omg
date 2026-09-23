@@ -8,7 +8,7 @@ pub boundary trait WaitService {
 }
 
 pub data Main {
-    service: Service<WaitService>;
+    service: Binding<WaitService>;
 }
 
 boundary machine Main::main(&mut self)

@@ -8,7 +8,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a8h: i8 in Wrapping;   // i8 high boundary
     a8l: i8 in Wrapping;   // i8 low boundary
     a16h: i16 in Wrapping; // i16 high boundary

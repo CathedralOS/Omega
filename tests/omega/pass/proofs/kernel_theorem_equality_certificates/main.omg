@@ -14,7 +14,7 @@
 // False twin: fail/proofs/kernel_theorem_equality_false_twin.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine equal_symmetric(a: u64, b: u64)
 requires

@@ -23,7 +23,7 @@ const FAMILY_SOURCE: &str = r#"
     machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
         transition { _ -> (value) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u32 reaches Scanner {
         _ = self.service.ping(1);
         transition { _ -> (self.service.ping(2)) }
@@ -38,7 +38,7 @@ const GENERIC_VALUE_CALL: &str = r#"
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
     }
@@ -54,7 +54,7 @@ const GENERIC_STATEMENT_CALL: &str = r#"
     machine ScanProvider::ping(value: u32) -> u32 satisfies Scanner::ping {
         transition { _ -> (value) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u32 reaches Scanner {
         self.service.watch<8>(1);
         transition { _ -> (self.service.ping(2)) }
@@ -172,7 +172,7 @@ fn ineligible_rows_skip_adapter_resolution() {
     // The mutated binding is part of the selected plan's identity, so the
     // fused-service authorization must be bound from this drifted selection —
     // checking first would authorize the unmutated digest and the routed
-    // `Service<Scanner>` field would fail its plan join before the row's own
+    // `Binding<Scanner>` field would fail its plan join before the row's own
     // diagnostic can be observed.
     let selected = effects::SelectedProviderPlanFacts::from_selected_plans(vec![selected])
         .expect("select mutated generic plan");

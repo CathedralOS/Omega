@@ -41,7 +41,7 @@ data Canvas [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     canvas: Canvas;
     pause: [u8; 256];
 }

@@ -6,7 +6,7 @@ boundary trait NativeText {
     machine send(value: [u8; 16] in Utf8);
 }
 
-machine send(value: [u8; 16] in Utf8) satisfies NativeText::send via Binding::Syscall(60);
+machine send(value: [u8; 16] in Utf8) satisfies NativeText::send via ForeignBinding::Syscall(60);
 
 data Main { }
 machine Main::main(&mut self) { }

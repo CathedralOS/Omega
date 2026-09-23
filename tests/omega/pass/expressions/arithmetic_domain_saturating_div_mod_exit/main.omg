@@ -21,7 +21,7 @@ data State {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     state: State;
 }
 

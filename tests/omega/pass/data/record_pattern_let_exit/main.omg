@@ -11,7 +11,7 @@ data Point {
     y: i32 [0..=100];
     z: i32 [0..=100];
 }
-data Main { console: Service<Console>; point: Point; }
+data Main { console: Binding<Console>; point: Point; }
 machine Main::main(&mut self) reaches Console {
     self.point = Point { x: 30, y: 40, z: 5 };
     let { x, y as vertical, z as _ } = self.point;

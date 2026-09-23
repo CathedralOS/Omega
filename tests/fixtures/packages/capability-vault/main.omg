@@ -14,7 +14,7 @@ pub boundary trait SecretHost {
 }
 
 pub data Vault {
-    host: Service<SecretHost>;
+    host: Binding<SecretHost>;
 }
 
 pub machine Vault::open_secret(&mut self, name: &[u8]) -> SecretLease

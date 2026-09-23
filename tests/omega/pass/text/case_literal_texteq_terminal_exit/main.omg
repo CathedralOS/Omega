@@ -20,7 +20,7 @@ requires
 use omega_language_std::console;
 use omega::language::core::service;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
-data Main { console: Service<Console>; name: [u8; 8] in Utf8; }
+data Main { console: Binding<Console>; name: [u8; 8] in Utf8; }
 machine Main::mk(&mut self) -> Msg {
     transition true { true -> Msg::Pong { y: 5, z: self.name == "omega" } }
 }

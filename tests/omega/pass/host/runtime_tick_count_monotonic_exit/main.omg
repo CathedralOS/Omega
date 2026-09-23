@@ -7,7 +7,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 pub boundary trait Clock { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
-data Main { console: Service<Console>; clock: Service<Clock>; t1: u64; t2: u64; }
+data Main { console: Binding<Console>; clock: Binding<Clock>; t1: u64; t2: u64; }
 machine Main::main(&mut self)
 reaches Clock, Console
 {

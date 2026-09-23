@@ -8,7 +8,7 @@
 // Data layout:
 //   Inner [copy] { value: i32; bonus: i32; }
 //   Outer [copy] { inner: Inner; count: i32; multiplier: i32; }
-//   Main  { console: Service<Console>; state: Outer; }
+//   Main  { console: Binding<Console>; state: Outer; }
 //
 // Scripted operations (via sub-machines):
 //   1. set_value(10)    -> state.inner.value = 10
@@ -76,7 +76,7 @@ data Outer [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     state: Outer;
     pause: [u8; 256];
 }

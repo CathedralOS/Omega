@@ -22,7 +22,7 @@ requires
     valid_utf8(self);
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     name: [u8; 8] in Utf8;
     greeting: [u8; 32] in Utf8;
     pause: [u8; 256];

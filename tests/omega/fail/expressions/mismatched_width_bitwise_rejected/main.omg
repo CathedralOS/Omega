@@ -5,7 +5,7 @@
 // is unaffected -- its right operand is a bit count). Rejected at check now.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; small: u8; big: u32; result: u32; }
+data Main { console: Binding<Console>; small: u8; big: u32; result: u32; }
 machine Main::main(&mut self) {
     self.small = 1;
     self.big = 256;

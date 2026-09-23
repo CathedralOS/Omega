@@ -8,7 +8,7 @@ data Maybe<T> {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     integer: Maybe<i32>;
     boolean: Maybe<bool>;
 }

@@ -5,7 +5,7 @@
 // bounds the substitution cannot.)
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; items: [u8; 12]; count: u32; out: i32; }
+data Main { console: Binding<Console>; items: [u8; 12]; count: u32; out: i32; }
 machine Main::main(&mut self) {
     self.count = 8;
     transition self.count == 8 { true -> read(0) _ -> read(0) }

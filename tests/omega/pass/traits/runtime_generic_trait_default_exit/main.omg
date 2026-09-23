@@ -56,7 +56,7 @@ machine ForwardedCounter::store(&mut self, value: i32) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     direct: DirectCounter;
     parent: ParentCounter;
     forwarded: ForwardedCounter;

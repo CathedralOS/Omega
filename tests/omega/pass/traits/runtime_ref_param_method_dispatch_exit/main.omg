@@ -15,7 +15,7 @@ machine Circle::code(&mut self) -> i32 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     c: Circle;
 }
 

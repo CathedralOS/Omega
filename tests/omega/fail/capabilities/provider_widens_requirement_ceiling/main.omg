@@ -3,7 +3,7 @@
 // sneaky declares Filesystem beyond Meter::read_value's Clock service.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 boundary trait Clock {
 }

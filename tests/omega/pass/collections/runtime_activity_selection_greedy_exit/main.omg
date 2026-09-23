@@ -9,7 +9,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     starts: [i32; 6] in Wrapping;
     ends: [i32; 6] in Wrapping; // sorted ascending
     i: i32 in Wrapping;

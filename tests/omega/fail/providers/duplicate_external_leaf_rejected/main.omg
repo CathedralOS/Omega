@@ -29,7 +29,7 @@ cross_platform_cli machine EfiBootServicesTable::get_memory_map_leaf(
     key: &mut u64,
     desc_size: &mut u64,
     desc_version: &mut u32
-) -> i32 satisfies BootServices::get_memory_map via Binding::VtableField(get_memory_map);
+) -> i32 satisfies BootServices::get_memory_map via ForeignBinding::VtableField(get_memory_map);
 cross_platform_cli machine EfiBootServicesTable::duplicate_get_memory_map_leaf(
     this: addr,
     map_size: &mut u64,
@@ -37,7 +37,7 @@ cross_platform_cli machine EfiBootServicesTable::duplicate_get_memory_map_leaf(
     key: &mut u64,
     desc_size: &mut u64,
     desc_version: &mut u32
-) -> i32 satisfies BootServices::get_memory_map via Binding::VtableField(exit_boot_services);
+) -> i32 satisfies BootServices::get_memory_map via ForeignBinding::VtableField(exit_boot_services);
 
 data Main { }
 machine Main::main(&mut self) { }

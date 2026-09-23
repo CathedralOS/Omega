@@ -9,7 +9,7 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 
 data Main {
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     mode: i32;
     fd: i32;
     rc: i32;

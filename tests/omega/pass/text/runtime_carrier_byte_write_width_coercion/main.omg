@@ -9,7 +9,7 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; buffer: [u8; 8] in Utf8; a: u8 in Wrapping; b: u8 in Wrapping; }
+data Main { console: Binding<Console>; buffer: [u8; 8] in Utf8; a: u8 in Wrapping; b: u8 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.buffer = "AAAAAAAA";
     self.a = 200;

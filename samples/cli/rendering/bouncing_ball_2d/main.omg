@@ -25,8 +25,8 @@ requires
 pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     line: [u8; 24] in Utf8;
     home: [u8; 3] in Utf8;
     bx: f64;

@@ -5,7 +5,7 @@ use crate::tests::front_end::typed_program_with_core_service;
 
 #[test]
 fn output_predicates_survive_read_only_boundary_arguments() {
-    for receiver in ["console: Service<Console>", "console: &mut Console"] {
+    for receiver in ["console: Binding<Console>", "console: &mut Console"] {
         let source = format!(
             r#"
             domain [u8; 4]::Utf8 requires valid_utf8(self);
@@ -17,7 +17,7 @@ fn output_predicates_survive_read_only_boundary_arguments() {
             }}
         "#
         );
-        // The `Service<Console>` receiver needs the same fused-service
+        // The `Binding<Console>` receiver needs the same fused-service
         // erasure authorizations `settle_checked_providers` binds in real
         // builds; without them the carrier parameter stays unshaped.
         let mut typed = typed_program_with_core_service(&source);

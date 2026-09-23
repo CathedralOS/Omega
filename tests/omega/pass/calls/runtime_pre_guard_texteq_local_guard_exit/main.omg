@@ -25,7 +25,7 @@ machine Store::check(&mut self, idx: i32) -> bool {
     }
     state arm_b(&mut self) -> bool { transition { _ -> (false) } }
 }
-data Main { console: Service<Console>; s: Store; }
+data Main { console: Binding<Console>; s: Store; }
 machine Main::main(&mut self) reaches Console {
     self.s.name = "omega";
     let r: bool = self.s.check(0);

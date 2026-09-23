@@ -38,8 +38,8 @@ pub boundary trait Aggregate {
     machine check(answer: u64);
 }
 
-linux_x86_64 machine combine_binding() -> Binding<15, 11, 7> {
-    Binding::DllImport {
+linux_x86_64 machine combine_binding() -> ForeignBinding<15, 11, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libagg-probe.so",
             symbol: "agg_combine",
@@ -48,8 +48,8 @@ linux_x86_64 machine combine_binding() -> Binding<15, 11, 7> {
     }
 }
 
-linux_x86_64 machine check_binding() -> Binding<15, 9, 7> {
-    Binding::DllImport {
+linux_x86_64 machine check_binding() -> ForeignBinding<15, 9, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libagg-probe.so",
             symbol: "agg_check",
@@ -66,7 +66,7 @@ machine combine_leaf(tag: u64, pair: Pair) -> u64
     satisfies Aggregate::combine via combine_binding();
 machine check_leaf(answer: u64) satisfies Aggregate::check via check_binding();
 
-data Main { boundary: Service<Aggregate>; }
+data Main { boundary: Binding<Aggregate>; }
 machine Main::main(&mut self) reaches Aggregate {
     let pair: Pair = make_pair();
     let answer: u64 = self.boundary.combine(20u64, pair);

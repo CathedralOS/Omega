@@ -18,7 +18,7 @@ data AlarmEvent {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     fire_count: i32 in Saturating;
     pause: [u8; 256];
 }

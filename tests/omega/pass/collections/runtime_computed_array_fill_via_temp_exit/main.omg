@@ -6,7 +6,7 @@
 // self-checks. Differential: native == interp.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; arr: [i32 in Wrapping; 5]; j: i32 in Wrapping; tmp: i32 in Wrapping; sum: i32 in Wrapping; }
+data Main { console: Binding<Console>; arr: [i32 in Wrapping; 5]; j: i32 in Wrapping; tmp: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.j = 0;
     transition { _ -> fill() }

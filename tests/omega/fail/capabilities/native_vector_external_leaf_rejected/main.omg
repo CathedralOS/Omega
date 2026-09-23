@@ -4,7 +4,7 @@ boundary trait NativeVector {
     machine send(value: &Vec<u8>);
 }
 
-machine send(value: &Vec<u8>) satisfies NativeVector::send via Binding::Syscall(60);
+machine send(value: &Vec<u8>) satisfies NativeVector::send via ForeignBinding::Syscall(60);
 
 data Main { }
 machine Main::main(&mut self) { }

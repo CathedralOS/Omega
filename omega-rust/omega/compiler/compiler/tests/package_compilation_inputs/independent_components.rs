@@ -39,12 +39,12 @@ pub boundary trait Pick {
 pub data VtablePick { mark: addr; }
 pub machine VtablePick::mark(value: i32)
 satisfies Pick::mark
-via Binding::VtableField(mark);
+via ForeignBinding::VtableField(mark);
 
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
 
-pub data ComponentEntry { pick: Service<Pick>; }
+pub data ComponentEntry { pick: Binding<Pick>; }
 pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
     self.pick.mark(7);
 }
@@ -63,12 +63,12 @@ pub boundary trait Pick {
 pub data VtablePick { mark: addr; }
 pub machine VtablePick::mark(value: i32)
 satisfies Pick::mark
-via Binding::VtableField(mark);
+via ForeignBinding::VtableField(mark);
 
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter_v2(value: i32) satisfies Pick::mark { }
 
-pub data ComponentEntry { pick: Service<Pick>; }
+pub data ComponentEntry { pick: Binding<Pick>; }
 pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
     self.pick.mark(7);
 }
@@ -95,7 +95,7 @@ pub boundary trait Installer { machine install() reaches <= Console; }
 pub data VtablePick { mark: addr; }
 pub machine VtablePick::mark(value: i32)
 satisfies Pick::mark
-via Binding::VtableField(mark);
+via ForeignBinding::VtableField(mark);
 
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
@@ -108,7 +108,7 @@ invokes Installer;
     Installer::install();
 }
 
-pub data ComponentEntry { pick: Service<Pick>; }
+pub data ComponentEntry { pick: Binding<Pick>; }
 pub machine ComponentEntry::main(&mut self)
 reaches Pick + Installer + Console
 invokes Pick;
@@ -130,12 +130,12 @@ pub boundary trait Other {
 pub data VtableOther { mark: addr; }
 pub machine VtableOther::mark(value: i32)
 satisfies Other::mark
-via Binding::VtableField(mark);
+via ForeignBinding::VtableField(mark);
 
 pub data OtherProvider { }
 pub machine OtherProvider::mark_adapter(value: i32) satisfies Other::mark { }
 
-pub data ComponentEntry { other: Service<Other>; }
+pub data ComponentEntry { other: Binding<Other>; }
 pub machine ComponentEntry::main(&mut self) reaches Other invokes Other; {
     self.other.mark(7);
 }
@@ -151,12 +151,12 @@ pub boundary trait Other {
 pub data VtableOther { mark: addr; }
 pub machine VtableOther::mark(value: i32)
 satisfies Other::mark
-via Binding::VtableField(mark);
+via ForeignBinding::VtableField(mark);
 
 pub data OtherProvider { }
 pub machine OtherProvider::mark_adapter(value: i32) satisfies Other::mark { }
 
-pub data OtherEntry { other: Service<Other>; }
+pub data OtherEntry { other: Binding<Other>; }
 pub machine OtherEntry::main(&mut self) reaches Other invokes Other; {
     self.other.mark(7);
 }
@@ -447,7 +447,7 @@ pub boundary trait Pick {
 pub data VtablePick { mark: addr; }
 pub machine VtablePick::mark(value: i32)
 satisfies Pick::mark
-via Binding::VtableField(mark);
+via ForeignBinding::VtableField(mark);
 
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
@@ -460,7 +460,7 @@ reaches PortIo
     }
 }
 
-pub data ComponentEntry { pick: Service<Pick>; }
+pub data ComponentEntry { pick: Binding<Pick>; }
 pub machine ComponentEntry::main(&mut self)
 reaches Pick + PortIo
 invokes Pick;

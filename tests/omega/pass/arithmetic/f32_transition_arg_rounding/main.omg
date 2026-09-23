@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: f32; }
+data Main { console: Binding<Console>; a: f32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 16777216.0;
     transition { _ -> step(self.a + 1.0) }   // inline arg (f64) -> f32 param rounds

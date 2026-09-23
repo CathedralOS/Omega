@@ -16,7 +16,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     keys: [i32; 8] in Wrapping;
     vals: [i32; 8] in Wrapping;
     used: [i32; 8] in Wrapping; // 0 = empty, 1 = occupied

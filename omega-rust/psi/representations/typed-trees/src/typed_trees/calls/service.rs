@@ -3,7 +3,7 @@
 //! A same-named package declaration is ordinary opaque data. Compiler
 //! privilege requires the complete core source, declaration shape, and one
 //! closed boundary requirement. Service validity is intrinsic to the carrier:
-//! `Service<R>` is already the exact closed identity, so any authored
+//! `Binding<R>` is already the exact closed identity, so any authored
 //! qualification spelled on it is rejected. The retired `Bound` qualification
 //! era survives only in these entry-point names, which still have callers that
 //! have not migrated; the classifier itself consults no domain.
@@ -24,7 +24,7 @@ pub struct ExactServiceCarrier {
 /// Classify one type shell. `Ok(None)` means it is not the exact core
 /// `Service` carrier; `Err` means it does name that carrier but violates the
 /// deliberately narrow first-rung contract. The carrier is closed: an authored
-/// `Constrained` shell over `Service<R>` is itself a violation, whatever
+/// `Constrained` shell over `Binding<R>` is itself a violation, whatever
 /// domain or membership the constraint names.
 pub fn classify_exact_bound_service_carrier(
     program: &TypedTrees,
@@ -68,7 +68,7 @@ pub fn classify_exact_bound_service_carrier(
     }
     if qualified {
         return Err(
-            "the core `Service` carrier is closed; it admits no authored qualification".to_owned(),
+            "the core `Binding` carrier is closed; it admits no authored qualification".to_owned(),
         );
     }
     if !lifetime_arguments.is_empty() {
@@ -99,17 +99,17 @@ pub fn classify_exact_bound_service_carrier(
         .find(|definition| definition.symbol == *requirement)
     else {
         return Err(format!(
-            "`Service<{name}>` does not name an exact boundary-trait requirement"
+            "`Binding<{name}>` does not name an exact boundary-trait requirement"
         ));
     };
     if !requirement_definition.is_public {
         return Err(format!(
-            "`Service<{name}>` requires a public boundary trait as its stable slot contract"
+            "`Binding<{name}>` requires a public boundary trait as its stable slot contract"
         ));
     }
     if !requirement_definition.is_boundary {
         return Err(format!(
-            "`Service<{name}>` requires a boundary trait; ordinary traits are local interfaces"
+            "`Binding<{name}>` requires a boundary trait; ordinary traits are local interfaces"
         ));
     }
     if !requirement_definition.lifetime_parameters.is_empty()
@@ -146,12 +146,12 @@ pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) 
     else {
         return false;
     };
-    // `Binding<R>` in `core/binding.omg` is the same toolchain carrier under
+    // `ForeignBinding<R>` in `core/binding.omg` is the same toolchain carrier under
     // its ratified name; `service.omg` retains the `Service` spelling for
     // callers not yet migrated.
     let carrier_source = match definition.name.as_str() {
-        "Service" => SERVICE_CORE_SOURCE,
-        "Binding" => BINDING_CORE_SOURCE,
+        "Binding" => SERVICE_CORE_SOURCE,
+        "ForeignBinding" => BINDING_CORE_SOURCE,
         _ => return false,
     };
     if !exact_toolchain_source(program, symbol, carrier_source) {

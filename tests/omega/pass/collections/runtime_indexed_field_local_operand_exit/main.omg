@@ -12,7 +12,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 data Point { x: i32; y: i32; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     ps: [Point; 3];
     i: i32;
     r: i32 in Wrapping;

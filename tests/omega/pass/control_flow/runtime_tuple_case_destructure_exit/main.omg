@@ -16,7 +16,7 @@ data Cell {
 data Point [copy] { x: i32; y: i32; }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     left: Cell;
     right: Cell;
     calls: u32 in Wrapping;

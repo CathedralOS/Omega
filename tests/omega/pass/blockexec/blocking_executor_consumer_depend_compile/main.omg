@@ -25,7 +25,7 @@ machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(
 ) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
-via Binding::CompilerIntrinsic;
+via ForeignBinding::CompilerIntrinsic;
 
 data Main {
     executor: Executor<Token, Token, 4>;

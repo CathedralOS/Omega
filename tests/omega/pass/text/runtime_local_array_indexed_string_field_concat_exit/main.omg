@@ -9,7 +9,7 @@ data Room {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     suffix: &[u8] in Utf8;
 }
 

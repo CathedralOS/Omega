@@ -14,7 +14,7 @@ satisfies ClockHost::ticks
 }
 
 pub data Switchboard {
-    clock: Service<ClockHost>;
+    clock: Binding<ClockHost>;
 }
 
 pub machine Switchboard::read_ticks(&mut self) -> u64

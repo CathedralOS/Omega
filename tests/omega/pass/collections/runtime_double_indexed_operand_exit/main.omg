@@ -5,7 +5,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     grid: [[i32 in Wrapping; 4]; 3];
     i: u64 [0..=2];
     j: u64 [0..=3];

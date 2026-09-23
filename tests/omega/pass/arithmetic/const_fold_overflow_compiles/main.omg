@@ -6,7 +6,7 @@
 // wrapped values.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
+data Main { console: Binding<Console>; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     // Anonymous folds stay exact until an operand lands (decision 17), so each
     // operand lands in the field's declared Wrapping carrier before combining.

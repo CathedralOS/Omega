@@ -17,7 +17,7 @@ data Particle {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     ps: [Particle; 2] in Wrapping;
     step: i32 in Wrapping;
     i: i32 in Wrapping;

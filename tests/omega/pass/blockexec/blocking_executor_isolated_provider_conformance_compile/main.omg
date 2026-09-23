@@ -27,7 +27,7 @@ machine CanaryIsolatedWorkerProvider::execute<T, Arguments, machine Target>(
 ) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
-via Binding::CompilerIntrinsic;
+via ForeignBinding::CompilerIntrinsic;
 
 // Marker-trait conformance: `IsolatedWorkerProvider` declares no own
 // requirements, so its complete surface is the inherited

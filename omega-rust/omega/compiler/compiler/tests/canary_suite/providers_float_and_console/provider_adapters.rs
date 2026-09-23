@@ -654,7 +654,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         &baseline,
         TerminalMachineSelection::Name("Main::main"),
     )
-    .expect("authorized fused Service carrier should erase during Terminal lowering");
+    .expect("authorized fused Binding carrier should erase during Terminal lowering");
     let parameter_plan = baseline
         .facts
         .flow
@@ -943,7 +943,7 @@ fn fused_service_erasure_rejoins_typed_source_and_selected_plan() {
         &classifier_twins.typed,
         qualified_carrier,
     )
-    .expect_err("a Service carrier bearing authored qualification must reject");
+    .expect_err("a Binding carrier bearing authored qualification must reject");
     assert!(constraint_error.contains("admits no authored qualification"));
 
     let mut downgraded = baseline.clone().into_program();
@@ -1055,8 +1055,8 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
         establishment.target_slot(),
         target::TargetProfile::LinuxX64.program_entry_slot()
     );
-    assert!(establishment.carrier_type_identity().contains("Service"));
-    assert!(establishment.carrier_base_identity().contains("Service"));
+    assert!(establishment.carrier_type_identity().contains("Binding"));
+    assert!(establishment.carrier_base_identity().contains("Binding"));
 
     let provenance = baseline.selected_provider_provenance().to_vec();
     let derived = selected_dispatch::derive_fused_program_entry_establishments(
@@ -1068,7 +1068,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
     .expect("the selected root receipt should independently rederive");
     assert_eq!(derived, selected.fused_service_establishments());
 
-    // An unselected Service field prevents shape collection, so diagnosing
+    // An unselected Binding field prevents shape collection, so diagnosing
     // the missing attachment first hides the provider the project must supply.
     let mut unselected = baseline.clone().into_program();
     unselected.typed.fused_service_erasures.clear();
@@ -1089,7 +1089,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
     assert_eq!(missing_provider.len(), 1);
     assert_eq!(
         missing_provider[0].message,
-        "selected ProgramEntry Service field `Main::service` requires a selected Fused provider for boundary `Ping`",
+        "selected ProgramEntry Binding field `Main::service` requires a selected Fused provider for boundary `Ping`",
     );
 
     // The discovery pass leaves the same unselected field unestablished instead
@@ -1100,7 +1100,7 @@ fn selected_program_entry_retains_one_exact_fused_service_establishment() {
         &[],
         true,
     )
-    .expect("a discovery pass leaves unsettled Service fields unestablished");
+    .expect("a discovery pass leaves unsettled Binding fields unestablished");
     assert!(tolerated.is_empty());
 
     let mut substituted = baseline.clone().into_program();

@@ -11,7 +11,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
-data Main { console: Service<Console>; d: i32; v: i32; vec: Vec2; }
+data Main { console: Binding<Console>; d: i32; v: i32; vec: Vec2; }
 machine Main::delta(&self, d: i32) -> Vec2 {
     transition d == 1 { true -> pos() _ -> neg() }
     state pos(&self) -> Vec2 { Vec2 { x: 3, y: 4 } }

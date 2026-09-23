@@ -2,6 +2,6 @@
 // compile silently. The shape check now covers the return position.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; xs: [i32; 3]; }
+data Main { console: Binding<Console>; xs: [i32; 3]; }
 machine Main::get(&mut self) -> i32 { self.xs }
 machine Main::main(&mut self) { self.console.exit_process(0); }

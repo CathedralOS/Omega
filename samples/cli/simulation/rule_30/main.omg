@@ -12,7 +12,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cells: u64 in Wrapping;        // the 31-bit row (bit i = cell i), seed bit 15
     g: i32 [0..=16];             // guard-proven generation counter
     i: i32 [0..=31];             // render index (guard-proven)

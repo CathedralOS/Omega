@@ -1,4 +1,4 @@
-// Intrinsic `Service<R>` validity is closed: any authored domain
+// Intrinsic `Binding<R>` validity is closed: any authored domain
 // qualification on the carrier rejects at source checking rather than
 // degrading to a structural field.
 use omega::language::core::service;
@@ -12,7 +12,7 @@ machine PingProvider::ping() satisfies Ping::ping { }
 domain<T> T::Foreign;
 
 data Main {
-    service: Service<Ping> in Foreign;
+    service: Binding<Ping> in Foreign;
 }
 
 machine Main::main(&mut self) {

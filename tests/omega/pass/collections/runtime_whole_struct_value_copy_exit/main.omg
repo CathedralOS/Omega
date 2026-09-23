@@ -14,7 +14,7 @@ data Point {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     p1: Point;
     p2: Point;
 }

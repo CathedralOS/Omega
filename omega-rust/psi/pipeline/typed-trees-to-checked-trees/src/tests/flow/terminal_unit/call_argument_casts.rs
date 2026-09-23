@@ -22,7 +22,7 @@ pub machine Lexer::append_source_byte(&mut self, byte: u8) {{
     self.last = byte;
     self.retained = true;
 }}
-pub data Root {{ host: Service<Host>; lexer: Lexer; read: ByteRead; raw: i32; last: u8; }}
+pub data Root {{ host: Binding<Host>; lexer: Lexer; read: ByteRead; raw: i32; last: u8; }}
 pub machine Root::append_direct(&mut self, byte: u8) {{
     self.last = byte;
 }}
@@ -105,7 +105,7 @@ fn exact_cast_argument_without_positive_evidence_rejects_during_checking() {
         "self.lexer.append_source_byte(value as u8)",
     );
     let mut typed = crate::tests::front_end::typed_program_with_core_service(&source);
-    // The `Service<Host>` field needs the settled fused-service erasure
+    // The `Binding<Host>` field needs the settled fused-service erasure
     // authorizations `settle_checked_providers` binds in real builds; without
     // them the carrier stays unshaped and the machine's unit plan fails closed.
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);

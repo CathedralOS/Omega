@@ -9,7 +9,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=1000]); }
-data Main { console: Service<Console>; flag: bool; p: P; }
+data Main { console: Binding<Console>; flag: bool; p: P; }
 machine Main::main(&mut self) {
     self.p = P::Two { w: 900 };
     self.flag = true;

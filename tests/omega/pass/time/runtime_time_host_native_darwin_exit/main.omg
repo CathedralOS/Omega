@@ -21,8 +21,8 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
-    host: Service<TimeHost>;
+    console: Binding<Console>;
+    host: Binding<TimeHost>;
     first_ticks: u64;
     second_ticks: u64;
     frequency: u64;

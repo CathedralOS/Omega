@@ -4,7 +4,7 @@
 // proven-in-range source) is the escape.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; u: u8; s: i8; }
+data Main { console: Binding<Console>; u: u8; s: i8; }
 machine Main::main(&mut self) {
     self.u = 200;
     self.s = self.u;

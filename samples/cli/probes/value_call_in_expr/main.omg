@@ -37,7 +37,7 @@ use omega::language::core::service;
 data Calc {}
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     base: i32 in Saturating;
     calc: Calc;
     pause: [u8; 256];

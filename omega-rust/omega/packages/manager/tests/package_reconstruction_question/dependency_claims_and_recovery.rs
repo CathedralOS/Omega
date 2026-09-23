@@ -301,8 +301,8 @@ machine build(builder: &mut Build) {
 pub boundary trait ForeignSurface {
     machine invoke() reaches ForeignSurface;
 }
-pub windows_x86_64 machine invoke_binding() -> Binding<10, 9, 0> {
-    Binding::DllImport {
+pub windows_x86_64 machine invoke_binding() -> ForeignBinding<10, 9, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega-host",
             export: "invoke_v1",

@@ -105,7 +105,7 @@ data Gdtish [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     gdt: Spread16<Gdtish>;
     twin: Spread16<Gdtish>;
     v: i32;

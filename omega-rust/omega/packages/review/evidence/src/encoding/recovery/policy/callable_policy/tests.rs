@@ -222,11 +222,11 @@ fn named_callable_text_retains_progress_subjects_routes_and_authority_payloads()
         callable.parameters[0].is_self = matches!(subject, PackageReviewProgressSubject::Receiver);
         callable.unresolved_installation_reaches = vec![PackageReviewInstallationReach {
             requirement: nominal_fixture("Installation::run"),
-            upper_bound: vec![nominal_fixture("Service")],
+            upper_bound: vec![nominal_fixture("Binding")],
         }];
         let mut invocations = vec![
             PackageReviewSynchronousInvocation::Parameter(0),
-            PackageReviewSynchronousInvocation::Service(nominal_fixture("Service")),
+            PackageReviewSynchronousInvocation::Service(nominal_fixture("Binding")),
         ];
         invocations.sort();
         callable.declared_synchronous_invocations = Some(invocations.clone());

@@ -4,5 +4,5 @@
 // away. Now the check recurses to every nesting level.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; grid: [[i32; 2]; 2]; }
+data Main { console: Binding<Console>; grid: [[i32; 2]; 2]; }
 machine Main::main(&mut self) { self.grid = [[1, 2], [3, 4, 5]]; self.console.exit_process(0); }

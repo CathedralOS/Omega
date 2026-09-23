@@ -27,7 +27,7 @@ data Event {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     ev: Event;
     r: i32 in Trapping;
 }

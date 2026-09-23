@@ -33,7 +33,7 @@ machine Parser::resolve(&mut self, line: &[u8] in LineUtf8) -> Command {
 }
 
 data Game {
-    console: Service<Console>;
+    console: Binding<Console>;
     line: [u8; 16] in LineUtf8;
     parser: Parser;
     command: Command;

@@ -22,7 +22,7 @@ machine FixedBuffer::capacity<const N: u64>(&self, witness: &[u8; N]) -> u64 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     small: FixedBuffer<2>;
     large: FixedBuffer<4>;
 }

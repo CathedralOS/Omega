@@ -58,7 +58,7 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Service<Console>;
+        console: Binding<Console>;
         item: Item;
     }
 
@@ -93,7 +93,7 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Service<Console>;
+        console: Binding<Console>;
         decoy: Item;
         selected: Item;
     }
@@ -209,7 +209,7 @@ const NESTED_MUTATING_REALIZATION_SOURCE: &str = r#"
 
 fn check_dynamic_source(source: &str) -> checked_trees::CheckedTrees {
     let mut typed = typed_program_with_core_service(source);
-    // `Service<R>` carrier fields stay unshaped — and the machine fails
+    // `Binding<R>` carrier fields stay unshaped — and the machine fails
     // closed — until the settled fused-provider input supplies an erasure
     // authorization, exactly as `checked_with_service` fixtures arrange.
     crate::tests::bind_fixture_fused_service_erasures(&mut typed);

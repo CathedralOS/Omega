@@ -15,7 +15,7 @@ data Certified {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     record: Certified;
 }
 

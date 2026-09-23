@@ -21,8 +21,8 @@ pub boundary trait ObjectiveC {
 }
 
 data Main {
-    console: Service<Console>;
-    objc: Service<ObjectiveC>;
+    console: Binding<Console>;
+    objc: Binding<ObjectiveC>;
     ns_string: u64;
     ns_app: u64;
     ns_window: u64;

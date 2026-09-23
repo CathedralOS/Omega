@@ -6,7 +6,7 @@
 // 254) - 1 + 1 = 70.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; total: i32 in Wrapping; }
+data Main { console: Binding<Console>; total: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     let a: i8 = -128i8;
     let b: i8 = 127i8;

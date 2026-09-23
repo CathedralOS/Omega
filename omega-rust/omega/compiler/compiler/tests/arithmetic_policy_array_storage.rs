@@ -40,8 +40,8 @@ fn wrapping_array_receiver_storage_preserves_scalar_calls_at_every_fuel_pause() 
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-windows_x86_64 machine trace_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+windows_x86_64 machine trace_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" },
     }
 }

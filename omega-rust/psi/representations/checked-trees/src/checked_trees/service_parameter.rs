@@ -1,9 +1,9 @@
-//! Checked-source projection for the exact routed `Service<R>` parameter
+//! Checked-source projection for the exact routed `Binding<R>` parameter
 //! carrier.
 //!
 //! Later representations consume this checked-owned summary rather than
 //! reopening the typed-tree vocabulary that was retained as checking custody.
-//! The carrier is closed: `Service<R>` alone is the service identity and no
+//! The carrier is closed: `Binding<R>` alone is the service identity and no
 //! authored qualification is accepted on it. The `bound_` prefix on the entry
 //! point is a retired-era relic kept for callers that have not migrated.
 
@@ -41,7 +41,7 @@ impl std::error::Error for CheckedServiceParameterError {}
 
 impl CheckedTrees {
     /// Classify and project one already-checked type shell. `Ok(None)` means
-    /// that the source parameter is not the exact core routed Service carrier.
+    /// that the source parameter is not the exact core routed Binding carrier.
     pub fn bound_service_parameter_carrier(
         &self,
         type_reference: types::TypeReferenceHandle,

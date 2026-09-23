@@ -99,7 +99,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -146,7 +146,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -184,7 +184,7 @@ ensures
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -223,7 +223,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -265,7 +265,7 @@ machine drop(resource: &mut Resource) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     resource: Resource;
 }
 
@@ -651,7 +651,7 @@ requires
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -694,7 +694,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -743,7 +743,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -782,7 +782,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -854,7 +854,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -893,7 +893,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -926,7 +926,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -975,7 +975,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -1020,7 +1020,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -1072,7 +1072,7 @@ machine Guard::drop(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

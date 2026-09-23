@@ -6,7 +6,7 @@ data Main
 where
     start <= end,
 {
-    console: Service<Console>;
+    console: Binding<Console>;
     start: i32;
     end: i32;
 }

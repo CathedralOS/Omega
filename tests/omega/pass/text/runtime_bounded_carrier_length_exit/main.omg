@@ -21,7 +21,7 @@ pub boundary trait Console {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     label: [u8; 8] in Utf8;
     message: [u8; 32] in Utf8;
 }

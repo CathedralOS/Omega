@@ -19,8 +19,8 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
-    raw: Service<FilesystemHost>;
+    console: Binding<Console>;
+    raw: Binding<FilesystemHost>;
     rc: i32;
 }
 

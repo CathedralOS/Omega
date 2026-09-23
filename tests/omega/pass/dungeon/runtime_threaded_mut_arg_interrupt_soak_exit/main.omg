@@ -30,7 +30,7 @@ machine Stepper::bump(
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     stepper: Stepper;
     tally: Tally;
 }

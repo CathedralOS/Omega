@@ -26,9 +26,9 @@ pub boundary trait CoreGraphics {
 }
 
 data Main {
-    console: Service<Console>;
-    math: Service<Math>;
-    cg: Service<CoreGraphics>;
+    console: Binding<Console>;
+    math: Binding<Math>;
+    cg: Binding<CoreGraphics>;
     x: f64;
     y: f64;
     w: f64;

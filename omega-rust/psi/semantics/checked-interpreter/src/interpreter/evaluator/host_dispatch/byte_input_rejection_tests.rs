@@ -29,7 +29,7 @@ fn source(declaration: &str, target: &str, callee_blocks: bool) -> String {
 fn canonical() -> CheckedTrees {
     crate::front_end::checked_program(&source(
         "machine ConsoleNativeProvider::read_byte() -> ByteRead
-            satisfies Console::read_byte via Binding::CompilerIntrinsic
+            satisfies Console::read_byte via ForeignBinding::CompilerIntrinsic
             crashes Trap blocks;",
         "ConsoleNativeProvider::read_byte",
         true,
@@ -42,7 +42,7 @@ fn byte_input_spelling_does_not_reclassify_a_scalar_to_unit_intrinsic() {
         "pub boundary trait Console { machine read_byte(value: i32) reaches Console; }
         pub data ConsoleNativeProvider {}
         machine ConsoleNativeProvider::read_byte(value: i32)
-            satisfies Console::read_byte via Binding::CompilerIntrinsic;
+            satisfies Console::read_byte via ForeignBinding::CompilerIntrinsic;
         machine main() reaches Console { ConsoleNativeProvider::read_byte(7); }",
     );
     let machine = program
@@ -251,13 +251,13 @@ fn concrete_byte_input_lookalikes_do_not_gain_host_authority() {
     for (label, declaration, target, callee_blocks) in [
         (
             "other provider",
-            "machine OtherProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::CompilerIntrinsic crashes Trap blocks;",
+            "machine OtherProvider::read_byte() -> ByteRead satisfies Console::read_byte via ForeignBinding::CompilerIntrinsic crashes Trap blocks;",
             "OtherProvider::read_byte",
             true,
         ),
         (
             "foreign binding",
-            "machine ConsoleNativeProvider::read_byte() -> ByteRead satisfies Console::read_byte via Binding::Syscall(60) crashes Trap blocks;",
+            "machine ConsoleNativeProvider::read_byte() -> ByteRead satisfies Console::read_byte via ForeignBinding::Syscall(60) crashes Trap blocks;",
             "ConsoleNativeProvider::read_byte",
             true,
         ),

@@ -16,7 +16,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     text: [u8; 16] in Utf8;
     // Exact ranged index: the byte read is bounded by the `.len` guard, and the
     // increment is guard-proven by the `i < 16` edge into bump() (the carrier's

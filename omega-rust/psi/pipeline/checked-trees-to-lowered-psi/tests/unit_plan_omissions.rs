@@ -176,7 +176,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
     ) -> Task<T>
     where machine Target(arguments: Arguments) -> T suspends; blocks;
     satisfies TaskRuntime::start
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
     data Token {
         id: u64;

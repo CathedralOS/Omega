@@ -3,7 +3,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine add_i32(left: i32 in Wrapping, right: i32 in Wrapping) -> i32 {
     left + right

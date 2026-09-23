@@ -9,7 +9,7 @@ where
 {
     count: u32;
 }
-data Main { console: Service<Console>; meter: Meter; }
+data Main { console: Binding<Console>; meter: Meter; }
 machine Main::bump(&mut self, target: &mut Meter) {
     target.count = 3;
 }

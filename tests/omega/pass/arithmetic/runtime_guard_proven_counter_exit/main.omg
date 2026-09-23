@@ -9,7 +9,7 @@
 // Loops 5 times, then asserts the count. Exit 70. Differential.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; count: i32 [0..=100]; scratch: i32; }
+data Main { console: Binding<Console>; count: i32 [0..=100]; scratch: i32; }
 machine Main::main(&mut self) reaches Console {
     transition { _ -> head() }
     state head(&mut self) {

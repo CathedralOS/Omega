@@ -18,7 +18,7 @@ machine Box::stored<T>(&self) -> T {
     transition { _ -> (self.value) }
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: Box<i32>;
     b: Box<bool>;
 }

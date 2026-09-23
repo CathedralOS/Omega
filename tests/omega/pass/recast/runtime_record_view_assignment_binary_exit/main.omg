@@ -7,7 +7,7 @@ use omega::language::core::service;
 
 data StatValue { mode: u16; }
 data StatView { tag: u32; value: StatValue; }
-data Main { console: Service<Console>; bytes: [u8; 8]; mode: u32; }
+data Main { console: Binding<Console>; bytes: [u8; 8]; mode: u32; }
 
 machine Main::main(&mut self) reaches Console {
     self.bytes[4] = 255;

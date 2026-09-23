@@ -24,7 +24,7 @@ data Exact {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     source: [Narrow; 2];
 }
 

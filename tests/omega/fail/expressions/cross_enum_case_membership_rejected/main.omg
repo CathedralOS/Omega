@@ -8,7 +8,7 @@ use omega::language::std::console;
 use omega::language::core::service;
 data Color { case Red; case Green; }
 data Direction { case North; case South; }
-data Main { console: Service<Console>; c: Color; }
+data Main { console: Binding<Console>; c: Color; }
 machine Main::main(&mut self) {
     self.c = Color::Red;
     transition self.c in Direction::North { true -> hit() _ -> miss() }

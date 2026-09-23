@@ -13,7 +13,7 @@ machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
 data CellI { slot: i32; }
 machine CellI::get(&self) -> i32 { transition { _ -> (self.slot) } }
 data PairD { a: BoxI; b: CellI; }
-data Main { console: Service<Console>; p: PairD; }
+data Main { console: Binding<Console>; p: PairD; }
 machine Main::main(&mut self) reaches Console {
     self.p.a.value = 5;
     self.p.b.slot = 9;

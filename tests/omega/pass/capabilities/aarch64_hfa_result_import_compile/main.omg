@@ -14,8 +14,8 @@ pub boundary trait HfaResultImport {
     machine call(seed: i64) -> Pair;
 }
 
-macos_arm64 machine hfa_result_binding() -> Binding<17, 22, 0> {
-    Binding::DllImport {
+macos_arm64 machine hfa_result_binding() -> ForeignBinding<17, 22, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "omega_hfa_result_probe",
@@ -25,7 +25,7 @@ macos_arm64 machine hfa_result_binding() -> Binding<17, 22, 0> {
 
 macos_arm64 machine hfa_result_import(seed: i64) -> Pair satisfies HfaResultImport::call via hfa_result_binding();
 
-data Main { foreign: Service<HfaResultImport>; seed: i64; pair: Pair; }
+data Main { foreign: Binding<HfaResultImport>; seed: i64; pair: Pair; }
 machine Main::main(&mut self) reaches HfaResultImport {
     self.seed = 7;
     self.pair = self.foreign.call(self.seed);

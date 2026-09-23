@@ -10,7 +10,7 @@ data Cell {
     v: i32 [0..=9];
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cells: [Cell; 4];
     k: u64 [0..=3];
 }

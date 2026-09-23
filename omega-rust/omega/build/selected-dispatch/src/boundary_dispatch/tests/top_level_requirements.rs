@@ -650,7 +650,7 @@ fn a_requirement_realized_by_a_compiler_intrinsic_settles_no_adapter_row_and_is_
         pub data NegationProvider {}
         machine NegationProvider::flip32(value: f32) -> f32
             satisfies Negation::flip
-            via Binding::CompilerIntrinsic;
+            via ForeignBinding::CompilerIntrinsic;
 
         data Client {}
         machine Client::run(&mut self) -> f32 {

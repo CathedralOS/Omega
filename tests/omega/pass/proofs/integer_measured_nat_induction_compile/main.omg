@@ -8,7 +8,7 @@ use omega::language::core::nat;
 
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 
 machine build_right_identity(n: u64) -> Nat

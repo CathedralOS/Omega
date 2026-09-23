@@ -282,7 +282,7 @@ fn write_only_boundary_provider_requires_admitted_claim() {
 // A bare boundary trait is not a service carrier: every value position that
 // could spell one (data field, variant payload, machine parameter and return,
 // trait signature parameter and return) rejects during source checking with
-// the `Service<R>` directive before any bridge planning runs.
+// the `Binding<R>` directive before any bridge planning runs.
 #[test]
 fn bare_boundary_trait_value_positions_reject_at_source_checking() {
     for &name in fixture_roster::BARE_BOUNDARY_VALUE_FAIL_CANARIES {

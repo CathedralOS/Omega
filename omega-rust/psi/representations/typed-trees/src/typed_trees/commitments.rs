@@ -18,7 +18,7 @@ pub struct BoundaryCallingPlanIdentity {
     pub commitment: BoundaryCallingPlanCommitment,
 }
 
-/// Exact selected-plan custody that licenses one routed `Service<R>`
+/// Exact selected-plan custody that licenses one routed `Binding<R>`
 /// carrier to enter the existing provider-attachment specialization path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FusedServiceErasureAuthorization {

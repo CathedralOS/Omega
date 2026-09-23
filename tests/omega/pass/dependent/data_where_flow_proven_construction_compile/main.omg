@@ -10,7 +10,7 @@ where
     start: i32;
     end: i32;
 }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let first: i32 = 10;
     let last: i32 = 20;

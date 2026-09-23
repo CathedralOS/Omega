@@ -176,7 +176,7 @@ fn initial_public_api_is_nonblocking_but_private_assumptions_and_external_code_a
             concat!(
                 "pub boundary trait ForeignSurface { machine invoke() reaches ForeignSurface; }\n",
                 "pub machine invoke_leaf() satisfies ForeignSurface::invoke\n",
-                " via Binding::Syscall(60);\n",
+                " via ForeignBinding::Syscall(60);\n",
             ),
             Some(PackagePolicyRowKind::ExternalSupply),
         ),

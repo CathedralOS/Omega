@@ -23,7 +23,7 @@ trait Equatable {
 RoomEventEquatable: RoomEvent satisfies Equatable;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     left: RoomEvent;
     right: RoomEvent;
 }

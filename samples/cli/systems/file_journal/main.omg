@@ -22,9 +22,9 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     files: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     dir_mode: i32;
     open_result: OpenResult;
     fd: i32;

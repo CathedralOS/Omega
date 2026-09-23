@@ -71,7 +71,7 @@ use omega::language::core::float_operations;
 
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     zero: f64;
     nan: f64;
     class: FloatClass;
@@ -136,7 +136,7 @@ use omega::language::core::float_operations;
 
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     maximum: f32 in Saturating;
     two: f32 in Saturating;
     zero: f32 in Saturating;
@@ -305,7 +305,7 @@ use omega::language::core::service;
 use omega::language::std::console;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -326,7 +326,7 @@ use omega::language::core::service;
 use omega::language::std::console;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -362,7 +362,7 @@ data Command {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cmd: Command;
 }
 
@@ -417,7 +417,7 @@ data Command {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cmd: Command;
     other: Command;
 }
@@ -477,7 +477,7 @@ data Command {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cmd: Command;
 }
 
@@ -532,7 +532,7 @@ data Token {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -584,7 +584,7 @@ SquareShape: Square satisfies Shape {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     c: Circle;
     q: Square;
 }
@@ -657,7 +657,7 @@ SquareShape: Square satisfies Shape {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     c: Circle;
     q: Square;
 }
@@ -800,7 +800,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     source: [u8; 4];
     buffer: [u8; 64];
     written: u64;
@@ -866,7 +866,7 @@ data TelemetrySample {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     source: [i32; 4];
     buffer: [u8; 64];
     written: u64;
@@ -955,8 +955,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     k: u64;
     rc: i32;
     ck: i32;
@@ -1008,7 +1008,7 @@ domain [u8; 64]::Path
 requires
     no_nul(self)
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     parent: [u8; 32] in Path;
     child: [u8; 64] in Path;
 }
@@ -1044,8 +1044,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     dirfd: i32;
     fd: i32;
     rc: i32;
@@ -1106,7 +1106,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     close_rc: i32;
@@ -1180,8 +1180,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     mode: i32;
     read_flags: i32;
     cap: u64;
@@ -1229,8 +1229,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     mode: i32;
     append_flags: i32;
     read_flags: i32;
@@ -1284,8 +1284,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     mode: i32;
     zero: i64;
     seek_end: i32;
@@ -1330,8 +1330,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     mode: i32;
     read_flags: i32;
     cap: u64;
@@ -1398,7 +1398,7 @@ data IoResult { case Error; case Ok(count: u64); }
 data UnitResult { case Error; case Ok; }
 
 data Filesystem {
-    host: Service<FilesystemHost>;
+    host: Binding<FilesystemHost>;
     create_mode: i32;
     read_flags: i32;
 }
@@ -1440,7 +1440,7 @@ machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult reaches
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -1506,7 +1506,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     a: bool;
     ab: bool;
@@ -1558,7 +1558,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     open_result: OpenResult;
@@ -1615,7 +1615,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     stats_result: DirStatsResult;
     open_result: OpenResult;
@@ -1680,7 +1680,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     entry_result: DirEntryResult;
     open_result: OpenResult;
@@ -1758,7 +1758,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     empty_result: EmptyResult;
     open_result: OpenResult;
@@ -1814,7 +1814,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     entry_result: DirEntryResult;
@@ -1900,7 +1900,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -1964,8 +1964,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     mode: i32;
     new_len: i64;
     zero: i64;
@@ -2014,7 +2014,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     meta_result: MetadataResult;
@@ -2080,7 +2080,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     meta_result: MetadataResult;
@@ -2150,7 +2150,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     io_result: IoResult;
@@ -2225,7 +2225,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     meta_result: MetadataResult;
@@ -2283,7 +2283,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2330,7 +2330,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2382,7 +2382,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2435,7 +2435,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -2487,7 +2487,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -2540,7 +2540,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -2595,7 +2595,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     meta_result: MetadataResult;
@@ -2678,7 +2678,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     cap: u64;
@@ -2735,8 +2735,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
@@ -2812,8 +2812,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;
@@ -2903,8 +2903,8 @@ use omega::language::core::service;
 use omega::language::std::console;
 use omega::language::std::filesystem_host;
 data Main {
-    fs: Service<FilesystemHost>;
-    console: Service<Console>;
+    fs: Binding<FilesystemHost>;
+    console: Binding<Console>;
     rdonly: i32;
     mode: i32;
     fd: i32;
@@ -2954,7 +2954,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     unit_result: UnitResult;
 }
@@ -3007,7 +3007,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
     present: bool;
@@ -3075,7 +3075,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     meta_result: MetadataResult;
@@ -3154,7 +3154,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     write_opts: OpenOptions;
@@ -3201,7 +3201,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     read_only: Permissions;
@@ -3266,7 +3266,7 @@ use omega::language::std::console;
 
 data Main {{
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     cap: u64;
@@ -3334,7 +3334,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3395,7 +3395,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
     read_only: Permissions;
@@ -3468,7 +3468,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3518,7 +3518,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3568,7 +3568,7 @@ use omega::language::std::filesystem;
 use omega::language::std::console;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     perms: Permissions;
 }
 machine Main::main(&mut self) reaches Console {
@@ -3619,7 +3619,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     unit_result: UnitResult;
     read_only: Permissions;
@@ -3682,7 +3682,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     io_result: IoResult;
     cap: u64;
@@ -3741,7 +3741,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3815,7 +3815,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
 }
@@ -3887,7 +3887,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     meta_result: MetadataResult;
     open_result: OpenResult;
@@ -3987,7 +3987,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     open_result: OpenResult;
     io_result: IoResult;
     unit_result: UnitResult;
@@ -4069,7 +4069,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     b0: u8;
     b1: u8;
@@ -4137,7 +4137,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     clone_result: OpenResult;
@@ -4204,7 +4204,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     second_result: OpenResult;
@@ -4273,7 +4273,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     open_result: OpenResult;
     rc: i32;
@@ -4344,7 +4344,7 @@ use omega::language::std::console;
 
 data Main {
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     unit_result: UnitResult;
     exists_result: ExistsResult;
     no_access: Permissions;
@@ -4414,7 +4414,7 @@ data Verdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     pick: i32;
     verdict: Verdict;
 }
@@ -4458,7 +4458,7 @@ use omega::language::core::service;
 use omega::language::std::console;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     sum: i32 in Wrapping;
 }
 

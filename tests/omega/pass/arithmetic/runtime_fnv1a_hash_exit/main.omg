@@ -8,7 +8,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bytes: [u32 in Wrapping; 3];
     i: i32 in Wrapping;
     hash: u32 in Wrapping;

@@ -14,7 +14,7 @@ pub data GenericProvider {}
 pub boundary requirement GenericSurface::identity<Element>(value: Element) -> Element;
 pub machine GenericProvider::identity<Value>(value: Value) -> Value
     satisfies GenericSurface::identity
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -88,7 +88,7 @@ pub data LifetimeProvider {}
 pub boundary requirement LifetimeSurface::observe<'input>(value: &'input u32);
 pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
     satisfies LifetimeSurface::observe
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -138,7 +138,7 @@ pub boundary requirement InterruptAcknowledgement::retry(self);
 
 machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
     satisfies InterruptAcknowledgement::complete as CompletionSupply
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -196,7 +196,7 @@ boundary operator F32::minimum(left: f32, right: f32) -> f32;
 data FloatProvider {}
 machine FloatProvider::minimum(left: f32, right: f32) -> f32
     satisfies F32::minimum
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
         "realizes non-public operator",
     )];
@@ -228,7 +228,7 @@ pub boundary operator F32::minimum(left: f32, right: f32) -> f32;
 data FloatProvider {}
 machine FloatProvider::minimum<T>(left: f32, right: f32) -> f32
     satisfies F32::minimum
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
     );
     package.write("build.omg", build);
@@ -260,10 +260,10 @@ pub boundary operator F32::maximum(left: f32, right: f32) -> f32;
 pub data FloatProvider {}
 pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
     satisfies F32::minimum as MinimumSupply
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 pub machine FloatProvider::maximum(left: f32, right: f32) -> f32
     satisfies F32::maximum
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
     );
     package.write(
@@ -325,7 +325,7 @@ fn external_binding_changes_only_the_supply_row_for_a_stable_callable() {
 }}
 pub machine invoke_leaf()
     satisfies ExternalSurface::invoke
-    via Binding::Syscall({number});
+    via ForeignBinding::Syscall({number});
 "#,
             ),
         );
@@ -386,7 +386,7 @@ fn external_executable_supply_projection_rejects_inconsistent_checked_state() {
 }
 pub machine invoke_leaf()
     satisfies ExternalSurface::invoke
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(

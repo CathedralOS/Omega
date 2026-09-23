@@ -35,7 +35,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     read_overflow: u64;
     verdict_overflow: WireVerdict;
     read_hostile: u64;

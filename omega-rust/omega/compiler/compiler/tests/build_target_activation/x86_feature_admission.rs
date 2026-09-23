@@ -274,7 +274,7 @@ data ArithmeticProvider {}
 machine ArithmeticProvider::identity(value: i32) -> i32
     satisfies Arithmetic::identity { value }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let fused32: f32 = F32::fused_multiply_add(2.0f32, 3.0f32, 4.0f32);
     let fused64: f64 = F64::fused_multiply_add(2.0f64, 3.0f64, 4.0f64);

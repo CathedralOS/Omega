@@ -311,7 +311,7 @@ fn rejects_authored_empty_service_reach_on_external_realization_before_resolved_
 
         machine exit_leaf(code: i32)
         satisfies Process::exit
-        via Binding::Syscall(60)
+        via ForeignBinding::Syscall(60)
         reaches;
     "#;
     let tokens = Lexer::new(source)
@@ -337,7 +337,7 @@ fn retains_external_realization_mechanism_without_rendering_classification() {
 
         machine write_leaf(value: u8)
         satisfies Console::write
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
     "#;
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax_trees = parse_syntax_trees(&tokens).expect("parse");

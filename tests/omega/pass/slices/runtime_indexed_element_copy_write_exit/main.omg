@@ -21,7 +21,7 @@ data Room {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     room: Room;
     got_d: u32;
     got_w: u32;

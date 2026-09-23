@@ -60,7 +60,7 @@ machine CanaryWorkerProvider::execute<T, Arguments, machine Target>(
 ) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
-via Binding::CompilerIntrinsic;
+via ForeignBinding::CompilerIntrinsic;
 
 // The shared wait substrate: a small word/value wait plus wake boundary.
 // `park` suspends the calling activation at a canonical crossing; wake
@@ -119,11 +119,11 @@ data SubmissionSlot {
 
 // One executor instance: the wait word producers and workers park on and
 // the routed worker-provider service worker activations run under.
-// `Service<WorkerProvider>` is the held selected capability — established
+// `Binding<WorkerProvider>` is the held selected capability — established
 // by build composition, never package-authored.
 data Executor [linear] {
     wait_word: u64;
-    runtime: Service<WorkerProvider>;
+    runtime: Binding<WorkerProvider>;
     open: bool;
 }
 

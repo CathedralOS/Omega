@@ -104,7 +104,7 @@ pub data SubmitOutcome<T, Arguments> {
 // One executor instance: its bounded submission queue, the wait word
 // producers and workers park on, the routed worker-provider service worker
 // activations run under, and the count of vended claims not yet settled.
-// `Service<WorkerProvider>` is the held selected capability — established
+// `Binding<WorkerProvider>` is the held selected capability — established
 // by build composition, never package-authored (service.omg), matching the
 // spec rule that selection grants no ambient authority: the executor must
 // hold the capability. `outstanding` is the outstanding-claim ledger:
@@ -115,7 +115,7 @@ pub data SubmitOutcome<T, Arguments> {
 pub data Executor<T, Arguments, const N: u64> [linear] {
     queue: BoundedQueue<Submission<T, Arguments>, N>;
     wait_word: u64;
-    runtime: Service<WorkerProvider>;
+    runtime: Binding<WorkerProvider>;
     open: bool;
     outstanding: u64;
 }

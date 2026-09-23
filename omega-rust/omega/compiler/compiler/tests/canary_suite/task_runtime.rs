@@ -185,7 +185,7 @@ fn blocking_executor_custody_claims_hold_through_the_concrete_pin() {
 fn blocking_executor_package_checks_with_the_closed_service_carrier() {
     // BLOCKEXEC package pin: the bundled `blocking-executor` package itself
     // must reach checked trees — its `Executor.runtime` field holds the
-    // plain `Service<WorkerProvider>` closed carrier, which an authored
+    // plain `Binding<WorkerProvider>` closed carrier, which an authored
     // `in Bound` qualification would reject outright.
     let package_root = repo_root().join("source/library/blocking-executor/main.omg");
     let checked =

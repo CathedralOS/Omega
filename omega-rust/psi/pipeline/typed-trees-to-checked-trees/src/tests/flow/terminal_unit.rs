@@ -59,9 +59,9 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
 }
 
 /// Same prelude as `checked`, with the toolchain `core/service.omg` resident
-/// so fixtures can hold `Service<R>` carriers, plus the settled fused-service
+/// so fixtures can hold `Binding<R>` carriers, plus the settled fused-service
 /// erasure authorizations `bind_fixture_fused_service_erasures` supplies.
-/// Boundary traits closed over by a `Service<R>` field must be declared `pub`
+/// Boundary traits closed over by a `Binding<R>` field must be declared `pub`
 /// in the fixture.
 fn checked_with_service(source: &str) -> checked_trees::CheckedTrees {
     let source = format!("boundary trait PortIo {{}}\n{source}");

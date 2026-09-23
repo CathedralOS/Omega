@@ -207,7 +207,7 @@ fn a_published_caller_carries_the_envelope_it_invokes() {
     let standard_library = bundled_standard_library_root();
     let main_source = |signature_tail: &str| {
         format!(
-            "use omega_language_std::console;\nuse omega::language::core::service;\n\npub data Main {{\n    console: Service<Console>;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console-input-envelope-probe\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
+            "use omega_language_std::console;\nuse omega::language::core::service;\n\npub data Main {{\n    console: Binding<Console>;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console-input-envelope-probe\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
             bundled_standard_library_dependency_declaration()
         )
     };
@@ -298,7 +298,7 @@ impl Drop for ScratchTree {
 
 /// A realization that drops the published `blocks;` clause no longer spells
 /// the selected compiler-intrinsic identity: the row must stop binding
-/// `Binding::CompilerIntrinsic`, or checked semantics must reject the
+/// `ForeignBinding::CompilerIntrinsic`, or checked semantics must reject the
 /// satisfies edge outright.
 #[test]
 fn a_realization_dropping_blocks_loses_its_intrinsic_row() {
@@ -327,7 +327,7 @@ fn a_realization_dropping_blocks_loses_its_intrinsic_row() {
     .expect("write copied build");
     let provider_path = standard_library.join("targets/linux_x86_64/console_impl.omg");
     let provider = fs::read_to_string(&provider_path).expect("read copied provider");
-    let honest = "via Binding::CompilerIntrinsic\n    crashes Trap\n    blocks;";
+    let honest = "via ForeignBinding::CompilerIntrinsic\n    crashes Trap\n    blocks;";
     assert!(
         provider.contains(honest),
         "the linux x86-64 provider publishes the honest envelope"
@@ -336,7 +336,7 @@ fn a_realization_dropping_blocks_loses_its_intrinsic_row() {
         &provider_path,
         provider.replacen(
             honest,
-            "via Binding::CompilerIntrinsic\n    crashes Trap;",
+            "via ForeignBinding::CompilerIntrinsic\n    crashes Trap;",
             1,
         ),
     )

@@ -8,7 +8,7 @@ data FixedBuffer<T, const N: u64> {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buffer: FixedBuffer<i32 in Wrapping, 4>;
 }
 

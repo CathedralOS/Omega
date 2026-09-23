@@ -23,20 +23,22 @@ pub(crate) fn decode_binding_value(
         require_unused_width(widths[2], "Syscall VersionLength")?;
         let [number] = exact_fields(payload, ["number"])?;
         let BuildTimeValue::Int(number) = number else {
-            return Err("Binding::Syscall number must evaluate as u64-compatible Int".to_owned());
+            return Err(
+                "ForeignBinding::Syscall number must evaluate as u64-compatible Int".to_owned(),
+            );
         };
         let number = u64::try_from(*number)
-            .map_err(|_| "Binding::Syscall number must fit u64".to_owned())?;
+            .map_err(|_| "ForeignBinding::Syscall number must fit u64".to_owned())?;
         return Ok(DecodedBindingValue::Syscall { number });
     }
     if variant != "DllImport" || payload.len() != 1 || payload[0].0 != "import" {
         return Err(
-            "ordinary external `via` must evaluate to the exact Binding::DllImport or Binding::Syscall payload"
+            "ordinary external `via` must evaluate to the exact ForeignBinding::DllImport or ForeignBinding::Syscall payload"
                 .to_owned(),
         );
     }
     let BuildTimeValue::Case { variant, payload } = &payload[0].1 else {
-        return Err("Binding::DllImport must contain one DllImport case".to_owned());
+        return Err("ForeignBinding::DllImport must contain one DllImport case".to_owned());
     };
     match variant.as_str() {
         "PeByName" => {

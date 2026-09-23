@@ -9,5 +9,5 @@ where
     start: u32;
     end: u32;
 }
-data Main { console: Service<Console>; span: Span; }
+data Main { console: Binding<Console>; span: Span; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }

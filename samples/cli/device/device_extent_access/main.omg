@@ -18,8 +18,8 @@ machine consume_write_loan(loan: DeviceLoan in DeviceWrites) -> DeviceLoan {
 }
 
 data DmaHarness {
-    roots: Service<ExtentRootProvider>;
-    device: Service<DeviceLoanProvider>;
+    roots: Binding<ExtentRootProvider>;
+    device: Binding<DeviceLoanProvider>;
 }
 
 machine DmaHarness::stage_dma_read(&self, root: Extent) -> Extent

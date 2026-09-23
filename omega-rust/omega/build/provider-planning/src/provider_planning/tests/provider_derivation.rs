@@ -28,7 +28,7 @@ fn exact_requirement_lifetime_partition_is_stable_across_checked_and_external_su
 
         machine consume<'y, 'unused, 'x>(first: &'x u64, second: &'y u64)
             satisfies Pair<'x, 'y>::consume
-            via Binding::Syscall(60);
+            via ForeignBinding::Syscall(60);
     "#;
     let (checked_typed, checked_plan) = derive_provider_fixture(checked_source);
     let (external_typed, external_plan) = derive_provider_fixture(external_source);
@@ -180,7 +180,7 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
             acknowledgement: InterruptAcknowledgement
         )
         satisfies InterruptAcknowledgement::complete
-        via Binding::Syscall(60);
+        via ForeignBinding::Syscall(60);
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -349,7 +349,7 @@ fn derives_and_selects_external_top_level_boundary_requirement_provider() {
 
 #[test]
 fn provider_derivation_consumes_typed_external_binding_identity() {
-    // The authored `Binding::DllImport("module", "symbol")` spelling and the
+    // The authored `ForeignBinding::DllImport("module", "symbol")` spelling and the
     // typed `ExternalBindingIdentity::Import` it produced are both retired, so
     // no import identity can be interned. The remaining bootstrap spellings
     // still exercise the typed id/table join.
@@ -362,7 +362,7 @@ fn provider_derivation_consumes_typed_external_binding_identity() {
 
                 machine exit_leaf(code: i32)
                 satisfies Process::exit
-                via Binding::Syscall({number});
+                via ForeignBinding::Syscall({number});
             "#
         )
     };
@@ -665,7 +665,7 @@ fn provider_derivation_rejects_incomplete_or_inconsistent_external_supply() {
 
         machine exit_leaf(code: i32)
         satisfies Process::exit
-        via Binding::Syscall(60);
+        via ForeignBinding::Syscall(60);
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -738,11 +738,11 @@ fn provider_derivation_retains_every_exact_external_realization_symbol() {
 
         machine first_leaf()
         satisfies Pair::first
-        via Binding::Syscall(60);
+        via ForeignBinding::Syscall(60);
 
         machine second_leaf()
         satisfies Pair::second
-        via Binding::Syscall(93);
+        via ForeignBinding::Syscall(93);
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()

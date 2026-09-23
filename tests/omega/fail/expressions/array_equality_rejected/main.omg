@@ -5,7 +5,7 @@
 // future feature). Struct `==` (structural) stays valid.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; xs: [i32; 3]; ys: [i32; 3]; }
+data Main { console: Binding<Console>; xs: [i32; 3]; ys: [i32; 3]; }
 machine Main::main(&mut self) {
     self.xs = [1, 2, 3];
     self.ys = [1, 2, 3];

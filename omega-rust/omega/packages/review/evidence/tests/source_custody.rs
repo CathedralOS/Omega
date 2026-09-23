@@ -352,7 +352,7 @@ pub boundary trait FilesystemHost {
     machine write(descriptor: i32, bytes: &[u8]) -> i64;
 }
 
-pub data Journal { files: Service<FilesystemHost>; written: i64; }
+pub data Journal { files: Binding<FilesystemHost>; written: i64; }
 
 pub machine Journal::append(&mut self, descriptor: i32, bytes: &[u8])
 reaches FilesystemHost
@@ -456,7 +456,7 @@ fn accepted_dependency_console_permission_retains_exact_policy_and_source_custod
         r#"use omega::language::core::service;
 use accepted_console::console;
 
-pub machine terminate(console: Service<Console>, return_code: i32)
+pub machine terminate(console: Binding<Console>, return_code: i32)
 reaches Console
 invokes console;
 {

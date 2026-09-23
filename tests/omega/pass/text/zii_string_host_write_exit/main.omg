@@ -9,7 +9,7 @@ domain [u8; 16]::Utf8
 requires
     valid_utf8(self);
 
-data Main { console: Service<Console>; never: [u8; 16] in Utf8; }
+data Main { console: Binding<Console>; never: [u8; 16] in Utf8; }
 machine Main::main(&mut self) reaches Console {
     self.console.write_line(self.never);
     self.console.write_line("after-zii");

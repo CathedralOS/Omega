@@ -16,7 +16,7 @@ data Navigation { choice: NavigationChoice; destination: CellId; }
 data ConsoleLine { text: &[u8] in Utf8; }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

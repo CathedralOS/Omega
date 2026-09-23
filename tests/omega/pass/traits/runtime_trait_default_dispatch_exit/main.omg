@@ -36,7 +36,7 @@ machine OverrideCounter::reset(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     default_counter: DefaultCounter;
     override_counter: OverrideCounter;
 }

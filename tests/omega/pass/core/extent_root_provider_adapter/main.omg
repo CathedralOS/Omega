@@ -17,7 +17,7 @@ machine consume_granted(root: Extent in Granted) -> Extent {
 }
 
 data Harness {
-    provider: Service<ExtentRootProvider>;
+    provider: Binding<ExtentRootProvider>;
 }
 
 machine Harness::forward(&self, root: Extent) -> Extent

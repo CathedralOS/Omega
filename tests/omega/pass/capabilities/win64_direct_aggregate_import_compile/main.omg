@@ -13,8 +13,8 @@ pub boundary trait DirectAggregateImport {
     machine send(before: u64, value: Pair32, after: u64) -> i32;
 }
 
-windows_x86_64 machine direct_aggregate_binding() -> Binding<19, 34, 0> {
-    Binding::DllImport {
+windows_x86_64 machine direct_aggregate_binding() -> ForeignBinding<19, 34, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega_abi_probe.dll",
             export: "omega_win64_direct_aggregate_probe",
@@ -25,7 +25,7 @@ windows_x86_64 machine direct_aggregate_binding() -> Binding<19, 34, 0> {
 windows_x86_64 machine direct_aggregate_import(before: u64, value: Pair32, after: u64) -> i32 satisfies DirectAggregateImport::send via direct_aggregate_binding();
 
 data Main {
-    foreign: Service<DirectAggregateImport>;
+    foreign: Binding<DirectAggregateImport>;
     before: u64;
     input: Pair32;
     after: u64;

@@ -7,7 +7,7 @@ data Pair {
     left__value: i32;
     right: i32;
 }
-data Main { console: Service<Console>; pair: Pair; }
+data Main { console: Binding<Console>; pair: Pair; }
 machine Main::main(&mut self) reaches Console {
     self.pair = Pair { left__value: 70, right: 1 };
     let { left__value, right as _ } = self.pair;

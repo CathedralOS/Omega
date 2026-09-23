@@ -5,7 +5,7 @@ use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     number: i32;
     flag: bool;
     text: &[u8] in Utf8;

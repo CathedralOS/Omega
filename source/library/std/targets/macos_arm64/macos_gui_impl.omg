@@ -11,40 +11,40 @@ use omega::language::core::external_binding;
 // Every text argument is the raw `const char*` shape: callers stage a
 // NUL-terminated buffer and pass `&buf[0]` (`&u8` lowers to the pointer word).
 
-pub macos_arm64 machine objc_get_class_binding() -> Binding<24, 14, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine objc_get_class_binding() -> ForeignBinding<24, 14, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib",
             symbol: "_objc_getClass",
         },
     }
 }
-pub macos_arm64 machine objc_register_selector_binding() -> Binding<24, 17, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine objc_register_selector_binding() -> ForeignBinding<24, 17, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib",
             symbol: "_sel_registerName",
         },
     }
 }
-pub macos_arm64 machine objc_msg_send_binding() -> Binding<24, 13, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine objc_msg_send_binding() -> ForeignBinding<24, 13, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib",
             symbol: "_objc_msgSend",
         },
     }
 }
-pub macos_arm64 machine objc_pool_push_binding() -> Binding<24, 25, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine objc_pool_push_binding() -> ForeignBinding<24, 25, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib",
             symbol: "_objc_autoreleasePoolPush",
         },
     }
 }
-pub macos_arm64 machine objc_pool_pop_binding() -> Binding<24, 24, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine objc_pool_pop_binding() -> ForeignBinding<24, 24, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libobjc.A.dylib",
             symbol: "_objc_autoreleasePoolPop",
@@ -77,48 +77,48 @@ pub macos_arm64 machine objc_pool_pop(pool: u64) -> u64
 
 // ---- CoreGraphics ----------------------------------------------------------
 
-pub macos_arm64 machine cg_color_space_rgb_binding() -> Binding<62, 28, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine cg_color_space_rgb_binding() -> ForeignBinding<62, 28, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGColorSpaceCreateDeviceRGB",
         },
     }
 }
-pub macos_arm64 machine cg_bitmap_context_binding() -> Binding<62, 22, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine cg_bitmap_context_binding() -> ForeignBinding<62, 22, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGBitmapContextCreate",
         },
     }
 }
-pub macos_arm64 machine cg_bitmap_context_image_binding() -> Binding<62, 27, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine cg_bitmap_context_image_binding() -> ForeignBinding<62, 27, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGBitmapContextCreateImage",
         },
     }
 }
-pub macos_arm64 machine cg_context_release_binding() -> Binding<62, 17, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine cg_context_release_binding() -> ForeignBinding<62, 17, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGContextRelease",
         },
     }
 }
-pub macos_arm64 machine cg_image_release_binding() -> Binding<62, 15, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine cg_image_release_binding() -> ForeignBinding<62, 15, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGImageRelease",
         },
     }
 }
-pub macos_arm64 machine cg_event_source_key_state_binding() -> Binding<62, 22, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine cg_event_source_key_state_binding() -> ForeignBinding<62, 22, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics",
             symbol: "_CGEventSourceKeyState",
@@ -141,24 +141,24 @@ pub macos_arm64 machine cg_event_source_key_state(state_id: u64, keycode: u64) -
 
 // ---- libSystem clock (DarwinClock) ----------------------------------------
 
-pub macos_arm64 machine darwin_clock_ns_binding() -> Binding<26, 22, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine darwin_clock_ns_binding() -> ForeignBinding<26, 22, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_clock_gettime_nsec_np",
         },
     }
 }
-pub macos_arm64 machine darwin_mach_absolute_time_binding() -> Binding<26, 19, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine darwin_mach_absolute_time_binding() -> ForeignBinding<26, 19, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_mach_absolute_time",
         },
     }
 }
-pub macos_arm64 machine darwin_poll_binding() -> Binding<26, 5, 0> {
-    Binding::DllImport {
+pub macos_arm64 machine darwin_poll_binding() -> ForeignBinding<26, 5, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_poll",

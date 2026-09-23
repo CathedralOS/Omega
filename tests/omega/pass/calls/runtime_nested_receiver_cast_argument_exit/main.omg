@@ -29,7 +29,7 @@ machine Scanner::append_byte(&mut self, byte: u8) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     scanner: Scanner;
 }
 

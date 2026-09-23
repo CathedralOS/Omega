@@ -73,7 +73,7 @@ machine Probe::make(&mut self) -> BigResult {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     probe: Probe;
     res: BigResult;
 }

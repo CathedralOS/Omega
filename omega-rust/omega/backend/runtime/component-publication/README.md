@@ -34,13 +34,13 @@ successful reclamation.
 [Provider planning](../../../build/provider-planning/src/provider_planning.rs) retains mode
 through selected-plan provenance but rejects Independent before publishing
 checked/package-review facts until the component closure and routed installation
-exist. The current Fused implementation recognizes the routed `Service<R>`
+exist. The current Fused implementation recognizes the routed `Binding<R>`
 carrier with one public closed nongeneric, lifetime-free requirement. Exact typed
 carrier/base/requirement and full plan digest rejoin erasure authorization;
 lookalikes, authored qualifications, or provenance substitution cannot erase it.
 
 The [service contract](../../../../../wiki/spec/build/component_publication.md#bindings-and-era-entry)
-now makes establishment intrinsic to compiler-known `Service<R>`, without an
+now makes establishment intrinsic to compiler-known `Binding<R>`, without an
 authored qualification. `ENTRY-CONTENT-ROOTS` owns retiring the separate domain
 and migrating recognition/evidence; exact occurrence and selected-plan checking
 remain mandatory. Bare boundary-trait fields are not an alternate carrier.
@@ -52,8 +52,8 @@ edge into a direct-calling helper has a separate exact receipt. Multiple
 carriers, repeated/scalar-bearing forwarding, borrowing, projections, wider
 control, installed-provider scalar ABI, and runtime publication remain outside
 these entrances. Multiple distinct `Service` applications must retain exact
-carrier/requirement identity: the migration must not conflate `Service<A>` and
-`Service<B>` when removing the domain-based identity join.
+carrier/requirement identity: the migration must not conflate `Binding<A>` and
+`Binding<B>` when removing the domain-based identity join.
 
 Selected attached ProgramEntry receiver fields use separate source-free
 establishment rows joined to source signature/slot, receiver/attachment,

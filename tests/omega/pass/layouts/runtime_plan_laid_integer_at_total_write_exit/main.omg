@@ -48,7 +48,7 @@ machine SignedByte::plan(&mut self, schema: Schema) -> Plan {
 
 data PortableByte { value: i64 [-128..=127]; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     packed: SignedByte<PortableByte>;
     source: i64 [-128..=127];
 }

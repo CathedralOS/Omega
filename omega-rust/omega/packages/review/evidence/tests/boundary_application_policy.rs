@@ -235,7 +235,7 @@ fn exact_intrinsic_application_retains_closed_execution_not_a_report_digest() {
         r#"pub data F32 {}
 pub boundary operator F32::negate(value: f32) -> f32;
 pub data FloatProvider {}
-pub machine FloatProvider::negate(value: f32) -> f32 satisfies F32::negate via Binding::CompilerIntrinsic;
+pub machine FloatProvider::negate(value: f32) -> f32 satisfies F32::negate via ForeignBinding::CompilerIntrinsic;
 machine exercise() { let negative: f32 = F32::negate(1.0f32); }
 "#,
     );

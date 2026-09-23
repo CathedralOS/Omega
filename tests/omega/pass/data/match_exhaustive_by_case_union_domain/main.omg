@@ -21,7 +21,7 @@ domain Command::Interactive
 requires
     self in Command::Move | Command::Say;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cmd: Command;
 }
 

@@ -25,7 +25,7 @@ pub machine BoundProvider::identity<
     ProviderOrder: Value satisfies Ranked
 >(value: Value) -> Value
     satisfies BoundSurface::identity
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -104,7 +104,7 @@ pub machine BoundProvider::identity<
     ProviderHash: Value satisfies Hashed
 >(value: Value) -> Value
     satisfies BoundSurface::identity
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     weaker_provider.write(
@@ -150,7 +150,7 @@ pub machine BoundProvider::identity<
     ProviderOrder: Value satisfies Ranked
 >(value: Value) -> Value
     satisfies BoundSurface::identity
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     stronger_provider.write(
@@ -192,7 +192,7 @@ pub machine ConstProvider::identity<const Length: u64>(
     value: [u8; Length]
 ) -> [u8; Length]
     satisfies ConstSurface::identity
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -326,7 +326,7 @@ pub data GenericProvider {}
 pub boundary requirement GenericSurface::identity<Element [copy]>(value: Element) -> Element;
 pub machine GenericProvider::identity<Value>(value: Value) -> Value
     satisfies GenericSurface::identity
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -454,10 +454,10 @@ pub boundary requirement LifetimeSurface::observe<'input>(value: &'input u32);
 // in the selected-provider fixtures.
 pub machine GenericProvider::identity<Value>(value: Value) -> Value
     satisfies GenericSurface::identity
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 pub machine LifetimeProvider::observe<'borrow>(value: &'borrow u32)
     satisfies LifetimeSurface::observe
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(

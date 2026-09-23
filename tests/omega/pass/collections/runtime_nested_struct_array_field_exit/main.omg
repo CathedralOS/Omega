@@ -21,7 +21,7 @@ data Grid {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     g: Grid;
     s: i32 in Wrapping;
 }

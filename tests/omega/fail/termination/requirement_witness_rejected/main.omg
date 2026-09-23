@@ -7,5 +7,5 @@ use omega::language::core::service;
 trait Worker {
     machine run(&mut self, n: u64) -> u64 terminates by n;
 }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

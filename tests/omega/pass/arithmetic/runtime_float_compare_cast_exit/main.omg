@@ -16,7 +16,7 @@ data Vec2 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: f64;
     b: f64;
     r: f64;

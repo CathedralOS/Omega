@@ -4,7 +4,7 @@
 // range where the type fact alone (now the true [0, u64::MAX]) cannot.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; raw: u64; capped: u64 [0..=9223372036854775807]; }
+data Main { console: Binding<Console>; raw: u64; capped: u64 [0..=9223372036854775807]; }
 machine Main::main(&mut self) reaches Console {
     self.raw = 42;
     transition self.raw <= 9223372036854775807 { true -> store() _ -> bad() }

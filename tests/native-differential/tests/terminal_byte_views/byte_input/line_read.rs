@@ -22,7 +22,7 @@ fn a_byte_leaf_without_the_honest_envelope_loses_intrinsic_custody() {
     let source = format!(
         "{}\npub data ConsoleNativeProvider {{}}\n\
         machine ConsoleNativeProvider::read_byte() -> ByteRead\n\
-        satisfies Console::read_byte via Binding::CompilerIntrinsic;",
+        satisfies Console::read_byte via ForeignBinding::CompilerIntrinsic;",
         include_str!("../read_line.omg")
             .replace("Console::read_byte()", "ConsoleNativeProvider::read_byte()",),
     );

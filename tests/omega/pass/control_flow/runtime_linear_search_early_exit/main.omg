@@ -8,7 +8,7 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     arr: [i32; 5] in Wrapping;
     target: i32 in Wrapping;
     i: u32 in Wrapping;

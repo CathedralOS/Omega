@@ -23,8 +23,8 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
-    fs: Service<FilesystemHost>;
+    console: Binding<Console>;
+    fs: Binding<FilesystemHost>;
     time: Time;
     mode: i32;
     fd: i32;

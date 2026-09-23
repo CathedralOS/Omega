@@ -22,7 +22,7 @@ data Buffer<const N: u64> {
 }
 
 data Main {
-    exit: Service<ProcessExit>;
+    exit: Binding<ProcessExit>;
     value: Buffer<limit()>;
 }
 

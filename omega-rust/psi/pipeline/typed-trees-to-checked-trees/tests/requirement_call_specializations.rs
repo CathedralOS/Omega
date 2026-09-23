@@ -27,7 +27,7 @@ fn check(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics::D
     )
 }
 
-/// The toolchain core service declaration, resident so `Service<R>` spellings
+/// The toolchain core service declaration, resident so `Binding<R>` spellings
 /// resolve against the real core declaration: this standalone `SourceMap` has
 /// no package scope, so a `use` of the library path cannot resolve.
 const CORE_SERVICE: &str = include_str!(concat!(
@@ -109,7 +109,7 @@ const ROUTED_TASK_START_DECLS: &str = r#"
     ) -> Task<T>
     where machine Target(arguments: Arguments) -> T suspends; blocks;
     satisfies TaskRuntime::start
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
     data Token {
         id: u64;
@@ -128,7 +128,7 @@ fn a_routed_requirement_call_retains_its_derived_specialization() {
     let checked = check_with_service(&format!(
         "{ROUTED_TASK_START_DECLS}
          data Main {{
-             runtime: Service<TaskRuntime>;
+             runtime: Binding<TaskRuntime>;
          }}
          machine Main::probe(&mut self, token: Token) reaches TaskRuntime {{
              let task: Task<Token> = self.runtime.start<Worker::run>(token);

@@ -5,7 +5,7 @@ use logger_kit::main::Sink;
 use omega::language::core::service;
 
 data Main {
-    sink: Service<Sink>;
+    sink: Binding<Sink>;
 }
 
 machine Main::main(&mut self)

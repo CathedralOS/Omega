@@ -13,7 +13,7 @@ use omega::language::core::float_operations;
 // silent face.) exit 71 = nested write wrong; 73 = transition-arg wrong.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: f64; b: f64; c: f64; out: f64; }
+data Main { console: Binding<Console>; a: f64; b: f64; c: f64; out: f64; }
 machine Main::main(&mut self) {
     self.a = 1.5;
     self.b = 2.25;

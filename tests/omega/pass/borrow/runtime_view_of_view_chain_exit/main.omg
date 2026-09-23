@@ -32,7 +32,7 @@ machine narrow(cell: &mut Cell) -> &mut i32 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bag: Bag;
 }
 

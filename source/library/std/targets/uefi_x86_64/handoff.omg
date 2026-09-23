@@ -111,14 +111,14 @@ uefi_x86_64 machine EfiBootServicesTable::allocate_pages_leaf(
     memory: &mut u64
 ) -> u64
     satisfies UefiBootServices::allocate_pages
-    via Binding::TableFunction(allocate_pages);
+    via ForeignBinding::TableFunction(allocate_pages);
 uefi_x86_64 machine EfiBootServicesTable::free_pages_leaf(
     this: u64,
     memory: u64,
     pages: u64
 ) -> u64
     satisfies UefiBootServices::free_pages
-    via Binding::TableFunction(free_pages);
+    via ForeignBinding::TableFunction(free_pages);
 uefi_x86_64 machine EfiBootServicesTable::get_memory_map_leaf(
     this: u64,
     map_size: &mut u64,
@@ -128,14 +128,14 @@ uefi_x86_64 machine EfiBootServicesTable::get_memory_map_leaf(
     descriptor_version: &mut u32
 ) -> u64
     satisfies UefiBootServices::get_memory_map
-    via Binding::TableFunction(get_memory_map);
+    via ForeignBinding::TableFunction(get_memory_map);
 uefi_x86_64 machine EfiBootServicesTable::exit_boot_services_leaf(
     this: u64,
     image: u64,
     map_key: u64
 ) -> u64
     satisfies UefiBootServices::exit_boot_services
-    via Binding::TableFunction(exit_boot_services);
+    via ForeignBinding::TableFunction(exit_boot_services);
 
 // The compiler-owned terminal edges of the handoff invocation. `transfer`
 // consumes the bound image custody into the nonreturning entry/stack
@@ -154,7 +154,7 @@ pub boundary trait UefiOsHandoffTermination {
 // adapter-established provider carries only the termination carrier: the
 // protocol above it is authored code, and the edges stay compiler-owned.
 pub data UefiOsHandoffNativeProvider {
-    termination: Service<UefiOsHandoffTermination>;
+    termination: Binding<UefiOsHandoffTermination>;
 }
 
 uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::transfer_to_entry()
@@ -173,7 +173,7 @@ uefi_x86_64 boundary machine UefiOsHandoffNativeProvider::firmware_return(status
 // carry the freshest firmware snapshot evidence; and `status` is the last
 // status each leg's firmware call produced.
 pub data UefiOsHandoffLegs {
-    boot_services: Service<UefiBootServices>;
+    boot_services: Binding<UefiBootServices>;
     table: u64;
     image: u64;
     map: u64;
@@ -257,7 +257,7 @@ uefi_x86_64 boundary machine UefiOsHandoffLegs::attempt_exit(&mut self)
 // The authored cycle's terminal-stage carrier: one provider per record keeps
 // each machine inside the single-carrier admission shape.
 pub data UefiOsHandoffTerminal {
-    termination: Service<UefiOsHandoffTermination>;
+    termination: Binding<UefiOsHandoffTermination>;
 }
 
 pub machine UefiOsHandoffTerminal::firmware_return(&mut self, status: u64)

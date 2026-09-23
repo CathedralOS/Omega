@@ -16,7 +16,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     grid: [[i32; 4]; 3];
     i: u64 [0..=2];
     j: u64 [0..=3];

@@ -19,7 +19,7 @@ data ForwardedBuffer<const N: u64> {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     small: FixedBuffer<Sizes::BASE + Sizes::STEP>;
     forwarded: ForwardedBuffer<2>;
 }

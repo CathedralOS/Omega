@@ -14,7 +14,7 @@ data Inner {
     b: i32 in Wrapping;
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     inner: Inner;
     got: i32 in Wrapping;
 }

@@ -7,8 +7,8 @@ boundary trait Pick {
 }
 data ProviderA { choose: addr; }
 data ProviderB { choose: addr; }
-cross_platform_cli machine ProviderA::choose_leaf() -> i32 satisfies Pick::choose via Binding::VtableField(choose);
-cross_platform_cli machine ProviderB::choose_leaf() -> i32 satisfies Pick::choose via Binding::VtableField(choose);
+cross_platform_cli machine ProviderA::choose_leaf() -> i32 satisfies Pick::choose via ForeignBinding::VtableField(choose);
+cross_platform_cli machine ProviderB::choose_leaf() -> i32 satisfies Pick::choose via ForeignBinding::VtableField(choose);
 data Main { }
 machine Main::main(&mut self) {
 }

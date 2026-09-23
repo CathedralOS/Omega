@@ -17,7 +17,7 @@ data Tx {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) {

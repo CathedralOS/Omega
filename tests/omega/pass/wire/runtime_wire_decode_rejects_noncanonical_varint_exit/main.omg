@@ -19,7 +19,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     overlong_read: u64;
     overlong_verdict: WireVerdict;
     overflow_read: u64;

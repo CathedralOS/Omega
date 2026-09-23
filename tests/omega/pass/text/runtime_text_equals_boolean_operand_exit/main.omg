@@ -17,7 +17,7 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; shift: u64; name: [u8; 8] in Utf8; flag: bool; okf: bool; }
+data Main { console: Binding<Console>; shift: u64; name: [u8; 8] in Utf8; flag: bool; okf: bool; }
 machine Main::main(&mut self) {
     self.name = "omega";
     self.flag = true;

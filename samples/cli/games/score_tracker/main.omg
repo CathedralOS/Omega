@@ -31,7 +31,7 @@ data Tracker [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     scores: [i32 in Saturating; 2];
     tracker: Tracker;
     pause: [u8; 256];

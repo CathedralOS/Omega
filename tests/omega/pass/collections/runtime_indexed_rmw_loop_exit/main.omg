@@ -6,7 +6,7 @@
 // index bound is still proven by the loop guard. Differential: native == interp.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; arr: [i32 in Wrapping; 5]; i: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
+data Main { console: Binding<Console>; arr: [i32 in Wrapping; 5]; i: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.marker = 42;
     self.i = 0;

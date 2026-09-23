@@ -283,7 +283,7 @@ fn closed_sum_leaves_retain_computed_calls_before_reusing_the_payload() {
             machine write_byte(value: i32) reaches Console;
             machine exit_process(value: i32) reaches Console;
         }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {

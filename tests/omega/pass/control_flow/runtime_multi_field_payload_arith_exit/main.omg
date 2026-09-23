@@ -16,7 +16,7 @@ data Shape {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::run(&mut self, s: Shape) reaches Console {

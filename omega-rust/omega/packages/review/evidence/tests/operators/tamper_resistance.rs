@@ -389,7 +389,7 @@ satisfies CheckedMath::identity
 pub operator CheckedMath::identity(value: i32) -> i32;
 pub machine provide_identity(input: i32) -> i32
 satisfies CheckedMath::identity
-via Binding::Syscall(60);
+via ForeignBinding::Syscall(60);
 "#,
             "one exact boundary operator",
         ),

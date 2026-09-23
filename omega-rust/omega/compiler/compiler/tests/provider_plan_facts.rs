@@ -85,8 +85,8 @@ boundary trait Pair {
     machine second(code: i32) -> i32;
 }
 
-windows_x86_64 machine first_binding() -> Binding<10, 10, 0> {
-    Binding::DllImport {
+windows_x86_64 machine first_binding() -> ForeignBinding<10, 10, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega-test",
             export: "pair_first",
@@ -94,8 +94,8 @@ windows_x86_64 machine first_binding() -> Binding<10, 10, 0> {
     }
 }
 
-windows_x86_64 machine second_binding() -> Binding<10, 11, 0> {
-    Binding::DllImport {
+windows_x86_64 machine second_binding() -> ForeignBinding<10, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega-test",
             export: "pair_second",

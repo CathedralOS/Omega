@@ -41,9 +41,9 @@ pub boundary trait CoreGraphics {
 }
 
 data Main {
-    console: Service<Console>;
-    objc: Service<ObjectiveC>;
-    cg: Service<CoreGraphics>;
+    console: Binding<Console>;
+    objc: Binding<ObjectiveC>;
+    cg: Binding<CoreGraphics>;
     pixels: [i32; 16];
     fx: f64;
     fy: f64;

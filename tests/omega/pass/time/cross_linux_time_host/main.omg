@@ -7,8 +7,8 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    host: Service<TimeHost>;
-    console: Service<Console>;
+    host: Binding<TimeHost>;
+    console: Binding<Console>;
     first_monotonic: u64;
     second_monotonic: u64;
     frequency: u64;

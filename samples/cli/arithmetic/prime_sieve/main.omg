@@ -19,7 +19,7 @@ domain [u8; 48]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     marked: [i32; 50] in Wrapping; // 0 = prime candidate, 1 = composite (zero-init)
     line: [u8; 48] in Utf8;
     i: i32 in Wrapping;

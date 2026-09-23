@@ -11,7 +11,7 @@ data Pair8 {
     b: u32;
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     p: Pair8;
 }
 machine Pair8::make(n: u32 [0..=10000]) -> Pair8 {

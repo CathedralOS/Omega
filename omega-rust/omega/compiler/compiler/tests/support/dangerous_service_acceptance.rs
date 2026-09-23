@@ -66,7 +66,7 @@ impl RequiredDangerousServices {
 /// through the selected provider type instead, exactly as the binding
 /// constructors attribute it. Console and ProcessExit operations are the
 /// trait signatures the program's call statements resolved to — a
-/// `Service<R>` receiver resolves its call target to `R`'s signature whatever
+/// `Binding<R>` receiver resolves its call target to `R`'s signature whatever
 /// the receiver's shape — so a fixture that imports a service and never calls
 /// it accepts nothing.
 pub fn required_dangerous_services(

@@ -8,7 +8,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 const PAGE_SIZE: u32 = 64;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     transition PAGE_SIZE == 64 { true -> yes() _ -> no() }
     state yes(&mut self) { self.console.exit_process(70); }

@@ -98,7 +98,7 @@ fn compile_provider_mode_fixture(
         &format!(
             r#"pub boundary trait Pair {{ machine first(); }}
 pub data Provider {{ first: addr; }}
-machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
+machine Provider::first() satisfies Pair::first via ForeignBinding::VtableField(first);
 {extra_source}
 "#
         ),

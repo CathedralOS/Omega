@@ -17,7 +17,7 @@ pub boundary requirement InterruptAcknowledgement::complete(self);
 
 pub machine LinuxCompletion::complete(acknowledgement: InterruptAcknowledgement)
     satisfies InterruptAcknowledgement::complete as CompletionSupply
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -111,8 +111,8 @@ pub data DispatchTable {
     invoke: addr;
 }
 
-pub windows_x86_64 machine import_binding() -> Binding<8, 11, 0> {
-    Binding::DllImport {
+pub windows_x86_64 machine import_binding() -> ForeignBinding<8, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "libomega",
             export: "omega_entry",
@@ -125,16 +125,16 @@ pub machine import_leaf()
     via import_binding();
 pub machine syscall_leaf()
     satisfies ExternalSurface::syscalled
-    via Binding::Syscall(61);
+    via ForeignBinding::Syscall(61);
 machine intrinsic_leaf()
     satisfies ExternalSurface::intrinsic
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 pub machine DispatchTable::field_leaf()
     satisfies ExternalSurface::field
-    via Binding::VtableField(dispatch);
+    via ForeignBinding::VtableField(dispatch);
 pub machine DispatchTable::table_leaf()
     satisfies ExternalSurface::table
-    via Binding::TableFunction(invoke);
+    via ForeignBinding::TableFunction(invoke);
 "#,
     );
     package.write(
@@ -333,13 +333,13 @@ pub boundary operator F32::square_root(value: f32) -> f32;
 pub data FloatProvider {}
 pub machine FloatProvider::minimum(left: f32, right: f32) -> f32
     satisfies F32::minimum as MinimumSupply
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 machine FloatProvider::maximum(left: f32, right: f32) -> f32
     satisfies F32::maximum
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 machine FloatProvider::square_root(value: f32) -> f32
     satisfies F32::square_root
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
     );
     package.write(

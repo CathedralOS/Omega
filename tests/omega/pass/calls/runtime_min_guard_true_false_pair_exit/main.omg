@@ -9,7 +9,7 @@
 // failed to pair (vacuous guard), would exit 71. Native must match the interp.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: i32; b: i32; }
+data Main { console: Binding<Console>; a: i32; b: i32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 8;
     self.b = 7;

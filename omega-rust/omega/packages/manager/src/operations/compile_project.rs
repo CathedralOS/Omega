@@ -362,7 +362,7 @@ machine build(builder: &mut Build) {{
                 r#"use omega::language::core::service;
 use console_provider::console;
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

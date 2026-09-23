@@ -103,7 +103,7 @@ fan-out runs as an ordinary task.
   requirement bindings, liveness pins, resource demands, and explicit
   drain/coexist/migrate/cancel/transfer dispositions.
 - Omega's reusable replacement substrate stops at exact service-slot identity,
-  `Service<R>` call authority, verified candidate capsules, deployment-local
+  `Binding<R>` call authority, verified candidate capsules, deployment-local
   acceptance envelopes, era entry/leave accounting, linear installation
   transitions. Cathedral owns deployment journals and restart recovery, including
   their fact vocabularies and roster reconstruction. It also chooses update

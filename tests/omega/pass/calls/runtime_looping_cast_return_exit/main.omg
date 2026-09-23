@@ -8,7 +8,7 @@ use omega::language::core::service;
 data Counter {}
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     values: [i32; 5];
     counter: Counter;
 }

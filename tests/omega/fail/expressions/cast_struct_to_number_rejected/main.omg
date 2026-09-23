@@ -3,5 +3,5 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data P { x: i32; y: i32; }
-data Main { console: Service<Console>; p: P; }
+data Main { console: Binding<Console>; p: P; }
 machine Main::main(&mut self) { self.p = P { x: 7, y: 9 }; let n: i32 = self.p as i32; self.console.exit_process(n); }

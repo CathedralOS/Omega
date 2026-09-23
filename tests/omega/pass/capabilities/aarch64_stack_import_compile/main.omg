@@ -8,8 +8,8 @@ pub boundary trait WideImport {
     machine call(a: i64, b: i64, c: i64, d: i64, e: i64, f: i64, g: i64, h: i64, i: i64) -> i64;
 }
 
-macos_arm64 machine wide_binding() -> Binding<17, 25, 0> {
-    Binding::DllImport {
+macos_arm64 machine wide_binding() -> ForeignBinding<17, 25, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "omega_nine_argument_probe",
@@ -19,7 +19,7 @@ macos_arm64 machine wide_binding() -> Binding<17, 25, 0> {
 
 macos_arm64 machine wide_import(a: i64, b: i64, c: i64, d: i64, e: i64, f: i64, g: i64, h: i64, i: i64) -> i64 satisfies WideImport::call via wide_binding();
 
-data Main { wide: Service<WideImport>; ninth: i64; result: i64; }
+data Main { wide: Binding<WideImport>; ninth: i64; result: i64; }
 machine Main::main(&mut self) reaches WideImport {
     self.ninth = 9;
     self.result = self.wide.call(1, 2, 3, 4, 5, 6, 7, 8, self.ninth);

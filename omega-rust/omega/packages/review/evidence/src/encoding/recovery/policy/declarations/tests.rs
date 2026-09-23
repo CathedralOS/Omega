@@ -326,11 +326,11 @@ fn requirement() -> PackageReviewTraitRequirement {
         return_type: value_type(),
         contracts: contracts(),
         published_crash: crash(),
-        service_reach: vec![nominal("Service")],
+        service_reach: vec![nominal("Binding")],
         service_reach_is_installation_bound: true,
         synchronous_invocations: vec![
             PackageReviewSynchronousInvocation::Parameter(0),
-            PackageReviewSynchronousInvocation::Service(nominal("Service")),
+            PackageReviewSynchronousInvocation::Service(nominal("Binding")),
         ],
         suspends: true,
         blocks: true,

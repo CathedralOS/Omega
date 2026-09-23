@@ -105,7 +105,7 @@ fn validate_unit_machines(
             let Ok(Some(carrier)) = classification else {
                 if let Err(reason) = classification {
                     diagnostics.push(Diagnostic::error(format!(
-                        "typed parameter `{}::{}` has an invalid routed Service carrier at Terminal custody: {reason}",
+                        "typed parameter `{}::{}` has an invalid routed Binding carrier at Terminal custody: {reason}",
                         machine.name, source_parameter.name,
                     )));
                 }

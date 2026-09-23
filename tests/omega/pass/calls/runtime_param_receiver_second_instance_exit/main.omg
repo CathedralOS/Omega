@@ -26,7 +26,7 @@ machine Holder::run(&mut self) -> i32 in Wrapping {
     transition true { true -> done(v) }
     state done(&mut self, v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
-data Main { console: Service<Console>; holder: Holder; flag: i32 in Wrapping; }
+data Main { console: Binding<Console>; holder: Holder; flag: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.flag = self.holder.run();
     transition self.flag == 9 { true -> good() _ -> bad() }

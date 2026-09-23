@@ -24,7 +24,7 @@ impl Project {
 boundary machine == Comparison::equal(left: i32, right: i32) -> bool;
 data ComparisonProvider {}
 machine ComparisonProvider::equal(left: i32, right: i32) -> bool
-    satisfies Comparison::equal via Binding::CompilerIntrinsic;
+    satisfies Comparison::equal via ForeignBinding::CompilerIntrinsic;
 
 data Main { left: i32; right: i32; first: bool; second: bool; builtin: bool; }
 machine Main::main(&mut self) {

@@ -4,7 +4,7 @@ pub boundary trait Readable {
 }
 pub boundary trait Queryable {}
 
-pub data Worker { reader: Service<Readable>; }
+pub data Worker { reader: Binding<Readable>; }
 
 machine Worker::read(&mut self) -> u64 reaches Readable + Queryable {
     self.reader.read()

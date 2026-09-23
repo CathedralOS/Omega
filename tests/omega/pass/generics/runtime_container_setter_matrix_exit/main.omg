@@ -24,7 +24,7 @@ machine Cell::touch_count(&self) -> i32 in Wrapping {
     transition { _ -> (self.touched) }
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: Cell<i32>;
     b: Cell<bool>;
 }

@@ -10,7 +10,7 @@ data Row {
     data: [i32; 2];
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     rows: [Row; 3];
     j: u64 [0..=1];
     got: i32;

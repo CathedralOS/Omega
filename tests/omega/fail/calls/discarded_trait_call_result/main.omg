@@ -9,7 +9,7 @@ pub boundary trait Probe {
 }
 
 data Main {
-    probe: Service<Probe>;
+    probe: Binding<Probe>;
 }
 
 machine Main::main(&mut self) -> i32 {

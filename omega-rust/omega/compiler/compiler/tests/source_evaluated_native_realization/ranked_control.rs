@@ -33,8 +33,8 @@ boundary trait Trace {
     machine record(value: u64);
 }
 
-linux_x86_64 machine record_binding() -> Binding<9, 6, 11> {
-    Binding::DllImport {
+linux_x86_64 machine record_binding() -> ForeignBinding<9, 6, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "getpid",

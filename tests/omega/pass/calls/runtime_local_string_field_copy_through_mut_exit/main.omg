@@ -21,7 +21,7 @@ data Holder {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     line: [u8; 32] in Utf8;
 }
 

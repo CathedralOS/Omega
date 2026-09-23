@@ -118,7 +118,7 @@ machine windows_x86_64_baseline_float_twin_code() -> u64 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     slots: [u8; windows_x86_64_baseline_float_twin_code()];
 }
 

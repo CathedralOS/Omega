@@ -44,7 +44,7 @@ data Dashboard {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     dash: Dashboard;
 }
 

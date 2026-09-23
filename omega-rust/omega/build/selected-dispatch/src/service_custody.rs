@@ -14,7 +14,7 @@ use provider_planning::CompositionMode;
 use provider_planning::SelectedProviderReviewProvenance;
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 
-/// Rejoin every checked routed `Service<R>` carrier erasure to its exact
+/// Rejoin every checked routed `Binding<R>` carrier erasure to its exact
 /// typed source field or direct owned parameter and owner-controlled Fused
 /// selected-provider plan. This runs immediately before Terminal production,
 /// where erasure becomes irreversible.
@@ -98,7 +98,7 @@ pub fn validate_fused_service_terminal_custody(
                 )
             }) {
                 diagnostics.push(Diagnostic::error(format!(
-                    "checked structural type `{}` cannot rejoin its fused Service fields to one exact typed owner",
+                    "checked structural type `{}` cannot rejoin its fused Binding fields to one exact typed owner",
                     plan.identity,
                 )));
             }
@@ -137,7 +137,7 @@ fn validate_record_fields(
         let Ok(Some(carrier)) = classification else {
             if let Err(reason) = classification {
                 diagnostics.push(Diagnostic::error(format!(
-                    "typed field `{}::{}` has an invalid routed Service carrier at Terminal custody: {reason}",
+                    "typed field `{}::{}` has an invalid routed Binding carrier at Terminal custody: {reason}",
                     owner.name, source_field.name,
                 )));
             }
@@ -156,7 +156,7 @@ fn validate_record_fields(
         };
         let [checked_field] = checked_matches.as_slice() else {
             diagnostics.push(Diagnostic::error(format!(
-                "typed routed Service field `{}::{}` rejoins {} checked structural fields; expected one",
+                "typed routed Binding field `{}::{}` rejoins {} checked structural fields; expected one",
                 owner.name,
                 source_field.name,
                 checked_matches.len(),
@@ -169,7 +169,7 @@ fn validate_record_fields(
         } = &checked_field.field_type
         else {
             diagnostics.push(Diagnostic::error(format!(
-                "typed routed Service field `{}::{}` lost its exact Fused erasure settlement",
+                "typed routed Binding field `{}::{}` lost its exact Fused erasure settlement",
                 owner.name, source_field.name,
             )));
             continue;
@@ -179,7 +179,7 @@ fn validate_record_fields(
             .into_string();
         if provider_type_identity != &source_type_identity {
             diagnostics.push(Diagnostic::error(format!(
-                "checked routed Service field `{}::{}` substituted its normalized carrier identity",
+                "checked routed Binding field `{}::{}` substituted its normalized carrier identity",
                 owner.name, source_field.name,
             )));
             continue;
@@ -216,7 +216,7 @@ fn validate_record_fields(
             .count();
         if source_matches != 1 {
             diagnostics.push(Diagnostic::error(format!(
-                "checked fused Service field `{}::{}` rejoins {source_matches} typed source fields; expected one",
+                "checked fused Binding field `{}::{}` rejoins {source_matches} typed source fields; expected one",
                 owner.name, checked_field.identity,
             )));
         }
@@ -234,21 +234,21 @@ fn validate_receipt(
 ) {
     if receipt.requirement != requirement {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service field `{}::{}` substituted its boundary requirement",
+            "checked routed Binding field `{}::{}` substituted its boundary requirement",
             owner.name, field.name,
         )));
         return;
     }
     let Some(authorization) = checked.fused_service_erasure(requirement) else {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service field `{}::{}` lacks compiler-owned Fused erasure authority",
+            "checked routed Binding field `{}::{}` lacks compiler-owned Fused erasure authority",
             owner.name, field.name,
         )));
         return;
     };
     if authorization.provider_plan_digest != receipt.provider_plan_digest {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service field `{}::{}` substituted its selected-provider-plan digest",
+            "checked routed Binding field `{}::{}` substituted its selected-provider-plan digest",
             owner.name, field.name,
         )));
         return;
@@ -259,7 +259,7 @@ fn validate_receipt(
         .find(|definition| definition.symbol == requirement)
     else {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service field `{}::{}` lost its exact boundary requirement",
+            "checked routed Binding field `{}::{}` lost its exact boundary requirement",
             owner.name, field.name,
         )));
         return;
@@ -268,7 +268,7 @@ fn validate_receipt(
         provider_planning::service_schema::from_typed(checked, requirement_definition)
     else {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service field `{}::{}` cannot reconstruct its boundary schema",
+            "checked routed Binding field `{}::{}` cannot reconstruct its boundary schema",
             owner.name, field.name,
         )));
         return;
@@ -283,7 +283,7 @@ fn validate_receipt(
         .count();
     if matching != 1 {
         diagnostics.push(Diagnostic::error(format!(
-            "checked routed Service field `{}::{}` rejoins {matching} exact Fused selected-provider plans; expected one",
+            "checked routed Binding field `{}::{}` rejoins {matching} exact Fused selected-provider plans; expected one",
             owner.name, field.name,
         )));
     }

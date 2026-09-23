@@ -35,7 +35,7 @@ machine Store::pick(&mut self, idx: i32) -> i32 in Wrapping {
         transition { _ -> (b) }
     }
 }
-data Main { console: Service<Console>; store: Store; a: i32 in Wrapping; b: i32 in Wrapping; c: i32 in Wrapping; }
+data Main { console: Binding<Console>; store: Store; a: i32 in Wrapping; b: i32 in Wrapping; c: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.store.x = 10;
     self.store.y = 20;

@@ -7,8 +7,8 @@ pub boundary trait NetworkHost {
 }
 
 pub data RemoteJournal {
-    files: Service<FilesystemHost>;
-    network: Service<NetworkHost>;
+    files: Binding<FilesystemHost>;
+    network: Binding<NetworkHost>;
     written: i64;
 }
 

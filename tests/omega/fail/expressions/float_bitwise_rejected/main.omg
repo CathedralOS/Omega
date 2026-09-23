@@ -4,5 +4,5 @@
 // clear message. Float `+ - * /` and integer bitwise are unaffected.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let a: f64 = 6.0; let b: f64 = 3.0; let r: f64 = a & b; self.console.exit_process(0); }

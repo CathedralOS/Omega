@@ -9,7 +9,7 @@ data Val {
     v: u32;
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buffer: [u8; 32];
     written: u64;
 }

@@ -15,7 +15,7 @@ requires
     self.score >= 8;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     password: Password;
 }
 

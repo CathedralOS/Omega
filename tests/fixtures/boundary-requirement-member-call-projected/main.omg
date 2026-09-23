@@ -16,7 +16,7 @@ satisfies Token::consume
 { token }
 data Inner { token: Token; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     inner: Inner;
 }
 machine Main::main(&mut self)

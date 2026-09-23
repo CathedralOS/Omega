@@ -429,7 +429,7 @@ fn authored_physical_exclusion_rejects_exercised_output_not_unrelated_input() {
         "main.omg",
         r#"use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 "#,
     );
@@ -519,7 +519,7 @@ fn a_retained_physical_exclusion_replays_against_the_product_by_consumers() {
     // independent of receiver admission.
     const OUTPUT_PROGRAM: &str = r#"use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 "#;
     let retained_for = |class: effects::TerminalAuthorityClass| {
@@ -655,7 +655,7 @@ satisfies Console::exit_process
     }
 }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 "#;
 
@@ -663,7 +663,7 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 fn replacing_a_silent_console_provider_with_excluded_behavior_rejects() {
     // Provider substitution cannot launder a physical exclusion: the verdict
     // tracks the SELECTED provider's exercised mechanism classes, not the
-    // presence of a `Service<Console>` field.
+    // presence of a `Binding<Console>` field.
     let build_for = |provider: &str| {
         format!(
             r#"machine build(builder: &mut Build) {{
@@ -1342,7 +1342,7 @@ const SINK_APP_MAIN: &str = r#"use logger_kit::main;
 use omega::language::core::service;
 
 data Main {
-    sink: Service<Sink>;
+    sink: Binding<Sink>;
 }
 
 machine Main::main(&mut self)
@@ -1449,8 +1449,8 @@ pub boundary requirement ForeignMath::exit_with(code: i32);
 
 data ForeignMathProvider {}
 
-linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
-    Binding::DllImport {
+linux_x86_64 machine foreign_exit_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "exit",

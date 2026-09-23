@@ -22,14 +22,14 @@ data SchedulerProvider { grant: addr; }
 // requirement into canonical ProcessExit or establish its progress premise.
 linux_x86_64 machine SchedulerProvider::notify(&self, value: i32)
 satisfies Scheduler::notify
-via Binding::Syscall(1);
+via ForeignBinding::Syscall(1);
 
 machine SchedulerProvider::grant(handle: SchedulerHandle) -> SchedulerHandle in WeakFair
 satisfies Scheduler::grant
-via Binding::VtableField(grant);
+via ForeignBinding::VtableField(grant);
 
 data Main {
-    scheduler: Service<Scheduler>;
+    scheduler: Binding<Scheduler>;
 }
 
 machine Main::main(&mut self)

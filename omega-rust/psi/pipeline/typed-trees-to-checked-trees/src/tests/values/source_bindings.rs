@@ -360,7 +360,7 @@ fn explicit_compiler_intrinsic_arguments_retain_boundary_custody() {
         pub data ConsoleNativeProvider {}
         machine ConsoleNativeProvider::exit_process(return_code: i32)
             satisfies Console::exit_process
-            via Binding::CompilerIntrinsic;
+            via ForeignBinding::CompilerIntrinsic;
         data Root {}
         machine Root::enter(code: i32) reaches Console {
             ConsoleNativeProvider::exit_process(code);

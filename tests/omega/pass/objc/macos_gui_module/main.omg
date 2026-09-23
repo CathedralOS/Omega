@@ -12,7 +12,7 @@ use omega::language::core::service;
 // behavior from large frame-offset addressing. The framebuffer base itself is
 // materialized in a register.
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     gui: MacosGui;
     hwnd: u64;
     hdc: u64;

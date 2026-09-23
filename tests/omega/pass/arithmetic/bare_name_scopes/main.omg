@@ -6,7 +6,7 @@ use omega::language::core::service;
 
 data Light { case Off; case On; }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let signal: Light = On; // bare enum-case constant -- must be accepted

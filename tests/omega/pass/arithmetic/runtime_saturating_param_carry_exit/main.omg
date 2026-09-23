@@ -11,7 +11,7 @@
 // binary nodes.)
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::count(&mut self, i: u64, j: u64, acc: i8 in Saturating)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i8

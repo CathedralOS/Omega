@@ -4,7 +4,7 @@
 // f64 place would silently mean the f32-rounded value.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let x: f64 = 1.5f32;
     self.console.exit_process(70);

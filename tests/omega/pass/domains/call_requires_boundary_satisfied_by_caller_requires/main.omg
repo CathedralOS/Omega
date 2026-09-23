@@ -19,7 +19,7 @@ pub boundary trait Console {
 }
 
 data Worker {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Worker::run(&self, item: &Item)

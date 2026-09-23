@@ -42,7 +42,7 @@ machine Bracket::make(&mut self) -> Verdict {
     state mk_yes(&mut self) -> Verdict { Verdict::Yes }
     state mk_no(&mut self) -> Verdict { Verdict::No }
 }
-data Main { console: Service<Console>; probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
+data Main { console: Binding<Console>; probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
 machine Main::main(&mut self) reaches Console {
     self.v1 = self.probe.make();
     transition self.v1 { Verdict::Yes -> step2() _ -> bad(71) }

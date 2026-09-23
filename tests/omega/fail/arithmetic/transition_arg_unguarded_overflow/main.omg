@@ -4,7 +4,7 @@
 // guarding (`transition n > 0`) or opting into a domain.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; ready: bool; }
+data Main { console: Binding<Console>; ready: bool; }
 machine Main::step(&mut self, n: u32) {
     transition self.ready {
         true -> step(n - 1)

@@ -24,7 +24,7 @@ domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     text: [u8; 5] in Utf8;
     out: [u8; 5] in Utf8;
     i: i32 [0..=5];        // guard-proven Exact counter (`i < 5` dominates the increment)

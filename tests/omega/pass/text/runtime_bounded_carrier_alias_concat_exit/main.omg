@@ -27,7 +27,7 @@ machine Formatter::render(&mut self, out_line: &mut [u8; 16] in Utf8) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     formatter: Formatter;
     line: [u8; 16] in Utf8;
 }

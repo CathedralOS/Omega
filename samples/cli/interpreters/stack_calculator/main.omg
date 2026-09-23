@@ -20,7 +20,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     // Wrapping DECLARED (stack/a/b/acc): the operands round-trip through array
     // elements, which carry no range facts yet.
     stack: [i32; 8] in Wrapping;

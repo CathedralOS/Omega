@@ -314,7 +314,7 @@ fn retains_public_machine_visibility_in_typed_trees() {
 
 #[test]
 fn retains_structured_external_binding_table_in_typed_trees() {
-    // The authored `Binding::DllImport("module", "symbol")` bootstrap spelling
+    // The authored `ForeignBinding::DllImport("module", "symbol")` bootstrap spelling
     // is retired, so the typed import identity no longer exists and has no source
     // producer. The remaining bootstrap spellings still exercise the interned
     // identity table until their carriers are removed.
@@ -325,7 +325,7 @@ fn retains_structured_external_binding_table_in_typed_trees() {
 
         machine write_leaf(value: u8)
         satisfies Console::write
-        via Binding::Syscall(4);
+        via ForeignBinding::Syscall(4);
     "#;
     let typed = crate::front_end::typed_program(source);
     let leaf = typed
@@ -404,7 +404,7 @@ fn settles_satisfied_operator_to_its_exact_overload_symbol() {
 
         machine add32(left: f32, right: f32) -> f32
         satisfies Float::add
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
     "#;
     let typed = crate::front_end::typed_program(source);
     let machine = typed

@@ -28,8 +28,8 @@ pub boundary trait ObjectiveC {
 }
 
 data Main {
-    console: Service<Console>;
-    objc: Service<ObjectiveC>;
+    console: Binding<Console>;
+    objc: Binding<ObjectiveC>;
     app_cls: u64;
     date_cls: u64;
     str_cls: u64;

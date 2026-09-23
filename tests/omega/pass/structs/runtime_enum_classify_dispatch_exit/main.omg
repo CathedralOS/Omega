@@ -6,7 +6,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Sign { case Neg; case Zero; case Pos; }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::classify(&self, n: i32) -> Sign {
     transition n > 0 {
         true -> pos()

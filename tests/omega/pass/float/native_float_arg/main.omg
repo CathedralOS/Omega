@@ -14,8 +14,8 @@ pub boundary trait Math {
 }
 
 data Main {
-    console: Service<Console>;
-    math: Service<Math>;
+    console: Binding<Console>;
+    math: Binding<Math>;
     x: f64;
     y: f64;
     n: i64;

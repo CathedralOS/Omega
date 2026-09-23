@@ -9,7 +9,7 @@ pub boundary trait Console {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) {

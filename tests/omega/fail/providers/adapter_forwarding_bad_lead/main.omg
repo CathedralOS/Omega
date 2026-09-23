@@ -12,7 +12,7 @@ pub boundary trait TestConsole {
 }
 
 data Main {
-    console: Service<TestConsole>;
+    console: Binding<TestConsole>;
 }
 
 data TestConsoleProvider {}

@@ -10,7 +10,7 @@ const SOURCE: &str = r#"
     data FloatProvider {}
     machine FloatProvider::equal(left: f32, right: f32) -> bool
     satisfies Float::equal
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
     machine choose(value: f32, first: f32, second: f32) -> u64 {
         match value { first -> 7, second -> 9, _ -> 11 }

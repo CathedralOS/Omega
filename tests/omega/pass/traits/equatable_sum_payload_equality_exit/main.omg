@@ -30,7 +30,7 @@ data Switch {
 SwitchEquatable: Switch satisfies Equatable;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: Command;
     b: Command;
     c: Command;

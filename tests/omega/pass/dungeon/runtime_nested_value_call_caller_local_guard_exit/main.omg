@@ -26,7 +26,7 @@ data Roller {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     roller: Roller;
 }
 

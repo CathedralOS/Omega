@@ -45,8 +45,8 @@ boundary trait Console {
     machine write(value: u8);
 }
 
-windows_x86_64 machine write_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+windows_x86_64 machine write_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "ExitProcess",
@@ -112,12 +112,12 @@ fn evaluates_match_selected_binding_with_closed_constructor_arms() {
             r#"
 use omega::language::core::external_binding;
 boundary trait Host {{ machine ping(); }}
-windows_x86_64 machine binding() -> Binding<12, 11, 0> {{
+windows_x86_64 machine binding() -> ForeignBinding<12, 11, 0> {{
     match {selected} {{
-        true -> Binding::DllImport {{
+        true -> ForeignBinding::DllImport {{
             import: DllImport::PeByName {{ library: "kernel32.dll", export: "ExitProcess" }}
         }},
-        false -> Binding::DllImport {{
+        false -> ForeignBinding::DllImport {{
             import: DllImport::PeByName {{ library: "kernel32.dll", export: "FreeLibrary" }}
         }}
     }}
@@ -162,12 +162,12 @@ fn skipped_binding_arm_still_checks_its_declared_byte_width() {
     let fixture = TemporaryProgram::new(
         r#"
 use omega::language::core::external_binding;
-windows_x86_64 machine binding() -> Binding<12, 11, 0> {
+windows_x86_64 machine binding() -> ForeignBinding<12, 11, 0> {
     match true {
-        true -> Binding::DllImport {
+        true -> ForeignBinding::DllImport {
             import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" }
         },
-        false -> Binding::DllImport {
+        false -> ForeignBinding::DllImport {
             import: DllImport::PeByName { library: "wrong", export: "FreeLibrary" }
         }
     }
@@ -194,8 +194,8 @@ fn imported_binding_arrays_preserve_exact_declared_widths() {
         let source = format!(
             r#"
 use omega::language::core::external_binding;
-windows_x86_64 machine binding() -> Binding<{width}, 11, 0> {{
-    Binding::DllImport {{
+windows_x86_64 machine binding() -> ForeignBinding<{width}, 11, 0> {{
+    ForeignBinding::DllImport {{
         import: DllImport::PeByName {{ library: "kernel32.dll", export: "ExitProcess" }}
     }}
 }}
@@ -228,8 +228,8 @@ boundary trait Process {
     machine exit(code: i32);
 }
 
-linux_x86_64 machine exit_binding() -> Binding<0, 0, 0> {
-    Binding::Syscall { number: 60 }
+linux_x86_64 machine exit_binding() -> ForeignBinding<0, 0, 0> {
+    ForeignBinding::Syscall { number: 60 }
 }
 
 machine exit_leaf(code: i32)
@@ -303,8 +303,8 @@ boundary trait Process {{
     machine exit(code: i32);
 }}
 
-{target} machine exit_binding() -> Binding<{widths}> {{
-    Binding::Syscall {{ number: 60 }}
+{target} machine exit_binding() -> ForeignBinding<{widths}> {{
+    ForeignBinding::Syscall {{ number: 60 }}
 }}
 
 machine exit_leaf(code: i32)
@@ -339,8 +339,8 @@ boundary trait Console {
     machine write(value: u8);
 }
 
-windows_x86_64 machine write_binding() -> Binding<12, 0, 0> {
-    Binding::DllImport {
+windows_x86_64 machine write_binding() -> ForeignBinding<12, 0, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByOrdinal {
             library: "kernel32.dll",
             ordinal: 37,
@@ -429,8 +429,8 @@ boundary trait Console {{
     machine write(value: u8);
 }}
 
-{target} machine write_binding() -> Binding<{widths}> {{
-    Binding::DllImport {{
+{target} machine write_binding() -> ForeignBinding<{widths}> {{
+    ForeignBinding::DllImport {{
         import: DllImport::PeByOrdinal {{
             library: "kernel32.dll",
             ordinal: {ordinal},
@@ -463,7 +463,7 @@ machine Main::main(&mut self) {{}}
 fn local_binding_lookalike_does_not_enter_the_evaluated_vocabulary() {
     let fixture = TemporaryProgram::new(
         r#"
-data Binding<const A: u64, const B: u64, const C: u64> {
+data ForeignBinding<const A: u64, const B: u64, const C: u64> {
     case Syscall(number: u64);
 }
 
@@ -472,8 +472,8 @@ boundary trait Process {
     machine exit(code: i32);
 }
 
-linux_x86_64 machine exit_binding() -> Binding<0, 0, 0> {
-    Binding::Syscall { number: 60 }
+linux_x86_64 machine exit_binding() -> ForeignBinding<0, 0, 0> {
+    ForeignBinding::Syscall { number: 60 }
 }
 
 machine exit_leaf(code: i32)

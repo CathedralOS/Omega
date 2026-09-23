@@ -59,7 +59,7 @@ fn compile_and_run_windows_hosted_receiver(bare_interface: bool) {
     let (helper_header, helper_field) = if bare_interface {
         (
             "use omega::language::core::service;\n\npub boundary trait Helper {\n    machine help();\n}\n\n",
-            "    helper: Service<Helper>;\n",
+            "    helper: Binding<Helper>;\n",
         )
     } else {
         ("", "")

@@ -11,7 +11,7 @@ requires
     self <= 100;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     value: u32 in Small;
 }
 

@@ -39,7 +39,7 @@ fn straight_line_console_source(write_count: usize, exit_status: i32) -> String 
         reaches Console;
     }}
 
-    data Main {{ console: Service<Console>; }}
+    data Main {{ console: Binding<Console>; }}
     machine Main::main(&mut self)
     reaches Console
     {{
@@ -58,7 +58,7 @@ fn canonical_console_source() -> &'static str {
         reaches Console;
     }
 
-    data Main { console: Service<Console>; }
+    data Main { console: Binding<Console>; }
     machine Main::main(&mut self)
     reaches Console
     {
@@ -106,7 +106,7 @@ fn project_source(source: &str) -> (Vec<u8>, Vec<u8>) {
     project_source_entry(source, "Main::main")
 }
 
-// `Service<R>` fixtures resolve the intrinsic carrier through the bundled
+// `Binding<R>` fixtures resolve the intrinsic carrier through the bundled
 // toolchain service source, resident under `SourceOrigin::Toolchain` — the same
 // seeding typed-trees' `parse_typed_trees_with_core_service` performs.
 const CORE_SERVICE: &str = include_str!(concat!(

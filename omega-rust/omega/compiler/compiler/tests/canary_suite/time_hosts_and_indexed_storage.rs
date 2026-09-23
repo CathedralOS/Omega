@@ -290,7 +290,7 @@ fn dereferenced_result_imports_compile_on_windows_and_darwin() {
 
 #[test]
 fn authored_scalar_imports_compile_on_windows_and_darwin() {
-    // Both sources call a `via Binding::DllImport` leaf with a direct integer
+    // Both sources call a `via ForeignBinding::DllImport` leaf with a direct integer
     // result. Darwin supplies an immediate argument to `_exit`; Windows loads
     // the runtime argument/result places around `abs`.
     for &(target, canary_name) in fixture_roster::AUTHORED_SCALAR_IMPORT_CANARIES {

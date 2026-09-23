@@ -11,7 +11,7 @@
 // cannot itself be a machine call yet").
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 
 // Local `Peano`/`peano_add` names: `core` exports `Nat` and `add`, so the

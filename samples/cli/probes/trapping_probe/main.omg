@@ -17,7 +17,7 @@
 // appearing in this sample's compile output is expected and correct.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; x: i32 in Trapping; }
+data Main { console: Binding<Console>; x: i32 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     self.x = 2147483647;
     self.x = self.x + 1;

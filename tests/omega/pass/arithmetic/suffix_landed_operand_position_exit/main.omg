@@ -9,7 +9,7 @@
 // picked 5. Disagreement twin: fail/arithmetic/suffix_type_disagrees_rejected.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let z: u64 in Wrapping = 0;
     let big: u64 in Wrapping = z - 1u64;

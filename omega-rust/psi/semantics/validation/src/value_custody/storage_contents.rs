@@ -58,7 +58,7 @@ enum ContentsRequirement {
     /// declared type exists; its contents never materialize.
     CleanupOwned,
     StableObservation,
-    /// Contents an opaque `Service<R>`/boundary-trait call seam may marshal as
+    /// Contents an opaque `Binding<R>`/boundary-trait call seam may marshal as
     /// a caller-owned ABI copy while the observed place keeps custody of the
     /// whole value. Runtime contents are exactly `StableObservation`'s, but an
     /// `[erased]` member never materializes and never crosses the seam: it
@@ -130,7 +130,7 @@ pub fn has_stable_observable_contents(
     )
 }
 
-/// Classify value contents an opaque `Service<R>`/boundary-trait call seam may
+/// Classify value contents an opaque `Binding<R>`/boundary-trait call seam may
 /// marshal as a caller-owned ABI copy while the observed borrowed place keeps
 /// custody of the whole value. Runtime (non-erased) contents must be stable
 /// under observation exactly as for [`has_stable_observable_contents`]. An

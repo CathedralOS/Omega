@@ -3,5 +3,5 @@
 // now. `bool && bool` and `(a == 1) && (b < 5)` stay valid.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let a: i32 = 5; let b: i32 = 3; let r: bool = a && b; let n: i32 = r as i32; self.console.exit_process(n); }

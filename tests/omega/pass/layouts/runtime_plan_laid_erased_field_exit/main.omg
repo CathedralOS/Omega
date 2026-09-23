@@ -74,7 +74,7 @@ data Certified [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     value: Spread16<Certified>;
     twin: Spread16<Certified>;
 }

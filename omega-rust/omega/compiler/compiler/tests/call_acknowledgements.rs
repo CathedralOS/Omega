@@ -157,7 +157,7 @@ pub boundary trait Event { machine park() suspends; }
 pub boundary trait Value { machine get() -> u64 suspends; }
 pub boundary trait Scheduler { machine wait() -> u64 suspends; }
 
-data Subject { scheduler: Service<Scheduler>; }
+data Subject { scheduler: Binding<Scheduler>; }
 data Main { }
 machine Subject::wait(&mut self) -> u64 reaches Scheduler suspends; {
     suspend self.scheduler.wait()

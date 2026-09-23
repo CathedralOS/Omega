@@ -3,7 +3,7 @@
 // state. On macOS AArch64, FE_UPWARD is 0x00400000. If that FPCR value leaks
 // through the import, 1 + 2^-53 rounds upward instead of tying to even at 1.
 // The binding is an evaluated typed locator: `fesetround_binding` returns the
-// compiler-owned `Binding::DllImport` value carrying one exact Mach-O
+// compiler-owned `ForeignBinding::DllImport` value carrying one exact Mach-O
 // dylib-symbol import, so raw foreign bytes stay data.
 
 use omega::language::core::external_binding;
@@ -15,8 +15,8 @@ pub boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32;
 }
 
-macos_arm64 machine fesetround_binding() -> Binding<17, 11, 0> {
-    Binding::DllImport {
+macos_arm64 machine fesetround_binding() -> ForeignBinding<17, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "_fesetround",
@@ -28,8 +28,8 @@ macos_arm64 machine set_rounding(mode: i32) -> i32 satisfies FloatingEnvironment
     via fesetround_binding();
 
 data Main {
-    console: Service<Console>;
-    environment: Service<FloatingEnvironment>;
+    console: Binding<Console>;
+    environment: Binding<FloatingEnvironment>;
 }
 
 machine Main::main(&mut self) reaches Console {

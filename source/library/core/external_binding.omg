@@ -33,7 +33,7 @@ pub data DllImport<
 // Syscall numbers are ordinary target-scoped values. `VtableField` remains on
 // its explicit legacy carrier until NativeFieldIdentity has an ordinary typed
 // source form; it must not be smuggled into this sum as a magic integer.
-pub data Binding<
+pub data ForeignBinding<
     const ObjectLength: u64,
     const SymbolLength: u64,
     const VersionLength: u64

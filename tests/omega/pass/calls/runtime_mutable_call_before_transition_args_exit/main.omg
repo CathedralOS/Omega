@@ -9,7 +9,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Loader {
-    console: Service<Console>;
+    console: Binding<Console>;
     line: [u8; 8];
     tags: [u8; 16384] in Trapping;
     firsts: [u8; 16384] in Trapping;

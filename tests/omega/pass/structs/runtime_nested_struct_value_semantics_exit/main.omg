@@ -25,7 +25,7 @@ data Point {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     o: Outer;
     src: Point;
     dst: Point;

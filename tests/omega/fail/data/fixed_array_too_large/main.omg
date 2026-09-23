@@ -3,5 +3,5 @@
 // "attempt to multiply with overflow" during layout. It must be a clean diagnostic.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; xs: [i32; 5000000000000000000]; }
+data Main { console: Binding<Console>; xs: [i32; 5000000000000000000]; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(0); }

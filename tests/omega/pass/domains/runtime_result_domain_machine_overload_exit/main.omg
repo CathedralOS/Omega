@@ -15,7 +15,7 @@ machine convert(value: i32) -> i32 in Saturating {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

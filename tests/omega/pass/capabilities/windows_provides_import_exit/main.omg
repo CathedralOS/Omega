@@ -1,7 +1,7 @@
 // EXTERNAL-LEAF import, END TO END on hosted windows_x86_64 (extern brief §12,
 // hosted-consumption rung 2): a bodyless satisfying machine binds the boundary
 // requirement through the typed compile-time producer `beeper_binding`, whose
-// evaluated `Binding::DllImport { import: DllImport::PeByName { library:
+// evaluated `ForeignBinding::DllImport { import: DllImport::PeByName { library:
 // "msvcrt.dll", export: "abs" } }` value normalizes to the exact PE import
 // locator at provider selection -- raw foreign bytes stay data, never ambient
 // lookup strings. The call rides the GENERAL value-returning Win64 import
@@ -16,9 +16,9 @@ use omega::language::core::external_binding;
 use omega_language_std::console;
 use omega::language::core::service;
 pub boundary trait Beeper { machine beep(value: i32) -> i32; }
-data Main { console: Service<Console>; beeper: Service<Beeper>; m: i32; v: i32; }
-windows_x86_64 machine beeper_binding() -> Binding<10, 3, 0> {
-    Binding::DllImport {
+data Main { console: Binding<Console>; beeper: Binding<Beeper>; m: i32; v: i32; }
+windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "msvcrt.dll",
             export: "abs",

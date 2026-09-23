@@ -4,6 +4,6 @@
 // share the same arity check.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::pick(&mut self, a: i32, b: i32) -> i32 { 42 }
 machine Main::main(&mut self) { let r: i32 = self.pick(1); self.console.exit_process(r); }

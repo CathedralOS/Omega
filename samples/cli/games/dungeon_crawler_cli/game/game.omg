@@ -6,7 +6,7 @@ use view::game_view;
 use omega::language::core::service;
 
 data Game {
-    console: Service<Console>;
+    console: Binding<Console>;
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;

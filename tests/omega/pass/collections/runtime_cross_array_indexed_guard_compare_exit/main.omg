@@ -9,7 +9,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: [i32; 4];
     b: [i32; 4];
     i: i32 [0..=3];

@@ -18,7 +18,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     pixels: [u8; 12];
     x: u32 [0..=3];
     y: u32 [0..=2];

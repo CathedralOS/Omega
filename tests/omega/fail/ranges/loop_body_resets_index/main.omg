@@ -10,7 +10,7 @@ use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     nums: [i32; 4] in Trapping;
     i: i32 in Trapping;
     acc: i32 in Trapping;

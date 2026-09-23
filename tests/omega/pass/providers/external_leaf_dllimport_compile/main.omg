@@ -5,7 +5,7 @@
 // old compatibility-row twin also lost the argument; the runtime exit pins
 // landed with that fix rather than in this structural canary.
 // The binding is an evaluated typed locator: `leaf_binding` returns the
-// compiler-owned `Binding::DllImport` value carrying one exact Mach-O
+// compiler-owned `ForeignBinding::DllImport` value carrying one exact Mach-O
 // dylib-symbol import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
 use omega::language::core::service;
@@ -14,8 +14,8 @@ pub boundary trait Leaf {
     machine exit(code: i32) -> i32;
 }
 
-macos_arm64 machine leaf_binding() -> Binding<17, 5, 0> {
-    Binding::DllImport {
+macos_arm64 machine leaf_binding() -> ForeignBinding<17, 5, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "_exit",
@@ -25,7 +25,7 @@ macos_arm64 machine leaf_binding() -> Binding<17, 5, 0> {
 
 macos_arm64 machine leaf_exit(code: i32) -> i32 satisfies Leaf::exit via leaf_binding();
 
-data Main { p: Service<Leaf>; }
+data Main { p: Binding<Leaf>; }
 machine Main::main(&mut self)
 reaches Leaf
 {

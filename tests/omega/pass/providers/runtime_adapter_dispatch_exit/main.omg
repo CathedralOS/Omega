@@ -11,7 +11,7 @@ data EchoProvider {}
 machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (x) }
 }
-data Main { console: Service<Console>; e: Service<Echo>; }
+data Main { console: Binding<Console>; e: Binding<Echo>; }
 machine Main::main(&mut self)
 reaches Console, Echo
 {

@@ -14,7 +14,7 @@ use omega_language_std::process_exit;
 use omega::language::core::service;
 
 data Main {
-    exit: Service<ProcessExit>;
+    exit: Binding<ProcessExit>;
 }
 
 machine Main::main(&mut self)

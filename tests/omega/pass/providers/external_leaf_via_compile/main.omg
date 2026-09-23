@@ -15,8 +15,8 @@ boundary trait Shutdown {
     machine halt(code: i32);
 }
 
-windows_x86_64 machine halt_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+windows_x86_64 machine halt_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "ExitProcess",
@@ -24,8 +24,8 @@ windows_x86_64 machine halt_binding() -> Binding<12, 11, 0> {
     }
 }
 
-linux_x86_64 machine halt_binding() -> Binding<9, 4, 11> {
-    Binding::DllImport {
+linux_x86_64 machine halt_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "exit",
@@ -34,8 +34,8 @@ linux_x86_64 machine halt_binding() -> Binding<9, 4, 11> {
     }
 }
 
-linux_arm64 machine halt_binding() -> Binding<9, 4, 11> {
-    Binding::DllImport {
+linux_arm64 machine halt_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "exit",
@@ -44,8 +44,8 @@ linux_arm64 machine halt_binding() -> Binding<9, 4, 11> {
     }
 }
 
-macos_arm64 machine halt_binding() -> Binding<17, 5, 0> {
-    Binding::DllImport {
+macos_arm64 machine halt_binding() -> ForeignBinding<17, 5, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "_exit",
@@ -58,7 +58,7 @@ linux_x86_64 machine halt_leaf(code: i32) satisfies Shutdown::halt via halt_bind
 linux_arm64 machine halt_leaf(code: i32) satisfies Shutdown::halt via halt_binding();
 macos_arm64 machine halt_leaf(code: i32) satisfies Shutdown::halt via halt_binding();
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {

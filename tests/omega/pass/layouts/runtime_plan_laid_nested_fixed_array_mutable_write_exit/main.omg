@@ -34,7 +34,7 @@ data MatrixRecord {
 data MatrixView { value: SpreadArray<MatrixRecord>; }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bytes: [u8; 32];
 }
 

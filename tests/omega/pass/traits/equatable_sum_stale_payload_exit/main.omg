@@ -14,7 +14,7 @@ trait Equatable {
 }
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 MsgEquatable: Msg satisfies Equatable;
-data Main { console: Service<Console>; a: Msg; b: Msg; }
+data Main { console: Binding<Console>; a: Msg; b: Msg; }
 machine Main::main(&mut self) {
     self.a = Msg::Pong { y: 7, z: 9 };
     self.a = Msg::Ping { x: 1 };

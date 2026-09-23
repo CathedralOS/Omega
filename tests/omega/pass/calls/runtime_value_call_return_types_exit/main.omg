@@ -27,7 +27,7 @@ data Tag {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::add(&self, a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {

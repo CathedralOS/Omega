@@ -7,7 +7,7 @@ data Item {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     items: [Item; 2];
     index: u64 [0..=1];
 }

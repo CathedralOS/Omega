@@ -1305,8 +1305,8 @@ pub boundary trait Boundary {{
     machine {member};
 }}
 
-macos_arm64 machine {leaf_name}_binding() -> Binding<26, {symbol_len}, 0> {{
-    Binding::DllImport {{
+macos_arm64 machine {leaf_name}_binding() -> ForeignBinding<26, {symbol_len}, 0> {{
+    ForeignBinding::DllImport {{
         import: DllImport::MachODylibSymbol {{
             install_name: "/usr/lib/libSystem.B.dylib",
             symbol: "_{leaf_name}",
@@ -1316,7 +1316,7 @@ macos_arm64 machine {leaf_name}_binding() -> Binding<26, {symbol_len}, 0> {{
 
 machine {leaf_name}_leaf{signature} satisfies Boundary::{leaf_name} via {leaf_name}_binding();
 
-data Main {{ boundary: Service<Boundary>; }}
+data Main {{ boundary: Binding<Boundary>; }}
 machine Main::main(&mut self) reaches Boundary {{
     {call}
 }}

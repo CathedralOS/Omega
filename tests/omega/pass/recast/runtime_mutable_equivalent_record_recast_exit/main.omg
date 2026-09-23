@@ -23,7 +23,7 @@ data UnsignedRecord {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     source: SignedRecord;
 }
 

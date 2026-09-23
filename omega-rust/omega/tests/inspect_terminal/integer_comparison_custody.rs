@@ -19,7 +19,7 @@ fn integer_comparison_inspection_runs_the_exact_custody_join() {
 
             machine ComparisonProvider::equal(left: i32, right: i32) -> bool
                 satisfies Comparison::equal
-                via Binding::CompilerIntrinsic;
+                via ForeignBinding::CompilerIntrinsic;
 
             machine may_crash(left: i32, right: i32) -> bool {
                 left == right
@@ -60,7 +60,7 @@ fn integer_comparison_custody_rejects_a_negated_recorded_triple() {
 
             machine ComparisonProvider::equal(left: i32, right: i32) -> bool
                 satisfies Comparison::equal
-                via Binding::CompilerIntrinsic;
+                via ForeignBinding::CompilerIntrinsic;
 
             machine may_crash(left: i32, right: i32) -> bool {
                 left == right

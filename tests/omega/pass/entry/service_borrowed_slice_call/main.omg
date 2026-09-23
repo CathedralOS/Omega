@@ -1,4 +1,4 @@
-// A Fused entry receiver carrying a Service field must keep its Terminal
+// A Fused entry receiver carrying a Binding field must keep its Terminal
 // attachment identity while it lends a fixed array field to a checked-body
 // callee declared on a borrowed slice view. The projected `[u64; 3]` place
 // seeds the callee's `&mut [u64]` parameter through the ordinary borrowed-view
@@ -34,7 +34,7 @@ machine Worker::drain(&mut self, buf: &mut [u64], filter: &Filter, index: u64) {
 }
 
 data Main {
-    console: Service<Ping>;
+    console: Binding<Ping>;
     worker: Worker;
     items: [u64; 3];
     filter: Filter;

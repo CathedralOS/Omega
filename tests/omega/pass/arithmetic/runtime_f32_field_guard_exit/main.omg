@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 // the literal side to 4. Found probing the recast read-side fix.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; f: f32; out: i32; }
+data Main { console: Binding<Console>; f: f32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.f = 3.141592;
     transition self.f > 3.14 && self.f < 3.15 { true -> good() _ -> bad() }

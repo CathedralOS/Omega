@@ -354,7 +354,7 @@ satisfies WindowProcedure::window_procedure
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     capacity: Registration;
     class: WindowClass;
     message: [u64; 6];

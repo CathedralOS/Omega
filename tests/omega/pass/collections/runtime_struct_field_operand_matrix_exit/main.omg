@@ -18,7 +18,7 @@ data Cell {
     y: i32 [0..=100];
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cells: [Cell; 3];
     i: u64 [0..=2];
     r: i32;

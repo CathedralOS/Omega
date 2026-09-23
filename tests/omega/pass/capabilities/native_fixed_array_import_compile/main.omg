@@ -16,8 +16,8 @@ pub boundary trait NativeFixedArrays {
     machine take_pointer(value: &[u8; 16]) -> i32;
 }
 
-windows_x86_64 machine take_bytes_binding() -> Binding<19, 19, 0> {
-    Binding::DllImport {
+windows_x86_64 machine take_bytes_binding() -> ForeignBinding<19, 19, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega_abi_probe.dll",
             export: "omega_take_bytes_16",
@@ -25,8 +25,8 @@ windows_x86_64 machine take_bytes_binding() -> Binding<19, 19, 0> {
     }
 }
 
-linux_x86_64 machine take_bytes_binding() -> Binding<21, 19, 7> {
-    Binding::DllImport {
+linux_x86_64 machine take_bytes_binding() -> ForeignBinding<21, 19, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libomega_abi_probe.so",
             symbol: "omega_take_bytes_16",
@@ -35,8 +35,8 @@ linux_x86_64 machine take_bytes_binding() -> Binding<21, 19, 7> {
     }
 }
 
-macos_arm64 machine take_bytes_binding() -> Binding<24, 20, 0> {
-    Binding::DllImport {
+macos_arm64 machine take_bytes_binding() -> ForeignBinding<24, 20, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libomega_abi_probe.dylib",
             symbol: "_omega_take_bytes_16",
@@ -44,8 +44,8 @@ macos_arm64 machine take_bytes_binding() -> Binding<24, 20, 0> {
     }
 }
 
-windows_x86_64 machine take_floats_binding() -> Binding<19, 19, 0> {
-    Binding::DllImport {
+windows_x86_64 machine take_floats_binding() -> ForeignBinding<19, 19, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega_abi_probe.dll",
             export: "omega_take_floats_4",
@@ -53,8 +53,8 @@ windows_x86_64 machine take_floats_binding() -> Binding<19, 19, 0> {
     }
 }
 
-linux_x86_64 machine take_floats_binding() -> Binding<21, 19, 7> {
-    Binding::DllImport {
+linux_x86_64 machine take_floats_binding() -> ForeignBinding<21, 19, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libomega_abi_probe.so",
             symbol: "omega_take_floats_4",
@@ -63,8 +63,8 @@ linux_x86_64 machine take_floats_binding() -> Binding<21, 19, 7> {
     }
 }
 
-macos_arm64 machine take_floats_binding() -> Binding<24, 20, 0> {
-    Binding::DllImport {
+macos_arm64 machine take_floats_binding() -> ForeignBinding<24, 20, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libomega_abi_probe.dylib",
             symbol: "_omega_take_floats_4",
@@ -72,8 +72,8 @@ macos_arm64 machine take_floats_binding() -> Binding<24, 20, 0> {
     }
 }
 
-windows_x86_64 machine take_pointer_binding() -> Binding<19, 24, 0> {
-    Binding::DllImport {
+windows_x86_64 machine take_pointer_binding() -> ForeignBinding<19, 24, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega_abi_probe.dll",
             export: "omega_take_bytes_pointer",
@@ -81,8 +81,8 @@ windows_x86_64 machine take_pointer_binding() -> Binding<19, 24, 0> {
     }
 }
 
-linux_x86_64 machine take_pointer_binding() -> Binding<21, 24, 7> {
-    Binding::DllImport {
+linux_x86_64 machine take_pointer_binding() -> ForeignBinding<21, 24, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libomega_abi_probe.so",
             symbol: "omega_take_bytes_pointer",
@@ -91,8 +91,8 @@ linux_x86_64 machine take_pointer_binding() -> Binding<21, 24, 7> {
     }
 }
 
-macos_arm64 machine take_pointer_binding() -> Binding<24, 25, 0> {
-    Binding::DllImport {
+macos_arm64 machine take_pointer_binding() -> ForeignBinding<24, 25, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libomega_abi_probe.dylib",
             symbol: "_omega_take_bytes_pointer",
@@ -105,7 +105,7 @@ machine take_floats(value: [f32; 4]) -> i32 satisfies NativeFixedArrays::take_fl
 machine take_pointer(value: &[u8; 16]) -> i32 satisfies NativeFixedArrays::take_pointer via take_pointer_binding();
 
 data Main {
-    foreign: Service<NativeFixedArrays>;
+    foreign: Binding<NativeFixedArrays>;
     bytes: [u8; 16];
     floats: [f32; 4];
     status: i32;

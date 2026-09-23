@@ -27,7 +27,7 @@ data Entry {
 data Walker {}
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     ints: [i32 in Wrapping; 7];
     entries: [Entry; 7];
     walker: Walker;

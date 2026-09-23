@@ -21,7 +21,7 @@ data Label {
     text: [u8; 8] in Utf8;
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     index: u64 [0..=2];
     value: i64;
     left: i64 [0..=50];

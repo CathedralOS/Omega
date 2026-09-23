@@ -51,7 +51,7 @@ data Vm [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     vm: Vm;
     pause: [u8; 256];
 }

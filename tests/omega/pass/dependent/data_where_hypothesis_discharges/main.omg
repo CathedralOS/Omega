@@ -14,7 +14,7 @@ where
     len: u32;
     count: u32;
 }
-data Main { console: Service<Console>; map: MemoryMap; }
+data Main { console: Binding<Console>; map: MemoryMap; }
 machine Main::scaled(&mut self, target: &mut MemoryMap) -> u32 {
     target.count * 16
 }

@@ -82,8 +82,8 @@ fn check_publication(entry: &str) {
 use omega::language::core::external_binding;
 
 boundary trait Console { machine write(value: u8); }
-windows_x86_64 machine write_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+windows_x86_64 machine write_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" },
     }
 }

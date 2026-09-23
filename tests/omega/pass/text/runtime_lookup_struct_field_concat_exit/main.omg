@@ -32,7 +32,7 @@ data Formatter {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     formatter: Formatter;
     level: Level;
     line: [u8; 32] in Utf8;

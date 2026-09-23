@@ -20,8 +20,8 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
-    fs: Service<FilesystemHost>;
+    console: Binding<Console>;
+    fs: Binding<FilesystemHost>;
     fd: i32;
     n: i64;
     rc64: i64;

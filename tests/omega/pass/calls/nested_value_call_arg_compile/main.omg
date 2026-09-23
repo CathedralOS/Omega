@@ -4,7 +4,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 machine Main::inc(&self, x: i32 [0..=10]) -> i32 {
     let r: i32 [1..=11] = x + 1;

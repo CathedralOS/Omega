@@ -44,7 +44,7 @@ machine FailedOpen::main(&mut self) -> i32 reaches FilesystemHost {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     fs: Filesystem;
     unit_result: UnitResult;
     canon: [u8; 1024];

@@ -8,7 +8,7 @@ use omega::language::core::service;
 // The bytes go through the hosted `write_byte` leaf: "AB" ends at byte 66 with
 // nothing emitted after it, byte 10 supplies write_line's terminator, and a
 // stray newline anywhere still breaks the byte-exact oracle.
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {

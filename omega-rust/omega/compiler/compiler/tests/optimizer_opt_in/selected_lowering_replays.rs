@@ -58,7 +58,7 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
              transition { _ -> left }\n\
          }\n\
          \n\
-         data Main { console: Service<Console>; }\n\
+         data Main { console: Binding<Console>; }\n\
          \n\
          machine Main::main(&mut self)\n\
          reaches\n\

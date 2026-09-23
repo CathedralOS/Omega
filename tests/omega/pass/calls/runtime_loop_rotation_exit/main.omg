@@ -4,7 +4,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 machine Main::rot(&mut self, k: u64, a: u64, b: u64, c: u64)
 terminates by k;

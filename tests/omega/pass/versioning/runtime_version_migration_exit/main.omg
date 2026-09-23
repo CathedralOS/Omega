@@ -18,7 +18,7 @@ data Counter {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Counter::from_v1(old: CounterV1, out: &mut Counter)

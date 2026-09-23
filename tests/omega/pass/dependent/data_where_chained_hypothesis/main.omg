@@ -14,7 +14,7 @@ where
     mid: u32;
     capacity: u32;
 }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::record(&mut self, v: u32) requires v <= 100 { }
 machine Main::main(&mut self) reaches Console {
     let t: Tally = Tally { count: 5, mid: 20, capacity: 50 };

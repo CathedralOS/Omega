@@ -183,7 +183,7 @@ fn runtime_bound_arguments_share_one_dynamic_body() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u32; 8];
@@ -362,7 +362,7 @@ fn runtime_bound_requirements_stay_explicit_and_forward() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u32; 8];
@@ -467,7 +467,7 @@ fn runtime_bound_result_range_stays_with_the_captured_subject() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u32; 8];
@@ -527,7 +527,7 @@ fn runtime_bound_subject_keeps_its_transition_guard_proof() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u32; 8];
@@ -630,7 +630,7 @@ fn runtime_bound_result_qualification_follows_the_dominating_guard() {
         r#"
 use omega::language::core::external_binding;
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 data Main {}
 "#,
         GUARDED_RESULT_BOUND_MACHINES,
@@ -820,7 +820,7 @@ fn equal_runtime_indices_preserve_the_guarded_result_subject() {
         r#"
 use omega::language::core::external_binding;
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 data Main {}
 "#,
         EQUAL_RUNTIME_INDEX_MACHINES,
@@ -971,7 +971,7 @@ fn indexed_scalar_field_carries_the_current_runtime_value() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u8; 8];
@@ -1012,7 +1012,7 @@ fn runtime_bound_subject_flows_through_indexed_field_writes() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u8; 8];
@@ -1110,7 +1110,7 @@ fn runtime_bound_subject_survives_state_transitions() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u8; 8];
@@ -1188,7 +1188,7 @@ fn runtime_bound_structural_subject_shares_one_dynamic_body() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Main {
     values: [u8; 8];
@@ -1538,13 +1538,13 @@ mod fixture_package_inputs;
 /// its forwarding, its guard-established requirement, its flow through an
 /// indexed scalar field, and its transport across cloned state transitions
 /// are witnessed on the realized machine code rather than only on the
-/// interpreter. Fixtures spell the receiver `console: Service<Console>`
+/// interpreter. Fixtures spell the receiver `console: Binding<Console>`
 /// with an explicit provider selection: a bare `console: Console`
 /// instance field has no Fused establishment row, so the hosted receiver
 /// bridge rejects any entry that retains its receiver (states or attached
 /// fields): a bare boundary-trait field rejects as a non-carrier under
 /// `wiki/spec/build/entry_roots.md` "Entry shape and arrival bridge". The closed
-/// Service carrier's validity is intrinsic; an authored `in Bound` qualification
+/// Binding carrier's validity is intrinsic; an authored `in Bound` qualification
 /// is not part of its type. Binder carriers are `i32`/`u8` because the exit
 /// code is an `i32` and native realization
 /// admits their widening; `in Wrapping` retags keep the sums realizable.
@@ -1693,7 +1693,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine prefix_count<Count: i32>(base: i32) -> i32 in Wrapping {
@@ -1719,7 +1719,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine bounded<Count: i32>(base: i32) -> i32 in Wrapping
@@ -1794,7 +1794,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine bounded<Count: i32>(base: i32) -> i32 in Wrapping
@@ -1829,7 +1829,7 @@ machine Main::main(&mut self) reaches Console {
             r#"
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 "#,
             super::GUARDED_RESULT_BOUND_MACHINES,
             r#"
@@ -1850,7 +1850,7 @@ machine Main::main(&mut self) reaches Console {
         let source = [r#"
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 "#, super::EQUAL_RUNTIME_INDEX_MACHINES, r#"
 machine Main::main(&mut self) reaches Console {
     let first: i32 in Wrapping = equal_index(3, 3) as i32 in Wrapping;
@@ -1879,7 +1879,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     values: [u8; 8];
 }
 
@@ -1925,7 +1925,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     values: [u8; 8];
 }
 
@@ -2157,7 +2157,7 @@ fn const_counted_data_still_specializes_statically() {
 use omega::language::core::external_binding;
 
 boundary trait Trace { machine record(value: u64); }
-linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via Binding::Syscall(1);
+linux_x86_64 machine trace_leaf(value: u64) satisfies Trace::record via ForeignBinding::Syscall(1);
 
 data Wrap<const Count: u32> {
     value: u32;

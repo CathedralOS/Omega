@@ -4,7 +4,7 @@
 // call 1's result (10) or ZII 0.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;
     transition { _ -> r }

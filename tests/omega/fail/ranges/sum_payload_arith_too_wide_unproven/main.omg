@@ -7,7 +7,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
-data Main { console: Service<Console>; c: Cmd; }
+data Main { console: Binding<Console>; c: Cmd; }
 machine Main::main(&mut self) {
     self.c = Cmd::Dim { amount: 3 };
     transition self.c {

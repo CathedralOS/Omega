@@ -11,7 +11,7 @@
 
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::inc(&mut self, x: i32) -> i32
     requires x < 99

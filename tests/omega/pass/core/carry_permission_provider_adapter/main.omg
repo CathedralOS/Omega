@@ -31,8 +31,8 @@ pub boundary trait Scheduler {
 }
 
 data Harness {
-    provider: Service<ClaimProvider>;
-    scheduler: Service<Scheduler>;
+    provider: Binding<ClaimProvider>;
+    scheduler: Binding<Scheduler>;
 }
 
 machine Harness::forward(&self, raw: Token) -> Token suspends; reaches ClaimProvider + Scheduler {

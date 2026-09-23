@@ -38,7 +38,7 @@ data ForeignView {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bytes: [u8; 32];
 }
 

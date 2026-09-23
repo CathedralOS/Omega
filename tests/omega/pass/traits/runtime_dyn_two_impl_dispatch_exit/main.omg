@@ -36,7 +36,7 @@ SquareShape: Square satisfies Shape {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     c: Circle;
     q: Square;
 }

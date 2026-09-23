@@ -10,7 +10,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 data Box<T> { value: T; }
 data Pair<T> { a: Box<T>; b: T; }
-data Main { console: Service<Console>; pi: Pair<i32>; pb: Pair<bool>; r: i32; }
+data Main { console: Binding<Console>; pi: Pair<i32>; pb: Pair<bool>; r: i32; }
 machine Main::main(&mut self) reaches Console {
     self.pi.a.value = 30;
     self.pi.b = 7;

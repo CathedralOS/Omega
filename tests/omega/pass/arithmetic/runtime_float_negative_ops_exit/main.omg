@@ -10,7 +10,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     f: f64; // -2.0
     g: f64; // -1.0
     h: f64; // scratch

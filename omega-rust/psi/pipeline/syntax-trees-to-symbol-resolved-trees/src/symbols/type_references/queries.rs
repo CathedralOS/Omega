@@ -48,8 +48,8 @@ fn exact_service_carrier_data(symbols: &SymbolTable, symbol: SymbolHandle) -> bo
         return false;
     }
     let carrier_source = match symbols.name(symbol) {
-        "Service" => "service.omg",
-        "Binding" => "binding.omg",
+        "Binding" => "service.omg",
+        "ForeignBinding" => "binding.omg",
         _ => return false,
     };
     let Some(span) = symbols.symbol_source_span(symbol) else {
@@ -73,7 +73,7 @@ pub(in crate::symbols) fn call_target_for_type_reference(
     type_reference: &symbol_resolved_trees::types::TypeReference,
     target: &symbol_resolved_trees::name::DiagnosticName,
 ) -> SymbolHandle {
-    // The exact `Service<R>` carrier owns no call surface: a receiver call
+    // The exact `Binding<R>` carrier owns no call surface: a receiver call
     // resolves against the closed boundary requirement `R` it carries, the
     // same target a bare requirement receiver would select.
     if let symbol_resolved_trees::types::TypeReference::Generic(generic) = type_reference

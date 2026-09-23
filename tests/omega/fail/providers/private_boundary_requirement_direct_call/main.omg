@@ -20,7 +20,7 @@ satisfies CheckedMath::offset_zero
     transition { _ -> (input + 0) }
 }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self)
 reaches Console

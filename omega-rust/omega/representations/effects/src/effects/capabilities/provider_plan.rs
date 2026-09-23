@@ -41,7 +41,7 @@ use crate::effects::capabilities::provider_plan::digest_encoder::ProviderPlanDig
 /// whose catalog contracts contribute their obligations; they are deliberately
 /// not a second, bodiless provider-binding mechanism.
 ///
-/// The string-backed `via Binding::DllImport("library", "symbol")` bootstrap
+/// The string-backed `via ForeignBinding::DllImport("library", "symbol")` bootstrap
 /// has no case here. Raw foreign bytes are data, never Omega symbol names or
 /// ambient lookup authority: an import binds through one evaluated
 /// [`EvaluatedForeignImport`] whose target-normalized locator was produced by

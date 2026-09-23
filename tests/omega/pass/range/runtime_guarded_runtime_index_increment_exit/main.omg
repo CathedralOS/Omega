@@ -11,7 +11,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     tallies: [i32 [0..=16]; 4];
     k: u64 [0..=3];
 }

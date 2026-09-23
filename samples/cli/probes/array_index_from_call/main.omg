@@ -28,7 +28,7 @@ use omega::language::core::service;
 data Picker {}
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     table: [i32; 5];
     picker: Picker;
     pause: [u8; 256];

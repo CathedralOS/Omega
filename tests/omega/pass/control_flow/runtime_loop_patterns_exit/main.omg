@@ -10,7 +10,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     i: i32 in Wrapping;
     j: i32 in Wrapping;
     sum: i32 in Wrapping;

@@ -3,7 +3,7 @@ use host_services::filesystem_host;
 use omega::language::core::service;
 
 pub data Journal {
-    files: Service<FilesystemHost>;
+    files: Binding<FilesystemHost>;
     written: i64;
 }
 

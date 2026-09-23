@@ -25,7 +25,7 @@ where
     subject.increment();
 }
 
-data Main { console: Service<Console>; counter: Counter; }
+data Main { console: Binding<Console>; counter: Counter; }
 
 machine Main::main(&mut self) reaches Console {
     step(&mut self.counter);

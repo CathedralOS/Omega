@@ -41,7 +41,7 @@ fn git_update_escalating_to_process_authority_blocks_and_requests_source_audit()
 pub data ConsoleNativeProvider { }
 windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
     )
     .expect("write ordinary Console package surface");
@@ -50,7 +50,7 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
         r#"use console;
 use omega::language::core::service;
 
-pub machine terminate(console: Service<Console>, return_code: i32)
+pub machine terminate(console: Binding<Console>, return_code: i32)
 {
 }
 "#,
@@ -74,7 +74,7 @@ pub machine terminate(console: Service<Console>, return_code: i32)
         r#"use console;
 use omega::language::core::service;
 
-pub machine terminate(console: Service<Console>, return_code: i32)
+pub machine terminate(console: Binding<Console>, return_code: i32)
 reaches Console
 invokes console;
 {

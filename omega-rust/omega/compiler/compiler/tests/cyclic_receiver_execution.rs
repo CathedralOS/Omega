@@ -46,8 +46,8 @@ fn assert_cyclic_receiver_execution(provider_field: bool) {
 use omega::language::core::external_binding;
 
 pub boundary trait Trace { machine record(value: u64); }
-windows_x86_64 machine trace_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+windows_x86_64 machine trace_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" },
     }
 }
@@ -85,7 +85,7 @@ machine Main::record(&mut self) {
             .replace(
                 "data Main {",
                 "use omega::language::core::service;
-data Main { trace: Service<Trace>;",
+data Main { trace: Binding<Trace>;",
             )
             .replace(
                 "Trace::record(self.total)",

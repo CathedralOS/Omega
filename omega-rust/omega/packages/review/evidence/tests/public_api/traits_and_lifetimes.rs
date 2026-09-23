@@ -9,7 +9,7 @@ fn public_trait_shape_retains_boundary_parent_and_alpha_normalized_requirements(
     let first_source = r#"pub trait Parent<Element> {
     operator < compare(left: Element, right: Element) -> bool;
 }
-pub boundary trait Service<Element>: Parent<Element> {
+pub boundary trait Binding<Element>: Parent<Element> {
     machine Self::exchange(&mut self, item: Element) -> Element;
 }
 "#;
@@ -19,7 +19,7 @@ pub boundary trait Service<Element>: Parent<Element> {
         r#"pub trait Parent<Value> {
     operator < compare(left: Value, right: Value) -> bool;
 }
-pub boundary trait Service<Value>: Parent<Value> {
+pub boundary trait Binding<Value>: Parent<Value> {
     machine Self::exchange(&mut self, item: Value) -> Value;
 }
 "#,
@@ -53,7 +53,7 @@ pub boundary trait Service<Value>: Parent<Value> {
     let service = first_review
         .public_traits()
         .iter()
-        .find(|shape| shape.identity().path() == "Service")
+        .find(|shape| shape.identity().path() == "Binding")
         .expect("service trait row");
     assert!(service.is_boundary());
     assert_eq!(service.type_parameters().len(), 1);
@@ -75,7 +75,7 @@ pub boundary trait Service<Value>: Parent<Value> {
                     let start = usize::try_from(location.start_byte()).unwrap();
                     let end = usize::try_from(location.end_byte()).unwrap();
                     location.role() == PackageReviewSourceLocationRole::Declaration
-                        && &first_source[start..end] == "Service"
+                        && &first_source[start..end] == "Binding"
                 })
             })
         })

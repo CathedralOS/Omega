@@ -53,7 +53,7 @@ machine Builder::build(&mut self, level: &mut Level) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     builder: Builder;
     level: Level;
 }

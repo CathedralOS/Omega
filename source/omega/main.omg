@@ -7,7 +7,7 @@ use psi::lex::lexer;
 use psi::parse::parser;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     lexer: Lexer;
     parser: Parser;
 }

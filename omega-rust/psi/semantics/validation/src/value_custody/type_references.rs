@@ -406,7 +406,7 @@ pub(crate) fn validate_type_reference_handle_with_type_parameters(
     );
 }
 
-/// Find routed Service carriers recursively rather than relying on the outer
+/// Find routed Binding carriers recursively rather than relying on the outer
 /// type shell. The first executable rung permits only a direct data field or
 /// direct concrete-machine parameter; references, aggregate/generic nesting,
 /// locals, returns, traits, requirements, and operators remain explicit
@@ -428,7 +428,7 @@ fn validate_routed_service_carrier_placement(
         Ok(Some(_)) => {
             if !direct || !owner.allows_direct_routed_service_carrier() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} places the routed `Service<R>` carrier outside the first direct field/owned concrete-machine-parameter rung"
+                    "{owner} places the routed `Binding<R>` carrier outside the first direct field/owned concrete-machine-parameter rung"
                 )));
             }
             return;

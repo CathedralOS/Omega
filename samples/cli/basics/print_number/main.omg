@@ -22,7 +22,7 @@ domain [u8; 4]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     // Wrapping DECLARED (nums/elem/sum/digit): the sum flows from array elements,
     // which carry no range facts yet, and Decision 17 forbids mixing domains in
     // one expression. The loop index stays Exact: its increment is guard-proven

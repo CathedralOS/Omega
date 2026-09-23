@@ -37,7 +37,7 @@ data Ring [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     ring: Ring;
     pause: [u8; 256];
 }

@@ -17,7 +17,7 @@ use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; fs: Filesystem; raw: Service<FilesystemHost>; unit_result: UnitResult; io_result: IoResult; meta_result: MetadataResult; buffer: [u8; 64]; bin_src: [u8; 5]; bin_back: [u8; 8]; bin_fd: i32; bin_rc: i32; bin_n: i64; }
+data Main { console: Binding<Console>; fs: Filesystem; raw: Binding<FilesystemHost>; unit_result: UnitResult; io_result: IoResult; meta_result: MetadataResult; buffer: [u8; 64]; bin_src: [u8; 5]; bin_back: [u8; 8]; bin_fd: i32; bin_rc: i32; bin_n: i64; }
 machine Main::main(&mut self) reaches Console + FilesystemHost {
     self.unit_result = self.fs.write_all("omega_cp_src.txt", "hello!");
     transition self.unit_result { UnitResult::Ok -> docopy() _ -> bad(71) }

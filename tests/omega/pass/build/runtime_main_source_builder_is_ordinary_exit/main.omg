@@ -11,7 +11,7 @@ data Maker { count: i32 in Wrapping; }
 machine Maker::build(&mut self, b: &mut Build) {
     b.flag = 7;
 }
-data Main { console: Service<Console>; maker: Maker; b: Build; }
+data Main { console: Binding<Console>; maker: Maker; b: Build; }
 machine Main::main(&mut self) reaches Console {
     self.maker.build(&mut self.b);
     transition self.b.flag == 7 { true -> good() _ -> bad() }

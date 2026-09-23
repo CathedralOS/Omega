@@ -39,7 +39,7 @@ pub machine CheckedPair::consume<'unused, 'x, 'y>(first: &'x u64, second: &'y u6
 pub data ExternalPair { }
 pub machine ExternalPair::consume<'y, 'unused, 'x>(first: &'x u64, second: &'y u64)
     satisfies Pair<'x, 'y>::consume
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
 

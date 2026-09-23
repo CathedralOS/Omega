@@ -15,7 +15,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=50]); }
-data Main { console: Service<Console>; p: P; }
+data Main { console: Binding<Console>; p: P; }
 machine Main::main(&mut self) reaches Console {
     self.p = P::One { v: 20 };
     transition self.p {

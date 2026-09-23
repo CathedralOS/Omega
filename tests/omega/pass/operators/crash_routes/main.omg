@@ -5,7 +5,7 @@ data ComparisonProvider { }
 
 machine ComparisonProvider::equal(left: i32, right: i32) -> bool
     satisfies Comparison::equal
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
 pub machine safe(value: i32) -> bool
 requires value >= 0 {
