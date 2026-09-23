@@ -5,11 +5,11 @@
 // supplied by the declaration's own checked body through the ordinary call
 // edge, so the token call and the named call compute the same wrapped sum
 // (250 + 10 = 260, which no `u8` builtin could carry) from runtime state.
-// Operands are borrowed so the same source can join the native route once
-// borrowed local data arguments to a free machine are admitted there;
-// by-value data arguments stop earlier, at the native Unit-plan admission
-// wall. Exits 70 only when both routes produce 260; 71 when the token route
-// misses, 72 when the named route misses.
+// Operands are borrowed, and this source now runs on the native route as well
+// as the oracle: borrowed local data arguments to a free machine are admitted
+// there. By-value data arguments still stop earlier, at the native Unit-plan
+// admission wall. Exits 70 only when both routes produce 260; 71 when the
+// token route misses, 72 when the named route misses.
 
 use omega_language_std::console;
 use omega::language::core::service;
