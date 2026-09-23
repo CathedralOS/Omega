@@ -144,11 +144,9 @@ pub(super) fn evaluate(
             if argument.byte_sequence_literal().is_some() {
                 byte_places.push(establish(
                     argument,
-                    parameter_qualifications
-                        .get(structural_ordinal)
-                        .ok_or(LoweringError::Unsupported(
-                            "literal call target parameter is absent",
-                        ))?,
+                    parameter_qualifications.get(structural_ordinal).ok_or(
+                        LoweringError::Unsupported("literal call target parameter is absent"),
+                    )?,
                     catalogs,
                     operations,
                 )?);

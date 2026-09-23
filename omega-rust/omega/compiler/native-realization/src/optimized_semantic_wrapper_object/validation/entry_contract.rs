@@ -240,9 +240,7 @@ fn validate_receiver_fields(
                     integer.contains(semantic_vocabulary::IntegerValue::Signed(0))
                         || integer.contains(semantic_vocabulary::IntegerValue::Unsigned(0))
                 }
-                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
-                    true
-                }
+                StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
                 StructuralFieldType::Structural(child) => {
                     if visiting.contains(&child) {
                         return false;
@@ -259,7 +257,8 @@ fn validate_receiver_fields(
                             fields: nested_fields,
                         }
                         | StructuralTypeShape::Mixed {
-                            fields: nested_fields, ..
+                            fields: nested_fields,
+                            ..
                         } => {
                             visiting.push(child);
                             field_path.push(field.identity.clone());

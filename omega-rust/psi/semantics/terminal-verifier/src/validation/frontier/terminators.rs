@@ -678,10 +678,7 @@ fn close_return_structural(
             machine, *source,
         );
     let source_matches_result = if minted_domains.is_empty() {
-        super::super::structural_result_contracts::matches_return_source(
-            source_signature,
-            result,
-        )
+        super::super::structural_result_contracts::matches_return_source(source_signature, result)
     } else {
         let qualifications = source_signature
             .qualifications

@@ -287,9 +287,7 @@ pub(super) fn validate(
                     discard_result_on_return,
                     ..
                 },
-                StatementNode::LocalData(_)
-                | StatementNode::Call(_)
-                | StatementNode::Expression(_),
+                StatementNode::LocalData(_) | StatementNode::Call(_) | StatementNode::Expression(_),
             ) if completion_receipts.is_empty()
                 && coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0

@@ -602,9 +602,13 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         // boundary's `requires` rows; qualified affine results mint their
         // caller-side establishments at emission.
         if !(boundary.result.is_unit()
-            || matches!(&boundary.result,
-                CheckedBoundaryMachineResultPlan::Structural { multiplicity: Multiplicity::Affine, .. }
-                ))
+            || matches!(
+                &boundary.result,
+                CheckedBoundaryMachineResultPlan::Structural {
+                    multiplicity: Multiplicity::Affine,
+                    ..
+                }
+            ))
         {
             return unsupported(
                 "Unit graph boundary requires additional provider or result custody",

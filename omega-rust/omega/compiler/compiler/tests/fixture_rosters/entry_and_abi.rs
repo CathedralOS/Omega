@@ -1,8 +1,7 @@
 //! Exact fixture identities and execution tables owned by entry/ABI tests.
 
 pub const BUILD_REPEATED_EVALUATED_ROOT_BINDING: &str = "build/repeated_evaluated_root_binding";
-pub const ACQUIRES_THROUGH_HELPER_RETURN: &str =
-    "capabilities/acquires_through_helper_return";
+pub const ACQUIRES_THROUGH_HELPER_RETURN: &str = "capabilities/acquires_through_helper_return";
 pub const BUILD_EVALUATED_ROOT_BINDINGS: &[&str] = &[
     "build/evaluated_root_binding",
     "build/aliased_root_binding",

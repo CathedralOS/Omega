@@ -99,8 +99,9 @@ pub fn derive_fused_program_entry_establishments(
     // Unsettled fields leave the derivation instead of diagnosing; every other
     // establishment check still applies to the fields that keep a selection.
     if permit_unsettled {
-        service_fields
-            .retain(|(_, carrier, _path)| checked.fused_service_erasure(carrier.requirement).is_some());
+        service_fields.retain(|(_, carrier, _path)| {
+            checked.fused_service_erasure(carrier.requirement).is_some()
+        });
         if service_fields.is_empty() {
             return Ok(Vec::new());
         }

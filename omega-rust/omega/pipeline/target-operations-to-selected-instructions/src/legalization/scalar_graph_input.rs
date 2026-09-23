@@ -444,7 +444,6 @@ pub(super) fn callee_plan(
         abstracts.as_slice(),
         optimized.as_slice(),
     ) else {
-
         return Err(LegalizationError::SourceCustodyMismatch);
     };
     if !aggregate_results::uses(optimized, plan)
@@ -455,7 +454,6 @@ pub(super) fn callee_plan(
                 .iter()
                 .any(|parameter| scalar_shape(parameter.scalar_type).is_none()))
     {
-
         return Err(LegalizationError::SourceCustodyMismatch);
     }
     let call_plan = if aggregate_results::uses(optimized, plan) {
