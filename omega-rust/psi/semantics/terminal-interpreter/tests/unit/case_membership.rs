@@ -329,11 +329,19 @@ fn projected_case_encoding_requires_the_extended_operation_format() {
         StructuralMultiplicity::Unrestricted,
     );
     let mut semantic = encode_module(&module).unwrap();
-    assert_eq!(&semantic[8..10], &102_u16.to_le_bytes());
-    semantic[8..10].copy_from_slice(&96_u16.to_le_bytes());
+    // The exact current marker belongs to the codec's own
+    // `current_format_tests`; what this projection owes is that it encodes at
+    // whatever that marker is and is not readable under an earlier one. Read
+    // the marker rather than restating it, so a vocabulary bump does not leave
+    // this test asserting a number the encoder stopped writing.
+    let marker = u16::from_le_bytes([semantic[8], semantic[9]]);
+    let superseded = marker - 1;
+    semantic[8..10].copy_from_slice(&superseded.to_le_bytes());
     assert_eq!(
         decode_module(&semantic),
-        Err(terminal_codec::CodecError::UnsupportedFormatMarker(96))
+        Err(terminal_codec::CodecError::UnsupportedFormatMarker(
+            superseded
+        ))
     );
 }
 

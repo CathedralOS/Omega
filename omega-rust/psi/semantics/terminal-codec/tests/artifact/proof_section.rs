@@ -131,7 +131,16 @@ fn pcc_replay_reports_the_qualified_subject_ledger_and_admissions() {
         terminal_psi_identity(&module).unwrap()
     );
     assert_eq!(verdict.obligation_ledger, artifact.manifest().obligations());
-    assert_eq!(verdict.semantic_profile, "terminal-psi-vocabulary-107");
+    // The profile names the module's OWN vocabulary marker, so derive it: a
+    // spelled number here only restates the constant until the constant moves,
+    // and then it fails for a reason that has nothing to do with replay.
+    assert_eq!(
+        verdict.semantic_profile,
+        format!(
+            "terminal-psi-vocabulary-{}",
+            terminal_psi::VocabularyMarker::CURRENT.get()
+        )
+    );
     assert_eq!(
         verdict.checker_profile,
         admission_profile_identity(&profile)
