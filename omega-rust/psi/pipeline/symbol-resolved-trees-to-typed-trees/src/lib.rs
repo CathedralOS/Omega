@@ -2,15 +2,62 @@
 
 //! Attaches type and signature meaning to Psi symbol-resolved source trees.
 //!
-//! Start at `lowerer.rs`: [`lower_symbol_resolved_trees`] owns complete typing.
-//! It validates resolved meaning, lowers declarations in dependency order,
-//! retains initializer custody, then settles and normalizes typed trees. Its
-//! `seeded_continuation` child owns append-only admission and transactional
-//! recovery; both routes use the same lowering operations. `declarations`
-//! types each declaration form; `signatures` owns shared parameters and callable
-//! interfaces; `contracts` owns facts, invocations and parameter obligations.
-//! `expressions` types expressions and statements; `type_reference` owns type
-//! references, domain aliases and constraint normalization.
+//! One entrance: [`lower_symbol_resolved_trees`], in `lowerer.rs`. Read that
+//! function to read this stage — the module order below is the order it runs
+//! them in. The `Lowerer` it builds there owns the growing typed trees and the
+//! exposure scope every module below borrows.
+//!
+//! 1. `expressions` first rejects the resolved shapes typing is about to
+//!    erase: `==` against bare payload-bearing case names, malformed
+//!    `Equatable` conformances, and non-exhaustive case dispatch. Those checks
+//!    must run while membership is still a distinct node.
+//! 2. `declarations` then types each declaration form, in the order the
+//!    entrance walks the package: constants, data, domains, propositions,
+//!    mathematical definitions, machines, measures, operators, traits,
+//!    conformances, wire schemas. Each form re-enters `expressions` for its
+//!    bodies and statements.
+//! 3. `contracts` interns what those declarations promise — authored contract
+//!    invocations, `where` facts, and parameter domain membership.
+//! 4. `type_reference` owns every written type: type references, domain
+//!    aliases, generic origins, and constraint normalization.
+//!
+//! `lowerer::finish` closes the stage. It settles satisfied declarations and
+//! normalizes progress premises, rebuilds the typed trees, then runs the
+//! normalization passes the last three modules own over that rebuild: domain
+//! constraints, proof membership interning, qualification casts, fixed byte
+//! array literals, and range argument validation.
+//!
+//! `signatures` is not a step of its own. The entrance never calls it; it is
+//! the shared parameter, type-parameter and callable-interface vocabulary each
+//! declaration form binds through.
+//!
+//! `lowerer::seeded_continuation` is an orchestration seam rather than a step:
+//! it wraps this same entrance so a retained typed base can be extended
+//! append-only, and fails the transaction rather than mutating a base that has
+//! drifted.
+
+// The entrance and the shared lowering state it owns.
+mod lowerer;
+
+// The route, in the order `lower_symbol_resolved_trees` runs it.
+mod contracts;
+mod declarations;
+mod expressions;
+mod type_reference;
+
+// Beneath `declarations`, not a step: the interface vocabulary every
+// declaration form binds through.
+mod signatures;
+
+// The entrance.
+pub use lowerer::lower_symbol_resolved_trees;
+
+// The append-only continuation seam: orchestration that extends a retained
+// typed base instead of retyping the whole package.
+pub use lowerer::seeded_continuation::{
+    SeededContinuationError, SeededTypingBase, lower_seeded_extension,
+    lower_symbol_resolved_trees_to_seeded_base, retained_typed_base_is_exact_prefix,
+};
 
 // The typing tests' front-end pipelines, one file shared with the `suite`
 // integration target; see its module documentation.
@@ -22,42 +69,3 @@ mod front_end;
 // the same way the integration target does.
 #[cfg(test)]
 extern crate self as symbol_resolved_trees_to_typed_trees;
-
-mod declarations {
-    pub(crate) mod conformance;
-    #[cfg(test)]
-    mod conformance_tests;
-    pub(crate) mod data;
-    pub(crate) mod domain;
-    pub(crate) mod machine;
-    pub(crate) mod mathematical;
-    pub(crate) mod measure;
-    pub(crate) mod operator;
-    pub(crate) mod proposition;
-    pub(crate) mod state;
-    pub(crate) mod trait_definition;
-    pub(crate) mod wire;
-}
-
-mod signatures {
-    pub(crate) mod callable_signature;
-    pub(crate) mod parameters;
-    #[cfg(test)]
-    mod type_parameter_tests;
-    pub(crate) mod type_parameters;
-}
-
-mod contracts {
-    pub(crate) mod invocations;
-    pub(crate) mod parameter_domains;
-    pub(crate) mod proof_facts;
-}
-mod expressions;
-mod lowerer;
-mod type_reference;
-
-pub use lowerer::lower_symbol_resolved_trees;
-pub use lowerer::seeded_continuation::{
-    SeededContinuationError, SeededTypingBase, lower_seeded_extension,
-    lower_symbol_resolved_trees_to_seeded_base, retained_typed_base_is_exact_prefix,
-};
