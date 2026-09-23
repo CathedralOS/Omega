@@ -671,6 +671,13 @@ pub(crate) fn lower_unit_closure(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    // A call owes one obligation per row of its callee's Terminal `requires`
+    // roster, and the two callee routes publish that roster differently. A
+    // prepared scalar graph publishes its source clauses as one canonical
+    // conjunction (`PreparedScalarContract::requirement_count`: 0 or 1),
+    // while a Unit or composed callee publishes one row per authored clause.
+    // The count therefore follows how the callee itself was lowered, never
+    // the caller's route: every caller of one callee owes the same roster.
     let scalar_requirement_counts = prepared_scalar_machines
         .iter()
         .map(|machine| (machine.source_machine(), machine.requirement_count()))
