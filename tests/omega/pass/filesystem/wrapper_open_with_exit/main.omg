@@ -101,8 +101,8 @@ machine Main::main(&mut self) reaches Console {
     // Leg 5: create_new on the EXISTING path must be AlreadyExists.
     state leg5(&mut self) {
         let opts_cn: OpenOptions = OpenOptions { write: true, create_new: true };
-        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_cn);
-        transition self.open_result {
+        let created: OpenResult = self.fs.open_with("omega_ow_probe.txt", opts_cn);
+        transition created {
             OpenResult::Error { kind } -> ck5(kind)
             _ -> bad(77)
         }
@@ -116,8 +116,8 @@ machine Main::main(&mut self) reaches Console {
     // Leg 6: plain read of an ABSENT path (no create bits) must be NotFound.
     state leg6(&mut self) {
         let opts_r2: OpenOptions = OpenOptions { read: true };
-        self.open_result = self.fs.open_with("omega_ow_absent.txt", opts_r2);
-        transition self.open_result {
+        let missing: OpenResult = self.fs.open_with("omega_ow_absent.txt", opts_r2);
+        transition missing {
             OpenResult::Error { kind } -> ck6(kind)
             _ -> bad(78)
         }

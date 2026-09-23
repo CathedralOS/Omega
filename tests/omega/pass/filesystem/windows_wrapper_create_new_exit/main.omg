@@ -27,8 +27,8 @@ machine Main::main(&mut self) reaches Console {
     }
     // create_new on an EXISTING file must fail AlreadyExists (proves O_EXCL, not truncate)
     state again(&mut self) {
-        self.open_result = self.fs.create_new("omega_cnew_probe.txt");
-        transition self.open_result {
+        let second: OpenResult = self.fs.create_new("omega_cnew_probe.txt");
+        transition second {
             OpenResult::Error { kind } -> chk(kind)
             _ -> bad(73)
         }
