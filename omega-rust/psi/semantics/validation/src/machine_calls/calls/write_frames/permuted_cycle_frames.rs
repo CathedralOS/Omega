@@ -427,6 +427,8 @@ fn build_permuted_cycle_frame_equation<'program>(
                         &isolated_local_roots,
                         &local_alias_origins,
                         &[],
+                        symbols,
+                        &mut inference,
                     )
                 } else {
                     let argument_origins = arguments

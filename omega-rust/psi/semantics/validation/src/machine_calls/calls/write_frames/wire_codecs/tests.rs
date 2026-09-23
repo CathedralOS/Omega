@@ -134,7 +134,17 @@ fn codec_call_with_an_unborrowed_argument_stays_opaque() {
     let call = first_call(&program);
     assert!(is_wire_codec_call(&program, call));
     assert_eq!(
-        known_wire_codec_call_written_paths(&program, machine, call, &[], &[], &[], &[]),
+        known_wire_codec_call_written_paths(
+            &program,
+            machine,
+            call,
+            &[],
+            &[],
+            &[],
+            &[],
+            &crate::declarations::symbols::TopLevelSymbols::build(&program, &mut Vec::new()),
+            &mut super::super::inference::FrameInference::for_state(machine.symbol),
+        ),
         None
     );
 }

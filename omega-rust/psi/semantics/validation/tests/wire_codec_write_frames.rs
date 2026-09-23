@@ -19,9 +19,11 @@ fn codec_program(body: &str) -> TypedTrees {
     let source = format!(
         r#"
         data Blob {{ #0 value: u64; }}
-        data Main {{ value: u64; other: u64; tag: u64; buffer: [u8; 64]; written: u64; }}
+        data View {{ body: &mut u64; }}
+        data Main {{ value: u64; other: u64; tag: u64; buffer: [u8; 64]; written: u64; view: View; }}
         machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 {{ match tag {{ 0 -> a, _ -> b }} }}
         machine hold(value: &mut u64) -> &mut u64 {{ value }}
+        machine hold_view(view: &mut View) -> &mut View {{ view }}
         machine opaque_ref(value: &mut u64) -> &mut u64 {{ opaque_ref(value) }}
         machine Main::run(&mut self) {{ {body} }}
         "#
@@ -91,26 +93,86 @@ fn a_codec_cursor_bound_to_an_unproven_reference_stays_opaque() {
 /// is where a candidate set is easiest to collapse to one route. A rebind onto
 /// a second binding keeps the whole set.
 ///
-/// A HELPER RESULT standing in the middle does not, and that is the gap the
-/// board's remaining composition bullet names: `Blob::encode(.., hold(cursor))`
-/// resolves to an opaque frame. The codec resolver looks its arguments up by
-/// name among the caller's aliases, so a call-expression argument has no entry
-/// to find -- the receiver lane reaches the same shape through result-origin
-/// composition. Closing it is the row's shared candidate-origin propagation,
-/// not a case added here.
+/// A helper result standing in the middle is the same set reached one hop
+/// later, and the codec leaf defers to the shared reference-origin resolver
+/// for it rather than learning another argument spelling.
 #[test]
-fn a_divergent_codec_cursor_survives_a_rebind() {
+fn a_divergent_codec_cursor_survives_composition() {
+    for (name, body) in [
+        (
+            "rebound_binding",
+            "let sample: Blob = Blob { value: 7 }; \
+             let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
+             let again: &mut u64 = cursor; \
+             Blob::encode(&sample, &mut self.buffer, again);",
+        ),
+        (
+            "helper_result",
+            "let sample: Blob = Blob { value: 7 }; \
+             let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
+             Blob::encode(&sample, &mut self.buffer, hold(cursor));",
+        ),
+        // The delegation composes recursively rather than covering one hop.
+        (
+            "nested_helper_results",
+            "let sample: Blob = Blob { value: 7 }; \
+             let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
+             Blob::encode(&sample, &mut self.buffer, hold(hold(cursor)));",
+        ),
+    ] {
+        assert_eq!(
+            caller_frame(&codec_program(body)),
+            Some(vec![
+                "self.buffer".to_owned(),
+                "self.other".to_owned(),
+                "self.value".to_owned(),
+            ]),
+            "{name}"
+        );
+    }
+}
+
+/// The hop must not become a way to guess: a helper result whose own route is
+/// unresolvable leaves the whole frame opaque rather than naming one arm.
+#[test]
+fn an_unresolvable_helper_result_keeps_the_codec_frame_opaque() {
     let body = "let sample: Blob = Blob { value: 7 }; \
-         let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
-         let again: &mut u64 = cursor; \
-         Blob::encode(&sample, &mut self.buffer, again);";
+         Blob::encode(&sample, &mut self.buffer, opaque_ref(&mut self.value));";
+    assert_eq!(caller_frame(&codec_program(body)), None);
+}
+
+/// A match argument is the same finite set spelled inline. Each arm still earns
+/// its own treatment: a borrowed place and an owned carrier's declared
+/// reference leaf both resolve, while a load reached BEHIND another reference
+/// does not, so delegating the arm walk is not a way past the load-evidence
+/// rule.
+#[test]
+fn a_match_codec_argument_unions_its_arms() {
     assert_eq!(
-        caller_frame(&codec_program(body)),
+        caller_frame(&codec_program(
+            "let sample: Blob = Blob { value: 7 }; \
+             Blob::encode(&sample, &mut self.buffer, \
+                 match self.tag { 0 -> &mut self.value, _ -> &mut self.other });",
+        )),
         Some(vec![
             "self.buffer".to_owned(),
             "self.other".to_owned(),
             "self.value".to_owned(),
         ]),
-        "a second binding must not collapse the candidate set"
+        "both borrowed arms join the frame"
+    );
+}
+
+#[test]
+fn a_match_arm_loading_behind_another_reference_stays_opaque() {
+    assert_eq!(
+        caller_frame(&codec_program(
+            "let sample: Blob = Blob { value: 7 }; \
+             let carrier: &mut View = hold_view(&mut self.view); \
+             Blob::encode(&sample, &mut self.buffer, \
+                 match self.tag { 0 -> carrier.body, _ -> &mut self.other });",
+        )),
+        None,
+        "an interior load behind another reference has no own load evidence"
     );
 }
