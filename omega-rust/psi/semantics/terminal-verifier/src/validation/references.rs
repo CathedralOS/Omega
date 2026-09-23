@@ -303,6 +303,7 @@ pub(super) fn validate_machine(
             && (!matches!(
                 operation.kind,
                 OperationKind::EstablishRecord { .. }
+                    | OperationKind::EstablishStructuralCase { .. }
                     | OperationKind::CallStructural { .. }
                     | OperationKind::CallStructuralWithScalarArguments { .. }
             ) || result.multiplicity != StructuralMultiplicity::Affine
@@ -1001,6 +1002,76 @@ fn establish_record(
     Ok(())
 }
 
+fn establish_structural_case(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    live: &mut [LiveReference],
+) -> Result<(), ModuleError> {
+    let declarations = super::structural_case::fields(module, machine, operation)?;
+    let OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind else {
+        return Err(invalid(
+            machine,
+            "case transfer requires a structural-case establishment",
+        ));
+    };
+    let result = operation
+        .result
+        .structural()
+        .ok_or_else(|| invalid(machine, "case result is absent"))?;
+    if live.iter().any(|reference| {
+        reference.carrier == result.place || reference.identity.place == result.place
+    }) {
+        return Err(invalid(
+            machine,
+            "case destination still owns live reference custody",
+        ));
+    }
+    let mut relocations = Vec::new();
+    let mut moved = BTreeSet::new();
+    for (declaration, field) in declarations.iter().zip(fields) {
+        let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
+            continue;
+        };
+        let signature =
+            super::structural_result_contracts::source_signature(machine, argument.place)
+                .ok_or_else(|| invalid(machine, "case operand has no structural source"))?;
+        let paths = leaf_paths(module, signature.structural_type, live.len()).ok_or_else(|| {
+            invalid(
+                machine,
+                "case operand requires more reference leaves than are live",
+            )
+        })?;
+        for path in paths {
+            let position = live
+                .iter()
+                .position(|reference| {
+                    reference.carrier == argument.place && reference.carrier_path == path
+                })
+                .ok_or_else(|| invalid(machine, "case operand does not own its reference leaf"))?;
+            if !moved.insert(position) {
+                return Err(invalid(machine, "case cannot duplicate reference custody"));
+            }
+            let mut destination = vec![StructuralPathSegment::Field(declaration.identity.clone())];
+            destination.extend(path);
+            relocations.push((position, destination));
+        }
+        if live.iter().enumerate().any(|(position, reference)| {
+            reference.carrier == argument.place && !moved.contains(&position)
+        }) {
+            return Err(invalid(
+                machine,
+                "case operand reference roster differs from its type",
+            ));
+        }
+    }
+    for (position, path) in relocations {
+        live[position].carrier = result.place;
+        live[position].carrier_path = path;
+    }
+    Ok(())
+}
+
 pub(super) fn check_root_access(
     machine: &TerminalMachine,
     live: &[LiveReference],
@@ -1028,6 +1099,9 @@ pub(super) fn apply_operation(
         OperationKind::ReleaseReference { source } => return release(machine, live, *source),
         OperationKind::EstablishRecord { .. } => {
             return establish_record(module, machine, operation, live);
+        }
+        OperationKind::EstablishStructuralCase { .. } => {
+            return establish_structural_case(module, machine, operation, live);
         }
         OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. } => {

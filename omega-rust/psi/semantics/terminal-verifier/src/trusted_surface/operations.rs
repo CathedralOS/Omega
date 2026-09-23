@@ -45,12 +45,15 @@ const VAL_ELEMENTS_SUBSLICE: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_subslice.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/scalar_case.rs";
+const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/structural_case.rs";
 const TV_CALLS: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/verification/call_composition.rs";
 const VAL_OPS: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/operations.rs";
 const VAL_RECORD: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/record.rs";
 const VAL_SCALAR_CASE: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar_case.rs";
+const VAL_STRUCTURAL_CASE: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case.rs";
 const VAL_SCALAR_ARRAY: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar_array.rs";
 const VAL_CASE_MEMBERSHIP: &str =
@@ -399,6 +402,24 @@ static OP_ESTABLISH_SCALAR_CASE: TrustedSurfaceEntry = entry(
         OP_FACTS_SCALAR_CASE,
         VAL_OPS,
         VAL_SCALAR_CASE,
+    ],
+);
+static OP_ESTABLISH_STRUCTURAL_CASE: TrustedSurfaceEntry = entry(
+    "operation:establish-structural-case",
+    "a validated structural-case establishment over a sum type",
+    "the case-establishment facts and declared obligations",
+    &[
+        "fact:structural-case-establishment",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        OP_FACTS_STRUCTURAL_CASE,
+        VAL_OPS,
+        VAL_STRUCTURAL_CASE,
     ],
 );
 static OP_ESTABLISH_SCALAR_ARRAY: TrustedSurfaceEntry = entry(
@@ -1020,6 +1041,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE,
     OP_ESTABLISH_SCALAR_CASE,
+    OP_ESTABLISH_STRUCTURAL_CASE,
     OP_ESTABLISH_SCALAR_ARRAY,
     OP_ESTABLISH_BYTE_SEQUENCE_LITERAL,
     OP_BYTE_SEQUENCE_LENGTH,
@@ -1108,6 +1130,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
             &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE
         }
         OperationSemanticTag::EstablishScalarCase => &OP_ESTABLISH_SCALAR_CASE,
+        OperationSemanticTag::EstablishStructuralCase => &OP_ESTABLISH_STRUCTURAL_CASE,
         OperationSemanticTag::EstablishScalarArray => &OP_ESTABLISH_SCALAR_ARRAY,
         OperationSemanticTag::EstablishByteSequenceLiteral => &OP_ESTABLISH_BYTE_SEQUENCE_LITERAL,
         OperationSemanticTag::ByteSequenceLength => &OP_BYTE_SEQUENCE_LENGTH,

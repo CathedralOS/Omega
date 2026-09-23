@@ -491,6 +491,9 @@ fn validate_operation_foundation(
         OperationKind::EstablishRecord { .. } => {
             value_foundations::validate_establish_record(module, machine, operation)?
         }
+        OperationKind::EstablishStructuralCase { .. } => {
+            value_foundations::validate_establish_structural_case(module, machine, operation)?
+        }
         OperationKind::EstablishPrimitiveLocal { .. } => {
             value_foundations::validate_establish_primitive_local(module, machine, operation)?
         }

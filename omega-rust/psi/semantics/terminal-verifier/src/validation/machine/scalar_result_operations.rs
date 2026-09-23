@@ -102,6 +102,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::CallStructural { .. }
         | OperationKind::CallStructuralWithScalarArguments { .. }
         | OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::ElementViewSubslice { .. }

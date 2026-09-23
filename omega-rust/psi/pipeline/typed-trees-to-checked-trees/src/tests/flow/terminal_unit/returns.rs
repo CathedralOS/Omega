@@ -466,16 +466,22 @@ fn structural_payload_sum_result_keeps_composed_plan() {
         "the result names the authored sum, found {}",
         result.type_identity
     );
-    // Establishing a structural case payload is a separate construction gate:
-    // the signature admits the shape but the payload body still declines.
+    // A structural case payload establishes as an owned structural value: the
+    // composed plan keeps the return as a structural result.
+    let valued_plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine_named(&checked, "choose_valued"))
+        .expect("a structural case payload stays composed");
+    let checked_trees::CheckedControlResultPlan::Structural(valued_result) = &valued_plan.result
+    else {
+        panic!("the case-payload result stays structural");
+    };
     assert!(
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .composed_for_machine(machine_named(&checked, "choose_valued"))
-            .is_none(),
-        "structural case-payload construction stays outside this slice"
+        valued_result.type_identity.contains("Outcome"),
+        "the result names the authored sum, found {}",
+        valued_result.type_identity
     );
 }
 

@@ -59,6 +59,7 @@ pub(super) fn partial_affine_root_type(
             // argument (for example an owned match arm selecting `pair.first`);
             // the leftover complement is discarded as residuals on that edge.
             | OperationKind::EstablishRecord { .. }
+            | OperationKind::EstablishStructuralCase { .. }
     ) {
         return None;
     }

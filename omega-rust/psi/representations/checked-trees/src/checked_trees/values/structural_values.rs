@@ -41,6 +41,15 @@ pub enum CheckedStructuralValueKind {
         source: crate::CheckedUnitStructuralArgumentPlan,
     },
     Case(crate::CheckedScalarCaseConstruction),
+    /// An owned construction of a named case whose payload fields are not all
+    /// scalar. Each field composes exactly as it does inside a `Record` — a
+    /// scalar computation or a nested structural value — while the selected
+    /// case contributes the discriminated tag a bare field set cannot spell.
+    StructuralCase {
+        data_symbol: SymbolHandle,
+        case: SymbolHandle,
+        fields: HandleSpan<CheckedStructuralRecordField>,
+    },
     Call {
         source_call: Handle<crate::FlowCallFact>,
     },

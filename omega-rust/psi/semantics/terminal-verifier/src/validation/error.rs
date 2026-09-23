@@ -630,6 +630,17 @@ pub enum ModuleError {
         result_case: semantic_vocabulary::StructuralCaseId,
     },
     RecordResultMismatch(OperationId),
+    StructuralCaseResultMismatch(OperationId),
+    StructuralCaseRequiresSum {
+        operation: OperationId,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        result_case: semantic_vocabulary::StructuralCaseId,
+    },
+    StructuralCaseFieldMismatch {
+        operation: OperationId,
+        structural_type: semantic_vocabulary::StructuralTypeId,
+        result_case: semantic_vocabulary::StructuralCaseId,
+    },
     WriteOnlyPrimitiveStoreDestinationMismatch {
         operation: OperationId,
         place: PlaceId,

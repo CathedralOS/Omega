@@ -492,6 +492,7 @@ pub(super) fn argument(
                 || !matches!(
                     facts.values.structural_values.nodes.get(root.root).kind,
                     checked_trees::CheckedStructuralValueKind::Case(_)
+                        | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
                         | checked_trees::CheckedStructuralValueKind::Record { .. }
                 )
                 || program

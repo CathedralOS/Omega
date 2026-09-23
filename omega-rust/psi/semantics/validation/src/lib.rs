@@ -39,8 +39,9 @@ pub use value_custody::owned_value_source::{
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::record_local_disposition::record_local_disposition;
 pub use value_custody::scalar_case_constructor::{
-    ScalarCaseConstructor, is_fresh_scalar_case_value, is_scalar_case_value,
-    scalar_case_constructor, scalar_case_value_source,
+    ScalarCaseConstructor, StructuralCaseConstructor, is_fresh_scalar_case_value,
+    is_scalar_case_value, scalar_case_constructor, scalar_case_value_source,
+    structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
 pub use value_custody::storage_contents::{

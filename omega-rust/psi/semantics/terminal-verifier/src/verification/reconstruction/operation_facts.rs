@@ -23,6 +23,7 @@ mod byte_extent;
 mod element_extent;
 mod record;
 mod scalar_case;
+mod structural_case;
 
 #[derive(Clone, Copy)]
 pub(super) enum OperationFactPurpose {
@@ -104,6 +105,12 @@ pub(super) fn append_operation(
     }
     if matches!(operation.kind, OperationKind::EstablishScalarCase { .. }) {
         return scalar_case::append(module, machine, operation, axioms, operation_obligations);
+    }
+    if matches!(
+        operation.kind,
+        OperationKind::EstablishStructuralCase { .. }
+    ) {
+        return structural_case::append(module, machine, operation, axioms, operation_obligations);
     }
     if matches!(operation.kind, OperationKind::EstablishScalarArray { .. }) {
         crate::validation::scalar_array::shape(module, machine, operation)?;
@@ -447,6 +454,7 @@ pub(super) fn append_operation(
         | OperationKind::ElementViewRead { .. }
         | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishScalarCase { .. }
+        | OperationKind::EstablishStructuralCase { .. }
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishRecord { .. }

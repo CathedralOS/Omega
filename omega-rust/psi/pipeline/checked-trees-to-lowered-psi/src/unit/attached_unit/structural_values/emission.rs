@@ -953,6 +953,13 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(place)
             }
+            CheckedStructuralValueKind::StructuralCase { .. } => {
+                let place = self.structural_case(value)?;
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, None, continuation)?;
+                }
+                Ok(place)
+            }
             CheckedStructuralValueKind::Dispatch { subject, arms } => {
                 let arms = self
                     .checked

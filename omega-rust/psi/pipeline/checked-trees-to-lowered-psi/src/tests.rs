@@ -47,6 +47,7 @@ mod source_selection;
 mod store_lowering;
 mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
+mod structural_case_returns;
 mod structural_control_cases;
 mod structural_local_bindings;
 mod structural_return_cases;
