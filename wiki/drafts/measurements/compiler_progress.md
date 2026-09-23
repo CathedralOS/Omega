@@ -68,6 +68,23 @@ failures show, below), 181 because the selected compiler intrinsic for
 identity, 58 in Terminal production, and the rest are proof and ownership
 refusals. Those two walls stand between the 90 that compile and running.
 
+This is a Windows-host measurement of one wall before it is a measurement
+of the compiler. The 181 catalog failures and, behind them, every rooted
+fixture that exits through `Console::exit_process` on this host stop at a
+deliberate gap: `target::HostedIntrinsicBundle` admits `linux_x86_64`,
+`linux_arm64` and `macos_arm64` as hosted intrinsic bundles and not
+`windows_x86_64`, because `HostedExitProcessI32` (and the byte write/read
+intrinsics) have hosted realizations only as kernel syscalls, which Windows
+has no stable form of; the Process-exit contract row on TASKS.md records
+"the current hosted-exit target support excludes Windows". Closing it needs
+a Windows encoding of the hosted exit (kernel32 `ExitProcess` through an
+import slot the image must declare), its decoder and exact-shape check in
+`object_artifact/replay/boundary/runtime_scalar_custody/process_exit.rs`,
+`supports_target` in `target-operations/.../boundary/realizations.rs`, the
+bundle admission with its two `include_bytes!` copies, and the tests that
+pin each. The same owner tests run on a Linux or macOS host measure the
+compiler without that wall; that run has not been made.
+
 Provenance: the owner verdicts are one release-profile run of the whole
 `canary_suite` (1,509 tests, 293 passed, 30 min on this host); three owners
 re-run in the dev profile fail with the same diagnostics, so the profile is
