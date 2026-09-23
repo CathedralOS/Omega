@@ -13,6 +13,7 @@ use super::{
     CheckedTrees, ExpressionHandle, ExpressionNode, LoweringError, StatementNode, unsupported,
 };
 use checked_trees::CheckedUnitStructuralArgumentPlan;
+use symbols::SymbolHandle;
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -35,8 +36,144 @@ pub(super) fn validate(
     if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
         return unsupported("borrowed selection changed its planned access");
     }
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, borrow.target)?;
+    if checked_path != argument.path {
+        return unsupported("borrowed selection path does not match its projected path");
+    }
+    let leaf = validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        authored,
+        borrow.target,
+    )
+    .ok_or(LoweringError::Unsupported(
+        "borrowed selection lost its target type",
+    ))?;
+    if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
+        || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(referent)
+    {
+        return unsupported("borrowed selection does not project the result referent");
+    }
+    validate_place_root(
+        checked,
+        machine,
+        authored,
+        statement,
+        root,
+        &argument.source,
+    )?;
+    let root_reference =
+        validation::expression_result_type_reference(&checked.typed, machine, authored, root)
+            .ok_or(LoweringError::Unsupported(
+                "borrowed selection lost its root type",
+            ))?;
+    // The root carrier rule matches the referent rule: a shared borrow moves
+    // nothing, so a `[linear]` root is an admissible place to observe through.
+    if !validation::has_linear_owned_contents(
+        &checked.typed,
+        validation::unwrapped_type_reference(&checked.typed, root_reference)
+            .unwrap_or(root_reference),
+    ) {
+        return unsupported(
+            "borrowed selection root is not a structural place the pipeline can carry",
+        );
+    }
+    Ok(())
+}
+
+/// A payloadless scalar-case leaf read through shared-borrowed storage
+/// (`self.bitness` on a `&self` receiver): the retained root/path must
+/// replay the authored member walk exactly as `validate` replays a `&place`
+/// target, the projected leaf must be the result's declared case type, and
+/// the source keeps the same root-establishment rule. The leaf's declared
+/// case sum must be payloadless — there is no authored spelling that would
+/// carry payload fields out of a borrowed case.
+pub(super) fn validate_scalar_case_place(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    authored: &checked_trees::state::State,
+    statement: u32,
+    expression: ExpressionHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
+    argument: &CheckedUnitStructuralArgumentPlan,
+) -> Result<(), LoweringError> {
+    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+        return unsupported("scalar case place changed its planned access");
+    }
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, expression)?;
+    if checked_path != argument.path || checked_path.is_empty() {
+        return unsupported("scalar case place path does not match its projected path");
+    }
+    let leaf =
+        validation::expression_result_type_reference(&checked.typed, machine, authored, expression)
+            .ok_or(LoweringError::Unsupported(
+                "scalar case place lost its leaf type",
+            ))?;
+    if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
+        || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(reference)
+    {
+        return unsupported("scalar case place does not project the result type");
+    }
+    if !leaf_is_payloadless_case_sum(checked, reference) {
+        return unsupported("scalar case place leaf is not a payloadless case sum");
+    }
+    validate_place_root(
+        checked,
+        machine,
+        authored,
+        statement,
+        root,
+        &argument.source,
+    )?;
+    Ok(())
+}
+
+/// The leaf type must be an unrestricted sum whose every case carries no
+/// payload field — observing the active case is then the whole read, and no
+/// borrowed payload needs a spelling the authored expression never offered.
+fn leaf_is_payloadless_case_sum(
+    checked: &CheckedTrees,
+    reference: checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
+        return false;
+    };
+    let checked_trees::types::TypeReferenceNode::Named { symbol, .. } =
+        checked.type_reference_table.type_reference(unwrapped)
+    else {
+        return false;
+    };
+    let Some(data) = checked
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *symbol)
+    else {
+        return false;
+    };
+    let members = checked.data_members(data);
+    !members.is_empty()
+        && members.iter().all(|member| {
+            matches!(member, checked_trees::data::DataMember::Variant(variant) if checked.data_payload_fields(variant).is_empty())
+        })
+}
+
+/// Walk an authored member/indexed place chain to its root name, rebuilding
+/// the retained field/fixed-index path against the same declaration and
+/// literal-bound rules the checker committed to.
+fn walk_exact_place(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    authored: &checked_trees::state::State,
+    target: ExpressionHandle,
+) -> Result<
+    (
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+        ExpressionHandle,
+    ),
+    LoweringError,
+> {
     let mut checked_path = Vec::new();
-    let mut cursor = borrow.target;
+    let mut cursor = target;
     let root = loop {
         match checked.expression_table.expression(cursor) {
             ExpressionNode::Member(member) => {
@@ -58,17 +195,31 @@ pub(super) fn validate(
                 else {
                     return unsupported("borrowed selection receiver is not a named record");
                 };
+                // A `self` receiver keeps the machine-keyed `Self` alias; its
+                // owner is the machine's attached data declaration, and the
+                // authored member symbol lives in the receiver-view space, so
+                // the field resolves by name there.
+                let self_receiver = *symbol == machine.symbol;
+                let owner_symbol = if self_receiver {
+                    machine.attached_data_symbol
+                } else {
+                    *symbol
+                };
                 let owner = checked
                     .data_definitions()
                     .iter()
-                    .find(|owner| owner.symbol == *symbol)
+                    .find(|owner| owner.symbol == owner_symbol)
                     .ok_or(LoweringError::Unsupported(
                         "borrowed selection field owner is absent",
                     ))?;
                 let field = validation::exact_data_member_field(
                     &checked.typed,
                     owner,
-                    member.member_symbol,
+                    if self_receiver {
+                        SymbolHandle::invalid()
+                    } else {
+                        member.member_symbol
+                    },
                     member.member.as_str(),
                     None,
                 )
@@ -138,23 +289,20 @@ pub(super) fn validate(
         }
     };
     checked_path.reverse();
-    if checked_path != argument.path {
-        return unsupported("borrowed selection path does not match its projected path");
-    }
-    let leaf = validation::expression_result_type_reference(
-        &checked.typed,
-        machine,
-        authored,
-        borrow.target,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "borrowed selection lost its target type",
-    ))?;
-    if checked.normalized_type_identity(leaf).as_str() != argument.type_identity
-        || checked.normalized_type_identity(leaf) != checked.normalized_type_identity(referent)
-    {
-        return unsupported("borrowed selection does not project the result referent");
-    }
+    Ok((checked_path, root))
+}
+
+/// The root of an exact observed place: a uniquely named parameter or an
+/// already-established local whose retained source plan still matches the
+/// authored name.
+fn validate_place_root(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    authored: &checked_trees::state::State,
+    statement: u32,
+    root: ExpressionHandle,
+    source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
+) -> Result<(), LoweringError> {
     let ExpressionNode::Name(name) = checked.expression_table.expression(root) else {
         return unsupported("borrowed selection target is not an exact place");
     };
@@ -168,19 +316,14 @@ pub(super) fn validate(
     {
         return unsupported("borrowed selection root is not an exact name");
     }
-    if !super::owned_selection::source_plan_matches(
-        checked,
-        authored.symbol,
-        name.symbol,
-        &argument.source,
-    ) {
+    if !super::owned_selection::source_plan_matches(checked, authored.symbol, name.symbol, source) {
         return unsupported("borrowed selection source does not match its root");
     }
-    if !checked
-        .state_parameters(authored)
-        .iter()
-        .any(|parameter| parameter.symbol == name.symbol)
-    {
+    // An authored `self` name retains the durable machine symbol; it roots at
+    // the is_self parameter rather than at a same-named parameter row.
+    if !checked.state_parameters(authored).iter().any(|parameter| {
+        parameter.symbol == name.symbol || (parameter.is_self && name.symbol == machine.symbol)
+    }) {
         let mut locals = checked
             .statement_table
             .statements(authored.statement_nodes)
@@ -199,22 +342,6 @@ pub(super) fn validate(
         {
             return unsupported("borrowed selection root is not uniquely established");
         }
-    }
-    let root_reference =
-        validation::expression_result_type_reference(&checked.typed, machine, authored, root)
-            .ok_or(LoweringError::Unsupported(
-                "borrowed selection lost its root type",
-            ))?;
-    // The root carrier rule matches the referent rule: a shared borrow moves
-    // nothing, so a `[linear]` root is an admissible place to observe through.
-    if !validation::has_linear_owned_contents(
-        &checked.typed,
-        validation::unwrapped_type_reference(&checked.typed, root_reference)
-            .unwrap_or(root_reference),
-    ) {
-        return unsupported(
-            "borrowed selection root is not a structural place the pipeline can carry",
-        );
     }
     Ok(())
 }

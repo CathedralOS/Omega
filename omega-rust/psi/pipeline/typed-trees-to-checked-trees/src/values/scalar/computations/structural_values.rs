@@ -348,6 +348,86 @@ fn symbol_declared_type(program: &TypedTrees, symbol: SymbolHandle) -> Option<Ty
     None
 }
 
+/// A copyable payloadless case-sum leaf: a named `data` whose members are all
+/// variants carrying no payload fields, under `Unrestricted` multiplicity.
+/// Membership observation can reconstruct such a leaf without reading any
+/// storage contents, which is exactly what a `self.bitness`-shape read needs;
+/// anything with payload storage or affine custody needs move semantics.
+fn scalar_case_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> bool {
+    let Some(reference) = validation::unwrapped_type_reference(program, expected) else {
+        return false;
+    };
+    if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
+        return false;
+    }
+    let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(reference)
+    else {
+        return false;
+    };
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == *symbol)
+    else {
+        return false;
+    };
+    let members = program.data_members(data);
+    !members.is_empty()
+        && members.iter().all(|member| match member {
+            typed_trees::data::DataMember::Variant(variant) => {
+                program.data_payload_fields(variant).is_empty()
+            }
+            _ => false,
+        })
+}
+
+/// `self.bitness`-shape admission: a member/fixed-index projection rooted at
+/// shared-borrowed storage whose leaf is a copyable payloadless case sum. The
+/// value keeps the exact canonical path so lowering can observe the held case
+/// and re-establish it -- never moving borrowed storage.
+pub(super) fn is_scalar_case_place_value(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    if !scalar_case_place_type(program, expected) {
+        return false;
+    }
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state,
+        statement_index,
+        expression,
+    ) else {
+        return false;
+    };
+    if place.segments.is_empty() || !canonical_place_is_borrowable(&place) {
+        return false;
+    }
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return false;
+    };
+    let Some(root) = symbol_declared_type(program, symbol) else {
+        return false;
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(root),
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            ..
+        }
+    ) {
+        return false;
+    }
+    crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
+        .is_some_and(|leaf| {
+            program.normalized_type_identity(leaf) == program.normalized_type_identity(expected)
+        })
+}
+
 /// The terminal expression carrying a projection's storage: the whole local
 /// name for an owned place source, or the producing call for a structural
 /// product source.
@@ -431,6 +511,8 @@ impl Builder<'_, '_> {
                     .expression_handles(call.arguments),
             );
             CheckedStructuralValueKind::Call { source_call }
+        } else if let Some(copy) = self.scalar_case_place(expression, expected) {
+            copy
         } else if let Some(projection) =
             self.projected_selection_place(expression, expected, values, pure)
         {
@@ -606,6 +688,87 @@ impl Builder<'_, '_> {
                 .append(CheckedStructuralValue { expression, kind }),
         )
     }
+    /// One copyable payloadless case leaf projected out of shared-borrowed
+    /// storage: `self.bitness` reads which case the borrowed record currently
+    /// holds. The root and path become a `SharedBorrow` `Place` source exactly
+    /// as `borrowed_place` builds for `&place`, so lowering observes the held
+    /// case and establishes the same constructor fresh rather than moving a
+    /// child out of the loan. Owned roots still move their whole leaf through
+    /// the owned arms.
+    fn scalar_case_place(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        if !is_scalar_case_place_value(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+            expected,
+        ) {
+            return None;
+        }
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )?;
+        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+            return None;
+        };
+        let source = if let Some((index, parameter)) = self
+            .authored_parameters
+            .iter()
+            .filter(|parameter| {
+                !parameter.is_const
+                    && self
+                        .program
+                        .primitive_type_reference(parameter.type_reference)
+                        .is_none()
+            })
+            .enumerate()
+            .find(|(_, parameter)| parameter.symbol == symbol)
+        {
+            if parameter.is_self {
+                // The authored `self` name retains the durable machine symbol;
+                // binding resolves that normalized root to the is_self slot.
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol: self.machine,
+                }
+            } else {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: u32::try_from(index).ok()?,
+                }
+            }
+        } else {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+        };
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+        )?;
+        if self.program.normalized_type_identity(projected)
+            != self.program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+        Some(CheckedStructuralValueKind::ScalarCasePlace {
+            source: checked_trees::CheckedUnitStructuralArgumentPlan {
+                source,
+                path,
+                type_identity: self
+                    .program
+                    .normalized_type_identity(projected)
+                    .into_string(),
+                access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+            },
+        })
+    }
+
     /// One selected projected child of an existing owner. The owned-selection
     /// transfer is the authoritative admission: its recorded canonical path
     /// must equal the authored place, and the projected type must be the

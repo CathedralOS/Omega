@@ -815,6 +815,25 @@ impl Emission<'_, '_, '_> {
                 self.complete_value(projected.root, Some(&projected), continuation)?;
                 Ok(continuation.place)
             }
+            CheckedStructuralValueKind::ScalarCasePlace { source } => {
+                if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
+                    return unsupported("scalar case place changed its leaf type");
+                }
+                let authored = crate::expression_preparation::source_custody::authored_state(
+                    self.checked,
+                    self.state,
+                )?;
+                let argument =
+                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                        .with_structural_parameters(&self.evaluation.structural_parameters)
+                        .with_structural_locals(&self.evaluation.structural_locals)
+                        .shared_structural_argument(
+                            &source,
+                            authored.0,
+                            self.checked.state_parameters(authored.1),
+                        )?;
+                self.projected_case_place(&argument, continuation)
+            }
             CheckedStructuralValueKind::Place(argument) => {
                 if self.sources.is_empty()
                     && continuation.is_none()
@@ -1844,6 +1863,229 @@ impl Emission<'_, '_, '_> {
             residual_affine_discards: Vec::new(),
         });
         Ok(())
+    }
+
+    /// A copyable payloadless case leaf projected out of shared-borrowed
+    /// storage: `self.bitness` observes which case the borrowed record holds
+    /// through `StructuralCaseMembership`, then establishes that same
+    /// constructor fresh under `EstablishScalarCase`. Each non-final case
+    /// guards its own block; the closed sum makes the last case unconditional.
+    /// Owners join untouched exactly as a scalar dispatch's residual frontier.
+    fn projected_case_place(
+        &mut self,
+        argument: &StructuralArgument,
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let leaf_type = self.structural_type;
+        let StructuralTypeShape::Sum { cases } = &self
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == leaf_type)
+            .ok_or(LoweringError::Unsupported(
+                "projected case copy lost its leaf type",
+            ))?
+            .shape
+        else {
+            return unsupported("projected case copy requires a case-sum leaf");
+        };
+        if cases.is_empty() || cases.iter().any(|case| !case.fields.is_empty()) {
+            return unsupported("projected case copy requires payloadless cases");
+        }
+        let cases = cases.clone();
+        let source = argument.place;
+        let path = argument.path.clone();
+        let owned_continuation;
+        let is_root = continuation.is_none();
+        let continuation = if let Some(continuation) = continuation {
+            continuation
+        } else {
+            let join = block_id(allocate_dense(self.next_block)?);
+            let joined_values = self
+                .values
+                .iter()
+                .map(|value| {
+                    Ok(ValueDeclaration {
+                        id: value_id(allocate_dense(self.next_value)?),
+                        ..*value
+                    })
+                })
+                .collect::<Result<Vec<_>, LoweringError>>()?;
+            let mut structural_parameters = Vec::new();
+            let mut remaining_owners = self.owners.clone();
+            let mut pass_through = Vec::new();
+            let mut residuals = Vec::new();
+            for position in 0..remaining_owners.len() + 1 {
+                let (structural_type, multiplicity) = remaining_owners
+                    .get(position)
+                    .map_or((self.structural_type, self.multiplicity), |owner| {
+                        (owner.value.structural_type, owner.value.multiplicity)
+                    });
+                let is_result_slot = position == remaining_owners.len();
+                let owner = remaining_owners.get_mut(position);
+                let position = u32::try_from(position).map_err(|_| {
+                    LoweringError::Unsupported("owned selection parameter count exceeds u32")
+                })?;
+                let place = place_id(allocate_dense(self.next_place)?);
+                if let Some(owner) = owner {
+                    if self
+                        .sources
+                        .iter()
+                        .any(|source| source.place == owner.value.place)
+                    {
+                        owner.symbol = symbols::SymbolHandle::invalid();
+                        residuals.push(place);
+                    } else {
+                        pass_through.push((owner.value.place, place));
+                    }
+                    owner.value.place = place;
+                }
+                self.temporary_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: join,
+                        position,
+                    },
+                });
+                structural_parameters.push(StructuralParameterDeclaration {
+                    place,
+                    position,
+                    is_self: false,
+                    structural_type,
+                    multiplicity,
+                    access: if is_result_slot {
+                        self.result_access
+                    } else {
+                        StructuralAccess::Owned
+                    },
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+            }
+            let place = structural_parameters
+                .last()
+                .ok_or(LoweringError::Unsupported(
+                    "structural continuation has no result",
+                ))?
+                .place;
+            owned_continuation = ValueContinuation {
+                block: join,
+                parameters: joined_values,
+                structural_parameters,
+                place,
+                remaining_owners,
+                pass_through,
+                residuals,
+            };
+            &owned_continuation
+        };
+        let source_count = self.values.len();
+        for (position, case) in cases.iter().enumerate() {
+            let mut fallback = None;
+            if position + 1 < cases.len() {
+                let condition = value_id(allocate_dense(self.next_value)?);
+                let id = self.operations.allocate();
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id,
+                    result: OperationResult::Scalar(ValueDeclaration {
+                        id: condition,
+                        scalar_type: ScalarType::Boolean,
+                        qualifications: Default::default(),
+                    }),
+                    kind: OperationKind::StructuralCaseMembership {
+                        source,
+                        path: path.clone(),
+                        case: case.id,
+                    },
+                });
+                let selected = block_id(allocate_dense(self.next_block)?);
+                let next = block_id(allocate_dense(self.next_block)?);
+                let when_true = self.edge(selected, Vec::new(), Vec::new())?;
+                let when_false = self.edge(next, Vec::new(), Vec::new())?;
+                self.finish(Terminator::Conditional {
+                    condition,
+                    when_true,
+                    when_false,
+                });
+                fallback = Some((next, self.values.clone()));
+                self.start(selected);
+            }
+            self.values.truncate(source_count);
+            let place = place_id(allocate_dense(self.next_place)?);
+            let operation = self.operations.allocate();
+            self.operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation,
+                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place,
+                    structural_type: leaf_type,
+                    multiplicity: self.multiplicity,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishScalarCase {
+                    result_case: case.id,
+                    fields: Vec::new(),
+                },
+            });
+            self.temporary_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: operation,
+                    structural_type: leaf_type,
+                },
+            });
+            self.complete_value(place, None, continuation)?;
+            if let Some((next, values)) = fallback {
+                self.start(next);
+                *self.values = values;
+            }
+        }
+        if is_root {
+            self.start(continuation.block);
+            *self.values = continuation.parameters.clone();
+            self.evaluation.parameters = continuation.parameters.clone();
+            self.evaluation.block_structural_parameters =
+                continuation.structural_parameters.clone();
+            if !self.sources.is_empty() {
+                self.evaluation
+                    .selection_cleanups
+                    .push(argument_evaluation::SelectionCleanup {
+                        selected: continuation.place,
+                        sources: self
+                            .sources
+                            .iter()
+                            .rev()
+                            .map(|source| source.place)
+                            .collect(),
+                        remaining: continuation.residuals.iter().rev().copied().collect(),
+                        pass_through: continuation.pass_through.clone(),
+                        next_operation: self.operations.next_identity,
+                    });
+                self.evaluation.structural_value_owners = continuation.remaining_owners.clone();
+                self.evaluation.structural_locals.retain(|(_, argument)| {
+                    !self
+                        .sources
+                        .iter()
+                        .any(|source| source.place == argument.place)
+                });
+                for (_, argument) in &mut self.evaluation.structural_locals {
+                    if let Some((_, target)) = continuation
+                        .pass_through
+                        .iter()
+                        .find(|(source, _)| *source == argument.place)
+                    {
+                        argument.place = *target;
+                    }
+                }
+                self.rebind_local_cases()?;
+            }
+        }
+        Ok(continuation.place)
     }
 
     fn rebind_local_cases(&mut self) -> Result<(), LoweringError> {
