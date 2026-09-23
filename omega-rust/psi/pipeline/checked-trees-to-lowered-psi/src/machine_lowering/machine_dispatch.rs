@@ -98,24 +98,35 @@ pub(crate) fn lower_selected_machine(
     }
     // A scalar forwarding body can also have a Unit-closure plan. Its scalar
     // graph owns the source signature, operand, and affine-transfer custody;
-    // selecting the overlapping closure plan here would bypass those checks
-    // and suppress the graph's debug map. The graph path below already shares
-    // the real structural/Unit callee catalog when it needs that namespace.
-    // A rejected graph must not fall back to the overlapping plan.
-    if selection.signature == CheckedTerminalSignatureEligibility::Eligible
-        && checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .for_machine(selection.machine)
-            .is_none()
-        && checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .for_machine(selection.machine)
-            .is_some()
-    {
+    // selecting the overlapping closure plan would bypass those checks and
+    // suppress the graph's debug map, so a selection takes the Unit closure
+    // only when no scalar graph exists, or, for an attached signature, when a
+    // Unit plan competes with the graph. An ordinary free signature without a
+    // graph also needs a Unit plan to take the closure. The graph path below
+    // already shares the real structural/Unit callee catalog when it needs
+    // that namespace, and a rejected graph must not fall back to the closure.
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(selection.machine);
+    let unit_plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(selection.machine)
+        .is_some();
+    let unit_closure = match selection.signature {
+        CheckedTerminalSignatureEligibility::Attached => graph.is_none() || unit_plan,
+        CheckedTerminalSignatureEligibility::FreeUnitEffect => graph.is_none(),
+        CheckedTerminalSignatureEligibility::Eligible => graph.is_none() && unit_plan,
+        CheckedTerminalSignatureEligibility::Unsupported => {
+            return unsupported(
+                "machine signature is outside the current terminal-Psi source slice",
+            );
+        }
+    };
+    if unit_closure {
         return Ok(LoweredSelectedMachine::source_mapped(
             lower_unit_effect_closure(checked, selection.machine)?,
             LoweringCompletion {
@@ -125,63 +136,9 @@ pub(crate) fn lower_selected_machine(
             },
         ));
     }
-    match selection.signature {
-        CheckedTerminalSignatureEligibility::Eligible => {}
-        CheckedTerminalSignatureEligibility::FreeUnitEffect
-            if checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .for_machine(selection.machine)
-                .is_some() => {}
-        // An attached machine whose only checked body is a scalar graph owns
-        // the scalar route outright: the Unit roster declined it, so the
-        // graph is its body rather than a competing plan.
-        CheckedTerminalSignatureEligibility::Attached
-            if checked
-                .facts
-                .flow
-                .terminal_scalar_graphs
-                .for_machine(selection.machine)
-                .is_some()
-                && checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .for_machine(selection.machine)
-                    .is_none()
-                && checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .composed_for_machine(selection.machine)
-                    .is_none() => {}
-        CheckedTerminalSignatureEligibility::Attached
-        | CheckedTerminalSignatureEligibility::FreeUnitEffect => {
-            return Ok(LoweredSelectedMachine::source_mapped(
-                lower_unit_effect_closure(checked, selection.machine)?,
-                LoweringCompletion {
-                    operands: OperandProofCompletion::Finalize,
-                    debug: DebugPublication::Omit,
-                    ..Default::default()
-                },
-            ));
-        }
-        CheckedTerminalSignatureEligibility::Unsupported => {
-            return unsupported(
-                "machine signature is outside the current terminal-Psi source slice",
-            );
-        }
-    }
-
-    let graph = checked
-        .facts
-        .flow
-        .terminal_scalar_graphs
-        .for_machine(selection.machine)
-        .ok_or(LoweringError::Unsupported(
-            "machine has no source-independent checked scalar control plan",
-        ))?;
+    let graph = graph.ok_or(LoweringError::Unsupported(
+        "machine has no source-independent checked scalar control plan",
+    ))?;
     if crate::scalar_graph::scalar_call_closure::requires_shared_catalog(
         checked,
         selection.machine,
