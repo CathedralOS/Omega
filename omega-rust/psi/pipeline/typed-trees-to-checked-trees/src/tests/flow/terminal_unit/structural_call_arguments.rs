@@ -149,3 +149,103 @@ fn scalar_result_still_feeds_a_scalar_argument() {
         "scalar nested calls keep their computed operand lane: {operations:#?}"
     );
 }
+
+#[test]
+fn scalar_calls_inside_a_conjunction_return_are_consumed() {
+    let operations = operations(
+        r#"
+        data Response { ok: bool; }
+        machine Response::is_ok(&self) -> bool { self.ok }
+        machine Response::get_val(&self, index: u64) -> u64 { index }
+        data Engine { response: Response; }
+        data Main { engine: Engine; }
+        machine Main::main(&mut self) -> bool {
+            let ok: bool = self.engine.response.is_ok();
+            ok && self.engine.response.get_val(0) == 4
+                && self.engine.response.get_val(1) == 8
+        }
+        "#,
+    );
+    assert!(
+        operations
+            .iter()
+            .any(|operation| matches!(operation, CheckedUnitEffectOperationPlan::Complete { .. })),
+        "conjunction-tail scalar calls compose: {operations:#?}"
+    );
+}
+
+#[test]
+fn crash_return_with_structural_locals_and_conjunction_tail() {
+    let operations = operations(
+        r#"
+        data Response { ok: bool; }
+        machine Response::is_ok(&self) -> bool { self.ok }
+        machine Response::get_val(&self, index: u64) -> u64 { index }
+        data Engine { response: Response; }
+        machine Engine::fetch(&mut self) -> Response {
+            Response { ok: true }
+        }
+        data Main { engine: Engine; }
+        machine Main::main(&mut self) -> bool crashes Abort {
+            let response: Response = self.engine.fetch();
+            let ok: bool = response.is_ok();
+            ok && response.get_val(0) == 4
+                && response.get_val(1) == 8
+        }
+        "#,
+    );
+    assert!(
+        operations
+            .iter()
+            .any(|operation| matches!(operation, CheckedUnitEffectOperationPlan::Complete { .. })),
+        "crash-body structural local + conjunction tail composes: {operations:#?}"
+    );
+}
+
+#[test]
+fn verify_page_shape_composes() {
+    let source = r#"
+        data Command { case Ping; case Fetch(value: u64); }
+        data Response { case Empty; case ScanResults(count: u64, addr: u64); }
+        machine Response::is_scan_results(&self) -> bool { true }
+        machine Response::get_result_count(&self) -> u64 { 0 }
+        machine Response::get_result_address(&self, index: u64) -> u64 { index }
+        data Engine {}
+        machine Engine::dispatch_command(&mut self, command: Command) -> Response {
+            Response::Empty
+        }
+        data Driver { engine: Engine; }
+        machine Driver::list_command(&mut self) -> Command {
+            Command::Ping
+        }
+        machine Driver::verify_page(&mut self) -> bool crashes Abort {
+            let command: Command = self.list_command();
+            let response: Response = self.engine.dispatch_command(command);
+            let is_list: bool = response.is_scan_results();
+            let count: u64 = response.get_result_count();
+            is_list && count == 8
+                && response.get_result_address(0) == 4096
+                && response.get_result_address(1) == 4104
+        }
+        "#;
+    let checked = checked(source);
+    let machine = machine_named(&checked, "verify_page");
+    let operations = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .map(|plans| &plans.operations)
+        .unwrap_or_else(|| {
+            panic!(
+                "verify_page shape composes: {:?}",
+                checked.facts.flow.terminal_unit_effects.omissions
+            )
+        });
+    assert!(
+        operations
+            .iter()
+            .any(|operation| matches!(operation, CheckedUnitEffectOperationPlan::Complete { .. })),
+        "verify_page shape composes: {operations:#?}"
+    );
+}
