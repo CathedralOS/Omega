@@ -52,22 +52,32 @@ fn increases_remains_an_ordinary_identifier_outside_a_retired_clause() {
     parse_syntax_trees(&tokens).expect("retirement guidance must not reserve an identifier");
 }
 
+/// `abd983fe9d` removed the `enum` token and the `wire data` migration-only
+/// rejection branch along with their fixtures, so neither spelling is known to
+/// the grammar any more. What is left to pin is that they are ABSENT rather
+/// than special: each is an ordinary identifier the top-level item parser does
+/// not accept, reported by the same expected-items list every other unknown
+/// item gets, with no retirement branch left to maintain. Their own retirement
+/// guidance is deliberately gone and must not come back.
 #[test]
-fn wire_data_form_reports_retirement() {
-    let message = parse_error_message("wire data Save { 1: seed: u64; }");
-    assert!(
-        message.contains("`wire data` is retired"),
-        "expected the retirement guidance, got: {message}"
-    );
-}
-
-#[test]
-fn enum_keyword_reports_retirement() {
-    let message = parse_error_message("enum Direction { North, South }");
-    assert_eq!(
-        message,
-        "`enum` is retired; spell alternatives as `case` members of a `data` declaration"
-    );
+fn retired_declaration_spellings_are_absent_rather_than_special_cased() {
+    for (source, spelling) in [
+        ("enum Direction { North, South }", "enum"),
+        ("wire data Save { 1: seed: u64; }", "wire"),
+    ] {
+        let message = parse_error_message(source);
+        assert_eq!(
+            message,
+            format!(
+                "expected one of `use`, `data`, `domain`, `abi`, `machine`, `capability`, `let`, `library`, `measure`, `host`, `module`, `operator`, `package`, `platform`, `pub`, `trait`, `boundary let`, `boundary operator`, `boundary requirement`, `boundary data`, `boundary trait`, found identifier `{spelling}`"
+            ),
+            "{spelling} must reject as an ordinary unknown item"
+        );
+        assert!(
+            !message.contains("retired"),
+            "{spelling} keeps no retirement branch: {message}"
+        );
+    }
 }
 
 #[test]
