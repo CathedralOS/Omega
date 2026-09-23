@@ -19,9 +19,11 @@ fn codec_program(body: &str) -> TypedTrees {
     let source = format!(
         r#"
         data Blob {{ #0 value: u64; }}
-        data Main {{ value: u64; other: u64; tag: u64; buffer: [u8; 64]; written: u64; }}
+        data View {{ body: &mut u64; }}
+        data Main {{ value: u64; other: u64; tag: u64; buffer: [u8; 64]; written: u64; view: View; }}
         machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 {{ match tag {{ 0 -> a, _ -> b }} }}
         machine hold(value: &mut u64) -> &mut u64 {{ value }}
+        machine hold_view(view: &mut View) -> &mut View {{ view }}
         machine opaque_ref(value: &mut u64) -> &mut u64 {{ opaque_ref(value) }}
         machine Main::run(&mut self) {{ {body} }}
         "#
@@ -137,4 +139,40 @@ fn an_unresolvable_helper_result_keeps_the_codec_frame_opaque() {
     let body = "let sample: Blob = Blob { value: 7 }; \
          Blob::encode(&sample, &mut self.buffer, opaque_ref(&mut self.value));";
     assert_eq!(caller_frame(&codec_program(body)), None);
+}
+
+/// A match argument is the same finite set spelled inline. Each arm still earns
+/// its own treatment: a borrowed place and an owned carrier's declared
+/// reference leaf both resolve, while a load reached BEHIND another reference
+/// does not, so delegating the arm walk is not a way past the load-evidence
+/// rule.
+#[test]
+fn a_match_codec_argument_unions_its_arms() {
+    assert_eq!(
+        caller_frame(&codec_program(
+            "let sample: Blob = Blob { value: 7 }; \
+             Blob::encode(&sample, &mut self.buffer, \
+                 match self.tag { 0 -> &mut self.value, _ -> &mut self.other });",
+        )),
+        Some(vec![
+            "self.buffer".to_owned(),
+            "self.other".to_owned(),
+            "self.value".to_owned(),
+        ]),
+        "both borrowed arms join the frame"
+    );
+}
+
+#[test]
+fn a_match_arm_loading_behind_another_reference_stays_opaque() {
+    assert_eq!(
+        caller_frame(&codec_program(
+            "let sample: Blob = Blob { value: 7 }; \
+             let carrier: &mut View = hold_view(&mut self.view); \
+             Blob::encode(&sample, &mut self.buffer, \
+                 match self.tag { 0 -> carrier.body, _ -> &mut self.other });",
+        )),
+        None,
+        "an interior load behind another reference has no own load evidence"
+    );
 }
