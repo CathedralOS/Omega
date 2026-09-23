@@ -59,6 +59,14 @@ pub enum CheckedStructuralValueKind {
     BorrowedSliceView {
         source: crate::CheckedUnitStructuralArgumentPlan,
     },
+    /// A copyable payloadless case leaf read through shared-borrowed storage
+    /// (`self.bitness` on a `&self` receiver): the borrowed place's active
+    /// case is observed and the same constructor is established fresh, so no
+    /// child moves out of the loan. `source` is that lent place under shared
+    /// borrow, with `type_identity` naming the projected (leaf) case type.
+    ScalarCasePlace {
+        source: crate::CheckedUnitStructuralArgumentPlan,
+    },
     /// An owned child projected out of `source` (a `Place` or `Call` node)
     /// along an exact field/fixed-index path. The untouched residual siblings
     /// die on the selected edge; `type_identity` is the normalized projected
