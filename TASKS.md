@@ -4240,11 +4240,17 @@ syntax and other terminal services are not prerequisites.
   These are consumed-binder fixtures, not declaration-only ones -- each
   instantiates its binder through a real call, which is what the row required.
 
-  Left open, and NOT established either way by the above: one binder
-  constrained by two DISTINCT refinement traits. The meet within a single
-  refinement is what the wildcard-plus-targeted test exercises; whether a
-  binder can name two refinements at once, and what their meet is, was not
-  determined here.
+  The spec's "Multiple refinements combine by an order-independent meet" is
+  that same within-one-refinement meet, not a second mechanism: the language
+  admits no way to stack refinements. A chain rejects at resolution --
+  `syntax-trees-to-symbol-resolved-trees/src/symbols/top_level/traits.rs`
+  refuses "transparent refinement `Strict` refines `Quiet`, which is itself a
+  refinement; refine the nominal base directly" -- and a binder naming two
+  (`Log: Element satisfies Quiet + Calm`) is not grammar, failing at
+  "expected `>`, found punctuation `+`". Both measured. So the combining
+  refinements are the wildcard and targeted CLAUSES of one refinement, which
+  `covering_clauses` returns together and the wildcard-plus-targeted test
+  pins. Nothing further is owed here.
 
   Preserve structural-bound (not nominal-target) semantics, inherited axes,
   independent bounded rows, complete-contract fit and the order-independent
