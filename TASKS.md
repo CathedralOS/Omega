@@ -2584,11 +2584,34 @@ syntax and other terminal services are not prerequisites.
     Preserve missing/ambiguous selection, wrong-operation and unproved-law
     controls. Noncommutative operations remain usable without rewrites; AC
     grants neither zero identity nor integer-addition meaning.
-  - Execute `expressions/declared_operator_match_result` and
-    `expressions/token_bound_machine_operand_selection` natively; both remain
-    checked-only. Coordinate local-data argument custody with
-    **STATE-LOCAL-VALUE-FRONTIER** and owned selective execution with
-    **MATCH-SELECTIVE-LOWERING**, retaining the checked/lowered selected-call joins.
+  - `expressions/token_bound_machine_operand_selection` now executes natively.
+    The roster held it back on the claim that borrowed local data arguments to
+    a free machine stop at the macOS hosted receiver bridge; measured, the
+    fixture compiles for the native host and exits 70, both routes producing
+    260. The token supply was never the gate either: the control -- the same
+    program with a plain `machine Wrapped::add` and the token route replaced
+    by a second named call -- also exits 70 natively. The fixture moved to
+    `ACTIVE_PASS_CANARIES` and
+    `token_bound_machine_operand_selection_exit_canary_runs` now pins the
+    oracle and the native exit together (71 = token route missed, 72 = named
+    route missed).
+    `expressions/declared_operator_match_result` stays checked-only by fixture
+    SHAPE, not by a lowering wall: it has three entries that are each their own
+    acceptance (`select_true` = 260, `select_false` = 1, `by_name` = 260), so it
+    carries no `Main::main` and no `build.omg`, and native production refuses
+    `native-artifact production requires one exact selected program entry`.
+    Giving it an entry would mean collapsing three acceptances into one exit
+    code; the operand-selection canary already carries the same operator
+    declaration natively, so the native evidence is not missing. Local-data
+    argument custody (**STATE-LOCAL-VALUE-FRONTIER**) and owned selective
+    execution (**MATCH-SELECTIVE-LOWERING**) no longer gate this row.
+    Promoting it also repaired two pre-existing drifts in the exact-native
+    coverage pins, which `a4ec8048a0b` last set deliberately:
+    `EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE` was 798 against a real 802 (four
+    rooted fixtures each landed with one new dedicated owner) and
+    `EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE` 31 against a real 35 (`398b73a4f60`
+    registered four `uefi_x86_64` pairs whose owners already existed). Both are
+    attributed in comments beside the constants.
   - Migrate library/corpus/embedded-test declarations and remove the old parser
     and representation consumers. Use the
     [retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md)
