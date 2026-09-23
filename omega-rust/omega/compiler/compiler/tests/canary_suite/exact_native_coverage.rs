@@ -181,6 +181,59 @@ impl ExactNativeCanaryCoverageIndex {
         }
     }
 
+    /// Every owner the index discovered, one tab-separated row each:
+    /// `kind`, `canary`, `target` (empty for host-executed owners), the
+    /// owner test's module-qualified name as the suite log prints it, and
+    /// the expected exit status (empty for compile-only owners). This is the
+    /// join key `tools/progress.py` uses to read the owners' verdicts for
+    /// the fixtures the umbrella elides.
+    pub(super) fn owner_rows(&self) -> Vec<String> {
+        let mut rows = Vec::new();
+        let qualified = |path: &Path, test_name: &str| {
+            let relative = path
+                .strip_prefix(Path::new(env!("CARGO_MANIFEST_DIR")).join("tests"))
+                .unwrap_or(path)
+                .with_extension("");
+            let mut segments = relative
+                .components()
+                .map(|component| component.as_os_str().to_string_lossy().into_owned())
+                .collect::<Vec<_>>();
+            if segments.first().map(String::as_str) == Some("canary_suite") {
+                segments.remove(0);
+            }
+            segments.push(test_name.to_owned());
+            segments.join("::")
+        };
+        for (kind, owners) in [
+            ("rooted", &self.rooted_owners),
+            ("direct", &self.direct_owners),
+        ] {
+            for (canary, owners) in owners {
+                for owner in owners {
+                    rows.push(format!(
+                        "{kind}\t{canary}\t\t{}\t{}",
+                        qualified(&owner.source_path, &owner.test_name),
+                        owner.expected_status,
+                    ));
+                }
+            }
+        }
+        for (kind, owners) in [
+            ("cross-target", &self.cross_target_owners),
+            ("rooted-target", &self.rooted_target_owners),
+        ] {
+            for ((canary, target), owners) in owners {
+                for owner in owners {
+                    rows.push(format!(
+                        "{kind}\t{canary}\t{target}\t{}\t",
+                        qualified(&owner.source_path, &owner.test_name),
+                    ));
+                }
+            }
+        }
+        rows
+    }
+
     pub(super) fn unique_rooted_owner(&self, canary: &str) -> Option<&ExactNativeCanaryOwner> {
         unique_owner(&self.rooted_owners, canary)
     }
