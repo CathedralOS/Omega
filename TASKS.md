@@ -4247,53 +4247,6 @@ syntax and other terminal services are not prerequisites.
   frame, probe, unwind and native replay. Do not add implicit variable-sized
   locals, provider-backed issuance, a new syntax category or an OS allocator.
 
-- **TRANSPARENT-TRAIT-REFINEMENTS.** Complete refinement application and exact
-  requirement selection under
-  [transparent refinements](wiki/spec/language/conformances.md#transparent-refinements).
-  Reach-subset checking, independent clause-local `_` rows, requirement
-  forwarding and concrete evidence-binder fit already exist; do not rebuild
-  them from the obsolete claim that refinements have no checked consumers.
-
-  **All three gaps this row named are closed, measured at `6e10ba077d`.**
-  `candidate_bounds.rs::conformance_application_arguments_match_candidate` now
-  instantiates `refines.arguments` -- it maps the bound's arguments,
-  substituted through the candidate bindings, onto the refinement's own type
-  parameters positionally and substitutes into the base head -- so a reordered
-  or partially applied head is compared after instantiation.
-  `refinement_fit.rs` carries `covering_clauses` (plural), returning the
-  wildcard and every targeted clause, and checking each in turn IS the
-  order-independent meet, so a targeted clause narrows alongside `machine *`
-  rather than replacing it. Targeted signature-free paths reject ambiguity at
-  the resolution site in
-  `symbol-resolved-trees-to-typed-trees/src/declarations/trait_definition.rs`,
-  which refuses a clause naming more than one overload of the base trait.
-
-  The acceptance list is covered by
-  `tests/generics/conformance_binders/refinement_binders.rs` (10 tests, all
-  passing): fitting and nonfitting parameterized applications, exact and
-  ambiguous targets, wildcard-plus-targeted narrowing, and a reordered head.
-  These are consumed-binder fixtures, not declaration-only ones -- each
-  instantiates its binder through a real call, which is what the row required.
-
-  The spec's "Multiple refinements combine by an order-independent meet" is
-  that same within-one-refinement meet, not a second mechanism: the language
-  admits no way to stack refinements. A chain rejects at resolution --
-  `syntax-trees-to-symbol-resolved-trees/src/symbols/top_level/traits.rs`
-  refuses "transparent refinement `Strict` refines `Quiet`, which is itself a
-  refinement; refine the nominal base directly" -- and a binder naming two
-  (`Log: Element satisfies Quiet + Calm`) is not grammar, failing at
-  "expected `>`, found punctuation `+`". Both measured. So the combining
-  refinements are the wildcard and targeted CLAUSES of one refinement, which
-  `covering_clauses` returns together and the wildcard-plus-targeted test
-  pins. Nothing further is owed here.
-
-  Preserve structural-bound (not nominal-target) semantics, inherited axes,
-  independent bounded rows, complete-contract fit and the order-independent
-  meet of combined refinements before normalization/fingerprinting. Acceptance:
-  fitting/nonfitting parameterized applications, exact/ambiguous targets,
-  wildcard-plus-targeted constraints and consumed binder fixtures. A declaration
-  fixture that never instantiates its binder does not establish usable fit.
-
 ## Rust compiler release closure
 
 The [completion contract](wiki/drafts/reference/rust_compiler_completion.md) requires
