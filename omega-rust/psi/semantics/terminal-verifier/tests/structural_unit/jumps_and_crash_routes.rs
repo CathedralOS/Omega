@@ -1,7 +1,4 @@
-use super::{
-    content_predicate, hard_root_module, partial_affine_field_module, structural_parameter,
-    unit_call_mut,
-};
+use super::{content_predicate, hard_root_module, structural_parameter, unit_call_mut};
 use crate::structural_unit::{
     block_id, boundary_id, claim_id, edge_id, machine_id, operation_id, place_id, service_id,
     structural_type_id, value_id,
@@ -117,11 +114,18 @@ fn jump_applies_a_canonical_subset_of_affine_discards() {
 /// middle, right}` while its residual roster closes `middle` then `left` —
 /// the exact complement in canonical order. The successor binds the moved
 /// field and returns after trivially discarding it.
+// The partial root is a value the block itself produces, so its residual
+// complement dies on the Jump edge that moves one child onward. A machine
+// parameter would instead keep its complement until the machine's own return
+// terminator (see `affine_cleanup/continuation.rs`), which is a different
+// lane from the one this fixture controls.
 fn jump_residual_cleanup_module() -> TerminalModule {
-    let mut module = partial_affine_field_module();
+    let mut module = super::result_residuals::produced_partial_module();
     module.machines.pop();
     let caller = &mut module.machines[0];
-    caller.blocks[0].operations.clear();
+    caller.blocks[0]
+        .operations
+        .retain(|operation| operation.id == operation_id(2));
     caller.structural_places.push(StructuralPlaceDeclaration {
         id: place_id(3),
         kind: StructuralPlaceKind::BlockParameter {
