@@ -1163,16 +1163,20 @@ fn runtime_local_named_dyn_pass_through_exit_canary_runs() {
 }
 
 #[test]
-fn token_bound_machine_operand_selection_exit_canary_interprets() {
+fn token_bound_machine_operand_selection_exit_canary_runs() {
     // `left + right` over `&Wrapped` operands selects `machine + Wrapped::add`
     // and is supplied by that declaration's own checked body through the
-    // ordinary call edge: no operator evaluator, no satisfier search. The
-    // checked interpreter must see the token route and the named route
-    // compute the same 260 (exit 70; 71 = token route missed, 72 = named
-    // route missed). The native leg is deliberately absent: the identical
-    // program with a plain `machine Wrapped::add` (no token) stops at the
-    // macOS hosted receiver bridge, so borrowed local data arguments to a
-    // free machine have no native route yet, independent of token supply.
+    // ordinary call edge: no operator evaluator, no satisfier search. Both
+    // the oracle and the native host must see the token route and the named
+    // route compute the same 260 (exit 70; 71 = token route missed, 72 =
+    // named route missed).
+    //
+    // The native leg was held back on the claim that borrowed local data
+    // arguments to a free machine stop at the macOS hosted receiver bridge.
+    // That is no longer so, and the token supply was never the reason: the
+    // control -- this program with a plain `machine Wrapped::add` and the
+    // token route replaced by a second named call -- reaches the same
+    // native exit 70.
     let canary = pass_canary("expressions/token_bound_machine_operand_selection");
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
@@ -1188,6 +1192,30 @@ fn token_bound_machine_operand_selection_exit_canary_interprets() {
         interpreted.exit_code, 70,
         "the token call and the named call should both return the wrapped sum 260"
     );
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-token-bound-operand-selection-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("token-bound machine operand selection should compile for the native host");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("the token-bound canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("the token-bound canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the token route and the named route to agree natively \
+         (exit 70), got {:?} (71 = token route missed, 72 = named route \
+         missed)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
@@ -1195,9 +1223,11 @@ fn declared_operator_match_result_canary_interprets_both_arms() {
     // OPERATOR-MACHINE-SUPPLY acceptance: the selected true arm runs
     // `machine + Wrapped::add`'s own body and yields the wrapped sum 260u64;
     // the false arm yields 1 without invoking the operator; the named call
-    // reaches the same body. Checked-only for the same reason as the
-    // operand-selection canary: borrowed local data arguments to a free
-    // machine have no native route yet.
+    // reaches the same body. Checked-only by fixture shape: the three
+    // entries are each their own acceptance, so there is no `Main::main`
+    // and no `build.omg`, and native production requires one exact selected
+    // program entry. The operand-selection canary carries the same operator
+    // declaration natively, so no lowering wall is involved.
     let canary = pass_canary("expressions/declared_operator_match_result");
     let checked = compile_reviewed_repository_fixture(CheckedCompileRequest::new(
         &canary.join("main.omg"),
