@@ -2806,6 +2806,38 @@ syntax and other terminal services are not prerequisites.
   `control_flow_route_helper_result_stays_unproven`,
   `dynamic_index_carrier_argument_stays_unproven` and
   `embedded_call_written_on_the_demanded_path_has_no_exact_origin`.
+
+  Read at `a5bae0bbd2`: **those three are not alike, and the third must not be
+  flipped.**
+  `embedded_call_written_on_the_demanded_path_has_no_exact_origin` drives
+  `poke_then_read`, whose body calls `poke_mut(context, fresh)` -- a write to
+  the demanded carrier -- before returning `context.scheduler`. Its result is
+  whatever the write left, so it has no exact origin by the spec's own rule:
+  "Owned replacement captures the source value at assignment, not later source
+  contents", and "a may-write frame does not identify replacement contents".
+  That is a correctness control, not a gap; admitting it would mint a premise
+  the spec forbids.
+
+  The other two share ONE blocker, and it is representational rather than
+  semantic. `control_flow_route_helper_result_stays_unproven` returns
+  `former.scheduler` on one transition route and `latter.scheduler` on the
+  other; `dynamic_index_carrier_argument_stays_unproven` demands
+  `boxes[i].view.scheduler` over a two-element array. Both are FINITE sets of
+  exact subjects, which the spec admits -- "every finite entry-subject
+  alternative", "a finite permutation is not ambiguity" -- and which the
+  premise surface already represents, since
+  `lineage.rs::ParameterLineage::Exact` carries a `Vec<ProgressSubject>` and
+  `resolve` already returns `Vec<ProgressPremise>`.
+
+  What blocks them is that `origins.rs::at_call` returns
+  `Option<ProgressSubject>`, so a disjunction has nowhere to go and collapses
+  to `None`. Widening it to a set (empty = unproven) reaches two consumers:
+  `machine_summaries.rs:138`, which already loops over resolved instances, and
+  `lineage/transfers.rs:55`, whose transfer subject would carry the
+  alternatives that `merge_parameter_lineage` then folds. Admit a disjunction
+  only when EVERY route is exact -- one unknown route keeps the whole set
+  unproven -- so the widening cannot admit what a single-subject return
+  rejected for cause.
   Admit finite cases from exact provenance; unknown writes, aliases or routes
   retain no guarantee. A may-write frame does not identify replacement contents,
   and aggregate root correspondence cannot resurrect overwritten field evidence.
