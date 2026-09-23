@@ -77,8 +77,10 @@ fn nested_byte_field_runtime_index_preserves_the_static_carrier_path() {
     run_stores(&artifact, &[1, 65], &[b"", b"XXX", b"XAX"]);
 }
 
+// Each parameter's range publishes as its two bounds, one requires row each:
+// the roster is itself a conjunction, so it carries no conjunction rows.
 fn assert_parameter_ranges(machine: &terminal_psi::TerminalMachine) {
-    assert_eq!(machine.contract.requires.len(), 2);
+    assert_eq!(machine.contract.requires.len(), 4);
     for (parameter, maximum) in machine.parameters.iter().zip([2, 127]) {
         let ScalarType::Integer(integer_type) = parameter.scalar_type else {
             panic!("integer parameter");
@@ -97,12 +99,11 @@ fn assert_parameter_ranges(machine: &terminal_psi::TerminalMachine) {
                 ScalarTerm::integer(integer_type, IntegerValue::Unsigned(maximum)).unwrap(),
             ),
         ];
-        assert!(machine.contract.requires.iter().any(|requirement| {
-            let Proposition::Conjunction(retained) = requirement else {
-                return false;
-            };
-            retained.len() == 2 && bounds.iter().all(|bound| retained.contains(bound))
-        }));
+        assert!(
+            bounds
+                .iter()
+                .all(|bound| machine.contract.requires.contains(bound))
+        );
     }
 }
 

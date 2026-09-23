@@ -198,26 +198,50 @@ pub(super) fn lower(
                 .map(|(_, requirement)| requirement)
                 .collect();
         }
-        // Publish closed authored `requires` clauses as one merged
-        // proposition ahead of the runtime requirements. A clause the closed
-        // lane never retained keeps the historical runtime-only contract
-        // rather than a partial roster drifting from the checked plan. The
-        // merged row covers authored clauses only: the derived parameter-range
-        // tail already publishes through the runtime-requirement rows, so
-        // folding it in here would double-publish the same facts.
+        // Publish each closed authored `requires` clause as its own row
+        // beside the runtime requirements: a Unit callee's roster has one row
+        // per authored clause, so a caller owes one obligation per clause. A
+        // clause the closed lane never retained keeps the historical
+        // runtime-only contract rather than a partial roster drifting from
+        // the checked plan. Crash-gated arithmetic's runtime requirements can
+        // restate an authored clause; the canonical dedup below keeps one
+        // row per fact, where one merged conjunction beside them would have
+        // published every clause twice.
         let authored_requires = contract.closed_scalar_values.authored_requires();
         if authored_requires.iter().all(Option::is_some) {
-            signature.requires = crate::scalar_graph::scalar_contracts::clauses(
-                authored_requires,
-                &signature.scalar_parameters,
-                &signature.erased_scalar_parameters,
-            )?
-            .into_iter()
-            .collect();
+            signature.requires = authored_requires
+                .iter()
+                .map(|clause| {
+                    crate::scalar_graph::scalar_contracts::clauses(
+                        std::slice::from_ref(clause),
+                        &signature.scalar_parameters,
+                        &signature.erased_scalar_parameters,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()?
+                .into_iter()
+                .flatten()
+                .filter(|clause| *clause != Proposition::Truth)
+                .collect();
         }
         signature
             .requires
             .extend(signature.runtime_requirements.iter().cloned());
+        // A requires roster is itself a conjunction, so a row that is a
+        // top-level conjunction (crash arithmetic's runtime package restates
+        // the authored clauses that way) is split into its conjuncts. Each
+        // fact is then one row, and the dedup below cannot keep both a
+        // clause and a conjunction containing it.
+        let mut pending = std::mem::take(&mut signature.requires);
+        pending.reverse();
+        while let Some(requirement) = pending.pop() {
+            match requirement {
+                Proposition::Conjunction(conjuncts) => {
+                    pending.extend(conjuncts.into_iter().rev());
+                }
+                other => signature.requires.push(other),
+            }
+        }
         // The codec publishes requires rows in canonical byte order, so merge
         // then normalize rather than exposing clause/runtime ordering
         // accidents. `Proposition`'s derived `Ord` is Rust declaration order,
