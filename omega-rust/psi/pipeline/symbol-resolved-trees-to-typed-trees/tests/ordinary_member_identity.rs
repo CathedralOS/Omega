@@ -1,9 +1,6 @@
 //! Ordinary contract members retain declaration identities before checking.
 
-use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees::data::DataMember;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
@@ -16,9 +13,7 @@ fn resolved(requirement: &str) -> symbol_resolved_trees::SymbolResolvedTrees {
          requires {requirement}
          {{ true }}"
     );
-    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    resolve(ResolutionRequest::new(&syntax)).expect("resolve")
+    crate::front_end::resolved_program(&source)
 }
 
 fn requirement(program: &typed_trees::TypedTrees) -> ExpressionHandle {

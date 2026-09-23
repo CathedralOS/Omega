@@ -1,10 +1,7 @@
 use super::{declared_field, declared_symbol_type};
 use crate::lower_symbol_resolved_trees;
-use source_files_to_tokens::Lexer;
 use symbol_resolved_trees as resolved;
 use symbols::SymbolHandle;
-use syntax_trees_to_symbol_resolved_trees::ResolutionRequest;
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 const PROJECTED_MEASURES: &str = "
     data First { remaining: u64; }
@@ -12,13 +9,6 @@ const PROJECTED_MEASURES: &str = "
     measure First::Remaining(value: First) -> u64 { value.remaining }
     measure Second::Remaining(value: Second) -> u64 { value.remaining }
 ";
-
-fn resolve(source: &str) -> resolved::SymbolResolvedTrees {
-    let tokens = Lexer::new(source).tokenize().expect("measure tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("measure syntax");
-    syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest::new(&syntax))
-        .expect("measure resolution")
-}
 
 fn projected_member(
     program: &resolved::SymbolResolvedTrees,
@@ -47,7 +37,7 @@ fn typed_member(
 
 #[test]
 fn measure_projection_binds_missing_selector_to_its_exact_parameter_type() {
-    let program = resolve(PROJECTED_MEASURES);
+    let program = crate::front_end::resolved_program(PROJECTED_MEASURES);
     let typed = lower_symbol_resolved_trees(&program).expect("measure typing");
     let mut selected_fields = Vec::new();
     for (measure_position, measure) in program.measures.iter().enumerate() {
@@ -79,7 +69,7 @@ fn measure_projection_binds_missing_selector_to_its_exact_parameter_type() {
 
 #[test]
 fn measure_projection_preserves_conflicting_selector_for_validation() {
-    let mut program = resolve(PROJECTED_MEASURES);
+    let mut program = crate::front_end::resolved_program(PROJECTED_MEASURES);
     let foreign_field = declared_field(
         &program,
         &program.measures[1]
@@ -120,7 +110,7 @@ fn measure_projection_preserves_conflicting_selector_for_validation() {
 
 #[test]
 fn measure_projection_does_not_bind_an_unresolved_same_spelled_receiver() {
-    let mut program = resolve(PROJECTED_MEASURES);
+    let mut program = crate::front_end::resolved_program(PROJECTED_MEASURES);
     let receiver = projected_member(&program, 0).receiver;
     let resolved::expression::ExpressionNode::Name(path) =
         program.tables.bodies.expressions.expression_mut(receiver)
@@ -140,7 +130,7 @@ fn measure_projection_does_not_bind_an_unresolved_same_spelled_receiver() {
 
 #[test]
 fn nested_constructor_projections_bind_fields_and_preserve_conflicting_selections() {
-    let mut program = resolve(
+    let mut program = crate::front_end::resolved_program(
         "data Inner [copy] { size: u64; }
         data Outer [copy] { inner: Inner; }
         data Other [copy] { size: u64; }
@@ -197,18 +187,7 @@ fn module_constructor_projection_keeps_its_declaring_field_owner() {
         machine read() -> u64 { settings::VALUE.size }";
     let module = "module settings; pub data Config [copy] { size: u64; }
         pub const VALUE: Config = Config { size: 7 };";
-    let tokens = Lexer::new(root).tokenize().unwrap();
-    let mut syntax = parse_syntax_trees(&tokens).unwrap();
-    let tokens = Lexer::new(module).tokenize().unwrap();
-    tokens_to_syntax_trees::parse_syntax_trees_into_with_id(
-        &mut syntax,
-        source::SourceId(1),
-        &tokens,
-    )
-    .unwrap();
-    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(ResolutionRequest::new(&syntax))
-        .expect("module projection resolution");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("module projection typing");
+    let typed = crate::front_end::typed_program_from_texts(&[root, module]);
     let member = typed
         .expression_table
         .expression_entries()
@@ -237,7 +216,7 @@ fn module_constructor_projection_keeps_its_declaring_field_owner() {
 
 #[test]
 fn array_constructor_projection_needs_the_retained_declaration_type() {
-    let mut program = resolve(
+    let mut program = crate::front_end::resolved_program(
         "data Cell [copy] { value: u64; }
          data Other [copy] { value: u64; }
          const VALUES: [Cell; 2] = [Cell { value: 7 }, Cell { value: 9 }];

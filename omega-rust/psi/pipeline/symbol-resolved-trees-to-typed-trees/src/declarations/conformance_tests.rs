@@ -1,7 +1,4 @@
 use crate::lower_symbol_resolved_trees;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn conformance_lifetimes_use_the_declared_binder_and_reject_out_of_scope_names() {
@@ -12,9 +9,7 @@ fn conformance_lifetimes_use_the_declared_binder_and_reject_out_of_scope_names()
         where machine Convert(value: Source) -> u64;
         {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokens");
-    let syntax = parse_syntax_trees(&tokens).expect("syntax");
-    let mut resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolution");
+    let mut resolved = crate::front_end::resolved_program(source);
     let typed = lower_symbol_resolved_trees(&resolved).expect("valid conformance");
     assert_eq!(typed.conformances()[0].trait_lifetime_arguments, vec![0]);
 

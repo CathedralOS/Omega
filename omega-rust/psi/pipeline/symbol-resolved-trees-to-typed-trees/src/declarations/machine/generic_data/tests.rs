@@ -1,5 +1,4 @@
 use super::{Machine, SymbolResolvedTrees, is_derived};
-use source_files_to_tokens::Lexer;
 use symbols::SymbolHandle;
 
 fn resolved_fixture() -> SymbolResolvedTrees {
@@ -9,9 +8,6 @@ fn resolved_fixture() -> SymbolResolvedTrees {
         data Secret { value: i32; }
         machine use_private(value: Envelope<Secret>) {}
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize generic method");
     let mut sources = source::SourceMap::default();
     let source_id = sources
         .add(
@@ -19,20 +15,10 @@ fn resolved_fixture() -> SymbolResolvedTrees {
             source.to_owned(),
         )
         .source_id;
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
-        .expect("parse generic method with exact source occurrence ownership");
-    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
+    crate::front_end::resolved_program_from_source_map_with_generic_data(
+        sources,
+        &[(source_id, source)],
     )
-    .expect("synthesize generic method");
-    syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-            syntax: &syntax,
-            sources: Some(std::sync::Arc::new(sources)),
-            top_level_bindings: Vec::new(),
-        },
-    )
-    .expect("resolve exact derivation")
 }
 
 fn derived(program: &SymbolResolvedTrees) -> Machine {

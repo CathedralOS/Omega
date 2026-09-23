@@ -1,7 +1,6 @@
 //! Token-bearing machines reach operand-directed selection through their
 //! operator-signature view, under the machine's own symbol.
 
-use super::lower_source;
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::TypedTrees;
 use typed_trees::operator::{declaration_by_symbol, resolve_spelling_for_operands};
@@ -34,7 +33,7 @@ fn entry_parameter_types(program: &TypedTrees, machine_name: &str) -> Vec<TypeRe
 
 #[test]
 fn token_bearing_machines_expose_one_signature_view_under_their_own_symbol() {
-    let program = lower_source(SOURCE).expect("lowering succeeds");
+    let program = crate::front_end::typed_program_result(SOURCE).expect("lowering succeeds");
     let add = &program.machines()[0];
     let subtract = &program.machines()[2];
     assert_eq!(add.spelling, Some(OperatorSpelling::Add));
@@ -87,7 +86,7 @@ fn token_bearing_machines_expose_one_signature_view_under_their_own_symbol() {
 
 #[test]
 fn operand_directed_selection_finds_the_matching_binding_only() {
-    let program = lower_source(SOURCE).expect("lowering succeeds");
+    let program = crate::front_end::typed_program_result(SOURCE).expect("lowering succeeds");
     let add = &program.machines()[0];
     let [wrapped, other_wrapped, scale] = entry_parameter_types(&program, "choose")[..] else {
         panic!("choose telescope");

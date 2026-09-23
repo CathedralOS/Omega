@@ -1,8 +1,4 @@
 use super::{ExpressionNode, SymbolHandle, computed_receiver_method_target, resolved};
-use crate::lower_symbol_resolved_trees;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn computed_receiver_candidates_follow_exact_declared_result_types() {
@@ -37,10 +33,7 @@ fn computed_receiver_candidates_follow_exact_declared_result_types() {
             }}
         "#
         );
-        let syntax =
-            parse_syntax_trees(&Lexer::new(&source).tokenize().expect("tokenize")).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-        let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+        let typed = crate::front_end::typed_program(&source);
         let machine = typed
             .machines()
             .iter()
@@ -82,10 +75,7 @@ fn computed_receiver_rejects_stale_and_foreign_producer_targets() {
         machine identity(value: &mut Cell) -> &mut Cell { value }
         machine Owner::run(&mut self) { let result: u64 = identity(&mut self.cell).read(); }
     "#;
-    let syntax =
-        parse_syntax_trees(&Lexer::new(source).tokenize().expect("tokenize")).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let (resolved, typed) = crate::front_end::typed_program_with_resolution(source);
     let machine = typed
         .machines()
         .iter()

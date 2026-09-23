@@ -5,18 +5,6 @@
 //! intern a concrete row, and `reaches _;` mints one independent abstract
 //! row per covered requirement bounded by its inherited row.
 
-use source_files_to_tokens::Lexer;
-use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
-fn lower(source: &str) -> Result<typed_trees::TypedTrees, diagnostics::Diagnostic> {
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    lower_symbol_resolved_trees(&resolved)
-}
-
 #[test]
 fn clause_reach_inside_base_row_compiles() {
     let source = r#"
@@ -31,7 +19,8 @@ trait LocalLogger = Logger {
     machine Logger::write reaches Handler;
 }
 "#;
-    lower(source).expect("a clause reach member of the base row narrows");
+    crate::front_end::typed_program_result(source)
+        .expect("a clause reach member of the base row narrows");
 }
 
 #[test]
@@ -48,7 +37,8 @@ trait LocalLogger = Logger {
     machine Logger::write reaches EventLog;
 }
 "#;
-    let diagnostic = lower(source).expect_err("EventLog is not in the base row");
+    let diagnostic = crate::front_end::typed_program_result(source)
+        .expect_err("EventLog is not in the base row");
     let message = diagnostic.to_string();
     assert!(
         message.contains("does not reach it"),
@@ -69,7 +59,8 @@ trait LocalLogger = Logger {
     machine Logger::write reaches Missing;
 }
 "#;
-    let diagnostic = lower(source).expect_err("Missing names no boundary service");
+    let diagnostic = crate::front_end::typed_program_result(source)
+        .expect_err("Missing names no boundary service");
     let message = diagnostic.to_string();
     assert!(
         message.contains("not a boundary service"),
@@ -92,8 +83,8 @@ trait LocalLogger = Logger {
     machine * reaches EventLog;
 }
 "#;
-    let diagnostic =
-        lower(source).expect_err("a `machine *` clause narrows every covered requirement");
+    let diagnostic = crate::front_end::typed_program_result(source)
+        .expect_err("a `machine *` clause narrows every covered requirement");
     let message = diagnostic.to_string();
     assert!(
         message.contains("does not reach it"),
@@ -115,7 +106,7 @@ trait LocalLogger = Logger {
     machine Logger::write reaches Handler;
 }
 "#;
-    let typed = lower(source).expect("a subset reach narrows");
+    let typed = crate::front_end::typed_program_result(source).expect("a subset reach narrows");
     let clause = local_logger_clause(&typed, "write");
     let typed_trees::trait_definition::TraitRefinementReach::Concrete(row) = &clause.service_reach
     else {
@@ -142,7 +133,8 @@ trait LocalLogger = Logger {
     machine Logger::write reaches;
 }
 "#;
-    let typed = lower(source).expect("authored `reaches;` narrows to empty");
+    let typed = crate::front_end::typed_program_result(source)
+        .expect("authored `reaches;` narrows to empty");
     let clause = local_logger_clause(&typed, "write");
     assert_eq!(
         clause.service_reach,
@@ -166,7 +158,8 @@ trait LocalLogger = Logger {
     machine Logger::write suspends false;
 }
 "#;
-    let typed = lower(source).expect("an omitted reaches clause inherits");
+    let typed =
+        crate::front_end::typed_program_result(source).expect("an omitted reaches clause inherits");
     let clause = local_logger_clause(&typed, "write");
     assert_eq!(
         clause.service_reach,
@@ -188,7 +181,8 @@ trait LocalLogger = Logger {
     machine Logger::write reaches _;
 }
 "#;
-    let typed = lower(source).expect("`reaches _;` mints the independent abstract row");
+    let typed = crate::front_end::typed_program_result(source)
+        .expect("`reaches _;` mints the independent abstract row");
     let clause = local_logger_clause(&typed, "write");
     let typed_trees::trait_definition::TraitRefinementReach::IndependentBounded(rows) =
         &clause.service_reach
@@ -235,7 +229,8 @@ trait LocalLogger = Logger {
     machine * reaches _;
 }
 "#;
-    let typed = lower(source).expect("`*` + `reaches _;` mints one row each");
+    let typed = crate::front_end::typed_program_result(source)
+        .expect("`*` + `reaches _;` mints one row each");
     let local = typed
         .traits()
         .iter()
@@ -266,7 +261,8 @@ trait LocalLogger = Logger {
     machine Logger::write reaches _ + Handler;
 }
 "#;
-    let diagnostic = lower(source).expect_err("`_` does not combine with names");
+    let diagnostic = crate::front_end::typed_program_result(source)
+        .expect_err("`_` does not combine with names");
     let message = diagnostic.to_string();
     assert!(
         message.contains("independent abstract row"),

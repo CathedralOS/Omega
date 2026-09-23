@@ -7,17 +7,6 @@ const INTERLEAVED_FAMILIES: &str = r#"
     { value }
 "#;
 
-fn resolved(source: &str) -> resolved::SymbolResolvedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(source)
-        .tokenize()
-        .expect("tokens");
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
-    syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .expect("resolution")
-}
-
 fn assert_telescope(
     source: &resolved::SymbolResolvedTrees,
     typed: &typed::TypedTrees,
@@ -80,7 +69,7 @@ fn nested_callable_telescope_siblings_keep_contiguous_spans_and_exact_symbols() 
         { value }
     "#,
     ] {
-        let resolved = resolved(source);
+        let resolved = crate::front_end::resolved_program(source);
         let typed =
             crate::lower_symbol_resolved_trees(&resolved).expect("nested sibling telescopes");
         let source_machine = resolved
@@ -108,7 +97,7 @@ fn nested_callable_telescope_siblings_keep_contiguous_spans_and_exact_symbols() 
 #[test]
 fn nested_callable_telescope_references_exact_outer_type_before_parent_publication() {
     let source = INTERLEAVED_FAMILIES.replace("(value: u64) -> u64", "(value: T) -> T");
-    let resolved = resolved(&source);
+    let resolved = crate::front_end::resolved_program(&source);
     let typed =
         crate::lower_symbol_resolved_trees(&resolved).expect("outer type in nested contracts");
     let source_machine = resolved
@@ -144,7 +133,7 @@ fn nested_callable_telescope_references_exact_outer_type_before_parent_publicati
 
 #[test]
 fn nested_callable_telescope_still_rejects_an_unresolved_sibling_contract() {
-    let mut resolved = resolved(INTERLEAVED_FAMILIES);
+    let mut resolved = crate::front_end::resolved_program(INTERLEAVED_FAMILIES);
     let parameters = resolved
         .machines
         .iter()

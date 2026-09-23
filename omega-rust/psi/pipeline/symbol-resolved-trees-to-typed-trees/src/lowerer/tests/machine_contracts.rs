@@ -1,8 +1,3 @@
-use crate::lowerer::lower_symbol_resolved_trees;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
-
 #[test]
 fn lowers_machine_contract_clauses() {
     let source = r#"
@@ -15,14 +10,7 @@ fn lowers_machine_contract_clauses() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
     let machine = typed_trees.machines().first().expect("machine");
     let contracts = typed_trees.machine_contracts(machine);
 
@@ -61,10 +49,7 @@ fn lowers_named_contract_evidence_bindings() {
     {
     }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -98,14 +83,7 @@ fn lowers_statement_argument_spans_from_statement_table() {
     }
     "#;
 
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
     let machine = &typed_trees.machines()[0];
     let entry = &typed_trees.machine_states(machine)[0];
     let statements = typed_trees
@@ -146,14 +124,7 @@ fn preserves_linear_multiplicity_through_typed_lowering() {
         data Token [linear] {}
         data Holder<T [linear]> [linear] { token: T; }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
 
     for definition in typed_trees.data_definitions() {
         assert_eq!(
@@ -184,14 +155,7 @@ fn indexed_qualification_binder_keeps_machine_const_identity() {
             transition { _ -> (value as i64 in Quantity<To>) }
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
 
     let machine = typed_trees.machines().first().expect("retag machine");
     let [parameter] = typed_trees.machine_type_parameters(machine) else {
@@ -320,13 +284,7 @@ fn typed_snapshots_publish_only_normalized_service_reach() {
         {
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
     let snapshot = typed.snapshot();
     let [machine] = snapshot.roots.machines.as_slice() else {
         panic!("one typed machine snapshot");
@@ -354,10 +312,7 @@ fn retains_installation_bound_reach_through_typed_snapshot() {
             reaches <= MachineControl + PortIo;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let snapshot = typed.snapshot();
     let trait_definition = snapshot
         .roots
@@ -395,10 +350,7 @@ fn authored_premise_replays_a_generic_application_leaf() {
         terminates;
         -> u64 { 0 }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -456,10 +408,7 @@ fn authored_premise_through_a_generic_leaf_still_names_a_declared_member() {
             -> u64 {{ 0 }}
         "#
         );
-        let tokens = Lexer::new(&source).tokenize().expect("tokenize");
-        let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-        let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
-        let diagnostic = lower_symbol_resolved_trees(&resolved)
+        let diagnostic = crate::front_end::typed_program_result(&source)
             .expect_err("a non-member premise must still fail normalization");
         assert!(
             diagnostic
@@ -479,13 +428,7 @@ fn typed_snapshot_publishes_normalized_termination_witness() {
         {
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
     let snapshot = typed.snapshot();
     let [machine] = snapshot.roots.machines.as_slice() else {
         panic!("one typed machine snapshot");
@@ -508,10 +451,7 @@ fn typed_snapshot_retains_trait_owned_operator_token() {
             operator < compare(left: T, right: T) -> bool;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let snapshot = typed.snapshot();
     let [trait_definition] = snapshot.roots.traits.as_slice() else {
         panic!("one trait snapshot expected");
@@ -547,14 +487,7 @@ fn proof_fact_indexed_application_interns_the_constraint_identity() {
             ensures result in Quantity<To>;
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed_trees =
-        lower_symbol_resolved_trees(&resolved_program).expect("lowering should succeed");
+    let typed_trees = crate::front_end::typed_program(source);
 
     let storage = typed_trees.traits().first().expect("ResidentStorage trait");
     let [place, retag] = typed_trees.trait_machine_signatures(storage) else {
@@ -658,13 +591,7 @@ fn proof_fact_indexed_application_rejects_a_wrong_argument_count() {
             ensures result in Resident<SlotPlacement>;
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved_program =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let error = lower_symbol_resolved_trees(&resolved_program)
+    let error = crate::front_end::typed_program_result(source)
         .expect_err("one argument cannot apply a two-index family");
     assert!(
         error.message.contains(

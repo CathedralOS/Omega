@@ -1,8 +1,4 @@
 use crate::lowerer::lower_symbol_resolved_trees;
-use crate::lowerer::tests::lower_source;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn retains_public_conformance_visibility_snapshot_and_header_selections() {
@@ -11,10 +7,7 @@ fn retains_public_conformance_visibility_snapshot_and_header_selections() {
     };
 
     let source = "pub trait Ranked {} pub data Card {} pub PowerOrder: Card satisfies Ranked {}";
-    let tokens = Lexer::new(source).tokenize().expect("tokenize conformance");
-    let syntax = parse_syntax_trees(&tokens).expect("parse conformance");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve conformance");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type conformance");
+    let typed = crate::front_end::typed_program(source);
     let conformance = typed.conformances().first().expect("typed conformance");
 
     assert!(conformance.is_public);
@@ -58,9 +51,7 @@ fn retains_exact_nominal_type_selections_with_declaration_exposure() {
             state hidden(value: Dependency) { }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
     let dependency = resolved
         .data_definitions
         .iter()
@@ -110,9 +101,7 @@ fn expression_embedded_zero_value_types_keep_contract_exposure() {
         proposition private_zero() =
             zero_value<Marker>() == zero_value<Marker>();
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
     let marker = resolved
         .data_definitions
         .iter()
@@ -159,9 +148,7 @@ fn expression_embedded_cast_targets_keep_contract_exposure() {
         pub proposition public_cast(value: Marker) = (value as Marker) == value;
         proposition private_cast(value: Marker) = (value as Marker) == value;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
     let marker = resolved
         .data_definitions
         .iter()
@@ -230,9 +217,7 @@ fn retains_public_operator_visibility_and_signature_exposure() {
         pub data Token [copy] { value: u64; }
         pub operator < Token::less(left: Token, right: Token) -> bool;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
     let token = resolved
         .data_definitions
         .iter()
@@ -262,14 +247,9 @@ fn retains_public_operator_visibility_and_signature_exposure() {
 
 #[test]
 fn retains_public_data_trait_and_wire_visibility_in_typed_trees() {
-    let tokens = Lexer::new(
+    let typed = crate::front_end::typed_program(
         "pub data PublicRecord { value: u32; } pub data Packet { #1 value: u32; } pub trait PublicTrait {}",
-    )
-        .tokenize()
-        .expect("tokenize public data");
-    let syntax = parse_syntax_trees(&tokens).expect("parse public data");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve public data");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type public data");
+    );
     let data = typed
         .data_definitions()
         .iter()
@@ -314,12 +294,7 @@ fn retains_public_data_trait_and_wire_visibility_in_typed_trees() {
 
 #[test]
 fn retains_public_machine_visibility_in_typed_trees() {
-    let tokens = Lexer::new("pub machine Package::entry() { }")
-        .tokenize()
-        .expect("tokenize public machine");
-    let syntax = parse_syntax_trees(&tokens).expect("parse public machine");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve public machine");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type public machine");
+    let typed = crate::front_end::typed_program("pub machine Package::entry() { }");
     let machine = typed
         .machines()
         .iter()
@@ -352,10 +327,7 @@ fn retains_structured_external_binding_table_in_typed_trees() {
         satisfies Console::write
         via Binding::Syscall(4);
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let leaf = typed
         .machines()
         .iter()
@@ -387,7 +359,7 @@ fn retains_ordinary_via_call_in_typed_conformance_without_bootstrap_identity() {
         satisfies Console::write
         via binding();
     "#;
-    let typed = lower_source(source).expect("type ordinary via call");
+    let typed = crate::front_end::typed_program_result(source).expect("type ordinary via call");
     let leaf = typed
         .machines()
         .iter()
@@ -434,10 +406,7 @@ fn settles_satisfied_operator_to_its_exact_overload_symbol() {
         satisfies Float::add
         via Binding::CompilerIntrinsic;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -470,9 +439,7 @@ fn settles_satisfied_top_level_requirement_to_its_exact_machine_symbol() {
         {
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
     let requirement_symbol = resolved
         .machines
         .iter()
@@ -539,9 +506,7 @@ fn top_level_requirement_settlement_rejects_an_exact_wrong_supply_machine() {
         {
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let mut resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let mut resolved = crate::front_end::resolved_program(source);
     let requirement = resolved
         .machines
         .find_mut(|machine| machine.name.as_str() == "InterruptAcknowledgement::complete")

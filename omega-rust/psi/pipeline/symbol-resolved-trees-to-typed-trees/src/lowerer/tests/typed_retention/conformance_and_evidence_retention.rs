@@ -1,7 +1,4 @@
 use crate::lowerer::lower_symbol_resolved_trees;
-use source_files_to_tokens::Lexer;
-use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
-use tokens_to_syntax_trees::parse_syntax_trees;
 
 #[test]
 fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
@@ -18,10 +15,7 @@ fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
         where machine Selected satisfies WindowProcedure::call;
         {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -77,10 +71,7 @@ fn retains_typed_name_owned_conformance_telescope() {
         where machine Convert(value: Source) -> u64;
         {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let conformance = typed.conformances().first().expect("one conformance");
 
     assert_eq!(conformance.lifetime_parameters.len(), 1);
@@ -123,10 +114,7 @@ fn retains_typed_named_conformance_visibility_and_snapshot_identity() {
         pub PublicCircle: Circle satisfies Shape;
         PrivateCircle: Circle satisfies Shape;
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let conformances = typed.conformances();
 
     assert_eq!(conformances.len(), 2);
@@ -147,10 +135,7 @@ fn retains_typed_explicit_conformance_binder_identity() {
             values: &mut [Element]
         ) {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed.machines().first().expect("machine");
     let [bound] = machine.conformance_bounds.as_slice() else {
         panic!("one explicit conformance binder");
@@ -191,10 +176,7 @@ fn retains_typed_selected_conformance_bound_application() {
         where Element satisfies Card::FullEncoding<'view, Card, Message, 7, rank>
         {}
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let machine = typed
         .machines()
         .iter()
@@ -252,9 +234,7 @@ fn retains_proof_static_evidence_projection_through_resolved_and_typed_trees() {
             consume<proof.modulus>();
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
     let resolved_caller = resolved
         .machines
         .iter()
@@ -318,10 +298,7 @@ fn retains_typed_evidence_forwarding_owner_identity() {
             output_proof = input_proof;
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
     let [forwarding] = typed.evidence_forwardings.as_slice() else {
         panic!("one typed evidence forwarding expected");
     };
@@ -345,11 +322,7 @@ fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
         machine issue() -> Token { Token::Issued { code: 2 } }
         machine is_issued(token: Token) -> bool { token in Token::Issued }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize exact selections");
-    let syntax = parse_syntax_trees(&tokens).expect("parse exact selections");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve exact selections");
+    let resolved = crate::front_end::resolved_program(source);
     let expected_type = resolved
         .data_definitions
         .iter()
@@ -433,9 +406,7 @@ fn copies_exact_literal_and_case_membership_symbols_into_typed_tables() {
 #[test]
 fn typed_lowering_does_not_replace_the_authored_struct_selection_ledger() {
     let source = "data Item { value: u32; } machine make() -> Item { Item { value: 1 } }";
-    let tokens = Lexer::new(source).tokenize().expect("tokenize literal");
-    let syntax = parse_syntax_trees(&tokens).expect("parse literal");
-    let mut resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve literal");
+    let mut resolved = crate::front_end::resolved_program(source);
     let literal = resolved
         .tables
         .bodies
@@ -483,10 +454,7 @@ fn elaborates_omitted_erased_field_with_unique_nullary_constructor() {
             Certified { value: 7 }
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let typed = crate::front_end::typed_program(source);
 
     let evidence = typed
         .data_definitions()
@@ -557,9 +525,7 @@ fn preserves_field_relevance_through_resolved_and_typed_trees() {
             case Wrapped(witness [erased]: i32);
         }
     "#;
-    let tokens = Lexer::new(source).tokenize().expect("tokenize");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = resolve(ResolutionRequest::new(&syntax_trees)).expect("resolve");
+    let resolved = crate::front_end::resolved_program(source);
 
     let resolved_data = resolved
         .data_definitions
@@ -641,13 +607,7 @@ fn retains_subjectless_conformance_and_exact_typed_rows() {
             machine witness(value: i32) { }
         }
     "#;
-    let tokens = Lexer::new(source)
-        .tokenize()
-        .expect("tokenize should succeed");
-    let syntax_trees = parse_syntax_trees(&tokens).expect("parse should succeed");
-    let resolved =
-        resolve(ResolutionRequest::new(&syntax_trees)).expect("resolution should succeed");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let typed = crate::front_end::typed_program(source);
     let [conformance] = typed.conformances() else {
         panic!("one typed conformance");
     };

@@ -9,24 +9,11 @@ thread_local! {
 }
 
 fn source() -> resolved::SymbolResolvedTrees {
-    resolve(
+    crate::front_end::resolved_program_with_generic_data(
         "data First<T> { value: T; } data Second<T> { value: T; }
          machine first(value: First<u64>) -> First<u64> { value }
          machine second(value: Second<u64>) -> Second<u64> { value }",
     )
-}
-
-fn resolve(text: &str) -> resolved::SymbolResolvedTrees {
-    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
-    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
-    let syntax = syntax_trees_to_symbol_resolved_trees::pre_resolution::normalize_generic_data(
-        syntax_trees_to_symbol_resolved_trees::pre_resolution::GenericDataRequest::new(syntax),
-    )
-    .unwrap();
-    syntax_trees_to_symbol_resolved_trees::resolve(
-        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
-    )
-    .unwrap()
 }
 
 fn replay_with_roster_lookup(
@@ -138,14 +125,14 @@ fn inferred_literals_and_lifetime_arguments_retain_their_actual_owners() {
         "data View<'a, T> { value: &'a T; } machine keep<'b>(value: View<'b, u64>) -> View<'b, u64> { value }",
         "data Inner<T> { value: T; } data Outer<T> { value: T; } machine keep(value: Outer<Inner<u64>>) -> Outer<Inner<u64>> { value }",
     ] {
-        let source = resolve(text);
+        let source = crate::front_end::resolved_program_with_generic_data(text);
         crate::lower_symbol_resolved_trees(&source).expect(text);
     }
 }
 
 #[test]
 fn nested_generic_arguments_preserve_contiguous_parent_rosters() {
-    let source = resolve(
+    let source = crate::front_end::resolved_program_with_generic_data(
         "data Inner<T> { value: T; } data Pair<A, B> { first: A; second: B; }
          machine keep(value: Pair<u8, Inner<u64>>) -> Pair<u8, Inner<u64>> { value }",
     );
@@ -199,7 +186,7 @@ fn range_replay_visits_each_origin_once_and_agrees_with_use_lookup() {
                   machine keep{ordinal}(value: Box<u64>) -> Box<u64> {{ value }}"
             ));
         }
-        let source = resolve(&text);
+        let source = crate::front_end::resolved_program_with_generic_data(&text);
         let typed = crate::lower_symbol_resolved_trees(&source).expect("range uses type check");
         let origin_count = source
             .tables
@@ -239,7 +226,7 @@ fn range_replay_visits_each_origin_once_and_agrees_with_use_lookup() {
 
 #[test]
 fn range_replay_rejects_forged_and_duplicate_custody() {
-    let baseline = resolve(
+    let baseline = crate::front_end::resolved_program_with_generic_data(
         "data Box<T> { value: T; } machine keep(value: Box<u64>) -> Box<u64> { value }
          machine bounded(value: u64[0..=10]) -> u64[0..=10] { value }",
     );
@@ -327,7 +314,7 @@ fn range_replay_rejects_forged_and_duplicate_custody() {
 
 #[test]
 fn range_replay_preserves_first_use_error_order_before_a_malformed_suffix() {
-    let baseline = resolve(
+    let baseline = crate::front_end::resolved_program_with_generic_data(
         "data Box<T> { value: T; }
          machine first(value: Box<u64>) -> Box<u64> { value }
          machine second(value: Box<u32>) -> Box<u32> { value }
