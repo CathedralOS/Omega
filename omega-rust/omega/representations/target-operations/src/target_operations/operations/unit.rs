@@ -78,6 +78,19 @@ pub enum TargetUnitOperation {
         source: StructuralArgument,
         field: StructuralFieldId,
     },
+    /// One owned copy of an `Unrestricted` leaf read out of a live readable
+    /// root. `source` names the root place and `path`/`byte_offset` the
+    /// inspected bytes inside it; `result_home` is the fresh activation-local
+    /// storage the copy must occupy. The borrowed root keeps full custody —
+    /// copying observes contents like a structural field read and never
+    /// aliases the result back into the root.
+    StructuralLeafCopy {
+        psi_operation: OperationId,
+        result_home: TargetStructuralHomeRequirement,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+        byte_offset: u32,
+    },
     /// Observe bounded inline storage metadata, not the field's byte contents.
     StructuralByteSequenceFieldLength {
         psi_operation: OperationId,

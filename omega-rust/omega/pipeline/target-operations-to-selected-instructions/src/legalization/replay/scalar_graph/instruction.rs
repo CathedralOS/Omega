@@ -307,7 +307,8 @@ pub(super) fn validate(
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishScalarCase { .. }
-            | AbstractOperation::StructuralCaseMembership { .. },
+            | AbstractOperation::StructuralCaseMembership { .. }
+            | AbstractOperation::StructuralLeafCopy { .. },
         ) => {
             aggregate_results::validate(actual, node, optimized, native, plan, unit, custody)?;
         }

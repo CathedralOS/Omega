@@ -147,6 +147,9 @@ pub(super) fn project(
         AbstractOperation::StructuralCaseMembership { .. } => {
             storage_instructions::project_structural_case_membership(node, optimized, plan)?
         }
+        AbstractOperation::StructuralLeafCopy { .. } => {
+            storage_instructions::project_structural_leaf_copy(node, optimized, plan)?
+        }
         AbstractOperation::PrimitiveScalarRead { source, path, .. } => {
             LegalizedScalarInstructionKind::PrimitiveScalarRead {
                 source: *source,

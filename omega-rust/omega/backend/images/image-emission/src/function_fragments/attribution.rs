@@ -74,6 +74,7 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                 | AbstractOperation::IntegerStructuralField { psi_operation, .. }
                 | AbstractOperation::BooleanStructuralField { psi_operation, .. }
                 | AbstractOperation::StructuralCaseMembership { psi_operation, .. }
+                | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
                 | AbstractOperation::CallStructuralScalar { psi_operation, .. }
                 | AbstractOperation::EstablishScalarCase { psi_operation, .. }
                 | AbstractOperation::EstablishRecord { psi_operation, .. }

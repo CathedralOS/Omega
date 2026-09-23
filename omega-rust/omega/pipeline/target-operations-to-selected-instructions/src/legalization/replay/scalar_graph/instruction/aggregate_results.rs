@@ -47,6 +47,31 @@ pub(super) fn validate(
                     plan,
                 )? => {}
         (
+            LegalizedScalarInstructionKind::StructuralLeafCopy {
+                result,
+                source,
+                path,
+                byte_offset,
+                shape,
+            },
+            AbstractOperation::StructuralLeafCopy {
+                source: expected,
+                path: expected_path,
+                result: expected_result,
+                ..
+            },
+        ) if source == expected
+            && path == expected_path
+            && result == expected_result
+            && (*byte_offset, *shape)
+                == scalar_graph_input::structural_case::leaf_copy_layout(
+                    optimized,
+                    *expected,
+                    expected_path,
+                    expected_result,
+                    plan,
+                )? => {}
+        (
             LegalizedScalarInstructionKind::EstablishScalarArray {
                 result,
                 elements,

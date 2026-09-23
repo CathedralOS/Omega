@@ -228,6 +228,7 @@ fn node_operation(operation: &AbstractOperation) -> Option<OperationId> {
         | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
         | AbstractOperation::CallStructural { psi_operation, .. }
         | AbstractOperation::CallStructuralScalar { psi_operation, .. }
+        | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
         | AbstractOperation::CallUnit { psi_operation, .. }
         | AbstractOperation::BoundaryCall { psi_operation, .. } => Some(*psi_operation),
         _ => None,

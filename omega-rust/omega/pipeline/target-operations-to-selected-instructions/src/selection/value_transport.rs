@@ -117,6 +117,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::StructuralScalarFieldRead { .. }
                 | Instruction::StructuralByteSequenceFieldLength { .. }
                 | Instruction::StructuralCaseMembership { .. }
+                | Instruction::StructuralLeafCopy { .. }
                 | Instruction::EstablishByteSequenceLiteral { .. }
                 | Instruction::ByteSequenceLength { .. }
                 | Instruction::EstablishElementView { .. }

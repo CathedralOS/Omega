@@ -58,6 +58,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
+    | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
         Ok((*psi_operation, None))
@@ -645,6 +646,7 @@ pub(super) fn validate(
                 | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
+                | AbstractOperation::StructuralLeafCopy { .. }
                 | AbstractOperation::CallStructural { .. }
         ) {
             if result.is_some() || !node.definitions.is_empty() {
