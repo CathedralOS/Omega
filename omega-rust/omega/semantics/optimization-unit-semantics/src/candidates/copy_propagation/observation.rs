@@ -289,6 +289,7 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         // parameter rewrite may substitute.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        | O::StructuralLeafCopy { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}

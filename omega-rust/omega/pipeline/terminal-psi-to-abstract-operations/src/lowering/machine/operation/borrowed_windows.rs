@@ -195,7 +195,7 @@ fn declared_window_field_type(
 /// non-erased record/mixed member that must itself be structural, fixed
 /// indices step into in-bounds array elements, and anything else cannot be a
 /// window carrier.
-fn resolve_spelled_path(
+pub(super) fn resolve_spelled_path(
     structural_types: &[StructuralTypeDeclaration],
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
@@ -230,8 +230,8 @@ fn resolve_spelled_path(
 /// The declared signature a spelled structural place carries: machine
 /// parameter, block parameter resolved through its place row, then operation
 /// result — the same order the verifier's `source_signature` resolves.
-struct SourceSignature {
-    structural_type: StructuralTypeId,
+pub(super) struct SourceSignature {
+    pub(super) structural_type: StructuralTypeId,
     qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     projected_qualifications: Vec<terminal_psi::StructuralPathQualification>,
 }
@@ -242,7 +242,10 @@ impl SourceSignature {
     }
 }
 
-fn source_signature(machine: &TerminalMachine, place: PlaceId) -> Option<SourceSignature> {
+pub(super) fn source_signature(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<SourceSignature> {
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
@@ -281,7 +284,7 @@ fn source_signature(machine: &TerminalMachine, place: PlaceId) -> Option<SourceS
 /// Resolve one block-structural parameter through its `BlockParameter` place
 /// row: the row's block and position select the declaration, which must
 /// still spell the same place and position and cannot be `self`.
-fn block_parameter(
+pub(super) fn block_parameter(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<&StructuralParameterDeclaration> {

@@ -233,6 +233,18 @@ pub enum AbstractOperation {
         path: Vec<StructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
     },
+    /// Establish one owned copy of an `Unrestricted` leaf projected out of a
+    /// live readable root. The source stays fully intact: copying observes
+    /// contents like a structural field read, so shared loans admit it where
+    /// a move would vacate borrowed storage. The result is fresh storage the
+    /// way an `EstablishScalarCase` result is — consumers must not alias it
+    /// back into the borrowed root's custody.
+    StructuralLeafCopy {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
     /// Reseat one whole owned structural subtree into the exact field
     /// `path` + `field` beneath `destination`, closing the restoration window
     /// `MoveStructuralField` opened there. `destination` retains the complete

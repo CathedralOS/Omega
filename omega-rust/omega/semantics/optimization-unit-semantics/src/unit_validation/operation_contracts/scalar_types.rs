@@ -127,6 +127,7 @@ pub(crate) fn operation_scalar_types_match(
         // surface is empty, so there is nothing for this contract to check.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        | O::StructuralLeafCopy { .. }
         | O::PortWrite { .. }
         | O::BooleanStructuralField { .. }
         | O::StructuralCase { .. }

@@ -504,6 +504,46 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     }
                 }
+                O::StructuralLeafCopy {
+                    psi_operation,
+                    result,
+                    source,
+                    path,
+                } => {
+                    // Replay the verified static shape: a readable source
+                    // root, the spelled path resolving to exactly the result
+                    // type, and a fresh operation-result place under clean
+                    // unrestricted custody.
+                    let valid =
+                        crate::unit_validation::operation_contracts::structural_source_contract(
+                            function, *source, false,
+                        )
+                        .is_some_and(|signature| {
+                            signature.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+                            && crate::unit_validation::structural_catalog::resolve_structural_path(
+                                structural_types,
+                                signature.structural_type,
+                                path,
+                            ) == Some(result.structural_type)
+                        }) && result.multiplicity
+                            == terminal_psi::StructuralMultiplicity::Unrestricted
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                            && result.claims.is_empty()
+                            && matches!(
+                                place_kinds.get(&result.place),
+                                Some(StructuralPlaceKind::OperationResult {
+                                    producer,
+                                    structural_type,
+                                }) if *producer == *psi_operation
+                                    && *structural_type == result.structural_type
+                            );
+                    if !valid {
+                        return Err(OptimizationUnitValidationError::StructuralCatalogMismatch {
+                            machine: Some(function.machine),
+                        });
+                    }
+                }
                 O::ReturnStructural { source, .. } => {
                     let Some(signature) = function.result.structural() else {
                         return Err(
@@ -582,6 +622,11 @@ pub(crate) fn validate_structural_root_operations(
                                         ..
                                     }
                                     | O::EstablishReference {
+                                        psi_operation,
+                                        result,
+                                        ..
+                                    }
+                                    | O::StructuralLeafCopy {
                                         psi_operation,
                                         result,
                                         ..

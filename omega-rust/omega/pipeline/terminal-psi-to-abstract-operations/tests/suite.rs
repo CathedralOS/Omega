@@ -17,5 +17,6 @@ mod scalar_array_construction;
 mod scalar_boundary_arguments;
 mod structural_byte_sequence_index;
 mod structural_byte_sequence_store;
+mod structural_leaf_copy;
 mod structural_scalar_fields;
 mod write_only_primitive_store;

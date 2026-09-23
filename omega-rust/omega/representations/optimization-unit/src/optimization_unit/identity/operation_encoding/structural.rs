@@ -298,6 +298,18 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*field);
             encode_structural_argument(bytes, value);
         }
+        O::StructuralLeafCopy {
+            psi_operation,
+            result,
+            source,
+            path,
+        } => {
+            bytes.u8(88);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.id(*source);
+            bytes.slice(path, encode_structural_path_segment);
+        }
         _ => unreachable!("operation family routing admitted a non-structural operation"),
     }
 }

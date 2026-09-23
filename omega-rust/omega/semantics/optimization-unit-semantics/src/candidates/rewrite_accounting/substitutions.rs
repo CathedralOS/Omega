@@ -173,6 +173,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         // substitution may rewrite.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        | O::StructuralLeafCopy { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}
