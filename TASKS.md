@@ -3037,6 +3037,19 @@ syntax and other terminal services are not prerequisites.
     own load evidence; the enclosing carrier's path is not the referent.
   - Carry the receiver/codec repairs through contextual-case, named-state and
     aggregate-result composition, preserving existing `write_frame_*` controls.
+    Measured at `c56d5ded89`, the two lanes now differ at exactly one shape.
+    The RECEIVER lane composes: `write_frame_candidate_origins.rs::divergent_receiver_candidates_survive_composition`
+    keeps the whole set through an aggregate result AND a rebind. The CODEC
+    lane keeps it through a rebind only --
+    `validation/tests/wire_codec_write_frames.rs::a_divergent_codec_cursor_survives_a_rebind`
+    pins that -- while `Blob::encode(.., hold(cursor))`, a helper result
+    standing between the binding and the argument, resolves to an opaque
+    frame. The cause is the asymmetry this row's architectural repair names:
+    `known_wire_codec_call_written_paths` looks its arguments up BY NAME among
+    the caller's aliases, so a call-expression argument has no entry to find,
+    where the receiver lane reaches the same shape through result-origin
+    composition. Share that propagation rather than adding a codec-side
+    recognizer for the call-argument spelling.
     Add full source-checking witnesses where coverage stops at typed-tree frame
     inference; retain conservative rejection at reference boundaries lacking
     independent origin/load evidence and unsupported recursive result routes.
