@@ -3170,9 +3170,17 @@ syntax and other terminal services are not prerequisites.
     whole frame opaque. Nested helper hops (`hold(hold(cursor))`) confirm the
     delegation is recursive rather than one-deep.
 
-    Also still open: named-state composition, and the acceptance's full
-    source-checking witnesses (coverage above stops at typed-tree frame
-    inference).
+    Named-state composition already worked and now has coverage: a codec whose
+    cursor arrives as a state parameter substitutes the transition's actual
+    into the entry frame, for a caller place and for a divergent helper result
+    alike. That route is the named-state substitution rather than the codec
+    leaf's argument resolution -- removing the leaf's `Call` arm leaves it
+    passing -- so it is independent regression coverage, not evidence for the
+    delegation.
+
+    Still open on this bullet: the acceptance's full source-checking witnesses.
+    Everything above is measured through `CallFrameResolver` on typed trees,
+    which is where this coverage stops.
     Add full source-checking witnesses where coverage stops at typed-tree frame
     inference; retain conservative rejection at reference boundaries lacking
     independent origin/load evidence and unsupported recursive result routes.
