@@ -206,7 +206,9 @@ fn crash_return_with_structural_locals_and_conjunction_tail() {
 fn verify_page_shape_composes() {
     let source = r#"
         data Command { case Ping; case Fetch(value: u64); }
-        data Response { case Empty; case ScanResults(count: u64, addr: u64); }
+        data ListPage { count: u64; addr: u64 }
+        data ScanResultsResponse { case List(response: ListPage); }
+        data Response { case Empty; case ScanResults(response: ScanResultsResponse); }
         machine Response::is_scan_results(&self) -> bool { true }
         machine Response::get_result_count(&self) -> u64 { 0 }
         machine Response::get_result_address(&self, index: u64) -> u64 { index }
