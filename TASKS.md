@@ -2311,11 +2311,29 @@ syntax and other terminal services are not prerequisites.
   — the three files are inside a live claim, so they were left untouched and
   the claim carries this same note.
 
-  Acceptance: the two tests pass again with the machine published by exactly
+  `terminal-verifier` adds two more, also new at this commit and also
+  partial-affine: `structural_unit::jumps_and_crash_routes::jump_edge_residual_discards_close_the_projected_argument_root_in_order`
+  and `structural_unit::partial_affine_moves::direct_field_partial_affine_return_rejects_forged_conservation_shapes`.
+  Thirteen tests in total across the three crates.
+
+  Acceptance: the thirteen pass again with the machine published by exactly
   one lane, and a body whose projections leave a real residual complement
   still reaches the partial-affine carrier. Publishing it from both lanes, or
   relaxing the ordinary roster back to path-sensitive argument custody, is not
   the repair.
+
+  Six further red tests in those crates PREDATE this commit and are not part
+  of this item; they are listed so a sweep does not re-attribute them:
+  `terminal-interpreter::unit affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`,
+  `::affine_cleanups::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`,
+  `::case_membership::projected_case_encoding_requires_the_extended_operation_format`,
+  `terminal-verifier::suite calls::provider_results::provider_result_conformance_rejects_claim_and_authority_drift`,
+  `terminal-codec::suite artifact::proof_section::pcc_replay_reports_the_qualified_subject_ledger_and_admissions`,
+  and `terminal-verifier::suite trusted_surface::recorded_digests_match_the_working_tree`.
+  That last one is NOT a bug and must not be "fixed" by re-recording: it lists
+  fourteen trusted implementation files whose digests moved, and its whole
+  purpose is to make someone revalidate each cited justification before the
+  digest is updated. It reads red while those files are under active edit.
 
 - **AUTHORED-SELECTION-FINALIZATION-GAPS.** (new-scope) Close the authored
   declaration selection occurrences that survive successful checking.
