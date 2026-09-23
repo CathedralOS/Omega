@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("luhn-checksum");
+    builder.application("luhn_checksum");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

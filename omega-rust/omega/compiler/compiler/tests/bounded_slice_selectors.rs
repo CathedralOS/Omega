@@ -31,7 +31,7 @@ fn check_source(
         package,
         vec![PackageSourceBinding::new(
             package,
-            "bounded-endpoints",
+            "bounded_endpoints",
             root.clone(),
         )],
         Vec::new(),

@@ -63,7 +63,7 @@ fn dead_scalar_project(
     .expect("write the dead-scalar project root");
     let mut build_source = concat!(
         "machine build(builder: &mut Build) {\n",
-        "    builder.application(\"dead-scalar-rollback\");\n",
+        "    builder.application(\"dead_scalar_rollback\");\n",
         "    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n",
         "    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n",
         "    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n",

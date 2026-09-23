@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-shared-record-float-range-weakening-exit");
+    builder.application("runtime_shared_record_float_range_weakening_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

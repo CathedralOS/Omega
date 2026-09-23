@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-port-literal-out-of-range");
+    builder.application("asm_port_literal_out_of_range");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

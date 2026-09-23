@@ -2,7 +2,7 @@
 // Omega source only through its compiler-owned Source and Output facets.
 
 machine build(builder: &mut Build) {
-    builder.package("generated-table");
+    builder.package("generated_table");
     let input_bytes: [u8; 64];
     let input: BuildPath = builder.source.resolve("inputs/table.txt");
     let input_descriptor: i32 = builder.source.open(input, 0);

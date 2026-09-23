@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("prime-counter");
+    builder.application("prime_counter");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

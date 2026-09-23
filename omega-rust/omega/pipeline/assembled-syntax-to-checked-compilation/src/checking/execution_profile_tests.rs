@@ -26,7 +26,7 @@ impl HelperFixture {
         fs::write(
             root.join("build.omg"),
             format!(
-                "machine build(builder: &mut Build) {{\n    builder.package(\"scoped-helper\");\n    probe();\n}}\n\n{helper_target} machine probe() {{}}\n"
+                "machine build(builder: &mut Build) {{\n    builder.package(\"scoped_helper\");\n    probe();\n}}\n\n{helper_target} machine probe() {{}}\n"
             ),
         )
         .expect("write build");
@@ -153,7 +153,7 @@ impl PackagedFixture {
         let root_dir = package("scoped-root", "use lib::main;\n\nconst ANSWER: u32 = 42;\n");
         fs::write(
             root_dir.join("build.omg"),
-            "use kit::main;\n\nmachine build(builder: &mut Build) {\n    builder.package(\"scoped-root\");\n    kit_probe();\n}\n",
+            "use kit::main;\n\nmachine build(builder: &mut Build) {\n    builder.package(\"scoped_root\");\n    kit_probe();\n}\n",
         )
         .expect("write root build");
         let kit_dir = package("kit", kit_main);
@@ -164,7 +164,7 @@ impl PackagedFixture {
         };
         let (root, kit, lib, tool) = (identity(1), identity(2), identity(3), identity(4));
         let mut packages = vec![
-            PackageSourceBinding::new(root, "scoped-root", root_dir.clone()),
+            PackageSourceBinding::new(root, "scoped_root", root_dir.clone()),
             PackageSourceBinding::new(kit, "kit", kit_dir),
             PackageSourceBinding::new(lib, "lib", lib_dir),
         ];

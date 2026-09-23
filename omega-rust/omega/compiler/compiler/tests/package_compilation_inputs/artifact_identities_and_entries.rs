@@ -29,7 +29,7 @@ fn failing_sibling_does_not_change_successful_package_artifact_identity() {
         package,
         vec![PackageSourceBinding::new(
             package,
-            "multi-target-artifact-fixture",
+            "multi_target_artifact_fixture",
             root.clone(),
         )],
         Vec::new(),
@@ -109,7 +109,7 @@ fn reviewed_checked_package_continues_after_generated_source_staging_is_removed(
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("reviewed-generated-root");
+    builder.application("reviewed_generated_root");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     let generated: BuildPath = builder.output.resolve("marker.generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
@@ -137,7 +137,7 @@ fn reviewed_checked_package_continues_after_generated_source_staging_is_removed(
         identity(63),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(identity(63), "reviewed-generated-root", root.clone())
+            PackageSourceBinding::new(identity(63), "reviewed_generated_root", root.clone())
                 .with_canonical_source_metadata()
                 .expect("canonical application Source metadata"),
         ],
@@ -238,7 +238,7 @@ machine Main::main(&mut self) reaches Console {
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("accepted-console-application");
+    builder.application("accepted_console_application");
     builder.depend_as("accepted_console", Source::Path { location: "../accepted-console-package" });
     builder.select_provider<accepted_console::Console, accepted_console::ConsoleNativeProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -252,12 +252,12 @@ machine Main::main(&mut self) reaches Console {
             vec![
                 PackageSourceBinding::new(
                     root_package,
-                    "accepted-console-application",
+                    "accepted_console_application",
                     root.clone(),
                 ),
                 PackageSourceBinding::new(
                     console_package,
-                    "accepted-console-package",
+                    "accepted_console_package",
                     console.clone(),
                 ),
             ],
@@ -957,10 +957,10 @@ invokes filesystem;
         PackageCompilationInputs::new_package(
             root_package,
             vec![
-                PackageSourceBinding::new(root_package, "filesystem-application", root.clone()),
+                PackageSourceBinding::new(root_package, "filesystem_application", root.clone()),
                 PackageSourceBinding::new(
                     filesystem_package,
-                    "filesystem-package",
+                    "filesystem_package",
                     filesystem.clone(),
                 ),
             ],
@@ -1150,7 +1150,7 @@ machine Boot::launch(
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("uefi-application");
+    builder.application("uefi_application");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
     builder.roots.bind(uefi_x86_64::ProgramEntry, Boot::launch);
@@ -1162,10 +1162,10 @@ machine Boot::launch(
             root_package,
             BuildDeclarationKind::Application,
             vec![
-                PackageSourceBinding::new(root_package, "uefi-application", root.clone()),
+                PackageSourceBinding::new(root_package, "uefi_application", root.clone()),
                 PackageSourceBinding::new(
                     standard_library_package,
-                    "ordinary-std",
+                    "ordinary_std",
                     standard_library.clone(),
                 ),
             ],
@@ -1270,7 +1270,7 @@ fn standalone_macos_entry_loads_exact_authored_contract_without_an_import() {
     );
     TempTree::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.application(\"standalone-macos-entry\"); builder.roots.bind(macos_arm64::ProgramEntry, Main::main); }\n",
+        "machine build(builder: &mut Build) { builder.application(\"standalone_macos_entry\"); builder.roots.bind(macos_arm64::ProgramEntry, Main::main); }\n",
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &root.join("main.omg"),
@@ -1335,7 +1335,7 @@ machine Boot::launch(&mut self) {
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("macos-application");
+    builder.application("macos_application");
     builder.roots.bind(macos_arm64::ProgramEntry, Boot::launch);
 }
 "#,
@@ -1345,10 +1345,10 @@ machine Boot::launch(&mut self) {
             root_package,
             BuildDeclarationKind::Application,
             vec![
-                PackageSourceBinding::new(root_package, "macos-application", root.clone()),
+                PackageSourceBinding::new(root_package, "macos_application", root.clone()),
                 PackageSourceBinding::new(
                     standard_library_package,
-                    "ordinary-std",
+                    "ordinary_std",
                     standard_library.clone(),
                 ),
             ],
@@ -1542,10 +1542,10 @@ fn free_process_exit_helper_lowers_without_a_synthetic_attachment() {
         vec![
             PackageSourceBinding::new(
                 process_exit_package,
-                "process-exit",
+                "process_exit",
                 process_exit_root.clone(),
             ),
-            PackageSourceBinding::new(host_services_package, "host-services", host_services_root),
+            PackageSourceBinding::new(host_services_package, "host_services", host_services_root),
         ],
         vec![PackageDependencyBinding::new(
             process_exit_package,
@@ -1615,7 +1615,7 @@ machine Main::main(&mut self) reaches Console {
     TempTree::write(
         exit_root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("physical-exit");
+    builder.application("physical_exit");
     builder.select_provider<host_services::Console, host_services::ConsoleNativeProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
@@ -1659,10 +1659,10 @@ machine Main::main(&mut self) reaches Console {
         PackageCompilationInputs::new_package(
             exit_package,
             vec![
-                PackageSourceBinding::new(exit_package, "physical-exit", exit_root.clone()),
+                PackageSourceBinding::new(exit_package, "physical_exit", exit_root.clone()),
                 PackageSourceBinding::new(
                     host_services_package,
-                    "host-services",
+                    "host_services",
                     host_services_root.clone(),
                 ),
             ],

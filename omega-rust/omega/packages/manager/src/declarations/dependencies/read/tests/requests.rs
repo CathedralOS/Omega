@@ -6,7 +6,7 @@ use crate::declarations::{AliasName, PackageName};
 
 #[test]
 fn resolves_default_alias_from_the_dependency_declaration() {
-    let declared_name = PackageName::parse("arithmetic-kernels").unwrap();
+    let declared_name = PackageName::parse("arithmetic_kernels").unwrap();
     let ordinary = DependencySourceRequest::Git {
         explicit_alias: None,
         repository: "https://github.com/CathedralOS/arithmetic-kernels.git".to_owned(),
@@ -183,7 +183,7 @@ fn git_selection_omission_normalizes_to_root_and_named_is_exact() {
     ));
 
     let named = PackageFixture::with_source(
-        r#"machine build(builder: &mut Build) { builder.package("root"); builder.depend(Source::Git { repository: "https://example.invalid/repo.git", revision: "main", selection: PackageSelection::Named { package: "matrix-kernels" } }); }"#,
+        r#"machine build(builder: &mut Build) { builder.package("root"); builder.depend(Source::Git { repository: "https://example.invalid/repo.git", revision: "main", selection: PackageSelection::Named { package: "matrix_kernels" } }); }"#,
     )
     .extract()
     .expect("project named package selection");
@@ -192,7 +192,7 @@ fn git_selection_omission_normalizes_to_root_and_named_is_exact() {
         [DependencySourceRequest::Git {
             selection: PackageSelection::Named(package),
             ..
-        }] if package.as_str() == "matrix-kernels"
+        }] if package.as_str() == "matrix_kernels"
     ));
 }
 

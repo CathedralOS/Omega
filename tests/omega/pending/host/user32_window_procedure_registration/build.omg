@@ -5,7 +5,7 @@
 // callback leg itself is exercised only where the provider supplies it —
 // other hosts report the leg unavailable.
 machine build(builder: &mut Build) {
-    builder.application("user32-window-procedure-registration");
+    builder.application("user32_window_procedure_registration");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

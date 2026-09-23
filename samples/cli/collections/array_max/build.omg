@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("array-max");
+    builder.application("array_max");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

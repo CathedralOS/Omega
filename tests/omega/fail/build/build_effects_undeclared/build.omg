@@ -12,6 +12,6 @@ reaches Console
 }
 
 machine build(builder: &mut Build) {
-    builder.application("build-effects-undeclared");
+    builder.application("build_effects_undeclared");
     write_build_log(builder);
 }

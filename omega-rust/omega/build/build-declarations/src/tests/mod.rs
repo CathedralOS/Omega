@@ -16,7 +16,7 @@ fn project(source: &str) -> Result<BuildDeclaration, BuildDeclarationError> {
 fn source_and_syntax_apis_project_the_same_authoritative_role() {
     let source = r#"
         machine build(builder: &mut Build) {
-            builder.application("omega-compiler");
+            builder.application("omega_compiler");
         }
     "#;
     let tokens = Lexer::new(source).tokenize().expect("lex fixture");
@@ -30,7 +30,7 @@ fn source_and_syntax_apis_project_the_same_authoritative_role() {
     assert!(matches!(
         syntax.declaration(),
         BuildDeclaration::Application(application)
-            if application.name.as_str() == "omega-compiler"
+            if application.name.as_str() == "omega_compiler"
     ));
     assert_eq!(
         trees
@@ -52,9 +52,9 @@ fn source_and_syntax_apis_project_the_same_authoritative_role() {
 #[test]
 fn projects_package_application_and_workspace_declarations() {
     assert!(matches!(
-        project(r#"machine build(builder: &mut Build) { builder.package("exact-math"); }"#),
+        project(r#"machine build(builder: &mut Build) { builder.package("exact_math"); }"#),
         Ok(BuildDeclaration::Package(PackageDeclaration { name }))
-            if name.as_str() == "exact-math"
+            if name.as_str() == "exact_math"
     ));
     assert!(matches!(
         project(r#"machine build(builder: &mut Build) { builder.application("omega"); }"#),
@@ -219,10 +219,15 @@ fn rejects_spoofed_toolchain_vocabulary_and_nonordinary_builds() {
 
 #[test]
 fn validated_names_and_member_paths_match_the_declared_canonical_forms() {
+    for name in ["arithmetic_kernels", "sha256", "codec_2"] {
+        assert_eq!(ProjectName::parse(name).unwrap().as_str(), name);
+    }
     for name in [
         "Arithmetic-Kernels",
-        "arithmetic_kernels",
-        "arithmetic--kernels",
+        "arithmetic-kernels",
+        "arithmetic__kernels",
+        "_arithmetic",
+        "arithmetic_",
         "123-tools",
     ] {
         assert!(ProjectName::parse(name).is_err(), "accepted {name:?}");

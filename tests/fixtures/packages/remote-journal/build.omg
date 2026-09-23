@@ -1,6 +1,6 @@
 // package-manager fixture: no build-host reach; runtime API retains filesystem and network authority.
 
 machine build(builder: &mut Build) {
-    builder.package("remote-journal");
+    builder.package("remote_journal");
     builder.depend(Source::Path { location: "../host-services" });
 }

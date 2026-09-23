@@ -22,7 +22,7 @@ pub machine Board::read(&mut self) -> u64 reaches ClockHost invokes ClockHost; {
     self.clock.ticks(7)
 }
 "#,
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); builder.select_provider<ClockHost, Clock>(); }",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); builder.select_provider<ClockHost, Clock>(); }",
     );
     let machine = fixture
         .checked
@@ -188,7 +188,7 @@ pub machine Board::read(&mut self) -> f32 reaches ClockHost invokes ClockHost; {
 "#
             .replace("F32::negate(self.clock.ticks(7.0f32))", expression),
             r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_provider<F32::negate, FloatProvider>();
     builder.select_provider<ClockHost, Clock>();
 }"#,

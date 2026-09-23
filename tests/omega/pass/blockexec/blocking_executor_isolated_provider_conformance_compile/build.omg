@@ -6,7 +6,7 @@
 // `IsolatedWorkerProvider` marker trait.
 
 machine build(builder: &mut Build) {
-    builder.application("blocking-executor-isolated-provider-conformance-compile");
+    builder.application("blocking_executor_isolated_provider_conformance_compile");
     builder.depend(Source::Path {
         location: "../../../../../source/library/blocking-executor"
     });

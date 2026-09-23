@@ -93,7 +93,7 @@ machine ordinal_leaf()
     via ordinal_binding();
 "#;
 
-const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+const BUILD: &str = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
 
 fn checked_fixture() -> ReviewFixture {
@@ -269,7 +269,7 @@ pub machine exit_leaf(code: i32)
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {

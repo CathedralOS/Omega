@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("trapping-probe");
+    builder.application("trapping_probe");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

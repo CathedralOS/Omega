@@ -12,15 +12,15 @@ fn resolves_external_local_closure_across_directory_boundaries_in_one_context() 
     let sources = temp_root("external-sources");
     let first_cache = temp_root("external-first-cache");
     let second_cache = temp_root("external-second-cache");
-    write_package(&sources.join("root"), "root-package", Some("../middle"));
+    write_package(&sources.join("root"), "root_package", Some("../middle"));
     let leaf = sources.join("leaf");
     let leaf_location = leaf.display().to_string();
     write_package(
         &sources.join("middle"),
-        "middle-package",
+        "middle_package",
         Some(&leaf_location),
     );
-    write_package(&leaf, "leaf-package", None);
+    write_package(&leaf, "leaf_package", None);
     let first_context = ExternalSourceContext::derive(b"first-consuming-lock");
 
     let first = resolve_external_local_package_closure_from_hardened_base(
@@ -82,7 +82,7 @@ fn project_resolution_retains_an_application_root_role() {
     std::fs::create_dir_all(&source).expect("create application root");
     std::fs::write(
         source.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"driver-console\");\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.application(\"driver_console\");\n}\n",
     )
     .expect("write application declaration");
     std::fs::write(source.join("main.omg"), "machine root() {}\n")

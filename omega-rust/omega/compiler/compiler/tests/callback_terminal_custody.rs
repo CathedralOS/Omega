@@ -112,7 +112,7 @@ impl Fixture {
             root.join("build.omg"),
             format!(
                 "machine build(builder: &mut Build) {{\n    \
-                 builder.application(\"callback-terminal-custody\");\n\
+                 builder.application(\"callback_terminal_custody\");\n\
                  {}    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}}\n",
                 bundled_standard_library_dependency_declaration(),
             ),
@@ -166,7 +166,7 @@ machine Main::main(&mut self) reaches WindowRegistrar {
             root.join("build.omg"),
             format!(
                 "machine build(builder: &mut Build) {{\n    \
-                 builder.application(\"direct-callback-terminal-custody\");\n\
+                 builder.application(\"direct_callback_terminal_custody\");\n\
                  {}    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}}\n",
                 bundled_standard_library_dependency_declaration(),
             ),

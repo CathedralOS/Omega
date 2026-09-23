@@ -90,7 +90,7 @@ fn assert_exact_pin(fixture: &Fixture, expected: &str) {
             .source()
             .packages()
             .iter()
-            .find(|package| package.key().name().as_str() == "arithmetic-kernels")
+            .find(|package| package.key().name().as_str() == "arithmetic_kernels")
             .expect("remote package is locked");
         let ImmutableSourceResolution::Git { commit, .. } = package.resolution() else {
             panic!("remote package did not retain a Git resolution");

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("dual-float");
+    builder.application("dual_float");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

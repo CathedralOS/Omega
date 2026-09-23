@@ -8,7 +8,7 @@ use source::{SourceId, SourceSpan, Span};
 
 fn package() -> PackageKey {
     PackageKey::new(
-        PackageName::parse("broken-library").unwrap(),
+        PackageName::parse("broken_library").unwrap(),
         SourceLineage::git("https://example.org/broken-library.git").unwrap(),
     )
 }
@@ -36,7 +36,7 @@ fn every_compiler_diagnostic_variant_retains_reasons_severity_and_available_span
     ] {
         let text = error.to_string();
         assert!(
-            text.contains("package `broken-library` with 2 diagnostic(s)"),
+            text.contains("package `broken_library` with 2 diagnostic(s)"),
             "{text}"
         );
         assert!(
@@ -112,6 +112,6 @@ fn empty_diagnostics_remain_a_failed_operation_without_invented_reasons() {
     .to_string();
     assert_eq!(
         text,
-        "checked compilation failed for package `broken-library` with 0 diagnostic(s)"
+        "checked compilation failed for package `broken_library` with 0 diagnostic(s)"
     );
 }

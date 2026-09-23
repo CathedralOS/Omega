@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("temperature-convert");
+    builder.application("temperature_convert");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

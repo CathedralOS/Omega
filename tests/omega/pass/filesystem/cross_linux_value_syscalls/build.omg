@@ -1,7 +1,7 @@
 
 
 machine build(builder: &mut Build) {
-    builder.application("cross-linux-value-syscalls");
+    builder.application("cross_linux_value_syscalls");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

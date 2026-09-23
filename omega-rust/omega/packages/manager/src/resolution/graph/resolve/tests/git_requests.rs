@@ -10,7 +10,7 @@ use package_source::PrimaryGitChoices;
 fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     let repository = temp_root("git-root-repository");
     let cache = temp_root("git-root-cache");
-    write_package(&repository, "network-root", None);
+    write_package(&repository, "network_root", None);
     run_test_git(&repository, ["init", "--quiet"]);
     run_test_git(
         &repository,
@@ -72,7 +72,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
     assert_eq!(retained.transport_profile(), GitTransportProfile::TestFile);
     assert_eq!(
         root_binding.selected().key().name().as_str(),
-        "network-root"
+        "network_root"
     );
     assert!(closure.source_requests().dependencies().next().is_none());
 
@@ -84,7 +84,7 @@ fn resolves_repository_root_git_closure_and_retains_the_exact_request() {
 fn repository_root_project_retains_application_role_and_package_entry_rejects() {
     let repository = temp_root("git-application-root-repository");
     let cache = temp_root("git-application-root-cache");
-    write_application(&repository, "network-console", None);
+    write_application(&repository, "network_console", None);
     run_test_git(&repository, ["init", "--quiet"]);
     run_test_git(
         &repository,
@@ -121,7 +121,7 @@ fn repository_root_project_retains_application_role_and_package_entry_rejects() 
         closure.root_role(),
         crate::declarations::BuildDeclarationKind::Application
     );
-    assert_eq!(closure.graph().root().name().as_str(), "network-console");
+    assert_eq!(closure.graph().root().name().as_str(), "network_console");
 
     let _ = std::fs::remove_dir_all(repository);
     let _ = std::fs::remove_dir_all(cache);
@@ -219,10 +219,10 @@ machine build(builder: &mut Build) {
 "#,
     )
     .expect("write root build");
-    write_application(&repository.join("projects/console"), "driver-console", None);
+    write_application(&repository.join("projects/console"), "driver_console", None);
     write_package(
         &repository.join("projects/protocol"),
-        "driver-protocol",
+        "driver_protocol",
         None,
     );
     run_test_git(&repository, ["init", "--quiet"]);
@@ -241,7 +241,7 @@ machine build(builder: &mut Build) {
         )
         .expect("validated local Git workspace request"),
         crate::declarations::PackageSelection::Named(
-            crate::declarations::PackageName::parse("driver-console").expect("project name"),
+            crate::declarations::PackageName::parse("driver_console").expect("project name"),
         ),
     );
     let storage = SourceResolverStorage::for_hardened_base(&cache, PrimaryGitChoices::default())
@@ -267,11 +267,11 @@ machine build(builder: &mut Build) {
         .expect("workspace evidence");
     assert_eq!(evidence.members().len(), 2);
     assert!(evidence.members().iter().any(|member| {
-        member.package_name().as_str() == "driver-console"
+        member.package_name().as_str() == "driver_console"
             && member.role() == crate::declarations::BuildDeclarationKind::Application
     }));
     assert!(evidence.members().iter().any(|member| {
-        member.package_name().as_str() == "driver-protocol"
+        member.package_name().as_str() == "driver_protocol"
             && member.role() == crate::declarations::BuildDeclarationKind::Package
     }));
 

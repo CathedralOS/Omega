@@ -1,7 +1,7 @@
 // Reverse-sum sample build sketch. Needs only process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("reverse-sum");
+    builder.application("reverse_sum");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

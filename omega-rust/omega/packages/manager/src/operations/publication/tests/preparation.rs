@@ -8,9 +8,9 @@ use crate::resolution::graph::ResolvedSourceIdentity;
 use target::TargetProfile;
 
 const ORIGINAL_BUILD: &[u8] =
-    b"machine build(builder: &mut Build) {\n    builder.package(\"before-publication\");\n}\n";
+    b"machine build(builder: &mut Build) {\n    builder.package(\"before_publication\");\n}\n";
 const PROPOSED_BUILD: &[u8] =
-    b"machine build(builder: &mut Build) {\n    builder.package(\"after-publication\");\n}\n";
+    b"machine build(builder: &mut Build) {\n    builder.package(\"after_publication\");\n}\n";
 const MAIN: &[u8] = b"pub const PUBLIC_LIMIT: u64 = 4;\n";
 
 /// The exact target these legs prepare and review for: the compiler host's
@@ -95,7 +95,7 @@ fn preparation_recovers_pending_publication_before_snapshotting() {
         PublicationStep::LockReplaced,
     ] {
         let project = valid_project();
-        let original = prepare_snapshot(&project, ORIGINAL_BUILD, "before-publication");
+        let original = prepare_snapshot(&project, ORIGINAL_BUILD, "before_publication");
         let after_lock = proposed_lock(&project);
         let after_lock = after_lock.as_bytes();
         let mut transaction = project.open();
@@ -129,12 +129,12 @@ fn preparation_recovers_pending_publication_before_snapshotting() {
         );
         drop(transaction);
 
-        let recovered = prepare_snapshot(&project, PROPOSED_BUILD, "after-publication");
+        let recovered = prepare_snapshot(&project, PROPOSED_BUILD, "after_publication");
         assert_ne!(recovered, original);
         project.assert_pair(PROPOSED_BUILD, Some(after_lock));
         assert!(!project.journal().exists());
         assert_eq!(entries(&project.state()), ["transaction.lock"]);
-        let repeated = prepare_snapshot(&project, PROPOSED_BUILD, "after-publication");
+        let repeated = prepare_snapshot(&project, PROPOSED_BUILD, "after_publication");
         assert_eq!(repeated, recovered);
         let mut transaction = project.open();
         for _ in 0..2 {
@@ -172,7 +172,7 @@ fn preparation_rejects_busy_transaction_and_succeeds_after_guard_release() {
     assert_eq!(fs::read(project.root.join("main.omg")).unwrap(), MAIN);
     assert_eq!(entries(&project.state()), ["transaction.lock"]);
     drop(transaction);
-    prepare_snapshot(&project, ORIGINAL_BUILD, "before-publication");
+    prepare_snapshot(&project, ORIGINAL_BUILD, "before_publication");
     project.assert_pair(ORIGINAL_BUILD, None);
     assert_eq!(entries(&project.state()), ["transaction.lock"]);
 }
@@ -185,7 +185,7 @@ fn preparation_without_transaction_state_does_not_create_control_files() {
             .unwrap()
             .is_none()
     );
-    prepare_snapshot(&project, ORIGINAL_BUILD, "before-publication");
+    prepare_snapshot(&project, ORIGINAL_BUILD, "before_publication");
     assert!(!project.state().exists());
     assert!(entries(&project.root.join("build")).is_empty());
     assert_eq!(entries(&project.root), ["build", "build.omg", "main.omg"]);

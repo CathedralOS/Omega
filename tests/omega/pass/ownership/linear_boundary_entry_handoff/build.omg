@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("linear-boundary-entry-handoff");
+    builder.application("linear_boundary_entry_handoff");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

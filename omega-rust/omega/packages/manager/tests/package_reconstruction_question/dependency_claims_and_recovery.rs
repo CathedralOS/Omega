@@ -33,7 +33,7 @@ fn dependency_open_claims_require_exact_fresh_root_policy() {
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("claim-dependency");
+    builder.package("claim_dependency");
 }
 "#,
     )
@@ -49,7 +49,7 @@ ensures result == 0;
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("claim-consumer");
+    builder.package("claim_consumer");
     builder.depend(Source::Path {
         location: "../dependency"
     });
@@ -85,7 +85,7 @@ machine build(builder: &mut Build) {
     let [(owner, context, claim)] = propagated.as_slice() else {
         panic!("one dependency claim must propagate to the root")
     };
-    assert_eq!(owner.name().as_str(), "claim-dependency");
+    assert_eq!(owner.name().as_str(), "claim_dependency");
     assert!(context.purpose().is_product());
     assert_eq!(
         claim.status(),
@@ -113,7 +113,7 @@ machine build(builder: &mut Build) {
     let claim_package = conflicts
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "claim-dependency")
+        .find(|package| package.key().name().as_str() == "claim_dependency")
         .expect("dependency owns its accepted-claim conflict");
     let claim_conflict = claim_package
         .conflicts()
@@ -184,7 +184,7 @@ machine build(builder: &mut Build) {
     let [(owner, _, _)] = accepted_claims.as_slice() else {
         panic!("one accepted dependency claim")
     };
-    assert_eq!(owner.name().as_str(), "claim-dependency");
+    assert_eq!(owner.name().as_str(), "claim_dependency");
 
     std::fs::write(
         dependency.join("main.omg"),
@@ -289,7 +289,7 @@ fn dependency_external_executable_supply_requires_exact_fresh_root_policy() {
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("foreign-surface");
+    builder.package("foreign_surface");
 }
 "#,
     )
@@ -319,7 +319,7 @@ pub windows_x86_64 machine invoke_leaf()
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("foreign-consumer");
+    builder.package("foreign_consumer");
     builder.depend(Source::Path {
         location: "../dependency"
     });
@@ -361,7 +361,7 @@ machine build(builder: &mut Build) {
     let [(owner, _, supply)] = propagated.as_slice() else {
         panic!("one dependency external executable supply must propagate to the root")
     };
-    assert_eq!(owner.name().as_str(), "foreign-surface");
+    assert_eq!(owner.name().as_str(), "foreign_surface");
     assert_eq!(
         supply.status(),
         OrdinaryPackageObligationStatus::OpenRootAdmission
@@ -448,7 +448,7 @@ fn dependency_contract_entailment_stand_down_propagates_but_cannot_be_admitted()
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract-surface");
+    builder.package("contract_surface");
 }
 "#,
     )
@@ -471,7 +471,7 @@ ensures
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract-consumer");
+    builder.package("contract_consumer");
     builder.depend(Source::Path {
         location: "../dependency"
     });
@@ -515,7 +515,7 @@ machine build(builder: &mut Build) {
     let [(owner, _, obligation)] = propagated.as_slice() else {
         panic!("one dependency contract-entailment obligation must propagate to the root")
     };
-    assert_eq!(owner.name().as_str(), "contract-surface");
+    assert_eq!(owner.name().as_str(), "contract_surface");
     assert_eq!(
         obligation.status(),
         OrdinaryPackageObligationStatus::OpenLaterDischarge
@@ -598,7 +598,7 @@ fn dependency_contract_assumption_certificate_closes_the_later_discharge() {
         dependency.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract-surface");
+    builder.package("contract_surface");
 }
 "#,
     )
@@ -621,7 +621,7 @@ ensures
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("contract-consumer");
+    builder.package("contract_consumer");
     builder.depend(Source::Path {
         location: "../dependency"
     });
@@ -652,7 +652,7 @@ machine build(builder: &mut Build) {
     let dependency_entry = composed
         .entries()
         .iter()
-        .find(|entry| entry.package().name().as_str() == "contract-surface")
+        .find(|entry| entry.package().name().as_str() == "contract_surface")
         .expect("dependency result");
     assert!(
         dependency_entry
@@ -684,7 +684,7 @@ machine build(builder: &mut Build) {
     let [(discharge_owner, _, root_discharge)] = root_discharges.as_slice() else {
         panic!("one dependency discharge must compose to the root")
     };
-    assert_eq!(discharge_owner.name().as_str(), "contract-surface");
+    assert_eq!(discharge_owner.name().as_str(), "contract_surface");
     assert_eq!(
         *root_discharge,
         &dependency_entry

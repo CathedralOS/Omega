@@ -3,7 +3,7 @@
 // logger's published allowance.
 
 machine build(builder: &mut Build) {
-    builder.application("quiet-logger-app");
+    builder.application("quiet_logger_app");
     builder.depend(Source::Path { location: "../logger-kit" });
     builder.exclude_service<Sink>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

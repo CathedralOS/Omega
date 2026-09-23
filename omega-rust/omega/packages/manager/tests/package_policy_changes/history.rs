@@ -250,7 +250,7 @@ fn removed_package_history_needs_no_candidate_index_old_checkout_or_cache() {
     let removed = changes
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "removed-package")
+        .find(|package| package.key().name().as_str() == "removed_package")
         .unwrap();
     assert!(removed.candidate_resolution().is_none());
     assert!(
@@ -313,7 +313,7 @@ fn root_role_replacements_and_rows_capture_in_canonical_subject_order() {
         tree.path("sources/root/build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            " builder.application(\"policy-fixture\");\n",
+            " builder.application(\"policy_fixture\");\n",
             " builder.depend_as(\"service\", Source::Path { location: \"../new\" });\n",
             " builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);\n}\n",
         ),

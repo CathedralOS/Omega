@@ -35,7 +35,7 @@ fn return_only_wrapping_add_zero_identity_copy_rejoins_native_artifact_productio
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-wrapping-add-zero-identity-copy-rejoin");
+    builder.application("optimizer_wrapping_add_zero_identity_copy_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingWrappingAddZeroIdentityCopy);
 }

@@ -1,7 +1,7 @@
 // Deployable comptime canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-const-array-length-exit");
+    builder.application("runtime_const_array_length_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

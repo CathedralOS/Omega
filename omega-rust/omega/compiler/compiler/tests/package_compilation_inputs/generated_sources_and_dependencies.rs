@@ -19,7 +19,7 @@ fn generated_dependency_handoff_keeps_build_and_product_occurrences_distinct() {
     TempTree::write(
         producer.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("dual-producer");
+    builder.package("dual_producer");
     transition builder.target {
         TargetProfile::WindowsX86_64 -> product(builder)
         _ -> helper(builder)
@@ -45,7 +45,7 @@ fn generated_dependency_handoff_keeps_build_and_product_occurrences_distinct() {
         consumer.join("build.omg"),
         r#"use dependency::generated_api;
 machine build(builder: &mut Build) {
-    builder.package("dual-consumer");
+    builder.package("dual_consumer");
     builder.build_depend_as("dependency", Source::Path { location: "../dual-producer" });
     builder.depend_as("dependency", Source::Path { location: "../dual-producer" });
     let generated: BuildPath = builder.output.resolve("consumer_generated.omg");
@@ -97,7 +97,7 @@ machine build(builder: &mut Build) {
         let inputs = PackageCompilationInputs::new_package(
             identity(94),
             vec![
-                PackageSourceBinding::new(identity(94), "dual-producer", producer.clone())
+                PackageSourceBinding::new(identity(94), "dual_producer", producer.clone())
                     .with_canonical_source_metadata()
                     .unwrap(),
             ],
@@ -123,10 +123,10 @@ machine build(builder: &mut Build) {
     let inputs = PackageCompilationInputs::new_package(
         identity(93),
         vec![
-            PackageSourceBinding::new(identity(93), "dual-consumer", consumer.clone())
+            PackageSourceBinding::new(identity(93), "dual_consumer", consumer.clone())
                 .with_canonical_source_metadata()
                 .unwrap(),
-            PackageSourceBinding::new(identity(94), "dual-producer", producer.clone()),
+            PackageSourceBinding::new(identity(94), "dual_producer", producer.clone()),
         ],
         [DependencyPurpose::Build, DependencyPurpose::Product]
             .into_iter()
@@ -169,8 +169,8 @@ fn generated_dependency_handoff_requires_both_purposes_even_for_the_same_target(
     let inputs = PackageCompilationInputs::new_package(
         identity(95),
         vec![
-            PackageSourceBinding::new(identity(95), "purpose-consumer", root),
-            PackageSourceBinding::new(identity(96), "purpose-producer", dependency),
+            PackageSourceBinding::new(identity(95), "purpose_consumer", root),
+            PackageSourceBinding::new(identity(96), "purpose_producer", dependency),
         ],
         [DependencyPurpose::Product, DependencyPurpose::Build]
             .into_iter()
@@ -231,13 +231,13 @@ fn build_package_target_must_match_its_admitted_execution_profile() {
     TempTree::write(root.join("main.omg"), "// Build helper.\n");
     TempTree::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"build-context\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"build_context\"); }\n",
     );
     let inputs = PackageCompilationInputs::new_package(
         identity(97),
         vec![PackageSourceBinding::new(
             identity(97),
-            "build-context",
+            "build_context",
             root.clone(),
         )],
         Vec::new(),
@@ -268,7 +268,7 @@ fn generated_dependency_handoff_rejects_a_different_build_execution_profile() {
     TempTree::write(
         producer.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.package("profile-producer");
+    builder.package("profile_producer");
     let generated: BuildPath = builder.output.resolve("generated_api.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(descriptor, "pub machine generated_value() -> u64 { 17 }\n");
@@ -279,7 +279,7 @@ fn generated_dependency_handoff_rejects_a_different_build_execution_profile() {
     );
     TempTree::write(
         consumer.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.package(\"profile-consumer\");\n    builder.depend_as(\"dependency\", Source::Path { location: \"../profile-producer\" });\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.package(\"profile_consumer\");\n    builder.depend_as(\"dependency\", Source::Path { location: \"../profile-producer\" });\n}\n",
     );
     TempTree::write(
         consumer.join("main.omg"),
@@ -297,7 +297,7 @@ fn generated_dependency_handoff_rejects_a_different_build_execution_profile() {
     let producer_inputs = PackageCompilationInputs::new_package(
         identity(92),
         vec![
-            PackageSourceBinding::new(identity(92), "profile-producer", producer.clone())
+            PackageSourceBinding::new(identity(92), "profile_producer", producer.clone())
                 .with_canonical_source_metadata()
                 .unwrap(),
         ],
@@ -325,8 +325,8 @@ fn generated_dependency_handoff_rejects_a_different_build_execution_profile() {
     let inputs = PackageCompilationInputs::new_package(
         identity(91),
         vec![
-            PackageSourceBinding::new(identity(91), "profile-consumer", consumer.clone()),
-            PackageSourceBinding::new(identity(92), "profile-producer", producer.clone()),
+            PackageSourceBinding::new(identity(91), "profile_consumer", consumer.clone()),
+            PackageSourceBinding::new(identity(92), "profile_producer", producer.clone()),
         ],
         vec![PackageDependencyBinding::new(
             identity(91),
@@ -446,7 +446,7 @@ fn compiler_consumes_retained_dependency_generated_source_without_a_physical_fil
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("root-generated-consumer");
+    builder.application("root_generated_consumer");
     builder.depend_as("dependency", Source::Path { location: "../dependency-generated-producer" });
 }
 "#,
@@ -464,10 +464,10 @@ pub machine consume_generated_value() -> u64 {
         identity(1),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(identity(1), "root-generated-consumer", root.clone()),
+            PackageSourceBinding::new(identity(1), "root_generated_consumer", root.clone()),
             PackageSourceBinding::new(
                 identity(2),
-                "dependency-generated-producer",
+                "dependency_generated_producer",
                 dependency.clone(),
             ),
         ],
@@ -535,10 +535,10 @@ pub machine consume_generated_value() -> u64 {
     let package_role_inputs = PackageCompilationInputs::new_package(
         identity(1),
         vec![
-            PackageSourceBinding::new(identity(1), "root-generated-consumer", root.clone()),
+            PackageSourceBinding::new(identity(1), "root_generated_consumer", root.clone()),
             PackageSourceBinding::new(
                 identity(2),
-                "dependency-generated-producer",
+                "dependency_generated_producer",
                 dependency.clone(),
             ),
         ],
@@ -581,7 +581,7 @@ fn multi_target_generated_source_failure_is_child_local() {
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("multi-target-generated-consumer");
+    builder.application("multi_target_generated_consumer");
     builder.depend_as("dependency", Source::Path { location: "../multi-target-generated-producer" });
 }
 "#,
@@ -596,10 +596,10 @@ fn multi_target_generated_source_failure_is_child_local() {
         vec![
             PackageSourceBinding::new(
                 identity(71),
-                "multi-target-generated-consumer",
+                "multi_target_generated_consumer",
                 root.clone(),
             ),
-            PackageSourceBinding::new(identity(72), "multi-target-generated-producer", dependency),
+            PackageSourceBinding::new(identity(72), "multi_target_generated_producer", dependency),
         ],
         vec![PackageDependencyBinding::new(
             identity(71),

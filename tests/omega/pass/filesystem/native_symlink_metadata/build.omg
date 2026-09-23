@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("native-symlink-metadata");
+    builder.application("native_symlink_metadata");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -3,7 +3,7 @@
 // POSIX body into target files must keep all three POSIX selections healthy.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-wrapper-set-times-exit");
+    builder.application("windows_wrapper_set_times_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

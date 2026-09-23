@@ -25,7 +25,7 @@ requires has_outcome(Outcome::{case} {{ {case_fields} }})
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
@@ -123,7 +123,7 @@ requires hidden(Hidden { value: 1u64 })
     );
     private.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let diagnostics = compile_review_fixture(CheckedCompileRequest {
@@ -154,7 +154,7 @@ requires
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -255,7 +255,7 @@ fn review_projects_exact_zero_value_targets_in_public_contracts() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let source = |binder: &str, family: &str| {

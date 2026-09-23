@@ -1,7 +1,7 @@
 // Frontier registration for the target-scoped external leaves below.
 
 machine build(builder: &mut Build) {
-    builder.application("efi-two-table-function-leaves");
+    builder.application("efi_two_table_function_leaves");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

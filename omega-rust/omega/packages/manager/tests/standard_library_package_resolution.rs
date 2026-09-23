@@ -74,7 +74,7 @@ fn write_consumer(root: &Path, standard_library: Option<&Path>) {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.package("standard-library-consumer");
+    builder.package("standard_library_consumer");
 {dependency}}}
 "#
         ),
@@ -98,7 +98,7 @@ fn write_filesystem_consumer(root: &Path, standard_library: &Path) {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.package("filesystem-policy-consumer");
+    builder.package("filesystem_policy_consumer");
     builder.depend(Source::Path {{ location: "{}" }});
 }}
 "#,
@@ -151,7 +151,7 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
     assert_eq!(standard_library_edge.alias().as_str(), "omega_language_std");
     assert_eq!(
         standard_library_edge.target().name().as_str(),
-        "omega-language-std"
+        "omega_language_std"
     );
 
     let standard_library_custody = closure
@@ -167,7 +167,7 @@ fn real_standard_library_resolves_as_an_ordinary_exact_package() {
     let standard_library_identity = standard_library_edge.target().identity();
     assert_eq!(
         inputs.package_name(standard_library_identity),
-        Some("omega-language-std")
+        Some("omega_language_std")
     );
     assert_eq!(
         inputs.package_root(standard_library_identity),
@@ -812,7 +812,7 @@ fn assert_names_missing_standard_library_edge(messages: &[String], import: &str)
         .find(|message| message.contains(&format!("import `{import}` in ")))
         .unwrap_or_else(|| panic!("the std import must be rejected by name: {messages:#?}"));
     assert!(
-        message.contains("main.omg names package `omega-language-std` (")
+        message.contains("main.omg names package `omega_language_std` (")
             && message.contains("as `omega_language_std`"),
         "{message}"
     );
@@ -844,7 +844,7 @@ fn write_console_consumer(root: &Path, dependency: &str) {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.application("console-consumer");
+    builder.application("console_consumer");
 {dependency}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
 }}
 "#
@@ -897,7 +897,7 @@ fn check_console_consumer(
         .expect("root package graph node")
         .dependencies()
         .iter()
-        .filter(|edge| edge.target().name().as_str() == "omega-language-std")
+        .filter(|edge| edge.target().name().as_str() == "omega_language_std")
         .map(|edge| edge.alias().as_str().to_owned())
         .collect::<Vec<_>>();
     let inputs = package_compilation_inputs(&closure).expect("compiler package handoff");

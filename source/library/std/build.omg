@@ -1,4 +1,4 @@
 
 machine build(builder: &mut Build) {
-    builder.package("omega-language-std");
+    builder.package("omega_language_std");
 }

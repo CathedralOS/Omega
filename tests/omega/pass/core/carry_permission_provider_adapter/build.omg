@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("carry-permission-provider-adapter");
+    builder.application("carry_permission_provider_adapter");
     builder.accept_boundary<ClaimProvider>();
     builder.select_provider<ClaimProvider, ClaimProviderImpl>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

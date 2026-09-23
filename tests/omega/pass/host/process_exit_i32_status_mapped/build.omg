@@ -1,7 +1,7 @@
 // Deployable process-exit canary (host-presentation case): every hosted
 // target selects its entry.
 machine build(builder: &mut Build) {
-    builder.application("process-exit-i32-status-mapped");
+    builder.application("process_exit_i32_status_mapped");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

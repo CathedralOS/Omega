@@ -83,7 +83,7 @@ impl fmt::Display for BuildDeclarationError {
                 "package build machine must have exactly one parameter: `builder: &mut Build`",
             ),
             Self::UnsupportedPackageShape => formatter.write_str(
-                "package declaration must be one direct canonical `builder.package(\"kebab-name\")` statement in the root build entry",
+                "package declaration must be one direct canonical `builder.package(\"kebab_name\")` statement in the root build entry",
             ),
             Self::WrongPackageReceiver => formatter.write_str(
                 "package declaration receiver must be the root build machine's first parameter",
@@ -92,7 +92,7 @@ impl fmt::Display for BuildDeclarationError {
                 "`builder.package` must have one direct name literal and accepts no static, evidence, operational, or discard modifiers",
             ),
             Self::UnsupportedApplicationShape => formatter.write_str(
-                "application declaration must be one direct canonical `builder.application(\"kebab-name\")` statement in the root build entry",
+                "application declaration must be one direct canonical `builder.application(\"kebab_name\")` statement in the root build entry",
             ),
             Self::WrongApplicationReceiver => formatter.write_str(
                 "application declaration receiver must be the root build machine's first parameter",
@@ -131,7 +131,7 @@ impl fmt::Display for BuildDeclarationError {
                 "build must declare exactly one kind through `builder.package`, `builder.application`, or one or more `builder.member` statements",
             ),
             Self::MissingPackageDeclaration => formatter.write_str(
-                "package build must contain one direct `builder.package(\"kebab-name\")` declaration",
+                "package build must contain one direct `builder.package(\"kebab_name\")` declaration",
             ),
             Self::ExpectedPackageDeclaration { found } => write!(
                 formatter,

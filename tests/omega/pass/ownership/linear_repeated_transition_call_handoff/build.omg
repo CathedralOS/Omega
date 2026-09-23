@@ -1,7 +1,7 @@
 // Deployable repeated-call transition handoff: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("linear-repeated-transition-call-handoff");
+    builder.application("linear_repeated_transition_call_handoff");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -25,7 +25,7 @@ fn run_macos_scalar_counterparty() {
         "macos_arm64",
         "",
         r#"machine build(builder: &mut Build) {
-    builder.application("mixed-foreign-scalars");
+    builder.application("mixed_foreign_scalars");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }"#,
     );

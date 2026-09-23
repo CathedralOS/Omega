@@ -7,7 +7,7 @@
 // stays on the bundled toolchain libraries.
 
 machine build(builder: &mut Build) {
-    builder.application("secondary-processor-canary");
+    builder.application("secondary_processor_canary");
 
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

@@ -141,7 +141,7 @@ fn invalid_dependency_proof_leaves_build_and_absent_lock_unchanged() {
         let before = fixture.accepted_files();
         let output = fixture.omega(&["install", "../dependency"]);
         assert_status(&output, 1);
-        let expected = "checked compilation failed for package `arithmetic-kernels`";
+        let expected = "checked compilation failed for package `arithmetic_kernels`";
         assert!(
             String::from_utf8_lossy(&output.stderr).contains(expected),
             "{}",

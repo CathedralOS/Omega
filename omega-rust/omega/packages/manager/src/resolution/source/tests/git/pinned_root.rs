@@ -25,7 +25,7 @@ impl Fixture {
         let repository = root.join("repository");
         std::fs::create_dir_all(&repository).unwrap();
         let fixture = Self { root, repository };
-        fixture.write(role, "original-root");
+        fixture.write(role, "original_root");
         run_test_git(&fixture.repository, ["init", "--quiet"]);
         run_test_git(
             &fixture.repository,
@@ -109,7 +109,7 @@ fn root_selection_pin_retains_original_commit_and_declaration_after_branch_moves
         let original_commit = test_git_head(&fixture.repository);
         assert_eq!(original.source().commit(), original_commit);
 
-        fixture.write(role, "changed-root");
+        fixture.write(role, "changed_root");
         run_test_git(&fixture.repository, ["add", "."]);
         run_test_git(&fixture.repository, ["commit", "--quiet", "-m", "changed"]);
         let changed_commit = test_git_head(&fixture.repository);
@@ -117,7 +117,7 @@ fn root_selection_pin_retains_original_commit_and_declaration_after_branch_moves
 
         let retained = resolve(&request, Some(&pin), &storage, application).unwrap();
         assert_eq!(retained.key(), original.key());
-        assert_eq!(retained.key().name().as_str(), "original-root");
+        assert_eq!(retained.key().name().as_str(), "original_root");
         assert_eq!(retained.role(), expected_role);
         assert_eq!(retained.resolution(), original.resolution());
         assert_eq!(retained.source().commit(), original_commit);
@@ -136,7 +136,7 @@ fn root_selection_pin_retains_original_commit_and_declaration_after_branch_moves
         }
 
         let changed = resolve(&request, None, &storage, application).unwrap();
-        assert_eq!(changed.key().name().as_str(), "changed-root");
+        assert_eq!(changed.key().name().as_str(), "changed_root");
         assert_eq!(changed.source().commit(), changed_commit);
     }
 }

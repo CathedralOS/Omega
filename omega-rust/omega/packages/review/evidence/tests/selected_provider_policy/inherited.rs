@@ -2,7 +2,7 @@ use super::{Fixture, TargetProfile, fixtures, project, project_checked_package_r
 #[test]
 fn inherited_service_keeps_selecting_schema_and_declaring_requirement_owners() {
     let build = r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_provider<SelectedHost, HostProvider>();
 }
 "#;

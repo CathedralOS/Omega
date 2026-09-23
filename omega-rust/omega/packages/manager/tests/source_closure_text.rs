@@ -199,7 +199,7 @@ fn text_preserves_dependency_occurrences_aliases_lineages_roles_and_targets() {
         let same_named = windows
             .packages()
             .iter()
-            .filter(|package| package.key().name().as_str() == "same-name")
+            .filter(|package| package.key().name().as_str() == "same_name")
             .collect::<Vec<_>>();
         assert_eq!(same_named.len(), 2);
         assert_ne!(same_named[0].key(), same_named[1].key());

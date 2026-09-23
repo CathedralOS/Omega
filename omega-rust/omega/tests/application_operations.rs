@@ -46,7 +46,7 @@ impl Project {
             "build.omg",
             r#"
             machine build(builder: &mut Build) {
-                builder.application("api-app");
+                builder.application("api_app");
                 builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
                 builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
                 builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

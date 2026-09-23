@@ -122,14 +122,14 @@ mod tests {
     #[test]
     fn wrapper_preserves_package_manager_identity_types() {
         let declaration = extract_from_source(
-            r#"machine build(builder: &mut Build) { builder.package("arithmetic-kernels"); }"#,
+            r#"machine build(builder: &mut Build) { builder.package("arithmetic_kernels"); }"#,
         )
         .expect("project package");
 
         assert_eq!(
             declaration,
             BuildDeclaration::Package(PackageDeclaration {
-                name: PackageName::parse("arithmetic-kernels").unwrap(),
+                name: PackageName::parse("arithmetic_kernels").unwrap(),
             })
         );
     }
@@ -151,7 +151,7 @@ mod tests {
         assert!(
             extract_from_source(
                 r#"machine build(builder: &mut Build) {
-                    builder.application("service-backed-app");
+                    builder.application("service_backed_app");
                 }"#,
             )
             .is_ok()

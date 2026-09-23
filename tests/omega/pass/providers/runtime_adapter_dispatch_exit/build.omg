@@ -2,7 +2,7 @@
 // entry while the authored provider choice remains target-independent.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-adapter-dispatch-exit");
+    builder.application("runtime_adapter_dispatch_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.select_provider<Echo, EchoProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

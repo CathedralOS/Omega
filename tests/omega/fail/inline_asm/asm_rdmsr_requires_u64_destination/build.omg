@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-rdmsr-requires-u64-destination");
+    builder.application("asm_rdmsr_requires_u64_destination");
     builder.freestanding = true;
 }

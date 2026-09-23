@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-aarch64-cross-region-frame-indexed-rmw-compile");
+    builder.application("runtime_aarch64_cross_region_frame_indexed_rmw_compile");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
 }

@@ -64,7 +64,7 @@ pub boundary trait FilesystemHost {
 }
 "#;
     let build = r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_representation<Token, TokenRepresentation>();
 }
 "#;

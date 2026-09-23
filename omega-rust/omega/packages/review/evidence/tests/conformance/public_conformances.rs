@@ -23,7 +23,7 @@ pub WndClassWindowProcedureSlot:
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -68,7 +68,7 @@ fn public_conformance_rows_are_alpha_normalized_and_exclude_private_realizations
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let source = |binder: &str, value: i32| {
@@ -134,7 +134,7 @@ fn public_conformance_rows_alpha_normalize_lifetime_binders() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let source = |lifetime: &str| {
@@ -190,7 +190,7 @@ fn public_lifetime_conformances_project_inherited_requirement_substitutions() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let source = |first: &str, second: &str, selected: &str, body: &str| {
@@ -270,7 +270,7 @@ fn public_conformance_target_lifetimes_are_complete_alpha_normalized_identity() 
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let source = |left: &str, right: &str, selected: &str, body: &str| {
@@ -356,7 +356,7 @@ fn public_conformance_target_lifetimes_fail_closed_before_review() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let diagnostics = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -392,7 +392,7 @@ pub data Good {{ }}
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let bodyless = compile_review_fixture(CheckedCompileRequest {

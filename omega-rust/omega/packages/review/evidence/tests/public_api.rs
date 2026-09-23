@@ -25,7 +25,7 @@ fn module_constant_domain_index_enters_canonical_public_data_artifact() {
     let project = |package: &TempPackage, size: u64, argument: &str| {
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
         );
         package.write(
             "combat.omg",
@@ -132,7 +132,7 @@ fn module_constant_index_enters_canonical_public_data_artifact() {
     let project = |package: &TempPackage, combat_size: u64, argument: &str| {
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
         );
         package.write(
             "combat.omg",

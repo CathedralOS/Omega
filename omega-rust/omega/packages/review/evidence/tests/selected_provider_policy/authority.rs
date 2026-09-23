@@ -9,7 +9,7 @@ fn executed_helper_selection_replays_without_activating_dead_choices() {
         machine Left::read() -> i32 satisfies Reader::read { 11 }
         machine Right::read() -> i32 satisfies Reader::read { 37 }";
     let build = "machine build(builder: &mut Build) {
-        builder.package(\"review-fixture\"); choose(builder);
+        builder.package(\"review_fixture\"); choose(builder);
     }
     machine choose(builder: &mut Build) { builder.select_provider<Reader, Left>(); }
     machine unused(builder: &mut Build) { builder.select_provider<Reader, Right>(); }";

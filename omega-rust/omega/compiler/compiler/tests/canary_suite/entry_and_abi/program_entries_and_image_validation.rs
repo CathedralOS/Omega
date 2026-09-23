@@ -539,7 +539,7 @@ machine Main::main(&mut self) {
     // selection rather than failing module resolution.
     fs::write(
         source_dir.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"entry-free-fixture\");\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.application(\"entry_free_fixture\");\n}\n",
     )
     .expect("write entry-free build companion");
     let diagnostics = production_compile(CanaryCompileSpec {

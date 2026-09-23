@@ -107,7 +107,7 @@ fn success(output: Output) {
 }
 
 const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("completed-outputs");
+    builder.application("completed_outputs");
     SELECTION
     let scratch: BuildPath = builder.output.resolve("scratch.txt");
     let temporary: i32 = builder.output.create(scratch, 438);
@@ -290,7 +290,7 @@ fn acquired_generator_publishes_occurrence_local_files_for_artifact_and_native_p
     fs::write(generator.join("main.omg"), ACQUIRED_GENERATOR).unwrap();
     fs::write(
         generator.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"banner-generator\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"banner_generator\"); }\n",
     )
     .unwrap();
     let publication = workspace.0.join("published");

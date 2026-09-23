@@ -21,7 +21,7 @@ requires self.value <= 10
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -140,7 +140,7 @@ requires value.left == value.right
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -228,7 +228,7 @@ requires tag<View<'{selected}, u64>>() == tag<View<'{selected}, u64>>()
         &source("renamed_slot", "primary", "secondary", "primary"),
     );
     changed.write("main.omg", &source("slot", "left", "right", "right"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     for package in [&original, &renamed, &changed] {
         package.write("build.omg", build);
@@ -308,7 +308,7 @@ requires {left_receiver}.left == {right_receiver}.right
     };
     original.write("main.omg", &source("first", "second"));
     changed.write("main.omg", &source("second", "first"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     changed.write("build.omg", build);
@@ -395,7 +395,7 @@ pub proposition balanced(pair: Pair) = pair.left == pair.right;
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -472,7 +472,7 @@ pub proposition selects_computed_member(value: i32) =
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
@@ -527,7 +527,7 @@ pub proposition selects_case_member(value: i32) =
     );
     case_package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
@@ -565,7 +565,7 @@ fn review_projects_computed_nominal_member_receivers_in_checked_contracts() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let compile = |selected: &str| {
         let package = TempPackage::new();

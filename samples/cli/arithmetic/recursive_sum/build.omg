@@ -1,7 +1,7 @@
 // recursive_sum build file.
 
 machine build(builder: &mut Build) {
-    builder.application("recursive-sum");
+    builder.application("recursive_sum");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

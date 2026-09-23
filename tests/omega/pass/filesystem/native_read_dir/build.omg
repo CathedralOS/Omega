@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("native-read-dir");
+    builder.application("native_read_dir");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

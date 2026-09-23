@@ -6,7 +6,7 @@ fn module_nominals_have_distinct_canonical_rows_across_package_relocation() {
     let project = |package: &TempPackage| {
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
         );
         package.write("main.omg", "use combat; use rooms;");
         for module in ["combat", "rooms"] {
@@ -75,7 +75,7 @@ fn module_issuer_routes_retain_exact_callable_namespaces() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
     );
     package.write("main.omg", "use alpha; use bravo;");
     for (module, domain) in [("alpha", "AlphaIssued"), ("bravo", "BravoIssued")] {

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-port-in-wrong-destination-type");
+    builder.application("asm_port_in_wrong_destination_type");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

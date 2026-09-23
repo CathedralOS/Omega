@@ -1,7 +1,7 @@
 // width_mixer build sketch. Needs only stdout + process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("width-mixer");
+    builder.application("width_mixer");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

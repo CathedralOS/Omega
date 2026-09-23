@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("efi-float-literal-result-entry");
+    builder.application("efi_float_literal_result_entry");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

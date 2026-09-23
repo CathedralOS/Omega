@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("mandelbrot-zoom");
+    builder.application("mandelbrot_zoom");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -3543,7 +3543,7 @@ fn fixture_dependency_projection_rejects_an_unresolvable_authored_location() {
     fs::create_dir_all(&scratch).expect("create missing-dependency scratch project");
     fs::write(
         scratch.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"missing-dependency-fixture\");\n    builder.depend(Source::Path { location: \"does-not-exist\" });\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.application(\"missing_dependency_fixture\");\n    builder.depend(Source::Path { location: \"does-not-exist\" });\n}\n",
     )
     .expect("write missing-dependency build");
     let failure = std::panic::catch_unwind(|| fixture_path_dependencies(&scratch))
@@ -3575,7 +3575,7 @@ fn fixture_dependency_projection_keeps_the_authored_alias_and_declared_name() {
     fs::write(
         scratch.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.application(\"aliased-dependency-fixture\");\n{}}}\n",
+            "machine build(builder: &mut Build) {{\n    builder.application(\"aliased_dependency_fixture\");\n{}}}\n",
             bundled_standard_library_dependency_declaration_as("stdlib")
         ),
     )
@@ -3586,7 +3586,7 @@ fn fixture_dependency_projection_keeps_the_authored_alias_and_declared_name() {
     };
     assert_eq!(dependency.alias, "stdlib");
     assert!(dependency.explicit_alias);
-    assert_eq!(dependency.package_name, "omega-language-std");
+    assert_eq!(dependency.package_name, "omega_language_std");
     assert_eq!(
         dependency.location,
         fs::canonicalize(bundled_standard_library_root())
@@ -3717,7 +3717,7 @@ fn canonical_host_bindings_are_accepted_from_entry_binding_fields() {
     fs::write(
         scratch.join("build.omg"),
         format!(
-            "machine build(builder: &mut Build) {{\n    builder.application(\"canonical-host-acceptance\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
+            "machine build(builder: &mut Build) {{\n    builder.application(\"canonical_host_acceptance\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
             bundled_standard_library_dependency_declaration(),
         ),
     )
@@ -3793,7 +3793,7 @@ fn fail_canary(path: &str) -> PathBuf {
 fn hosted_main_program_entry_build(target: &str) -> String {
     let root_owner = hosted_program_entry_owner(target);
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted-main-program-entry\");\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"hosted_main_program_entry\");\n    builder.roots.bind({root_owner}::ProgramEntry, Main::main);\n}}\n"
     )
 }
 
@@ -3803,7 +3803,7 @@ fn hosted_main_program_entry_build(target: &str) -> String {
 /// slot unbound on purpose.
 fn entry_free_fixture_build(canary: &Path) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"entry-free-fixture\");\n{}}}\n",
+        "machine build(builder: &mut Build) {{\n    builder.application(\"entry_free_fixture\");\n{}}}\n",
         fixture_dependency_declarations(canary)
     )
 }

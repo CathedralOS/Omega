@@ -2,7 +2,7 @@
 // stdout/exit to OS calls on each hosted target.
 
 machine build(builder: &mut Build) {
-    builder.application("hex-dump");
+    builder.application("hex_dump");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

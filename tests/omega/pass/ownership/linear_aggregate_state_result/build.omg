@@ -1,7 +1,7 @@
 // Deployable aggregate state-result probe: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("linear-aggregate-state-result");
+    builder.application("linear_aggregate_state_result");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("print-squares");
+    builder.application("print_squares");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

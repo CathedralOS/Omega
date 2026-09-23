@@ -149,8 +149,8 @@ fn selected_package_refreshes_branch_and_retains_one_operation_revision() {
 
 #[test]
 fn unknown_selected_key_rejects_even_when_its_package_name_matches() {
-    let fixture = Fixture::package("known-source", "same-name", false);
-    let other = Fixture::package("unknown-source", "same-name", false);
+    let fixture = Fixture::package("known-source", "same_name", false);
+    let other = Fixture::package("unknown-source", "same_name", false);
     let accepted = fixture.subject(&fixture.request(), &fixture.storage("warm"), false);
     let other_subject = other.subject(&other.request(), &other.storage("warm"), false);
     let unknown = other_subject.root().selected().key().clone();

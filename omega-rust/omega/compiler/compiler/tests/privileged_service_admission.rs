@@ -62,14 +62,14 @@ machine Main::main(&mut self) reaches MachineControl {
 "#;
 
 const GRANTED_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("privileged-service-admission");
+    builder.application("privileged_service_admission");
     builder.privileged_services.port_io = true;
     builder.privileged_services.interrupt_table = true;
 }
 "#;
 
 const PLAIN_BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("privileged-service-admission");
+    builder.application("privileged_service_admission");
 }
 "#;
 

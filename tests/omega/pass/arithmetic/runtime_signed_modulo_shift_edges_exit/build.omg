@@ -1,7 +1,7 @@
 // Deployable arithmetic canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-signed-modulo-shift-edges-exit");
+    builder.application("runtime_signed_modulo_shift_edges_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

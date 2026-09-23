@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("insertion-sort");
+    builder.application("insertion_sort");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

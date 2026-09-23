@@ -1,7 +1,7 @@
 // Deployable local-alias mutation canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-dispatch-helper-local-alias-add-exit");
+    builder.application("runtime_dispatch_helper_local_alias_add_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

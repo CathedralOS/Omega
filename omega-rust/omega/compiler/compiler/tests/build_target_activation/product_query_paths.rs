@@ -16,14 +16,14 @@ fn queried_dependency(
     operation: &str,
 ) -> Result<CheckedQuery, Vec<diagnostics::Diagnostic>> {
     let dependency = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"query-library\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"query_library\"); }",
     );
     fs::write(dependency.0.join("Entry.omg"), root_source).expect("exact declaration source");
     fs::write(dependency.0.join("other.omg"), other_source).expect("other module source");
     let project = TempProject::with_main(
         "use support::Entry; use support::other;",
         &format!(
-            "machine build(builder: &mut Build) {{ builder.application(\"query-paths\"); {operation} }}"
+            "machine build(builder: &mut Build) {{ builder.application(\"query_paths\"); {operation} }}"
         ),
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));

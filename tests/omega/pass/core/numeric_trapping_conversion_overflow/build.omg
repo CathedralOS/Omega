@@ -1,7 +1,7 @@
 // Deployable narrowing-conversion trap: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("numeric-trapping-conversion-overflow");
+    builder.application("numeric_trapping_conversion_overflow");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

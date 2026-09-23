@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("slice-accum-probe");
+    builder.application("slice_accum_probe");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

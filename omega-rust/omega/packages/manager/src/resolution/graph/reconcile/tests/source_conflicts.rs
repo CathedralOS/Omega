@@ -28,8 +28,8 @@ fn conflicting_resolution_reports_every_requesting_path() {
         vec![request("shared-first-again")],
     );
     let conflicting_branch = custody(
-        "conflicting-branch",
-        "conflicting-branch",
+        "conflicting_branch",
+        "conflicting_branch",
         6,
         "/snapshots/conflicting-branch",
         vec![request("shared-conflicting")],
@@ -42,7 +42,7 @@ fn conflicting_resolution_reports_every_requesting_path() {
         vec![
             request("left"),
             request("right"),
-            request("conflicting-branch"),
+            request("conflicting_branch"),
         ],
     );
 
@@ -52,7 +52,7 @@ fn conflicting_resolution_reports_every_requesting_path() {
         fake_adapter(BTreeMap::from([
             ("left", left),
             ("right", right),
-            ("conflicting-branch", conflicting_branch),
+            ("conflicting_branch", conflicting_branch),
             ("shared-first", shared_first),
             (
                 "shared-first-again",
@@ -85,7 +85,7 @@ fn conflicting_resolution_reports_every_requesting_path() {
         .collect();
     assert_eq!(
         first_hops,
-        BTreeSet::from(["conflicting-branch", "left", "right"])
+        BTreeSet::from(["conflicting_branch", "left", "right"])
     );
 }
 

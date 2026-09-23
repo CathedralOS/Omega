@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("binary-search-viz");
+    builder.application("binary_search_viz");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

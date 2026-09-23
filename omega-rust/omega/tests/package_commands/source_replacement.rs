@@ -37,7 +37,7 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "arithmetic-kernels")
+        .find(|package| package.key().name().as_str() == "arithmetic_kernels")
         .unwrap();
     assert_eq!(original_target.source().packages().len(), 2);
     let ImmutableSourceResolution::Git { commit, .. } = original.resolution() else {
@@ -49,7 +49,7 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
     // The workspace member declares the same name; its folder is not identity.
     let replacement_build = format!(
         r#"machine build(builder: &mut Build) {{
-    builder.package("cli-project");
+    builder.package("cli_project");
     builder.depend(Source::Git {{
         repository: "{REPLACEMENT_REPOSITORY}",
         revision: "{REPLACEMENT}",
@@ -135,7 +135,7 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "arithmetic-kernels")
+        .find(|package| package.key().name().as_str() == "arithmetic_kernels")
         .unwrap();
     assert_eq!(replacement.key().name(), original.key().name());
     assert_ne!(replacement.key(), original.key());
@@ -175,7 +175,7 @@ fn pinned_ssh_same_name_and_api_do_not_bypass_source_replacement_review() {
     assert_eq!(revision, REPLACEMENT);
     assert!(explicit_alias.is_none());
     assert!(
-        matches!(selection, PackageSelection::Named(name) if name.as_str() == "arithmetic-kernels")
+        matches!(selection, PackageSelection::Named(name) if name.as_str() == "arithmetic_kernels")
     );
 
     let previous_policy = original_reviews.review(original.key()).unwrap().policy();

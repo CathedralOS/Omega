@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("kernel-integer-discreteness-false-twin");
+    builder.application("kernel_integer_discreteness_false_twin");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("matrix-multiply");
+    builder.application("matrix_multiply");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

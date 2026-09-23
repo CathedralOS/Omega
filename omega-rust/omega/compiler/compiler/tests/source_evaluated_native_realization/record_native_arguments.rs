@@ -74,7 +74,7 @@ machine Main::main(&mut self) reaches Aggregate {
 }
 "#,
         r#"machine build(builder: &mut Build) {
-    builder.application("record-foreign-arguments");
+    builder.application("record_foreign_arguments");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,

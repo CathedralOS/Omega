@@ -1,7 +1,7 @@
 // nested_counters build file.
 
 machine build(builder: &mut Build) {
-    builder.application("nested-counters");
+    builder.application("nested_counters");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

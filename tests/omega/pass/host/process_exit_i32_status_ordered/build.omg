@@ -3,7 +3,7 @@
 // sibling `process_exit_i32_status` fixture; this source exercises ordered
 // output beside the canonical exit in the checked interpreter.
 machine build(builder: &mut Build) {
-    builder.application("process-exit-i32-status-ordered");
+    builder.application("process_exit_i32_status_ordered");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

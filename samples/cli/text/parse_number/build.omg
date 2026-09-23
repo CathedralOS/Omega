@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("parse-number");
+    builder.application("parse_number");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

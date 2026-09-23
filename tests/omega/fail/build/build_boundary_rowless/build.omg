@@ -20,6 +20,6 @@ machine build(builder: &mut Build)
 reaches
     Console
 {
-    builder.application("build-boundary-rowless");
+    builder.application("build_boundary_rowless");
     configure_log(builder);
 }

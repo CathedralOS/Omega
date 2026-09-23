@@ -29,10 +29,10 @@ fn selected_profile_changes_identity_even_when_the_source_graph_does_not() {
     let sources = temp_root("profile-identity-sources");
     let cache = temp_root("profile-identity-cache");
     let root = sources.join("root");
-    write_package(&root, "profile-identity-root", Some("../dependency"));
+    write_package(&root, "profile_identity_root", Some("../dependency"));
     write_package(
         &sources.join("dependency"),
-        "profile-independent-dependency",
+        "profile_independent_dependency",
         None,
     );
 

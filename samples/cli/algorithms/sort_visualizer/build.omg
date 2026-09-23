@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("sort-visualizer");
+    builder.application("sort_visualizer");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

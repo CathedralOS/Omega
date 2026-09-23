@@ -1,7 +1,7 @@
 // value_call_in_expr build file.
 
 machine build(builder: &mut Build) {
-    builder.application("value-call-in-expr");
+    builder.application("value_call_in_expr");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

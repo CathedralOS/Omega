@@ -90,7 +90,7 @@ fn offline_unrecorded_git_fails_through_every_supported_command_without_transpor
     assert_status(&output, 1);
     assert!(String::from_utf8_lossy(&output.stderr).contains("offline resolution"));
     assert_eq!(fixture.accepted_files(), before);
-    fixture.write("root/build.omg", &format!("machine build(builder: &mut Build) {{ builder.package(\"cli-project\"); builder.depend(Source::Git {{ repository: \"{locator}\", revision: \"HEAD\" }}); }}\n"));
+    fixture.write("root/build.omg", &format!("machine build(builder: &mut Build) {{ builder.package(\"cli_project\"); builder.depend(Source::Git {{ repository: \"{locator}\", revision: \"HEAD\" }}); }}\n"));
     let before = fixture.accepted_files();
     for arguments in [
         vec!["--check", "--offline", "main.omg"],

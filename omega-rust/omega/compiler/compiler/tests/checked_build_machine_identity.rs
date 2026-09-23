@@ -63,7 +63,7 @@ fn present_build_machine_retains_its_exact_checked_symbol() {
     project.write("main.omg", "const ANSWER: u32 = 42;\n");
     project.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.application(\"checked-build-symbol\"); }\n",
+        "machine build(builder: &mut Build) { builder.application(\"checked_build_symbol\"); }\n",
     );
 
     let checked = compile_to_checked(CheckedCompileRequest::new(&project.main(), None))
@@ -89,7 +89,7 @@ fn free_build_root_composes_an_ordinary_free_helper_contract() {
 }
 
 machine build(builder: &mut Build) {
-    builder.application("free-helper-composition");
+    builder.application("free_helper_composition");
     configure(builder);
 }
 "#,
@@ -150,7 +150,7 @@ fn imported_file_named_build_is_not_a_project_build_root() {
     );
     project.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.application(\"imported-build-source\"); }\n",
+        "machine build(builder: &mut Build) { builder.application(\"imported_build_source\"); }\n",
     );
     project.write(
         "nested/build.omg",
@@ -182,7 +182,7 @@ fn exact_build_source_receives_toolchain_build_while_program_build_remains_ordin
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("source-scoped-build-vocabulary");
+    builder.application("source_scoped_build_vocabulary");
 }
 
 "#,
@@ -270,7 +270,7 @@ fn source_scoped_toolchain_binding_does_not_hide_ordinary_duplicates() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("duplicate-program-builds");
+    builder.application("duplicate_program_builds");
 }
 "#,
     );
@@ -294,7 +294,7 @@ fn package_aware_checked_compilation_retains_the_reconciled_root_identity() {
         root_identity,
         vec![PackageSourceBinding::new(
             root_identity,
-            "checked-build-identity",
+            "checked_build_identity",
             project.root().to_owned(),
         )],
         Vec::new(),
@@ -318,7 +318,7 @@ fn a_scoped_build_cannot_compete_with_the_free_selected_entry() {
     project.write(
         "build.omg",
         r#"data Helper { }
-machine build(builder: &mut Build) { builder.application("free-build-wins"); }
+machine build(builder: &mut Build) { builder.application("free_build_wins"); }
 machine Helper::build(&mut self, builder: &mut Build) { }
 "#,
     );

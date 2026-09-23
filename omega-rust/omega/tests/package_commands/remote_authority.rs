@@ -359,7 +359,7 @@ fn assert_locked_authority(fixture: &Fixture, name: &str, pin: &str, service: &s
     let host = source
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "host-services")
+        .find(|package| package.key().name().as_str() == "host_services")
         .unwrap();
     for (package, expected) in [(consumer, pin), (host, HOST)] {
         let ImmutableSourceResolution::Git { commit, .. } = package.resolution() else {

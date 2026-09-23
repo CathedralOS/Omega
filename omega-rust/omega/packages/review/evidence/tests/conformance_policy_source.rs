@@ -16,14 +16,14 @@ fn compile_source(source: &str, digest: u8) -> (TempPackage, ReviewFixture) {
     package.write("main.omg", source);
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let identity = PackageKeyIdentity::from_digest([digest; 32]).unwrap();
     let inputs = PackageCompilationInputs::new_package(
         identity,
         vec![PackageSourceBinding::new(
             identity,
-            "review-fixture",
+            "review_fixture",
             package.0.clone(),
         )],
         Vec::new(),

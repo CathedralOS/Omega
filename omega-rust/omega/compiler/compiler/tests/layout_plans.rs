@@ -54,7 +54,7 @@ fn package_inputs_for_source(source: &Path, digest_byte: u8) -> PackageCompilati
         package,
         vec![PackageSourceBinding::new(
             package,
-            "layout-plan-canary",
+            "layout_plan_canary",
             source.parent().expect("source parent").to_owned(),
         )],
         Vec::new(),

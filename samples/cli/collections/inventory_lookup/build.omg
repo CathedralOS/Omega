@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("inventory-lookup");
+    builder.application("inventory_lookup");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

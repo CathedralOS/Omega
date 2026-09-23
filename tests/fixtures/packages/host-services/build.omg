@@ -1,4 +1,4 @@
 
 machine build(builder: &mut Build) {
-    builder.package("host-services");
+    builder.package("host_services");
 }

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("guarded-value-call-terminal-compile");
+    builder.application("guarded_value_call_terminal_compile");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("tic-tac-toe");
+    builder.application("tic_tac_toe");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

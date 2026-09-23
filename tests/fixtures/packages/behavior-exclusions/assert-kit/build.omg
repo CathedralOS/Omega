@@ -4,6 +4,6 @@
 // implementation by default; an application selects the one it composes.
 
 machine build(builder: &mut Build) {
-    builder.package("assert-kit");
+    builder.package("assert_kit");
     builder.select_provider<Assert, NoOpAssert>();
 }

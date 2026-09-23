@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-port-out-final-validation");
+    builder.application("asm_port_out_final_validation");
     builder.freestanding = true;
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

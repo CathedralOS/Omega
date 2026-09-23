@@ -1,7 +1,7 @@
 // Structural pin for every target implementation of the lock wrapper family.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-wrapper-lock-exit");
+    builder.application("windows_wrapper_lock_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

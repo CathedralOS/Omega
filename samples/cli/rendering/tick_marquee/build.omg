@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("tick-marquee");
+    builder.application("tick_marquee");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

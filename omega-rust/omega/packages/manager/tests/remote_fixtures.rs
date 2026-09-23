@@ -90,12 +90,13 @@ fn temp_root(name: &str) -> PathBuf {
 }
 
 #[test]
-fn remote_fixture_pins_are_exact_and_match_local_package_names() {
+fn remote_fixture_pins_are_exact_and_local_names_follow_current_spelling() {
     let pins = remote_pins();
     assert_eq!(pins.len(), 12);
     let mut packages = BTreeSet::new();
     for pin in &pins {
-        PackageName::parse(&pin.package).expect("remote fixture package names must be kebab-case");
+        let local_name = pin.package.replace('-', "_");
+        PackageName::parse(&local_name).expect("local fixture package names must be snake_case");
         assert!(pin.https_url.ends_with(&format!("/{}", pin.package)));
         assert_eq!(
             SourceLineage::git(&ssh_url(pin)).expect("SSH fixture locator must define lineage"),
@@ -110,7 +111,7 @@ fn remote_fixture_pins_are_exact_and_match_local_package_names() {
         assert!(local_package_root(&pin.package).join("main.omg").is_file());
         let declared = extract_package_declaration(local_package_root(&pin.package))
             .expect("local fixture must declare its package identity");
-        assert_eq!(declared.name.as_str(), pin.package);
+        assert_eq!(declared.name.as_str(), local_name);
         assert!(packages.insert(pin.package.clone()));
     }
 }
@@ -141,7 +142,7 @@ fn remote_builds_pin_recorded_dependencies_without_sibling_paths() {
                 .unwrap()
                 .name
                 .as_str(),
-            name
+            name.replace('-', "_")
         );
         let requests = extract_dependency_projection(&expected).unwrap();
         assert_eq!(requests.len(), dependencies.len());

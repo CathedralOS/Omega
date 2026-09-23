@@ -158,7 +158,7 @@ fn requester_local_aliases_may_name_different_targets() {
         .map(|marker| {
             PackageSourceBinding::new(
                 identity(marker),
-                format!("package-{marker}"),
+                format!("package_{marker}"),
                 tree.package(&marker.to_string()),
             )
         })
@@ -182,7 +182,7 @@ fn requester_local_aliases_may_name_different_targets() {
         inputs.dependency_target(identity(2), "shared"),
         Some(identity(3))
     );
-    assert_eq!(inputs.package_name(identity(1)), Some("package-1"));
+    assert_eq!(inputs.package_name(identity(1)), Some("package_1"));
     assert!(inputs.allows_declaration_selection(identity(1), identity(1)));
     assert!(inputs.allows_declaration_selection(identity(1), identity(2)));
     assert!(!inputs.allows_declaration_selection(identity(1), identity(3)));
@@ -190,7 +190,7 @@ fn requester_local_aliases_may_name_different_targets() {
     assert!(
         inputs
             .package_label(identity(1))
-            .starts_with("`package-1` (")
+            .starts_with("`package_1` (")
     );
 }
 
@@ -201,7 +201,7 @@ fn noncanonical_package_names_reject_at_compiler_handoff() {
         identity(1),
         vec![PackageSourceBinding::new(
             identity(1),
-            "not_canonical",
+            "NotCanonical",
             tree.package("root"),
         )],
         Vec::new(),
@@ -211,7 +211,7 @@ fn noncanonical_package_names_reject_at_compiler_handoff() {
     assert!(errors.iter().any(|error| matches!(
         error,
         PackageCompilationInputError::InvalidPackageName { identity: found, name }
-            if *found == identity(1) && name == "not_canonical"
+            if *found == identity(1) && name == "NotCanonical"
     )));
 }
 
@@ -325,7 +325,7 @@ fn ancestor_root_validation_preserves_every_overlap_in_pairwise_order() {
         roots.insert(path.canonicalize().unwrap(), package);
         packages.push(PackageSourceBinding::new(
             package,
-            format!("package-{position}"),
+            format!("package_{position}"),
             path,
         ));
         if position > 0 {
@@ -621,7 +621,7 @@ fn diamond_consumers_share_the_leaf_bundle_without_sharing_admission() {
         .map(|marker| {
             PackageSourceBinding::new(
                 identity(marker),
-                format!("package-{marker}"),
+                format!("package_{marker}"),
                 tree.package(&marker.to_string()),
             )
         })

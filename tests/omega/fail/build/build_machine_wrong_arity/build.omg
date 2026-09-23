@@ -1,4 +1,4 @@
 machine build(builder: &mut Build, extra: i32) {
-    builder.application("build-machine-wrong-arity");
+    builder.application("build_machine_wrong_arity");
     builder.freestanding = false;
 }

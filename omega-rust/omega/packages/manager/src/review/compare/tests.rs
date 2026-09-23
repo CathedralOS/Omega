@@ -164,8 +164,8 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
     let root = parent.join("root");
     let dependency = parent.join("dependency");
     let cache = temp_root("cache");
-    write_package(&dependency, "closure-dependency", None);
-    write_package(&root, "closure-root", Some("../dependency"));
+    write_package(&dependency, "closure_dependency", None);
+    write_package(&root, "closure_root", Some("../dependency"));
     let closure = resolve_external_local_package_closure_from_hardened_base(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-review-evidence"),
@@ -194,7 +194,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
     reviews.sort_by(|left, right| left.key.cmp(&right.key));
     let dependency_index = reviews
         .iter()
-        .position(|review| review.key.name().as_str() == "closure-dependency")
+        .position(|review| review.key.name().as_str() == "closure_dependency")
         .expect("dependency review");
     let baseline = commitment(&closure, &reviews);
 
@@ -226,7 +226,7 @@ fn candidate_closure_binds_review_evidence_from_every_package() {
 fn candidate_closure_binds_the_selected_target_profile() {
     let root = temp_root("target-profile");
     let cache = temp_root("target-profile-cache");
-    write_package(&root, "profile-probe", None);
+    write_package(&root, "profile_probe", None);
     let closure = resolve_external_local_package_closure_from_hardened_base(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-target-profile"),
@@ -269,7 +269,7 @@ fn candidate_closure_binds_the_selected_target_profile() {
 fn candidate_closure_binds_the_exact_root_role() {
     let root = temp_root("root-role");
     let cache = temp_root("root-role-cache");
-    write_package(&root, "role-probe", None);
+    write_package(&root, "role_probe", None);
     let closure = resolve_external_local_package_closure_from_hardened_base(
         &root,
         ExternalSourceContext::derive(b"candidate-closure-root-role"),
@@ -322,13 +322,13 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
     let baseline_root = parent.join("baseline").join("root");
     let dep = parent.join("dep");
     let candidate_root = parent.join("candidate").join("root");
-    write_package(&dep, "occurrence-dep", None);
+    write_package(&dep, "occurrence_dep", None);
     std::fs::create_dir_all(&baseline_root).expect("create baseline root");
     std::fs::write(
         baseline_root.join("build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            "    builder.package(\"baseline-root\");\n",
+            "    builder.package(\"baseline_root\");\n",
             "    builder.depend(Source::Path { location: \"../../dep\" });\n",
             "}\n"
         ),
@@ -344,7 +344,7 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
         candidate_root.join("build.omg"),
         concat!(
             "machine build(builder: &mut Build) {\n",
-            "    builder.package(\"candidate-root\");\n",
+            "    builder.package(\"candidate_root\");\n",
             "    builder.build_depend_as(\"dep_build\", Source::Path { location: \"../../dep\" });\n",
             "}\n"
         ),
@@ -434,7 +434,7 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
     let stable_dep = stable
         .packages()
         .iter()
-        .find(|change| change.key().name().as_str() == "occurrence-dep")
+        .find(|change| change.key().name().as_str() == "occurrence_dep")
         .expect("dep change row");
     assert_eq!(
         stable_dep.baseline_occurrence_contexts(),
@@ -538,7 +538,7 @@ fn package_changes_join_both_sides_to_the_occurrence_roster() {
     let dep_change = changes
         .packages()
         .iter()
-        .find(|change| change.key().name().as_str() == "occurrence-dep")
+        .find(|change| change.key().name().as_str() == "occurrence_dep")
         .expect("dep still shares custody");
     assert_eq!(
         dep_change.baseline_occurrence_contexts(),

@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn translates_exact_keys_roots_and_requester_local_aliases() {
         let roots = temp_root("valid");
-        let dependency = custody("arithmetic-kernels", 2, roots.join("dependency"), vec![]);
+        let dependency = custody("arithmetic_kernels", 2, roots.join("dependency"), vec![]);
         let dependency_key = dependency.key().clone();
         let root = custody(
             "application",
@@ -349,7 +349,7 @@ mod tests {
         );
         assert_eq!(
             inputs.package_name(dependency_key.identity()),
-            Some("arithmetic-kernels")
+            Some("arithmetic_kernels")
         );
         assert_eq!(
             inputs.package_root(dependency_key.identity()),
@@ -556,13 +556,13 @@ mod tests {
             location: "shared".to_owned(),
         };
         let first = custody(
-            "arithmetic-kernels",
+            "arithmetic_kernels",
             2,
             roots.join("first"),
             vec![shared_request.clone()],
         );
         let second = custody(
-            "capability-vault",
+            "capability_vault",
             3,
             roots.join("second"),
             vec![shared_request],
@@ -641,8 +641,8 @@ mod tests {
     #[test]
     fn build_purpose_edges_do_not_become_product_import_bindings() {
         let roots = temp_root("build-scope");
-        let product = custody("product-lib", 2, roots.join("product"), Vec::new());
-        let host = custody("host-tool", 3, roots.join("host"), Vec::new());
+        let product = custody("product_lib", 2, roots.join("product"), Vec::new());
+        let host = custody("host_tool", 3, roots.join("host"), Vec::new());
         let host_key = host.key().clone();
         let root = custody_with_scopes(
             "application",

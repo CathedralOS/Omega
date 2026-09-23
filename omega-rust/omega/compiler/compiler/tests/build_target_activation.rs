@@ -77,7 +77,7 @@ fn exact_target_build(body: &str) -> String {
 
 fn application_build(body: &str) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"target-activation\");\n{body}\n}}\n"
+        "machine build(builder: &mut Build) {{\n    builder.application(\"target_activation\");\n{body}\n}}\n"
     )
 }
 
@@ -128,12 +128,12 @@ fn foreign_helper_inputs(project: &TempProject, helper: &TempProject) -> Package
         vec![
             PackageSourceBinding::new(
                 fixture_package_identity(1),
-                "root-binding-owner",
+                "root_binding_owner",
                 project.0.clone(),
             ),
             PackageSourceBinding::new(
                 fixture_package_identity(2),
-                "root-binding-helper",
+                "root_binding_helper",
                 helper.0.clone(),
             ),
         ],
@@ -159,12 +159,12 @@ fn foreign_product_inputs(project: &TempProject, helper: &TempProject) -> Packag
         vec![
             PackageSourceBinding::new(
                 fixture_package_identity(1),
-                "root-binding-owner",
+                "root_binding_owner",
                 project.0.clone(),
             ),
             PackageSourceBinding::new(
                 fixture_package_identity(2),
-                "root-binding-helper",
+                "root_binding_helper",
                 helper.0.clone(),
             ),
         ],

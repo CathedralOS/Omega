@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("modular-exponentiation");
+    builder.application("modular_exponentiation");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

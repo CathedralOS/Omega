@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("pixel-canvas");
+    builder.application("pixel_canvas");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -1,7 +1,7 @@
 // unit_converter build sketch.  Needs only process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("unit-converter");
+    builder.application("unit_converter");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -3,6 +3,6 @@
 // allowance (wiki/spec/build/behavior_exclusions.md, Console rows).
 
 machine build(builder: &mut Build) {
-    builder.package("logger-kit");
+    builder.package("logger_kit");
     builder.select_provider<Sink, QuietSink>();
 }

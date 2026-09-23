@@ -1,7 +1,7 @@
 // array_index_from_call build file.
 
 machine build(builder: &mut Build) {
-    builder.application("array-index-from-call");
+    builder.application("array_index_from_call");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -29,7 +29,7 @@ fn compile_generated_invocation(
         "build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.package("generated-invocations");
+    builder.package("generated_invocations");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(descriptor, "{escaped}");

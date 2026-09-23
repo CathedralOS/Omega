@@ -32,7 +32,7 @@ fn pinned_ssh_transitive_private_helper_change_updates_fresh_audit_without_conse
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "capability-vault")
+        .find(|package| package.key().name().as_str() == "capability_vault")
         .unwrap();
     let original_reviews = fixture.fresh_reviews(TARGET);
     let old_policy = original_reviews.review(leaf.key()).unwrap().policy();

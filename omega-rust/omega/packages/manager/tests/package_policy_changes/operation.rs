@@ -173,7 +173,7 @@ fn updates_use_retained_baselines_after_old_sources_disappear() {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "removed-package")
+        .find(|package| package.key().name().as_str() == "removed_package")
         .unwrap()
         .key()
         .clone();

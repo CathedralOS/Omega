@@ -2,7 +2,7 @@
 //! declares, the package, application and workspace forms it takes, and the
 //! validated names and member paths inside them.
 
-use crate::syntax_projection::{is_kebab_case, is_portable_path_byte};
+use crate::syntax_projection::{is_portable_path_byte, is_snake_case};
 use std::fmt;
 
 pub const BUILD_FILE_NAME: &str = "build.omg";
@@ -27,7 +27,7 @@ pub struct ProjectName(String);
 impl ProjectName {
     /// Validate a borrowed spelling without constructing an owned diagnostic.
     pub fn is_valid(value: &str) -> bool {
-        is_kebab_case(value)
+        is_snake_case(value)
     }
 
     pub fn parse(value: impl Into<String>) -> Result<Self, String> {
@@ -36,7 +36,7 @@ impl ProjectName {
             Ok(Self(value))
         } else {
             Err(format!(
-                "package identity `{value}` must start with a lowercase letter and use kebab-case lowercase words"
+                "package identity `{value}` must start with a lowercase letter and use snake_case lowercase words"
             ))
         }
     }

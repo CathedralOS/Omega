@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-popfq-requires-saved-place");
+    builder.application("asm_popfq_requires_saved_place");
     builder.freestanding = true;
 }

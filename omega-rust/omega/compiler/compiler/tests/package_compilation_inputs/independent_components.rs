@@ -258,7 +258,7 @@ fn write_consuming_root_unselected(directory: &Path, target_name: &str) {
         directory.join("build.omg"),
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("independent-consumer");
+    builder.application("independent_consumer");
     builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
     builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
@@ -281,7 +281,7 @@ fn write_consuming_root_selecting(
         directory.join("build.omg"),
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("independent-consumer");
+    builder.application("independent_consumer");
     builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
     builder.select_provider<dep::Pick, dep::PickProvider>(CompositionMode::{composition_mode});
 {extra_build}    builder.roots.bind({target_name}::ProgramEntry, Main::main);
@@ -984,7 +984,7 @@ fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
         other_directory.join("build.omg"),
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.package("other-component");
+    builder.package("other_component");
     builder.select_provider<Other, OtherProvider>(CompositionMode::Fused);
     builder.roots.bind({target_name}::ProgramEntry, OtherEntry::main);
 }}
@@ -999,7 +999,7 @@ fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
         fixture.root.join("build.omg"),
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("independent-consumer");
+    builder.application("independent_consumer");
     builder.depend_as("dep", Source::Path {{ location: "../pick-component" }});
     builder.depend_as("dep2", Source::Path {{ location: "../other-component" }});
     builder.select_provider<dep::Pick, dep::PickProvider>(CompositionMode::Independent);
@@ -1025,7 +1025,7 @@ fn a_description_for_one_dependency_cannot_realize_anothers_selection() {
             ),
             PackageSourceBinding::new(
                 identity(OTHER_PACKAGE_MARKER),
-                "other-component",
+                "other_component",
                 other_directory,
             ),
         ],

@@ -123,7 +123,7 @@ fn build_runtime_float_semantics_twins_agree() {
         format!(
             "\
              machine build(builder: &mut Build) {{\n\
-                 builder.application(\"float-semantic-edge-twins\");\n\
+                 builder.application(\"float_semantic_edge_twins\");\n\
              {dependencies}\
                  builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
              }}\n"
@@ -203,7 +203,7 @@ fn linux_arm64_float_semantic_edge_twin_retains_artifact_evidence() {
         format!(
             "\
              machine build(builder: &mut Build) {{\n\
-                 builder.application(\"linux-arm64-float-semantic-edge-twin\");\n\
+                 builder.application(\"linux_arm64_float_semantic_edge_twin\");\n\
              {dependencies}\
                  builder.roots.bind(linux_arm64::ProgramEntry, Main::main);\n\
              }}\n"

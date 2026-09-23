@@ -15,7 +15,7 @@ fn filesystem_build_checks_product_entry_signature_before_issuing_description() 
         let project = Project::new(label);
         project.write("main.omg", source);
         project.write("build.omg", r#"machine build(builder: &mut Build) {
-    builder.application("entry-query");
+    builder.application("entry_query");
     let artifact: BuildPath = builder.output.resolve("marker.txt");
     let descriptor: i32 = builder.output.create(artifact, 438);
     let written: i64 = builder.output.write(descriptor, "queried");
@@ -63,7 +63,7 @@ fn admitted_build_checkpoint_retains_configuration_and_execution_evidence() {
         "build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("build-facet-generated-source");
+    builder.application("build_facet_generated_source");
     builder.subsystem = Subsystem::Gui;
     let input: BuildPath = builder.source.resolve("input.txt");
     let input_descriptor: i32 = builder.source.open(input, 0);
@@ -406,7 +406,7 @@ fn build_snapshot_binds_captured_source_reads_and_linear_output_completion() {
     let banner = b"HELLO {{name}}\n";
     std::fs::write(templates.join("banner.tmpl"), banner).expect("write template");
     let build_source = r#"machine build(builder: &mut Build) {
-    builder.application("build-snapshot-outputs");
+    builder.application("build_snapshot_outputs");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let template_descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 7];
@@ -474,7 +474,7 @@ fn build_snapshot_rejects_an_omitted_required_output() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-snapshot-omitted");
+    builder.application("build_snapshot_omitted");
     let artifact: BuildPath = builder.output.resolve("artifact.txt");
     let output_descriptor: i32 = builder.output.create(artifact, 438);
     let written: i64 = builder.output.write(output_descriptor, "partial\n");

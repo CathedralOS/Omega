@@ -56,7 +56,7 @@ machine Main::main(&mut self) {}
         fs::write(
             root.join("build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("terminal-import-custody");
+    builder.application("terminal_import_custody");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -307,7 +307,7 @@ machine Main::main(&mut self) reaches Leaf {{
         fs::write(
             root.join("build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("called-leaf");
+    builder.application("called_leaf");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,

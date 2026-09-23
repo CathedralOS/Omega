@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("uefi-os-handoff-invocation");
+    builder.application("uefi_os_handoff_invocation");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;

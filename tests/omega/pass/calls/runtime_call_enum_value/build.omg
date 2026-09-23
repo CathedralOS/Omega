@@ -1,7 +1,7 @@
 // Deployable call canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-call-enum-value");
+    builder.application("runtime_call_enum_value");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

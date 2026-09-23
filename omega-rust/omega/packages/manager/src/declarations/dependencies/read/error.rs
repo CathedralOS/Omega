@@ -132,7 +132,7 @@ impl fmt::Display for DependencyProjectionError {
             ),
             Self::InvalidSelectedPackage { package } => write!(
                 formatter,
-                "selected package `{package}` must use canonical kebab-case spelling"
+                "selected package `{package}` must use canonical snake_case spelling"
             ),
         }
     }

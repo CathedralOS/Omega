@@ -55,7 +55,7 @@ fn local_fixtures_issue_compiler_review_evidence_from_resolver_custody() {
                 .review(node.source().key())
                 .expect("every resolved graph package receives compiler review material");
             let executes_filesystem_build =
-                node.source().key().name().as_str() == "generated-table";
+                node.source().key().name().as_str() == "generated_table";
             assert_eq!(issued.resolution(), custody.resolution());
             let usage = issued
                 .build_evaluation_usage()

@@ -88,6 +88,49 @@ fn timings_are_opt_in_stderr_output_without_debug_files() {
     std::fs::remove_dir_all(project).unwrap();
 }
 
+#[test]
+fn canonical_package_names_keep_default_and_explicit_aliases() {
+    let workspace = temp_path("canonical-package-aliases");
+    let dependency = workspace.join("different-directory");
+    let project = workspace.join("consumer");
+    std::fs::create_dir_all(&dependency).unwrap();
+    std::fs::create_dir_all(&project).unwrap();
+    std::fs::write(
+        dependency.join("build.omg"),
+        "machine build(builder: &mut Build) { builder.package(\"arithmetic_kernels\"); }",
+    )
+    .unwrap();
+    std::fs::write(dependency.join("main.omg"), "pub const VALUE: u64 = 7;").unwrap();
+    for (alias, declaration) in [
+        (
+            "arithmetic_kernels",
+            "builder.depend(Source::Path { location: \"../different-directory\" });",
+        ),
+        (
+            "renamed_math",
+            "builder.depend_as(\"renamed_math\", Source::Path { location: \"../different-directory\" });",
+        ),
+    ] {
+        std::fs::write(project.join("build.omg"), format!(
+            "machine build(builder: &mut Build) {{ builder.application(\"alias_customer\"); {declaration} }}",
+        )).unwrap();
+        std::fs::write(
+            project.join("main.omg"),
+            format!("use {alias}::main; machine main() -> u64 {{ VALUE }}",),
+        )
+        .unwrap();
+        let mut arguments = vec!["--check", "main.omg"];
+        arguments.extend(declared_target_when_host_is_unprofiled());
+        let output = omega_in(&project, &arguments);
+        assert!(
+            output.status.success(),
+            "alias {alias}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    std::fs::remove_dir_all(workspace).unwrap();
+}
+
 /// A check produces no product, so nothing may appear beside the root: neither
 /// the default `build/` nor an explicit `--build-dir`. The package review and
 /// build evaluation a check performs stage into a private temporary workspace
@@ -99,7 +142,7 @@ fn check_leaves_no_directory_beside_the_root() {
         (
             "packaged",
             Some(
-                "machine build(builder: &mut Build) { builder.application(\"check-leaves-nothing\"); }\n",
+                "machine build(builder: &mut Build) { builder.application(\"check_leaves_nothing\"); }\n",
             ),
         ),
     ] {
@@ -166,7 +209,7 @@ fn unprofiled_host_reports_targetless_invocations_without_panicking() {
         .expect("write unprofiled-host entry");
     std::fs::write(
         project.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.application(\"unprofiled-host\"); }\n",
+        "machine build(builder: &mut Build) { builder.application(\"unprofiled_host\"); }\n",
     )
     .expect("write unprofiled-host build declaration");
     let assert_reported = |output: &Output, invocation: &str, code: i32| {
@@ -292,7 +335,7 @@ fn dependency_free_build_project_still_enters_reconciled_source_custody() {
     std::fs::create_dir(&project).expect("create dependency-free project");
     std::fs::write(
         project.join("build.omg"),
-        b"machine build(builder: &mut Build) { builder.application(\"zero-dependency\"); }\n",
+        b"machine build(builder: &mut Build) { builder.application(\"zero_dependency\"); }\n",
     )
     .expect("write project build root");
     std::fs::write(project.join("main.omg"), b"machine main() {}\n").expect("write project entry");
@@ -396,7 +439,7 @@ fn accepted_claim_application() -> PathBuf {
         project.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("accepted-claim-app");
+    builder.application("accepted_claim_app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

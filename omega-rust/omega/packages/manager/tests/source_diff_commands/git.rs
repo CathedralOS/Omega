@@ -222,7 +222,7 @@ fn update_selects_a_build_scope_alias_and_retargets_its_git_row() {
                 "root/build.omg",
                 &format!(
                     "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.build_depend_as(\"host\", {});\n}}\n",
-                    git_source("exact-math", "HEAD"),
+                    git_source("exact_math", "HEAD"),
                 ),
             );
             assert_eq!(
@@ -315,7 +315,7 @@ fn update_to_retargets_both_scope_rows_of_a_dual_purpose_package() {
             // authorized rows. The single source pin cannot split, so `--to`
             // rewrites each scope's row rather than leaving a divergent
             // build request that could never resolve one custody.
-            let request = git_source("exact-math", &original);
+            let request = git_source("exact_math", &original);
             fixture.write(
                 "root/build.omg",
                 &format!(
@@ -382,8 +382,8 @@ fn update_shared_cross_scope_alias_refreshes_both_selections() {
                 "root/build.omg",
                 &format!(
                     "machine build(builder: &mut Build) {{\n builder.package(\"consumer\");\n builder.depend_as(\"shared\", {});\n builder.build_depend_as(\"shared\", {});\n}}\n",
-                    git_source("exact-math", "HEAD"),
-                    git_source("other-library", "HEAD"),
+                    git_source("exact_math", "HEAD"),
+                    git_source("other_library", "HEAD"),
                 ),
             );
             assert_eq!(

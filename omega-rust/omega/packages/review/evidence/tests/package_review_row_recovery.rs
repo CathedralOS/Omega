@@ -70,14 +70,14 @@ pub machine invoke_leaf()
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let inputs = PackageCompilationInputs::new_package(
         package_identity(),
         vec![PackageSourceBinding::new(
             package_identity(),
-            "review-fixture",
+            "review_fixture",
             package.0.clone(),
         )],
         Vec::new(),

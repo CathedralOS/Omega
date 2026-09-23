@@ -1,7 +1,7 @@
 // Deployable repeated directory-walk canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("repeated-dir-walk-scan-exit");
+    builder.application("repeated_dir_walk_scan_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

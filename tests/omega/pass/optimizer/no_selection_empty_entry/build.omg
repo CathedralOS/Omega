@@ -1,6 +1,6 @@
 // Minimal deployable source for the no-selection retained-artifact goldens.
 machine build(builder: &mut Build) {
-    builder.application("no-selection-empty-entry");
+    builder.application("no_selection_empty_entry");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

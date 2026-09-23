@@ -2,7 +2,7 @@
 // stdout/exit to OS calls on each hosted target.
 
 machine build(builder: &mut Build) {
-    builder.application("rule-30");
+    builder.application("rule_30");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

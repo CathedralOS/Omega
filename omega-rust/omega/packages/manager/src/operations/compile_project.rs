@@ -258,7 +258,7 @@ mod tests {
                 path.join("build.omg"),
                 r#"
 machine build(builder: &mut Build) {
-    builder.application("accepted-claim-app");
+    builder.application("accepted_claim_app");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#,
@@ -318,7 +318,7 @@ machine Main::main(&mut self) { }
             std::fs::write(
                 dependency.join("build.omg"),
                 r#"machine build(builder: &mut Build) {
-    builder.package("console-provider");
+    builder.package("console_provider");
 }
 "#,
             )
@@ -348,7 +348,7 @@ linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut Con
                 format!(
                     r#"
 machine build(builder: &mut Build) {{
-    builder.application("receiving-admission-app");
+    builder.application("receiving_admission_app");
     builder.depend(Source::Path {{ location: "{dependency}" }});
     builder.select_provider<console_provider::Console, console_provider::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

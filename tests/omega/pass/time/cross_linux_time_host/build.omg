@@ -1,7 +1,7 @@
 // Cross-target structural pin. Native confirmation remains a Linux-host task.
 
 machine build(builder: &mut Build) {
-    builder.application("cross-linux-time-host");
+    builder.application("cross_linux_time_host");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

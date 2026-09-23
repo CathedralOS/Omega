@@ -56,7 +56,7 @@ fn windows_package_inputs(fixture: &Fixture) -> PackageCompilationInputs {
             PackageSourceBinding::new(root_identity, root_name.into_string(), fixture.root.clone()),
             PackageSourceBinding::new(
                 standard_library_identity,
-                "omega-language-std",
+                "omega_language_std",
                 standard_library_root.clone(),
             ),
         ],
@@ -122,7 +122,7 @@ machine Main::main(&mut self) {
 "#;
     let build = format!(
         r#"machine build(builder: &mut Build) {{
-    builder.application("source-evaluated-windows-hosted-receiver");
+    builder.application("source_evaluated_windows_hosted_receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }}

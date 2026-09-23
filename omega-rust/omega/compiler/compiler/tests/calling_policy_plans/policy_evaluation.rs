@@ -922,7 +922,7 @@ fn compatibility_boundary_rejects_opaque_by_value_without_build_selection() {
     // fabricated for the opaque semantic parameter.
     let unselected = r#"
 machine build(builder: &mut Build) {
-    builder.application("foreign-channel");
+    builder.application("foreign_channel");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#;
@@ -994,7 +994,7 @@ machine Main::main(&mut self) reaches Aggregate {
 
 const MIXED_RECORD_BUILD: &str = r#"
 machine build(builder: &mut Build) {
-    builder.application("mixed-record");
+    builder.application("mixed_record");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }
 "#;

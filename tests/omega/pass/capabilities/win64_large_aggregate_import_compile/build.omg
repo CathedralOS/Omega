@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("win64-large-aggregate-import-compile");
+    builder.application("win64_large_aggregate_import_compile");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

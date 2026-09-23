@@ -706,7 +706,7 @@ fn aarch64_fma_demand_is_not_an_x86_feature_association() {
 fn x86_fma_build_admission_binds_the_exact_selected_profile() {
     let project = TempProject::new(
         r#"machine build(builder: &mut Build) {
-    builder.application("profile-bound-fma");
+    builder.application("profile_bound_fma");
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
 }
 "#,
@@ -735,7 +735,7 @@ fn x86_fma_build_admission_binds_the_exact_selected_profile() {
 fn non_x86_profile_rejects_x86_deployment_feature_selection() {
     let project = TempProject::new(
         r#"machine build(builder: &mut Build) {
-    builder.application("invalid-arm-fma");
+    builder.application("invalid_arm_fma");
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
 }
 "#,
@@ -762,7 +762,7 @@ fn non_x86_profile_rejects_x86_deployment_feature_selection() {
 fn targetless_build_cannot_mint_x86_deployment_feature_admission() {
     let project = TempProject::new(
         r#"machine build(builder: &mut Build) {
-    builder.application("targetless-fma");
+    builder.application("targetless_fma");
     builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
 }
 "#,

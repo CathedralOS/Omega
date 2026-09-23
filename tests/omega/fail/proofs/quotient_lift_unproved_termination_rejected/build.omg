@@ -3,7 +3,7 @@
 // identity refusal.
 
 machine build(builder: &mut Build) {
-    builder.application("quotient-lift-unproved-termination-rejected");
+    builder.application("quotient_lift_unproved_termination_rejected");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("dutch-flag");
+    builder.application("dutch_flag");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

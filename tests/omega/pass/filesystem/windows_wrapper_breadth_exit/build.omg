@@ -1,7 +1,7 @@
 // Deployable filesystem-wrapper breadth canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-wrapper-breadth-exit");
+    builder.application("windows_wrapper_breadth_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

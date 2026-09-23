@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("text-greeting");
+    builder.application("text_greeting");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("conditional-root-binding");
+    builder.application("conditional_root_binding");
     choose_entry(builder, true);
 }
 machine choose_entry(options: &mut Build, enabled: bool) {

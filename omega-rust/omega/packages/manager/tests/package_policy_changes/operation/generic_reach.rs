@@ -258,7 +258,7 @@ fn unresolved_installation_generic_rejects_with_exact_package_at_projection() {
             closure
                 .custodies()
                 .iter()
-                .find(|custody| custody.key().name().as_str() == "generic-leaf")
+                .find(|custody| custody.key().name().as_str() == "generic_leaf")
                 .unwrap()
                 .key()
                 .clone()

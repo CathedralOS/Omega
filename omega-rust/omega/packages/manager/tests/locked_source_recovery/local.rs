@@ -78,7 +78,7 @@ fn recovered_diamond_preserves_request_occurrences_and_builds_fresh_compiler_inp
         subject
             .packages()
             .iter()
-            .filter(|package| package.key().name().as_str() == "same-name")
+            .filter(|package| package.key().name().as_str() == "same_name")
             .count(),
         2
     );

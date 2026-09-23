@@ -1,7 +1,7 @@
 // nested_case_payload build file.
 
 machine build(builder: &mut Build) {
-    builder.application("nested-case-payload");
+    builder.application("nested_case_payload");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

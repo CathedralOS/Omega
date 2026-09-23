@@ -2,7 +2,7 @@
 // the exact ordinary no-selection realization path on every hosted target.
 
 machine build(builder: &mut Build) {
-    builder.application("rollback-to-no-selection-empty-entry");
+    builder.application("rollback_to_no_selection_empty_entry");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

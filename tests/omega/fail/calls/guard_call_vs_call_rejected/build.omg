@@ -1,7 +1,7 @@
 // Backend rejection requires exact hosted entry selection on every target.
 
 machine build(builder: &mut Build) {
-    builder.application("guard-call-vs-call-rejected");
+    builder.application("guard_call_vs_call_rejected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

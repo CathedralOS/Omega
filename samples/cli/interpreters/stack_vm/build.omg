@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("stack-vm");
+    builder.application("stack_vm");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

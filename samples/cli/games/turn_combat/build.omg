@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("turn-combat");
+    builder.application("turn_combat");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

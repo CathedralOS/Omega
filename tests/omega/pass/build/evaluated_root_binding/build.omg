@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("evaluated-root-binding");
+    builder.application("evaluated_root_binding");
     bind_entry(builder);
 }
 

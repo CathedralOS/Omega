@@ -52,7 +52,7 @@ ensures result == tag<Card, FieldOrder<Card, Wrapper<First>, 7, Wrapper<Second>>
     .expect("write checked conformance argument source");
     fs::write(
         directory.0.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.package(\"conformance-arguments\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"conformance_arguments\"); }\n",
     )
     .expect("write conformance argument build declaration");
     let package = PackageKeyIdentity::from_digest([0x69; 32]).unwrap();
@@ -60,7 +60,7 @@ ensures result == tag<Card, FieldOrder<Card, Wrapper<First>, 7, Wrapper<Second>>
         package,
         vec![PackageSourceBinding::new(
             package,
-            "conformance-arguments",
+            "conformance_arguments",
             directory.0.clone(),
         )],
         Vec::new(),

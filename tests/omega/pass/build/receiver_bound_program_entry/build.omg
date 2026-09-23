@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("receiver-bound-program-entry");
+    builder.application("receiver_bound_program_entry");
     builder.roots.bind(windows_x86_64::ProgramEntry, Application::launch);
 }

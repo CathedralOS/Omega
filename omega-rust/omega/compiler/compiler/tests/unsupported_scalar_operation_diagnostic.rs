@@ -48,7 +48,7 @@ machine Main::main(&mut self) {
 /// Every hosted target binds an entry so the compile reaches selection
 /// regardless of which host runs the test.
 const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.application("unsupported-scalar-operation-diagnostic");
+    builder.application("unsupported_scalar_operation_diagnostic");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

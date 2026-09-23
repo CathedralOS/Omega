@@ -9,7 +9,7 @@ fn unused_selected_plan_retains_its_explicit_grant() {
 machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
 "#;
     let granted_build = r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.accept_boundary<windows_x86_64::satisfies::Host>();
 }
 "#;

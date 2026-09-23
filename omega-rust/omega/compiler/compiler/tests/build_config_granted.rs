@@ -85,7 +85,7 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
         package,
         vec![
-            PackageSourceBinding::new(package, "build-facet", root.to_path_buf())
+            PackageSourceBinding::new(package, "build_facet", root.to_path_buf())
                 .with_canonical_source_metadata()
                 .expect("capture canonical package source"),
         ],
@@ -124,7 +124,7 @@ fn write_interleaved_build_project(project: &Project) {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-facet-interleaved-build");
+    builder.application("build_facet_interleaved_build");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let artifact: BuildPath = builder.output.resolve("artifact.txt");
     let generated_descriptor: i32 = builder.output.create(generated, 438);
@@ -150,7 +150,7 @@ fn write_mixed_interleaved_build_project(project: &Project) {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("build-facet-mixed-interleaved-build");
+    builder.application("build_facet_mixed_interleaved_build");
     let prefix: BuildPath = builder.source.resolve("prefix.txt");
     let suffix: BuildPath = builder.source.resolve("suffix.txt");
     let generated: BuildPath = builder.output.resolve("generated.omg");

@@ -108,7 +108,7 @@ fn write_cross_package_program_with_policy(
         root_directory.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("access-plans");
+    builder.application("access_plans");
     builder.depend_as("policy", Source::Path { location: "../policy" });
 }
 "#,
@@ -132,7 +132,7 @@ machine Main::main(&mut self) {{}}
     let inputs = PackageCompilationInputs::new_package(
         package_identity(1),
         vec![
-            PackageSourceBinding::new(package_identity(1), "access-plans", root_directory),
+            PackageSourceBinding::new(package_identity(1), "access_plans", root_directory),
             PackageSourceBinding::new(package_identity(2), "policy", policy_directory),
         ],
         vec![PackageDependencyBinding::new(

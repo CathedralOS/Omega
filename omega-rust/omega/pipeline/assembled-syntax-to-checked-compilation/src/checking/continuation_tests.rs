@@ -27,7 +27,7 @@ impl PreparedFixture {
         fs::write(
             root.join("build.omg"),
             r#"machine build(builder: &mut Build) {
-builder.application("prepared-checked-source");
+builder.application("prepared_checked_source");
 transition builder.target {
     TargetProfile::WindowsX86_64 -> windows(builder)
     _ -> other(builder)
@@ -356,7 +356,7 @@ fn retained_checked_request_preserves_identity_and_rejects_foreign_inputs() {
             identity,
             vec![package_compilation::PackageSourceBinding::new(
                 identity,
-                "different-source-inputs",
+                "different_source_inputs",
                 fixture.root.clone(),
             )],
             vec![],
@@ -425,7 +425,7 @@ fn sponsored_build_project() -> (PreparedFixture, std::path::PathBuf) {
     fs::write(
         fixture.root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-builder.application("restricted-grant-fixture");
+builder.application("restricted_grant_fixture");
 let stamp: BuildPath = builder.output.resolve("stamp.txt");
 let descriptor: i32 = builder.output.create(stamp, 420);
 let written: i64 = builder.output.write(descriptor, "x");
@@ -472,7 +472,7 @@ fn restricted_fixture_inputs(
         vec![
             package_compilation::PackageSourceBinding::new(
                 identity,
-                "restricted-grant-fixture",
+                "restricted_grant_fixture",
                 root.to_path_buf(),
             )
             .with_canonical_source_metadata()

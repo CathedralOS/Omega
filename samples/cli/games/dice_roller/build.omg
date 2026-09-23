@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("dice-roller");
+    builder.application("dice_roller");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

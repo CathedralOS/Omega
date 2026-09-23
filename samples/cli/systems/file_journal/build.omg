@@ -1,7 +1,7 @@
 // file_journal build manifest.
 
 machine build(builder: &mut Build) {
-    builder.application("file-journal");
+    builder.application("file_journal");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

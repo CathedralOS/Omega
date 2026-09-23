@@ -1,7 +1,7 @@
 // Deployable exclusive-create canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("windows-wrapper-create-new-exit");
+    builder.application("windows_wrapper_create_new_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

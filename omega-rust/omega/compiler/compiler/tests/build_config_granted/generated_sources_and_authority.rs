@@ -32,7 +32,7 @@ fn generated_source_replays_direct_dependency_authority_after_the_checkpoint() {
         application.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("generated-authority-replay");
+    builder.application("generated_authority_replay");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
@@ -118,7 +118,7 @@ fn generated_target_machines_join_selected_origin_and_provider_default_custody()
         "build.omg",
         r#"
 machine build(builder: &mut Build) {
-    builder.application("generated-target-machines");
+    builder.application("generated_target_machines");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
@@ -198,7 +198,7 @@ fn generated_local_instance_collection_preserves_build_symbol_and_source_custody
         "build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("build-facet-generated-local-instance");
+    builder.application("build_facet_generated_local_instance");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
@@ -855,7 +855,7 @@ fn generated_base_owned_type_application_graph_preserves_build_symbol_and_source
         "build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("build-facet-generated-base-instance");
+    builder.application("build_facet_generated_base_instance");
     let generated: BuildPath = builder.output.resolve("generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(
@@ -990,7 +990,7 @@ fn authored_build_path_shape_has_no_compiler_root_authority() {
         "build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("forged-build-path");
+    builder.application("forged_build_path");
     let forged: BuildPath = BuildPath {{}};
     let descriptor: i32 = builder.source.open(forged, 0);
 }}
@@ -1027,7 +1027,7 @@ fn runtime_boundary_service_is_not_build_authority() {
 machine build(builder: &mut Build)
 reaches Console
 {{
-    builder.application("runtime-boundary-build");
+    builder.application("runtime_boundary_build");
     let mut console: Console;
     console.write_line("ordinary runtime boundary");
 }}

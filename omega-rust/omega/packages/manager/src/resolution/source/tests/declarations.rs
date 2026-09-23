@@ -38,7 +38,7 @@ fn application_role_cannot_be_bound_as_a_package_source() {
     std::fs::create_dir_all(&root).expect("create source");
     std::fs::write(
         root.join("build.omg"),
-        "machine build(builder: &mut Build) {\n    builder.application(\"artifact-root\");\n}\n",
+        "machine build(builder: &mut Build) {\n    builder.application(\"artifact_root\");\n}\n",
     )
     .expect("write application declaration");
     std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");

@@ -33,7 +33,7 @@ fn application_inputs(root: &Path) -> PackageCompilationInputs {
         identity(71),
         BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(identity(71), "selected-const", root.to_owned())
+            PackageSourceBinding::new(identity(71), "selected_const", root.to_owned())
                 .with_canonical_source_metadata()
                 .expect("canonical application source"),
         ],
@@ -82,7 +82,7 @@ fn ordinary_length_needed_by_build_evaluates_beside_pending_float_length() {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("selected-const");
+    builder.application("selected_const");
     let values: [u8; ordinary_length()];
     transition values.len == 3 {
         true -> observed(builder)
@@ -131,7 +131,7 @@ fn generated_source_preserves_pending_root_length_and_wire_plan_once() {
         &format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.application("selected-const");
+    builder.application("selected_const");
     let generated: BuildPath = builder.output.resolve("selected.generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
     let count: i64 = builder.output.write(descriptor, "{literal}");
@@ -193,7 +193,7 @@ fn build_demand_for_pending_selected_length_reports_the_dependency() {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("selected-const");
+    builder.application("selected_const");
     let values: [u8; float_length()];
     transition values.len == 4 {
         true -> observed(builder)
@@ -232,7 +232,7 @@ fn selected_lengths_retain_machine_parameter_result_and_local_slots() {
         identity(71),
         vec![PackageSourceBinding::new(
             identity(71),
-            "selected-const",
+            "selected_const",
             root.clone(),
         )],
         Vec::new(),
@@ -301,7 +301,7 @@ fn selected_lengths_retain_trait_requirement_parameter_and_result_slots() {
         identity(71),
         vec![PackageSourceBinding::new(
             identity(71),
-            "selected-const",
+            "selected_const",
             root.clone(),
         )],
         Vec::new(),

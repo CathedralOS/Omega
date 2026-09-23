@@ -2,7 +2,7 @@
 // exact entry while the authored type-per-slot choice remains target-independent.
 
 machine build(builder: &mut Build) {
-    builder.application("provider-type-slot-selected");
+    builder.application("provider_type_slot_selected");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.select_provider<Pick, SecondProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);

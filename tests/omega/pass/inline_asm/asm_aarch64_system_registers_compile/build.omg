@@ -1,7 +1,7 @@
 // Deployable asm canary: the AArch64 targets select their exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("asm-aarch64-system-registers-compile");
+    builder.application("asm_aarch64_system_registers_compile");
     builder.freestanding = true;
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

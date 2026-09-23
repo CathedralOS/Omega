@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-service-import-required");
+    builder.application("asm_service_import_required");
     builder.freestanding = true;
 }

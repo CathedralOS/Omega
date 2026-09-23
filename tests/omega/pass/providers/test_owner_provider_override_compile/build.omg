@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("test-owner-provider-override-compile");
+    builder.application("test_owner_provider_override_compile");
     builder.select_provider<Pick, TestProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

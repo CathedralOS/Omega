@@ -180,7 +180,7 @@ impl SourcePreparationFixture {
         fs::create_dir_all(root.join("package")).unwrap();
         fs::write(
             root.join("package/build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"prepared-package\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"prepared_package\"); }\n",
         )
         .unwrap();
         fs::write(root.join("package/main.omg"), main_source).unwrap();
@@ -518,14 +518,14 @@ impl ConsoleApplicationFixture {
         fs::create_dir_all(root.join("application")).unwrap();
         fs::write(
             root.join("console/build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"ordinary-console\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"ordinary_console\"); }\n",
         )
         .unwrap();
         fs::write(root.join("console/main.omg"), console_source).unwrap();
         fs::write(
             root.join("application/build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("console-consumer");
+    builder.application("console_consumer");
     builder.depend_as("ordinary_console", Source::Path { location: "../console" });
     builder.select_provider<ordinary_console::Console, ordinary_console::ConsoleNativeProvider>();
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -815,7 +815,7 @@ impl IndependentComponentFixture {
         fs::write(
             root.join("pick-component/build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.package("pick-component");
+    builder.package("pick_component");
     builder.select_provider<Pick, VtablePick>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, ComponentEntry::main);
 }
@@ -830,7 +830,7 @@ impl IndependentComponentFixture {
         fs::write(
             root.join("consumer/build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("independent-consumer");
+    builder.application("independent_consumer");
     builder.depend_as("pick_component", Source::Path { location: "../pick-component" });
     builder.select_provider<pick_component::Pick, pick_component::PickProvider>(CompositionMode::Independent);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -920,14 +920,14 @@ impl FilesystemApplicationFixture {
         fs::create_dir_all(root.join("application")).unwrap();
         fs::write(
             root.join("filesystem/build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"ordinary-filesystem\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"ordinary_filesystem\"); }\n",
         )
         .unwrap();
         fs::write(root.join("filesystem/main.omg"), SET_LEN_FILESYSTEM).unwrap();
         fs::write(
             root.join("application/build.omg"),
             r#"machine build(builder: &mut Build) {
-    builder.application("filesystem-consumer");
+    builder.application("filesystem_consumer");
     builder.depend_as("ordinary_filesystem", Source::Path { location: "../filesystem" });
     builder.select_provider<ordinary_filesystem::FilesystemHost, ordinary_filesystem::FilesystemProvider>(CompositionMode::Fused);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

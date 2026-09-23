@@ -1,7 +1,7 @@
 // note_vault build manifest.
 
 machine build(builder: &mut Build) {
-    builder.application("note-vault");
+    builder.application("note_vault");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

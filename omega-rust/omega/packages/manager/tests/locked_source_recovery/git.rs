@@ -70,7 +70,7 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
         let selected_request = GitPackageSourceRequest::new(
             acquisition,
             if named {
-                PackageSelection::Named(PackageName::parse("locked-git").unwrap())
+                PackageSelection::Named(PackageName::parse("locked_git").unwrap())
             } else {
                 PackageSelection::Root
             },
@@ -150,7 +150,7 @@ fn moved_git_root_and_named_member_recover_old_lock_pins_with_fresh_custody() {
             let sibling = cold
                 .custodies()
                 .iter()
-                .find(|custody| custody.key().name().as_str() == "locked-sibling")
+                .find(|custody| custody.key().name().as_str() == "locked_sibling")
                 .unwrap();
             assert_eq!(
                 sibling

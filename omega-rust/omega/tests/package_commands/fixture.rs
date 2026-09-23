@@ -29,10 +29,10 @@ impl Fixture {
         fs::create_dir(fixture.path("dependency")).unwrap();
         fixture.write(
             "root/build.omg",
-            "machine build(builder: &mut Build) {\n    builder.package(\"cli-project\");\n}\n",
+            "machine build(builder: &mut Build) {\n    builder.package(\"cli_project\");\n}\n",
         );
         fixture.write("root/main.omg", "machine main() {}\n");
-        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) {\n    builder.package(\"arithmetic-kernels\");\n}\n");
+        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) {\n    builder.package(\"arithmetic_kernels\");\n}\n");
         fixture.write("dependency/main.omg", "pub machine value() -> u64 { 7 }\n");
         fixture
     }
@@ -136,7 +136,7 @@ impl Fixture {
                     .source()
                     .packages()
                     .iter()
-                    .any(|package| package.key().name().as_str() == "arithmetic-kernels"),
+                    .any(|package| package.key().name().as_str() == "arithmetic_kernels"),
                 "installed package missing from lock"
             );
         }

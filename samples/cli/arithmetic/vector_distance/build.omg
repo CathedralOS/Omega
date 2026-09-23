@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("vector-distance");
+    builder.application("vector_distance");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

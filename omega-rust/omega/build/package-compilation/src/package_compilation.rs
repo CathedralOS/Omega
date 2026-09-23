@@ -513,7 +513,7 @@ impl PackageCompilationInputs {
                 });
                 continue;
             }
-            if !is_kebab_case(&package.canonical_name) {
+            if !is_snake_case(&package.canonical_name) {
                 errors.push(PackageCompilationInputError::InvalidPackageName {
                     identity: package.identity,
                     name: package.canonical_name.clone(),
@@ -1470,7 +1470,7 @@ impl fmt::Display for PackageCompilationInputError {
             ),
             Self::InvalidPackageName { identity, name } => write!(
                 formatter,
-                "package identity {} has invalid canonical name `{name}`; expected lowercase kebab-case",
+                "package identity {} has invalid canonical name `{name}`; expected lowercase snake_case",
                 display_identity(*identity)
             ),
             Self::InvalidSourceRoot {
@@ -1720,28 +1720,6 @@ fn is_snake_case(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
-}
-
-fn is_kebab_case(value: &str) -> bool {
-    if !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase) || value.ends_with('-') {
-        return false;
-    }
-
-    let mut previous_separator = false;
-    for byte in value.bytes() {
-        if byte == b'-' {
-            if previous_separator {
-                return false;
-            }
-            previous_separator = true;
-            continue;
-        }
-        previous_separator = false;
-        if !byte.is_ascii_lowercase() && !byte.is_ascii_digit() {
-            return false;
-        }
-    }
-    true
 }
 
 fn reachable_packages<'inputs>(

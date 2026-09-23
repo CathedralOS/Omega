@@ -14,7 +14,7 @@ requires
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -57,7 +57,7 @@ pub domain Packet::Ready
         );
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),
@@ -227,7 +227,7 @@ pub domain Packet::Ready
     );
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let checked = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&package.0)),
@@ -258,7 +258,7 @@ pub domain Packet::Ready
     );
     private.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
     );
     let diagnostics = compile_review_fixture(CheckedCompileRequest {
         package_inputs: Some(package_inputs(&private.0)),
@@ -288,7 +288,7 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
     first.write("main.omg", &source("self.value == 0; self.value <= 1;"));
     reordered.write("main.omg", &source("self.value <= 1; self.value == 0;"));
     changed.write("main.omg", &source("self.value == 0; self.value <= 2;"));
-    let build = "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n";
+    let build = "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n";
     first.write("build.omg", build);
     reordered.write("build.omg", build);
     changed.write("build.omg", build);

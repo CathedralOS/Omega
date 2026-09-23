@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-port-io-service-required");
+    builder.application("asm_port_io_service_required");
     builder.freestanding = true;
 }

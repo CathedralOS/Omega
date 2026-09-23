@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("elapsed-timer");
+    builder.application("elapsed_timer");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

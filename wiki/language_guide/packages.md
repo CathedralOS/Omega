@@ -11,14 +11,20 @@ A library declares its own name in `build.omg`:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.package("arithmetic-kernels");
+    builder.package("arithmetic_kernels");
 }
 ```
 
 An executable uses `builder.application("name")`; a workspace lists
-`builder.member("path")` calls. The default alias for `arithmetic-kernels` is
-`arithmetic_kernels`; use `--as` to choose another. See
+`builder.member("path")` calls. Package and application names use lowercase
+underscore-separated words. The default alias is the declared name unchanged;
+use `--as` to choose another. See
 [build declarations](../spec/build/declarations.md) for identity and projection.
+
+Renaming a package changes its key, even when its directory and source locator
+stay the same. Existing locks require a fresh update/review after a declaration
+rename; old acceptance does not authorize the new identity. Hyphenated package
+declarations are not accepted through an implicit spelling conversion.
 
 Product dependencies use `depend`/`depend_as`; build-only helpers use
 `build_depend`/`build_depend_as`. They are separate checked scopes, including

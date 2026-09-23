@@ -24,7 +24,7 @@ pub boundary trait Binding<Value>: Parent<Value> {
 }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     first.write("build.omg", build);
     second.write("build.omg", build);
@@ -177,7 +177,7 @@ pub trait Parent<'source> {
 pub trait Child<'child>: Parent<'child> { }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     first.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -279,7 +279,7 @@ fn public_trait_lifetime_declarations_validate_before_review() {
         package.write("main.omg", source);
         package.write(
             "build.omg",
-            "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }\n",
         );
         let diagnostics = compile_review_fixture(CheckedCompileRequest {
             package_inputs: Some(package_inputs(&package.0)),

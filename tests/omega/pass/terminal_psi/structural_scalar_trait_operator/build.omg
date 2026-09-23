@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("structural-scalar-trait-operator");
+    builder.application("structural_scalar_trait_operator");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

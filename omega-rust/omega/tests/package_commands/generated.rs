@@ -94,7 +94,7 @@ fn generated_sources_publish_the_retained_native_product() {
     fixture.write(
         "root/build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("generated-native");
+    builder.application("generated_native");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     let generated: BuildPath = builder.output.resolve("own.generated.omg");
     let descriptor: i32 = builder.output.create(generated, 438);
@@ -166,7 +166,7 @@ fn remote_generated(repository: &str) {
             .source()
             .packages()
             .iter()
-            .find(|package| package.key().name().as_str() == "generated-table")
+            .find(|package| package.key().name().as_str() == "generated_table")
             .expect("generated dependency remains in the accepted graph");
         let ImmutableSourceResolution::Git { commit, .. } = package.resolution() else {
             panic!("remote generated source must retain its exact Git resolution");

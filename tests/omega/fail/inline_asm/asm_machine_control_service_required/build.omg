@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-machine-control-service-required");
+    builder.application("asm_machine_control_service_required");
     builder.freestanding = true;
 }

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("wire-compatibility-migration-route-missing");
+    builder.application("wire_compatibility_migration_route_missing");
     builder.require_wire_compatibility<
         ArchiveStore,
         CounterLineage,

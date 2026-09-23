@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("random-walk");
+    builder.application("random_walk");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

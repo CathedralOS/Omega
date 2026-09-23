@@ -1,7 +1,7 @@
 // self_mutation_between_calls build file.
 
 machine build(builder: &mut Build) {
-    builder.application("self-mutation-between-calls");
+    builder.application("self_mutation_between_calls");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

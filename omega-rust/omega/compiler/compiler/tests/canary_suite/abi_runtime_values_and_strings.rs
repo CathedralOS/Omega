@@ -10,6 +10,6 @@ mod indexed_writes_and_loops;
 mod runtime_text_and_transitions;
 
 fn application_build() -> String {
-    "machine build(builder: &mut Build) {\n    builder.application(\"cross-target-canary\");\n}\n"
+    "machine build(builder: &mut Build) {\n    builder.application(\"cross_target_canary\");\n}\n"
         .to_owned()
 }

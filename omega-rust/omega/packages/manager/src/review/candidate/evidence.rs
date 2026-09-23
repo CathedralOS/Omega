@@ -86,7 +86,7 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         std::fs::write(
             root.join("build.omg"),
-            "machine build(builder: &mut Build) { builder.package(\"borrowed-review\"); }\n",
+            "machine build(builder: &mut Build) { builder.package(\"borrowed_review\"); }\n",
         )
         .unwrap();
         let mut reviews = Vec::new();

@@ -3,7 +3,7 @@
 // parameters.
 
 machine build(builder: &mut Build) {
-    builder.application("uefi-hello");
+    builder.application("uefi_hello");
     builder.subsystem = Subsystem::EfiApplication;
     builder.freestanding = true;
 }

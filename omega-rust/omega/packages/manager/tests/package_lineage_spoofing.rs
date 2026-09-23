@@ -52,7 +52,7 @@ fn write_provider_package(root: &Path) {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("shared-provider");
+    builder.package("shared_provider");
 }
 "#,
     )
@@ -94,7 +94,7 @@ fn same_name_and_symbols_from_another_lineage_cannot_spoof_selected_provider() {
         format!(
             r#"
 machine build(builder: &mut Build) {{
-    builder.package("lineage-probe");
+    builder.package("lineage_probe");
     builder.depend_as("selected_provider", Source::Path {{
         location: "{}"
     }});
@@ -135,7 +135,7 @@ machine build(builder: &mut Build) {{
         .packages()
         .iter()
         .map(|node| node.source().key())
-        .filter(|key| key.name().as_str() == "shared-provider")
+        .filter(|key| key.name().as_str() == "shared_provider")
         .collect::<Vec<_>>();
     let [first, second] = shared.as_slice() else {
         panic!("both independently custodied same-name packages must remain in the graph")

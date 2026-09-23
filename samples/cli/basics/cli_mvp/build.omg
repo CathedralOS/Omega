@@ -12,7 +12,7 @@
 //   ExitProcess(code).
 
 machine build(builder: &mut Build) {
-    builder.application("cli-mvp");
+    builder.application("cli_mvp");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

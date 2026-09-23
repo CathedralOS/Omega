@@ -35,7 +35,7 @@ fn nested_build_fixture() -> Fixture {
         "dependency/build.omg",
         r#"use generator::main;
 machine build(builder: &mut Build) {
-    builder.package("arithmetic-kernels");
+    builder.package("arithmetic_kernels");
     builder.build_depend_as("generator", Source::Path { location: "../generator" });
     transition generation_value() == 7 { true -> generate(builder) _ -> wrong() }
     state generate(builder: &mut Build) {
@@ -58,7 +58,7 @@ machine build(builder: &mut Build) {
         "root/build.omg",
         r#"use kit::main;
 machine build(builder: &mut Build) {
-    builder.package("cli-project");
+    builder.package("cli_project");
     builder.build_depend_as("kit", Source::Path { location: "../dependency" });
     transition value() == 7 { true -> received(builder) _ -> wrong() }
     state received(builder: &mut Build) { builder.log.write_line("consumer received generated answer"); }
@@ -193,9 +193,9 @@ fn non_nested_build_instances_retain_exact_purpose_and_profile_acceptance() {
     };
     for dual_purpose in [false, true] {
         let fixture = nested_build_fixture();
-        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) { builder.package(\"arithmetic-kernels\"); builder.log.write_line(\"helper activation\"); }\n");
+        fixture.write("dependency/build.omg", "machine build(builder: &mut Build) { builder.package(\"arithmetic_kernels\"); builder.log.write_line(\"helper activation\"); }\n");
         fixture.write("dependency/main.omg", "pub machine value() -> u64 { 7 }\n");
-        fixture.write("root/build.omg", &format!("use kit::main;\nmachine build(builder: &mut Build) {{ builder.package(\"cli-project\"); builder.build_depend_as(\"kit\", Source::Path {{ location: \"../dependency\" }}); {} let answer: u64 = value(); }}\n",
+        fixture.write("root/build.omg", &format!("use kit::main;\nmachine build(builder: &mut Build) {{ builder.package(\"cli_project\"); builder.build_depend_as(\"kit\", Source::Path {{ location: \"../dependency\" }}); {} let answer: u64 = value(); }}\n",
             if dual_purpose { "builder.depend_as(\"product_kit\", Source::Path { location: \"../dependency\" });" } else { "" }));
         if dual_purpose {
             fixture.write(
@@ -240,7 +240,7 @@ fn generated_dependency_apis_stay_distinct_across_build_and_product_profiles() {
     let fixture = Fixture::new();
     fixture.write("dependency/main.omg", "// Generated API only.\n");
     fixture.write("dependency/build.omg", &r#"machine build(builder: &mut Build) {
-    builder.package("arithmetic-kernels");
+    builder.package("arithmetic_kernels");
     transition builder.target {
         TargetProfile::PRODUCT_PROFILE -> product(builder)
         _ -> helper(builder)
@@ -265,7 +265,7 @@ fn generated_dependency_apis_stay_distinct_across_build_and_product_profiles() {
 "#.replace("PRODUCT_PROFILE", product_spelling));
     fixture.write("root/build.omg", r#"use helper::generated_api;
 machine build(builder: &mut Build) {
-    builder.package("cli-project");
+    builder.package("cli_project");
     builder.build_depend_as("helper", Source::Path { location: "../dependency" });
     builder.depend_as("library", Source::Path { location: "../dependency" });
     let generated: BuildPath = builder.output.resolve("consumer_generated.omg");
@@ -322,7 +322,7 @@ machine build(builder: &mut Build) {
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "arithmetic-kernels")
+        .find(|package| package.key().name().as_str() == "arithmetic_kernels")
         .unwrap()
         .key();
     assert!(reviews.review(helper).is_none());
@@ -386,7 +386,7 @@ fn package_risk_acceptance_does_not_transfer_between_build_and_product_purposes(
         return;
     };
     let fixture = Fixture::with_assumption();
-    let product_build = "machine build(builder: &mut Build) { builder.package(\"cli-project\"); builder.depend_as(\"kit\", Source::Path { location: \"../dependency\" }); }\n";
+    let product_build = "machine build(builder: &mut Build) { builder.package(\"cli_project\"); builder.depend_as(\"kit\", Source::Path { location: \"../dependency\" }); }\n";
     let helper_build = product_build.replace("builder.depend_as", "builder.build_depend_as");
     fixture.write("root/build.omg", product_build);
     let update = || fixture.omega(&["update", "--target", profile.target_name(), "--offline"]);
@@ -489,7 +489,7 @@ fn assert_helper_occurrences(
         .source()
         .packages()
         .iter()
-        .find(|package| package.key().name().as_str() == "arithmetic-kernels")
+        .find(|package| package.key().name().as_str() == "arithmetic_kernels")
         .unwrap();
     let occurrences = accepted
         .occurrences()
@@ -643,9 +643,9 @@ fn nested_build_sample_refresh_produces_a_runnable_native_product() {
     };
     let fixture = nested_build_fixture();
     let build = fixture.read("root/build.omg").replace(
-        "builder.package(\"cli-project\");",
+        "builder.package(\"cli_project\");",
         &format!(
-            "builder.application(\"cli-project\");\n    builder.roots.bind({}::ProgramEntry, Main::main);",
+            "builder.application(\"cli_project\");\n    builder.roots.bind({}::ProgramEntry, Main::main);",
             profile.target_name(),
         ),
     );
@@ -706,7 +706,7 @@ fn sample_refresh_requires_a_package_declaration() {
 
 fn refresh_application_build(profile: target::TargetProfile) -> String {
     format!(
-        "machine build(builder: &mut Build) {{\n    builder.application(\"refresh-app\");\n    builder.roots.bind({}::ProgramEntry, Main::main);\n}}\n",
+        "machine build(builder: &mut Build) {{\n    builder.application(\"refresh_app\");\n    builder.roots.bind({}::ProgramEntry, Main::main);\n}}\n",
         profile.target_name(),
     )
 }
@@ -805,7 +805,7 @@ fn purposes_fixture(build_edges: &str, product_alias: &str) -> Fixture {
     fixture.write(
         "root/build.omg",
         &format!(
-            "use kit::main;\nmachine build(builder: &mut Build) {{\n    builder.package(\"purpose-root\");\n{build_edges}}}\n"
+            "use kit::main;\nmachine build(builder: &mut Build) {{\n    builder.package(\"purpose_root\");\n{build_edges}}}\n"
         ),
     );
     fixture.write(
@@ -942,7 +942,7 @@ fn a_root_local_module_checked_in_both_scopes_keeps_two_instances() {
     let fixture = Fixture::new();
     fixture.write(
         "root/build.omg",
-        "use helper;\nmachine build(builder: &mut Build) {\n    builder.package(\"dual-root\");\n    helper::poke();\n}\n",
+        "use helper;\nmachine build(builder: &mut Build) {\n    builder.package(\"dual_root\");\n    helper::poke();\n}\n",
     );
     fixture.write(
         "root/main.omg",

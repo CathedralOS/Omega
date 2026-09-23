@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("match-float-patterns");
+    builder.application("match_float_patterns");
     builder.roots.bind(windows_x86_64::ProgramEntry, launch);
     builder.roots.bind(linux_x86_64::ProgramEntry, launch);
     builder.roots.bind(linux_arm64::ProgramEntry, launch);

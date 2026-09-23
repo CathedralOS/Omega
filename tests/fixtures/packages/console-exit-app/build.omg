@@ -2,7 +2,7 @@
 // standard library's Console provider, reached as an ordinary path dependency.
 
 machine build(builder: &mut Build) {
-    builder.application("console-exit-app");
+    builder.application("console_exit_app");
     builder.depend(Source::Path { location: "../../../../source/library/std" });
     builder.select_provider<Console, ConsoleNativeProvider>();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

@@ -176,7 +176,7 @@ fn computed_composition_mode_is_evaluated() {
 
 fn provider_dependency() -> TempProject {
     let dependency = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"provider-library\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"provider_library\"); }",
     );
     std::fs::write(
         dependency.0.join("setup.omg"),

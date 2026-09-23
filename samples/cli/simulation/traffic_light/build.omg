@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("traffic-light");
+    builder.application("traffic_light");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

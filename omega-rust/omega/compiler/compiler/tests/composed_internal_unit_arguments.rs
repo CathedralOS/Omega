@@ -101,7 +101,7 @@ machine relay(value: u8) { forward(identity(value)); }
         fixture.0.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.application("composed-unit-arguments");
+    builder.application("composed_unit_arguments");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,

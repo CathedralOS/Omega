@@ -60,9 +60,10 @@ defines completion and whole-result publication.
 ## Names, lineage, and resolution
 
 Names begin with an ASCII lowercase letter, followed by lowercase letters,
-digits, and single hyphen-separated segments. Default import aliases replace
-hyphens with underscores. Directory/repository names are advisory; the fetched
-package declares its own name.
+digits, and single underscore-separated segments. Leading, trailing and repeated
+underscores reject. Default import aliases preserve the declared name exactly;
+`depend_as` and `build_depend_as` provide explicit renaming. Directory/repository
+names are advisory; the fetched package declares its own name.
 
 | Identity | Binds |
 | --- | --- |

@@ -2,7 +2,7 @@
 // same source rejection rather than failing target discovery first.
 
 machine build(builder: &mut Build) {
-    builder.application("no-selection-wrong-arity");
+    builder.application("no_selection_wrong_arity");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

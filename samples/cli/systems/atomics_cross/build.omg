@@ -12,7 +12,7 @@
 //   ExitProcess(code).
 
 machine build(builder: &mut Build) {
-    builder.application("atomics-cross");
+    builder.application("atomics_cross");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

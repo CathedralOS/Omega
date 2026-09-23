@@ -36,7 +36,7 @@ pub machine identity<Value [copy]>(value: Value) -> Value { value }
 pub machine identity<Element [copy]>(value: Element) -> Element { value }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     original.write("build.omg", build);
     renamed.write("build.omg", build);
@@ -122,7 +122,7 @@ pub machine inspect(
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -202,7 +202,7 @@ pub data Reading {
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 

@@ -18,12 +18,12 @@ fn helper_entry_inputs(
         vec![
             package_compilation::PackageSourceBinding::new(
                 super::fixture_package_identity(1),
-                "root-binding-owner",
+                "root_binding_owner",
                 project.0.clone(),
             ),
             package_compilation::PackageSourceBinding::new(
                 super::fixture_package_identity(2),
-                "root-binding-helper",
+                "root_binding_helper",
                 helper.0.clone(),
             ),
         ],
@@ -50,7 +50,7 @@ fn dual_context_product_query(
     build_only_declarations: bool,
 ) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"dual-context-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"dual_context_helper\"); }",
     );
     // A provider description names nominal data with a conformance; querying
     // it does not select or execute a boundary implementation.
@@ -76,7 +76,7 @@ fn dual_context_product_query(
     let project = TempProject::with_main(
         &format!("use support::{product_import};"),
         &format!(
-            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"dual-context-owner\"); {build_body} }}"
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"dual_context_owner\"); {build_body} }}"
         ),
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
@@ -87,12 +87,12 @@ fn dual_context_product_query(
             vec![
                 package_compilation::PackageSourceBinding::new(
                     super::fixture_package_identity(1),
-                    "dual-context-owner",
+                    "dual_context_owner",
                     project.0.clone(),
                 ),
                 package_compilation::PackageSourceBinding::new(
                     super::fixture_package_identity(2),
-                    "dual-context-helper",
+                    "dual_context_helper",
                     helper.0.clone(),
                 ),
             ],
@@ -204,7 +204,7 @@ fn queried_entry_with_two_checked_boundary_instances_executes_natively() {
         return;
     };
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup;
@@ -218,7 +218,7 @@ fn queried_entry_with_two_checked_boundary_instances_executes_natively() {
         "use support::setup;",
         &format!(
             "use support::setup; machine build(builder: &mut Build) {{
-                 builder.application(\"dual-context-native\");
+                 builder.application(\"dual_context_native\");
                  let provider: ProductProviderRef = builder.product.provider(\"support::setup::AudioProvider\");
                  builder.log.write_line(provider.path());
                  let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"{slot}\");
@@ -285,14 +285,14 @@ fn product_queries_cannot_select_build_only_declarations_through_a_product_edge(
 #[test]
 fn borrowing_build_does_not_lend_private_product_names_to_a_foreign_helper() {
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine configure(builder: &mut Build) { builder.roots.bind(windows_x86_64::ProgramEntry, launch); }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); setup::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -309,7 +309,7 @@ fn borrowing_build_does_not_lend_private_product_names_to_a_foreign_helper() {
 #[test]
 fn foreign_helper_binds_its_own_package_entry_through_borrowed_root_build() {
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(
         helper.0.join("setup.omg"),
@@ -321,7 +321,7 @@ fn foreign_helper_binds_its_own_package_entry_through_borrowed_root_build() {
     ).expect("build helper source");
     let project = TempProject::with_main(
         "use support::setup; const ANSWER: u32 = 42;\n",
-        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
+        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); configure::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(helper_entry_inputs(&project, &helper));
@@ -342,7 +342,7 @@ fn foreign_helper_binds_its_own_package_entry_through_borrowed_root_build() {
 #[test]
 fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symbol() {
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(
         helper.0.join("setup.omg"),
@@ -354,7 +354,7 @@ fn same_named_entry_in_another_package_rejoins_production_and_settlement_by_symb
     ).expect("build helper source");
     let project = TempProject::with_main(
         "use support::setup; machine launch() { let marker: u8 = 0; }",
-        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
+        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); configure::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(helper_entry_inputs(&project, &helper));
@@ -482,14 +482,14 @@ fn owner_selected_product_description_binds_through_foreign_helper() {
     // namespace of its own; the target machine traps if it were ever executed
     // during selection, so a clean compile also witnesses non-execution.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine configure(builder: &mut Build, entry: &ProductEntryRef) { builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "machine launch() { crash Trap; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); setup::configure(builder, &entry); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); setup::configure(builder, &entry); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -584,7 +584,7 @@ fn returned_build_receiver_excludes_original_storage_during_later_operand() {
         "let held: &mut Build = setup::retain_build(builder); held.roots.bind(windows_x86_64::ProgramEntry, setup::touch(builder, entry));",
     ] {
         let helper = TempProject::new(
-            "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+            "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
         );
         fs::write(helper.0.join("setup.omg"),
             "module setup;
@@ -600,7 +600,7 @@ fn returned_build_receiver_excludes_original_storage_during_later_operand() {
         let project = TempProject::with_main(
             "machine launch() { }",
             &format!(
-                "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"receiver-conflict\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); {binding} }}"
+                "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"receiver_conflict\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); {binding} }}"
             ),
         );
         let diagnostics = compile_to_checked(CheckedCompileRequest {
@@ -630,7 +630,7 @@ fn returned_description_native(
         return;
     };
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine retain(entry: ProductEntryRef) -> ProductEntryRef { transition { _ -> (entry) } }
@@ -658,7 +658,7 @@ fn returned_description_native(
     let project = TempProject::with_main(
         "machine launch() { }",
         &format!(
-            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"returned-entry\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"{slot}\"); {preparation} {receiver}.roots.bind({slot}, {operand}); }}"
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"returned_entry\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"{slot}\"); {preparation} {receiver}.roots.bind({slot}, {operand}); }}"
         ),
     );
     let checked = compile_to_checked(CheckedCompileRequest {
@@ -707,14 +707,14 @@ fn returned_forged_description_does_not_gain_authority_from_its_result_type() {
         "setup::retain_build(builder).roots.bind(windows_x86_64::ProgramEntry, setup::fabricate());",
     ] {
         let helper = TempProject::new(
-            "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+            "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
         );
         fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine fabricate() -> ProductEntryRef { transition { _ -> (ProductEntryRef {}) } }
          pub machine retain_build(builder: &mut Build) -> &mut Build { transition { _ -> (builder) } }",
     ).expect("forged result source");
         let project = TempProject::new(&format!(
-            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"forged-return\"); {binding} }}"
+            "use support::setup; machine build(builder: &mut Build) {{ builder.application(\"forged_return\"); {binding} }}"
         ));
         let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
         request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -736,14 +736,14 @@ fn product_entry_query_is_scoped_to_the_query_occurrences_package() {
     // owner's package, so the borrowed Build cannot reach it. Selection
     // authority belongs to the query occurrence's package, not the caller's.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine configure(builder: &mut Build) { let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); setup::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -766,7 +766,7 @@ fn inline_description_checked(
     operand: &str,
 ) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"inline-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"inline_helper\"); }",
     );
     fs::write(
         helper.0.join("setup.omg"),
@@ -776,7 +776,7 @@ fn inline_description_checked(
     let project = TempProject::with_main(
         "machine launch() { }",
         &format!("use support::setup; machine build(builder: &mut Build) {{
-            builder.application(\"inline-owner\");
+            builder.application(\"inline_owner\");
             let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\");
             {preparation}
             builder.roots.bind(windows_x86_64::ProgramEntry, {operand});
@@ -982,7 +982,7 @@ fn delegated_root_binding_requires_a_product_entry_ref_operand() {
 fn product_description_binds_only_the_slot_it_was_selected_for() {
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }",
-        "machine build(builder: &mut Build) { builder.application(\"slot-mismatch\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(linux_x86_64::ProgramEntry, entry); }",
+        "machine build(builder: &mut Build) { builder.application(\"slot_mismatch\"); let entry: ProductEntryRef = builder.product.entry(\"launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(linux_x86_64::ProgramEntry, entry); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1010,14 +1010,14 @@ fn owner_selected_product_schema_inspects_through_foreign_helper() {
     // `ProductTypeSchema {}` would carry no description and `path()` would
     // trap.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine configure(builder: &mut Build, schema: &ProductTypeSchema) { builder.log.write_line(schema.path()); }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "data LaunchConfig { value: u8; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); setup::configure(builder, &schema); _ = builder.product.schema(\"LaunchConfig\"); _ = schema.path(); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); setup::configure(builder, &schema); _ = builder.product.schema(\"LaunchConfig\"); _ = schema.path(); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -1036,14 +1036,14 @@ fn product_schema_query_is_scoped_to_the_query_occurrences_package() {
     // owner's package, so the borrowed Build cannot reach it. Selection
     // authority belongs to the query occurrence's package, not the caller's.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine configure(builder: &mut Build) { let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); builder.log.write_line(schema.path()); }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "data LaunchConfig { value: u8; }",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); setup::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -1090,7 +1090,7 @@ fn product_schema_query_rejects_a_non_facet_receiver() {
     // the compiler-issued `Build.product` value only.
     let project = TempProject::with_main(
         "data LaunchConfig { value: u8; }",
-        "machine build(builder: &mut Build) { builder.application(\"lookalike-facet\"); let product: BuildProduct = BuildProduct {}; let schema: ProductTypeSchema = product.schema(\"LaunchConfig\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"lookalike_facet\"); let product: BuildProduct = BuildProduct {}; let schema: ProductTypeSchema = product.schema(\"LaunchConfig\"); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1113,7 +1113,7 @@ fn product_schema_query_requires_an_exact_data_declaration() {
     // selects only authored product data in the occurrence's package.
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }",
-        "machine build(builder: &mut Build) { builder.application(\"schema-miss\"); let schema: ProductTypeSchema = builder.product.schema(\"launch\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"schema_miss\"); let schema: ProductTypeSchema = builder.product.schema(\"launch\"); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1137,7 +1137,7 @@ fn product_schema_cannot_stand_in_for_an_entry_description() {
     // description is required.
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }\ndata LaunchConfig { value: u8; }",
-        "machine build(builder: &mut Build) { builder.application(\"schema-not-entry\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); builder.roots.bind(windows_x86_64::ProgramEntry, schema); }",
+        "machine build(builder: &mut Build) { builder.application(\"schema_not_entry\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); builder.roots.bind(windows_x86_64::ProgramEntry, schema); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1161,7 +1161,7 @@ fn product_schema_query_rejects_an_ambiguous_declaration() {
     // cannot mint one description: the query admits exactly one candidate.
     let project = TempProject::with_main(
         "use other;\ndata LaunchConfig { value: u8; }",
-        "machine build(builder: &mut Build) { builder.application(\"schema-ambiguous\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"schema_ambiguous\"); let schema: ProductTypeSchema = builder.product.schema(\"LaunchConfig\"); }",
     );
     fs::write(
         project.0.join("other.omg"),
@@ -1194,14 +1194,14 @@ fn owner_selected_product_provider_inspects_through_foreign_helper() {
     // authored `ProductProviderRef {}` would carry no description and
     // `path()` would trap.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine configure(builder: &mut Build, provider: &ProductProviderRef) { builder.log.write_line(provider.path()); }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); setup::configure(builder, &provider); _ = builder.product.provider(\"AudioProvider\"); _ = provider.path(); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); setup::configure(builder, &provider); _ = builder.product.provider(\"AudioProvider\"); _ = provider.path(); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -1220,14 +1220,14 @@ fn product_provider_query_is_scoped_to_the_query_occurrences_package() {
     // the owner's package, so the borrowed Build cannot reach it. Selection
     // authority belongs to the query occurrence's package, not the caller's.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine configure(builder: &mut Build) { let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.log.write_line(provider.path()); }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); setup::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -1274,7 +1274,7 @@ fn product_provider_query_rejects_a_non_facet_receiver() {
     // the compiler-issued `Build.product` value only.
     let project = TempProject::with_main(
         "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
-        "machine build(builder: &mut Build) { builder.application(\"lookalike-facet\"); let product: BuildProduct = BuildProduct {}; let provider: ProductProviderRef = product.provider(\"AudioProvider\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"lookalike_facet\"); let product: BuildProduct = BuildProduct {}; let provider: ProductProviderRef = product.provider(\"AudioProvider\"); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1298,7 +1298,7 @@ fn product_provider_query_requires_a_provider_declaration() {
     // declarations in the occurrence's package, never plain data or entries.
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }\ndata PlainConfig { value: u8; }",
-        "machine build(builder: &mut Build) { builder.application(\"provider-miss\"); let provider: ProductProviderRef = builder.product.provider(\"PlainConfig\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"provider_miss\"); let provider: ProductProviderRef = builder.product.provider(\"PlainConfig\"); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1316,7 +1316,7 @@ fn product_provider_query_requires_a_provider_declaration() {
 
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }",
-        "machine build(builder: &mut Build) { builder.application(\"provider-miss\"); let provider: ProductProviderRef = builder.product.provider(\"launch\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"provider_miss\"); let provider: ProductProviderRef = builder.product.provider(\"launch\"); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1340,7 +1340,7 @@ fn product_provider_cannot_stand_in_for_an_entry_description() {
     // description is required.
     let project = TempProject::with_main(
         "machine launch() { let marker: u8 = 0; }\nboundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
-        "machine build(builder: &mut Build) { builder.application(\"provider-not-entry\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.roots.bind(windows_x86_64::ProgramEntry, provider); }",
+        "machine build(builder: &mut Build) { builder.application(\"provider_not_entry\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.roots.bind(windows_x86_64::ProgramEntry, provider); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1365,7 +1365,7 @@ fn product_provider_query_rejects_an_ambiguous_declaration() {
     // candidate.
     let project = TempProject::with_main(
         "use other;\nboundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
-        "machine build(builder: &mut Build) { builder.application(\"provider-ambiguous\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); }",
+        "machine build(builder: &mut Build) { builder.application(\"provider_ambiguous\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); }",
     );
     fs::write(
         project.0.join("other.omg"),
@@ -1395,7 +1395,7 @@ fn product_provider_description_is_not_a_static_provider_argument() {
     // evaluation.
     let project = TempProject::with_main(
         "boundary trait Pick {\n    machine choose() -> i32;\n}\ndata AudioProvider { }\nmachine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
-        "machine build(builder: &mut Build) { builder.application(\"provider-operand\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.select_provider<Pick>(provider); }",
+        "machine build(builder: &mut Build) { builder.application(\"provider_operand\"); let provider: ProductProviderRef = builder.product.provider(\"AudioProvider\"); builder.select_provider<Pick>(provider); }",
     );
     let diagnostics = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -1420,7 +1420,7 @@ fn qualified_product_entry_query_selects_a_public_declaration_in_an_authorized_d
     // product selection uses the authored dependency roster, never a caller's
     // borrowed namespace.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(
         helper.0.join("setup.omg"),
@@ -1429,7 +1429,7 @@ fn qualified_product_entry_query_selects_a_public_declaration_in_an_authorized_d
     .expect("helper source");
     let project = TempProject::with_main(
         "use support::setup;\nmachine root_probe() { setup::launch(); }",
-        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+        "machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_product_inputs(&project, &helper));
@@ -1445,14 +1445,14 @@ fn qualified_product_entry_query_rejects_a_build_scope_alias() {
     // resolves under a product dependency authorizes nothing, because the two
     // dependency scopes never stand in for one another.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub machine launch() { let marker: u8 = 0; } pub machine configure(builder: &mut Build) { let marker: u8 = 0; }",
     ).expect("helper source");
     let project = TempProject::with_main(
         "const ANSWER: u32 = 42;\n",
-        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); setup::configure(builder); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+        "use support::setup; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); setup::configure(builder); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_helper_inputs(&project, &helper));
@@ -1475,7 +1475,7 @@ fn qualified_product_entry_query_rejects_a_private_dependency_declaration() {
     // select public declarations, so the query cannot enumerate private
     // product names across the package boundary.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(
         helper.0.join("setup.omg"),
@@ -1484,7 +1484,7 @@ fn qualified_product_entry_query_rejects_a_private_dependency_declaration() {
     .expect("helper source");
     let project = TempProject::with_main(
         "use support::setup;\nmachine root_probe() { }",
-        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
+        "machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); let entry: ProductEntryRef = builder.product.entry(\"support::setup::launch\", \"windows_x86_64::ProgramEntry\"); builder.roots.bind(windows_x86_64::ProgramEntry, entry); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_product_inputs(&project, &helper));
@@ -1504,7 +1504,7 @@ fn qualified_product_entry_query_rejects_a_private_dependency_declaration() {
 #[test]
 fn qualified_product_schema_query_selects_a_public_declaration_in_an_authorized_dependency() {
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(
         helper.0.join("setup.omg"),
@@ -1513,7 +1513,7 @@ fn qualified_product_schema_query_selects_a_public_declaration_in_an_authorized_
     .expect("helper source");
     let project = TempProject::with_main(
         "use support::setup;",
-        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let schema: ProductTypeSchema = builder.product.schema(\"support::setup::LaunchConfig\"); builder.log.write_line(schema.path()); }",
+        "machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); let schema: ProductTypeSchema = builder.product.schema(\"support::setup::LaunchConfig\"); builder.log.write_line(schema.path()); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_product_inputs(&project, &helper));
@@ -1529,14 +1529,14 @@ fn qualified_product_schema_query_selects_a_public_declaration_in_an_authorized_
 #[test]
 fn qualified_product_provider_query_selects_a_public_declaration_in_an_authorized_dependency() {
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(helper.0.join("setup.omg"),
         "module setup; pub boundary trait Pick {\n    machine choose() -> i32;\n}\npub data AudioProvider { }\npub machine AudioProvider::choose() -> i32 satisfies Pick::choose {\n    transition { _ -> (1) }\n}",
     ).expect("helper source");
     let project = TempProject::with_main(
         "use support::setup;",
-        "machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); let provider: ProductProviderRef = builder.product.provider(\"support::setup::AudioProvider\"); builder.log.write_line(provider.path()); }",
+        "machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); let provider: ProductProviderRef = builder.product.provider(\"support::setup::AudioProvider\"); builder.log.write_line(provider.path()); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(foreign_product_inputs(&project, &helper));
@@ -1555,7 +1555,7 @@ fn product_entry_query_resolves_an_own_package_module_path() {
     // the same logical declaration path the dependency form uses: the helper
     // selects its own (private) `setup::launch` by its in-package path.
     let helper = TempProject::new(
-        "machine build(builder: &mut Build) { builder.package(\"root-binding-helper\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"root_binding_helper\"); }",
     );
     fs::write(
         helper.0.join("setup.omg"),
@@ -1567,7 +1567,7 @@ fn product_entry_query_resolves_an_own_package_module_path() {
     ).expect("build helper source");
     let project = TempProject::with_main(
         "use support::setup; const ANSWER: u32 = 42;\n",
-        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root-binding-owner\"); configure::configure(builder); }",
+        "use support::configure; machine build(builder: &mut Build) { builder.application(\"root_binding_owner\"); configure::configure(builder); }",
     );
     let mut request = CheckedCompileRequest::new(&project.main(), Some("windows_x86_64"));
     request.package_inputs = Some(helper_entry_inputs(&project, &helper));

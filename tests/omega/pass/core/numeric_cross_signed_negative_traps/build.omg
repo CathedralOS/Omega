@@ -1,7 +1,7 @@
 // Deployable cross-signed negative trap: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("numeric-cross-signed-negative-traps");
+    builder.application("numeric_cross_signed_negative_traps");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

@@ -56,7 +56,7 @@ fn linux_arm64_package_inputs(fixture: &Fixture) -> PackageCompilationInputs {
             PackageSourceBinding::new(root_identity, root_name.into_string(), fixture.root.clone()),
             PackageSourceBinding::new(
                 standard_library_identity,
-                "omega-language-std",
+                "omega_language_std",
                 standard_library_root.clone(),
             ),
         ],
@@ -150,7 +150,7 @@ machine Main::main(&mut self) reaches Console {{
     );
     let build = format!(
         r#"machine build(builder: &mut Build) {{
-    builder.application("source-evaluated-linux-arm64-hosted-receiver");
+    builder.application("source_evaluated_linux_arm64_hosted_receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

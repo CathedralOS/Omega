@@ -1,7 +1,7 @@
 // Deployable comptime canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("provider-boundary-range-endpoint-exit");
+    builder.application("provider_boundary_range_endpoint_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

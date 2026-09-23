@@ -34,7 +34,7 @@ fn return_only_byte_view_address_offset_rejoins_native_artifact_production() {
     let root = project(
         "rejoin",
         r#"machine build(builder: &mut Build) {
-    builder.application("optimizer-byte-view-address-offset-rejoin");
+    builder.application("optimizer_byte_view_address_offset_rejoin");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ByteViewAddressOffset);
 }

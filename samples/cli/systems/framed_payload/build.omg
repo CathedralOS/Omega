@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("framed-payload");
+    builder.application("framed_payload");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -106,7 +106,7 @@ fn requested_entry_is_checked_and_reported_instead_of_main() {
     let project = Project::new();
     project.write(
         "source/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"alternate-entry\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"alternate_entry\"); }\n",
     );
     project.write("source/main.omg", "this is deliberately invalid Omega\n");
     project.write("source/entry.omg", "pub machine value() -> u64 { 7 }\n");
@@ -148,7 +148,7 @@ fn check_rejects_proof_product_requests_it_cannot_publish() {
         project.write(
             "source/build.omg",
             &format!(
-                "machine build(builder: &mut Build) {{ builder.application(\"pcc-check\"); {pcc_line} }}\n"
+                "machine build(builder: &mut Build) {{ builder.application(\"pcc_check\"); {pcc_line} }}\n"
             ),
         );
         project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
@@ -168,7 +168,7 @@ fn check_rejects_proof_product_requests_it_cannot_publish() {
     let project = Project::new();
     project.write(
         "source/build.omg",
-        "machine build(builder: &mut Build) { builder.application(\"pcc-check\"); }\n",
+        "machine build(builder: &mut Build) { builder.application(\"pcc_check\"); }\n",
     );
     project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
     let report = check_prepared_local_project(project.request("source/main.omg", "checked"))
@@ -182,7 +182,7 @@ fn package_check_does_not_relax_native_application_gate() {
     let project = Project::new();
     project.write(
         "source/build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"checked-library\"); }\n",
+        "machine build(builder: &mut Build) { builder.package(\"checked_library\"); }\n",
     );
     project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
     let report = check_prepared_local_project(project.request("source/main.omg", "checked"))
@@ -216,7 +216,7 @@ fn application_check_settles_explicit_trust_without_native_root_policy() {
         "source/build.omg",
         r#"
 machine build(builder: &mut Build) {
-    builder.application("checked-trust");
+    builder.application("checked_trust");
     builder.accept_boundary<ClaimProvider>();
     builder.select_provider<ClaimProvider, ClaimProviderImpl>();
 }

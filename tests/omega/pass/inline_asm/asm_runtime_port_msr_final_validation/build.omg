@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-runtime-port-msr-final-validation");
+    builder.application("asm_runtime_port_msr_final_validation");
     builder.freestanding = true;
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

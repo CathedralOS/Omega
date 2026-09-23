@@ -1,7 +1,7 @@
 // Backend rejection requires exact hosted entry selection on every target.
 
 machine build(builder: &mut Build) {
-    builder.application("deep-nested-runtime-indexed-write-rejected");
+    builder.application("deep_nested_runtime_indexed_write_rejected");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);

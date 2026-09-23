@@ -229,7 +229,7 @@ fn write_exact_macos_build(project: &Path) {
             );
         } else {
             source.push_str(
-                "\n\nmachine build(builder: &mut Build) {\n    builder.application(\"native-filesystem-canary\");\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}\n",
+                "\n\nmachine build(builder: &mut Build) {\n    builder.application(\"native_filesystem_canary\");\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}\n",
             );
         }
     }

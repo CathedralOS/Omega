@@ -2,7 +2,7 @@
 // rejection is the checker's and not a missing dependency or entry.
 
 machine build(builder: &mut Build) {
-    builder.application("blocking-executor-isolated-provider-incomplete-conformance");
+    builder.application("blocking_executor_isolated_provider_incomplete_conformance");
     builder.depend(Source::Path {
         location: "../../../../../source/library/blocking-executor"
     });

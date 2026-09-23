@@ -4,7 +4,7 @@
 // admission refuses — without depending on the ordinary std package.
 
 machine build(builder: &mut Build) {
-    builder.package("quotient-define-managed-compile");
+    builder.package("quotient_define_managed_compile");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }

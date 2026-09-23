@@ -41,7 +41,7 @@ impl SourceFixture {
             package,
             vec![PackageSourceBinding::new(
                 package,
-                "machine-equations",
+                "machine_equations",
                 self.root.clone(),
             )],
             Vec::new(),

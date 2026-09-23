@@ -6,7 +6,7 @@ fn review_projects_exact_public_callable_conformances_and_static_machine_contrac
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let satisfying = TempPackage::new();
     satisfying.write(
@@ -118,7 +118,7 @@ satisfies CheckedMath::identity
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -152,7 +152,7 @@ fn review_projects_and_encodes_aliased_checked_operator_realization() {
     let Some(target) = host_target_name() else {
         return;
     };
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     let project = |alias: &str| {
         let package = TempPackage::new();
@@ -253,7 +253,7 @@ satisfies CheckedMath::subtract
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 

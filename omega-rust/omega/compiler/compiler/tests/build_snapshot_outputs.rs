@@ -93,7 +93,7 @@ fn package_inputs(root: &Path) -> PackageCompilationInputs {
     PackageCompilationInputs::new_package(
         package,
         vec![
-            PackageSourceBinding::new(package, "snapshot-outputs", root.to_path_buf())
+            PackageSourceBinding::new(package, "snapshot_outputs", root.to_path_buf())
                 .with_canonical_source_metadata()
                 .expect("capture canonical package source"),
         ],
@@ -212,7 +212,7 @@ fn required_output_completes_as_a_sealed_regular_file() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-complete");
+    builder.application("snapshot_output_complete");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -269,7 +269,7 @@ fn required_output_completion_retries_an_unclosed_writer() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-retry");
+    builder.application("snapshot_output_retry");
     let required: RequiredOutput = builder.output.require("retry.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -319,7 +319,7 @@ fn required_output_declared_but_never_completed_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-omitted");
+    builder.application("snapshot_output_omitted");
     let required: RequiredOutput = builder.output.require("artifact.txt");
 }
 "#,
@@ -342,7 +342,7 @@ fn required_output_declared_failure_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-failed");
+    builder.application("snapshot_output_failed");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     builder.output.fail(required, "generator unavailable");
 }
@@ -366,7 +366,7 @@ fn duplicate_required_output_name_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-duplicate");
+    builder.application("snapshot_output_duplicate");
     let first: RequiredOutput = builder.output.require("artifact.txt");
     let second: RequiredOutput = builder.output.require("artifact.txt");
 }
@@ -391,7 +391,7 @@ fn invalid_required_output_path_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-invalid-path");
+    builder.application("snapshot_output_invalid_path");
     let required: RequiredOutput = builder.output.require("../escape.txt");
 }
 "#,
@@ -413,7 +413,7 @@ fn required_output_path_prefix_conflict_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-prefix-conflict");
+    builder.application("snapshot_output_prefix_conflict");
     let first: RequiredOutput = builder.output.require("nested");
     let second: RequiredOutput = builder.output.require("nested/artifact.txt");
 }
@@ -438,7 +438,7 @@ fn required_output_mutation_after_completion_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-sealed-mutation");
+    builder.application("snapshot_output_sealed_mutation");
     let required: RequiredOutput = builder.output.require("sealed.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -468,7 +468,7 @@ fn fabricated_required_output_carries_no_obligation_authority() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-fabricated");
+    builder.application("snapshot_output_fabricated");
     let artifact: BuildPath = builder.output.resolve("artifact.txt");
     let descriptor: i32 = builder.output.create(artifact, 438);
     let written: i64 = builder.output.write(descriptor, "x\n");
@@ -495,7 +495,7 @@ fn completed_obligation_cannot_complete_again() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-output-double-complete");
+    builder.application("snapshot_output_double_complete");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -528,7 +528,7 @@ fn artifact_only_build_publishes_a_completed_required_output() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-artifact-only");
+    builder.application("snapshot_artifact_only");
     builder.artifact_only();
     let required: RequiredOutput = builder.output.require("report.txt");
     let required_path: &[u8] = required.path();
@@ -564,7 +564,7 @@ fn artifact_only_build_reaches_an_ordinary_compiler_product() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-artifact-only");
+    builder.application("snapshot_artifact_only");
     builder.artifact_only();
     let scratch: BuildPath = builder.output.resolve("scratch.txt");
     let temporary: i32 = builder.output.create(scratch, 438);
@@ -664,7 +664,7 @@ fn ordinary_native_product_publishes_its_completed_companion() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("native-companion");
+    builder.application("native_companion");
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
@@ -741,7 +741,7 @@ fn terminal_companion_product(
         "build.omg",
         &format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("terminal-companion");
+    builder.application("terminal_companion");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.pcc.psi = {request_proof};
     let scratch: BuildPath = builder.output.resolve("scratch.txt");
@@ -886,7 +886,7 @@ fn artifact_only_build_without_a_completed_output_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-artifact-only-empty");
+    builder.application("snapshot_artifact_only_empty");
     builder.artifact_only();
 }
 "#,
@@ -911,7 +911,7 @@ fn artifact_only_build_rejects_executable_root_bindings() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-artifact-only-roots");
+    builder.application("snapshot_artifact_only_roots");
     builder.artifact_only();
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
 }
@@ -937,7 +937,7 @@ fn snapshot_source_lookups_are_narrowed_to_captured_membership() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-negative-lookup");
+    builder.application("snapshot_negative_lookup");
     let required: RequiredOutput = builder.output.require("lookup.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -999,7 +999,7 @@ fn snapshot_rejects_a_substituted_source_inventory_after_binding() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-substitution");
+    builder.application("snapshot_substitution");
     let template: BuildPath = builder.source.resolve("templates/banner.tmpl");
     let descriptor: i32 = builder.source.open(template, 0);
     let mut banner_bytes: [u8; 4];
@@ -1049,7 +1049,7 @@ fn snapshot_reads_are_deterministic_across_reopens() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-deterministic-reads");
+    builder.application("snapshot_deterministic_reads");
     let required: RequiredOutput = builder.output.require("verdict.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -1130,7 +1130,7 @@ fn snapshot_directory_member_never_serves_file_bytes() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-directory-read");
+    builder.application("snapshot_directory_read");
     let required: RequiredOutput = builder.output.require("verdict.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -1234,7 +1234,7 @@ fn snapshot_symlink_members_stay_inert_and_deny_escape() {
         .expect("create escaping symlink member");
     symlink("templates", project.root.join("linkdir")).expect("create directory symlink member");
     let build_source = r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-symlink-inert");
+    builder.application("snapshot_symlink_inert");
     let required: RequiredOutput = builder.output.require("verdict.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -1358,7 +1358,7 @@ fn captured_input_commits_directory_membership_between_captures() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-capture-membership");
+    builder.application("snapshot_capture_membership");
 }
 "#,
     );
@@ -1394,7 +1394,7 @@ fn captured_input_commits_content_not_host_observation_identity() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-capture-restore");
+    builder.application("snapshot_capture_restore");
 }
 "#,
     );
@@ -1441,7 +1441,7 @@ fn captured_input_commits_inert_link_spelling_between_captures() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-capture-link");
+    builder.application("snapshot_capture_link");
 }
 "#,
     );
@@ -1489,7 +1489,7 @@ fn omitted_required_outputs_report_in_canonical_order() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-roster-order");
+    builder.application("snapshot_roster_order");
     let artifact: BuildPath = builder.output.resolve("z-last.txt");
     let descriptor: i32 = builder.output.create(artifact, 438);
     let written: i64 = builder.output.write(descriptor, "z\n");
@@ -1527,7 +1527,7 @@ fn failed_obligation_stays_failed_and_cannot_complete() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-sticky-fail");
+    builder.application("snapshot_sticky_fail");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     builder.output.fail(required, "generator unavailable");
     let artifact: BuildPath = builder.output.resolve("artifact.txt");
@@ -1559,7 +1559,7 @@ fn complete_rejects_another_obligations_reserved_output() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-cross-obligation");
+    builder.application("snapshot_cross_obligation");
     let first: RequiredOutput = builder.output.require("first.txt");
     let second: RequiredOutput = builder.output.require("second.txt");
     let second_path: &[u8] = second.path();
@@ -1588,7 +1588,7 @@ fn interrupted_activation_commits_no_output_set() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-interruption");
+    builder.application("snapshot_interruption");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -1621,7 +1621,7 @@ fn staged_output_capture_rejects_foreign_uncommitted_entries() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-foreign-entry");
+    builder.application("snapshot_foreign_entry");
     let required: RequiredOutput = builder.output.require("artifact.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -1671,7 +1671,7 @@ fn executable_route_accepts_a_companion_required_output() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-companion");
+    builder.application("snapshot_companion");
     let required: RequiredOutput = builder.output.require("companion.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -1715,7 +1715,7 @@ fn write_native_generated_project(project: &Project) {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-native-product");
+    builder.application("snapshot_native_product");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     let input: BuildPath = builder.source.resolve("input.txt");
@@ -1753,7 +1753,7 @@ fn application_inputs(root: &Path) -> PackageCompilationInputs {
         package,
         package_compilation::BuildDeclarationKind::Application,
         vec![
-            PackageSourceBinding::new(package, "snapshot-outputs", root.to_path_buf())
+            PackageSourceBinding::new(package, "snapshot_outputs", root.to_path_buf())
                 .with_canonical_source_metadata()
                 .expect("capture canonical package source"),
         ],
@@ -2063,7 +2063,7 @@ fn standalone_scoped_capture_serves_only_declared_members() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-scoped-members");
+    builder.application("snapshot_scoped_members");
     let required: RequiredOutput = builder.output.require("verdict.txt");
     let required_path: &[u8] = required.path();
     let artifact: BuildPath = builder.output.resolve(required_path);
@@ -2177,7 +2177,7 @@ fn standalone_scoped_capture_rejects_a_missing_required_member() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-scoped-absent");
+    builder.application("snapshot_scoped_absent");
 }
 "#,
     );
@@ -2212,7 +2212,7 @@ fn standalone_scoped_capture_rejects_a_consumed_member_the_request_omits() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-scoped-omits");
+    builder.application("snapshot_scoped_omits");
 }
 "#,
     );
@@ -2243,7 +2243,7 @@ fn named_input_for_an_absent_dependency_occurrence_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-absent-occurrence");
+    builder.application("snapshot_absent_occurrence");
 }
 "#,
     );
@@ -2287,7 +2287,7 @@ fn standalone_snapshot_without_a_capture_request_rejects() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("snapshot-unscoped");
+    builder.application("snapshot_unscoped");
 }
 "#,
     );
@@ -2320,7 +2320,7 @@ fn ordinary_compilation_reads_only_the_requested_standalone_inventory() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("ordinary-scoped-input");
+    builder.application("ordinary_scoped_input");
     let path: BuildPath = builder.source.resolve("template.txt");
     let descriptor: i32 = builder.source.open(path, 0);
     let mut bytes: [u8; 2];
@@ -2406,7 +2406,7 @@ fn ordinary_compilation_keeps_snapshot_requirements_target_local() {
     project.write(
         "build.omg",
         r#"machine build(builder: &mut Build) {
-    builder.application("ordinary-target-inputs");
+    builder.application("ordinary_target_inputs");
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(macos_arm64::ProgramEntry, Main::main);

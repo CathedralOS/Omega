@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("langtons-ant");
+    builder.application("langtons_ant");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

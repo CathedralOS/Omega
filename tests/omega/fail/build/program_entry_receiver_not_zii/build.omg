@@ -1,5 +1,5 @@
 
 machine build(builder: &mut Build) {
-    builder.application("program-entry-receiver-not-zii");
+    builder.application("program_entry_receiver_not_zii");
     builder.roots.bind(windows_x86_64::ProgramEntry, Application::launch);
 }

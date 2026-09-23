@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("grid-walk");
+    builder.application("grid_walk");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

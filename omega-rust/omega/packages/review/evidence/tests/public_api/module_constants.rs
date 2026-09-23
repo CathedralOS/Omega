@@ -6,7 +6,7 @@ fn floating_table_review_preserves_nested_bits_without_admitting_static_indices(
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
     );
     package.write("main.omg", "use settings;");
     let project_table = |zero: &str| {
@@ -101,7 +101,7 @@ fn floating_table_review_preserves_nested_bits_without_admitting_static_indices(
 fn project(package: &TempPackage, combat_damage: u64) -> CheckedPackageReviewProjection {
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
     );
     package.write("main.omg", "use combat; use rooms;");
     for (module, value) in [("combat", combat_damage), ("rooms", 9)] {
@@ -187,7 +187,7 @@ fn public_float_identity_retains_format_bits_and_exact_package_owner() {
     let package = TempPackage::new();
     package.write(
         "build.omg",
-        "machine build(builder: &mut Build) { builder.package(\"review-fixture\"); }",
+        "machine build(builder: &mut Build) { builder.package(\"review_fixture\"); }",
     );
     package.write("main.omg", "use settings;");
     let project_float = |carrier: &str, literal: &str| {

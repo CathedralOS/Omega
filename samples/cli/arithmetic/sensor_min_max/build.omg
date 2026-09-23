@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("sensor-min-max");
+    builder.application("sensor_min_max");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

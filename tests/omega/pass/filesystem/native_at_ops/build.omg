@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("native-at-ops");
+    builder.application("native_at_ops");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

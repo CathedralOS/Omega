@@ -24,7 +24,7 @@ ensures result == apply<{selected}>(0);
     };
     package.write("main.omg", &source("chosen"));
     changed.write("main.omg", &source("alternate"));
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     package.write("build.omg", build);
     changed.write("build.omg", build);
@@ -107,7 +107,7 @@ requires apply<{binder}>(value) == apply<{binder}>(value)
         );
         package.write(
             "build.omg",
-            r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+            r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
         );
         let checked = compile_review_fixture(CheckedCompileRequest {
@@ -182,7 +182,7 @@ ensures result == inspect<identity<sample>>();
     );
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
     let diagnostics = compile_review_fixture(CheckedCompileRequest {

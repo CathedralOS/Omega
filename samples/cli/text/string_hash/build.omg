@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("string-hash");
+    builder.application("string_hash");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

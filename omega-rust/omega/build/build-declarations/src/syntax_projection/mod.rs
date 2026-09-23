@@ -539,13 +539,13 @@ fn unsupported_shape_error(operation: &str) -> BuildDeclarationError {
     }
 }
 
-pub(crate) fn is_kebab_case(value: &str) -> bool {
-    if !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase) || value.ends_with('-') {
+pub(crate) fn is_snake_case(value: &str) -> bool {
+    if !value.as_bytes().first().is_some_and(u8::is_ascii_lowercase) || value.ends_with('_') {
         return false;
     }
     let mut previous_separator = false;
     for byte in value.bytes() {
-        if byte == b'-' {
+        if byte == b'_' {
             if previous_separator {
                 return false;
             }

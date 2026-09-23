@@ -25,7 +25,7 @@ fn target_entry_dependency_discovery_requires_explicit_consumer_acceptance() {
     write_file(
         application.join("build.omg"),
         &format!(
-            "machine build(builder: &mut Build) {{ builder.application(\"hosted-consumer\"); builder.depend_as(\"ordinary_std\", Source::Path {{ location: {:?} }}); builder.roots.bind(macos_arm64::ProgramEntry, Main::main); }}\n",
+            "machine build(builder: &mut Build) {{ builder.application(\"hosted_consumer\"); builder.depend_as(\"ordinary_std\", Source::Path {{ location: {:?} }}); builder.roots.bind(macos_arm64::ProgramEntry, Main::main); }}\n",
             standard_library.to_str().expect("fixture source path")
         ),
     );

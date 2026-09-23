@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("provider-type-target-default-override");
+    builder.application("provider_type_target_default_override");
     builder.select_provider<Pick, SecondProvider>();
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

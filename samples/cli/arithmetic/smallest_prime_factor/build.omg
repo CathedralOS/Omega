@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("smallest-prime-factor");
+    builder.application("smallest_prime_factor");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -4,7 +4,7 @@
 // selects the canary worker provider through ordinary build composition.
 
 machine build(builder: &mut Build) {
-    builder.application("blocking-executor-consumer-depend-compile");
+    builder.application("blocking_executor_consumer_depend_compile");
     builder.depend(Source::Path {
         location: "../../../../../source/library/blocking-executor"
     });

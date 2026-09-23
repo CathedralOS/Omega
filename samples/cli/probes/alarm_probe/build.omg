@@ -1,7 +1,7 @@
 // alarm_probe build sketch.
 
 machine build(builder: &mut Build) {
-    builder.application("alarm-probe");
+    builder.application("alarm_probe");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

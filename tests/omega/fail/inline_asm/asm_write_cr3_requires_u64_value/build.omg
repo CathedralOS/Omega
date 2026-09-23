@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-write-cr3-requires-u64-value");
+    builder.application("asm_write_cr3_requires_u64_value");
     builder.freestanding = true;
 }

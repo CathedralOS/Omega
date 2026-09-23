@@ -327,7 +327,7 @@ fn canonical_row_layout_and_source_commitment_are_stable() {
         package,
         vec![super::super::PackageSourceBinding::new(
             package,
-            "canonical-row-fixture",
+            "canonical_row_fixture",
             std::env::current_dir().expect("package root"),
         )],
         Vec::new(),

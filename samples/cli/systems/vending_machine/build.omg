@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("systems-vending-machine");
+    builder.application("systems_vending_machine");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

@@ -49,7 +49,7 @@ pub machine expose() reaches Console + FilesystemHost + Echo {}
 "#;
 
 const BUILD: &str = r#"machine build(builder: &mut Build) {
-    builder.package("review-fixture");
+    builder.package("review_fixture");
     builder.select_provider<Console, ConsoleNativeProvider>();
 }
 "#;

@@ -1,7 +1,7 @@
 // Deployable native canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("wrapper-open-with-exit");
+    builder.application("wrapper_open_with_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

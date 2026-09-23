@@ -1,6 +1,6 @@
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-record-array-view-mutable-write-exit");
+    builder.application("runtime_record_array_view_mutable_write_exit");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);

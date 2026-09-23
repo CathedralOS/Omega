@@ -15,7 +15,7 @@ fn missing_named_input_fails_before_a_build_can_publish() {
     std::fs::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-        builder.application("missing-input");
+        builder.application("missing_input");
         builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
         let input: BuildSource = builder.inputs.get("template");
     }
@@ -102,7 +102,7 @@ fn captured_named_input_reaches_ordinary_completed_file_publication() {
     std::fs::write(
         source.join("build.omg"),
         r#"machine build(builder: &mut Build) {
-    builder.application("captured-input");
+    builder.application("captured_input");
     builder.artifact_only();
     let input: BuildSource = builder.inputs.get("template");
     let input_path: BuildPath = input.resolve("data.txt");

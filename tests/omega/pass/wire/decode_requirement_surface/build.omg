@@ -1,4 +1,4 @@
 machine build(builder: &mut Build) {
-    builder.application("decode-requirement-surface");
+    builder.application("decode_requirement_surface");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
 }

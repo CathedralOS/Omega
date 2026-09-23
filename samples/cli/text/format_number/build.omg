@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("format-number");
+    builder.application("format_number");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

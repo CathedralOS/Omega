@@ -50,7 +50,7 @@ fn transitive_helper_authority_changes_policy_with_the_same_public_ceiling() {
     let leaf = closure
         .custodies()
         .iter()
-        .find(|custody| custody.key().name().as_str() == "authority-leaf")
+        .find(|custody| custody.key().name().as_str() == "authority_leaf")
         .unwrap()
         .key();
     let leaf_changes = initial

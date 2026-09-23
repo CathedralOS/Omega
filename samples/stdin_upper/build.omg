@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("stdin-upper");
+    builder.application("stdin_upper");
     builder.depend(Source::Path {
         location: "../../source/library/std"
     });

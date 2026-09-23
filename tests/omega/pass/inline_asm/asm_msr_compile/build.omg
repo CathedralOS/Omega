@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("asm-msr-compile");
+    builder.application("asm_msr_compile");
     builder.freestanding = true;
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

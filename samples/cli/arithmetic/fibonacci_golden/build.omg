@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("fibonacci-golden");
+    builder.application("fibonacci_golden");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

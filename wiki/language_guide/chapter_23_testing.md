@@ -54,7 +54,7 @@ In the package's `build.omg`:
 
 ```omega
 machine build(builder: &mut Build) {
-    builder.package("arithmetic-example");
+    builder.package("arithmetic_example");
     _ = builder.tests.group<Tests::arithmetic>();
 }
 ```

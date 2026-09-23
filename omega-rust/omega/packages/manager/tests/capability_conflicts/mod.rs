@@ -44,7 +44,7 @@ fn write_package(root: &Path, main: &str) {
         root.join("build.omg"),
         r#"
 machine build(builder: &mut Build) {
-    builder.package("conflict-probe");
+    builder.package("conflict_probe");
 }
 "#,
     )

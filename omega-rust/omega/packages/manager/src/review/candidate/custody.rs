@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn build_roots_bind_package_and_source_selection() {
         let key = PackageKey::new(
-            PackageName::parse("arithmetic-kernels").unwrap(),
+            PackageName::parse("arithmetic_kernels").unwrap(),
             SourceLineage::git("https://github.com/CathedralOS/arithmetic-kernels.git").unwrap(),
         );
         let first = ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"a"));

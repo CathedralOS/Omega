@@ -1,7 +1,7 @@
 // Permission-bits sample build sketch. Needs only process.exit.
 
 machine build(builder: &mut Build) {
-    builder.application("file-permissions");
+    builder.application("file_permissions");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

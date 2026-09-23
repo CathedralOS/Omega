@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("checked-boundary-operator-const-application-unselected");
+    builder.application("checked_boundary_operator_const_application_unselected");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }

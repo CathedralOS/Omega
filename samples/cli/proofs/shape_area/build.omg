@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("shape-area");
+    builder.application("shape_area");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

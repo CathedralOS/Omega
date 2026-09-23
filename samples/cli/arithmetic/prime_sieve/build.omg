@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    builder.application("prime-sieve");
+    builder.application("prime_sieve");
     builder.depend(Source::Path {
         location: "../../../../source/library/std"
     });

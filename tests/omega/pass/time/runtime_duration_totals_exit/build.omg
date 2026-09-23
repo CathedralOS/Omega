@@ -1,7 +1,7 @@
 // Deployable time canary: every hosted target selects its exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("runtime-duration-totals-exit");
+    builder.application("runtime_duration_totals_exit");
     builder.depend(Source::Path {
         location: "../../../../../source/library/std"
     });

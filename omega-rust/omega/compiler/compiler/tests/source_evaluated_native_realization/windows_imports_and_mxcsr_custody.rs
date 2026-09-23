@@ -107,7 +107,7 @@ machine Main::main(&mut self) reaches WindowsCalls {{
             "windows_x86_64",
             &source,
             r#"machine build(builder: &mut Build) {
-    builder.application("windows-dll-case");
+    builder.application("windows_dll_case");
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
 }
 "#,

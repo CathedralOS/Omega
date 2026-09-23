@@ -7,7 +7,7 @@ fn public_machine_visibility_survives_checked_compilation_and_strict_empty_contr
     package.write("main.omg", "pub machine Package::entry() { }\n");
     package.write(
         "build.omg",
-        r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+        r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#,
     );
 
@@ -152,7 +152,7 @@ invokes Host;
 }
 "#,
     );
-    let build = r#"machine build(builder: &mut Build) { builder.package("review-fixture"); }
+    let build = r#"machine build(builder: &mut Build) { builder.package("review_fixture"); }
 "#;
     quiet.write("build.omg", build);
     invoking.write("build.omg", build);

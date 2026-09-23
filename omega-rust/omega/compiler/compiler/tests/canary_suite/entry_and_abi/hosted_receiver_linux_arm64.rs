@@ -43,7 +43,7 @@ fn compile_and_run_linux_arm64_hosted_receiver(explicit_exit: bool, bound_servic
         project.0.join("build.omg"),
         format!(
             r#"machine build(builder: &mut Build) {{
-    builder.application("linux-arm64-hosted-receiver");
+    builder.application("linux_arm64_hosted_receiver");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
     builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
