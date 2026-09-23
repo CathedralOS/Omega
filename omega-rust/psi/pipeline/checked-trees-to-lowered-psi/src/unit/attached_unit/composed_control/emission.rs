@@ -610,10 +610,12 @@ pub(super) fn emit_call_operations(
             CheckedUnitEffectOperationPlan::BoundaryCall { .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {
                 emit_boundary_call_operation(
+                    checked,
                     state,
                     operation,
                     &catalogs.lowered_boundaries,
                     &catalogs.type_ids,
+                    &catalogs.domain_ids,
                     &catalogs.structural_types,
                     parameters,
                     claim_bindings,
@@ -731,10 +733,12 @@ pub(super) fn emit_call_operations(
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn emit_boundary_call_operation(
+    checked: &CheckedTrees,
     state: &checked_trees::CheckedComposedUnitControlStatePlan,
     operation: &CheckedUnitEffectOperationPlan,
     boundaries: &[catalogs::LoweredComposedBoundary],
     type_ids: &[(String, StructuralTypeId)],
+    domain_ids: &[(SemanticDomainId, StructuralDomainId)],
     structural_types: &[StructuralTypeDeclaration],
     parameters: &[StructuralParameterDeclaration],
     claim_bindings: &[(PermissionClaimIdentity, ClaimId)],
@@ -828,12 +832,24 @@ pub(super) fn emit_boundary_call_operation(
                     structural_type: result.structural_type,
                 },
             });
+            // The declared result domains mint their caller-side
+            // establishment through this call's CallEnsures evidence, exactly
+            // like the ordinary boundary structural emit.
+            let qualification_establishments =
+                super::super::catalog::call_result_qualification_establishments(
+                    checked,
+                    state.state,
+                    *coordinate,
+                    *target_machine,
+                    &target.result_domains,
+                    domain_ids,
+                )?;
             OperationResult::Structural(StructuralOperationResult {
-                qualification_establishments: Vec::new(),
+                qualification_establishments,
                 place,
                 structural_type: result.structural_type,
                 multiplicity: result.multiplicity,
-                qualifications: Vec::new(),
+                qualifications: result.qualifications.clone(),
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),
             })

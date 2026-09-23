@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 pub domain [u8]::Utf8
 requires
     valid_utf8(self);
@@ -36,7 +36,7 @@ ensures
 }
 
 data Vault {
-    desktop: Service<Desktop>;
+    desktop: Binding<Desktop>;
 }
 
 machine Vault::pick(&mut self) -> Folder
@@ -63,13 +63,4 @@ data Main {
 
 machine Main::main(&mut self) {
     let staged: Folder = self.backup.stage();
-}
-
-// The capability-flow rows are checked-level facts on this authored chain; the
-// deployable entry stays a plain receiver until nested routed-Service storage
-// provisions transitively under a program entry.
-data Probe {
-}
-
-machine Probe::enter(&mut self) {
 }

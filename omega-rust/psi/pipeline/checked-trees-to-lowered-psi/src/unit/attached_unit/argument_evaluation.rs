@@ -162,8 +162,16 @@ impl Evaluation {
         if types.next().is_some()
             || declaration.identity != result.type_identity
             || produced.multiplicity != multiplicity
+            // A non-linear result keeps only qualifications its own
+            // establishment rows minted (e.g. a boundary's declared result
+            // domains replayed through CallEnsures evidence).
             || (multiplicity != StructuralMultiplicity::Linear
-                && !produced.qualifications.is_empty())
+                && produced.qualifications.iter().any(|domain| {
+                    !produced
+                        .qualification_establishments
+                        .iter()
+                        .any(|row| row.domain == *domain)
+                }))
             || (multiplicity != StructuralMultiplicity::Linear
                 && !produced.projected_qualifications.is_empty())
             || (multiplicity != StructuralMultiplicity::Linear && !produced.claims.is_empty())

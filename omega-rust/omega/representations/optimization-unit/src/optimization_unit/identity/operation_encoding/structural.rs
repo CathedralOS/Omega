@@ -1,7 +1,7 @@
 //! Structural establishment and write-only storage tags.
 
 use crate::optimization_unit::identity::carrier_encoding::{
-    encode_abstract_result, encode_structural_argument, encode_structural_parameter,
+    encode_abstract_result, encode_ids, encode_structural_argument, encode_structural_parameter,
     encode_structural_path_segment,
 };
 use crate::optimization_unit::identity::proposition_encoding::encode_canonical_path;
@@ -168,6 +168,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             place,
             structural_type,
             bytes: literal,
+            qualifications,
         } => {
             bytes.u8(1);
             bytes.id(*psi_operation);
@@ -175,6 +176,7 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_structural_type(bytes, structural_type);
             bytes.len(literal.len());
             bytes.bytes(literal);
+            encode_ids(bytes, qualifications);
         }
         O::EstablishTrivialAffineLocal {
             psi_operation,

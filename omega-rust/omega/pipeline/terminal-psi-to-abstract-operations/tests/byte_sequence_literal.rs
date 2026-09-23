@@ -42,6 +42,7 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
             place,
             structural_type,
             bytes,
+            qualifications,
         },
         AbstractOperation::BoundaryCall {
             structural_arguments,
@@ -56,6 +57,7 @@ fn preserves_exact_non_utf8_literal_and_structural_source() {
     assert_eq!(place.id, place_id(1));
     assert_eq!(structural_type, &module.structural_types[0]);
     assert_eq!(bytes, &literal_bytes);
+    assert!(qualifications.is_empty());
     assert_eq!(
         structural_arguments,
         &[StructuralArgument {
@@ -300,6 +302,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
                         kind: OperationKind::EstablishByteSequenceLiteral {
                             destination: literal,
                             bytes,
+                            qualifications: Vec::new(),
                         },
                     },
                     Operation {

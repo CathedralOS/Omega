@@ -27,7 +27,7 @@ use crate::unit::{
     PermissionClaimIdentity, PlaceId, ScalarType, SemanticDomainId, StructuralDomainId,
     StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
     TerminalMachine, TerminalMachineResult, Terminator, ValueDeclaration, allocate_dense,
-    content_conservation, contract_id, dense_identity, edge_id, lookup_type_id,
+    content_conservation, contract_id, dense_identity, edge_id, lookup_domain_id, lookup_type_id,
     lower_checked_crash_route_buckets, lower_structural_crash_route_buckets, obligation_id,
     place_id, terminal_scalar_type, unsupported, value_id,
 };
@@ -303,38 +303,74 @@ pub(super) fn emit(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let mut literal_arguments = Vec::new();
     for operation in &plan.operations {
-        match operation {
+        let (target_machine, structural_arguments) = match operation {
             CheckedUnitEffectOperationPlan::BoundaryCall {
+                target_machine,
                 structural_arguments,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                target_machine,
                 structural_arguments,
                 ..
             }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                target_machine,
                 structural_arguments,
                 ..
             }
             | CheckedUnitEffectOperationPlan::CallUnit {
+                target_machine,
                 structural_arguments,
                 ..
             }
             | CheckedUnitEffectOperationPlan::StructuralCall {
+                target_machine,
                 structural_arguments,
                 ..
-            } => literal_arguments.extend(
-                structural_arguments
-                    .iter()
-                    .filter(|argument| argument.byte_sequence_literal().is_some()),
-            ),
-            _ => {}
-        }
+            } => (target_machine, structural_arguments),
+            _ => continue,
+        };
+        literal_arguments.extend(
+            structural_arguments
+                .iter()
+                .enumerate()
+                .filter(|(_, argument)| argument.byte_sequence_literal().is_some())
+                .map(|(index, argument)| (argument, *target_machine, index)),
+        );
     }
+    let mut literal_qualifications = Vec::new();
     let literal_places = literal_arguments
         .iter()
         .enumerate()
-        .map(|(ordinal, argument)| {
+        .map(|(ordinal, (argument, target_machine, argument_index))| {
+            // The literal occurrence replays the domain memberships checking
+            // discharged on its bytes: the target parameter's declared
+            // qualifications are exactly the admitted set.
+            let qualifications = match lowered_boundary_parameters
+                .iter()
+                .find(|(symbol, ..)| *symbol == *target_machine)
+            {
+                Some((_, _, parameters, _)) => parameters
+                    .get(*argument_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "literal call boundary target parameter is absent",
+                    ))?
+                    .qualifications
+                    .clone(),
+                None => UnitBody::find(plans, *target_machine)?
+                    .entry()?
+                    .structural_parameters
+                    .get(*argument_index)
+                    .ok_or(LoweringError::Unsupported(
+                        "literal call target parameter is absent",
+                    ))?
+                    .qualifications
+                    .iter()
+                    .map(|domain| lookup_domain_id(domain_ids, *domain))
+                    .collect::<Result<Vec<_>, _>>()?,
+            };
+            literal_qualifications.push(qualifications);
             Ok(StructuralPlaceDeclaration {
                 id: place_id(allocate_dense(&mut next_place)?),
                 kind: StructuralPlaceKind::ByteSequenceLiteral {
@@ -350,7 +386,10 @@ pub(super) fn emit(
         .checked_sub(1)
         .expect("terminal operation identity starts at one");
     let mut operations = OperationBuffer::new(operation_identity_base);
-    for (argument, place) in literal_arguments.iter().zip(&literal_places) {
+    for ((argument, _, _), (place, qualifications)) in literal_arguments
+        .iter()
+        .zip(literal_places.iter().zip(&literal_qualifications))
+    {
         let bytes = argument
             .byte_sequence_literal()
             .ok_or(LoweringError::Unsupported(
@@ -365,6 +404,7 @@ pub(super) fn emit(
             kind: OperationKind::EstablishByteSequenceLiteral {
                 destination: place.id,
                 bytes: bytes.to_vec(),
+                qualifications: qualifications.clone(),
             },
         });
     }

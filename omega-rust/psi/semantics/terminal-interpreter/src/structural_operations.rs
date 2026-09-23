@@ -123,6 +123,7 @@ impl TerminalExecution {
         let OperationKind::EstablishByteSequenceLiteral {
             destination,
             ref bytes,
+            ..
         } = operation.kind
         else {
             unreachable!("dispatched execute_establish_byte_sequence_literal")

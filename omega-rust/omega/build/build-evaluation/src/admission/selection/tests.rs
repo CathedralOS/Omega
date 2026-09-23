@@ -63,6 +63,7 @@ fn fused_root_row(
         "ref-mut(named(name(Application)))".into(),
         "named(name(Application))".into(),
         field.into(),
+        vec![field.into()],
         "named(name(Service<Console>))".into(),
         "named(name(Service<Console>))".into(),
         "Console".into(),

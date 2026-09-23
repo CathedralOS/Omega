@@ -184,10 +184,11 @@ pub(super) fn call_result<'a>(
     &'a calling_conventions::ValuePlacement,
 )> {
     let result = call.structural_result.as_ref()?;
+    // The qualification roster is custody evidence carried on the result,
+    // not part of the result home's physical shape; only linearity and
+    // claims still reject.
     if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.claims.is_empty()
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
     {
         return None;
     }
@@ -456,10 +457,11 @@ pub(super) fn returned<'a>(
                 ),
                 _ => return None,
             };
+            // Minted qualification rosters are custody evidence carried on
+            // the result row; the verbatim `result != returned` check is the
+            // honest comparison — ensurances are not part of home shape.
             if result != returned
                 || !result.claims.is_empty()
-                || !result.qualifications.is_empty()
-                || !result.projected_qualifications.is_empty()
             {
                 return None;
             }
