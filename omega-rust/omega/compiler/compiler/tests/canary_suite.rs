@@ -407,8 +407,13 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "expressions/match_float_subjects",
     "modules/closed_sum_constructors",
     "modules/computed_constant_initializers",
+    // No `Main::main` and no `build.omg`: the fixture's three entries
+    // (`select_true`, `select_false`, `by_name`) are each their own checked
+    // acceptance, and native production refuses a program with no single
+    // exact selected entry. Checked-only by fixture shape, not by a
+    // lowering wall -- `expressions/token_bound_machine_operand_selection`
+    // carries the same operator declaration all the way to a native exit.
     "expressions/declared_operator_match_result",
-    "expressions/token_bound_machine_operand_selection",
     "expressions/anonymous_numeric_match_subject",
     "expressions/match_float_results",
     "expressions/match_domain_results",
@@ -2421,6 +2426,7 @@ fn compile_rooted_canary_for_target(
 // seam.
 const ROOTED_BACKEND_PASS_CANARIES: &[&str] = &[
     "entry/service_intrinsic_carrier_establishment",
+    "expressions/token_bound_machine_operand_selection",
     "core/content_projection_owner",
     "core/content_conservation_contract",
     "core/content_retained_custody_round_trip",
@@ -3999,6 +4005,14 @@ fn task_runtime_machine_selection_builds_omega_activation_sidecar() {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_referenced_local_outlives_sibling_guard_call_exit",
+    // A token-bound `machine + Wrapped::add` reaches a native exit: both the
+    // token route (`left + right`) and the named route
+    // (`Wrapped::add(left, right)`) produce 260. The roster comment that
+    // held this back claimed borrowed local data arguments to a free
+    // machine had no native route; the control (the same program with a
+    // plain `machine Wrapped::add`) also exits 70 natively, so neither the
+    // token supply nor the borrowed argument is a wall.
+    "expressions/token_bound_machine_operand_selection",
     // Unmeasured call-spelled self-recursion folds onto the loop-back edge
     // (MR1); the transitive Unit-plan admission plans it, so it compiles.
     "calls/machine_self_call_recursion_compile",

@@ -5,9 +5,27 @@ use std::path::{Path, PathBuf};
 #[path = "exact_native_coverage/fixture_constants.rs"]
 mod fixture_constants;
 
-pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 798;
+// 798 -> 803. Four rooted owners landed since `a4ec8048a0b` set 798 without
+// moving this pin, so the cohort was already 802 before the fifth: each is a
+// new rooted fixture (`main.omg` + `build.omg`) with exactly one new dedicated
+// exact-status test -- `traits/equatable_qualified_field_reference_exit`
+// (`91eafee1e02`), `control_flow/runtime_integer_literal_dispatch_exit`
+// (`8db00a06de1`), `domains/runtime_result_domain_attached_overload_exit`
+// (`00406db86c1`) and `wire/wire_preserving_decode_relay_exit`
+// (`13433c1a273`). The fifth is
+// `expressions/token_bound_machine_operand_selection`, promoted here off the
+// checked-only roster once its native exit was measured.
+pub(super) const EXPECTED_UNIQUE_ROOTED_ACTIVE_COVERAGE: usize = 803;
 pub(super) const EXPECTED_UNIQUE_DIRECT_ACTIVE_COVERAGE: usize = 4;
-pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 31;
+// 31 -> 35, a drift independent of the rooted cohort above and of any change
+// made alongside this pin. `398b73a4f60` moved seventeen fixtures to the tier
+// that can bind their entry, which registered four `uefi_x86_64` pairs whose
+// dedicated exact-status owners already existed --
+// `targets/efi_entry_arguments`, `targets/efi_float_entry_argument`,
+// `targets/efi_freestanding_skeleton` and `targets/efi_stack_entry_argument`.
+// No new owner test was written for any of them, so the cohort grew purely by
+// roster registration.
+pub(super) const EXPECTED_UNIQUE_CROSS_TARGET_COVERAGE: usize = 35;
 pub(super) const EXPECTED_UNIQUE_ROOTED_TARGET_COVERAGE: usize = 3;
 
 /// Product identities of the release matrix's required platform runs

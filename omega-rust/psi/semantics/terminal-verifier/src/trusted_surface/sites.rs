@@ -619,7 +619,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-semantics/src/structural_effect.rs",
-        sha256: Some("9d0d71033226cd25e84032fc6f3da452ee9182fb23047066cd72b642dfb902e1"),
+        sha256: Some("c3b5727eb8e779361478e754c0201edbc8a2ed6164648d080d8641030ae55dd8"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -749,7 +749,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/affine_cleanup/continuation.rs",
-        sha256: Some("792ae93a4ffc88c40ec949a1b2f9b506f59f0375b66ad05bab25bb74eee868e4"),
+        sha256: Some("73fef6c9b939972f8fb11ae1453c79c7eac38f0ffd874f0a231aa6c9645b3c5d"),
         inventory_machinery: false,
     },
     ImplementationSite {
