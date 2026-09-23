@@ -549,10 +549,11 @@ fn primitive_indexed_tail(
 
 /// The checked proof a runtime array index stays in bounds: the retained
 /// `AssignmentIndex` expression must be this authored selector, resolved to
-/// one immutable scalar entry parameter whose closed integer entry range
-/// proves `0 <= index < extent`. Entry ranges live on the machine's entry
-/// state, so the proof applies only when the store runs there; every other
-/// shape keeps the rejection.
+/// one immutable scalar parameter whose proven bound discharges
+/// `0 <= index < extent`. At the entry state the contract's closed integer
+/// entry range (or an equivalent `requires` conjunct) carries that proof;
+/// in any later state the selector's own declared integer range is the
+/// bound. Every other shape keeps the rejection.
 fn proven_runtime_index(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -562,9 +563,6 @@ fn proven_runtime_index(
     authored_index: typed_trees::expression::ExpressionHandle,
     extent: usize,
 ) -> Option<CheckedScalarExpression> {
-    if program.machine_states(machine).first()?.symbol != state.symbol {
-        return None;
-    }
     let (binding, index) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
@@ -591,6 +589,20 @@ fn proven_runtime_index(
         .nth(position)?;
     if program.primitive_type_reference(authored.type_reference) != Some(primitive_type) {
         return None;
+    }
+    if program.machine_states(machine).first()?.symbol != state.symbol {
+        // The contract's entry ranges do not reach a selector this state
+        // carries: its own declared integer range is the bound. A
+        // range-free parameter, a negative declared floor, or a declared
+        // ceiling reaching the array extent keeps the rejection.
+        let bounds = crate::values::bounds::declared_bounds(
+            program,
+            authored.type_reference,
+            primitive_type,
+        )?;
+        bounds.minimum.to_u64()?;
+        let maximum = bounds.maximum.to_u64()?;
+        return (maximum < u64::try_from(extent).ok()?).then(|| index.clone());
     }
     let authored_position = parameters
         .iter()
