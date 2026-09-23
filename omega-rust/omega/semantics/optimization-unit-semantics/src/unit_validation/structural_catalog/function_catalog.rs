@@ -144,6 +144,16 @@ pub(crate) fn validate_function_structural_catalog(
                                 &node.operation,
                                 O::EstablishPrimitiveLocal { psi_operation, result, .. }
                                 | O::ByteSequenceSubslice { psi_operation, result, .. }
+                                | O::EstablishElementView {
+                                    psi_operation,
+                                    result,
+                                    ..
+                                }
+                                | O::ElementViewSubslice {
+                                    psi_operation,
+                                    result,
+                                    ..
+                                }
                                 | O::EstablishScalarArray { psi_operation, result, .. }
                                 | O::EstablishScalarCase {
                                     psi_operation,

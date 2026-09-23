@@ -474,6 +474,37 @@ pub(super) fn lower_operation(
             provenance.operations.push(*psi_operation);
             Ok(())
         }
+        AbstractOperation::EstablishElementView {
+            psi_operation,
+            result,
+            destination,
+            ..
+        } => {
+            let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+            let mut values = observations::scalar_values(live, &prepared.scalar_parameters)?;
+            let (view, _) = super::super::scalar::element_views::element_view_for_place(
+                function,
+                structural_types,
+                &prepared.parameters,
+                &mut values,
+                &live.lengths,
+                *destination,
+                &mut Vec::new(),
+            )?;
+            if live
+                .views
+                .insert(*destination, (*psi_operation, result.structural_type))
+                .is_some()
+            {
+                return Err(invalid());
+            }
+            operations.push(TargetUnitOperation::EstablishElementView {
+                result: result.clone(),
+                view,
+            });
+            provenance.operations.push(*psi_operation);
+            Ok(())
+        }
         AbstractOperation::StructuralScalarFieldStore { .. } => {
             crate::lowering::unit::lower_field_store(
                 operation,
@@ -564,6 +595,9 @@ pub(super) fn lower_operation(
         AbstractOperation::ByteSequenceLength { .. }
         | AbstractOperation::ByteSequenceRead { .. }
         | AbstractOperation::ByteSequenceSubslice { .. }
+        | AbstractOperation::ElementViewLength { .. }
+        | AbstractOperation::ElementViewRead { .. }
+        | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::IntegerEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }

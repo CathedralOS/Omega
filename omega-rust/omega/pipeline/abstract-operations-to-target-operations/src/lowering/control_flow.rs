@@ -215,6 +215,10 @@ pub(super) fn lower(
             if entry.block == function.entry
                 || parameter.position as usize != position
                 || (!super::scalar::byte_views::is_byte_parameter(parameter, structural_types)
+                    && !super::scalar::element_views::is_element_view_parameter(
+                        parameter,
+                        structural_types,
+                    )
                     && !super::unobserved_owned::parameter(parameter))
                 || !places.insert(parameter.place)
             {
@@ -231,10 +235,12 @@ pub(super) fn lower(
             | AbstractOperation::EstablishReference { result, .. }
             | AbstractOperation::CallStructural { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }
+            | AbstractOperation::ElementViewSubslice { result, .. }
             | AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
             } => Some(result.place),
+            AbstractOperation::EstablishElementView { destination, .. } => Some(*destination),
             AbstractOperation::EstablishByteSequenceLiteral { place, .. } => Some(place.id),
             _ => None,
         };

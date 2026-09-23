@@ -28,10 +28,32 @@ pub(super) fn location(
         matches!(operation,
         abstract_operations::AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
         | abstract_operations::AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
+        | abstract_operations::AbstractOperation::ElementViewSubslice { psi_operation, .. }
+        | abstract_operations::AbstractOperation::EstablishElementView { psi_operation, .. }
         if *psi_operation == producer)
     });
     let byte_size = match producers.next() {
         Some(abstract_operations::AbstractOperation::ByteSequenceSubslice { result, .. })
+            if result.place == argument.place
+                && result.structural_type == argument.structural_type
+                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty() =>
+        {
+            16
+        }
+        Some(abstract_operations::AbstractOperation::ElementViewSubslice { result, .. })
+            if result.place == argument.place
+                && result.structural_type == argument.structural_type
+                && result.multiplicity == StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty() =>
+        {
+            16
+        }
+        Some(abstract_operations::AbstractOperation::EstablishElementView { result, .. })
             if result.place == argument.place
                 && result.structural_type == argument.structural_type
                 && result.multiplicity == StructuralMultiplicity::Unrestricted
@@ -132,8 +154,11 @@ fn local_location(
         .structural_types;
     if !declarations.iter().any(|declaration| {
         declaration.id == argument.structural_type
-            && declaration.shape
-                == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
+                    | StructuralTypeShape::ElementView { .. }
+            )
     }) {
         return Err(invalid());
     }

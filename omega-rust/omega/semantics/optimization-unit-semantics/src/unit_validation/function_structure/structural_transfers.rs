@@ -38,7 +38,7 @@ pub(super) fn validate(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
                                     ByteSequenceCarrier::BorrowedView
-                                )
+                                ) | StructuralTypeShape::ElementView { .. }
                             )
                     })
                 || !function.structural_places.iter().any(|place| {
@@ -186,6 +186,8 @@ fn source_contract(
                 ))
             }
             O::ByteSequenceSubslice { result, .. }
+            | O::EstablishElementView { result, .. }
+            | O::ElementViewSubslice { result, .. }
                 if result.place == place
                     && result.multiplicity == StructuralMultiplicity::Unrestricted
                     && result.qualifications.is_empty()

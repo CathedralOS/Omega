@@ -13,6 +13,7 @@ use target_operations::{
 };
 mod byte_view;
 pub(in crate::legalization::scalar_graph_input) mod control_flow;
+mod element_view;
 mod expressions;
 mod hosted_scalar;
 mod normalized_foreign;
@@ -76,6 +77,7 @@ struct Checker<'a> {
     function: &'a TargetFunction,
     available: Option<&'a [(ValueId, target_operations::TargetUnitScalarArgumentSource)]>,
     optimized: &'a PsiOptimizationFunction,
+    types: &'a [terminal_psi::StructuralTypeDeclaration],
 }
 fn resolve(value: ValueId, aliases: &[(ValueId, ValueId)]) -> ValueId {
     aliases

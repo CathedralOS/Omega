@@ -69,6 +69,7 @@ pub(crate) struct BoundaryArguments {
     pub(crate) buffers: Vec<TerminalBoundaryByteBuffer>,
     bindings: Vec<BoundaryByteBufferBinding>,
     byte_sequences: Vec<Option<ByteSequenceBinding>>,
+    element_views: Vec<Option<crate::element_views::ElementView>>,
 }
 
 impl BoundaryArguments {
@@ -85,6 +86,20 @@ impl BoundaryArguments {
             return Err(invalid());
         }
         let mut byte_sequences = BTreeMap::new();
+        let mut element_views = BTreeMap::new();
+        for (parameter, view) in parameters.iter().zip(self.element_views) {
+            let Some(view) = view else {
+                continue;
+            };
+            if parameter.access != StructuralAccess::SharedBorrow
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || element_views.insert(parameter.place, view).is_some()
+            {
+                return Err(invalid());
+            }
+        }
         for (parameter, binding) in parameters.iter().zip(self.byte_sequences) {
             let Some(binding) = binding else {
                 continue;
@@ -108,6 +123,7 @@ impl BoundaryArguments {
             byte_sequences,
             scalar_arrays: BTreeMap::new(),
             scalar_cases: BTreeMap::new(),
+            element_views,
         })
     }
 
@@ -190,6 +206,7 @@ impl TerminalExecution {
             buffers: Vec::new(),
             bindings: Vec::new(),
             byte_sequences: Vec::with_capacity(arguments.len()),
+            element_views: Vec::with_capacity(arguments.len()),
         };
         for (argument_index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate()
         {
@@ -201,6 +218,7 @@ impl TerminalExecution {
             {
                 resolved.values.push(referent);
                 resolved.byte_sequences.push(Some(binding));
+                resolved.element_views.push(None);
                 continue;
             }
             let declaration = self
@@ -223,6 +241,7 @@ impl TerminalExecution {
                     self.resolve_shared_boundary_binding(parameter, argument)?;
                 resolved.values.push(referent);
                 resolved.byte_sequences.push(Some(binding));
+                resolved.element_views.push(None);
             } else if parameter.access == StructuralAccess::MutableBorrow
                 && declaration.shape
                     == StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView)
@@ -259,6 +278,7 @@ impl TerminalExecution {
                     field: destination.clone(),
                 });
                 resolved.byte_sequences.push(Some(binding));
+                resolved.element_views.push(None);
             } else {
                 let values = resolve_structural_arguments(
                     &self.structural_types,
@@ -272,6 +292,14 @@ impl TerminalExecution {
                 )?;
                 let binding = bytes.remove(&parameter.place);
                 resolved.byte_sequences.push(binding);
+                let mut element_views = self.bind_element_view_arguments(
+                    std::slice::from_ref(parameter),
+                    std::slice::from_ref(argument),
+                    &values,
+                )?;
+                resolved
+                    .element_views
+                    .push(element_views.remove(&parameter.place));
                 resolved.values.extend(values);
             }
         }

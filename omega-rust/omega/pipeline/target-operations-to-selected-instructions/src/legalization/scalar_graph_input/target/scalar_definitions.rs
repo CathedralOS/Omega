@@ -407,6 +407,16 @@ pub(super) fn observation(
             psi_operation,
             result,
             ..
+        }
+        | AbstractOperation::ElementViewLength {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ElementViewRead {
+            psi_operation,
+            result,
+            ..
         } => (*psi_operation, result.value, result.scalar_type),
         AbstractOperation::IntegerEqual {
             psi_operation,

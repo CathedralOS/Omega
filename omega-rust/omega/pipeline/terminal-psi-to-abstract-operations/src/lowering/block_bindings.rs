@@ -41,7 +41,9 @@ pub(super) fn validate_structural_block_bindings(
                                                 declaration.shape,
                                                 terminal_psi::StructuralTypeShape::ByteSequence(
                                                     terminal_psi::ByteSequenceCarrier::BorrowedView
-                                                )
+                                                ) | terminal_psi::StructuralTypeShape::ElementView {
+                                                    ..
+                                                }
                                             )
                                     }
                                     terminal_psi::StructuralAccess::WriteOnlyBorrow => false,

@@ -10,6 +10,8 @@ pub use structural::{
 };
 mod byte_view;
 pub use byte_view::TargetByteView;
+mod element_view;
+pub use element_view::*;
 mod scalar;
 pub use scalar::{TargetScalarExpression, TargetScalarImmediate};
 mod boolean;

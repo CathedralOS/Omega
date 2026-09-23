@@ -156,7 +156,11 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::CallStructuralScalar { .. }
         | AbstractOperation::CallUnit { .. }
         | AbstractOperation::DynamicDescriptorParameter { .. }
+        | AbstractOperation::ElementViewLength { .. }
+        | AbstractOperation::ElementViewRead { .. }
+        | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::EstablishByteSequenceLiteral { .. }
+        | AbstractOperation::EstablishElementView { .. }
         | AbstractOperation::EstablishPrimitiveLocal { .. }
         | AbstractOperation::EstablishRecord { .. }
         | AbstractOperation::EstablishReference { .. }

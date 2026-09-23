@@ -61,6 +61,10 @@ pub(super) fn ordinal(source: &AbstractFunction, site: SemanticCodeSite) -> Resu
                     psi_operation, ..
                 }
                 | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
+                | AbstractOperation::ElementViewSubslice { psi_operation, .. }
+                | AbstractOperation::EstablishElementView { psi_operation, .. }
+                | AbstractOperation::ElementViewLength { psi_operation, .. }
+                | AbstractOperation::ElementViewRead { psi_operation, .. }
                 | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
                 | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }

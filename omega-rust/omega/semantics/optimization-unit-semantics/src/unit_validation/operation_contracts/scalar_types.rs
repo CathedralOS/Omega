@@ -11,6 +11,7 @@ use crate::ValueDefinition;
 use crate::ValueId;
 
 mod byte_views;
+mod element_views;
 
 pub(crate) fn operation_scalar_types_match(
     function: &PsiOptimizationFunction,
@@ -37,6 +38,10 @@ pub(crate) fn operation_scalar_types_match(
         | O::ByteSequenceLength { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::ByteSequenceSubslice { .. } => byte_views::types_match(operation, definitions),
+        O::EstablishElementView { .. }
+        | O::ElementViewLength { .. }
+        | O::ElementViewRead { .. }
+        | O::ElementViewSubslice { .. } => element_views::types_match(operation, definitions),
         O::DynamicDescriptorParameter { parameter } => {
             parameter.owner == function.machine
                 && !parameter.trait_identity.is_empty()

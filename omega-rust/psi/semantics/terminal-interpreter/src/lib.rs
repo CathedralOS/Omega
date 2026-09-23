@@ -21,6 +21,7 @@ mod byte_sequences;
 mod calls;
 mod custody;
 mod effects;
+mod element_views;
 mod errors;
 mod execution;
 mod primitive_storage;

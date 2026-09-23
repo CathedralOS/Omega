@@ -135,6 +135,8 @@ fn shared_integer_runtime_parameters(
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
+        | LoweredDirectExpression::ElementViewLength { .. }
+        | LoweredDirectExpression::ElementViewRead { .. }
         | LoweredDirectExpression::Local { .. }
         | LoweredDirectExpression::IntegerBinary { .. }
         | LoweredDirectExpression::IntegerBitwiseNot { .. }

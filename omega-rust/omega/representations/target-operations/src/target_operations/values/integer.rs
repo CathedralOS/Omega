@@ -1,6 +1,6 @@
 //! Integer expression vocabulary and exact proof-bearing arithmetic.
 
-use crate::{ScalarParameterLocation, TargetByteView};
+use crate::{ScalarParameterLocation, TargetByteView, TargetElementView};
 use calling_conventions::ValuePlacement;
 use semantic_vocabulary::{
     IntegerType, IntegerValue, OperationId, PlaceId, StructuralFieldId, ValueId,
@@ -29,6 +29,25 @@ pub enum TargetIntegerExpression {
         source_value: ValueId,
         source: PlaceId,
         view: Box<TargetByteView>,
+        length_byte_offset: u32,
+    },
+    /// Exact element observation over an element-view descriptor. The index
+    /// expression retains its Terminal identity; the element stride is fixed
+    /// by the view's element declaration, not re-derived here.
+    ElementViewRead {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        view: Box<TargetElementView>,
+        index: Box<TargetIntegerExpression>,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
+    ElementViewLength {
+        psi_operation: OperationId,
+        source_value: ValueId,
+        source: PlaceId,
+        view: Box<TargetElementView>,
         length_byte_offset: u32,
     },
     Immediate {

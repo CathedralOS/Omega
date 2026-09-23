@@ -398,6 +398,62 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&source.get().to_le_bytes());
                     bytes.extend_from_slice(&length_byte_offset.to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::EstablishElementView {
+                    result,
+                    destination,
+                    source,
+                    element,
+                } => {
+                    bytes.push(40);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    bytes.extend_from_slice(&destination.get().to_le_bytes());
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    bytes.extend_from_slice(&element.get().to_le_bytes());
+                }
+                LegalizedScalarInstructionKind::ElementViewSubslice {
+                    result,
+                    source,
+                    start,
+                    end,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(41);
+                    super::structural_result::encode_operation_result(bytes, result);
+                    for identity in [
+                        source.get(),
+                        start.get(),
+                        end.get(),
+                        length.get(),
+                        obligation.get(),
+                    ] {
+                        bytes.extend_from_slice(&identity.to_le_bytes());
+                    }
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
+                LegalizedScalarInstructionKind::ElementViewRead {
+                    source,
+                    index,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(42);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    bytes.extend_from_slice(&index.get().to_le_bytes());
+                    bytes.extend_from_slice(&length.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
+                LegalizedScalarInstructionKind::ElementViewLength {
+                    source,
+                    length_byte_offset,
+                } => {
+                    bytes.push(43);
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    bytes.extend_from_slice(&length_byte_offset.to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::BooleanNot { operand } => {
                     bytes.push(4);
                     bytes.extend_from_slice(&operand.get().to_le_bytes());

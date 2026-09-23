@@ -3,8 +3,8 @@ use super::super::{allocate_dense, place_id};
 use super::{
     CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor, CheckedTrees, IntegerValue, LoweringError, ScalarType,
-    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration, source_custody,
-    terminal_scalar_type, unsupported,
+    StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralTypeDeclaration, source_custody, terminal_scalar_type, unsupported,
 };
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
@@ -12,6 +12,7 @@ use checked_trees::{
     CheckedStructuralRankedArgumentPlan, CheckedStructuralRankedGuardPlan,
     CheckedStructuralRankedSccEdgePlan, CheckedStructuralRankedSccPlan,
 };
+use terminal_psi::StructuralTypeShape;
 
 #[cfg(test)]
 mod tests;
@@ -25,6 +26,7 @@ pub(super) fn prepare(
     checked: &CheckedTrees,
     graph: &CheckedScalarMachineGraph,
     parameters: &[StructuralParameterDeclaration],
+    structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Option<ScalarLoopPlan>, LoweringError> {
     let [state] = graph.states.as_slice() else {
@@ -51,22 +53,48 @@ pub(super) fn prepare(
         return unsupported("scalar loop has a foreign source state");
     }
     if parameters.iter().any(|parameter| {
-        parameter.access != StructuralAccess::Owned
-            || !matches!(
+        // A borrowed runtime-length view rebinds as a shared loan on the
+        // backedge: it carries no owned disposal, so the plain-owned loop
+        // rule does not apply, but every other custody shape still rejects.
+        let plain_owned = parameter.access == StructuralAccess::Owned
+            && matches!(
                 parameter.multiplicity,
                 StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
-            )
+            );
+        let shared_view = parameter.access == StructuralAccess::SharedBorrow
+            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && structural_types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ElementView { .. }
+                            | StructuralTypeShape::ByteSequence(_)
+                    )
+                });
+        !(plain_owned || shared_view)
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
     }) {
         return unsupported("scalar loop requires whole plain-owned state parameters");
     }
     let rank = graph.ranked_scc.clone();
-    if machine.termination_plan.implementation_witness.is_some() != rank.is_some() {
-        return unsupported("scalar loop lost or substituted its authored ranking witness");
-    }
-    if let Some(rank) = &rank {
-        validate_rank(checked, machine, source, state, rank)?;
+    match (&machine.termination_plan.implementation_witness, &rank) {
+        (None, None) => {}
+        (Some(_), Some(rank)) => validate_rank(checked, machine, source, state, rank)?,
+        (Some(witness), None) => {
+            // The Nat countdown is only one ranking order: a cyclic machine
+            // proven under another order (`Slice::Length`, struct views) keeps
+            // its judgment in the shared natural ranks and lowers here without
+            // a ranked-SCC certificate rather than substituting one.
+            if witness.ranking_view == language_semantics::RankingViewId::NAT_DESCENDING {
+                return unsupported("scalar loop lost or substituted its authored ranking witness");
+            }
+        }
+        (None, Some(_)) => {
+            return unsupported("scalar loop lost or substituted its authored ranking witness");
+        }
     }
     let mut loop_parameters = parameters.to_vec();
     for (position, parameter) in loop_parameters.iter_mut().enumerate() {

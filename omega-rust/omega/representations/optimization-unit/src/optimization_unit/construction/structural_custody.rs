@@ -46,6 +46,14 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(*source);
             places.insert(result.place);
         }
+        O::ElementViewSubslice { source, result, .. } => {
+            places.insert(*source);
+            places.insert(result.place);
+        }
+        O::EstablishElementView { result, source, .. } => {
+            places.insert(result.place);
+            places.insert(source.place);
+        }
         O::PrimitiveLocalStore { destination, .. } => {
             places.insert(*destination);
         }
@@ -105,6 +113,8 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
         }
         | O::StructuralCase { source, .. }
         | O::ByteSequenceLength { source, .. }
+        | O::ElementViewLength { source, .. }
+        | O::ElementViewRead { source, .. }
         | O::StructuralByteSequenceFieldLength { source, .. }
         | O::BooleanStructuralField { source, .. }
         | O::ReturnStructural { source, .. } => {
@@ -190,6 +200,16 @@ pub(super) fn collect_operation_structural_places(
             ..
         }
         | AbstractOperation::ByteSequenceSubslice {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::EstablishElementView {
+            psi_operation,
+            result,
+            ..
+        }
+        | AbstractOperation::ElementViewSubslice {
             psi_operation,
             result,
             ..

@@ -269,6 +269,33 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             bytes,
             &qualifications,
         )?,
+        OperationKind::EstablishElementView {
+            destination,
+            source,
+            element,
+        } => {
+            storage_operations::encode_establish_element_view(writer, destination, source, element)?
+        }
+        OperationKind::ElementViewLength { source } => {
+            storage_operations::encode_element_view_length(writer, source)?
+        }
+        OperationKind::ElementViewRead {
+            source,
+            index,
+            length,
+            obligation,
+        } => {
+            storage_operations::encode_element_view_read(writer, source, index, length, obligation)?
+        }
+        OperationKind::ElementViewSubslice {
+            source,
+            start,
+            end,
+            length,
+            obligation,
+        } => storage_operations::encode_element_view_subslice(
+            writer, source, start, end, length, obligation,
+        )?,
         OperationKind::EstablishTrivialAffineLocal { destination } => {
             value_operations::encode_establish_trivial_affine_local(writer, destination)?
         }
@@ -630,6 +657,16 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
     let kind = match reader.u8()? {
         operation_tags::BYTE_SEQUENCE_SUBSLICE => {
             storage_operations::decode_byte_sequence_subslice(reader)?
+        }
+        operation_tags::ESTABLISH_ELEMENT_VIEW => {
+            storage_operations::decode_establish_element_view(reader)?
+        }
+        operation_tags::ELEMENT_VIEW_LENGTH => {
+            storage_operations::decode_element_view_length(reader)?
+        }
+        operation_tags::ELEMENT_VIEW_READ => storage_operations::decode_element_view_read(reader)?,
+        operation_tags::ELEMENT_VIEW_SUBSLICE => {
+            storage_operations::decode_element_view_subslice(reader)?
         }
         operation_tags::BYTE_SEQUENCE_WRITE => {
             storage_operations::decode_byte_sequence_write(reader)?

@@ -98,6 +98,23 @@ pub(crate) enum LoweredScalarEffect {
     EstablishRecord(scalar_graph_lowering::structural_values::Construction),
     EstablishScalarArray(LoweredScalarArrayConstruction),
     EstablishScalarCase(scalar_computations::cases::Construction),
+    /// Derive a borrowed byte window on the edge for the successor's
+    /// structural slot; `end` absent is the source's own length observation.
+    ByteSequenceSubslice {
+        source: PlaceId,
+        start: LoweredDirectExpression,
+        end: Option<LoweredDirectExpression>,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
+    /// Derive a borrowed element window over the same contiguous elements.
+    ElementViewSubslice {
+        source: PlaceId,
+        start: LoweredDirectExpression,
+        end: Option<LoweredDirectExpression>,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
     CallUnit(LoweredUnitCall),
 }
 

@@ -161,6 +161,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         structural_byte_arrays: BTreeMap::new(),
         scalar_case_values: BTreeMap::new(),
         scalar_array_values: BTreeMap::new(),
+        element_view_values: BTreeMap::new(),
         byte_sequence_values: BTreeMap::from([
             (
                 PlaceId::new(1).unwrap(),

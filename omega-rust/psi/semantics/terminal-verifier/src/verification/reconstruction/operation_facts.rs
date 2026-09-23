@@ -20,6 +20,7 @@ use super::{ReconstructedOperationObligation, ReconstructedTerminalObligationOwn
 
 mod boolean_polarity;
 mod byte_extent;
+mod element_extent;
 mod record;
 mod scalar_case;
 
@@ -358,6 +359,9 @@ pub(super) fn append_operation(
         {
             axioms.push(equation);
         }
+        if let Some(equation) = element_extent::length_equation(module, machine, &observation)? {
+            axioms.push(equation);
+        }
         return Ok(());
     }
     if compose_call_operation(
@@ -438,6 +442,10 @@ pub(super) fn append_operation(
         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
+        | OperationKind::EstablishElementView { .. }
+        | OperationKind::ElementViewLength { .. }
+        | OperationKind::ElementViewRead { .. }
+        | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishScalarCase { .. }
         | OperationKind::EstablishScalarArray { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }

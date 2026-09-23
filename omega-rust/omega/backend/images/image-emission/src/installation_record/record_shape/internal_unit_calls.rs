@@ -29,6 +29,7 @@ pub(super) fn validate_internal_unit_calls(
             matches!(
                 argument.source,
                 machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedByteView { .. }
+                    | machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedElementView { .. }
                     | machine_code::InternalUnitStructuralArgumentSourceRecord::EstablishedPrimitiveLocal { .. }
                     | machine_code::InternalUnitStructuralArgumentSourceRecord::BlockParameter { .. }
             )

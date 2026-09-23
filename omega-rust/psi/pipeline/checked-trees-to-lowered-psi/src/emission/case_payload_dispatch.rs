@@ -379,6 +379,15 @@ fn substitute_direct(
             index: Box::new(substitute_direct(*index, bound)),
             scalar_type,
         },
+        Direct::ElementViewRead {
+            source,
+            index,
+            scalar_type,
+        } => Direct::ElementViewRead {
+            source,
+            index: Box::new(substitute_direct(*index, bound)),
+            scalar_type,
+        },
         Direct::IntegerBinary {
             kind,
             scalar_type,
@@ -416,6 +425,7 @@ fn substitute_direct(
         },
         expression @ (Direct::PrimitiveRead { .. }
         | Direct::ByteSequenceLength { .. }
+        | Direct::ElementViewLength { .. }
         | Direct::ByteSequenceFieldLength { .. }
         | Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }
@@ -474,7 +484,9 @@ fn direct_case_reads<'e>(
                 reads.push((*source, path));
             }
         }
-        Direct::ByteSequenceRead { index, .. } => direct_case_reads(index, reads),
+        Direct::ByteSequenceRead { index, .. } | Direct::ElementViewRead { index, .. } => {
+            direct_case_reads(index, reads)
+        }
         Direct::IntegerBinary { left, right, .. } => {
             direct_case_reads(left, reads);
             direct_case_reads(right, reads);
@@ -485,6 +497,7 @@ fn direct_case_reads<'e>(
         Direct::Boolean { expression } => case_reads(expression, reads),
         Direct::ByteSequenceLength { .. }
         | Direct::ByteSequenceFieldLength { .. }
+        | Direct::ElementViewLength { .. }
         | Direct::Parameter { .. }
         | Direct::ErasedParameter { .. }
         | Direct::Local { .. }

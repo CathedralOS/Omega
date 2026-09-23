@@ -146,6 +146,51 @@ impl TerminalExecution {
         Ok(values)
     }
 
+    /// Borrowed element views rebind to callee parameter places under the same
+    /// signature checks as borrowed byte views: unrestricted shared-borrow
+    /// `&[T]` places carry their immutable payload across the call.
+    pub(crate) fn bind_element_view_arguments(
+        &self,
+        parameters: &[StructuralParameterDeclaration],
+        arguments: &[StructuralArgument],
+        resolved_arguments: &[TerminalStructuralValue],
+    ) -> Result<BTreeMap<PlaceId, crate::element_views::ElementView>, TerminalInterpretError> {
+        if parameters.len() != arguments.len() || parameters.len() != resolved_arguments.len() {
+            return Err(TerminalInterpretError::VerifiedOperationMalformed);
+        }
+        let mut values = BTreeMap::new();
+        for ((parameter, argument), resolved) in
+            parameters.iter().zip(arguments).zip(resolved_arguments)
+        {
+            let declaration = self
+                .structural_types
+                .get(&parameter.structural_type)
+                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            if !matches!(declaration.shape, StructuralTypeShape::ElementView { .. }) {
+                continue;
+            }
+            if parameter.structural_type != resolved.structural_type
+                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                || parameter.access != StructuralAccess::SharedBorrow
+                || argument.access != StructuralAccess::SharedBorrow
+                || !resolved.path.is_empty()
+                || !parameter.qualifications.is_empty()
+                || !parameter.projected_qualifications.is_empty()
+                || !resolved.qualifications.is_empty()
+                || !argument.path.is_empty()
+            {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+            let view = self.element_view_values.get(&argument.place).ok_or(
+                TerminalInterpretError::VerifiedStructuralPlaceMissing(argument.place),
+            )?;
+            if values.insert(parameter.place, view.clone()).is_some() {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+        }
+        Ok(values)
+    }
+
     /// Enter one structural Unit callee after the operation-specific argument
     /// checks have succeeded. Ordinary calls and admitted provider dispatch
     /// share this exact ownership and continuation transition.
@@ -221,6 +266,7 @@ impl TerminalExecution {
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: caller_scalar_case_values,
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -233,6 +279,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
         self.scalar_array_values = prepared_arguments.scalar_arrays;
+        self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
@@ -322,6 +369,7 @@ impl TerminalExecution {
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: caller_scalar_case_values,
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -334,6 +382,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
         self.scalar_array_values = prepared_arguments.scalar_arrays;
+        self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
@@ -541,6 +590,7 @@ impl TerminalExecution {
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: caller_scalar_case_values,
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: caller_affine_frontier,
             live_claims: remaining_claims,
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -557,6 +607,7 @@ impl TerminalExecution {
         self.structural_values = structural_values;
         self.byte_sequence_values = byte_sequence_values;
         self.scalar_array_values = prepared_arguments.scalar_arrays;
+        self.element_view_values = prepared_arguments.element_views;
         self.scalar_case_values = prepared_arguments.scalar_cases;
         self.live_affine_frontier = callee_affine_frontier;
         self.live_claims = live_claims;
@@ -594,6 +645,7 @@ impl TerminalExecution {
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),
@@ -639,6 +691,7 @@ impl TerminalExecution {
             byte_sequence_values: std::mem::take(&mut self.byte_sequence_values),
             scalar_case_values: std::mem::take(&mut self.scalar_case_values),
             scalar_array_values: std::mem::take(&mut self.scalar_array_values),
+            element_view_values: std::mem::take(&mut self.element_view_values),
             live_affine_frontier: std::mem::take(&mut self.live_affine_frontier),
             live_claims: std::mem::take(&mut self.live_claims),
             dynamic_parameters: std::mem::take(&mut self.dynamic_parameters),

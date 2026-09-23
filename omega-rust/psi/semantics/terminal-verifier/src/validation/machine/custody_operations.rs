@@ -174,6 +174,22 @@ pub(super) fn register_custody_operation(
         validate_unit_operation_static(module, machine, machines, operation)?;
         return Ok(true);
     }
+    if let OperationKind::EstablishElementView {
+        destination,
+        source,
+        element,
+    } = &operation.kind
+    {
+        super::super::element_view_establishment::validate_establishment(
+            module,
+            machine,
+            operation,
+            *destination,
+            source,
+            *element,
+        )?;
+        return Ok(true);
+    }
     if matches!(operation.kind, OperationKind::MoveStructuralField { .. }) {
         super::super::borrowed_windows::validate_move_static(module, machine, operation)?;
         return Ok(true);
@@ -279,6 +295,21 @@ pub(super) fn register_custody_operation(
     } = operation.kind
     {
         super::super::byte_sequence_subslice::validate(module, machine, operation, source, length)?;
+        insert_unique(
+            &mut registry.obligations,
+            obligation,
+            ModuleError::DuplicateObligation,
+        )?;
+        return Ok(true);
+    }
+    if let OperationKind::ElementViewSubslice {
+        source,
+        length,
+        obligation,
+        ..
+    } = operation.kind
+    {
+        super::super::element_view_subslice::validate(module, machine, operation, source, length)?;
         insert_unique(
             &mut registry.obligations,
             obligation,

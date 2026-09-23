@@ -160,13 +160,19 @@ pub(in crate::legalization) fn argument_at(
     if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
         return Err(invalid);
     }
-    let (structural_type, source) = if let Some((producer, structural_type)) =
+    let (structural_type, source) = if let Some((producer, structural_type, element)) =
         established_view(caller, call_operation, semantic.place)
     {
         (
             structural_type,
-            TargetStructuralArgumentSource::EstablishedByteView {
-                psi_operation: producer,
+            if element {
+                TargetStructuralArgumentSource::EstablishedElementView {
+                    psi_operation: producer,
+                }
+            } else {
+                TargetStructuralArgumentSource::EstablishedByteView {
+                    psi_operation: producer,
+                }
             },
         )
     } else if let Some((block, parameter)) = caller.blocks.iter().find_map(|block| {
@@ -321,9 +327,10 @@ fn established_view(
 ) -> Option<(
     semantic_vocabulary::OperationId,
     semantic_vocabulary::StructuralTypeId,
+    bool,
 )> {
     if let Some(producer) = super::literals::producer(caller, call, place) {
-        return Some(producer);
+        return Some((producer.0, producer.1, false));
     }
     if !caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
         matches!(&node.operation, AbstractOperation::CallStructuralScalar { psi_operation, structural_arguments, .. }
@@ -349,7 +356,32 @@ fn established_view(
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty() =>
             {
-                Some((*psi_operation, result.structural_type))
+                Some((*psi_operation, result.structural_type, false))
+            }
+            AbstractOperation::ElementViewSubslice {
+                psi_operation,
+                result,
+                ..
+            } if result.place == place
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty() =>
+            {
+                Some((*psi_operation, result.structural_type, true))
+            }
+            AbstractOperation::EstablishElementView {
+                psi_operation,
+                result,
+                destination,
+                ..
+            } if *destination == place
+                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty() =>
+            {
+                Some((*psi_operation, result.structural_type, true))
             }
             _ => None,
         })

@@ -167,6 +167,18 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 bytes.extend_from_slice(&extent.to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
+            SelectedMemoryAccessRole::ReadElementView {
+                index,
+                length,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(11);
+                bytes.extend_from_slice(&index.get().to_le_bytes());
+                bytes.extend_from_slice(&length.get().to_le_bytes());
+                bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::WriteLocal { slot }
             | SelectedMemoryAccessRole::AddressLocal { slot } => {
                 bytes.push(
@@ -312,6 +324,14 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
                     SelectedMemoryAccessRole::AddressLocal { slot }
                 }
             }
+            11 => SelectedMemoryAccessRole::ReadElementView {
+                index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+                length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+                obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    cursor.array()?,
+                ),
+            },
             0 => SelectedMemoryAccessRole::ReadPlace,
             6 => SelectedMemoryAccessRole::WritePlace,
             1 => SelectedMemoryAccessRole::WriteOutgoing {

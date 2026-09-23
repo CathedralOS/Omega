@@ -960,6 +960,7 @@ fn interferes(
         SelectedMemoryAccessRole::ReadPlace
         | SelectedMemoryAccessRole::ReadByteSpan { .. }
         | SelectedMemoryAccessRole::ReadByteSequence { .. }
+        | SelectedMemoryAccessRole::ReadElementView { .. }
         | SelectedMemoryAccessRole::WriteOutgoing { .. }
         | SelectedMemoryAccessRole::AddressOutgoing { .. } => false,
     }

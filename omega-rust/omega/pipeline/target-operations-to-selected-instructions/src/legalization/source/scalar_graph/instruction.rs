@@ -237,6 +237,30 @@ pub(super) fn project(
                 length_byte_offset: 8,
             }
         }
+        AbstractOperation::ElementViewLength { source, .. } => {
+            LegalizedScalarInstructionKind::ElementViewLength {
+                source: *source,
+                length_byte_offset: 8,
+            }
+        }
+        AbstractOperation::ElementViewRead { .. } => {
+            storage_instructions::project_element_view_read(node, optimized, unit)?
+        }
+        AbstractOperation::ElementViewSubslice { .. } => {
+            storage_instructions::project_element_view_subslice(node, optimized, unit)?
+        }
+        AbstractOperation::EstablishElementView {
+            result,
+            destination,
+            source,
+            element,
+            ..
+        } => LegalizedScalarInstructionKind::EstablishElementView {
+            result: result.clone(),
+            destination: *destination,
+            source: source.clone(),
+            element: *element,
+        },
         AbstractOperation::BooleanNot { operand, .. } => {
             LegalizedScalarInstructionKind::BooleanNot { operand: *operand }
         }

@@ -72,7 +72,7 @@ pub(super) fn validate_declarations(
                                 row.shape,
                                 StructuralTypeShape::ByteSequence(
                                     terminal_psi::ByteSequenceCarrier::BorrowedView
-                                )
+                                ) | StructuralTypeShape::ElementView { .. }
                             )
                             || (declaration.access == StructuralAccess::SharedBorrow
                                 && (matches!(row.shape, StructuralTypeShape::PrimitiveScalar(_))
@@ -339,6 +339,7 @@ fn shared_loan_root(
     }
     if argument.path.is_empty() {
         return super::byte_sequence_subslice::borrowed_result(machine, argument.place)
+            .or_else(|| super::element_view_subslice::borrowed_result(machine, argument.place))
             .filter(|_| available.contains(&argument.place))
             .map(|result| result.structural_type);
     }

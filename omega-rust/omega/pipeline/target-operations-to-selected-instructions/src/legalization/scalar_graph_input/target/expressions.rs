@@ -110,6 +110,21 @@ impl Checker<'_> {
                         AbstractOperation::ByteSequenceLength { psi_operation: operation, result, source: expected }
                         if operation == psi_operation && result.value == resolved && expected == source))
             }
+            Expression::ElementViewRead { psi_operation, source_value, source, view, index, length, obligation } => {
+                *source_value == resolved
+                    && self.element_view(view, *source, aliases)
+                    && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                        AbstractOperation::ElementViewRead { psi_operation: operation, result, source: expected, index: expected_index, length: expected_length, obligation: expected_obligation }
+                        if operation == psi_operation && result.value == resolved && expected == source
+                        && length == expected_length && obligation == expected_obligation && self.integer_source(index, *expected_index, aliases)))
+            }
+            Expression::ElementViewLength { psi_operation, source_value, source, view, length_byte_offset } => {
+                *length_byte_offset == 8 && *source_value == resolved
+                    && self.element_view(view, *source, aliases)
+                    && self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
+                        AbstractOperation::ElementViewLength { psi_operation: operation, result, source: expected }
+                        if operation == psi_operation && result.value == resolved && expected == source))
+            }
             Expression::Immediate {source_value,value:literal} => *source_value == value && self.optimized.blocks.iter().flat_map(|block|&block.nodes).any(|node|
                 matches!(&node.operation,AbstractOperation::IntegerConstant {result,value:actual,..} if *result == resolved && actual == literal)),
             Expression::Parameter {source_value,parameter_index,location} => {

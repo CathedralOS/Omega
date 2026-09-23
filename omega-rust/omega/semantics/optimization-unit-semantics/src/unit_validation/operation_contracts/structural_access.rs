@@ -467,6 +467,10 @@ fn structural_operation_result_contract(
                 O::ByteSequenceSubslice { result, .. } => {
                     (result, terminal_psi::StructuralAccess::SharedBorrow)
                 }
+                O::EstablishElementView { result, .. }
+                | O::ElementViewSubslice { result, .. } => {
+                    (result, terminal_psi::StructuralAccess::SharedBorrow)
+                }
                 O::EstablishScalarArray { result, .. }
                 | O::EstablishScalarCase { result, .. }
                 | O::EstablishRecord { result, .. }

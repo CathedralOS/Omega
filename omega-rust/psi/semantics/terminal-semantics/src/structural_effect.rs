@@ -7,7 +7,9 @@ use semantic_vocabulary::{
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
 mod byte_extent;
+mod element_extent;
 pub use byte_extent::{literal_length_equation, subslice_length_equation};
+pub use element_extent::{element_establishment_length_equation, element_subslice_length_equation};
 
 #[cfg(test)]
 mod subslice_tests;
@@ -24,6 +26,7 @@ pub enum StructuralEffectResultShape {
     Boolean,
     Integer,
     ByteCount,
+    ElementCount,
     Byte,
     Structural,
     Unit,
@@ -43,6 +46,9 @@ pub enum StructuralEffectCustody {
     ExactImmutableByteView,
     ExactMutableByteView,
     ExactByteViewMetadata,
+    ExactElementViewSource,
+    ExactImmutableElementView,
+    ExactElementViewMetadata,
     ExactLiveBooleanField,
     ExactLiveIntegerField,
     ExactPublishedService,
@@ -70,6 +76,10 @@ pub enum StructuralEffectAction {
     ReadByteSequence,
     WriteByteSequence,
     EstablishByteSequenceSubslice,
+    EstablishElementView,
+    ReadElementViewLength,
+    ReadElementView,
+    EstablishElementViewSubslice,
     ReadBooleanField,
     ReadIntegerField,
     EmitPortWrite,
@@ -99,6 +109,8 @@ pub enum StructuralEffectGoalShape {
     ByteLengthWithinFieldCapacity,
     /// Requires the destination array's independently resolved declared extent.
     ScalarIndexWithinDeclaredExtent,
+    ElementIndexInBounds,
+    ElementRangeInBounds,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -188,6 +200,12 @@ const fn structural_effect_leaf(
             StructuralEffectAction::EstablishByteSequenceSubslice => {
                 StructuralEffectGoalShape::ByteRangeInBounds
             }
+            StructuralEffectAction::ReadElementView => {
+                StructuralEffectGoalShape::ElementIndexInBounds
+            }
+            StructuralEffectAction::EstablishElementViewSubslice => {
+                StructuralEffectGoalShape::ElementRangeInBounds
+            }
             StructuralEffectAction::StoreIndexedPrimitive => {
                 StructuralEffectGoalShape::ScalarIndexWithinDeclaredExtent
             }
@@ -204,7 +222,7 @@ pub struct StructuralEffectSemanticRow {
 }
 
 impl StructuralEffectSemanticRow {
-    pub const ALL: [Self; 23] = [
+    pub const ALL: [Self; 27] = [
         Self {
             tag: OperationSemanticTag::EstablishReference,
             schema: structural_effect_leaf(
@@ -301,6 +319,46 @@ impl StructuralEffectSemanticRow {
                 StructuralEffectResultShape::Structural,
                 StructuralEffectCustody::ExactImmutableByteView,
                 StructuralEffectAction::EstablishByteSequenceSubslice,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::EstablishElementView,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactElementViewSource,
+                StructuralEffectAction::EstablishElementView,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::ElementViewLength,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::ElementCount,
+                StructuralEffectCustody::ExactElementViewMetadata,
+                StructuralEffectAction::ReadElementViewLength,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::ElementViewRead,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Scalar,
+                StructuralEffectCustody::ExactImmutableElementView,
+                StructuralEffectAction::ReadElementView,
+                StructuralEffectExternalEffect::None,
+                StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace,
+            ),
+        },
+        Self {
+            tag: OperationSemanticTag::ElementViewSubslice,
+            schema: structural_effect_leaf(
+                StructuralEffectResultShape::Structural,
+                StructuralEffectCustody::ExactImmutableElementView,
+                StructuralEffectAction::EstablishElementViewSubslice,
                 StructuralEffectExternalEffect::None,
                 StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
             ),
@@ -467,6 +525,10 @@ const fn is_structural_effect_tag(tag: OperationSemanticTag) -> bool {
             | OperationSemanticTag::ByteSequenceWrite
             | OperationSemanticTag::ByteSequenceRead
             | OperationSemanticTag::ByteSequenceSubslice
+            | OperationSemanticTag::EstablishElementView
+            | OperationSemanticTag::ElementViewLength
+            | OperationSemanticTag::ElementViewRead
+            | OperationSemanticTag::ElementViewSubslice
             | OperationSemanticTag::BooleanStructuralField
             | OperationSemanticTag::IntegerStructuralField
             | OperationSemanticTag::PortWrite
@@ -531,6 +593,10 @@ pub fn validate_structural_effect_semantic_rows(
         OperationSemanticTag::ByteSequenceRead,
         OperationSemanticTag::ByteSequenceWrite,
         OperationSemanticTag::ByteSequenceSubslice,
+        OperationSemanticTag::EstablishElementView,
+        OperationSemanticTag::ElementViewLength,
+        OperationSemanticTag::ElementViewRead,
+        OperationSemanticTag::ElementViewSubslice,
         OperationSemanticTag::BooleanStructuralField,
         OperationSemanticTag::IntegerStructuralField,
         OperationSemanticTag::PortWrite,
@@ -654,6 +720,33 @@ pub enum StructuralEffectObservation {
         destination: PlaceId,
         obligation: ObligationId,
     },
+    /// Establish a whole borrowed element view over a contiguous structural
+    /// collection; the source argument carries the root and projection path.
+    ElementViewEstablished {
+        source: terminal_psi::StructuralArgument,
+        destination: PlaceId,
+    },
+    ElementViewLengthRead {
+        source: PlaceId,
+        result: ValueId,
+    },
+    /// Read one element from the exact immutable element view after
+    /// discharging index < length counted in elements.
+    ElementViewRead {
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        result: ValueId,
+        obligation: ObligationId,
+    },
+    ElementViewSubslice {
+        source: PlaceId,
+        start: ValueId,
+        end: ValueId,
+        length: ValueId,
+        destination: PlaceId,
+        obligation: ObligationId,
+    },
     BooleanFieldEquation(Proposition),
     IntegerFieldEquation(Proposition),
     PortWrite {
@@ -720,6 +813,28 @@ impl StructuralEffectObservation {
                     Proposition::LessOrEqual(value(*end), value(*length)),
                 ]),
             )),
+            Self::ElementViewRead {
+                index,
+                length,
+                obligation,
+                ..
+            } => Some((
+                *obligation,
+                Proposition::LessThan(value(*index), value(*length)),
+            )),
+            Self::ElementViewSubslice {
+                start,
+                end,
+                length,
+                obligation,
+                ..
+            } => Some((
+                *obligation,
+                Proposition::Conjunction(vec![
+                    Proposition::LessOrEqual(value(*start), value(*end)),
+                    Proposition::LessOrEqual(value(*end), value(*length)),
+                ]),
+            )),
             _ => None,
         }
     }
@@ -750,6 +865,10 @@ impl StructuralEffectObservation {
             | Self::ByteSequenceWrite { .. }
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceSubslice { .. }
+            | Self::ElementViewEstablished { .. }
+            | Self::ElementViewLengthRead { .. }
+            | Self::ElementViewRead { .. }
+            | Self::ElementViewSubslice { .. }
             | Self::PortWrite { .. }
             | Self::AffinePlaceEstablished { .. } => None,
         }
@@ -781,6 +900,12 @@ fn validate_structural_effect_schema(
         }
         StructuralEffectAction::EstablishByteSequenceSubslice => {
             OperationSemanticTag::ByteSequenceSubslice
+        }
+        StructuralEffectAction::EstablishElementView => OperationSemanticTag::EstablishElementView,
+        StructuralEffectAction::ReadElementViewLength => OperationSemanticTag::ElementViewLength,
+        StructuralEffectAction::ReadElementView => OperationSemanticTag::ElementViewRead,
+        StructuralEffectAction::EstablishElementViewSubslice => {
+            OperationSemanticTag::ElementViewSubslice
         }
         StructuralEffectAction::WriteByteSequence => OperationSemanticTag::ByteSequenceWrite,
         StructuralEffectAction::ReadByteSequence => OperationSemanticTag::ByteSequenceRead,
@@ -817,163 +942,194 @@ fn validate_structural_effect_schema(
         | StructuralEffectAction::StoreByteSequenceFieldByte => {
             StructuralEffectGoalShape::ByteIndexInBounds
         }
+        StructuralEffectAction::ReadElementView => StructuralEffectGoalShape::ElementIndexInBounds,
+        StructuralEffectAction::EstablishElementViewSubslice => {
+            StructuralEffectGoalShape::ElementRangeInBounds
+        }
         StructuralEffectAction::StoreIndexedPrimitive => {
             StructuralEffectGoalShape::ScalarIndexWithinDeclaredExtent
         }
         _ => StructuralEffectGoalShape::None,
     };
-    let valid = action_tag == tag
-        && schema.goal == expected_goal
-        && match schema.action {
-            StructuralEffectAction::EstablishReference => {
-                schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactReferenceSource
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier
-            }
-            StructuralEffectAction::ReleaseReference => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactReferenceCarrier
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::ReleasesReferenceCarrier
-            }
-            StructuralEffectAction::EstablishPrimitiveLocal => {
-                schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactPrimitiveLocal
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
-            }
-            StructuralEffectAction::ReadPrimitive => {
-                schema.result == StructuralEffectResultShape::Scalar
-                    && schema.custody == StructuralEffectCustody::ExactReadablePrimitiveRoot
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::ObserveCaseMembership => {
-                schema.result == StructuralEffectResultShape::Boolean
-                    && schema.custody == StructuralEffectCustody::ExactReadableSumProjection
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::ReadByteSequenceFieldLength
-            | StructuralEffectAction::StoreByteSequenceFieldByte => {
-                schema.result
-                    == if schema.action == StructuralEffectAction::ReadByteSequenceFieldLength {
-                        StructuralEffectResultShape::ByteCount
-                    } else {
-                        StructuralEffectResultShape::Unit
-                    }
-                    && schema.custody == StructuralEffectCustody::ExactStructuralByteSequenceField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::StoreByteSequenceField => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactStructuralByteSequenceField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::EstablishByteSequenceSubslice => {
-                schema.result == StructuralEffectResultShape::Structural
+    let valid =
+        action_tag == tag
+            && schema.goal == expected_goal
+            && match schema.action {
+                StructuralEffectAction::EstablishReference => {
+                    schema.result == StructuralEffectResultShape::Structural
+                        && schema.custody == StructuralEffectCustody::ExactReferenceSource
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier
+                }
+                StructuralEffectAction::ReleaseReference => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactReferenceCarrier
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::ReleasesReferenceCarrier
+                }
+                StructuralEffectAction::EstablishPrimitiveLocal => {
+                    schema.result == StructuralEffectResultShape::Structural
+                        && schema.custody == StructuralEffectCustody::ExactPrimitiveLocal
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
+                }
+                StructuralEffectAction::ReadPrimitive => {
+                    schema.result == StructuralEffectResultShape::Scalar
+                        && schema.custody == StructuralEffectCustody::ExactReadablePrimitiveRoot
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::ObserveCaseMembership => {
+                    schema.result == StructuralEffectResultShape::Boolean
+                        && schema.custody == StructuralEffectCustody::ExactReadableSumProjection
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::ReadByteSequenceFieldLength
+                | StructuralEffectAction::StoreByteSequenceFieldByte => {
+                    schema.result
+                        == if schema.action == StructuralEffectAction::ReadByteSequenceFieldLength {
+                            StructuralEffectResultShape::ByteCount
+                        } else {
+                            StructuralEffectResultShape::Unit
+                        }
+                        && schema.custody
+                            == StructuralEffectCustody::ExactStructuralByteSequenceField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::StoreByteSequenceField => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody
+                            == StructuralEffectCustody::ExactStructuralByteSequenceField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EstablishByteSequenceSubslice => schema.result
+                    == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactImmutableByteView
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView
-            }
-            StructuralEffectAction::ReadByteSequence => {
-                schema.result == StructuralEffectResultShape::Byte
-                    && schema.custody == StructuralEffectCustody::ExactImmutableByteView
+                        == StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+                StructuralEffectAction::ReadByteSequence => {
+                    schema.result == StructuralEffectResultShape::Byte
+                        && schema.custody == StructuralEffectCustody::ExactImmutableByteView
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::WriteByteSequence => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactMutableByteView
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::ReadByteSequenceLength => {
+                    schema.result == StructuralEffectResultShape::ByteCount
+                        && schema.custody == StructuralEffectCustody::ExactByteViewMetadata
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EstablishElementView => schema.result
+                    == StructuralEffectResultShape::Structural
+                    && schema.custody == StructuralEffectCustody::ExactElementViewSource
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::WriteByteSequence => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactMutableByteView
+                        == StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+                StructuralEffectAction::ReadElementViewLength => {
+                    schema.result == StructuralEffectResultShape::ElementCount
+                        && schema.custody == StructuralEffectCustody::ExactElementViewMetadata
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::ReadElementView => {
+                    schema.result == StructuralEffectResultShape::Scalar
+                        && schema.custody == StructuralEffectCustody::ExactImmutableElementView
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EstablishElementViewSubslice => schema.result
+                    == StructuralEffectResultShape::Structural
+                    && schema.custody == StructuralEffectCustody::ExactImmutableElementView
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::ReadByteSequenceLength => {
-                schema.result == StructuralEffectResultShape::ByteCount
-                    && schema.custody == StructuralEffectCustody::ExactByteViewMetadata
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::StorePrimitive
-            | StructuralEffectAction::StoreIndexedPrimitive => {
-                schema.result == StructuralEffectResultShape::Unit
+                        == StructuralEffectFrontierPolicy::RequiresViewAndEstablishesBorrowedView,
+                StructuralEffectAction::StorePrimitive
+                | StructuralEffectAction::StoreIndexedPrimitive => schema.result
+                    == StructuralEffectResultShape::Unit
                     && schema.custody == StructuralEffectCustody::ExactWriteOnlyPrimitiveRoot
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsWriteOnlyPrimitivePlace
-            }
-            StructuralEffectAction::StoreScalarField => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactStructuralScalarField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::EstablishByteSequencePlace => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactByteSequenceLiteral
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
-            }
-            StructuralEffectAction::ReadBooleanField => {
-                schema.result == StructuralEffectResultShape::Boolean
-                    && schema.custody == StructuralEffectCustody::ExactLiveBooleanField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsAffinePlace
-            }
-            StructuralEffectAction::ReadIntegerField => {
-                schema.result == StructuralEffectResultShape::Integer
-                    && schema.custody == StructuralEffectCustody::ExactLiveIntegerField
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier
-                        == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
-            }
-            StructuralEffectAction::EmitPortWrite => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactPublishedService
-                    && schema.external_effect == StructuralEffectExternalEffect::PortWrite
-                    && schema.frontier == StructuralEffectFrontierPolicy::KeepsPlaceFrontier
-            }
-            StructuralEffectAction::EstablishAffinePlace => {
-                schema.result == StructuralEffectResultShape::Unit
-                    && schema.custody == StructuralEffectCustody::ExactEmptyAffineLocal
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
-            }
-            StructuralEffectAction::EstablishRecord => {
-                schema.result == StructuralEffectResultShape::Structural
+                        == StructuralEffectFrontierPolicy::RequiresAndKeepsWriteOnlyPrimitivePlace,
+                StructuralEffectAction::StoreScalarField => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactStructuralScalarField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EstablishByteSequencePlace => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactByteSequenceLiteral
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
+                }
+                StructuralEffectAction::ReadBooleanField => {
+                    schema.result == StructuralEffectResultShape::Boolean
+                        && schema.custody == StructuralEffectCustody::ExactLiveBooleanField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsAffinePlace
+                }
+                StructuralEffectAction::ReadIntegerField => {
+                    schema.result == StructuralEffectResultShape::Integer
+                        && schema.custody == StructuralEffectCustody::ExactLiveIntegerField
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier
+                            == StructuralEffectFrontierPolicy::RequiresAndKeepsStructuralPlace
+                }
+                StructuralEffectAction::EmitPortWrite => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactPublishedService
+                        && schema.external_effect == StructuralEffectExternalEffect::PortWrite
+                        && schema.frontier == StructuralEffectFrontierPolicy::KeepsPlaceFrontier
+                }
+                StructuralEffectAction::EstablishAffinePlace => {
+                    schema.result == StructuralEffectResultShape::Unit
+                        && schema.custody == StructuralEffectCustody::ExactEmptyAffineLocal
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsAffinePlace
+                }
+                StructuralEffectAction::EstablishRecord => schema.result
+                    == StructuralEffectResultShape::Structural
                     && schema.custody == StructuralEffectCustody::ExactRecord
                     && schema.external_effect == StructuralEffectExternalEffect::None
                     && schema.frontier
-                        == StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace
+                        == StructuralEffectFrontierPolicy::TransfersOwnedChildrenAndAddsOwnedPlace,
+                StructuralEffectAction::EstablishScalarCase => {
+                    schema.result == StructuralEffectResultShape::Structural
+                        && schema.custody == StructuralEffectCustody::ExactScalarCase
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
+                }
+                StructuralEffectAction::EstablishScalarArray => {
+                    schema.result == StructuralEffectResultShape::Structural
+                        && schema.custody == StructuralEffectCustody::ExactScalarArray
+                        && schema.external_effect == StructuralEffectExternalEffect::None
+                        && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
+                }
             }
-            StructuralEffectAction::EstablishScalarCase => {
-                schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactScalarCase
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsOwnedPlace
-            }
-            StructuralEffectAction::EstablishScalarArray => {
-                schema.result == StructuralEffectResultShape::Structural
-                    && schema.custody == StructuralEffectCustody::ExactScalarArray
-                    && schema.external_effect == StructuralEffectExternalEffect::None
-                    && schema.frontier == StructuralEffectFrontierPolicy::AddsUnrestrictedPlace
-            }
-        }
-        && schema.fuel == StructuralEffectFuelPolicy::ConsumeOne;
+            && schema.fuel == StructuralEffectFuelPolicy::ConsumeOne;
     valid
         .then_some(())
         .ok_or(OperationSemanticError::StructuralEffectSchemaMismatch(tag))
@@ -989,9 +1145,11 @@ fn validate_structural_effect_result(
         StructuralEffectResultShape::Byte => operation.result.scalar_ref().is_some_and(|result| {
             matches!(result.scalar_type, ScalarType::Integer(integer) if integer == IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"))
         }),
-        StructuralEffectResultShape::ByteCount => operation.result.scalar_ref().is_some_and(|result| {
-            matches!(result.scalar_type, ScalarType::Integer(integer) if integer == IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"))
-        }),
+        StructuralEffectResultShape::ByteCount | StructuralEffectResultShape::ElementCount => {
+            operation.result.scalar_ref().is_some_and(|result| {
+                matches!(result.scalar_type, ScalarType::Integer(integer) if integer == IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"))
+            })
+        }
         StructuralEffectResultShape::Boolean => operation
             .result
             .scalar_ref()
@@ -1130,6 +1288,65 @@ pub fn structural_effect_leaf_observation_in(
                 obligation,
             },
         ) => StructuralEffectObservation::ByteSequenceSubslice {
+            source: *source,
+            start: *start,
+            end: *end,
+            length: *length,
+            destination: operation
+                .result
+                .structural()
+                .expect("validated structural result")
+                .place,
+            obligation: *obligation,
+        },
+        (
+            StructuralEffectAction::EstablishElementView,
+            OperationKind::EstablishElementView {
+                destination,
+                source,
+                ..
+            },
+        ) => {
+            operation.result.structural().ok_or(
+                OperationSemanticError::StructuralEffectResultShapeMismatch(tag),
+            )?;
+            StructuralEffectObservation::ElementViewEstablished {
+                source: source.clone(),
+                destination: *destination,
+            }
+        }
+        (
+            StructuralEffectAction::ReadElementViewLength,
+            OperationKind::ElementViewLength { source },
+        ) => StructuralEffectObservation::ElementViewLengthRead {
+            source: *source,
+            result: operation.result.expect_scalar().id,
+        },
+        (
+            StructuralEffectAction::ReadElementView,
+            OperationKind::ElementViewRead {
+                source,
+                index,
+                length,
+                obligation,
+            },
+        ) => StructuralEffectObservation::ElementViewRead {
+            source: *source,
+            index: *index,
+            length: *length,
+            result: operation.result.expect_scalar().id,
+            obligation: *obligation,
+        },
+        (
+            StructuralEffectAction::EstablishElementViewSubslice,
+            OperationKind::ElementViewSubslice {
+                source,
+                start,
+                end,
+                length,
+                obligation,
+            },
+        ) => StructuralEffectObservation::ElementViewSubslice {
             source: *source,
             start: *start,
             end: *end,
@@ -1811,7 +2028,7 @@ mod tests {
 
     #[test]
     fn inventory_is_exact_unique_and_keeps_axes_separate() {
-        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 23);
+        assert_eq!(StructuralEffectSemanticRow::ALL.len(), 27);
         assert_eq!(
             StructuralEffectSemanticRow::ALL
                 .iter()

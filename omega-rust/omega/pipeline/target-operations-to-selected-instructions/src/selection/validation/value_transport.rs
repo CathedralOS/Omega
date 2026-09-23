@@ -103,6 +103,9 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         }
         Instruction::ByteSequenceSubslice {
             start, end, length, ..
+        }
+        | Instruction::ElementViewSubslice {
+            start, end, length, ..
         } => [*start, *end, *length].contains(&value),
         Instruction::StructuralByteSequenceFieldStore { length, .. } => *length == value,
         Instruction::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. }
@@ -112,7 +115,8 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
             length,
             ..
         } => [*index, *stored, *length].contains(&value),
-        Instruction::ByteSequenceRead { index, length, .. } => [*index, *length].contains(&value),
+        Instruction::ByteSequenceRead { index, length, .. }
+        | Instruction::ElementViewRead { index, length, .. } => [*index, *length].contains(&value),
         Instruction::BooleanNot { operand }
         | Instruction::IntegerWiden { operand, .. }
         | Instruction::IntegerExactCast { operand, .. }
@@ -168,6 +172,8 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::StructuralCaseMembership { .. }
         | Instruction::EstablishByteSequenceLiteral { .. }
         | Instruction::ByteSequenceLength { .. }
+        | Instruction::EstablishElementView { .. }
+        | Instruction::ElementViewLength { .. }
         | Instruction::BoundarySettlement(_)
         | Instruction::DynamicParameterCall(_) => false,
     }

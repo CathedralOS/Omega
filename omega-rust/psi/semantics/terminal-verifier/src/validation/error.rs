@@ -119,6 +119,17 @@ pub enum ModuleError {
         operation: OperationId,
         place: PlaceId,
     },
+    InvalidElementViewEstablishment(OperationId),
+    InvalidElementViewSubslice(OperationId),
+    ElementViewSubsliceOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        actual: ScalarType,
+    },
+    ElementViewNotEstablished {
+        operation: OperationId,
+        place: PlaceId,
+    },
     InvalidSuspensionCallPlan {
         operation: Option<OperationId>,
         reason: SuspensionCallPlanError,
@@ -1291,6 +1302,21 @@ pub enum ModuleError {
         actual: ScalarType,
     },
     InvalidByteSequenceLengthSource {
+        operation: OperationId,
+        source: PlaceId,
+    },
+    ElementViewLengthRequiresU64Result(OperationId),
+    ElementViewReadRequiresElementResult(OperationId),
+    InvalidElementViewReadSource {
+        operation: OperationId,
+        source: PlaceId,
+    },
+    InvalidElementViewReadLength {
+        operation: OperationId,
+        source: PlaceId,
+        length: ValueId,
+    },
+    InvalidElementViewLengthSource {
         operation: OperationId,
         source: PlaceId,
     },

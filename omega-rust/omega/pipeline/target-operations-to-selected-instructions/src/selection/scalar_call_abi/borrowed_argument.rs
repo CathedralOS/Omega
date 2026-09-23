@@ -144,6 +144,18 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
+    let element_view = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == semantic.place)
+        .and_then(|parameter| {
+            crate::structural_inputs::structural_reference_input::fixed_element_array_view(
+                &parameter.semantic,
+                semantic,
+                target.structural_type,
+                &signature.structural_types,
+            )
+        });
     let shape = if let Some(shape) = aggregate {
         shape
     } else if let Some((offset, _)) = byte_view {
@@ -152,6 +164,11 @@ pub(super) fn validate_borrowed_argument(
         }
         ValueShape::borrowed_reference(16, 8)
     } else if let Some((offset, _)) = byte_field {
+        if offset != target.source_byte_offset {
+            return None;
+        }
+        ValueShape::borrowed_reference(16, 8)
+    } else if let Some((offset, _, _)) = element_view {
         if offset != target.source_byte_offset {
             return None;
         }
@@ -226,6 +243,7 @@ pub(super) fn validate_borrowed_argument(
             target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
                 | target_operations::TargetStructuralArgumentSource::BlockParameter { .. }
         )
+        && element_view.is_none()
         && source.call_plan.result.is_some())
         || !signature.entry_claims.is_empty()
         || (!parameters.is_empty()
@@ -242,6 +260,7 @@ pub(super) fn validate_borrowed_argument(
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
+            && element_view.is_none()
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
         || target.access != semantic.access
@@ -250,15 +269,23 @@ pub(super) fn validate_borrowed_argument(
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
+            && element_view.is_none()
             && target.root_structural_type != target.structural_type)
         || target.shape != shape
         || (!exclusive
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
+            && element_view.is_none()
             && target.source_byte_offset != 0)
-        || target.fixed_array_length != byte_view.map(|(_, length)| length)
-        || target.element_stride != byte_view.map(|_| 1)
+        || target.fixed_array_length
+            != byte_view
+                .map(|(_, length)| length)
+                .or(element_view.map(|(_, length, _)| length))
+        || target.element_stride
+            != byte_view
+                .map(|_| 1)
+                .or(element_view.map(|(_, _, stride)| stride))
         || Some(&target.destination) != expected.parameters.get(argument_index)
     {
         return None;
@@ -301,6 +328,7 @@ pub(super) fn validate_borrowed_argument(
             }
         }
         target_operations::TargetStructuralArgumentSource::EstablishedByteView { .. }
+        | target_operations::TargetStructuralArgumentSource::EstablishedElementView { .. }
         | target_operations::TargetStructuralArgumentSource::BlockParameter { .. } => {
             if exclusive {
                 return None;

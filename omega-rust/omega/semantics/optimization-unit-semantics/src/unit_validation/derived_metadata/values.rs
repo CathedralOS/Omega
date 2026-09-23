@@ -37,6 +37,8 @@ pub(crate) fn expected_definitions(
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
         | O::ByteSequenceLength { result, .. }
+        | O::ElementViewLength { result, .. }
+        | O::ElementViewRead { result, .. }
         | O::StructuralByteSequenceFieldLength { result, .. }
         | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
@@ -214,6 +216,7 @@ pub(crate) fn expected_uses(
             })
             .collect(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
+        O::ElementViewRead { index, length, .. } => vec![*index, *length],
         O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,
@@ -228,6 +231,9 @@ pub(crate) fn expected_uses(
             ..
         } => vec![*index, *value, *length],
         O::ByteSequenceSubslice {
+            start, end, length, ..
+        } => vec![*start, *end, *length],
+        O::ElementViewSubslice {
             start, end, length, ..
         } => vec![*start, *end, *length],
         O::Call { arguments, .. }

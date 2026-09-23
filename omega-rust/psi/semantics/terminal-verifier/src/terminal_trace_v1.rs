@@ -268,6 +268,10 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::ByteSequenceRead { .. }
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
+        | OperationKind::EstablishElementView { .. }
+        | OperationKind::ElementViewLength { .. }
+        | OperationKind::ElementViewRead { .. }
+        | OperationKind::ElementViewSubslice { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishRecord { .. }
         | OperationKind::StoreDynamicDescriptor { .. }

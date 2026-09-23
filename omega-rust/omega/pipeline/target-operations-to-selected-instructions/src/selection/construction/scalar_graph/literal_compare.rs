@@ -76,6 +76,9 @@ pub(super) fn folded_literal<'a>(
                 } => index.value == definition.value || value.value == definition.value,
                 LegalizedScalarInstructionKind::ByteSequenceSubslice {
                     start, end, length, ..
+                }
+                | LegalizedScalarInstructionKind::ElementViewSubslice {
+                    start, end, length, ..
                 } => {
                     *start == definition.value
                         || *end == definition.value
@@ -89,7 +92,8 @@ pub(super) fn folded_literal<'a>(
                     length,
                     ..
                 } => [*index, *value, *length].contains(&definition.value),
-                LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => {
+                LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. }
+                | LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => {
                     *index == definition.value || *length == definition.value
                 }
                 LegalizedScalarInstructionKind::Constant(_)
@@ -101,6 +105,8 @@ pub(super) fn folded_literal<'a>(
                 | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
                 | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
                 | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
+                | LegalizedScalarInstructionKind::EstablishElementView { .. }
+                | LegalizedScalarInstructionKind::ElementViewLength { .. }
                 | LegalizedScalarInstructionKind::BoundarySettlement(_)
                 | LegalizedScalarInstructionKind::DynamicParameterCall(_) => false,
                 LegalizedScalarInstructionKind::BooleanNot { operand }

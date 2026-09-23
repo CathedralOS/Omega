@@ -17,6 +17,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
     use AbstractOperation as O;
     match operation {
         O::ByteSequenceSubslice { .. }
+        | O::EstablishElementView { .. }
+        | O::ElementViewSubslice { .. }
         | O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }
@@ -64,6 +66,8 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceLength { .. }
+        | O::ElementViewLength { .. }
+        | O::ElementViewRead { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::IntegerStructuralField { .. }
         | O::BooleanNot { .. }
