@@ -5,6 +5,7 @@ use super::outcome_bounds::{
     component_entry_rank_bound, compose_cleanup_outcomes, dynamic_call_targets,
     maximum_machine_outcomes, maximum_optional, natural_component_geometry, operation_callees,
     terminator_cleanup_machines, terminator_edge_targets, unbounded_cycle_report,
+    unbounded_rank_report,
 };
 use crate::{FixedFuelError, FixedSegmentFuelCertificate};
 use semantic_vocabulary::{
@@ -526,7 +527,15 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
             return Ok(*bound);
         }
         if !walk.active_nodes.insert(entry) {
-            return Err(FixedFuelError::ControlCycle(entry));
+            // A revisited ordinary block sits on an unranked cyclic
+            // component the retained partition did not cover — report the
+            // verifier-derived component, not the traversal marker. A
+            // revisited component member means the condensed graph itself
+            // cycles: the retained partition is malformed.
+            return Err(match geometry.node_for(entry) {
+                NaturalGraphNode::Block(_) => unbounded_cycle_report(self.machine, entry),
+                NaturalGraphNode::Component(_) => FixedFuelError::InvalidRankedScc(self.machine.id),
+            });
         }
         let bound = match geometry.node_for(entry) {
             NaturalGraphNode::Block(block) => {
@@ -1152,11 +1161,20 @@ impl<'prepared, 'module> PreparedSegments<'prepared, 'module> {
                     .ok_or(FixedFuelError::BoundOverflow)?;
             }
         }
-        rank_bound
+        // The rank-bounded visit arithmetic is this component's own bound:
+        // when it cannot be represented in the certificate's `u64` scalar
+        // ceiling the rank supplies no publishable bound, so the report
+        // names the component with the unbounded-rank cause rather than a
+        // flat overflow.
+        let interior = rank_bound
             .checked_add(1)
             .and_then(|visits| visits.checked_mul(reenterable_units))
             .and_then(|bound| bound.checked_add(once_units))
-            .ok_or(FixedFuelError::BoundOverflow)
+            .ok_or_else(|| unbounded_rank_report(self.machine, component))?;
+        if interior > u128::from(u64::MAX) {
+            return Err(unbounded_rank_report(self.machine, component));
+        }
+        Ok(interior)
     }
 }
 

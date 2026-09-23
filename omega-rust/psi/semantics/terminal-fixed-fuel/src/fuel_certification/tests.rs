@@ -489,13 +489,59 @@ mod machine_bounds {
         );
     }
 
+    /// A rank row whose visit arithmetic overflows the certificate's `u64`
+    /// ceiling is the spec's unbounded-rank absence-of-bound cause: the
+    /// report names the verifier-derived component identity, not a flat
+    /// overflow. The u64 carrier's rank bound itself fits `u128` but the
+    /// rank-multiplied interior does not fit the published scalar ceiling.
     #[test]
-    fn natural_cycle_with_wide_rank_reports_bound_overflow() {
+    fn natural_cycle_with_wide_rank_reports_unbounded_rank_component() {
         let walk = cyclic_machine(64, Vec::new());
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
         let module = module(1, vec![walk]);
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Err(FixedFuelError::BoundOverflow)
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::UnboundedRank,
+            })
+        );
+    }
+
+    /// A `u128` rank carrier overflows the interior visit arithmetic itself —
+    /// the same unbounded-rank report, reached through checked `u128`
+    /// addition rather than the `u64` ceiling gate.
+    #[test]
+    fn natural_cycle_with_widest_rank_reports_unbounded_rank_component() {
+        let walk = cyclic_machine(128, Vec::new());
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::UnboundedRank,
+            })
+        );
+    }
+
+    /// A machine that retains a `Natural` ranking but leaves a cyclic
+    /// component uncovered reports the verifier-derived component identity
+    /// with the `Unranked` cause when the condensed walk revisits it — the
+    /// same report an entirely unranked machine produces, not the block a
+    /// traversal happened to revisit.
+    #[test]
+    fn partially_ranked_cycle_reports_unranked_component() {
+        let mut walk = cyclic_machine(32, Vec::new());
+        walk.ranked_scc = Some(TerminalRankedScc::Natural(Vec::new()));
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
+        let module = module(1, vec![walk]);
+        assert_eq!(
+            derive_maximum_entry_bound(&module, id(1)),
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::Unranked,
+            })
         );
     }
 
@@ -1289,15 +1335,21 @@ mod machine_bounds {
         );
     }
 
-    /// A u64 rank bound overflows the whole-entry certificate but cannot
-    /// overflow a per-traversal row: the catalog still derives and every
-    /// ceiling stays at the single-block traversal charge.
+    /// A u64 rank bound cannot publish a whole-entry certificate — the
+    /// unbounded-rank report names the component — but cannot overflow a
+    /// per-traversal row: the catalog still derives and every ceiling stays
+    /// at the single-block traversal charge.
     #[test]
     fn natural_cycle_u64_catalog_stays_per_traversal_when_entry_overflows() {
-        let module = module(1, vec![ranked_countdown_machine(64)]);
+        let walk = ranked_countdown_machine(64);
+        let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
+        let module = module(1, vec![walk]);
         assert_eq!(
             derive_maximum_entry_bound(&module, id(1)),
-            Err(FixedFuelError::BoundOverflow)
+            Err(FixedFuelError::UnboundedCycleComponent {
+                component,
+                cause: crate::UnboundedCycleCause::UnboundedRank,
+            })
         );
         let subject = PreparedFuelModule::new(&module);
         let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
@@ -1384,6 +1436,34 @@ mod machine_bounds {
             1 + 4 * 256,
             "entry edge plus the rank-bounded interior"
         );
+    }
+
+    /// A segment whose bound must consult a component's rank-multiplied
+    /// interior reports the unbounded-rank cause when that interior cannot
+    /// be represented in the certificate's `u64` ceiling — the same
+    /// component-and-cause shape the whole-entry report carries, not a
+    /// flat overflow. A `u128` carrier reaches it through the checked visit
+    /// arithmetic itself; a `u64` carrier through the ceiling gate.
+    #[test]
+    fn natural_cycle_segment_reports_unbounded_rank_component() {
+        for bits in [64_u16, 128_u16] {
+            let walk = ranked_countdown_machine(bits);
+            let component = terminal_verifier::cyclic_component_identity(&walk, &[id(2), id(3)]);
+            let module = module(1, vec![walk]);
+            let subject = PreparedFuelModule::new(&module);
+            let prepared = PreparedSegments::new(&subject, id(1)).expect("machine prepares");
+            assert_eq!(
+                prepared
+                    .segment_certificate(id(1), id(5), &mut BTreeMap::new())
+                    .map(|certificate| certificate.ceiling_units),
+                Err(FixedFuelError::UnboundedCycleComponent {
+                    component,
+                    cause: crate::UnboundedCycleCause::UnboundedRank,
+                }),
+                "segment crossing a wide-rank component names the component, \
+                 not a flat overflow (u{bits} carrier)"
+            );
+        }
     }
 
     /// Scalar-term operands for contract `requires` clauses:
