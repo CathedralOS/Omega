@@ -33,7 +33,8 @@ pub use call_composition::{
     CallResultRule, CallTargetRule, CallTransferRule, FixedByteArrayWindow,
     boundary_buffer_capacity, call_composition_semantic_row,
     exact_call_composition_semantic_row_in, fixed_byte_array_extent, fixed_byte_array_window,
-    shared_boundary_buffer_capacity, validate_call_composition_semantic_rows,
+    fixed_element_array_extent, shared_boundary_buffer_capacity,
+    validate_call_composition_semantic_rows,
 };
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};
 pub use primitive_place::{fixed_array_place_shape, primitive_place_type};

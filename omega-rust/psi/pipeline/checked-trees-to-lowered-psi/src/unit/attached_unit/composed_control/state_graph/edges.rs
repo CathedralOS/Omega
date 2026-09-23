@@ -171,10 +171,18 @@ pub(super) fn validate_bindings(
             // `value as T` on a structural type ascribes the same parameter;
             // scalar (primitive-target) casts stay opaque to this binding.
             let mut argument = *expression;
-            while let ExpressionNode::Cast(cast) = checked.expression_table.expression(argument)
-                && checked.primitive_type_reference(cast.target_type).is_none()
-            {
-                argument = cast.value;
+            loop {
+                match checked.expression_table.expression(argument) {
+                    ExpressionNode::Cast(cast)
+                        if checked.primitive_type_reference(cast.target_type).is_none() =>
+                    {
+                        argument = cast.value;
+                    }
+                    ExpressionNode::Borrow(borrow) => {
+                        argument = borrow.target;
+                    }
+                    _ => break,
+                }
             }
             match checked.expression_table.expression(argument) {
                 ExpressionNode::Name(name)
