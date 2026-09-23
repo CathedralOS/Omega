@@ -8,9 +8,11 @@
 //! one return plan a machine carries across those rosters,
 //! `structural_type_plans.rs` and `structural_argument_plans.rs` carry
 //! structural types and arguments,
-//! `affine_cleanup_plans.rs` carries affine cleanup, `result_binding_plans.rs`
-//! carries result bindings, `unit_effect_plans.rs` carries effect
-//! operations and `boundary_machine_plans.rs` carries boundary machines.
+//! `affine_cleanup_plans.rs` carries affine cleanup and `unit_plans.rs` names
+//! the one Unit-bodied plan a machine carries across the cleanup and control
+//! rosters, `result_binding_plans.rs` carries result bindings,
+//! `unit_effect_plans.rs` carries effect operations and
+//! `boundary_machine_plans.rs` carries boundary machines.
 
 mod affine_cleanup_plans;
 mod boundary_machine_plans;
@@ -26,6 +28,7 @@ mod structural_return_plans;
 mod structural_type_plans;
 mod terminal_selections;
 mod unit_effect_plans;
+mod unit_plans;
 
 pub use affine_cleanup_plans::{
     CheckedNominalAffineUnitCleanupMachinePlan, CheckedNominalAffineUnitCleanupPlans,
@@ -111,3 +114,4 @@ pub use unit_effect_plans::{
     CheckedUnitEffectPlans, CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage,
     CheckedUnitScalarControlPlan,
 };
+pub use unit_plans::CheckedUnitPlan;

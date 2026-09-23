@@ -1,8 +1,11 @@
 //! Unit machine lowering.
 //!
-//! Owns the producers dispatched for Unit plans: attached closure assembly,
-//! bounded dynamic composed dispatch, structural multi-state control, affine
-//! cleanup, and the entry requirements every Unit body must satisfy.
+//! `lower_unit_plan_machine` lowers the one checked Unit plan a selected
+//! machine carries: it dispatches on the plan's kind to the body that owns it
+//! — nominal and partial affine cleanup, composed control, structural control
+//! — and publishes what each kind completes. The module also owns attached
+//! closure assembly, bounded dynamic composed dispatch and the entry
+//! requirements every Unit body must satisfy.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -14,7 +17,7 @@ use checked_trees::{
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralUnitControlMachinePlan,
     CheckedStructuralUnitControlTerminatorPlan, CheckedTerminalSignatureEligibility, CheckedTrees,
     CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralFieldType,
+    CheckedUnitPartialAffineDiscardPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, ClosedScalarContractValue,
 };
@@ -65,6 +68,9 @@ use crate::emission::scalar_types::{
 use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
 use crate::expression_preparation::prepare_expression::lower_checked_scalar_expression;
 use crate::lowering_error::{LoweringError, unsupported};
+use crate::producer_result::{
+    DebugPublication, LoweredSelectedMachine, LoweringCompletion, OperandProofCompletion,
+};
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
     lower_boundary_crash_routes, lower_checked_crash_route_buckets,
@@ -88,8 +94,13 @@ use crate::terminal_identities::{
 };
 use crate::unit::attached_unit::{
     checked_unit_call_closure_including, checked_unit_target_reach_matches,
-    collect_service_summary, lower_installation_machine_service_ceiling, lower_root_service_reach,
-    lower_unit_closure, lower_unit_parameters, unique_unit_machine,
+    collect_service_summary, lower_composed_unit_control_machine,
+    lower_installation_machine_service_ceiling, lower_root_service_reach, lower_unit_closure,
+    lower_unit_parameters, unique_unit_machine,
+};
+use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
+use crate::unit::unit_cleanup::{
+    lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
 };
 
 pub(crate) mod attached_unit;
@@ -101,3 +112,43 @@ pub(crate) mod dynamic_composed_unit;
 pub(crate) mod runtime_requirements;
 pub(crate) mod structural_unit_control;
 pub(crate) mod unit_cleanup;
+
+/// Lower the one checked Unit plan a selected machine carries: the body that
+/// owns its kind, then the publication that kind completes. The cleanup kinds
+/// finalize their operand proofs; the partial cleanup and composed control
+/// bodies publish an exact machine catalog and no debug map.
+pub(crate) fn lower_unit_plan_machine(
+    checked: &CheckedTrees,
+    plan: CheckedUnitPlan<'_>,
+) -> Result<LoweredSelectedMachine, LoweringError> {
+    Ok(match plan {
+        CheckedUnitPlan::NominalAffineCleanup(plan) => LoweredSelectedMachine::entry_only(
+            lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
+            LoweringCompletion {
+                operands: OperandProofCompletion::Finalize,
+                ..Default::default()
+            },
+            vec![plan.machine.machine],
+        ),
+        CheckedUnitPlan::PartialAffineCleanup(plan) => LoweredSelectedMachine::source_mapped(
+            lower_partial_affine_unit_cleanup_machine(checked, plan)?,
+            LoweringCompletion {
+                operands: OperandProofCompletion::Finalize,
+                debug: DebugPublication::Omit,
+                ..Default::default()
+            },
+        ),
+        CheckedUnitPlan::ComposedControl(plan) => LoweredSelectedMachine::source_mapped(
+            lower_composed_unit_control_machine(checked, plan)?,
+            LoweringCompletion {
+                debug: DebugPublication::Omit,
+                ..Default::default()
+            },
+        ),
+        CheckedUnitPlan::StructuralControl(plan) => LoweredSelectedMachine::entry_only(
+            lower_structural_unit_control_machine(checked, plan)?,
+            LoweringCompletion::default(),
+            vec![plan.machine],
+        ),
+    })
+}

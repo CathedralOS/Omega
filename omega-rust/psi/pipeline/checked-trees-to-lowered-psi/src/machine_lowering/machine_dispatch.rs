@@ -3,6 +3,7 @@
 use checked_trees::{
     CheckedDynamicBindingKind, CheckedDynamicDispatchPlan, CheckedReturnPlan,
     CheckedTerminalMachineSelection, CheckedTerminalSignatureEligibility, CheckedTrees,
+    CheckedUnitPlan,
 };
 
 use crate::lowering_error::LoweringError;
@@ -15,12 +16,9 @@ use crate::scalar_graph::scalar_call_closure::{
     checked_scalar_call_closure, lower_scalar_call_closure,
 };
 use crate::scalar_graph::scalar_graph_lowering::lower_scalar_graph_machine;
-use crate::unit::attached_unit::{lower_composed_unit_control_machine, lower_unit_effect_closure};
+use crate::unit::attached_unit::lower_unit_effect_closure;
 use crate::unit::dynamic_composed_unit::{LoweredDynamicDispatch, lower_dynamic_dispatch_machine};
-use crate::unit::structural_unit_control::lower_structural_unit_control_machine;
-use crate::unit::unit_cleanup::{
-    lower_nominal_affine_unit_cleanup_machine, lower_partial_affine_unit_cleanup_machine,
-};
+use crate::unit::lower_unit_plan_machine;
 
 /// Which checked Terminal machine one lowering selects.
 ///
@@ -95,112 +93,8 @@ pub(crate) fn lower_selected_machine(
     if let Some(plan) = select_return_plan(checked, selection)? {
         return lower_return_machine(checked, plan);
     }
-    let mut nominal_matches = checked
-        .facts
-        .flow
-        .terminal_nominal_affine_unit_cleanups
-        .machines
-        .iter()
-        .filter(|plan| plan.machine.machine == selection.machine);
-    if let Some(plan) = nominal_matches.next() {
-        if nominal_matches.next().is_some() {
-            return unsupported("nominal affine Unit cleanup plan is duplicated");
-        }
-        if !matches!(
-            (
-                selection.signature,
-                plan.machine.attachment_type_identity.is_some()
-            ),
-            (CheckedTerminalSignatureEligibility::Attached, true)
-                | (CheckedTerminalSignatureEligibility::Eligible, false)
-                | (CheckedTerminalSignatureEligibility::FreeUnitEffect, false)
-        ) {
-            return unsupported(
-                "nominal affine Unit cleanup attachment disagrees with its signature",
-            );
-        }
-        return Ok(LoweredSelectedMachine::entry_only(
-            lower_nominal_affine_unit_cleanup_machine(checked, plan)?,
-            LoweringCompletion {
-                operands: OperandProofCompletion::Finalize,
-                ..Default::default()
-            },
-            vec![selection.machine],
-        ));
-    }
-    let mut partial_matches = checked
-        .facts
-        .flow
-        .terminal_partial_affine_unit_cleanups
-        .machines
-        .iter()
-        .filter(|plan| plan.machine.machine == selection.machine);
-    if let Some(plan) = partial_matches.next() {
-        if partial_matches.next().is_some() {
-            return unsupported("partial affine Unit cleanup plan is duplicated");
-        }
-        if !matches!(
-            (
-                selection.signature,
-                plan.machine.attachment_type_identity.is_some()
-            ),
-            (CheckedTerminalSignatureEligibility::Attached, true)
-                | (CheckedTerminalSignatureEligibility::Eligible, false)
-                | (CheckedTerminalSignatureEligibility::FreeUnitEffect, false)
-        ) {
-            return unsupported(
-                "partial affine Unit cleanup attachment disagrees with its signature",
-            );
-        }
-        return Ok(LoweredSelectedMachine::source_mapped(
-            lower_partial_affine_unit_cleanup_machine(checked, plan)?,
-            LoweringCompletion {
-                operands: OperandProofCompletion::Finalize,
-                debug: DebugPublication::Omit,
-                ..Default::default()
-            },
-        ));
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .composed_for_machine(selection.machine)
-    {
-        if !matches!(
-            selection.signature,
-            CheckedTerminalSignatureEligibility::Eligible
-                | CheckedTerminalSignatureEligibility::FreeUnitEffect
-                | CheckedTerminalSignatureEligibility::Attached
-        ) || plan.attachment_type_identity.is_some()
-            != (selection.signature == CheckedTerminalSignatureEligibility::Attached)
-        {
-            return unsupported(
-                "composed Unit control requires an exact free or attached signature",
-            );
-        }
-        return Ok(LoweredSelectedMachine::source_mapped(
-            lower_composed_unit_control_machine(checked, plan)?,
-            LoweringCompletion {
-                debug: DebugPublication::Omit,
-                ..Default::default()
-            },
-        ));
-    }
-    if let Some(plan) = checked
-        .facts
-        .flow
-        .terminal_structural_unit_controls
-        .for_machine(selection.machine)
-    {
-        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
-            return unsupported("structural Unit control plan requires an attached signature");
-        }
-        return Ok(LoweredSelectedMachine::entry_only(
-            lower_structural_unit_control_machine(checked, plan)?,
-            LoweringCompletion::default(),
-            vec![selection.machine],
-        ));
+    if let Some(plan) = select_unit_plan(checked, selection)? {
+        return lower_unit_plan_machine(checked, plan);
     }
     // A scalar forwarding body can also have a Unit-closure plan. Its scalar
     // graph owns the source signature, operand, and affine-transfer custody;
@@ -347,6 +241,26 @@ fn select_return_plan<'checked>(
         .is_some_and(|expected| expected != selection.signature)
     {
         return unsupported("return plan attachment disagrees with its selected signature");
+    }
+    Ok(Some(plan))
+}
+
+/// The one checked Unit plan `selection` lowers, if any. Every kind shares
+/// this admission: one roster row per machine, and the signature the plan's
+/// attachment implies — attached when the plan retains its owner, either free
+/// Unit signature otherwise.
+fn select_unit_plan<'checked>(
+    checked: &'checked CheckedTrees,
+    selection: &CheckedTerminalMachineSelection,
+) -> Result<Option<CheckedUnitPlan<'checked>>, LoweringError> {
+    let Some(plan) = CheckedUnitPlan::for_machine(&checked.facts.flow, selection.machine) else {
+        return Ok(None);
+    };
+    if plan.is_duplicated_in(&checked.facts.flow) {
+        return unsupported("Unit plan is duplicated in its roster");
+    }
+    if !plan.admits_signature(selection.signature) {
+        return unsupported("Unit plan attachment disagrees with its selected signature");
     }
     Ok(Some(plan))
 }
