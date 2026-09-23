@@ -10,10 +10,23 @@ use semantic_vocabulary::PlaceId;
 pub(super) struct DefinitionSites {
     pub(super) bare_value_types: Option<BTreeMap<ValueId, ScalarType>>,
     pub(super) globally_defined: BTreeSet<ValueId>,
-    pub(super) definition_blocks: BTreeMap<ValueId, BlockId>,
     pub(super) structural_definitions: BTreeMap<PlaceId, BlockId>,
     pub(super) primitive_local_definitions: BTreeMap<PlaceId, BlockId>,
     pub(super) scalar_array_definitions: BTreeMap<PlaceId, BlockId>,
+    /// Every recorded definition site inverted by defining block — scalar
+    /// values alongside the three place maps above — so a block's dominated
+    /// definitions are gathered from its dominator chain rather than by
+    /// testing every definition in the machine.
+    pub(super) by_block: BTreeMap<BlockId, BlockDefinitions>,
+}
+
+/// The values and places whose recorded definition site is one block.
+#[derive(Default)]
+pub(super) struct BlockDefinitions {
+    pub(super) values: Vec<ValueId>,
+    pub(super) structural: Vec<PlaceId>,
+    pub(super) primitive_locals: Vec<PlaceId>,
+    pub(super) scalar_arrays: Vec<PlaceId>,
 }
 
 /// Where every value and place is defined: the machine's parameters, each
@@ -80,12 +93,35 @@ pub(super) fn definition_sites(
             }
         }
     }
+    // Invert the final maps, not the traversal above: a place recorded twice
+    // keeps only its last definition site there, and must here too.
+    let mut by_block = BTreeMap::<BlockId, BlockDefinitions>::new();
+    for (value, block) in &definition_blocks {
+        by_block.entry(*block).or_default().values.push(*value);
+    }
+    for (place, block) in &structural_definitions {
+        by_block.entry(*block).or_default().structural.push(*place);
+    }
+    for (place, block) in &primitive_local_definitions {
+        by_block
+            .entry(*block)
+            .or_default()
+            .primitive_locals
+            .push(*place);
+    }
+    for (place, block) in &scalar_array_definitions {
+        by_block
+            .entry(*block)
+            .or_default()
+            .scalar_arrays
+            .push(*place);
+    }
     DefinitionSites {
         bare_value_types,
         globally_defined,
-        definition_blocks,
         structural_definitions,
         primitive_local_definitions,
         scalar_array_definitions,
+        by_block,
     }
 }

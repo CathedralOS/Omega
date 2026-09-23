@@ -30,10 +30,10 @@ pub(super) fn validate_block(
     let DefinitionSites {
         bare_value_types,
         globally_defined,
-        definition_blocks,
         structural_definitions,
         primitive_local_definitions,
         scalar_array_definitions,
+        by_block,
         ..
     } = sites;
     let block = blocks
@@ -42,30 +42,19 @@ pub(super) fn validate_block(
         .expect("validation order contains known blocks");
     let mut defined = globally_defined.clone();
     defined.extend(block.parameters.iter().map(|parameter| parameter.id));
-    defined.extend(definition_blocks.iter().filter_map(|(value, definition)| {
-        (*definition != block_id && dominators.dominates(*definition, block_id)).then_some(*value)
-    }));
-    let mut available_structural = structural_definitions
-        .iter()
-        .filter_map(|(place, definition)| {
-            (*definition != block_id && dominators.dominates(*definition, block_id))
-                .then_some(*place)
-        })
-        .collect::<BTreeSet<_>>();
-    let mut available_primitives = primitive_local_definitions
-        .iter()
-        .filter_map(|(place, definition)| {
-            (*definition != block_id && dominators.dominates(*definition, block_id))
-                .then_some(*place)
-        })
-        .collect::<BTreeSet<_>>();
-    let mut available_arrays = scalar_array_definitions
-        .iter()
-        .filter_map(|(place, definition)| {
-            (*definition != block_id && dominators.dominates(*definition, block_id))
-                .then_some(*place)
-        })
-        .collect::<BTreeSet<_>>();
+    // Available at entry: everything defined in a strictly dominating block.
+    let mut available_structural = BTreeSet::new();
+    let mut available_primitives = BTreeSet::new();
+    let mut available_arrays = BTreeSet::new();
+    for dominator in dominators.strict_dominators(block_id) {
+        let Some(definitions) = by_block.get(&dominator) else {
+            continue;
+        };
+        defined.extend(definitions.values.iter().copied());
+        available_structural.extend(definitions.structural.iter().copied());
+        available_primitives.extend(definitions.primitive_locals.iter().copied());
+        available_arrays.extend(definitions.scalar_arrays.iter().copied());
+    }
     available_structural.extend(
         block
             .structural_parameters

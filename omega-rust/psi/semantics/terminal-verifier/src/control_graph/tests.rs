@@ -140,6 +140,19 @@ fn compare_reference(machine: &TerminalMachine) {
             actual.depth(definition.id),
             Some(expected[&definition.id].len())
         );
+        // The ancestor chain is exactly the strict dominator set, nearest
+        // first, so each step moves one level toward the entry.
+        let chain = actual.strict_dominators(definition.id).collect::<Vec<_>>();
+        let mut strict = expected[&definition.id].clone();
+        strict.remove(&definition.id);
+        assert_eq!(chain.iter().copied().collect::<BTreeSet<_>>(), strict);
+        assert_eq!(chain.len(), strict.len());
+        for (step, dominator) in chain.iter().enumerate() {
+            assert_eq!(
+                actual.depth(*dominator),
+                Some(expected[&definition.id].len() - 1 - step)
+            );
+        }
         for use_block in &machine.blocks {
             assert_eq!(
                 actual.dominates(definition.id, use_block.id),
@@ -237,6 +250,8 @@ fn irreducible_entries_and_entry_backedges_do_not_invent_dominance() {
     assert!(!tree.dominates(absent, graph.entry));
     assert!(!tree.dominates(graph.entry, absent));
     assert!(!tree.dominates(absent, absent));
+    assert_eq!(tree.strict_dominators(absent).count(), 0);
+    assert_eq!(tree.strict_dominators(graph.entry).count(), 0);
 }
 
 #[test]
@@ -288,9 +303,16 @@ fn long_chains_retain_linear_entries_and_use_iterative_traversal() {
             .collect::<Vec<_>>();
         let graph = machine(&identities, &adjacency, 0);
         let tree = dominators(&graph);
-        // The complete retained representation has one map and one fixed-size
-        // node vector, with no per-node ancestor or child collection.
-        assert_eq!(tree.positions.len() + tree.nodes.len(), count * 2);
+        // The complete retained representation has one map and fixed-size
+        // per-position vectors, with no per-node ancestor or child collection.
+        assert_eq!(
+            tree.positions.len() + tree.nodes.len() + tree.blocks.len() + tree.immediate.len(),
+            count * 4
+        );
+        assert_eq!(
+            tree.strict_dominators(block(identities[count - 1])).count(),
+            count - 1
+        );
         for (position, &identity) in identities.iter().enumerate() {
             assert_eq!(tree.depth(block(identity)), Some(position + 1));
             assert!(tree.dominates(block(identity), block(identities[count - 1])));
