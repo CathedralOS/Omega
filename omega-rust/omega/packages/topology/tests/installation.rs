@@ -1368,9 +1368,12 @@ fn a_binding_without_a_registered_schema_is_refused_at_admission() {
         .authorize(payment_installation_request(&request_bytes, 1))
         .expect("owner authorization");
 
-    // Leave binding 0's export contract unregistered: the channel the
-    // codec cannot check refuses before any endpoint exists.
+    // Leave binding 0's contract unregistered: the channel the codec cannot
+    // check refuses before any endpoint exists. The export offers the same
+    // verified contract its bound import demands, so the refusal names
+    // whichever of the channel's two endpoints admission reaches first.
     let key = checked.plan.bindings[0].export;
+    let channel = [key, checked.plan.bindings[0].import];
     let missing = checked.plan.instances[key.instance as usize]
         .endpoints
         .iter()
@@ -1401,7 +1404,10 @@ fn a_binding_without_a_registered_schema_is_refused_at_admission() {
             rejection: InstallationRejection::MissingOperationSchema { endpoint, contract },
             leaked,
         }) => {
-            assert_eq!(endpoint, key);
+            assert!(
+                channel.contains(&endpoint),
+                "{endpoint:?} is not an endpoint of the unchecked channel"
+            );
             assert_eq!(contract, missing);
             assert!(leaked.is_empty(), "rejection precedes endpoint custody");
         }

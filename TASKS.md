@@ -292,6 +292,20 @@ the complete product bar; focused successes below do not establish that baseline
   of borrowed storage`). Targetless `compile_reviewed_repository_fixture(..,
   None)` has no selected entry and nominates no entry services.
 
+  The `cannot transfer a non-copy value out of borrowed storage` members
+  are fixture debt, not a checker gap: the checker enforces
+  [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
+  (`036d60d9c9`). `ownership/call_arg_move_in_struct_literal` and
+  `ownership/transition_value_owned_move` need an owned local or a restore
+  before the transition; `filesystem/wrapper_open_with_exit` (`leg5`/`leg6`)
+  and `filesystem/windows_wrapper_create_new_exit` dispatch on
+  `self.open_result`, extracting an affine `ErrorKind` from `&mut self`
+  storage, and should dispatch on an owned local;
+  `collections/record_array_field_access` moves an affine `Exit` out of
+  `self.room.exits[0]` and should read `command` in place (`Exit [copy]` is
+  refused by its `&[u8]` field). `capabilities/uses_caller_folder` waits on
+  `service-carrier-argument-multiplicity`.
+
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
   actual missing operation/facts, not just its phase label. The diagnostic route
@@ -795,27 +809,13 @@ stage, topology-specific IR, or new trusted graph axiom.
   gap, not an absent description representation; do not parse those strings
   or recreate the representation.
 
-  Two facts measured at `053f9ae079`, both about landing this.
-
-  **`-p topology-plan` is already red at base, and not because of this
-  bullet**: 3 of 113 fail -- `codec::golden_fixtures_decode_and_verify`,
-  `codec::encode_is_byte_exact_and_canonical` and
-  `composition_build::the_package_composes_and_a_source_free_consumer_verifies`
-  -- because the committed `tests/fixtures/packages/build-scope-topology/root/inputs/request.bin`
-  carries stale INSTANCE SUBJECT digests, not export contracts. `035152693e`
-  re-recorded that same fixture "after upstream identity-encoding drift"; it
-  has drifted again since. Re-record before reading any topology result as
-  evidence of this row.
-
-  **The join itself is a small change whose cost is the re-record.** Replacing
-  `export_contract_identity`'s string digest with a lookup of the matching
-  `ExportContract::contract_identity` compiles clean, and verification already
-  guarantees the pairing both ways (`check_exports` rejects a described export
-  with no derived contract and a derived contract with no described export),
-  so the lookup cannot miss on an admitted component. It changes recorded
-  endpoint contract bytes, so the same golden fixtures move -- do it in one
-  pass with the drift above rather than twice. Note the fixtures sit under
-  `tests/`, which PACKAGE-NAME-UNDERSCORE-MIGRATION currently claims whole.
+  The demand/supply join now compares structured contracts: an export
+  endpoint carries the contract `VerifiedComponent::export_contracts()`
+  derived for its surface, in `verified_components.rs` and in the
+  `build-scope-topology` package, whose `components.bin` now carries each
+  instance's derived export contracts after its profile (`compose.omg` no
+  longer digests surface names). The payment and package fixtures were
+  re-recorded in the same pass; `-p topology-plan` is 113/113.
 
   Author the package over admitted input bytes and generic required outputs.
   `tests/fixtures/packages/build-scope-topology` establishes import/output
@@ -3288,13 +3288,17 @@ syntax and other terminal services are not prerequisites.
   operands, and guarded state graphs dispose owned parameters on their edges,
   so the three arm-pattern canaries plan and lower past their callers. The
   two case-payload members (`control_flow/{arm_pattern_rest_optout_exit,
-  case_pattern_rename_waive_exit}`) now also build their owned
-  `Msg::Move { dx: 30, dy: 40 }` actual with range obligations for its
-  bounded payloads (`6e8a15c777`) and stop at `runtime field observation
-  requires a record-only field path`
-  (`expression_preparation/bindings/structural_fields/mod.rs`): the arm reads
-  its payload binding (`dx as step`) through a case-segment path, and runtime
-  field observation walks only record fields and fixed indexes.
+  case_pattern_rename_waive_exit}`) build their owned `Msg::Move { .. }`
+  actual with range obligations for its bounded payloads (`6e8a15c777`) and
+  read the guarded arm's payload through a `StructuralCase` dispatch whose
+  selected successor binds it (`3769ffc967`), so both produce and verify
+  Terminal. They stop in Omega target lowering at
+  `UnsupportedControlFlow(MachineId(1))`:
+  `abstract-operations-to-target-operations` `control_flow/borrowed_calls.rs`
+  refuses `Main::main`'s call into `apply` because `apply` publishes a
+  service ceiling (`reaches Console`), and behind it
+  `control_flow/structural_case.rs::lower` requires a structural home rather
+  than a parameter root.
   `control_flow/record_pattern_arm_rename_guard_exit` stops at
   `OperationProofUnavailable` for its guard's sum of two unconstrained `i32`
   fields.
