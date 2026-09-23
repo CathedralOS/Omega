@@ -2617,9 +2617,18 @@ syntax and other terminal services are not prerequisites.
     `contract_application_terms::runtime_body_calls_execute_with_checked_premises`:
     checked interpretation covers `restricted(saved, value)` under
     `observe(left) == observe(right)`, but the test stops before Terminal.
-    Re-witness the recorded `scalar contract contains an unsupported clause`
-    at `scalar_contracts::covered_requires`; require canonical reload,
-    independent verification, interpretation and native agreement.
+    Re-witnessed at `4899a3c992` and pinned by
+    `checked-trees-to-lowered-psi/tests/call_premise_terminal_boundary.rs`:
+    both `restricted` and its caller stop at
+    `Unsupported("scalar contract contains an unsupported clause")`, while
+    `observe` -- same program, no call premise -- lowers, so the refusal is the
+    clause and not the fixture. The cause is `covered_requires` keeping an
+    explicit `None` requires row for a clause it cannot express as a closed
+    scalar contract, which `scalar_graph_lowering/graph_preparation.rs` then
+    refuses. Those tests pin a boundary, not desired behavior; the repair is
+    expected to fail them and replace them with the canonical reload,
+    independent verification, interpretation and native agreement this bullet
+    requires.
   - Extend call-premise formation across remaining contract owners and
     substitutions: abstract signature declarations, domain/default predicates,
     static callable/evidence arguments, receiver/projection terms and
