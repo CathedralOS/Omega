@@ -1160,8 +1160,11 @@ fn cross_block_joins_forks_and_cycles_land_at_the_block_end() {
 }
 
 /// A fork whose edges reconverge on one join the crossed block and its
-/// arms alone feed keeps the write's count at one per traversal — the
-/// diamond and the bypass triangle both sink the store into the join.
+/// region alone feed keeps the write's count at one per traversal — the
+/// diamond and the bypass triangle sink the store into the join, and so
+/// do grown regions: a chain arm, an arm that forks and reconverges
+/// inside the region, arms whose continuations reach the join separately,
+/// and a bypass edge landing inside the shape's own funnel.
 #[test]
 fn cross_block_reconverging_forks_sink_to_the_join() {
     let target = NativeTarget::linux_x64();
@@ -1369,10 +1372,299 @@ fn cross_block_reconverging_forks_sink_to_the_join() {
         result.transformed().clone(),
     )
     .unwrap();
+    // A chain arm: the nonzero edge enters a two-block arm whose middle
+    // block is fed only by the arm's head and exits only to the join —
+    // the grown region keeps the same single-entry, all-exits-to-the-join
+    // count, so the write still runs once per traversal.
+    let chain = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(1),
+        };
+        for (block, next, instruction_id) in [(2, 3, 7), (3, 1, 8)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 2).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(next),
+                },
+            });
+        }
+    });
+    let result = sink(&chain, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    assert!(function.blocks[2].instructions.is_empty());
+    assert!(function.blocks[3].instructions.is_empty());
+    assert_eq!(
+        function.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+    validate_store_mutation_motion(
+        &chain,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A nested reconvergent arm: the nonzero edge enters an arm that forks
+    // again inside the region and reconverges one level down — every inner
+    // block is still fed only from inside and every exit still lands on
+    // the join.
+    let nested = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(1),
+        };
+        // The arm's head forks again inside the region.
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(2),
+            origin: SelectedBlockOrigin::Source(BlockId::new(4).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(7),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(3),
+                when_zero: successor(4),
+            },
+        });
+        for (block, next, instruction_id) in [(3, 5, 8), (4, 5, 9), (5, 1, 10)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 3).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(next),
+                },
+            });
+        }
+    });
+    let result = sink(&nested, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    for block in &function.blocks[2..=5] {
+        assert!(block.instructions.is_empty());
+    }
+    assert_eq!(
+        function.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+    validate_store_mutation_motion(
+        &nested,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // Delayed reconvergence: both fork edges enter arms whose continuations
+    // reach the join separately — the region grows a second level before
+    // its exits agree on the one fed join.
+    let delayed = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (block, next, instruction_id) in [(2, 4, 7), (3, 5, 8), (4, 1, 9), (5, 1, 10)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 3).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(next),
+                },
+            });
+        }
+    });
+    let result = sink(&delayed, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    for block in &function.blocks[2..=5] {
+        assert!(block.instructions.is_empty());
+    }
+    assert_eq!(
+        function.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+    validate_store_mutation_motion(
+        &delayed,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A bypass edge landing inside the shape's own funnel: the nonzero
+    // edge's arm reaches the same mid block the zero edge names — that mid
+    // block is the join, not a region member, and the walk continues past
+    // it into the covering block.
+    let bypass_mid = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(3),
+        };
+        for (block, next, instruction_id) in [(2, 3, 7), (3, 1, 8)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 3).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(next),
+                },
+            });
+        }
+    });
+    let result = sink(&bypass_mid, &environment).unwrap();
+    let function = &result.transformed().functions[0];
+    assert_eq!(
+        function.blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN]
+    );
+    assert!(function.blocks[2].instructions.is_empty());
+    assert!(function.blocks[3].instructions.is_empty());
+    assert_eq!(
+        function.blocks[1]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![STORE, KILLER]
+    );
+    validate_store_mutation_motion(
+        &bypass_mid,
+        0,
+        STORE,
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
 }
 
 /// A fork that does not reconverge — or whose region would add or drop the
-/// write on some path — lands the store at the forked block's end.
+/// write on some path — lands the store at the forked block's end, whether
+/// the break sits on the arm's head or one level inside a grown region: a
+/// mid block fed from outside, a mid block exiting to two different
+/// blocks, a mid block reaching back to the crossed block, or a stop
+/// inside a mid block.
 #[test]
 fn cross_block_unreconciled_forks_land_at_the_fork_end() {
     let target = NativeTarget::linux_x64();
@@ -1596,11 +1888,257 @@ fn cross_block_unreconciled_forks_land_at_the_fork_end() {
             .collect::<Vec<_>>(),
         vec![SelectedInstructionId(1), BETWEEN, STORE]
     );
+    // A chain arm whose middle block a second block also feeds lets a path
+    // reach the join without the write: the region cannot absorb the fed
+    // block, so the store stays at the fork's end.
+    let fed_mid = forked(|function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[2].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(11),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(3),
+        };
+        for (block, next, instruction_id) in [(3, 1, 12), (4, 3, 13)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 4).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(next),
+                },
+            });
+        }
+    });
+    let result = sink(&fed_mid, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A region block exiting to two different blocks drops the write on the
+    // path that leaves for the independent return — one level inside the
+    // grown region, not just on the arm's head.
+    let deep_exit = forked(|function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        let return_row = environment
+            .constraint(environment.selected_keys().return_unit)
+            .unwrap();
+        function.blocks[2].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(11),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(3),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(7).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(12),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(1),
+                when_zero: successor(4),
+            },
+        });
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(4),
+            origin: SelectedBlockOrigin::Source(BlockId::new(8).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Return {
+                instruction: instruction(
+                    SelectedInstructionId(13),
+                    SelectedInstructionKind::ReturnUnit,
+                    return_row,
+                    &[],
+                ),
+                psi_return_edge: EdgeId::new(9).unwrap(),
+            },
+        });
+    });
+    let result = sink(&deep_exit, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A region block reaching back to the crossed block would close a cycle
+    // whose unverified interval could reorder an access across the moved
+    // write — the walked block stays on the frontier instead of absorbing.
+    let reentered = forked(|function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[2].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(11),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(3),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(7).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::ConditionalBranch {
+                instruction: instruction(
+                    SelectedInstructionId(12),
+                    SelectedInstructionKind::ConditionalBranchNonZero,
+                    branch,
+                    &[],
+                ),
+                when_nonzero: successor(0),
+                when_zero: successor(1),
+            },
+        });
+    });
+    let result = sink(&reentered, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A stop inside a grown mid-block bounds the same way an arm-head stop
+    // did: a settlement observing the mid block's empty prefix could only
+    // land the store inside the region, dropping the write on the bypass
+    // path.
+    let settled_mid = forked(|function, environment| {
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[2].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(11),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(3),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(7).unwrap()),
+            instructions: Vec::new(),
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(12),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(1),
+            },
+        });
+        function
+            .boundary_settlements
+            .push(settlement_at(SelectedBlockId(3), 0));
+    });
+    let result = sink(&settled_mid, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
+    // A read on the moved place inside the mid block must stay ordered
+    // after the write — the same arm-body stop one level down.
+    let observed_mid = forked(|function, environment| {
+        let copy = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[2].terminator = SelectedTerminator::Jump {
+            instruction: instruction(
+                SelectedInstructionId(11),
+                SelectedInstructionKind::Jump,
+                jump,
+                &[],
+            ),
+            successor: successor(3),
+        };
+        function.blocks.push(SelectedBlock {
+            id: SelectedBlockId(3),
+            origin: SelectedBlockOrigin::Source(BlockId::new(7).unwrap()),
+            instructions: vec![instruction(
+                SelectedInstructionId(13),
+                SelectedInstructionKind::CopyI64,
+                copy,
+                &[POINTER, SCRATCH],
+            )],
+            terminator: SelectedTerminator::Jump {
+                instruction: instruction(
+                    SelectedInstructionId(12),
+                    SelectedInstructionKind::Jump,
+                    jump,
+                    &[],
+                ),
+                successor: successor(1),
+            },
+        });
+        function.memory_accesses.push(access(
+            SelectedInstructionId(13),
+            3,
+            place(),
+            0,
+            SelectedMemoryAccessRole::ReadPlace,
+        ));
+    });
+    let result = sink(&observed_mid, &environment).unwrap();
+    assert_eq!(
+        result.transformed().functions[0].blocks[0]
+            .instructions
+            .iter()
+            .map(|instruction| instruction.id)
+            .collect::<Vec<_>>(),
+        vec![SelectedInstructionId(1), BETWEEN, STORE]
+    );
 }
 
 /// A proposal landing the store anywhere the reconvergent walk would not —
-/// inside an arm, or past the join's covering store — fails replay against
-/// the validator's own reconstruction.
+/// inside an arm, one level down inside a grown region, or past the
+/// join's covering store — fails replay against the validator's own
+/// reconstruction.
 #[test]
 fn cross_block_fork_replay_rejects_mutated_proposals() {
     let target = NativeTarget::linux_x64();
@@ -1661,6 +2199,56 @@ fn cross_block_fork_replay_rejects_mutated_proposals() {
     }
     assert_eq!(
         validate_store_mutation_motion(&triangle, 0, STORE, &environment, budget(), proposal)
+            .unwrap_err(),
+        StoreMutationMotionError::ReplayMismatch
+    );
+    // The same refusal inside a grown region: on a chain arm a proposal
+    // landing in the mid block would run the write only on the arm's
+    // traversal, so the validator's own reconstruction — which lands at
+    // the join's head — does not match it.
+    let chain = mutated_chained(target, |function, environment| {
+        let branch = environment
+            .constraint(environment.selected_keys().conditional_branch)
+            .unwrap();
+        let jump = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                SelectedInstructionId(6),
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch,
+                &[],
+            ),
+            when_nonzero: successor(2),
+            when_zero: successor(1),
+        };
+        for (block, next, instruction_id) in [(2, 3, 7), (3, 1, 8)] {
+            function.blocks.push(SelectedBlock {
+                id: SelectedBlockId(block),
+                origin: SelectedBlockOrigin::Source(BlockId::new(u64::from(block) + 4).unwrap()),
+                instructions: Vec::new(),
+                terminator: SelectedTerminator::Jump {
+                    instruction: instruction(
+                        SelectedInstructionId(instruction_id),
+                        SelectedInstructionKind::Jump,
+                        jump,
+                        &[],
+                    ),
+                    successor: successor(next),
+                },
+            });
+        }
+    });
+    let result = sink(&chain, &environment).unwrap();
+    let mut proposal = result.transformed().clone();
+    {
+        let function = &mut proposal.functions[0];
+        let moved = function.blocks[1].instructions.remove(0);
+        function.blocks[3].instructions.push(moved);
+    }
+    assert_eq!(
+        validate_store_mutation_motion(&chain, 0, STORE, &environment, budget(), proposal)
             .unwrap_err(),
         StoreMutationMotionError::ReplayMismatch
     );

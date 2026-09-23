@@ -71,12 +71,16 @@
 //! stop continues through its terminator's successor edges when every edge
 //! names one block and that block's only predecessor is the crossed block.
 //! A fork crosses too when its edges reconverge: each lands on one join
-//! directly or enters an arm the crossed block alone feeds whose own edges
-//! all reach that join, the join's only predecessor blocks are the crossed
-//! block and those arms, and every arm stays walkable end to end — a stop
-//! inside an arm could only land the store inside that arm, dropping the
-//! write on the paths the other arms carry. Every traversal of the crossed
-//! block then reaches the join exactly once, so the write runs once there
+//! directly or enters a region fed only through the fork's own edges —
+//! every region block fed only from the crossed block or the region
+//! itself, successor-bearing, and exiting nowhere but the join — a chain
+//! or a nested reconvergent arm under the same contract as the
+//! single-block diamond. The join's only predecessor blocks are the
+//! crossed block and the region, and every region block stays walkable
+//! end to end — a stop inside the region could only land the store inside
+//! it, dropping the write on the paths the other blocks carry. Every
+//! traversal of the crossed block then reaches the join exactly once, so
+//! the write runs once there
 //! as it ran once here: no path gains or drops it. The
 //! terminator's roster rows and register definitions decide before each
 //! crossed edge's transports, which may not redefine the carried registers or

@@ -62,15 +62,21 @@
 //! stop continues through its terminator's successor edges when every edge
 //! names one block, that block's only predecessor is the crossed block, and
 //! the successor cannot reach any block already walked. A fork crosses too
-//! when its edges reconverge — each lands on one join directly or enters an
-//! arm the crossed block alone feeds whose own edges all reach that join,
-//! the join's only predecessor blocks are the crossed block and those arms,
-//! and every arm stays walkable end to end — so every traversal of the
+//! when its edges reconverge — each lands on one join directly or enters a
+//! region fed only through the fork's own edges: a block joins the region
+//! once every predecessor leads from the crossed block or the region
+//! itself, so entry happens at the fork and the region stays acyclic, every
+//! region block carries at least one successor, and every edge leaving the
+//! region lands on that join — a chain or a nested reconvergent shape
+//! inside one arm crosses under the same count. The join's only
+//! predecessor blocks are the crossed block and the region, and every
+//! region block stays walkable end to end — so every traversal of the
 //! crossed block reaches the join exactly once and the write runs once
 //! there as it ran once here: no path gains or drops it. A fork whose
 //! targets never reconverge would drop the write from the paths that leave
-//! it; a join fed from outside the region would add the write to paths that
-//! never carried it; and a successor that can return to the walked chain
+//! it; a join or a region block fed from outside the region would add the
+//! write to paths that never carried it; and a successor that can return
+//! to the walked chain
 //! would close a cycle in
 //! which an access before the store's original position now runs after it —
 //! the walked interval only proves the forward half of that order. Each
@@ -387,12 +393,14 @@ pub(super) fn admit<'source>(
             break land_at_end(if cursor == block_index { end - 1 } else { end });
         };
         // Edges to distinct blocks fork: the write can still cross when every
-        // edge lands on one join directly or enters an arm the crossed block
-        // alone feeds whose own edges all reach that join, and the join's
-        // predecessors are exactly the crossed block and those arms. Every
-        // traversal of the crossed block then reaches the join exactly once,
-        // so the write runs once there as it ran once here — no path gains
-        // or drops it. Any other shape lands the store at the fork's end.
+        // edge lands on one join directly or enters a region fed only
+        // through the fork's own edges whose edges all reach that join — a
+        // single-block arm is the smallest such region, a chain or a nested
+        // reconvergent shape a grown one — and the join's predecessors are
+        // exactly the crossed block and the region. Every traversal of the
+        // crossed block then reaches the join exactly once, so the write
+        // runs once there as it ran once here — no path gains or drops it.
+        // Any other shape lands the store at the fork's end.
         if edges.iter().any(|edge| edge.block != first.block) {
             // A dangling edge target is malformed source, as on the
             // linear path.
@@ -404,15 +412,16 @@ pub(super) fn admit<'source>(
             }) {
                 return Err(StoreMutationMotionError::SourceMismatch);
             }
-            let Some((join, arms)) = reconvergent_join(function, cursor, &edges, &visited) else {
+            let Some((join, region)) = reconvergent_join(function, cursor, &edges, &visited) else {
                 break land_at_end(if cursor == block_index { end - 1 } else { end });
             };
-            // Every arm must stay walkable end to end: a stop inside an arm
-            // could only land the store inside that arm, dropping the write
-            // on the paths the other arms carry — so one blocked arm bounds
-            // the motion at the forked block's end, not inside the region.
+            // Every region block must stay walkable end to end: a stop
+            // inside the region could only land the store inside it,
+            // dropping the write on the paths the other blocks carry — so
+            // one blocked block bounds the motion at the forked block's end,
+            // not inside the region.
             if edges.iter().any(|edge| edge_stops(edge, &moved, &carried))
-                || arms.iter().any(|&arm| {
+                || region.iter().any(|&arm| {
                     arm_stops(
                         function,
                         &function.blocks[arm],
@@ -425,7 +434,7 @@ pub(super) fn admit<'source>(
             {
                 break land_at_end(if cursor == block_index { end - 1 } else { end });
             }
-            for &arm in &arms {
+            for &arm in &region {
                 visited[arm] = true;
                 interval = interval
                     .checked_add(function.blocks[arm].instructions.len())
@@ -893,92 +902,133 @@ fn edge_stops(successor: &SelectedSuccessor, moved: &Moved, carried: &Carried) -
     false
 }
 
-/// The join a fork's edges reconverge on when the region keeps the moved
-/// write's count at one per traversal — the diamond, or the triangle when a
-/// bypass edge reaches the join directly. Each edge either lands on the join
-/// itself or enters an arm block the crossed block alone feeds whose own
-/// terminator's edges all land on the join, and the join's only predecessor
-/// blocks are the crossed block and those arms. `None` for any other shape:
-/// a second predecessor into an arm or the join would run the write on a
-/// path that never carried it, an arm edge leaving the region or a fork edge
-/// reaching elsewhere would drop the write on the path that leaves, and a
-/// re-entered or already-walked region never settles the order it would
-/// reorder.
+/// The join a fork's edges reconverge on when the region between keeps the
+/// moved write's count at one per traversal — the diamond and the triangle
+/// are its smallest shapes, a chain or a nested reconvergent arm a grown
+/// one. The frontier is the set of edges still landing outside the region:
+/// the fork's own edges plus every region block's edges leaving it. Each
+/// pass either settles on the one block every frontier edge reaches or
+/// absorbs the first frontier target every predecessor reaches only through
+/// the crossed block or the region itself, so the region stays a
+/// single-entry acyclic funnel — a block arrives after every block feeding
+/// it — and a block with no successors never absorbs, since a path ending
+/// inside the region would drop the write the move still owes it. `None`
+/// when no frontier target can absorb while exits still disagree: a second
+/// predecessor into the region or the join would run the write on a path
+/// that never carried it, a frontier edge leaving anywhere but the one join
+/// drops the write on the path that leaves, and a re-entered or
+/// already-walked block never settles the order it would reorder.
 fn reconvergent_join(
     function: &SelectedFunction,
     cursor: usize,
     edges: &[&SelectedSuccessor],
     visited: &[bool],
 ) -> Option<(usize, Vec<usize>)> {
-    let mut join = None;
-    let mut arms = Vec::new();
-    for edge in edges {
-        let target = function
-            .blocks
-            .iter()
-            .position(|candidate| candidate.id == edge.block)?;
-        // An arm is fed by the crossed block alone and every one of its own
-        // edges lands on one later block — its join candidate. Anything else
-        // is the join itself, reached on a bypass edge.
-        let candidate =
-            if target != cursor && !visited[target] && sole_predecessor(function, target, cursor) {
-                let arm_edges = terminator_successors(&function.blocks[target].terminator);
-                match arm_edges.first() {
-                    Some(first)
-                        if first.block != function.blocks[target].id
-                            && arm_edges.iter().all(|edge| edge.block == first.block) =>
-                    {
-                        if !arms.contains(&target) {
-                            arms.push(target);
-                        }
-                        first.block
-                    }
-                    _ => edge.block,
-                }
-            } else {
-                edge.block
-            };
-        match join {
-            None => join = Some(candidate),
-            Some(existing) if existing == candidate => {}
-            Some(_) => return None,
-        }
-    }
-    let join = function
-        .blocks
-        .iter()
-        .position(|candidate| Some(candidate.id) == join)?;
-    // The join's predecessors are exactly the crossed block and the arms:
-    // any other incoming edge hands the join's readers a write that path
-    // never carried, and a path back into the walked chain would close a
-    // cycle whose unverified interval could reorder an access across the
-    // moved write.
-    if visited[join] || arms.contains(&join) {
-        return None;
-    }
-    for (index, candidate) in function.blocks.iter().enumerate() {
-        if index != cursor
-            && !arms.contains(&index)
-            && terminator_successors(&candidate.terminator)
+    let mut member = vec![false; function.blocks.len()];
+    let mut region: Vec<usize> = Vec::new();
+    loop {
+        // The frontier, in a fixed order both sides of the family walk —
+        // the fork's edges first, then each region block's exits in absorb
+        // order — so admission and validation grow the same region. A
+        // target naming no real block leaves the frontier unnameable.
+        let mut frontier: Vec<usize> = Vec::new();
+        for edge in edges {
+            let target = function
+                .blocks
                 .iter()
-                .any(|edge| edge.block == function.blocks[join].id)
-        {
+                .position(|candidate| candidate.id == edge.block)?;
+            if !member[target] {
+                frontier.push(target);
+            }
+        }
+        for &block in &region {
+            for edge in terminator_successors(&function.blocks[block].terminator) {
+                let target = function
+                    .blocks
+                    .iter()
+                    .position(|candidate| candidate.id == edge.block)?;
+                if !member[target] {
+                    frontier.push(target);
+                }
+            }
+        }
+        // Every frontier edge landing on one block names the join — the
+        // first block every traversal of the crossed block reaches. The
+        // frontier cannot empty while exits disagree: absorbed blocks carry
+        // successors and the region stays acyclic, so an edge always
+        // leaves it.
+        let join = *frontier.first()?;
+        if frontier.iter().all(|&target| target == join) {
+            // The join's predecessors are exactly the crossed block and the
+            // region: any other incoming edge hands the join's readers a
+            // write that path never carried, and a path back into the
+            // walked chain would close a cycle whose unverified interval
+            // could reorder an access across the moved write.
+            if visited[join] {
+                return None;
+            }
+            for (index, candidate) in function.blocks.iter().enumerate() {
+                if index != cursor
+                    && !member[index]
+                    && terminator_successors(&candidate.terminator)
+                        .iter()
+                        .any(|edge| edge.block == function.blocks[join].id)
+                {
+                    return None;
+                }
+            }
+            if reaches_visited(function, join, visited) {
+                return None;
+            }
+            return Some((join, region));
+        }
+        // Exits disagree: absorb the first frontier target — in frontier
+        // order — whose predecessors all lead from the crossed block or the
+        // region. A target fed from anywhere else stays on the frontier:
+        // absorbing it would let a path reach the join without the write.
+        // A walked block, or a block carrying no successors, stays too —
+        // absorbing it would close a cycle or end a path inside the
+        // region and drop the write entirely.
+        let mut absorbed = false;
+        for &target in &frontier {
+            if visited[target]
+                || terminator_successors(&function.blocks[target].terminator).is_empty()
+            {
+                continue;
+            }
+            let fed_inside = function
+                .blocks
+                .iter()
+                .enumerate()
+                .all(|(index, candidate)| {
+                    index == cursor
+                        || member[index]
+                        || terminator_successors(&candidate.terminator)
+                            .iter()
+                            .all(|edge| edge.block != function.blocks[target].id)
+                });
+            if fed_inside {
+                member[target] = true;
+                region.push(target);
+                absorbed = true;
+                break;
+            }
+        }
+        if !absorbed {
             return None;
         }
     }
-    if reaches_visited(function, join, visited) {
-        return None;
-    }
-    Some((join, arms))
 }
 
-/// Whether any position inside a crossed arm must stay ordered after the
-/// store — the producer's per-arm audit. The store cannot land inside one
-/// arm without dropping the write on the paths the other arms carry, so the
-/// whole body must walk past: no stopping instruction, no settlement at any
-/// position — the write ran before the arm where the settlement would now
-/// observe after it — no interfering row or coupling on the arm's
-/// terminator, and no stopping transport on the arm's edges into the join.
+/// Whether any position inside a crossed region block must stay ordered
+/// after the store — the producer's per-block audit. The store cannot land
+/// inside the region without dropping the write on the paths its other
+/// blocks carry, so the whole body must walk past: no stopping instruction,
+/// no settlement at any position — the write ran before the region where
+/// the settlement would now observe after it — no interfering row or
+/// coupling on the block's terminator, and no stopping transport on the
+/// block's edges, whether they stay inside the region or leave for the
+/// join.
 fn arm_stops(
     function: &SelectedFunction,
     arm: &selected_instructions::SelectedBlock,
