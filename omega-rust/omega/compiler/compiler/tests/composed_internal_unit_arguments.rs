@@ -17,7 +17,7 @@ impl Drop for Fixture {
 fn composed_unit_arguments_reach_published_terminal_and_native_provider_custody() {
     let source = r#"
 data Main {}
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let selected: u64 = 1u64;
     transition selected { 1u64 -> yes() _ -> no() }
     state yes() { relay(identity(7u8)); }
@@ -39,7 +39,7 @@ fn trailing_unit_call_reaches_published_terminal_and_native_provider_custody() {
     check_publication(
         r#"
 data Main {}
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     relay(identity(identity(7u8)))
 }
 "#,
@@ -51,7 +51,7 @@ fn later_scalar_initializers_reach_published_terminal_and_native_provider_custod
     check_publication(
         r#"
 data Main {}
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Console {
     let prefix: u8 = 7u8;
     let first: u8 = identity(identity(prefix));
     relay(first);
@@ -90,8 +90,8 @@ windows_x86_64 machine write_binding() -> ForeignBinding<12, 11, 0> {
 machine write_leaf(value: u8) satisfies Console::write via write_binding();
 
 machine identity(value: u8) -> u8 { value }
-machine forward(value: u8) { Console::write(value); }
-machine relay(value: u8) { forward(identity(value)); }
+machine forward(value: u8) reaches Console { Console::write(value); }
+machine relay(value: u8) reaches Console { forward(identity(value)); }
 @ENTRY@
 "#
         .replace("@ENTRY@", entry),

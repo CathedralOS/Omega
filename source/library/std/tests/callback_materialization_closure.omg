@@ -1,11 +1,11 @@
 use omega::language::core::layout;
 use calling;
 
-boundary trait WindowProcedure {
+pub boundary trait WindowProcedure {
     machine call(message: u64) -> u64;
 }
 
-boundary trait UnusedProcedure {
+pub boundary trait UnusedProcedure {
     machine call(message: u64) -> u64;
 }
 
@@ -42,7 +42,7 @@ data ForeignRecord {
     payload: u64;
 }
 
-data RegistrarPolicy { }
+pub data RegistrarPolicy { }
 RegistrarPolicyCallingPolicy: RegistrarPolicy satisfies CallingPolicy;
 
 machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
@@ -125,7 +125,7 @@ machine RegistrarPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResul
     }
 }
 
-boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
+pub boundary trait WindowRegistrar: Calling<RegistrarPolicy> {
     machine register<machine Selected, machine SecondarySelected>(
         specification: &Spread<ForeignRecord>
     )
