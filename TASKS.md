@@ -3974,15 +3974,35 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | | | 1 | `object_container_custody` |
 
   `native_filesystem_canaries` is half the total and fails UNIFORMLY -- 89 of
-  89, none passing -- so it is one cause, not eighty-nine. Sampled, it is a
-  visibility rejection rather than the macOS provider absence recorded
-  elsewhere: `public interface selects private domain [u8]::CString`, from
-  `validation/src/declarations/declaration_visibility.rs`. The domain is
-  declared `pub` at `source/library/std/macos_gui.omg:32`, so what the checker
-  reads as its visibility is not what the file says, and that contradiction is
-  the thing to chase -- closing it plausibly returns all 89 at once. It is the
-  same public-interface tightening that drifted the `calling_policy_plans`
-  canary, so look there for the change that moved.
+  89, none passing -- so it is one cause, not eighty-nine. PEELED, by fixing
+  each layer locally and reading the next diagnostic; the edits were reverted
+  because only the third layer decides anything, and a half-migrated fixture
+  set helps nobody.
+
+  1. `public interface selects private domain [u8]::CString`
+     (`validation/src/declarations/declaration_visibility.rs`). Not the
+     `pub domain` at `source/library/std/macos_gui.omg:32` -- `pub domain`
+     records `is_public = true`, verified directly on the lowered trees. The
+     ELEVEN fixtures under `tests/omega/pass/objc/` declare their OWN
+     `domain [u8]::CString` with no `pub`, and their public interfaces select
+     that one. Marking them `pub` clears this layer.
+  2. `machine Main::main publishes service reach Console but its checked body
+     reaches undeclared service ObjectiveC`. Sixteen objc fixtures declare
+     `reaches Console` while their bodies reach `ObjectiveC` too; the same
+     under-declaration that stopped `composed_internal_unit_arguments`.
+     Declaring `reaches Console + ObjectiveC` clears this layer.
+  3. `selected ProgramEntry Binding field Main::objc requires a selected Fused
+     provider for boundary ObjectiveC`. This is the real blocker, and it is
+     the provider-absence family already recorded on this row for
+     `Console`/`Filesystem`/`Input` on macOS -- not a fixture problem. Layers
+     1 and 2 are worth landing WITH a provider, not before one, since nothing
+     turns green until `ObjectiveC` has a selected Fused provider on
+     macos_arm64.
+
+  So the 89 are one gap, and it is the same gap the 9 `Binding field` corpus
+  members name. Fixing provider selection for these host boundaries is worth
+  far more than its row currently suggests: it is 89 tests here plus 9 in the
+  corpus.
 
   `build_named_inputs`, `build_snapshot_outputs` and `build_target_activation`
   are release-gate commands on this very row, so 14 of these sit directly
