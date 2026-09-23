@@ -484,6 +484,11 @@ impl StateGraphEmission<'_, '_> {
                                     "element view subslice transfer has no Terminal descriptor",
                                 );
                             }
+                            checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
+                                return unsupported(
+                                    "Unit graph case-payload transfer has no Terminal channel",
+                                );
+                            }
                         };
                     structural_arguments.push(StructuralArgument {
                         place,

@@ -2,6 +2,7 @@ use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::CheckedUnitEffectOperationPlan;
 use super::super::CheckedTrees;
 use super::{CheckedComposedUnitControlMachinePlan, admission};
+mod case_payload_edges;
 mod closed_cases;
 
 fn fixture() -> CheckedTrees {

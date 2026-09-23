@@ -106,9 +106,9 @@ fn structural_rows_reject_missing_duplicate_reordered_and_same_typed_foreign_sou
             0 => {
                 rows.pop();
             }
-            1 => rows.push(rows[0]),
+            1 => rows.push(rows[0].clone()),
             2 => rows.swap(0, 1),
-            3 => rows[0].source = rows[1].source,
+            3 => rows[0].source = rows[1].source.clone(),
             4 => rows[0].target_parameter_index = 1,
             5 => {
                 rows[0].source = CheckedStructuralControlTransferSourcePlan::Parameter { index: 3 }
