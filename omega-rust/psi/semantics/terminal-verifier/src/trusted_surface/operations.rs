@@ -55,6 +55,8 @@ const VAL_SCALAR_ARRAY: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar_array.rs";
 const VAL_CASE_MEMBERSHIP: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case_membership.rs";
+const VAL_LEAF_COPY: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_leaf_copy.rs";
 const VAL_PRIMITIVE_STORAGE: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/primitive_storage.rs";
 const TS_PRIMITIVE_PLACE: &str =
@@ -230,6 +232,13 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_CASE_MEMBERSHIP,
     ],
+);
+static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
+    "operation:structural-leaf-copy",
+    "a readable live whole root and validated field/index path to an Unrestricted leaf",
+    "the fresh owned place holding an exact copy of the projected leaf; the source stays fully intact",
+    EFFECT_DEPS,
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
 );
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",
@@ -1011,6 +1020,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_ESTABLISH_PRIMITIVE_LOCAL,
     OP_PRIMITIVE_SCALAR_READ,
     OP_STRUCTURAL_CASE_MEMBERSHIP,
+    OP_STRUCTURAL_LEAF_COPY,
     OP_WRITE_ONLY_PRIMITIVE_STORE,
     OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE,
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
@@ -1091,6 +1101,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::EstablishPrimitiveLocal => &OP_ESTABLISH_PRIMITIVE_LOCAL,
         OperationSemanticTag::PrimitiveScalarRead => &OP_PRIMITIVE_SCALAR_READ,
         OperationSemanticTag::StructuralCaseMembership => &OP_STRUCTURAL_CASE_MEMBERSHIP,
+        OperationSemanticTag::StructuralLeafCopy => &OP_STRUCTURAL_LEAF_COPY,
         OperationSemanticTag::WriteOnlyPrimitiveStore => &OP_WRITE_ONLY_PRIMITIVE_STORE,
         OperationSemanticTag::WriteOnlyIndexedPrimitiveStore => {
             &OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE

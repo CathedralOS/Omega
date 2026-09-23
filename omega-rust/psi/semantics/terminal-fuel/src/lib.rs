@@ -80,6 +80,7 @@ impl TerminalFuelSchedule {
             | OperationKind::BooleanConstant { .. }
             | OperationKind::BooleanStructuralField { .. }
             | OperationKind::StructuralCaseMembership { .. }
+            | OperationKind::StructuralLeafCopy { .. }
             | OperationKind::IntegerStructuralField { .. }
             | OperationKind::BooleanNot { .. }
             | OperationKind::BooleanEqual { .. }
