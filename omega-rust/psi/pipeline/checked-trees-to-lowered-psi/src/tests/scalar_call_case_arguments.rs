@@ -5,7 +5,7 @@ use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStruct
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use terminal_interpreter::{AcceptTerminalEffects, TerminalStructuralInputs};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use terminal_psi::{OperationKind, StructuralAccess, StructuralTypeShape};
+use terminal_psi::{OperationKind, ScalarCaseField, StructuralAccess, StructuralTypeShape};
 
 const ORDERED_CONSTRUCTOR: &str = r#"
 data Unrelated [copy] { case Other; }
@@ -553,5 +553,134 @@ fn case_call_operands_reject_substituted_payload_and_constructor_occurrences() {
     assert!(
         lower_machine(&changed, TerminalMachineSelection::Name("evaluate")).is_err(),
         "the fresh constructor cannot borrow another call's authored identity"
+    );
+}
+
+const BOUNDED_PAYLOAD_ACTUAL: &str = r#"
+data Message [copy] {
+    case Move(dx: i32 [0..=50], dy: i32 [0..=50]);
+    case Stop(code: i32);
+}
+machine consume(message: Message) -> i32 { 1 }
+machine evaluate(offset: i32 [0..=40]) -> i32 {
+    consume(Message::Move { dx: offset + 10, dy: 40 })
+}
+"#;
+
+fn scalar_case_fields(module: &mut terminal_psi::TerminalModule) -> &mut Vec<ScalarCaseField> {
+    let mut establishments = module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .filter_map(|operation| match &mut operation.kind {
+            OperationKind::EstablishScalarCase { fields, .. } => Some(fields),
+            _ => None,
+        });
+    let fields = establishments.next().expect("one computed case actual");
+    assert!(establishments.next().is_none());
+    fields
+}
+
+fn replace_integer_constant(module: &mut terminal_psi::TerminalModule, from: i128, to: i128) {
+    let mut constants = module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .filter_map(|operation| match &mut operation.kind {
+            OperationKind::IntegerConstant { value } if *value == IntegerValue::Signed(from) => {
+                Some(value)
+            }
+            _ => None,
+        });
+    let value = constants.next().expect("the authored integer literal");
+    assert!(constants.next().is_none());
+    *value = IntegerValue::Signed(to);
+}
+
+#[test]
+fn bounded_case_payload_actual_requests_each_declared_range() {
+    let checked = crate::front_end::checked_program(BOUNDED_PAYLOAD_ACTUAL);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("evaluate"))
+        .expect("computed payloads establish into their declared ranges");
+    let verify = |module: &terminal_psi::TerminalModule| {
+        terminal_verifier::verify_module(
+            module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .map(drop)
+        .map_err(|error| format!("{error:?}"))
+    };
+    verify(&lowered.semantic_module).expect("the verifier discharges each payload range");
+    let mut module = lowered.semantic_module.clone();
+    let fields = scalar_case_fields(&mut module);
+    let requests = fields
+        .iter()
+        .map(|field| {
+            field
+                .range_obligation
+                .expect("each bounded payload requests its range")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(requests.len(), 2);
+    assert_ne!(
+        requests[0], requests[1],
+        "each payload proves its own range"
+    );
+
+    let mut omitted = lowered.semantic_module.clone();
+    scalar_case_fields(&mut omitted)[0].range_obligation = None;
+    assert!(
+        verify(&omitted).is_err(),
+        "a bounded payload cannot be established without its range request"
+    );
+
+    let mut shared = lowered.semantic_module.clone();
+    let fields = scalar_case_fields(&mut shared);
+    fields[1].range_obligation = fields[0].range_obligation;
+    assert!(
+        verify(&shared).is_err(),
+        "one range proof cannot stand in for another payload"
+    );
+
+    let mut escaped = lowered.semantic_module.clone();
+    replace_integer_constant(&mut escaped, 10, 11);
+    assert!(
+        verify(&escaped).is_err(),
+        "the verifier reconstructs the range against the actual computed payload"
+    );
+
+    let mut literal = lowered.semantic_module.clone();
+    replace_integer_constant(&mut literal, 40, 51);
+    assert!(
+        verify(&literal).is_err(),
+        "a literal payload outside its declared range is rejected"
+    );
+
+    let mut narrowed = lowered.semantic_module.clone();
+    let bounds = narrowed
+        .structural_types
+        .iter_mut()
+        .flat_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Sum { cases } => cases.as_mut_slice(),
+            _ => &mut [],
+        })
+        .flat_map(|case| &mut case.fields)
+        .find_map(|field| match &mut field.field_type {
+            terminal_psi::StructuralFieldType::BoundedInteger(bounds) => Some(bounds),
+            _ => None,
+        })
+        .expect("a declared payload range");
+    *bounds = semantic_vocabulary::BoundedIntegerType::new(
+        bounds.integer_type(),
+        bounds.minimum(),
+        IntegerValue::Signed(49),
+    )
+    .unwrap();
+    assert!(
+        verify(&narrowed).is_err(),
+        "the proof answers the declaration's range, not a producer's claim"
     );
 }

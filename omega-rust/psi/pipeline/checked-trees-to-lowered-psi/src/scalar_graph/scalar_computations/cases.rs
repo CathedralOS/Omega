@@ -15,6 +15,7 @@ use super::{
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::computation_graph::fields;
 use crate::expression_preparation::source_custody::case_sources as source;
@@ -33,7 +34,36 @@ pub(crate) struct Slot {
     pub(super) multiplicity: StructuralMultiplicity,
     pub(super) case: StructuralCaseId,
     cases: Vec<(symbols::SymbolHandle, StructuralCaseId)>,
-    pub(super) fields: Vec<(symbols::SymbolHandle, StructuralFieldId, ScalarType)>,
+    pub(super) fields: Vec<ReservedField>,
+}
+
+/// One payload field resolved against its structural declaration before any
+/// operand is evaluated.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct ReservedField {
+    pub(super) symbol: symbols::SymbolHandle,
+    pub(super) field: StructuralFieldId,
+    pub(super) scalar_type: ScalarType,
+    /// The declaration restricts the carrier to a range, so establishment must
+    /// request a proof that the completed operand lies inside it.
+    bounded: bool,
+}
+
+impl ReservedField {
+    pub(super) fn completed(self, value: LoweredDirectExpression) -> ConstructedField {
+        ConstructedField {
+            field: self.field,
+            value,
+            bounded: self.bounded,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ConstructedField {
+    field: StructuralFieldId,
+    value: LoweredDirectExpression,
+    bounded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,7 +72,7 @@ pub(crate) struct Construction {
     pub(super) structural_type: StructuralTypeId,
     pub(super) multiplicity: StructuralMultiplicity,
     pub(super) case: StructuralCaseId,
-    pub(super) fields: Vec<(StructuralFieldId, LoweredDirectExpression)>,
+    pub(super) fields: Vec<ConstructedField>,
 }
 
 pub(crate) fn prepare(
@@ -164,15 +194,27 @@ pub(crate) fn reserve(
                 "computed case field is not scalar",
             ))?;
         let scalar_type = terminal_scalar_type(primitive)?;
+        // A bounded payload shares its plain carrier; the declared range is
+        // not assumed of the operand but requested as an establishment proof.
         if !matches!(
             declaration.field_type,
-            StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_)
+            StructuralFieldType::Scalar(_)
+                | StructuralFieldType::IeeeFloat(_)
+                | StructuralFieldType::BoundedInteger(_)
         ) || declaration.field_type.scalar_type() != Some(scalar_type)
             || declaration.relevance != language_core::BindingRelevance::Relevant
         {
-            return unsupported("computed case field requires its exact plain scalar type");
+            return unsupported("computed case field requires its exact scalar carrier");
         }
-        field_bindings.push((field.0, declaration.id, scalar_type));
+        field_bindings.push(ReservedField {
+            symbol: field.0,
+            field: declaration.id,
+            scalar_type,
+            bounded: matches!(
+                declaration.field_type,
+                StructuralFieldType::BoundedInteger(_)
+            ),
+        });
     }
     let multiplicity = match checked.type_multiplicity(source.type_reference) {
         Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
@@ -205,11 +247,11 @@ impl Slot {
             .iter()
             .zip(values)
             .enumerate()
-            .map(|(ordinal, ((_, field, scalar_type), value))| {
-                if value.scalar_type != *scalar_type || !value.qualifications.is_empty() {
+            .map(|(ordinal, (reserved, value))| {
+                if value.scalar_type != reserved.scalar_type || !value.qualifications.is_empty() {
                     return unsupported("case construction changed its completed field type");
                 }
-                Ok((*field, parameter(ordinal, (*scalar_type).into())))
+                Ok(reserved.completed(parameter(ordinal, reserved.scalar_type.into())))
             })
             .collect::<Result<Vec<_>, LoweringError>>()?;
         Ok(Construction {
@@ -350,18 +392,18 @@ impl Expansion<'_> {
         let mut operands = Vec::new();
         let mut completed_types = input_types.to_vec();
         let mut completed_fields = Vec::new();
-        for (field, (symbol, identity, scalar_type)) in retained.iter().zip(&slot.fields) {
+        for (field, reserved) in retained.iter().zip(&slot.fields) {
             let operand = Argument::Computation(field.value);
-            if field.symbol != *symbol
-                || self.argument_type(&operand, site, input_types)? != (*scalar_type).into()
+            if field.symbol != reserved.symbol
+                || self.argument_type(&operand, site, input_types)? != reserved.scalar_type.into()
             {
                 return unsupported("computed case field differs from its reserved scalar operand");
             }
-            completed_fields.push((
-                *identity,
-                parameter(completed_types.len(), (*scalar_type).into()),
-            ));
-            completed_types.push((*scalar_type).into());
+            completed_fields.push(reserved.completed(parameter(
+                completed_types.len(),
+                reserved.scalar_type.into(),
+            )));
+            completed_types.push(reserved.scalar_type.into());
             operands.push(operand);
         }
         let mut outgoing = parameters(input_types);
@@ -427,21 +469,31 @@ pub(crate) fn emit(
     values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
+    calls: &mut CallEmissionContext<'_>,
 ) -> Result<(), LoweringError> {
     let types = values
         .iter()
         .map(|value| value.scalar_type)
         .collect::<Vec<_>>();
     let mut fields = Vec::new();
-    for (field, expression) in &effect.fields {
-        validate_direct_parameter_types(expression, &types)?;
-        if !matches!(expression, LoweredDirectExpression::Parameter { .. }) {
+    for field in &effect.fields {
+        validate_direct_parameter_types(&field.value, &types)?;
+        if !matches!(field.value, LoweredDirectExpression::Parameter { .. }) {
             return unsupported("case construction requires completed scalar fields");
         }
+        let value = emit_direct_expression(&field.value, values, next_value, operations);
+        // The verifier reconstructs the declared range against this exact
+        // completed payload value. The identity requests that proof; it does
+        // not assert that the payload is in range.
+        let range_obligation = if field.bounded {
+            Some(calls.allocate_requirement()?)
+        } else {
+            None
+        };
         fields.push(terminal_psi::ScalarCaseField {
-            field: *field,
-            value: emit_direct_expression(expression, values, next_value, operations),
-            range_obligation: None,
+            field: field.field,
+            value,
+            range_obligation,
         });
     }
     // Canonical publication orders identities only after every expression has
