@@ -53,8 +53,7 @@ pub(super) fn validate(
                 path,
                 byte_offset,
                 shape,
-                index,
-                index_stride,
+                indices,
             },
             AbstractOperation::StructuralLeafCopy {
                 source: expected,
@@ -63,7 +62,7 @@ pub(super) fn validate(
                 ..
             },
         ) if source == expected && path == expected_path && result == expected_result && {
-            let (expected_offset, expected_shape, expected_index) =
+            let (expected_offset, expected_shape, expected_indices) =
                 scalar_graph_input::structural_case::leaf_copy_layout(
                     optimized,
                     *expected,
@@ -71,24 +70,24 @@ pub(super) fn validate(
                     expected_result,
                     plan,
                 )?;
-            let expected_index = expected_index
+            let expected_indices = expected_indices
+                .into_iter()
                 .map(|(selector, stride)| {
                     let parameter = usize::try_from(selector)
                         .ok()
                         .and_then(|position| optimized.parameters.get(position))
                         .ok_or(LegalizationError::SourceCustodyMismatch)?;
-                    Ok::<_, LegalizationError>((
-                        Some(abstract_operations::AbstractResult {
+                    Ok::<_, LegalizationError>(legalized_operations::LegalizedRuntimeIndexOperand {
+                        operand: abstract_operations::AbstractResult {
                             value: parameter.value,
                             scalar_type: parameter.scalar_type,
-                        }),
+                        },
                         stride,
-                    ))
+                    })
                 })
-                .transpose()?
-                .unwrap_or((None, 0));
+                .collect::<Result<Vec<_>, _>>()?;
             (*byte_offset, *shape) == (expected_offset, expected_shape)
-                && (*index, *index_stride) == expected_index
+                && *indices == expected_indices
         } => {}
         (
             LegalizedScalarInstructionKind::EstablishScalarArray {
