@@ -385,6 +385,13 @@ pub(super) fn validate(
                     && successor.target == *target
                     && successor.bindings == *bindings
                     && successor.structural_bindings == *structural_bindings
+                    && super::super::address_joins::edge_bindings(
+                        optimized,
+                        block.block,
+                        *target,
+                        structural_bindings,
+                        plan,
+                    )
                     && edge_cleanup_matches(
                         optimized,
                         &successor.cleanup_actions,
@@ -413,8 +420,8 @@ pub(super) fn validate(
                         types: unit.structural_types.as_slice(),
                     })
                     .boolean_source(condition, *expected, &[])
-                    && successor_matches(optimized, when_true, expected_true)
-                    && successor_matches(optimized, when_false, expected_false)
+                    && successor_matches(optimized, block.block, plan, when_true, expected_true)
+                    && successor_matches(optimized, block.block, plan, when_false, expected_false)
             }
             _ => false,
         };
@@ -427,6 +434,8 @@ pub(super) fn validate(
 
 fn successor_matches(
     function: &PsiOptimizationFunction,
+    block: semantic_vocabulary::BlockId,
+    plan: &AbstractOperationPlan,
     target: &TargetControlSuccessor,
     source: &abstract_operations::AbstractSuccessor,
 ) -> bool {
@@ -434,6 +443,13 @@ fn successor_matches(
         && target.target == source.target
         && target.bindings == source.bindings
         && target.structural_bindings == source.structural_bindings
+        && super::super::address_joins::edge_bindings(
+            function,
+            block,
+            source.target,
+            &source.structural_bindings,
+            plan,
+        )
         && edge_cleanup_matches(
             function,
             &target.cleanup_actions,

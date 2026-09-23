@@ -242,3 +242,128 @@ fn common_native_and_optimizer_lowering_cannot_drop_descriptor_only_transfer() {
         }
     );
 }
+
+/// The same edge as an address join: the parameter borrows one `u64` leaf and
+/// the argument names it through a static field path beneath its root.
+fn address_join_fixture(path: Vec<terminal_psi::StructuralPathSegment>) -> TerminalModule {
+    let mut module = fixture();
+    let scalar = semantic_vocabulary::ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .unwrap(),
+    );
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: StructuralTypeId::new(2).unwrap(),
+        identity: "u64".into(),
+        shape: StructuralTypeShape::PrimitiveScalar(scalar),
+    });
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: StructuralTypeId::new(3).unwrap(),
+        identity: "test::Payload".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![terminal_psi::StructuralFieldDeclaration {
+                id: semantic_vocabulary::StructuralFieldId::new(1).unwrap(),
+                identity: "left".into(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: terminal_psi::StructuralFieldType::Scalar(scalar),
+            }],
+        },
+    });
+    module.machines[0].blocks[1].structural_parameters[0].structural_type =
+        StructuralTypeId::new(2).unwrap();
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = path;
+    module
+}
+
+#[test]
+fn shared_address_joins_admit_whole_and_projected_arguments() {
+    let field = || vec![terminal_psi::StructuralPathSegment::Field("left".into())];
+    assert_eq!(
+        validate_structural_block_bindings(&address_join_fixture(Vec::new())),
+        Ok(())
+    );
+    assert_eq!(
+        validate_structural_block_bindings(&address_join_fixture(field())),
+        Ok(())
+    );
+    let mut record = address_join_fixture(Vec::new());
+    record.machines[0].blocks[1].structural_parameters[0].structural_type =
+        StructuralTypeId::new(3).unwrap();
+    assert_eq!(validate_structural_block_bindings(&record), Ok(()));
+    let mut indexed = address_join_fixture(field());
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut indexed.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0]
+        .path
+        .push(terminal_psi::StructuralPathSegment::FixedIndex(0));
+    assert_eq!(validate_structural_block_bindings(&indexed), Ok(()));
+}
+
+#[test]
+fn address_joins_reject_widened_access_windows_and_descriptor_projections() {
+    let edge = EdgeId::new(1).unwrap();
+    let block = BlockId::new(2).unwrap();
+    let rejected_edge = Err(LoweringError::UnsupportedStructuralSuccessorArguments {
+        machine: MachineId::new(1).unwrap(),
+        edge,
+    });
+    // An exclusive primitive join has no address carrier yet.
+    let mut exclusive = address_join_fixture(Vec::new());
+    exclusive.machines[0].blocks[1].structural_parameters[0].access =
+        StructuralAccess::MutableBorrow;
+    assert_eq!(
+        validate_structural_block_bindings(&exclusive),
+        Err(LoweringError::UnsupportedStructuralBlockParameters {
+            machine: MachineId::new(1).unwrap(),
+            block,
+        })
+    );
+    // A projected argument may not widen the join's shared access.
+    let mut widened = address_join_fixture(vec![terminal_psi::StructuralPathSegment::Field(
+        "left".into(),
+    )]);
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut widened.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].access = StructuralAccess::MutableBorrow;
+    assert_eq!(validate_structural_block_bindings(&widened), rejected_edge);
+    // Byte windows and reference hops do not name one static address.
+    for segment in [
+        terminal_psi::StructuralPathSegment::FixedByteRange { start: 0, end: 1 },
+        terminal_psi::StructuralPathSegment::Referent,
+    ] {
+        assert_eq!(
+            validate_structural_block_bindings(&address_join_fixture(vec![segment])),
+            rejected_edge
+        );
+    }
+    // A descriptor view still binds whole roots only.
+    let mut descriptor = fixture();
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut descriptor.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    structural_arguments[0].path = vec![terminal_psi::StructuralPathSegment::Field("left".into())];
+    assert_eq!(
+        validate_structural_block_bindings(&descriptor),
+        rejected_edge
+    );
+}

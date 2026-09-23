@@ -2446,6 +2446,10 @@ fn dropped_def_is_dead(function: &SelectedFunction, register: VirtualRegisterId)
                         | selected_instructions::SelectedStructuralTransport::Descriptor {
                             argument,
                             ..
+                        }
+                        | selected_instructions::SelectedStructuralTransport::Address {
+                            base: selected_instructions::SelectedAddressBase::Register(argument),
+                            ..
                         } if argument == register
                     )
                 })
@@ -3177,6 +3181,10 @@ fn redensify(
                 }
                 | selected_instructions::SelectedStructuralTransport::WholeValue {
                     argument,
+                    ..
+                }
+                | selected_instructions::SelectedStructuralTransport::Address {
+                    base: selected_instructions::SelectedAddressBase::Register(argument),
                     ..
                 } = &mut binding.transport
                 {

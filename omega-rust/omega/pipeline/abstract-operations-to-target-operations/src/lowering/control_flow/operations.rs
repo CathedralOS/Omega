@@ -386,6 +386,7 @@ pub(super) fn lower_operation(
             live.structural_homes.contains_key(&argument.place)
                 || super::references::touches(function, structural_types, live, argument)
                 || live.block_views.contains(&argument.place)
+                || live.address_joins.contains(&argument.place)
                 || (argument.access == StructuralAccess::Owned
                     && function.structural_parameters.iter().any(|parameter| {
                         parameter.place == argument.place
@@ -481,12 +482,12 @@ pub(super) fn lower_operation(
             ..
         } => {
             let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
-            let mut values = observations::scalar_values(live, &prepared.scalar_parameters)?;
+            let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
             let (view, _) = super::super::scalar::element_views::element_view_for_place(
                 function,
                 structural_types,
                 &prepared.parameters,
-                &mut values,
+                &values,
                 &live.lengths,
                 *destination,
                 &mut Vec::new(),

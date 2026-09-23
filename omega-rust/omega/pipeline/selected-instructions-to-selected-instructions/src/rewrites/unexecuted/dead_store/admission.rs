@@ -1295,14 +1295,25 @@ fn edge_unobserved(
     dead: &Dead,
 ) -> Result<(), DeadStoreEliminationError> {
     for binding in &successor.structural_bindings {
-        let destination = match binding.transport {
+        // An address transport also lends its root: the referent stays
+        // observable through the joined pointer, so the root counts as read.
+        let (destination, lent) = match binding.transport {
             SelectedStructuralTransport::Unused => continue,
             SelectedStructuralTransport::WholeValue { destination, .. }
-            | SelectedStructuralTransport::Descriptor { destination, .. } => destination,
+            | SelectedStructuralTransport::Descriptor { destination, .. } => (destination, None),
+            SelectedStructuralTransport::Address {
+                base, destination, ..
+            } => (destination, Some(base)),
         };
         let touches = match dead.storage {
-            SubjectStorage::Place => destination.structural_place() == Some(dead.place),
-            SubjectStorage::Staging(slot) => destination == slot,
+            SubjectStorage::Place => {
+                destination.structural_place() == Some(dead.place)
+                    || (lent.is_some() && binding.semantic.argument.place == dead.place)
+            }
+            SubjectStorage::Staging(slot) => {
+                destination == slot
+                    || lent == Some(selected_instructions::SelectedAddressBase::Local(slot))
+            }
         };
         if touches {
             return Err(DeadStoreEliminationError::InterveningAccess);

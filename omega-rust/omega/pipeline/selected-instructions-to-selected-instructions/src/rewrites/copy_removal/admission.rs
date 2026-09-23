@@ -165,6 +165,19 @@ fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId
                     argument,
                     destination,
                 } => argument == register || local_slot_mentions(destination, register),
+                SelectedStructuralTransport::Address {
+                    base, destination, ..
+                } => {
+                    local_slot_mentions(destination, register)
+                        || match base {
+                            selected_instructions::SelectedAddressBase::Register(argument) => {
+                                argument == register
+                            }
+                            selected_instructions::SelectedAddressBase::Local(slot) => {
+                                local_slot_mentions(slot, register)
+                            }
+                        }
+                }
                 SelectedStructuralTransport::Unused => false,
             });
     let case_mentions = successor.structural_case.as_ref().is_some_and(|case| {
@@ -601,6 +614,19 @@ fn lower_successor(
                 destination,
             } => {
                 *argument = lower_register(*argument, removed_register)?;
+                lower_local_slot(destination, removed_register)?;
+            }
+            SelectedStructuralTransport::Address {
+                base, destination, ..
+            } => {
+                match base {
+                    selected_instructions::SelectedAddressBase::Register(argument) => {
+                        *argument = lower_register(*argument, removed_register)?;
+                    }
+                    selected_instructions::SelectedAddressBase::Local(slot) => {
+                        lower_local_slot(slot, removed_register)?;
+                    }
+                }
                 lower_local_slot(destination, removed_register)?;
             }
             SelectedStructuralTransport::Unused => {}

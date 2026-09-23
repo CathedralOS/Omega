@@ -342,6 +342,24 @@ fn successor(
                         transport: selected_instructions::SelectedStructuralTransport::Unused,
                     });
                 }
+                // An address join receives its referent's address; the edge
+                // bridge forms it from the lending root's storage.
+                if let Some((_, parameter)) =
+                    crate::selection::address_join_input::join(source, semantic.parameter)
+                {
+                    return Ok(selected_instructions::SelectedStructuralBinding {
+                        semantic: semantic.clone(),
+                        transport: crate::selection::address_join_input::transport(
+                            source,
+                            next.target,
+                            parameter,
+                            &semantic.argument,
+                            &builder.transport.pointers,
+                            &builder.transport.local_slots,
+                        )
+                        .ok_or(SelectedInstructionError::SourceCustodyMismatch)?,
+                    });
+                }
                 let argument = builder
                     .transport
                     .pointers

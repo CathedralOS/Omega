@@ -5,6 +5,7 @@
 //! the same catalog for every function or replay mutation adds no evidence.
 //! The public raw validation entrance still validates its own supplied join.
 
+mod address_join_input;
 mod aggregate_result_input;
 mod block_order;
 mod byte_view_homes;

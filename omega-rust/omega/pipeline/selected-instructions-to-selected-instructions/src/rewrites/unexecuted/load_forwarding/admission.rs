@@ -1218,10 +1218,13 @@ fn edge_preserves(
         }
     }
     for binding in &successor.structural_bindings {
+        // A lent address writes only the join's own carrier slot; the shared
+        // referent itself is never written through it.
         let destination = match binding.transport {
             SelectedStructuralTransport::Unused => continue,
             SelectedStructuralTransport::WholeValue { destination, .. }
-            | SelectedStructuralTransport::Descriptor { destination, .. } => destination,
+            | SelectedStructuralTransport::Descriptor { destination, .. }
+            | SelectedStructuralTransport::Address { destination, .. } => destination,
         };
         if destination.structural_place() == Some(forwarded.place) {
             return Err(StoredLoadForwardingError::AliasingWrite);

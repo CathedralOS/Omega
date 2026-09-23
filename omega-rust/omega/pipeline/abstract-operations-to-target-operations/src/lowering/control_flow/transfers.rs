@@ -60,6 +60,68 @@ pub(super) fn enter(block: &AbstractBlockEntry, live: &mut LiveDefinitions) {
     }
 }
 
+/// A shared block parameter carried as its referent's address. The type rule
+/// is shared with every Omega stage; each stage replays its own edge sources.
+pub(super) fn is_address_join(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    structural_types: &StructuralTypeLookup<'_>,
+) -> bool {
+    abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
+        structural_types.get(&identity).copied()
+    })
+}
+
+/// An address-join edge lends one readable root, or a static projection
+/// beneath it, that is live in the predecessor: a plain owned home (an
+/// established local or an owned join's storage), a claim-free unqualified
+/// machine parameter, or an earlier address join. The root keeps its owner
+/// and storage; the path must name exactly the join's referent type. A root
+/// suspended by an outstanding exclusive loan cannot lend a shared view.
+fn address_join_argument(
+    function: &AbstractFunction,
+    live: &LiveDefinitions,
+    structural_types: &StructuralTypeLookup<'_>,
+    binding: &abstract_operations::AbstractStructuralBinding,
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+) -> bool {
+    let argument = &binding.argument;
+    if argument.access != terminal_psi::StructuralAccess::SharedBorrow
+        || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
+        || references::is_suspended_root(live, argument.place)
+    {
+        return false;
+    }
+    let root_type = if let Some(home) = live.structural_homes.get(&argument.place) {
+        (!home.has_claims()
+            && home.multiplicity() != terminal_psi::StructuralMultiplicity::Linear
+            && home.qualifications().is_empty()
+            && home.projected_qualifications().is_empty())
+        .then(|| home.structural_type())
+    } else if let Some(source) = function
+        .structural_parameters
+        .iter()
+        .find(|source| source.place == argument.place)
+    {
+        (!source.is_self
+            && source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+            && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+            && source.qualifications.is_empty()
+            && source.projected_qualifications.is_empty())
+        .then_some(source.structural_type)
+    } else if live.address_joins.contains(&argument.place) {
+        function
+            .block_entries
+            .iter()
+            .flat_map(|entry| &entry.structural_parameters)
+            .find(|source| source.place == argument.place)
+            .map(|source| source.structural_type)
+    } else {
+        None
+    };
+    root_type.and_then(|root| structural_types.subtree(root, &argument.path))
+        == Some(parameter.structural_type)
+}
+
 pub(super) fn validate_successors(
     operation: &AbstractOperation,
     function: &AbstractFunction,
@@ -83,6 +145,20 @@ pub(super) fn validate_successors(
                 return Err(invalid());
             }
             for (binding, parameter) in structural.iter().zip(&block.structural_parameters) {
+                if is_address_join(parameter, structural_types) {
+                    if binding.parameter != parameter.place
+                        || !address_join_argument(
+                            function,
+                            live,
+                            structural_types,
+                            binding,
+                            parameter,
+                        )
+                    {
+                        return Err(invalid());
+                    }
+                    continue;
+                }
                 // Binding a reference-bearing subtree would need partial-move
                 // custody across an edge; the verified contract rejects it and
                 // this layer keeps the same boundary.

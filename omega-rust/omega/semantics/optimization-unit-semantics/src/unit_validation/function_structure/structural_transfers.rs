@@ -1,4 +1,12 @@
-//! Exact whole shared-view and plain owned telescopes; ownership replays separately.
+//! Exact whole shared-view, shared address-join and plain owned telescopes;
+//! ownership replays separately.
+//!
+//! A descriptor view or owned arrival binds a whole root of exactly its own
+//! contract. An address join (`abstract_operations::control_flow::address_joins`)
+//! instead borrows a readable, non-linear root or a static projection beneath
+//! it: the argument keeps shared access and names exactly the parameter's
+//! referent type, and the root keeps its own owner. The current-ownership
+//! replay separately pins every such root while the joined view can observe it.
 use crate::BTreeMap;
 use crate::BTreeSet;
 use crate::O;
@@ -34,6 +42,7 @@ pub(super) fn validate(
                     .get(&parameter.structural_type)
                     .is_some_and(|declaration| {
                         parameter.access == StructuralAccess::Owned
+                            || address_join(parameter, types)
                             || matches!(
                                 declaration.shape,
                                 StructuralTypeShape::ByteSequence(
@@ -81,15 +90,34 @@ pub(super) fn validate(
                 .iter()
                 .zip(&destination.structural_parameters)
             {
+                let source = source_contract(function, binding.argument.place);
+                let exact_source = if address_join(parameter, types) {
+                    // The root lends its address; it neither changes owner nor
+                    // widens past shared access, and the path names the join's
+                    // exact referent type.
+                    abstract_operations::control_flow::address_joins::is_static_projection(
+                        &binding.argument.path,
+                    ) && source.is_some_and(|(root_type, access, multiplicity)| {
+                        access != StructuralAccess::WriteOnlyBorrow
+                            && multiplicity != StructuralMultiplicity::Linear
+                            && abstract_operations::control_flow::address_joins::referent_type(
+                                types.values().copied(),
+                                root_type,
+                                &binding.argument.path,
+                            ) == Some(parameter.structural_type)
+                    })
+                } else {
+                    binding.argument.path.is_empty()
+                        && source
+                            == Some((
+                                parameter.structural_type,
+                                parameter.access,
+                                parameter.multiplicity,
+                            ))
+                };
                 if binding.parameter != parameter.place
-                    || !binding.argument.path.is_empty()
                     || binding.argument.access != parameter.access
-                    || source_contract(function, binding.argument.place)
-                        != Some((
-                            parameter.structural_type,
-                            parameter.access,
-                            parameter.multiplicity,
-                        ))
+                    || !exact_source
                     || function
                         .entry_claim_declarations
                         .iter()
@@ -105,6 +133,15 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+fn address_join(
+    parameter: &StructuralParameterDeclaration,
+    types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+) -> bool {
+    abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
+        types.get(&identity).copied()
+    })
 }
 
 /// Block parameters carry no qualification roster, so a structural join merges

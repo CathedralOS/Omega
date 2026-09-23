@@ -526,6 +526,27 @@ fn encode_successor(bytes: &mut Vec<u8>, successor: &SelectedSuccessor) {
                 bytes.extend_from_slice(&argument.0.to_le_bytes());
                 destination.encode_identity(bytes);
             }
+            crate::SelectedStructuralTransport::Address {
+                base,
+                byte_offset,
+                byte_count,
+                destination,
+            } => {
+                bytes.push(3);
+                match base {
+                    crate::SelectedAddressBase::Register(register) => {
+                        bytes.push(0);
+                        bytes.extend_from_slice(&register.0.to_le_bytes());
+                    }
+                    crate::SelectedAddressBase::Local(slot) => {
+                        bytes.push(1);
+                        slot.encode_identity(bytes);
+                    }
+                }
+                bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                bytes.extend_from_slice(&byte_count.to_le_bytes());
+                destination.encode_identity(bytes);
+            }
         }
     }
     encode_fuel(bytes, &successor.fuel);

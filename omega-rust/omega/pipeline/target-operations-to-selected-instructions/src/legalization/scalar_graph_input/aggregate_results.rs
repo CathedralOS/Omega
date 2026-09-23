@@ -427,7 +427,9 @@ pub(super) fn header(
         .iter()
         .flat_map(|block| &block.structural_parameters)
         .any(|parameter| {
-            !byte_parameter(parameter, plan) && block_home_layout(parameter, plan).is_err()
+            !byte_parameter(parameter, plan)
+                && super::address_joins::parameter(optimized, parameter.place, plan).is_none()
+                && block_home_layout(parameter, plan).is_err()
         })
     {
         return Err(invalid);

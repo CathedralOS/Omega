@@ -19,6 +19,7 @@ pub(super) fn check(
     bridge: &SelectedBlock,
     continuation: &SelectedSuccessor,
     scalar_count: usize,
+    descriptor_end: usize,
     instruction_start: usize,
     register_start: usize,
     original_register_count: usize,
@@ -217,7 +218,7 @@ pub(super) fn check(
             store_index += 1;
         }
     }
-    if store_index != bridge.instructions.len() {
+    if store_index != descriptor_end {
         return Err(error());
     }
     reads.extend(writes);

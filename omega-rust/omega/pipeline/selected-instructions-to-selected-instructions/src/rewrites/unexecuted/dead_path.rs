@@ -213,10 +213,18 @@ fn edge_registers(
     for binding in &successor.structural_bindings {
         match binding.transport {
             SelectedStructuralTransport::WholeValue { argument, .. }
-            | SelectedStructuralTransport::Descriptor { argument, .. } => {
+            | SelectedStructuralTransport::Descriptor { argument, .. }
+            | SelectedStructuralTransport::Address {
+                base: selected_instructions::SelectedAddressBase::Register(argument),
+                ..
+            } => {
                 reads.insert(argument);
             }
-            SelectedStructuralTransport::Unused => {}
+            SelectedStructuralTransport::Address {
+                base: selected_instructions::SelectedAddressBase::Local(_),
+                ..
+            }
+            | SelectedStructuralTransport::Unused => {}
         }
     }
     if let Some(case) = &successor.structural_case {

@@ -1,6 +1,8 @@
 //! Replay each descriptor address at its owning block's entry.
 //! Destination edge copies initialize the slot independently of this address;
 //! exact block placement keeps the shorter pointer lifetime independently checked.
+//! An address join additionally loads its carried referent address here; see
+//! `selection::address_join_input`.
 use super::{
     LegalizedScalarFunction, SelectedInstructionId, SelectedInstructionKind,
     SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
@@ -18,7 +20,10 @@ pub(in crate::selection::validation) fn block_entry(
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
     for parameter in &block.structural_parameters {
-        let shape = if parameter.access == terminal_psi::StructuralAccess::Owned {
+        let joined = crate::selection::address_join_input::join(source, parameter.place).is_some();
+        let shape = if joined {
+            crate::selection::address_join_input::carrier_shape()
+        } else if parameter.access == terminal_psi::StructuralAccess::Owned {
             crate::selection::aggregate_result_input::block_parameter_shape(source, parameter)
                 .ok_or(SelectedInstructionError::SourceCustodyMismatch)?
         } else {
@@ -60,6 +65,35 @@ pub(in crate::selection::validation) fn block_entry(
             &[pointer],
             &SelectedInstructionProvenance::default(),
         )?;
+        let pointer = if joined {
+            let referent = result(replay, parameter.place, 0)?;
+            replay.transport.memory.push(SelectedMemoryAccess {
+                instruction: SelectedInstructionId(
+                    replay
+                        .instruction_cursor
+                        .try_into()
+                        .map_err(|_| replay.invalid())?,
+                ),
+                origin: SelectedMemoryAccessOrigin::Block(block.id),
+                place: parameter.place,
+                byte_offset: 0,
+                byte_count: u32::from(shape.byte_size),
+                role: SelectedMemoryAccessRole::ReadPlace,
+            });
+            replay.check_instruction(
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                replay
+                    .constraints
+                    .keys
+                    .load64
+                    .ok_or_else(|| replay.invalid())?,
+                &[pointer, referent],
+                &SelectedInstructionProvenance::default(),
+            )?;
+            referent
+        } else {
+            pointer
+        };
         replay.transport.pointers.push((parameter.place, pointer));
     }
     Ok(())

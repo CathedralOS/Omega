@@ -283,6 +283,7 @@ pub(super) fn call(
                     argument,
                     declaration,
                     destination,
+                    function,
                     prepared,
                     live,
                     types,

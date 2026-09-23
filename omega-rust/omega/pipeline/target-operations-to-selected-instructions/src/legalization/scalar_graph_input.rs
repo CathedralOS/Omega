@@ -19,6 +19,7 @@ pub(super) mod call_origin;
 mod control;
 mod custody;
 pub(super) use custody::validate_unit_custody;
+pub(super) mod address_joins;
 pub(super) mod aggregate_results;
 mod byte_views;
 mod header;

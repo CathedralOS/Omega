@@ -46,7 +46,11 @@ fn source_unit(source: &str) -> PsiOptimizationUnit {
     source_machine_unit(source, "Main::main", false)
 }
 
-fn source_machine_unit(source: &str, machine: &str, retain_contracts: bool) -> PsiOptimizationUnit {
+pub(super) fn source_machine_unit(
+    source: &str,
+    machine: &str,
+    retain_contracts: bool,
+) -> PsiOptimizationUnit {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .expect("tokenize");
