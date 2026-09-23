@@ -282,10 +282,41 @@ fn assert_table_matches(marker: &str, code: BTreeMap<u8, String>) {
         .filter(|(_, name)| name.as_str() != "—")
         .map(|(tag, name)| (*tag, name.clone()))
         .collect();
-    assert_eq!(
-        spec_assigned, code,
-        "spec table {marker} and codec tag space disagree"
-    );
+    // Name the difference rather than printing two tag spaces and leaving the
+    // reader to diff eighty rows by eye. This assertion fires when someone
+    // adds an operation to the codec without its spec row, which reddens the
+    // architecture suite -- and that suite gates every landing, so the message
+    // should say exactly what to write and where.
+    if spec_assigned != code {
+        let missing: Vec<String> = code
+            .iter()
+            .filter(|(tag, name)| spec_assigned.get(tag) != Some(name))
+            .map(|(tag, name)| format!("{tag} => {name}"))
+            .collect();
+        let extra: Vec<String> = spec_assigned
+            .iter()
+            .filter(|(tag, name)| code.get(tag) != Some(name))
+            .map(|(tag, name)| format!("{tag} => {name}"))
+            .collect();
+        panic!(
+            "spec table {marker} and codec tag space disagree.\n\
+             In the codec but not the spec (add these rows to the table \
+             marked {marker} in wiki/spec/terminal-psi/encoding.md, spelling \
+             the fields the encoder writes after the tag): {}\n\
+             In the spec but not the codec (the table claims a tag the codec \
+             does not assign): {}",
+            if missing.is_empty() {
+                "none".to_owned()
+            } else {
+                missing.join(", ")
+            },
+            if extra.is_empty() {
+                "none".to_owned()
+            } else {
+                extra.join(", ")
+            },
+        );
+    }
     for (tag, name) in &spec {
         if name == "—" {
             assert!(
