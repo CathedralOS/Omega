@@ -885,7 +885,9 @@ Remaining work:
 - Preserve exact `i32` semantic status and ordered output through provider
   conformance and native realization. Reuse `SelectedProcessExit` custody and the
   canonical host canaries; the current hosted-exit target support excludes Windows.
-  Complete and exercise the missing supported-host realization.
+  Complete and exercise the missing supported-host realization; how it realizes
+  on Windows is owner question 10 (`windows-hosted-exit-realization`), which
+  blocks 180 owner-judged fixtures on a Windows host.
 
 Acceptance: source-produced unconditional and conditional/helper exits replay
 independently after serialization. Tampered identities, arguments, completion or
