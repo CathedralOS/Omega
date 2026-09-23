@@ -133,6 +133,100 @@ const NO_READS_SOURCE: &str = r#"
     }
 "#;
 
+/// A record established in the machine body arrives at the observing state
+/// as a structural block parameter: the state's incoming edge binds the
+/// parameter to the one established place through an owned, whole-place
+/// argument, so the bound place's `EstablishRecord` proves the read even
+/// though the parameter itself holds no producer.
+const BOUND_RECORD_SOURCE: &str = r#"
+    data Point { x: u32; flag: bool; }
+    data Root {}
+    machine Root::run() {
+        let p: Point = Point { x: 37, flag: true };
+        transition { _ -> read(p) }
+        state read(p: Point) {
+            transition p.x == 37 { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// The bound parameter observed at a nested path: `o.inner.v` crosses the
+/// edge binding, then descends the stored-whole `inner` child to the
+/// child's own `EstablishRecord` — the same two-step proof a read on the
+/// bound place itself would draw on.
+const BOUND_NESTED_SOURCE: &str = r#"
+    data Inner { v: u32; }
+    data Outer { inner: Inner; }
+    data Root {}
+    machine Root::run() {
+        let o: Outer = Outer { inner: Inner { v: 7 } };
+        transition { _ -> read(o) }
+        state read(o: Outer) {
+            transition o.inner.v == 7 { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// Two predecessor edges bind the parameter to different established
+/// places: no uniform binding exists, so nothing proves what the read
+/// observes even though every candidate place is itself established.
+const DIVERGENT_BINDING_SOURCE: &str = r#"
+    data Point { x: u32; flag: bool; }
+    data Root {}
+    machine Root::run(flag: bool) {
+        let a: Point = Point { x: 37, flag: true };
+        let b: Point = Point { x: 9, flag: false };
+        transition flag { true -> read(a) _ -> read(b) }
+        state read(p: Point) {
+            transition p.x == 37 { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// A parameter delivered through a relay state resolves transitively: the
+/// read's parameter binds the relay's parameter, which binds the
+/// established place — the establishment crosses each uniform binding in
+/// turn.
+const CHAINED_BINDING_SOURCE: &str = r#"
+    data Point { x: u32; flag: bool; }
+    data Root {}
+    machine Root::run() {
+        let p: Point = Point { x: 37, flag: true };
+        transition { _ -> relay(p) }
+        state relay(q: Point) {
+            transition { _ -> read(q) }
+        }
+        state read(r: Point) {
+            transition r.x == 37 { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// Both arms of the entry conditional deliver the same established place:
+/// the binding is uniform across every incoming edge, so the read still
+/// folds.
+const UNIFORM_TWO_EDGE_SOURCE: &str = r#"
+    data Point { x: u32; flag: bool; }
+    data Root {}
+    machine Root::run(flag: bool) {
+        let p: Point = Point { x: 37, flag: true };
+        transition flag { true -> read(p) _ -> read(p) }
+        state read(p: Point) {
+            transition p.x == 37 { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
 #[test]
 fn established_record_fields_fold_to_proven_values() {
     let unit = lowered_unit_entry(
@@ -800,6 +894,285 @@ fn nested_unestablished_child_stays_unproven() {
 }
 
 #[test]
+fn bound_parameter_field_folds_through_uniform_binding() {
+    let unit = lowered_unit_entry(BOUND_RECORD_SOURCE, "bound parameter field", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    // The read observes the state's block parameter while the proof is the
+    // established place the incoming edge binds it to whole — the
+    // parameter's patch carries no root producer, but the row names the
+    // bound place's `EstablishRecord`.
+    let (place, bound) = bound_observation(&input, machine);
+    let (established, producer) = established_record_place(&input, machine);
+    assert_eq!(bound, established);
+    let (site, read) = field_read_on(&input, machine, place).expect("field read exists");
+
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, None, "a block parameter holds no producer");
+    assert_eq!(commit.input, input.identity);
+    assert_ne!(commit.output, input.identity);
+    let [row] = patch.reads.as_slice() else {
+        panic!("one folded field read")
+    };
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, read.0);
+    assert_eq!(row.source, place);
+    assert!(row.path.is_empty());
+    assert_eq!(row.field, read.2);
+    assert_eq!(
+        row.producer,
+        Some(producer),
+        "the row's proof witness is the bound place's establishment"
+    );
+    assert_eq!(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(37)
+        ))
+    );
+
+    // The proposal is deterministic: an independent run commits the same
+    // candidate, custody, and output revision.
+    let replayed = specialize(lowered_unit_entry(
+        BOUND_RECORD_SOURCE,
+        "bound parameter field",
+        "Root::run",
+    ));
+    assert_eq!(replayed.commits(), run.commits());
+
+    let folded = &run.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(37),
+            ..
+        }
+    ));
+    assert_eq!(
+        folded.provenance,
+        vec![PsiProvenance::Operation(row.psi_operation)]
+    );
+    assert!(field_read_on(run.session().unit(), machine, place).is_none());
+}
+
+#[test]
+fn bound_parameter_nested_field_folds_through_stored_child() {
+    let unit = lowered_unit_entry(BOUND_NESTED_SOURCE, "bound nested field", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    // The read observes the bound parameter at `inner`: the proof crosses
+    // the binding to the outer record's establishment, then descends the
+    // stored-whole `inner` child to its own `EstablishRecord`.
+    let (place, bound) = bound_observation(&input, machine);
+    let outer_producer = producer_of(&input, machine, bound);
+    let child_producer = stored_child_producer(&input, machine, outer_producer);
+    let (site, read) = field_read_on(&input, machine, place).expect("field read exists");
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, None);
+    let [row] = patch.reads.as_slice() else {
+        panic!("one folded field read")
+    };
+    assert_eq!(row.site, site);
+    assert_eq!(row.source, place);
+    assert_eq!(
+        row.path.len(),
+        1,
+        "the read descends one structural field into the bound record"
+    );
+    assert_eq!(row.field, read.2);
+    assert_eq!(
+        row.producer,
+        Some(child_producer),
+        "the row's proof witness is the stored child's establishment"
+    );
+    assert_eq!(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(7)
+        ))
+    );
+
+    let folded = &run.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(7),
+            ..
+        }
+    ));
+    assert!(field_read_on(run.session().unit(), machine, place).is_none());
+}
+
+#[test]
+fn divergent_incoming_bindings_decline() {
+    let unit = lowered_unit_entry(
+        DIVERGENT_BINDING_SOURCE,
+        "divergent bindings decline",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = block_parameter_place(&input, machine);
+    // The fixture must actually route both established places into the one
+    // observing parameter — the bindings diverge by place identity.
+    assert!(
+        field_read_on(&input, machine, place).is_some(),
+        "the fixture must actually contain a field read on the parameter"
+    );
+    let bound: std::collections::BTreeSet<_> = input.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .flat_map(|edge| &edge.structural_bindings)
+        .filter(|binding| binding.parameter == place)
+        .map(|binding| binding.argument.place)
+        .collect();
+    assert_eq!(bound.len(), 2, "two divergent bound places");
+    assert_declines(unit);
+}
+
+#[test]
+fn chained_binding_forwards_through_relay() {
+    let unit = lowered_unit_entry(CHAINED_BINDING_SOURCE, "chained binding", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    // The read observes `read`'s parameter, which binds `relay`'s
+    // parameter, which binds the established place — the proof crosses
+    // both uniform bindings.
+    let (place, bound) = bound_observation(&input, machine);
+    let declaration = input.functions[0]
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == bound)
+        .expect("the relay parameter is rostered");
+    assert!(
+        matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }),
+        "the read's parameter binds another block parameter"
+    );
+    let (_, producer) = established_record_place(&input, machine);
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, None);
+    let [row] = patch.reads.as_slice() else {
+        panic!("one folded field read")
+    };
+    assert_eq!(row.source, place);
+    assert_eq!(
+        row.producer,
+        Some(producer),
+        "the establishment crosses both uniform bindings"
+    );
+    assert_eq!(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(37)
+        ))
+    );
+}
+
+#[test]
+fn uniform_multi_edge_binding_folds() {
+    let unit = lowered_unit_entry(
+        UNIFORM_TWO_EDGE_SOURCE,
+        "uniform two-edge binding",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, bound) = bound_observation(&input, machine);
+    let (established, producer) = established_record_place(&input, machine);
+    // The fixture must actually deliver the parameter on two edges.
+    let edges = input.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .flat_map(|edge| &edge.structural_bindings)
+        .filter(|binding| binding.parameter == place)
+        .count();
+    assert_eq!(edges, 2, "two incoming edges bind the one place");
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.place, place);
+    let [row] = patch.reads.as_slice() else {
+        panic!("one folded field read")
+    };
+    assert_eq!(row.producer, Some(producer));
+    assert_eq!(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(37)
+        ))
+    );
+    assert_eq!(bound, established);
+}
+
+#[test]
+fn replay_rejects_forged_bound_rows() {
+    let unit = lowered_unit_entry(BOUND_RECORD_SOURCE, "bound parameter field", "Root::run");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    let establishment = patch.reads[0].producer.expect("establishment witness");
+
+    // A forged row witness — claiming the observed parameter's own
+    // producer slot — is refused: replay re-derives the witness through the
+    // binding rather than trusting it.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].producer = patch.producer;
+        }),
+    );
+
+    // A forged patch-level producer: the parameter holds no producer of
+    // its own, so naming the establishment here mismatches the replayed
+    // plan.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.producer = Some(establishment);
+        }),
+    );
+
+    // A forged folded value on the bound read.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
+                semantic_vocabulary::IntegerValue::Unsigned(41),
+            ));
+        }),
+    );
+
+    // The untampered declaration still validates to the committed output.
+    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
+}
+
+#[test]
 fn replay_rejects_forged_nested_row_witness() {
     let unit = lowered_unit_entry(
         NESTED_ESTABLISHED_SOURCE,
@@ -1121,6 +1494,136 @@ fn parameter_place(unit: &PsiOptimizationUnit) -> PlaceId {
         .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
         .expect("parameter place exists")
         .id
+}
+
+/// The machine's structural block-parameter place — the state parameter an
+/// edge binding delivers.
+fn block_parameter_place(unit: &PsiOptimizationUnit, machine: MachineId) -> PlaceId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    function
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }))
+        .expect("block parameter exists")
+        .id
+}
+
+/// The place the machine's field read observes — the state's block
+/// parameter in bound fixtures — plus the one place its structural
+/// bindings name, which the fixture requires to be the same place across
+/// every binding.
+fn bound_observation(unit: &PsiOptimizationUnit, machine: MachineId) -> (PlaceId, PlaceId) {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let place = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::IntegerStructuralField { source, .. }
+            | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
+            _ => None,
+        })
+        .expect("a field read observes the parameter");
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)
+        .expect("the observed place is rostered");
+    assert!(
+        matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }),
+        "the fixture's read observes a block parameter"
+    );
+    let mut bound = None;
+    for edge in function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+    {
+        for binding in &edge.structural_bindings {
+            if binding.parameter != place {
+                continue;
+            }
+            let argument = &binding.argument;
+            assert!(
+                argument.path.is_empty(),
+                "the fixture binds the whole place"
+            );
+            match bound {
+                None => bound = Some(argument.place),
+                Some(seen) => assert_eq!(seen, argument.place, "the fixture binds uniformly"),
+            }
+        }
+    }
+    (place, bound.expect("the parameter is bound"))
+}
+
+/// The producer `place`'s operation-result kind names.
+fn producer_of(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    place: PlaceId,
+) -> semantic_vocabulary::OperationId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)
+        .expect("the place is rostered");
+    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+        panic!("the place is an operation result")
+    };
+    producer
+}
+
+/// The establishing producer of the structural child `producer` stores
+/// whole into its record — the nested carrier a bound fixture's deeper
+/// read resolves to.
+fn stored_child_producer(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+    producer: semantic_vocabulary::OperationId,
+) -> semantic_vocabulary::OperationId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let child = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishRecord {
+                psi_operation,
+                fields,
+                ..
+            } if *psi_operation == producer => {
+                fields
+                    .iter()
+                    .find_map(|initializer| match &initializer.value {
+                        terminal_psi::RecordFieldValue::Structural(argument) => {
+                            Some(argument.place)
+                        }
+                        _ => None,
+                    })
+            }
+            _ => None,
+        })
+        .expect("the producer stores a structural child");
+    producer_of(unit, machine, child)
 }
 
 /// The `OperationResult` place a structural field read observes — the outer

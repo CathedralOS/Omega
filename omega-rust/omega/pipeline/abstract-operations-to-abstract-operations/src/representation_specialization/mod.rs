@@ -3,26 +3,34 @@
 //! One bounded specialization family: a `StructuralCaseMembership`
 //! observation whose `source` place carries a case the unit itself proves
 //! folds to a `BooleanConstant` holding that verdict. Two proofs qualify.
-//! Establishment: the place is declared `StructuralPlaceKind::OperationResult`
-//! and its producer node in the same function is an `EstablishScalarCase` —
-//! the operation-result place is assigned exactly once by its producer and
-//! no operation can rewrite it. Sole-case roster: the place's declared
-//! structural type is a closed `Sum` or `Mixed` roster of exactly one case,
-//! so every inhabitant of the place holds that case independently of how it
-//! arrived — parameters, results, and non-`EstablishScalarCase` producers
-//! all qualify. In either proof the membership's Boolean answer is
-//! `proven_case == case` at every observation site. The traversal "observe
+//! Establishment: the position the observation names resolves to an
+//! `EstablishScalarCase` — the observed place's own producer when it is an
+//! operation result, the establishment a uniform whole
+//! `Owned`/`SharedBorrow` block-parameter binding forwards to when every
+//! incoming edge names the same place and nothing rewrites or mutably
+//! re-lends it, or a stored-whole child's producer when a `Field` path
+//! descends an `EstablishRecord` field carried by one owned, complete
+//! structural argument of exactly the declared carrier type. Sole-case
+//! roster: the place's declared structural type is a closed `Sum` or
+//! `Mixed` roster of exactly one case, so every inhabitant of the place
+//! holds that case independently of how it arrived — parameters, results,
+//! and non-`EstablishScalarCase` producers all qualify. In either proof the
+//! membership's Boolean answer is `proven_case == case` at every
+//! observation site. The traversal "observe
 //! the proven case" specializes into `BooleanConstant` at the same node: the
 //! result keeps its value identity, the node keeps its
 //! `PsiProvenance::Operation` custody and fuel settlement, and successors,
 //! definitions, uses, and ownership events are unchanged.
 //!
-//! Memberships on places whose declared type holds more than one case and
-//! carries no `EstablishScalarCase` producer are not covered. A membership's
+//! Memberships on places whose position resolves to no establishment and
+//! whose declared type holds more than one case are not covered — a block
+//! parameter whose incoming bindings diverge, bind a pathed place, or lend
+//! write authority proves nothing either. A membership's
 //! non-empty path names a nested position — a `Record`/`Mixed` common field,
 //! a `FixedArray` element, or a `Reference` referent — which folds when the
-//! roster the path resolves to closes over exactly one case; positions that
-//! do not resolve to a sole-case roster decline. Only machines absent from
+//! establishment the path resolves to proves a case or the roster at the
+//! resolved position closes over exactly one case; positions that resolve
+//! to neither decline. Only machines absent from
 //! the authenticated Terminal-cycle component roster are eligible: a machine
 //! containing a verified cyclic component is frozen byte-exact under
 //! `validate_frozen_component_blocks`.
