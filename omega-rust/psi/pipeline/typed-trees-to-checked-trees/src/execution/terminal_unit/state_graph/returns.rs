@@ -196,20 +196,7 @@ pub(super) fn guarded(
     if arms.first()?.guard_statement_ordinal as usize != start {
         return None;
     }
-    let mut count = operations
-        .iter()
-        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
-                Some(result.binding_ordinal)
-            }
-            _ => None,
-        })
-        .max()
-        .map(|ordinal| usize::try_from(ordinal).ok()?.checked_add(1))
-        .unwrap_or(Some(0))?;
+    let mut count = next_result_ordinal(operations)?;
     let mut return_values = Vec::new();
     for destination in arms
         .iter()
@@ -248,15 +235,7 @@ pub(super) fn guarded(
             }
             _ => return None,
         };
-        let root = facts.values.structural_values.root_for_expression(
-            state.symbol,
-            *statement_ordinal,
-            expression,
-        )?;
-        if root.machine != machine.symbol || root.type_reference != state.return_type {
-            return None;
-        }
-        let calls = control::structural_operands::value_calls(
+        return_values.push(return_value_operation(
             program,
             facts,
             scalar_callees,
@@ -264,30 +243,90 @@ pub(super) fn guarded(
             machine,
             state,
             parameters,
-            &[],
             claims,
-            &[],
             &mut count,
-            root.root,
-        )?;
-        let result = CheckedUnitStructuralResultBindingPlan {
-            statement_index: *statement_ordinal,
-            binding_ordinal: u32::try_from(count).ok()?,
-            type_identity: shapes.add_type(state.return_type, &[], &[])?,
-            multiplicity: program.type_multiplicity(state.return_type),
-        };
-        count = count.checked_add(1)?;
-        return_values.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            result,
-            value: root.root,
-            calls,
-            operand_source: None,
-            discard_result_on_return: false,
-        });
+            *statement_ordinal,
+            expression,
+        )?);
     }
     Some(CheckedComposedUnitControlTerminatorPlan::Guarded {
         arms: tail.arms,
         fallback: tail.fallback.clone(),
         return_values,
+    })
+}
+
+/// First free structural result binding ordinal after `operations`' owned
+/// producers. Terminator-side return values number into the same roster.
+pub(super) fn next_result_ordinal(operations: &[CheckedUnitEffectOperationPlan]) -> Option<usize> {
+    operations
+        .iter()
+        .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+                Some(result.binding_ordinal)
+            }
+            _ => None,
+        })
+        .max()
+        .map(|ordinal| usize::try_from(ordinal).ok()?.checked_add(1))
+        .unwrap_or(Some(0))
+}
+
+/// The `EstablishStructuralValue` producer for one authored `(expression)`
+/// return target: its structural root must already be retained by the value
+/// fact for this exact statement, carry this machine's result type, and lower
+/// through the same call decomposition the guarded-return roster uses.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn return_value_operation(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    scalar_callees: ScalarCalleePlans<'_>,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    claims: &[CheckedUnitEntryClaimPlan],
+    count: &mut usize,
+    statement_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let root = facts.values.structural_values.root_for_expression(
+        state.symbol,
+        statement_ordinal,
+        expression,
+    )?;
+    if root.machine != machine.symbol || root.type_reference != state.return_type {
+        return None;
+    }
+    let calls = control::structural_operands::value_calls(
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        state,
+        parameters,
+        &[],
+        claims,
+        &[],
+        count,
+        root.root,
+    )?;
+    let result = CheckedUnitStructuralResultBindingPlan {
+        statement_index: statement_ordinal,
+        binding_ordinal: u32::try_from(*count).ok()?,
+        type_identity: shapes.add_type(state.return_type, &[], &[])?,
+        multiplicity: program.type_multiplicity(state.return_type),
+    };
+    *count = count.checked_add(1)?;
+    Some(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+        result,
+        value: root.root,
+        calls,
+        operand_source: None,
+        discard_result_on_return: false,
     })
 }

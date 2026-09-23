@@ -310,7 +310,7 @@ pub(super) fn emit(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn emit_return(
+pub(super) fn emit_return(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,

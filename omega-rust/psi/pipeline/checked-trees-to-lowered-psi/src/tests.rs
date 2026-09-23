@@ -18,6 +18,7 @@ mod composed_unit_nested_control;
 mod composed_unit_prefixed_control;
 mod composed_unit_transitive_internal_calls;
 mod conditional_result_custody;
+mod conditional_return_targets;
 mod constructed_case_membership;
 mod content_conservation;
 mod cyclic_byte_literal_calls;

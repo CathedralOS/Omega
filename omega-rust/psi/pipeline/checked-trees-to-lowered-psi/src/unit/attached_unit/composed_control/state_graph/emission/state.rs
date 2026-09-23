@@ -145,66 +145,47 @@ impl StateGraphEmission<'_, '_> {
                 "graph body lost its scalar namespace",
             ))?;
         let mut branch_guard = None;
-        let condition =
-            if let CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } =
-                &state.terminator
-            {
-                branch_guard = evaluation.branch_guard(
-                    checked,
-                    plan.machine,
-                    state.state,
-                    when_true.statement_ordinal,
-                    &values,
-                )?;
-                if branch_guard.is_some() {
-                    None
-                } else {
-                    let mut calls = self.catalogs.scalar_calls.emission_context();
-                    let condition = evaluation.guard_value(
-                        checked,
-                        plan.machine,
-                        state.state,
-                        when_true.statement_ordinal,
-                        &mut values,
-                        &mut next_value,
-                        &mut next_block,
-                        &mut next_edge,
-                        &mut operations,
-                        &mut calls,
-                    )?;
-                    self.catalogs.scalar_calls.next_call_obligation =
-                        calls.next_obligation_identity;
-                    Some(condition.id)
+        // The shared scalar decision is recorded under the true arm's
+        // transition ordinal — the named successor's for `Conditional`, or the
+        // authored `(expression)` arm's when the return sits first.
+        let conditional_true_ordinal = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } => {
+                Some(when_true.statement_ordinal)
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                jump,
+                return_arm,
+                return_when_true,
+                ..
+            } => match return_arm {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
+                    Some(if *return_when_true {
+                        result.statement_index
+                    } else {
+                        jump.statement_ordinal
+                    })
                 }
-            } else if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
-                &state.terminator
-            {
-                // Only the first guard is observed on the entry path. Every
-                // later guard is staged below into its own private block.
-                let Some(first) = arms.first() else {
-                    return unsupported("guarded jump chain lost its first arm");
-                };
-                if arms.len() < 2 {
-                    return unsupported("guarded jump chain lost its ordered arms");
-                }
-                if evaluation
-                    .branch_guard(
-                        checked,
-                        plan.machine,
-                        state.state,
-                        first.successor.statement_ordinal,
-                        &values,
-                    )?
-                    .is_some()
-                {
-                    return unsupported("guarded jump chain has a short-circuit guard");
-                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let condition = if let Some(true_ordinal) = conditional_true_ordinal {
+            branch_guard = evaluation.branch_guard(
+                checked,
+                plan.machine,
+                state.state,
+                true_ordinal,
+                &values,
+            )?;
+            if branch_guard.is_some() {
+                None
+            } else {
                 let mut calls = self.catalogs.scalar_calls.emission_context();
                 let condition = evaluation.guard_value(
                     checked,
                     plan.machine,
                     state.state,
-                    first.successor.statement_ordinal,
+                    true_ordinal,
                     &mut values,
                     &mut next_value,
                     &mut next_block,
@@ -214,9 +195,48 @@ impl StateGraphEmission<'_, '_> {
                 )?;
                 self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
                 Some(condition.id)
-            } else {
-                None
+            }
+        } else if let CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } =
+            &state.terminator
+        {
+            // Only the first guard is observed on the entry path. Every
+            // later guard is staged below into its own private block.
+            let Some(first) = arms.first() else {
+                return unsupported("guarded jump chain lost its first arm");
             };
+            if arms.len() < 2 {
+                return unsupported("guarded jump chain lost its ordered arms");
+            }
+            if evaluation
+                .branch_guard(
+                    checked,
+                    plan.machine,
+                    state.state,
+                    first.successor.statement_ordinal,
+                    &values,
+                )?
+                .is_some()
+            {
+                return unsupported("guarded jump chain has a short-circuit guard");
+            }
+            let mut calls = self.catalogs.scalar_calls.emission_context();
+            let condition = evaluation.guard_value(
+                checked,
+                plan.machine,
+                state.state,
+                first.successor.statement_ordinal,
+                &mut values,
+                &mut next_value,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+                &mut calls,
+            )?;
+            self.catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
+            Some(condition.id)
+        } else {
+            None
+        };
         let body_end = operations.len();
         let prepared_cases = case_emission::prepare(
             state,
@@ -370,6 +390,64 @@ impl StateGraphEmission<'_, '_> {
             }
             None => None,
         };
+        // The authored `(expression)` arm lowers its value producer into its
+        // own block closed by ReturnStructural now, before the successor-edge
+        // closure borrows this state's emission slots. The staged edge joins
+        // the conditional arms below as the return block's jump target.
+        let mut conditional_return_edge = None;
+        if let CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+            return_arm,
+            return_when_true,
+            ..
+        } = &state.terminator
+        {
+            let target = block_id(allocate_dense(&mut next_block)?);
+            let retained_bindings = operations.structural_values.len();
+            let mut arm_evaluation = evaluation.branch(target, operations.len());
+            let mut arm_values = match &planned_guard {
+                Some((_, namespace)) if *return_when_true => namespace.clone(),
+                _ => values.clone(),
+            };
+            operations.byte_lengths.clear();
+            let terminator = super::super::guarded::emit_return(
+                checked,
+                plan,
+                state,
+                return_arm,
+                self.catalogs,
+                &state_parameters,
+                &self.claims.source_claims,
+                &mut arm_evaluation,
+                &mut arm_values,
+                &self.state_erased[position],
+                &mut next_value,
+                &mut next_block,
+                &mut next_edge,
+                &mut operations,
+            )?;
+            arm_evaluation.remap_transported_call_operands(&mut operations);
+            arm_evaluation.blocks.push(Block {
+                id: arm_evaluation.current,
+                parameters: arm_evaluation.parameters,
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                structural_parameters: arm_evaluation.block_structural_parameters,
+                operations: operations[arm_evaluation.operation_start..].to_vec(),
+                terminator,
+            });
+            evaluation.blocks.extend(arm_evaluation.blocks);
+            operations.structural_values.truncate(retained_bindings);
+            operations.byte_lengths.clear();
+            conditional_return_edge = Some(SuccessorEdge {
+                edge: edge_id(allocate_dense(&mut next_edge)?),
+                target,
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                trivial_affine_discards: Vec::new(),
+            });
+        }
         let mut edge_blocks = Vec::new();
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
@@ -969,18 +1047,47 @@ impl StateGraphEmission<'_, '_> {
                     residual_affine_discards: Vec::new(),
                 }
             }
-            CheckedComposedUnitControlTerminatorPlan::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                let when_true = match &planned_guard {
-                    Some((planned, namespace)) => {
-                        successor(when_true, &[], false, namespace, &planned.established)?
+            CheckedComposedUnitControlTerminatorPlan::Conditional { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { .. } => {
+                let (when_true, when_false) = match &state.terminator {
+                    CheckedComposedUnitControlTerminatorPlan::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => (
+                        match &planned_guard {
+                            Some((planned, namespace)) => {
+                                successor(when_true, &[], false, namespace, &planned.established)?
+                            }
+                            None => successor(when_true, &[], false, &values, &[])?,
+                        },
+                        successor(when_false, &[], false, &values, &[])?,
+                    ),
+                    CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                        jump,
+                        return_when_true,
+                        ..
+                    } => {
+                        let jump_edge = match &planned_guard {
+                            Some((planned, namespace)) if !*return_when_true => {
+                                successor(jump, &[], false, namespace, &planned.established)?
+                            }
+                            _ => successor(jump, &[], false, &values, &[])?,
+                        };
+                        let return_edge =
+                            conditional_return_edge
+                                .take()
+                                .ok_or(LoweringError::Unsupported(
+                                    "Unit graph conditional return lost its staged edge",
+                                ))?;
+                        if *return_when_true {
+                            (return_edge, jump_edge)
+                        } else {
+                            (jump_edge, return_edge)
+                        }
                     }
-                    None => successor(when_true, &[], false, &values, &[])?,
+                    _ => unreachable!(),
                 };
-                let when_false = successor(when_false, &[], false, &values, &[])?;
                 if let Some((planned, guard_values)) = &planned_guard {
                     // Successor staging runs only after selection. Its length
                     // observations cannot be reused while evaluating the guard.
