@@ -117,8 +117,8 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         } => [*index, *stored, *length].contains(&value),
         Instruction::ByteSequenceRead { index, length, .. }
         | Instruction::ElementViewRead { index, length, .. } => [*index, *length].contains(&value),
-        Instruction::StructuralLeafCopy { index, .. } => {
-            index.is_some_and(|operand| operand.value == value)
+        Instruction::StructuralLeafCopy { indices, .. } => {
+            indices.iter().any(|index| index.operand.value == value)
         }
         Instruction::BooleanNot { operand }
         | Instruction::IntegerWiden { operand, .. }
