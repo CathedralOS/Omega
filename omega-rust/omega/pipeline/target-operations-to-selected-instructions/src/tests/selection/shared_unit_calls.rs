@@ -4,8 +4,10 @@ use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_selected_instructions,
 };
+use abstract_operations::AbstractOperation;
 use legalized_operations::LegalizedScalarArgument;
 use selected_instructions::{SelectedInstructionKind, VirtualRegisterOrigin};
+use semantic_vocabulary::FuelScheduleIdentity;
 
 #[test]
 fn repeated_shared_unit_calls_select_on_each_native_register_abi() {
@@ -111,5 +113,87 @@ fn repeated_shared_unit_calls_select_on_each_native_register_abi() {
                 "mutation {mutation} on {native:?}"
             );
         }
+    }
+}
+
+#[test]
+fn crash_declaring_shared_unit_calls_select_and_replay_their_roster() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let (mut abstracted, _, _) = fixture(native);
+        for function in &mut abstracted.functions {
+            for operation in &mut function.operations {
+                if let AbstractOperation::CallUnit {
+                    crash_continuations,
+                    ..
+                } = operation
+                {
+                    *crash_continuations = vec![terminal_psi::CrashRouteBucket {
+                        cause: terminal_psi::CrashCause::Abort,
+                        alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+                    }];
+                }
+            }
+        }
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &abstracted,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &abstracted,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = legalize_target_operations(&targeted, &abstracted, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = selection_constraints(&legalized, &environment);
+        let selected = select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        for function in &selected.plan().functions {
+            for call in &function.calls {
+                assert_eq!(
+                    call.call.crash_continuations,
+                    vec![terminal_psi::CrashRouteBucket {
+                        cause: terminal_psi::CrashCause::Abort,
+                        alternatives: vec![terminal_psi::CrashRouteGuard::Truth],
+                    }]
+                );
+            }
+        }
+        validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let mut changed = selected.plan().clone();
+        changed.functions[0].calls[0]
+            .call
+            .crash_continuations
+            .clear();
+        assert!(
+            validate_selected_instructions(
+                &legalized,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                changed
+            )
+            .is_err(),
+            "forged roster on {native:?}"
+        );
     }
 }
