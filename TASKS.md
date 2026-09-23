@@ -2580,7 +2580,7 @@ syntax and other terminal services are not prerequisites.
   `parameter.is_self && parameter.access == Owned` and does NOT consult
   `multiplicity`, so an Affine owned receiver is removed from
   `frontier.owned_places` before `validate_scalar_cleanup_actions` runs.
-
+ // NOTE FROM OWNER: Please shut the fuck up with these retarded board: xyz PRs that add fucking 0 impl and just endlessly expand tasks. Maybe consider fixing some of these issues? fuck you.
   TWO MORE red tests live beside these, in
   `terminal-psi-to-abstract-operations` (unclaimed), unboarded until now and
   red at least since `c7bccfa6bce` (2026-09-18) though both tests date to
