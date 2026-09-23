@@ -53,7 +53,9 @@ endgame — the leaf-handoff churn machinery only pays at hundreds of workers.
 2. The named leaf: title, the board's acceptance text verbatim, the
    witness/repro lane or file, and the gates
    (`cargo check -p <touched-crates> --all-targets` +
-   `cargo nextest run -p <touched-crates>`; `mbx` if present).
+   `cargo nextest run -p <touched-crates>`; for e2e-visible leaves also
+   `python3 tools/corpus_gate.py --filter <domain>` — a domain diff against
+   the recorded golden instead of chained suites; `mbx` if present).
 3. The lane: `git push -f origin HEAD:leaf/<kebab-item>` — one lane per chain
    link. Workers NEVER merge, NEVER touch board files, NEVER run landing.py.
 4. "Reuse your existing clone/worktree when present" — suspended workers
@@ -83,7 +85,9 @@ One settle = one full drain; never batch deferred merges.
    union the signatures and import lists, never drop a side. Substantive
    conflicts follow the conflict rules (escalate ambiguous intent).
 3. Scoped gate: `cargo check -p <touched crates>` +
-   `cargo nextest run -p <touched> --lib`, plus `python tools/fmt.py`.
+   `cargo nextest run -p <touched> --lib`, plus `python tools/fmt.py`; add
+   `python3 tools/corpus_gate.py --filter <domain>` when the lane moved
+   e2e-visible behavior.
 4. `git push origin HEAD:main`. A rejection means main moved under you —
    re-fetch, re-checkout the fresh tip, re-merge; never rebase the merge
    checkout and never carry a wedged tree forward.

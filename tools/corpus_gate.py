@@ -149,8 +149,8 @@ def main() -> int:
         os.environ["OMEGA_CORPUS_FIXTURE_FILTER"] = options.filter
     if options.shard:
         os.environ["OMEGA_CORPUS_SHARD"] = options.shard
-    # Prior timings schedule heavy fixtures first (stragglers overlap the
-    # tail instead of serializing at the end).
+    # Prior timings widen per-fixture caps for known-slow fixtures
+    # (adaptive max(cap, 3x golden millis) — the runner derives them).
     if options.golden.is_file():
         os.environ["OMEGA_CORPUS_TIMINGS"] = str(options.golden)
     binary = options.runner or build_runner()

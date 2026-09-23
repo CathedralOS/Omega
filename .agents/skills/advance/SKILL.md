@@ -149,7 +149,11 @@ does not authorize unrelated architecture work during a compiler behavior task.
 Select checks from the affected behavior under
 [validation scope](../../../AGENTS.md#validation-scope). A bug fix needs a witnessed
 regression. Read the harness before filtering: fixture-path filters and nextest
-test-name filters select different things. Include affected crate and integration
+test-name filters select different things. For e2e-visible changes — diagnostics,
+pipeline stages, acceptance behavior — `python3 tools/corpus_gate.py --filter
+<domain>` diffs the touched fixture domain against the recorded corpus golden in
+seconds-to-minutes; prefer it to chaining per-crate nextest suites as the first
+regression signal. Include affected crate and integration
 checks, plus architecture checks when their ownership or source-reader inputs
 change. Reuse successful results on unchanged inputs, including at landing.
 
