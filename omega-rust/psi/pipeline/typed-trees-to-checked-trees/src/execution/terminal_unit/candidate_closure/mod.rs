@@ -345,6 +345,11 @@ pub(super) fn retain_available(
                     | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                     | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                    // A borrowed-window move/restore pair carries no callee:
+                    // the move's result binding and the restore's stored value
+                    // are already custody rows inside this same state.
+                    | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                    | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                     // The paired boundary call carries the callee dependency;
                     // its cleanup continuation only disposes the discarded result.
                     | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {}
