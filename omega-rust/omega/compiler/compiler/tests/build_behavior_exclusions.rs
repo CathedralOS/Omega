@@ -1352,18 +1352,14 @@ reaches Sink
 }
 "#;
 
-// Native realization of the sink composition currently stops in
-// `target-operations-to-selected-instructions`' legalization with
-// `SourceCustodyMismatch`: the silent service invocation lacks ordinary
-// native custody (a dependency owned outside this item's paths, recorded
-// on TASKS.md at ee249ec910). This sentinel asserts that exact frontier on
-// both native targets; when the custody dependency closes the assertion
-// flips and this test must be upgraded to the full control: native
-// execution with empty output plus an independent retained-product replay.
-fn sink_composition_native_report(
-    target: &str,
-) -> Result<compiler::CompileReport, Vec<diagnostics::Diagnostic>> {
-    let project = TempProject::new();
+// Native realization of the sink composition (TASKS.md
+// BUILD-EXCLUSION-REALIZATION): the silent service invocation — a
+// provider-attached literal payload and a Unit-result boundary call into the
+// installed provider — now carries native custody end-to-end, so the
+// authored ProcessOutput exclusion admits the emitted image on every
+// target. `exclude_service<Sink>` for the same invocation still rejects at
+// the semantic layer (`silent_provider_for_an_actual_service_invocation_is_prohibited`).
+fn sink_composition_project(project: &TempProject, target: &str) {
     project.write("logger-kit/main.omg", LOGGER_KIT_MAIN);
     project.write("logger-kit/build.omg", LOGGER_KIT_BUILD);
     project.write("app/main.omg", SINK_APP_MAIN);
@@ -1380,6 +1376,13 @@ fn sink_composition_native_report(
 "#
         ),
     );
+}
+
+fn sink_composition_request(
+    project: &TempProject,
+    target: &str,
+    product: RequestedCompileProduct,
+) -> CompileRequest {
     let root_identity = fixture_package_identity(91);
     let library_identity = fixture_package_identity(92);
     let inputs = package_compilation::PackageCompilationInputs::new_package(
@@ -1403,32 +1406,123 @@ fn sink_composition_native_report(
         )],
     )
     .expect("fixture packages");
-    compile(
-        CompileRequest::new(CompileOptions {
-            root_path: project.0.join("app/main.omg"),
-            build_dir: None,
-            target_name: Some(target.into()),
-        })
-        .with_package_inputs(inputs)
-        .with_requested_product(RequestedCompileProduct::NativeArtifact),
-    )
-    .and_then(compiler::CompileOutcomes::into_single_report)
+    CompileRequest::new(CompileOptions {
+        root_path: project.0.join("app/main.omg"),
+        build_dir: None,
+        target_name: Some(target.into()),
+    })
+    .with_package_inputs(inputs)
+    .with_requested_product(product)
 }
 
 #[test]
-fn sink_composition_physical_exclusion_reaches_native_custody_frontier() {
+fn sink_composition_physical_exclusion_reaches_native_execution() {
     for target in ["macos_arm64", "linux_x86_64", "windows_x86_64"] {
-        let Err(diagnostics) = sink_composition_native_report(target) else {
-            panic!(
-                "{target}: silent-service custody closed; upgrade this test to the full native control (publish, run empty output, retained replay)"
-            );
-        };
+        let project = TempProject::new();
+        sink_composition_project(&project, target);
+        let report = compile(sink_composition_request(
+            &project,
+            target,
+            RequestedCompileProduct::NativeArtifact,
+        ))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("{target}: the silent-service composition realizes: {diagnostics:?}")
+        });
         assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("SourceCustodyMismatch")),
-            "{target}: expected the recorded custody frontier, got {diagnostics:?}"
+            report.retained_native_artifact().is_some(),
+            "{target}: a retained native artifact"
         );
+    }
+}
+
+#[test]
+fn sink_composition_physical_exclusion_publishes_and_runs_empty_on_the_host() {
+    let target = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos_arm64"
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows_x86_64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux_x86_64"
+    } else {
+        eprintln!(
+            "SKIP: native exclusion execution requires macOS ARM64, Windows x64, or Linux x64"
+        );
+        return;
+    };
+    let project = TempProject::new();
+    sink_composition_project(&project, target);
+    let report = compile(sink_composition_request(
+        &project,
+        target,
+        RequestedCompileProduct::NativeArtifact,
+    ))
+    .and_then(compiler::CompileOutcomes::into_single_report)
+    .expect("silent-service native product")
+    .publish_retained_native_artifact(&project.0.join("out"))
+    .expect("checked native publication");
+    let executable = report
+        .checked_native_executable_path()
+        .expect("published executable");
+    let output = std::process::Command::new(executable)
+        .output()
+        .expect("run checked native product");
+    assert!(output.status.success(), "native result: {output:?}");
+    assert!(output.stdout.is_empty());
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn retained_sink_composition_replays_against_the_product_by_consumers() {
+    // The retained Terminal product carries the authored ProcessOutput
+    // exclusion; an independent consumer realizing it re-runs the same
+    // mechanism-closure adjudication — the silent provider exercises no
+    // class, so the replay admits and the artifact validates.
+    for target in ["macos_arm64", "linux_x86_64", "windows_x86_64"] {
+        let project = TempProject::new();
+        sink_composition_project(&project, target);
+        let retained = compile(sink_composition_request(
+            &project,
+            target,
+            RequestedCompileProduct::TerminalArtifact,
+        ))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("{target}: the sink composition retains: {diagnostics:?}")
+        })
+        .into_retained_terminal_artifact()
+        .expect("retained Terminal product");
+        let proposal = retained
+            .native_realization_proposal()
+            .expect("native proposal");
+        let subsystem = proposal.subsystem();
+        let accepted_package_policy =
+            native_realization::terminal_authority_permission_policy_with_rows(
+                proposal.package_terminal_authority_permissions().to_vec(),
+            )
+            .expect("retained package permissions form the accepted policy");
+        realize_retained_native_artifact(
+            retained,
+            compiler::RetainedNativeRealizationRequest {
+                profile: &proof_admission::AdmissionProfile::default(),
+                optimization_selections:
+                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                terminal_authority_policy: native_realization::current_terminal_authority_policy(),
+                accepted_package_terminal_authority_permission_policy: accepted_package_policy,
+                terminal_authority_permission_policy: None,
+                image_request: native_realization::ExecutableImageEmissionRequest::direct(
+                    subsystem,
+                ),
+                imports: &[],
+            },
+        )
+        .unwrap_or_else(|(_, diagnostics)| {
+            panic!("{target}: the silent closure replays admitted: {diagnostics:#?}")
+        })
+        .as_direct()
+        .expect("a direct image request produces direct custody")
+        .validate()
+        .expect("the admitted native artifact validates");
     }
 }
 
