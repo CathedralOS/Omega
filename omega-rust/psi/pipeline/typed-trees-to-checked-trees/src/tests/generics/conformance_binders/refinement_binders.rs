@@ -337,3 +337,51 @@ fn a_reordered_refinement_head_instantiates_before_comparing() {
         "{diagnostics:#?}"
     );
 }
+
+/// "A targeted clause names one exact requirement" (spec,
+/// `language/conformances.md`, Transparent refinements). A base trait may
+/// carry same-named overloads, and a clause naming one by bare name selects
+/// them all; refining every one would narrow requirements the author never
+/// named. The rejection belongs to typed-tree lowering, where the clause is
+/// resolved against the base's signatures.
+#[test]
+fn a_targeted_clause_naming_overloads_is_ambiguous() {
+    let source = r#"
+        trait Logger {
+            machine write(&mut self) suspends;
+            machine write(&mut self, value: i32) suspends;
+        }
+
+        trait LocalLogger = Logger {
+            machine Logger::write suspends false;
+        }
+    "#;
+    let diagnostics = crate::tests::front_end::typed_program_result(source)
+        .err()
+        .expect("an ambiguous targeted clause rejects at typing");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .to_string()
+                .contains("names 2 overloads of base trait `Logger`; name one exact requirement")
+        }),
+        "{diagnostics:#?}"
+    );
+}
+
+/// A single-overload target still resolves, so the ambiguity check does not
+/// simply reject every targeted clause.
+#[test]
+fn a_targeted_clause_naming_one_requirement_still_resolves() {
+    let source = r#"
+        trait Logger {
+            machine write(&mut self) suspends;
+            machine flush(&mut self) suspends;
+        }
+
+        trait LocalLogger = Logger {
+            machine Logger::flush suspends false;
+        }
+    "#;
+    checked_program_result(source).expect("a clause naming one exact requirement resolves");
+}
