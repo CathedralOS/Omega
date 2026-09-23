@@ -758,13 +758,6 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   and Psi operation/guard evidence. BUILD-EXCLUSION-REALIZATION owns physical
   classes and installation, not a duplicate semantic checker.
 
-  Close direct Unit crash planning through CRASH-CONTRACT and Unit control-flow
-  owners. `compiler/tests/behavior_exclusions.rs` still has
-  `missing_direct_unit_plan_does_not_establish_absence`, expecting
-  InvalidUnitMachinePlan. Replace that sentinel with the actual Trap-exclusion
-  verdict, and realize the admitted direct-crash body natively without a
-  scalar-helper substitute.
-
   Acceptance: unchanged checking/no-op assertion implementations with public
   Trap ceilings differ correctly under exclusion, through native publication
   with optimizations on/off. Eager argument traps and unrelated crashes reject.
