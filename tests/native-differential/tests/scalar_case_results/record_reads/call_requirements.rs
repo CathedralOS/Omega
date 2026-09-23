@@ -219,19 +219,19 @@ fn receiver_scalar_call_replay_preserves_exact_ordered_requirements() {
                 let mut proposed = selected.plan().clone();
                 // `put` owes one obligation too; select the scalar `at` call
                 // by its CallScalar instruction, not by the obligation count.
-                let is_scalar_call =
-                    |function: &selected_instructions::SelectedFunction, operation| {
-                        function
-                            .blocks
-                            .iter()
-                            .flat_map(|block| &block.instructions)
-                            .any(|instruction| {
-                                matches!(
-                                    instruction.kind,
-                                    selected_instructions::SelectedInstructionKind::CallScalar { .. }
-                                ) && instruction.provenance.operations.contains(&operation)
-                            })
-                    };
+                let is_scalar_call = |function: &selected_instructions::SelectedFunction,
+                                      operation| {
+                    function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.instructions)
+                        .any(|instruction| {
+                            matches!(
+                                instruction.kind,
+                                selected_instructions::SelectedInstructionKind::CallScalar { .. }
+                            ) && instruction.provenance.operations.contains(&operation)
+                        })
+                };
                 let function = proposed
                     .functions
                     .iter_mut()
