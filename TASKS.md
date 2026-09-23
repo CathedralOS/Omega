@@ -2295,6 +2295,28 @@ syntax and other terminal services are not prerequisites.
   tests state that decision rather than merely pass. If it stays multiplicity
   blind, say in the spec which accounted disposition the receiver occurs in.
 
+- **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT.** (new-scope) A borrowed-self
+  record argument no longer lowers: `checked-trees-to-lowered-psi`'s
+  `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`
+  refuses with `Unsupported("record source attachment has no declared type")`
+  because `find_named_type_reference(caller.attached_data_symbol)` finds none
+  for a whole-root (`argument.path.is_empty()`) self source.
+
+  Bisected to `bd5648555c` ("scalar graphs: admit ambient borrowed-self field
+  reads"): `abstract-operations-to-target-operations`'s
+  `tests::structural_borrows::borrowed_unit_call_preserves_verified_requirement_obligations`
+  and `::borrowed_scalar_call_preserves_verified_requirement_obligations`
+  passed at `e73e1abbec` where they were authored, pass at `bd5648555c^`, and
+  fail from `bd5648555c` onward. They stop at `lower_machine`, so nothing
+  downstream of Psi lowering is implicated.
+
+  Acceptance: both lower and keep their proved requirement obligations, and an
+  ambient borrowed-self field read still reaches the scalar graph. The fence's
+  own comment says projected loans reconstruct the endpoint from the authored
+  place, so the question is what a whole-root self source reconstructs from
+  when its attachment has no interned named type -- not whether to drop the
+  fence.
+
 - **PROJECTED-PARAMETER-MOVE-CARRIER-GAP.** (new-scope) Two checked tests are
   red on main and the machine they cover has no plan in either home.
   `de08bc6b46a` ("route projected parameter moves through the partial-affine
@@ -2349,6 +2371,12 @@ syntax and other terminal services are not prerequisites.
   still reaches the partial-affine carrier. Publishing it from both lanes, or
   relaxing the ordinary roster back to path-sensitive argument custody, is not
   the repair.
+
+  Two more in the omega pipeline predate it as well and are still unowned:
+  `terminal-psi-to-abstract-operations::suite scalar_affine_cleanup::structural_return::omega_preserves_exact_singleton_structural_return_custody`
+  and `::partial_affine_call_results::continuations::source_continuations_retain_distinct_result_owners_and_ordered_residuals`.
+  Both fail at `de08bc6b46a^` too, so despite their names they belong to
+  neither this item nor **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT**.
 
   Six further red tests in those crates PREDATE this commit and are not part
   of this item; they are listed so a sweep does not re-attribute them:
