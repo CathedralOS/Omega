@@ -357,10 +357,12 @@ pub(super) fn mutable_availability(
         parameter.access == StructuralAccess::MutableBorrow
             && module.structural_types.iter().any(|declaration| {
                 declaration.id == parameter.structural_type
-                    && declaration.shape
-                        == StructuralTypeShape::ByteSequence(
+                    && matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView,
-                        )
+                        ) | StructuralTypeShape::ElementView { .. }
+                    )
             })
     };
     let universe = machine
