@@ -1,14 +1,14 @@
 use super::super::error::OptimizedProgramStorageSemanticWrapperObjectError;
 use crate::{
     NativeProgramEntrySettlement, NativeProgramEntrySettlementError,
-    StagedOptimizedProgramStorageSemanticWrapperEncoding, ValidatedNativeProgramEntrySettlement,
-    validate_native_program_entry_settlement,
+    ValidatedNativeProgramEntrySettlement, validate_native_program_entry_settlement,
 };
 use object_file::StagedValidatedOptimizedObjectArtifact;
 use program_entry_plan::{
     OptimizedProgramStorageSemanticCallingApplication,
     OptimizedProgramStorageSemanticEntryContract, OptimizedProgramStorageSemanticReceiverLayout,
-    ProgramEntrySourceReceiverSignature, bind_optimized_program_storage_semantic_entry_contract,
+    ProgramEntrySourceReceiverSignature, StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    bind_optimized_program_storage_semantic_entry_contract,
     plan_optimized_program_storage_semantic_wrapper,
 };
 use semantic_vocabulary::{IntegerSign, ScalarType, StructuralPlaceKind};

@@ -3,13 +3,22 @@
 //! This entrance coordinates the canonical recipe with an independent replay:
 //! construction cannot publish a wrapper plan until the retained source,
 //! frame, action sequence, and symbolic relocation validate together.
+//! `encoding` then discharges the plan's `TargetEncodingRequiredV1`
+//! obligation against the ISA owner and replays the template it selects.
 
+mod encoding;
 mod recipe;
 mod validation;
 
 #[cfg(test)]
 mod tests;
 
+pub use encoding::{
+    OptimizedProgramStorageSemanticWrapperEncodingError,
+    StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    select_optimized_program_storage_semantic_wrapper_encoding,
+    validate_optimized_program_storage_semantic_wrapper_encoding,
+};
 pub use recipe::OptimizedProgramStorageSemanticReceiverLayout;
 
 use crate::{

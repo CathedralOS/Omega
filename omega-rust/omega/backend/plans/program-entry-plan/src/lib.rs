@@ -1,15 +1,18 @@
 #![forbid(unsafe_code)]
 
-//! Data-only declarations that join a selected source entry to its target
-//! contract and native realization. This crate owns no emitted bytes,
-//! installation state, or legacy backend pipeline.
+//! Declarations that join a selected source entry to its target contract and
+//! native realization. This crate owns no instruction encoder, object or image
+//! bytes, installation state, or legacy backend pipeline: where a plan names a
+//! target obligation, it projects the plan onto the ISA owner's request and
+//! replays what that owner encodes.
 //!
 //! Start at `selected_entry.rs`: it names the entry and owns its root role,
 //! diagnostic, boundary storage and service establishment. Around it,
 //! `program_entry_physical` its physical contract, `optimized_semantic_entry`
-//! and `optimized_semantic_wrapper` the optimized wrappers, and the optional
-//! `post_handoff_writer` the plan a provider replays after handoff. `uefi`
-//! holds the two planning-only UEFI invocation plans.
+//! and `optimized_semantic_wrapper` the optimized wrappers (the latter with
+//! its x86-64 template selection under `optimized_semantic_wrapper/encoding`),
+//! and the optional `post_handoff_writer` the plan a provider replays after
+//! handoff. `uefi` holds the two planning-only UEFI invocation plans.
 
 mod optimized_semantic_entry;
 mod optimized_semantic_wrapper;
@@ -30,11 +33,16 @@ pub use optimized_semantic_wrapper::{
     OptimizedProgramStorageSemanticReceiverLayout, OptimizedProgramStorageSemanticReceiverStorage,
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
+    OptimizedProgramStorageSemanticWrapperEncodingError,
     OptimizedProgramStorageSemanticWrapperPlan,
     OptimizedProgramStorageSemanticWrapperRelocationKind,
     OptimizedProgramStorageSemanticWrapperRelocationRequirement,
-    OptimizedProgramStorageSemanticWrapperStep, plan_optimized_program_storage_semantic_wrapper,
+    OptimizedProgramStorageSemanticWrapperStep,
+    StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    plan_optimized_program_storage_semantic_wrapper,
+    select_optimized_program_storage_semantic_wrapper_encoding,
     validate_optimized_program_storage_semantic_wrapper,
+    validate_optimized_program_storage_semantic_wrapper_encoding,
 };
 #[cfg(feature = "installed-writer")]
 pub use post_handoff_writer::{

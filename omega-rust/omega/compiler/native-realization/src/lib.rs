@@ -17,7 +17,6 @@ mod entry_settlement;
 mod native_pipeline;
 mod native_product;
 mod native_realization;
-mod optimized_semantic_wrapper_encoding;
 mod optimized_semantic_wrapper_object;
 mod retained_native_product;
 
@@ -81,12 +80,6 @@ pub use native_realization::{
     settled_time_host_cohort, terminal_authority_permission_policy_with_rows,
     terminal_authority_policy_with_rows, time_host_mechanism_row, time_host_permission_row,
     time_host_permission_rows,
-};
-pub use optimized_semantic_wrapper_encoding::{
-    OptimizedProgramStorageSemanticWrapperEncodingError,
-    StagedOptimizedProgramStorageSemanticWrapperEncoding,
-    select_optimized_program_storage_semantic_wrapper_encoding,
-    validate_optimized_program_storage_semantic_wrapper_encoding,
 };
 pub use optimized_semantic_wrapper_object::{
     InstalledProgramStorageContinuationEvidenceError,
