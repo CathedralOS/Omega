@@ -96,6 +96,20 @@ not in placeholder crates. Direct image construction does not assume a system
 linker. The optional `source/library/std` package has no compiler privilege;
 provider requirements and checked adapters use ordinary explicit bindings.
 
+### Portable materialization and consumer ownership
+
+`post-handoff-writer-ownership` follows the existing portable boundary: Psi
+describes operations, relationships, and evidence; Omega consumes and lowers
+them, while the interpreter consumes and interprets them. A writer's generated
+execution plan, private invocation ABI, reusable fragments, and byte application
+are consumer machinery, not portable format merely because several targets use
+them. Native writer derivation and realization belong to Omega; interpretation
+belongs to the interpreter, without requiring native writer lowering.
+
+Portable validity checking may share small semantic predicates with consumers,
+but not the output-producing derivation it must independently check. Neither
+current crate placement nor target independence alone establishes ownership.
+
 One named root beside `lib.rs` defines each current representation and leads into
 its actual concepts. Shared vocabulary need not invent an aggregate program.
 Keep producer history in explicit replay evidence, not the path ordinary consumers

@@ -1122,6 +1122,36 @@ syntax and other terminal services are not prerequisites.
   rejection and shared/disjoint admission. Run matching supported hosts or
   explicitly retain unavailable runtime legs.
 
+- **POST-HANDOFF-WRITER-OWNERSHIP.** (new-scope) Separate portable materialization
+  description from consumer implementation under the
+  [existing ownership rule](omega-rust/pipeline.md#portable-materialization-and-consumer-ownership).
+  `psi/foundation/layout-plans/src/materialization/mod.rs::derive_post_handoff_writer`
+  and `src/post_handoff_writer/` currently mix portable input with generated
+  writer plans, private context ABI, fragment lowering, and execution. This is
+  implementation cleanup, not an owner question or a reason to weaken the firewall.
+
+  Move native writer derivation, plan/invocation carriers, `lower_reusable_fragment`,
+  `execute`, and `apply_post_handoff_writes_atomically` to cohesive Omega owners.
+  Update `program-entry-plan`, `isa-x86_64`, `isa-aarch64`,
+  `executable-installation`, `external-roots`, and `provider-planning` consumers.
+  Keep only genuine portable description and semantic validity in Psi; the
+  interpreter consumes portable operations through its own execution path, not
+  through native fragment lowering. Classify stored-integer write/fit helpers by
+  responsibility and share small semantic predicates without sharing the producer
+  derivation with its independent checker. Remove obsolete Psi exports, forwarding
+  wrappers, and duplicate orchestration; renaming directories alone is not closure.
+
+  Acceptance: a reader can follow portable input to the separate consumer
+  derivation, validation, and execution owners, with no Psi-to-Omega dependency.
+  Preserve nested field/index writes, exact source/placement/fit custody,
+  reusable-fragment identity, guard bytes, and atomic rejection before writes.
+  Move and run the relevant `layout-plans` writer/fragment controls with their
+  owners, `compiler --test layout_plans`'s `writer_lowering` cases, affected-crate
+  checks/Clippy, and architecture tests. Verify bytes and execution on available
+  matching hosts; keep **SYMBOLIC-MATERIALIZATION**'s missing Linux AArch64 runtime
+  evidence open until that host runs. Do not add a new IR or interpreter subsystem
+  merely to relocate the existing machinery.
+
 - **SYMBOLIC-MATERIALIZATION.** Obtain the missing matching-host Linux AArch64
   execution evidence for the existing recursive
   [derived consumer](wiki/spec/layouts/plans.md#derived-consumers).
