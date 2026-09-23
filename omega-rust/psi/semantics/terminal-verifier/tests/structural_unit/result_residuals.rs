@@ -6,7 +6,7 @@ use super::{
     edge_id, machine_id, operation_id, partial_affine_field_module, place_id,
     reconstruct_structural_ownership_frontiers, structural_type_id, validate_module, verify_module,
 };
-fn produced_partial_module() -> TerminalModule {
+pub(super) fn produced_partial_module() -> TerminalModule {
     let mut module = partial_affine_field_module();
     let root_type = module.machines[0].structural_parameters[0].structural_type;
     module.boundary_machines.push(BoundaryMachineDeclaration {
