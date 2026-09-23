@@ -265,6 +265,209 @@ fn complete_moves_leave_no_affine_cleanup_or_whole_root_custody() {
     }
 }
 
+/// Residual cleanup and whole-root discards coexist on one edge: the
+/// partially moved parameter supplies the residual rows while every untouched
+/// owned parameter still dies whole as a trivial discard.
+fn assert_partial_exit(
+    source: &str,
+    residual_parameter: usize,
+    residuals: &[Vec<StructuralPathSegment>],
+    trivial_parameters: &[usize],
+) -> lowered_psi::LoweredPsi {
+    let lowered = lower_machine(
+        &crate::front_end::checked_program(source),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("parameter residuals and sibling discards share one edge");
+    let module = &lowered.semantic_module;
+    let caller = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let parameters = caller.structural_parameters.iter().collect::<Vec<_>>();
+    let mut partial_returns = caller
+        .blocks
+        .iter()
+        .filter(|block| matches!(block.terminator, Terminator::ReturnUnitPartialAffine { .. }));
+    let Some(block) = partial_returns.next() else {
+        panic!("a partially moved parameter requires the partial terminator")
+    };
+    assert!(partial_returns.next().is_none());
+    let Terminator::ReturnUnitPartialAffine {
+        residual_affine_discards,
+        trivial_affine_discards,
+        ..
+    } = &block.terminator
+    else {
+        unreachable!()
+    };
+    let residual_place = parameters[residual_parameter].place;
+    assert!(
+        residual_affine_discards
+            .iter()
+            .all(|discard| discard.place == residual_place)
+    );
+    assert_eq!(
+        residual_affine_discards
+            .iter()
+            .map(|discard| discard.path.clone())
+            .collect::<Vec<_>>(),
+        residuals
+    );
+    assert_eq!(
+        trivial_affine_discards.iter().copied().collect::<Vec<_>>(),
+        trivial_parameters
+            .iter()
+            .map(|index| parameters[*index].place)
+            .collect::<Vec<_>>()
+    );
+    let semantic = encode_module(module).unwrap();
+    assert_eq!(decode_module(&semantic).unwrap(), *module);
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap();
+    let verified = terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .unwrap();
+    let certificate =
+        terminal_fixed_fuel::derive_fixed_entry_fuel(&verified, module.entry).unwrap();
+    terminal_fixed_fuel::validate_fixed_entry_fuel(&verified, &certificate).unwrap();
+    let inputs = parameters
+        .iter()
+        .enumerate()
+        .map(|(index, parameter)| TerminalStructuralValue {
+            opaque_identity: 123 + index as u64,
+            structural_type: parameter.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let mut execution = TerminalExecution::start_artifact(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &inputs,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut meter = TerminalFuelMeter::with_allowance(certificate.ceiling_units());
+    assert_eq!(
+        execution
+            .resume(&mut meter, &mut AcceptTerminalEffects)
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    assert!(execution.live_affine_frontier().next().is_none());
+    assert!(execution.live_claim_frontier().next().is_none());
+    lowered
+}
+
+#[test]
+fn an_untouched_sibling_parameter_dies_whole_on_the_same_edge() {
+    assert_partial_exit(
+        "data Token { number: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {} machine Sink::take(value: Token) {}
+        data Root {} machine Root::enter(first: Pair, second: Pair) {
+            Sink::take(first.left);
+        }",
+        0,
+        &[path(&["right"])],
+        &[1],
+    );
+}
+
+#[test]
+fn a_later_parameter_may_own_the_residual_root() {
+    assert_partial_exit(
+        "data Token { number: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {} machine Sink::take(value: Token) {}
+        data Root {} machine Root::enter(first: Pair, second: Pair) {
+            Sink::take(second.left);
+        }",
+        1,
+        &[path(&["right"])],
+        &[0],
+    );
+}
+
+#[test]
+fn a_projected_parameter_shares_one_consumer_with_a_dying_temporary() {
+    assert_partial_exit(
+        "data Token { number: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {} machine Sink::take2(first: Token, second: Token) {}
+        data Root {}
+        machine Root::forward(value: Pair) -> Pair { value }
+        machine Root::enter(first: Pair, second: Pair) {
+            Sink::take2(Root::forward(second).right, first.left);
+        }",
+        0,
+        &[path(&["right"])],
+        &[],
+    );
+}
+
+#[test]
+fn two_partial_parameter_roots_have_no_cleanup_lane() {
+    let source = "data Token { number: u64; }
+        data Pair { left: Token; right: Token; }
+        data Sink {} machine Sink::take(value: Token) {}
+        data Root {} machine Root::enter(first: Pair, second: Pair) {
+            Sink::take(first.left);
+            Sink::take(second.left);
+        }";
+    assert!(
+        lower_machine(
+            &crate::front_end::checked_program(source),
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .is_err(),
+        "the partial terminator closes exactly one root"
+    );
+}
+
+#[test]
+fn projections_covering_the_whole_root_keep_the_ordinary_terminator() {
+    let lowered = lower_machine(
+        &crate::front_end::checked_program(
+            "data Token { number: u64; }
+            data Pair { left: Token; right: Token; }
+            data Sink {}
+            machine Sink::take(value: Token) {}
+            data Root {} machine Root::enter(first: Pair, second: Pair) {
+                Sink::take(first.left);
+                Sink::take(first.right);
+            }",
+        ),
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the covering moves consume the whole root; no residual remains");
+    let caller = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let parameters = caller.structural_parameters.iter().collect::<Vec<_>>();
+    // `first` is fully consumed by the two covering projections and leaves
+    // neither residual custody nor a whole-root discard; the untouched
+    // sibling still dies whole on the same ordinary edge.
+    assert!(matches!(
+        &caller.blocks[0].terminator,
+        Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } if trivial_affine_discards.as_slice() == [parameters[1].place]
+    ));
+}
+
 #[test]
 fn reconstructed_residuals_reject_omissions_reordering_types_and_huge_forged_arrays() {
     let source = "data Token { number: u64; }

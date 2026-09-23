@@ -59,7 +59,7 @@ pub(crate) fn finalize_execution(
         );
     let crate::execution::execution_plans::ExecutionPlans {
         boundary_returns,
-        unit_effects: terminal_unit_effects,
+        unit_effects: mut terminal_unit_effects,
         structural_scalar_returns,
         mut cleanup_diagnostics,
     } = crate::execution::execution_plans::build_execution_plans(
@@ -75,6 +75,25 @@ pub(crate) fn finalize_execution(
             &facts,
             &terminal_unit_effects,
         );
+    // Partial-carrier machines leave the ordinary roster, but a body that
+    // kills a same-statement temporary on a shared call continuation still
+    // lowers through the ordinary lane's continuation path — which replays
+    // residual reconstruction against this catalog. Union the carrier's
+    // type table so a type referenced only by partial-carrier machines
+    // still resolves there.
+    for plan in &facts
+        .flow
+        .terminal_partial_affine_unit_cleanups
+        .structural_types
+    {
+        if terminal_unit_effects
+            .structural_types
+            .iter()
+            .all(|existing| existing.identity != plan.identity)
+        {
+            terminal_unit_effects.structural_types.push(plan.clone());
+        }
+    }
     facts.flow.terminal_nominal_affine_unit_cleanups =
         crate::execution::terminal_unit::build_checked_nominal_affine_unit_cleanup_plans(
             program,

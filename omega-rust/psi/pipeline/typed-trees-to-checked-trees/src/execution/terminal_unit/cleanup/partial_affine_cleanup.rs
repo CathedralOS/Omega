@@ -22,8 +22,8 @@ use crate::execution::terminal_unit::{
     CheckedUnitPartialAffineDiscardPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypePlan, Multiplicity, PermissionAccess, PermissionClaimIdentity,
-    PermissionEventKind, PermissionEventSource, PrimitiveType, SignatureContractKind,
-    StatementNode, TypedTrees, control,
+    PermissionEventKind, PermissionEventSource, PrimitiveType, ScalarCalleePlans,
+    SignatureContractKind, StatementNode, TypedTrees, control,
 };
 
 pub(crate) fn build_partial_affine_unit_cleanup_machine(
@@ -36,6 +36,49 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
     let [state] = program.machine_states(machine) else {
         return None;
     };
+    // The general route: an ordinary body the roster declined because its
+    // return edge owes the residual complement of one partially moved owned
+    // parameter. The carrier exists for exactly this path-sensitive return
+    // cleanup, so republish the machine here when the residual rebuild
+    // confirms it. Scalar-callee, selected-operator and call-frame inputs
+    // are not retained at this stage; a body needing them keeps its earlier
+    // admission failure rather than silently dropping custody.
+    if unit_effects.for_machine(machine.symbol).is_none()
+        && facts.flow.ownership.permissions.iter().any(|(_, event)| {
+            event.machine_symbol == machine.symbol
+                && event.state_symbol == state.symbol
+                && event.kind == PermissionEventKind::Transfer
+                && !event.segments.is_empty()
+        })
+        && let Some((plan, residual_affine_discards, has_projected_parameter_moves)) =
+            control::build_checked_machine_residual_parts(
+                program,
+                facts,
+                ScalarCalleePlans {
+                    boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                    structural_returns: &facts.flow.terminal_structural_scalar_returns,
+                },
+                shapes,
+                machine,
+                &[],
+                &[],
+                false,
+                None,
+                &control::LocalConstructionTrace::default(),
+            )
+        && has_projected_parameter_moves
+    {
+        return Some(CheckedPartialAffineUnitCleanupMachinePlan {
+            machine: plan,
+            residual_affine_discards,
+        });
+    }
+    // The carrier is disjoint from the ordinary roster: a body the roster
+    // admitted — including a fully consumed root whose projections left no
+    // residual — keeps its ordinary plan and needs no cleanup wrapper.
+    if unit_effects.for_machine(machine.symbol).is_some() {
+        return None;
+    }
     let statements = program.statement_table.statements(state.statement_nodes);
     let result_local = matches!(statements.first(), Some(StatementNode::LocalData(_)));
     if statements.is_empty()

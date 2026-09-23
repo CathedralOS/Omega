@@ -658,7 +658,7 @@ pub(super) fn build_traced(
                     }) {
                         return None;
                     }
-                    return_unit_affine_discards(
+                    let (_, residual_affine_discards, _) = return_unit_affine_discards(
                         program,
                         facts,
                         machine.symbol,
@@ -667,7 +667,11 @@ pub(super) fn build_traced(
                         program.state_parameters(state),
                         &operations,
                         &[],
+                        &shapes.types,
                     )?;
+                    if !residual_affine_discards.is_empty() {
+                        return None;
+                    }
                     CheckedComposedUnitControlTerminatorPlan::ReturnUnit
                 }
                 [StatementNode::Expression(expression)]
