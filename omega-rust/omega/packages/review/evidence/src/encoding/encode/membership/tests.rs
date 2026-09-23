@@ -122,6 +122,35 @@ fn case_membership_traversal_visits_subject_and_classifier_owners() {
 }
 
 #[test]
+fn baselines_beyond_four_mebibytes_still_verify_membership() {
+    let mut value = fixture();
+    // Hundreds of ordinary-size nominal identities encode past the
+    // historical 4 MiB membership bound; the shared recovery ceiling is
+    // the operative limit instead.
+    let long_runtime = format!(
+        "nominal(package-owner(32:{}),path({}))",
+        "02".repeat(32),
+        "Foreign".repeat(1024)
+    );
+    let canonical = signature(&long_runtime);
+    for i in 0..768 {
+        value.public_api.consts.push(PackageReviewConstShape {
+            identity: PackageReviewNominalIdentity {
+                owner: PackageReviewNominalOwner::Package(package(1)),
+                path: format!("Value{i:04}"),
+            },
+            declared_type: PackageReviewTypeIdentity {
+                canonical: canonical.clone(),
+            },
+            canonical_value_encoding: "0".into(),
+        });
+    }
+    value
+        .validate_package_membership(|_| true, PackagePolicyMembershipLimits::default())
+        .unwrap();
+}
+
+#[test]
 fn complete_traversal_checks_typed_owners_without_changing_encoding() {
     let value = fixture();
     let bytes = value.canonical_bytes().unwrap();
