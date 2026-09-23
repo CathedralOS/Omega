@@ -117,6 +117,9 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         } => [*index, *stored, *length].contains(&value),
         Instruction::ByteSequenceRead { index, length, .. }
         | Instruction::ElementViewRead { index, length, .. } => [*index, *length].contains(&value),
+        Instruction::StructuralLeafCopy { index, .. } => {
+            index.is_some_and(|operand| operand.value == value)
+        }
         Instruction::BooleanNot { operand }
         | Instruction::IntegerWiden { operand, .. }
         | Instruction::IntegerExactCast { operand, .. }
@@ -170,7 +173,6 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         | Instruction::StructuralScalarFieldRead { .. }
         | Instruction::StructuralByteSequenceFieldLength { .. }
         | Instruction::StructuralCaseMembership { .. }
-        | Instruction::StructuralLeafCopy { .. }
         | Instruction::EstablishByteSequenceLiteral { .. }
         | Instruction::ByteSequenceLength { .. }
         | Instruction::EstablishElementView { .. }

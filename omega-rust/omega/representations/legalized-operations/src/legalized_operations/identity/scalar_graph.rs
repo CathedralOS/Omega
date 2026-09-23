@@ -199,6 +199,8 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     path,
                     byte_offset,
                     shape,
+                    index,
+                    index_stride,
                 } => {
                     bytes.push(86);
                     super::structural_result::encode_operation_result(bytes, result);
@@ -206,6 +208,15 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_path(bytes, path);
                     bytes.extend_from_slice(&byte_offset.to_le_bytes());
                     super::calling::encode_shape(bytes, *shape);
+                    match index {
+                        Some(operand) => {
+                            bytes.push(1);
+                            bytes.extend_from_slice(&operand.value.get().to_le_bytes());
+                            encode_scalar_type(bytes, operand.scalar_type);
+                        }
+                        None => bytes.push(0),
+                    }
+                    bytes.extend_from_slice(&index_stride.to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path } => {
                     bytes.push(18);
