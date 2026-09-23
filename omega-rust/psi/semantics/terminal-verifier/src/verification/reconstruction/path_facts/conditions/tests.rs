@@ -635,3 +635,183 @@ fn transport_roster_cites_only_reachable_equations() {
     assert_eq!(fact.proposition, Proposition::Truth);
     assert!(fact.certified);
 }
+
+/// The symmetric closure the roster citation used before definitions
+/// anchored it: every `Equal(Value, _)` row sharing any value identity with
+/// the walked terms, and the whole roster when a row or root cannot be
+/// completely walked.
+fn symmetric_roster_equalities(axioms: &[Proposition], roots: [&Proposition; 2]) -> Vec<usize> {
+    let roster_row = |axiom: &Proposition| matches!(axiom, Proposition::Equal(left @ ScalarTerm::Value { .. }, right) if left != right);
+    let mut reachable = std::collections::HashSet::new();
+    let mut complete = roots.iter().all(|proposition| {
+        proposition.visit_value_ids(|id| {
+            reachable.insert(id);
+        })
+    });
+    let mut cited = vec![false; axioms.len()];
+    let mut extended = true;
+    while complete && extended {
+        extended = false;
+        for (index, axiom) in axioms.iter().enumerate() {
+            if cited[index] || !roster_row(axiom) {
+                continue;
+            }
+            let mut touches = false;
+            complete &= axiom.visit_value_ids(|id| touches |= reachable.contains(&id));
+            if !complete {
+                break;
+            }
+            if touches {
+                cited[index] = true;
+                extended = true;
+                axiom.visit_value_ids(|id| {
+                    reachable.insert(id);
+                });
+            }
+        }
+    }
+    (0..axioms.len())
+        .rev()
+        .filter(|&index| (!complete || cited[index]) && roster_row(&axioms[index]))
+        .collect()
+}
+
+/// The certificate verdict under the previous discipline: the symmetric
+/// citation, checked against the complete roster.
+fn full_roster_verdict(
+    premise: &Proposition,
+    proposition: &Proposition,
+    axioms: &[Proposition],
+    context: &PropositionContext,
+) -> bool {
+    let equalities = symmetric_roster_equalities(axioms, [premise, proposition])
+        .into_iter()
+        .map(|index| proof_admission::ProofNode {
+            conclusion: axioms[index].clone(),
+            rule: proof_admission::ProofRule::SemanticAxiom { index },
+        })
+        .collect();
+    let certificate = proof_admission::ProofNode {
+        conclusion: proposition.clone(),
+        rule: proof_admission::ProofRule::ValueEqualityTransport {
+            premise: Box::new(proof_admission::ProofNode {
+                conclusion: premise.clone(),
+                rule: proof_admission::ProofRule::Assumption { index: 0 },
+            }),
+            equalities,
+        },
+    };
+    proof_admission::check_certificate(
+        context,
+        proposition,
+        std::slice::from_ref(premise),
+        axioms,
+        &certificate,
+    )
+    .is_ok()
+}
+
+/// Citing only the rows that define a reachable value, and handing the
+/// checker only those rows, decides every reconstructed arm fact exactly as
+/// the symmetric citation over the complete roster did. Rosters mix aliases
+/// in both directions, negations, literal definitions, integer comparisons
+/// over defined and undefined operands, repeated definitions, selected
+/// polarity equations and unrelated order facts.
+#[test]
+fn definition_anchored_citation_matches_the_full_roster_verdict() {
+    let small = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let integer_type = ScalarType::Integer(small);
+    let boolean = |index: u64| value(index, ScalarType::Boolean);
+    let number = |index: u64| value(index, integer_type);
+    let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut next = |bound: u64| {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 33) % bound
+    };
+    let mut compared = 0;
+    let mut certified = 0;
+    let mut narrowed = 0;
+    for _ in 0..160 {
+        let mut axioms = Vec::new();
+        for _ in 0..(4 + next(14)) {
+            let left = 1 + next(8);
+            let other = 1 + next(8);
+            let row = match next(9) {
+                0 => Proposition::Equal(boolean(left), boolean(other)),
+                1 => Proposition::Equal(
+                    boolean(left),
+                    ScalarTerm::boolean_not(boolean(other)).unwrap(),
+                ),
+                2 => Proposition::Equal(boolean(left), ScalarTerm::Boolean(next(2) == 0)),
+                3 => Proposition::Equal(
+                    boolean(left),
+                    ScalarTerm::integer_less_than(
+                        small,
+                        number(20 + next(4)),
+                        number(20 + next(4)),
+                    )
+                    .unwrap(),
+                ),
+                4 => Proposition::Equal(
+                    boolean(left),
+                    ScalarTerm::integer_equal(small, number(20 + next(4)), integer(small, 0))
+                        .unwrap(),
+                ),
+                5 => Proposition::Equal(number(20 + next(4)), number(20 + next(4))),
+                6 => Proposition::Equal(number(20 + next(4)), integer(small, next(5) as i128)),
+                7 => Proposition::LessThan(number(20 + next(4)), integer(small, 7)),
+                _ => Proposition::Equal(
+                    boolean(left),
+                    ScalarTerm::boolean_equal(boolean(other), boolean(1 + next(8))).unwrap(),
+                ),
+            };
+            axioms.push(row);
+        }
+        let mut declared = axioms.clone();
+        declared.extend((1..=8).map(|index| Proposition::Equal(boolean(index), boolean(index))));
+        declared.extend((20..24).map(|index| Proposition::Equal(number(index), number(index))));
+        let context = context(&declared);
+        for condition in 1..=8 {
+            for positive in [true, false] {
+                let condition_value = ValueId::new(condition).unwrap();
+                let Some(proposition) =
+                    super::condition_proposition(condition_value, positive, &axioms, &|id| {
+                        ScalarTerm::value(id, ScalarType::Boolean)
+                    })
+                else {
+                    continue;
+                };
+                let premise = Proposition::Equal(boolean(condition), ScalarTerm::Boolean(positive));
+                let expected = full_roster_verdict(&premise, &proposition, &axioms, &context);
+                let fact = condition_fact(
+                    condition_value,
+                    positive,
+                    &axioms,
+                    &|id| ScalarTerm::value(id, ScalarType::Boolean),
+                    &context,
+                )
+                .unwrap();
+                assert_eq!(fact.proposition, proposition);
+                assert_eq!(
+                    fact.certified, expected,
+                    "roster {axioms:?}, condition {condition}, positive {positive}"
+                );
+                compared += 1;
+                certified += usize::from(expected);
+                narrowed += usize::from(
+                    super::reachable_axiom_equalities(&axioms, [&premise, &proposition]).len()
+                        < symmetric_roster_equalities(&axioms, [&premise, &proposition]).len(),
+                );
+            }
+        }
+    }
+    // Both verdicts occur and the citation often shrinks, so the comparison
+    // is not vacuous.
+    assert!(
+        certified > 0 && certified < compared,
+        "{certified} of {compared}"
+    );
+    assert!(narrowed > compared / 4, "{narrowed} of {compared}");
+}
