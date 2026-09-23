@@ -201,7 +201,7 @@ fn assert_selected_rule_rollback_rejoins_ordinary(
 #[test]
 fn copy_propagation_rollback_rejoins_exact_ordinary_path_on_every_target() {
     assert_selected_rule_rollback_rejoins_ordinary(
-        "copy-propagation-rollback",
+        "copy_propagation_rollback",
         concat!(
             "data Main { }\n",
             "machine Main::main(&mut self) {\n",
@@ -216,7 +216,7 @@ fn copy_propagation_rollback_rejoins_exact_ordinary_path_on_every_target() {
 #[test]
 fn global_value_numbering_rollback_rejoins_exact_ordinary_path_on_every_target() {
     assert_selected_rule_rollback_rejoins_ordinary(
-        "global-value-numbering-rollback",
+        "global_value_numbering_rollback",
         concat!(
             "data Main { }\n",
             "machine Main::main(&mut self) {\n",
@@ -233,7 +233,7 @@ fn global_value_numbering_rollback_rejoins_exact_ordinary_path_on_every_target()
 #[test]
 fn proof_check_elision_rollback_rejoins_exact_ordinary_path_on_every_target() {
     assert_selected_rule_rollback_rejoins_ordinary(
-        "proof-check-elision-rollback",
+        "proof_check_elision_rollback",
         concat!(
             "data Main { numerator: u64; quotient: u64; }\n",
             "machine Main::main(&mut self) {\n",
@@ -248,7 +248,7 @@ fn proof_check_elision_rollback_rejoins_exact_ordinary_path_on_every_target() {
 #[test]
 fn sparse_conditional_constant_propagation_rollback_rejoins_exact_ordinary_path_on_every_target() {
     assert_selected_rule_rollback_rejoins_ordinary(
-        "sparse-conditional-constant-propagation-rollback",
+        "sparse_conditional_constant_propagation_rollback",
         concat!(
             "data Main { }\n",
             "machine Main::main(&mut self) {\n",
