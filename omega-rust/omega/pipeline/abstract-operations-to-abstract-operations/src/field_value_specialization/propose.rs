@@ -4,7 +4,10 @@
 //! foldable when the stored value it reads is proven by the unit itself. At
 //! an empty path an `EstablishRecord` producer proves the field's
 //! initializer; at a lone `Case` path an `EstablishScalarCase` producer
-//! whose `result_case` matches proves the payload field's initializer. An
+//! whose `result_case` matches proves the payload field's initializer; and
+//! a `Field` segment descends the same two proofs into a nested position
+//! when the record stores the field as an owned, complete structural child
+//! whose declared type is exactly the field's declared carrier. An
 //! initializer that is a same-function constant folds the read to a literal;
 //! a nonconstant initializer instead substitutes itself at every use of the
 //! read's result and retires the observation node when the substitution

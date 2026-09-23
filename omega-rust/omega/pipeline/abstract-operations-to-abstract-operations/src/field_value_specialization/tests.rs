@@ -70,14 +70,44 @@ const NESTED_BOUNDED_SOURCE: &str = r#"
     }
 "#;
 
-/// A local record establishment whose nested field is itself structural:
-/// the `EstablishRecord` proves only its own level's initializers, so the
-/// read below the structural child stays an observation.
-const NESTED_UNPROVEN_SOURCE: &str = r#"
+/// A nested path descends through a record field stored whole: the child's
+/// own `EstablishRecord` establishes the deeper position, so `o.inner.v`
+/// folds to the child's proven initializer. The row's producer is the
+/// child's establishing operation while the patch's producer stays the
+/// observed place's own.
+const NESTED_ESTABLISHED_SOURCE: &str = r#"
     data Inner { v: u32; }
     data Outer { inner: Inner; }
     machine probe() -> u32 {
         let o: Outer = Outer { inner: Inner { v: 7 } };
+        o.inner.v
+    }
+"#;
+
+/// The same nested descent with a nonconstant leaf: the child's
+/// `EstablishRecord` stores the `x` parameter into `v`, so `o.inner.v`
+/// forwards the parameter to its compare use and retires.
+const NESTED_FORWARDED_SOURCE: &str = r#"
+    data Inner { v: u32; }
+    data Outer { inner: Inner; }
+    machine probe(x: u32) -> bool {
+        let o: Outer = Outer { inner: Inner { v: x } };
+        o.inner.v == 7
+    }
+"#;
+
+/// A nested path whose child arrives as a call result: the record stores
+/// the call's result place whole, but a call is not an establishing
+/// producer — nothing proves the contents the callee returned, so the read
+/// below it stays an observation.
+const NESTED_UNESTABLISHED_CHILD_SOURCE: &str = r#"
+    data Inner { v: u32; }
+    data Outer { inner: Inner; }
+    machine Inner::make() -> Inner {
+        Inner { v: 9 }
+    }
+    machine probe() -> u32 {
+        let o: Outer = Outer { inner: Inner::make() };
         o.inner.v
     }
 "#;
@@ -564,30 +594,254 @@ fn replay_rejects_forged_forward_rows() {
 }
 
 #[test]
-fn nested_structural_child_stays_unproven() {
-    let unit = lowered_unit_entry(NESTED_UNPROVEN_SOURCE, "nested unproven field", "probe");
+fn nested_structural_child_folds_from_child_establishment() {
+    let unit = lowered_unit_entry(
+        NESTED_ESTABLISHED_SOURCE,
+        "nested established field",
+        "probe",
+    );
     let input = unit.unit().clone();
     let machine = input.functions[0].machine;
-    let field_read_count = input
+    // The read observes the outer place while the leaf's proof is the inner
+    // record's establishment — two `EstablishRecord` nodes exist, and the
+    // child's is the one whose result place the read does not observe.
+    let (outer_place, outer_producer) = outer_establishment(&input, machine);
+    let child_producer = input.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishRecord {
+                psi_operation,
+                result,
+                ..
+            } if result.place != outer_place => Some(*psi_operation),
+            _ => None,
+        })
+        .expect("the inner record's establishment exists");
+    let (site, read) = field_read_on(&input, machine, outer_place).expect("field read exists");
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, outer_place);
+    assert_eq!(patch.producer, Some(outer_producer));
+    let [row] = patch.reads.as_slice() else {
+        panic!("one folded field read")
+    };
+    assert_eq!(row.site, site);
+    assert_eq!(row.source, outer_place);
+    assert_eq!(
+        row.path.len(),
+        1,
+        "the read descends one structural field into the child"
+    );
+    assert_eq!(row.field, read.2);
+    assert_eq!(
+        row.producer,
+        Some(child_producer),
+        "the row's proof witness is the child's establishing operation"
+    );
+    assert_eq!(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(7)
+        ))
+    );
+    let folded = &run.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(7),
+            ..
+        }
+    ));
+    assert!(field_read_on(run.session().unit(), machine, outer_place).is_none());
+}
+
+#[test]
+fn nested_nonconstant_initializer_forwards_at_depth() {
+    let unit = lowered_unit_entry(NESTED_FORWARDED_SOURCE, "nested forwarded field", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let function = &input.functions[0];
+    let (outer_place, outer_producer) = outer_establishment(&input, machine);
+    let child_producer = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishRecord {
+                psi_operation,
+                result,
+                ..
+            } if result.place != outer_place => Some(*psi_operation),
+            _ => None,
+        })
+        .expect("the inner record's establishment exists");
+
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, outer_place);
+    assert_eq!(patch.producer, Some(outer_producer));
+    let [row] = patch.reads.as_slice() else {
+        panic!("one forwarded field read")
+    };
+    assert_eq!(
+        row.path.len(),
+        1,
+        "the read descends one structural field into the child"
+    );
+    assert_eq!(
+        row.producer,
+        Some(child_producer),
+        "the row's proof witness is the child's establishing operation"
+    );
+    let FieldValueResolution::Forward(forwarded) = &row.resolution else {
+        panic!("the nested read forwards")
+    };
+    let definition = function
+        .parameters
+        .iter()
+        .chain(function.blocks.iter().flat_map(|block| &block.parameters))
+        .find(|definition| definition.value == forwarded.initializer)
+        .expect("the proven initializer is parameter-sourced");
+    assert_eq!(forwarded.scalar_type, definition.scalar_type);
+    assert_ne!(forwarded.initializer, row.result);
+    assert!(!forwarded.uses.is_empty(), "the read has covered uses");
+    let [substitution] = commit.declaration.substitutions() else {
+        panic!("one scalar substitution")
+    };
+    assert_eq!(substitution.from, row.result);
+    assert_eq!(substitution.to, forwarded.initializer);
+
+    // The read's node retires and its custody lands on the receiver; no
+    // surviving node defines or uses its result.
+    let output_function = run
+        .session()
+        .unit()
         .functions
         .iter()
-        .filter(|function| function.machine == machine)
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
-        .filter(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::IntegerStructuralField { .. }
-                    | AbstractOperation::BooleanStructuralField { .. }
-            )
-        })
-        .count();
-    assert!(
-        field_read_count > 0,
-        "the fixture must actually contain a field read"
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+    let output_block = output_function
+        .blocks
+        .iter()
+        .find(|block| block.id == row.site.block)
+        .expect("block retained");
+    let input_block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == row.site.block)
+        .expect("input block");
+    assert_eq!(
+        output_block.nodes.len(),
+        input_block.nodes.len() - 1,
+        "the forwarded read retires"
     );
-    // The EstablishRecord proves only its own level's initializers.
+    let receiver = &output_block.nodes[usize::try_from(row.site.node).expect("index")];
+    assert!(
+        receiver
+            .provenance
+            .contains(&PsiProvenance::Operation(row.psi_operation))
+    );
+    for node in output_function.blocks.iter().flat_map(|block| &block.nodes) {
+        assert!(
+            !node
+                .uses
+                .iter()
+                .any(|use_site| use_site.value == row.result)
+        );
+    }
+    assert!(field_read_on(run.session().unit(), machine, outer_place).is_none());
+}
+
+#[test]
+fn nested_unestablished_child_stays_unproven() {
+    let unit = lowered_unit_entry(
+        NESTED_UNESTABLISHED_CHILD_SOURCE,
+        "nested unestablished child",
+        "probe",
+    );
+    let input = unit.unit().clone();
+    let machine = input
+        .functions
+        .iter()
+        .find(|function| {
+            function
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .any(|node| {
+                    matches!(
+                        node.operation,
+                        AbstractOperation::IntegerStructuralField { .. }
+                            | AbstractOperation::BooleanStructuralField { .. }
+                    )
+                })
+        })
+        .expect("the entry machine holds the nested field read")
+        .machine;
+    let (outer_place, _) = outer_establishment(&input, machine);
+    assert!(
+        field_read_on(&input, machine, outer_place).is_some(),
+        "the fixture must actually contain a nested field read"
+    );
+    // The child place's producer is a call, not an establishment — the
+    // record stores its result whole, but nothing proves the contents the
+    // callee returned.
     assert_declines(unit);
+}
+
+#[test]
+fn replay_rejects_forged_nested_row_witness() {
+    let unit = lowered_unit_entry(
+        NESTED_ESTABLISHED_SOURCE,
+        "nested established field",
+        "probe",
+    );
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
+
+    // A forged row witness — claiming the observed place's own producer
+    // instead of the child's establishing operation — is refused: replay
+    // re-derives the row from the descent chain rather than trusting it.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].producer = patch.producer;
+        }),
+    );
+
+    // A forged folded value on the nested read.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
+                semantic_vocabulary::IntegerValue::Unsigned(41),
+            ));
+        }),
+    );
+
+    // A forged path that skips the descent.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].path.clear();
+        }),
+    );
+
+    // The untampered declaration still validates to the committed output.
+    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
 }
 
 #[test]
@@ -867,6 +1121,41 @@ fn parameter_place(unit: &PsiOptimizationUnit) -> PlaceId {
         .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
         .expect("parameter place exists")
         .id
+}
+
+/// The `OperationResult` place a structural field read observes — the outer
+/// record in a nested fixture — with its producer operation. Distinct from
+/// `established_record_place`, which finds the roster's first established
+/// place: the read's `source` names the observed place directly, so nested
+/// establishments do not confuse the lookup.
+fn outer_establishment(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+) -> (PlaceId, semantic_vocabulary::OperationId) {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let place = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::IntegerStructuralField { source, .. }
+            | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
+            _ => None,
+        })
+        .expect("a field read observes the outer place");
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)
+        .expect("the observed place is rostered");
+    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+        panic!("the observed place is an operation result")
+    };
+    (place, producer)
 }
 
 /// The `OperationResult` place whose producer is an `EstablishRecord`,
