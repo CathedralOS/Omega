@@ -152,12 +152,19 @@ not that it exercises their interaction.
 
 ## What is not measured here
 
-- **Samples lowering natively.** The samples harness's per-cohort tests compile
-  every sample for every hosted target. On this host in the dev profile the
-  first cohort had produced nothing after 25 minutes and was stopped; the
-  checked-trees test alone is reported when it completes. The Squalr record
-  notes a debug build took 62 minutes against 3 in release, and that is the
-  practical blocker for the samples number, not a language gap.
+- **Samples.** No samples number is reported, and the reason is the
+  instrument, not the language. `compile_sample_to_checked` builds a fresh
+  `CheckedCompileRequest` per sample, so every sample re-checks the standard
+  library from scratch; the std check alone is recorded at 945 s on Linux in
+  [std check duration](std_check_duration_linux_x86_64.md). On this host in
+  the dev profile the checked-trees test was still inside its first sample
+  after 38 minutes — one build directory, holding only its package-evidence
+  staging and no compiled file — and was stopped; the
+  per-cohort native tests had produced nothing after 25 minutes. This is the
+  mechanism behind whole samples "stalling": the harness spends hours before
+  it can say anything. A samples number needs the harness to check std once
+  and reuse it, or a release-profile run; until then the corpus numbers above
+  are the measurement.
 - **Other hosts.** These are Windows x86-64 results. Nine rooted-target and
   one Windows-host failure are host-specific by construction; the dominant
   family is target-neutral by construction, as above, but a macOS or Linux
