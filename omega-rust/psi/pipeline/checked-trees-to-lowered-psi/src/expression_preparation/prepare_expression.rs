@@ -10,6 +10,7 @@ use crate::emission::scalar_types::{
 };
 use crate::expression_preparation::bindings::structural_fields::CasePayloadRead;
 use crate::expression_preparation::source_custody;
+use crate::expression_preparation::wrapping_cast;
 use crate::expression_preparation::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTrees, IntegerSign, IntegerValue,
@@ -434,100 +435,10 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 element_views,
             )?;
             let target = terminal_scalar_type(*primitive_type)?;
-            let (ScalarType::Integer(source_type), ScalarType::Integer(target_type)) =
-                (operand.scalar_type(), target)
-            else {
+            let ScalarType::Integer(source_type) = operand.scalar_type() else {
                 return unsupported("wrapping conversion requires fixed integer carriers");
             };
-            if source_type == target_type {
-                return Ok(operand);
-            }
-            // A widening carrier already contains every source value, so the
-            // modular image is the widened operand itself; this holds for
-            // signed sources and signed targets without a signed modular
-            // operator.
-            if source_type.can_widen_to(target_type) {
-                return Ok(LoweredDirectExpression::IntegerWiden {
-                    scalar_type: target,
-                    operand: Box::new(operand),
-                });
-            }
-            if source_type.sign() != IntegerSign::Unsigned
-                || target_type.sign() != IntegerSign::Unsigned
-            {
-                // A NARROWING carrier with an UNSIGNED destination spells the
-                // modular image with exact operations alone, signed source
-                // included: the target's mask `2^B - 1` fits in the source
-                // carrier whenever `B < source bits`, and `operand & mask` is
-                // the modular image itself, already inside the destination.
-                // This is the case truncation toward zero gets wrong -- it
-                // would carry a negative operand's sign instead of its image.
-                //
-                // A SIGNED destination needs the upper half of that window
-                // folded down, `(masked ^ 2^(B-1)) - 2^(B-1)`, and that is
-                // where this stops: the bound machinery carries an interval
-                // through the mask -- which is why the unsigned destination's
-                // exact cast discharges -- but not through the fold, so the
-                // cast that receives it has no available proof. Neither
-                // `ExactSubtract` nor `WrappingSubtract` changes that; the
-                // missing evidence is the fold's range, not the subtraction's
-                // policy.
-                // Carrier first, then bound: a same-width or sign-widening
-                // pair has nowhere to spell the mask regardless of the
-                // destination's sign, so it keeps the original refusal and
-                // only a genuine narrowing reports the missing fold.
-                if target_type.bits() >= source_type.bits() {
-                    return unsupported(
-                        "signed wrapping conversion requires runtime policy realization",
-                    );
-                }
-                if target_type.sign() != IntegerSign::Unsigned {
-                    return unsupported(
-                        "signed wrapping conversion target requires a folded modular bound",
-                    );
-                }
-                let target_bits = u32::from(target_type.bits());
-                let modulus = 1_u128
-                    .checked_shl(target_bits)
-                    .ok_or(LoweringError::Unsupported(
-                        "wrapping conversion modulus exceeds u128",
-                    ))?;
-                let mask = i128::try_from(modulus - 1).map_err(|_| {
-                    LoweringError::Unsupported("wrapping conversion mask exceeds i128")
-                })?;
-                return Ok(LoweredDirectExpression::IntegerExactCast {
-                    scalar_type: target,
-                    operand: Box::new(LoweredDirectExpression::IntegerBinary {
-                        kind: LoweredIntegerBinaryKind::BitwiseAnd,
-                        scalar_type: ScalarType::Integer(source_type),
-                        left: Box::new(operand),
-                        right: Box::new(LoweredDirectExpression::IntegerLiteral {
-                            value: IntegerValue::Signed(mask),
-                            scalar_type: ScalarType::Integer(source_type),
-                        }),
-                    }),
-                });
-            }
-            if target_type.bits() >= source_type.bits() {
-                return unsupported("wrapping conversion requires an unsigned narrowing carrier");
-            }
-            let modulus = 1_u128.checked_shl(u32::from(target_type.bits())).ok_or(
-                LoweringError::Unsupported("wrapping conversion modulus exceeds u128"),
-            )?;
-            // Unsigned remainder has exactly the destination's modular image.
-            // Existing remainder and cast obligations independently prove the bound.
-            Ok(LoweredDirectExpression::IntegerExactCast {
-                scalar_type: target,
-                operand: Box::new(LoweredDirectExpression::IntegerBinary {
-                    kind: LoweredIntegerBinaryKind::ExactRemainder,
-                    scalar_type: ScalarType::Integer(source_type),
-                    left: Box::new(operand),
-                    right: Box::new(LoweredDirectExpression::IntegerLiteral {
-                        value: IntegerValue::Unsigned(modulus),
-                        scalar_type: ScalarType::Integer(source_type),
-                    }),
-                }),
-            })
+            wrapping_cast::wrapping_cast(operand, source_type, target)
         }
         CheckedScalarExpression::IntegerSaturatingCast {
             primitive_type,

@@ -20,20 +20,20 @@
 //!   source value folds to `IntegerWiden` or the operand itself before the
 //!   refusal site, so same-width and widening `in Trapping` spellings compose.
 //! - Signed modular conversion: `IntegerWrappingCast` is retained for any
-//!   fixed-integer pair, and lowering now composes every NARROWING pair whose
-//!   DESTINATION is unsigned, signed source included — `operand & (2^B - 1)`
-//!   is the modular image already inside the destination, and the bound
-//!   machinery carries an interval through the mask, so the exact cast that
-//!   receives it discharges. `signed_wrapping_conversion_values.rs` executes
-//!   those answers rather than asserting the composition. Two shapes remain,
-//!   and they stop for different reasons: a narrowing pair with a SIGNED
-//!   destination needs the upper half folded down,
-//!   `(masked ^ 2^(B-1)) - 2^(B-1)`, and no interval survives that fold, so
-//!   the cast has no available proof (neither `ExactSubtract` nor
-//!   `WrappingSubtract` changes this — the missing evidence is the fold's
-//!   range, not the subtraction's policy); a same-width or sign-widening pair
-//!   has no carrier to spell the mask in at all and keeps the original
-//!   refusal.
+//!   fixed-integer pair, and lowering composes every one. A narrowing pair
+//!   whose destination is unsigned masks inside the source carrier — `operand
+//!   & (2^B - 1)` is the modular image already inside the destination, and
+//!   the bound machinery carries an interval through the mask, so the exact
+//!   cast that receives it discharges. A SIGNED destination receives the same
+//!   image assembled from its halves — `low | (bit <<% (B-1))` — where each
+//!   half's exact cast discharges on the bound of the mask that produced it;
+//!   a signed source lands its residue on the `u_B` carrier first, since an
+//!   `i_C -> i_B` cast has no native carrier. A same-width pair extracts the
+//!   halves straight off the source carrier, and a signed source reaching
+//!   `u64` — the one unsigned destination with no wider signed carrier —
+//!   splits at the `i64` sign bit before its halves cross.
+//!   `signed_wrapping_conversion_values.rs` executes those answers rather
+//!   than asserting the composition.
 //! - Trapping scalar operations: `checked_integer_binary_kind` carries
 //!   Trapping shifts only, so a Trapping `+` still gets no value fact and the
 //!   statement sequence stops before a plan exists.
@@ -52,10 +52,9 @@
 //! predicates](../../../../../wiki/spec/terminal-psi/structural_predicates.md)
 //! requires them to carry "their primitive denotation and path-conditioned
 //! crash site", so a producer may not expand one into a guard and a `Crash`
-//! terminator — and the signed-modular control stays until signed narrowing
-//! or same-width sign reinterpretation has a runtime realization; widening
-//! conversions are already value-preserving and need no such operator. The
-//! signed-modular control is now two controls, one per remaining reason.
+//! terminator. The signed-modular pairs now compose in every sign and width
+//! combination, so their controls have moved to the executed answers in
+//! `signed_wrapping_conversion_values.rs`.
 
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 
@@ -203,23 +202,20 @@ fn an_unsigned_wrapping_conversion_composes_from_exact_operations() {
 }
 
 /// `narrow_u8_to_i8_wrapping`, `narrow_i16_to_u8_wrapping` and their siblings
-/// change sign at or below the source width. Unsigned remainder has the
-/// destination's modular image; a signed carrier on either side does not, so
-/// this crate rejects it rather than substituting a different value.
+/// change sign at or below the source width. A signed destination receives
+/// the modular image assembled from its halves — the residue's low `B - 1`
+/// bits and its sign-position bit are masked separately, landed by exact
+/// casts whose operands carry the masks' bounds, and reassembled — and a
+/// same-width pair extracts those halves straight off the source carrier.
+/// `signed_wrapping_conversion_values.rs` executes the answers.
 #[test]
-fn a_signed_wrapping_conversion_has_no_runtime_policy_realization() {
-    let error = lowering_error(
+fn a_signed_wrapping_conversion_composes_from_its_halves() {
+    lowers(
         r#"
         data Main {}
         machine narrow(value: u8) -> i8 { (value as i8 in Wrapping) as i8 }
         machine Main::main(value: u8) { let narrowed: i8 = narrow(value); }
     "#,
-    );
-    assert_eq!(
-        error,
-        checked_trees_to_lowered_psi::LoweringError::Unsupported(
-            "signed wrapping conversion requires runtime policy realization"
-        )
     );
 }
 
@@ -482,35 +478,16 @@ fn a_never_trapping_conversion_composes_without_a_trap_operation() {
     );
 }
 
-/// The signed modular refusal is the sign coordinate itself, in either
-/// direction: a signed source (`i16 -> u8`), a signed target at the same width
-/// (`u16 -> i16`), or both (`i16 -> i8`) each stop at the identical
-/// `Unsupported`, while the unsigned narrowing neighbour composes.
+/// The signed modular shapes all compose now, each through a different
+/// residue spelling: a signed source narrowing to a signed destination lands
+/// the residue on `u_B` and reassembles (`i16 -> i8`), a same-width
+/// unsigned-to-signed pair extracts the halves off the source carrier
+/// (`u16 -> i16`), and a same-width signed-to-unsigned pair borrows the next
+/// signed carrier up for its mask (`i16 -> u16`).
 #[test]
-fn signed_wrapping_conversions_stop_on_any_signed_carrier() {
-    // The two remaining shapes, and they stop for DIFFERENT reasons now that a
-    // signed source narrowing to an unsigned destination composes
-    // (`signed_wrapping_conversion_values.rs` executes that one). A signed
-    // DESTINATION has a carrier but no bound for the fold that would reach it;
-    // a same-width pair has no narrowing carrier to spell the mask in at all.
-    for (source, target, reason) in [
-        (
-            "i16",
-            "i8",
-            "signed wrapping conversion target requires a folded modular bound",
-        ),
-        (
-            "u16",
-            "i16",
-            "signed wrapping conversion requires runtime policy realization",
-        ),
-        (
-            "i16",
-            "u16",
-            "signed wrapping conversion requires runtime policy realization",
-        ),
-    ] {
-        let error = lowering_error(&format!(
+fn signed_wrapping_conversions_compose_on_any_carrier() {
+    for (source, target) in [("i16", "i8"), ("u16", "i16"), ("i16", "u16")] {
+        lowers(&format!(
             r#"
             data Main {{}}
             machine narrow(value: {source}) -> {target} {{
@@ -519,11 +496,6 @@ fn signed_wrapping_conversions_stop_on_any_signed_carrier() {
             machine Main::main(value: {source}) {{ let narrowed: {target} = narrow(value); }}
         "#
         ));
-        assert_eq!(
-            error,
-            checked_trees_to_lowered_psi::LoweringError::Unsupported(reason),
-            "{source} -> {target} in Wrapping"
-        );
     }
 }
 
