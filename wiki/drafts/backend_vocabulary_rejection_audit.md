@@ -45,12 +45,32 @@ an operation, an `OperationId`, or a target**; its refusals are
 `TargetRegisterArchitectureMismatch`, and projection/canonicality variants
 keyed by function or register index.
 
-So an admitted family that selection cannot realize on some ISA does return a
-structured refusal — the audit's first clause holds, and nothing panics — but
-the diagnostic names a function index or a constraint key. It does not name
-the operation or the target, which is the audit's second clause. Attributing
-such a failure to a capability owner currently requires reading the legalized
-function back by index.
+### The first clause holds structurally, not by testing
+
+`selection/construction/scalar_graph.rs`'s per-instruction dispatch matches
+`&operation.kind` with **no wildcard arm**. A match on an enum without one
+must be exhaustive to compile, so the compiler already guarantees every
+`LegalizedScalarInstructionKind` has a selection arm. An admitted family
+cannot fall off the end of selection; that is enforced at build time, not
+merely untested.
+
+This narrows the audit's question sharply. Selection's `Err` returns are not
+family-level "no rule for this operation" refusals — they are operand-shape
+and constraint conditions INSIDE those exhaustive arms (`result.ok_or_else`,
+a branch suffix that must follow a comparison, a missing register constraint
+row). The failure is positional, which is why the diagnostic is positional.
+
+### What remains: attribution
+
+The refusals therefore carry no operation or target identity, and both are in
+scope where they are raised: `LegalizedScalarInstruction` carries
+`operation: OperationId`, and `LegalizedScalarFunction` carries
+`machine: MachineId`. Attributing a selection failure to a capability owner
+today means reading the legalized function back by function index.
+
+Scale: `UnsupportedSourceShape` appears at only 12 sites, all construction, so
+a variant carrying `{ function, machine, operation }` is a bounded change
+rather than a refactor.
 
 This is a diagnostic-identity gap, not a missing rejection. It is engineering,
 not language design: the refusal vocabulary is an implementation choice with
@@ -76,10 +96,14 @@ with no wildcard arm, so adding a family to `AbstractOperation` stops that
 file compiling until someone classifies it. That closes "silent omission" for
 admission ordering.
 
-Not pinned: the per-ISA selection outcome for each of the 63 admitted
+Not pinned by test: the per-ISA selection outcome for each of the 63 admitted
 families. Establishing that by construction needs a legalized function per
 family per ISA, which is the "generic audit framework" the row forbids
-building. The tractable next step is instead to give
-`SelectedInstructionError` an operation/target-carrying variant so a
-selection refusal attributes itself, and then to let the existing corpus
-supply the coverage.
+building — and the exhaustiveness result above makes it largely redundant,
+since the dispatch cannot omit a kind.
+
+The tractable remaining step is the attribution one: give
+`SelectedInstructionError` a variant carrying `{ function, machine,
+operation }` and raise it at the per-instruction refusal sites, where both
+identities are already in scope. That closes "exact operation/target
+diagnostics" without expanding the accepted vocabulary.
