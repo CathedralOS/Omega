@@ -13,6 +13,7 @@ data Main {
 
 machine Main::main(&mut self) -> Item {
     let produced: Item = self.seed;
+    self.seed = Item { value: 0 };
 
     transition {
         _ -> produced

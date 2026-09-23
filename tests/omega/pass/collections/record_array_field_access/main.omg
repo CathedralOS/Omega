@@ -24,7 +24,6 @@ data Room {
 data Main {
     console: Binding<Console>;
     room: Room;
-    selected_exit: Exit;
 }
 
 machine Main::result_code(&mut self) -> i32 reaches Console {
@@ -33,11 +32,10 @@ machine Main::result_code(&mut self) -> i32 reaches Console {
     self.room.description = "A1: a stone entry.";
     self.room.exits[0] = Exit { command: "north", destination: CellId::A2 };
     self.room.exits[1] = Exit { command: "wait", destination: CellId::Empty };
-    self.selected_exit = self.room.exits[0];
 
     self.console.write_line(self.room.label);
     self.console.write_line(self.room.description);
-    self.console.write_line(self.selected_exit.command);
+    self.console.write_line(self.room.exits[0].command);
     0
 }
 

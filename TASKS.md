@@ -293,18 +293,18 @@ the complete product bar; focused successes below do not establish that baseline
   None)` has no selected entry and nominates no entry services.
 
   The `cannot transfer a non-copy value out of borrowed storage` members
-  are fixture debt, not a checker gap: the checker enforces
+  were fixture debt, not a checker gap: the checker enforces
   [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
-  (`036d60d9c9`). `ownership/call_arg_move_in_struct_literal` and
-  `ownership/transition_value_owned_move` need an owned local or a restore
-  before the transition; `filesystem/wrapper_open_with_exit` (`leg5`/`leg6`)
-  and `filesystem/windows_wrapper_create_new_exit` dispatch on
-  `self.open_result`, extracting an affine `ErrorKind` from `&mut self`
-  storage, and should dispatch on an owned local;
-  `collections/record_array_field_access` moves an affine `Exit` out of
-  `self.room.exits[0]` and should read `command` in place (`Exit [copy]` is
-  refused by its `&[u8]` field). `capabilities/uses_caller_folder` waits on
-  `service-carrier-argument-multiplicity`.
+  (`036d60d9c9`), and the fixtures are repaired to valid spellings of their
+  intent. `ownership/call_arg_move_in_struct_literal` and
+  `ownership/transition_value_owned_move` now compile;
+  `filesystem/wrapper_open_with_exit`,
+  `filesystem/windows_wrapper_create_new_exit` and
+  `collections/record_array_field_access` pass checking and stop at Unit-plan
+  omissions (`local data: structural call binding`, `call: call operation`,
+  `signature`). `capabilities/uses_caller_folder` waits on
+  `service-carrier-argument-multiplicity`; its option (b) lend spelling is
+  refused today by `fail/providers/service_borrowed_parameter_rejected`.
 
   Follow `CheckedUnitEffectPlans::omissions`,
   `InvalidUnitMachinePlan::omission` and `LocalConstructionTrace` to the
