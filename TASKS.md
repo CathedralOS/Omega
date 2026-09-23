@@ -808,6 +808,28 @@ stage, topology-specific IR, or new trusted graph axiom.
   gap, not an absent description representation; do not parse those strings
   or recreate the representation.
 
+  Two facts measured at `053f9ae079`, both about landing this.
+
+  **`-p topology-plan` is already red at base, and not because of this
+  bullet**: 3 of 113 fail -- `codec::golden_fixtures_decode_and_verify`,
+  `codec::encode_is_byte_exact_and_canonical` and
+  `composition_build::the_package_composes_and_a_source_free_consumer_verifies`
+  -- because the committed `tests/fixtures/packages/build-scope-topology/root/inputs/request.bin`
+  carries stale INSTANCE SUBJECT digests, not export contracts. `035152693e`
+  re-recorded that same fixture "after upstream identity-encoding drift"; it
+  has drifted again since. Re-record before reading any topology result as
+  evidence of this row.
+
+  **The join itself is a small change whose cost is the re-record.** Replacing
+  `export_contract_identity`'s string digest with a lookup of the matching
+  `ExportContract::contract_identity` compiles clean, and verification already
+  guarantees the pairing both ways (`check_exports` rejects a described export
+  with no derived contract and a derived contract with no described export),
+  so the lookup cannot miss on an admitted component. It changes recorded
+  endpoint contract bytes, so the same golden fixtures move -- do it in one
+  pass with the drift above rather than twice. Note the fixtures sit under
+  `tests/`, which PACKAGE-NAME-UNDERSCORE-MIGRATION currently claims whole.
+
   Author the package over admitted input bytes and generic required outputs.
   `tests/fixtures/packages/build-scope-topology` establishes import/output
   plumbing, not payment-plan verification. BUILD-SNAPSHOT-OUTPUTS owns
