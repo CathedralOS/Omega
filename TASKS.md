@@ -293,6 +293,38 @@ the complete product bar; focused successes below do not establish that baseline
   `providers/external_leaf_dllimport_compile`,
   `control_flow/runtime_branching_helper_string` and
   `core/extent_root_provider_adapter`.
+
+  `core/extent_root_provider_adapter` is DIAGNOSED end to end, and the cause is
+  structural rather than local to the fixture: a boundary trait owned by
+  `source/library/core` cannot be a provider-selection subject at all, by
+  either available route. Traced at `1d6c4a74d2f`:
+  `builder.select_provider<ExtentRootProvider, ExtentRootProviderImpl>` reaches
+  `resolve_product_operand`, which collects five boundary-trait candidates
+  including the right one, public, with an exactly matching display path; then
+  `symbols`' `find_product_declaration_from_source` drops it, because an
+  UNQUALIFIED path resolves no dependency alias and so demands
+  `same_product_package_instance(build-file occurrence, declaration)` --
+  false for a toolchain-injected declaration. The symbol comes back invalid and
+  `build-evaluation`'s `admission/declarations.rs` reports `does not resolve to
+  an exact boundary trait, top-level boundary requirement, or
+  boundary-operator family`, which reads like a naming mistake and is not one.
+  The QUALIFIED route is closed too, and this is the root fact:
+  **`source/library/core` is the only library with no `build.omg`** (`std`,
+  `alloc`, `blocking-executor` and `topology` all have one), so nothing
+  authored can name it in a `builder.depend` row -- attempting it fails with
+  `package build file is missing`. That is exactly why the passing siblings
+  work: `generics/runtime_nominal_machine_parameter_satisfaction_exit` selects
+  `Console` and `providers/checked_boundary_operator_const_application_selected_exit`
+  selects `Math::remainder`, both unqualified, both with an authored
+  `builder.depend` row on `source/library/std`; and
+  `core/carry_permission_provider_adapter` works only because it declares its
+  `ClaimProvider` locally.
+  Two candidate routes, neither taken here: give `core` a package manifest like
+  its four siblings, or let the build-file visibility test admit a public
+  toolchain-injected declaration. The first is uniform but injected into every
+  compile, so its blast radius wants measuring before it is spent; the second
+  widens what a build file may name and is a visibility-policy decision.
+  Do not "fix" the fixture -- there is no spelling that works today.
   `calls/nested_machine_continuation` was a tenth and is FIXED: its `Fused root
   establishments drifted from their selected ProgramEntry` was two consumers
   keying a service establishment on the field's LEAF NAME while the producer
