@@ -25,7 +25,13 @@ coordinator's procedure — the agents get rendered prompts, not this file.
 
 1. `python3 tools/claims.py status` — every live claim is off-limits.
 2. Pick items from `TASKS*.md` that are unclaimed, path-disjoint from each
-   other and from live claims, and suited to this host. Read
+   other and from live claims, and suited to this host. Check each
+   candidate's *validation surface* — the directories holding its focused
+   tests, fixtures, and acceptance corpus — against live claims too, not
+   just its owning paths: a slice whose acceptance tests sit under a
+   foreign claim lands code it cannot exercise (macw7 parked an
+   exact-machine leg while `tests/` was held wholesale). Prefer items
+   whose evidence the slot can actually produce. Read
    `tools/swarm/README.md` coordinator selection rules first. Reserve one
    path-disjoint item for the coordinator's own slot — it goes in the wave
    report like every other slot and follows the same claim/land/release
@@ -193,7 +199,10 @@ plan's actions one per block, ~30-60 s apart while the limiter is hot, and
 resume existing handles before spawning replacements: a resume keeps the
 agent's context and its claim, while a spawn burns both setup cost and a
 fresh slot in the manifest. Fresh items are for genuinely gone handles and
-newly added slots.
+newly added slots. Manifest rows are append-only: a replacement item goes
+in as a NEW session name, never by renaming or reusing a dead slot's row —
+`slots.json` keys slot → handle, so a reused name aliases the dead
+handle's record with the new agent's.
 
 Silent deaths produce no completion notification. At every checkpoint —
 completion, backfill, user ping — verify the liveness of EVERY running slot
@@ -256,14 +265,18 @@ sweep — collect pending worker evidence first (`python3 tools/claims.py
 notes`; workers attach findings to their claim tickets instead of committing
 board files, and `landing.py` refuses their board-only or empty publishes),
 fold what the notes justify into one board sweep commit landed with
-`--board-update`, then `python3 tools/claims.py sweep` marks them consumed —
+`--board-update`, then `python3 tools/claims.py sweep --owner <wave>` marks
+this wave's notes consumed without eating sibling waves' pending evidence —
 release remaining claim tickets, WIP-commit any dirty worktree worth
 keeping (never delete one with uncommitted work), record each parked WIP
 branch and its covered slice as a compact resume line in the item's board
 evidence when the item stays open (replacing the frontier it supersedes, not
 appended to it), collapse any accreted landing ledger in touched items back
 to its current frontier, remove clean worktrees and landed branches, verify `git status`
-clean on the main checkout, and save the wave tally to
+clean on the main checkout — including untracked files under agent-owned
+paths, since agents occasionally write probe/scratch files into the
+coordinator checkout instead of their worktree — run `fill.py --manifest
+<file> close` so the ledger stops proposing refills, and save the wave tally to
 `tools/swarm/waves/<wave>.outcomes.json` (result, commits, `item_closed` per
 slot): commits landed per slot, verified-closed items, WIP branches
 retained, and friction worth feeding back to the README runbook.

@@ -384,11 +384,17 @@ class Claims:
                 result = prepared["record"]
             elif options.command == "sweep":
                 pending = pending_notes(record)
+                if options.owner:
+                    marked = [note for note in pending
+                              if options.owner in (note.get("owner") or "")]
+                else:
+                    marked = pending
                 stamp = now()
-                for note in pending:
+                for note in marked:
                     note["swept_utc"] = stamp
                 trim_notes(record)
-                result = {"state": "swept", "swept": len(pending)}
+                result = {"state": "swept", "swept": len(marked),
+                          "pending_left": len(pending) - len(marked)}
             else:
                 ticket_id(options.ticket)
                 claim = next((entry for entry in claims
@@ -579,7 +585,12 @@ def main(argv=None):
     note.add_argument("--ticket", required=True)
     note.add_argument("--text", required=True)
     subparsers.add_parser("notes")
-    subparsers.add_parser("sweep")
+    sweep = subparsers.add_parser(
+        "sweep", help="mark pending worker notes as consumed")
+    sweep.add_argument(
+        "--owner",
+        help="sweep only notes whose claim owner contains this substring "
+             "(e.g. the wave name) so sibling waves' evidence survives")
     audit = subparsers.add_parser("audit")
     audit.add_argument("--worktree", required=True)
     audit.add_argument("--owner", required=True)

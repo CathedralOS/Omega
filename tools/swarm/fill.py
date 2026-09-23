@@ -32,6 +32,9 @@ Commands:
            not marked keep in the ledger — the stale-worktree storage cost.
            Requires --execute; git refuses dirty worktrees, which is the
            safety check.
+  close    marks the wave drained in the ledger. A drained wave's plan emits
+           zero actions — the manifest stays committed history, so the
+           terminal marker lives here, not in the manifest.
 
 A slot's recommended action is one of:
 
@@ -180,16 +183,24 @@ def classify(session_name, row, ledger_entry, manifest):
         state_record.update({"state": "parked", "action": "none",
                              "detail": "deliberately out of rotation"})
         return state_record
-    if live_claims:
-        if liveness == "running":
+    if liveness == "running":
+        if live_claims:
             state_record.update(
                 {"state": "running", "action": "none",
                  "detail": "live claim and live handle"})
         else:
             state_record.update(
-                {"state": "claimed-untracked", "action": "check-handle",
-                 "detail": "live claim but ledger has no running handle — "
-                          "verify the handle before reporting it as running"})
+                {"state": "running-unclaimed", "action": "check-handle",
+                 "detail": "ledger says running but no live claim — the "
+                          "agent may still be in its read phase; verify the "
+                          "handle and let it claim before treating this "
+                          "slot as free"})
+        return state_record
+    if live_claims:
+        state_record.update(
+            {"state": "claimed-untracked", "action": "check-handle",
+             "detail": "live claim but ledger has no running handle — "
+                      "verify the handle before reporting it as running"})
         return state_record
     if ahead:
         action = "resume" if agent_id else "land"
@@ -208,6 +219,12 @@ def classify(session_name, row, ledger_entry, manifest):
                       "work; check the handle, then recover if dead"})
         return state_record
     if landed:
+        if not agent_id and liveness is None:
+            state_record.update(
+                {"state": "idle", "action": "spawn",
+                 "detail": "clean worktree at base with no ledger record — "
+                          "virgin slot, not a landed one; spawn fresh"})
+            return state_record
         state_record.update(
             {"state": "done", "action": "spawn",
              "detail": "landed and clean — refill with a continuation resume "
@@ -273,8 +290,16 @@ def command_plan(repository, manifest, ledger, markdown=False):
         slots.append(slot)
     plan = {"wave": wave, "generated_utc": record["generated_utc"],
             "ledger": str(ledger_path(repository, wave)), "slots": slots}
-    plan["actions"] = ordered_actions(plan)
     running = sum(1 for s in slots if s["state"] == "running")
+    if ledger.get("state") == "drained":
+        plan["state"] = "drained"
+        plan["actions"] = []
+        plan["tank"] = {"target": len(manifest["sessions"]),
+                        "running": running, "filling": 0}
+        plan["pacing"] = ("wave is closed (fill.py close) — slot states are "
+                          "informational; no refill actions")
+        return plan
+    plan["actions"] = ordered_actions(plan)
     plan["tank"] = {"target": len(manifest["sessions"]),
                     "running": running,
                     "filling": len(plan["actions"])}
@@ -410,6 +435,15 @@ def command_sweep(repository, manifest, ledger, arguments):
           "swept": results})
 
 
+def command_close(repository, manifest, ledger):
+    """Mark the wave drained; subsequent plans emit zero refill actions."""
+    ledger["state"] = "drained"
+    ledger["closed_utc"] = coordination.now()
+    path = save_ledger(repository, manifest["wave"], ledger)
+    emit({"ledger": str(path), "wave": manifest["wave"],
+          "state": "drained"})
+
+
 class Parser(argparse.ArgumentParser):
     def error(self, message):
         raise StatusError(message)
@@ -441,6 +475,9 @@ def main(argv=None):
     subcommands.choices["sweep"].add_argument(
         "--all-waves", action="store_true",
         help="also sweep clean landed worktrees from other waves")
+    subcommands.add_parser(
+        "close", help="mark the wave drained — plan emits no further "
+        "refill actions")
     try:
         options = parser.parse_args(argv)
         repository = Path(options.repository).resolve()
@@ -454,6 +491,8 @@ def main(argv=None):
             return command_recover(repository, manifest, ledger, options) or 0
         if command == "sweep":
             return command_sweep(repository, manifest, ledger, options) or 0
+        if command == "close":
+            return command_close(repository, manifest, ledger) or 0
         emit(command_plan(repository, manifest, ledger))
         return 0
     except (StatusError, OSError) as error:
