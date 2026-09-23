@@ -68,7 +68,7 @@
       "note": "Agent died before producing commits; branch tip stayed at pre-wave history. Clean worktree removed."
     }
   ],
-  "board_sweep_commit": "PENDING",
+  "board_sweep_commit": "de2d4661a892c69a860222f83ab8a4e5c67976a4",
   "friction": [
     "Provider rate limits killed three workers before any commits and two mid-work; wave ran the coordinator slice to completion while dead slots were parked rather than refilled.",
     "Worker report notes were never attached; branch tips and claim registry were the only evidence — two slots initially looked 'landed' only because their uncommitted branch tips were ancestors of main.",
