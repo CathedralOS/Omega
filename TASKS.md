@@ -3124,12 +3124,15 @@ syntax and other terminal services are not prerequisites.
   [evaluation order](wiki/spec/language/expressions.md#evaluation-schedule)
   and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering).
   Retain exact producer, parameter position, result owner and loan activation;
-  **CML4** owns residual cleanup. Measured at `117f2abc9c` on Windows x86-64
-  by `tools/progress.py`: 85 pass fixtures, 43% of the umbrella's failures,
-  omit their Unit plan at six construction sites — record-literal field store
-  21, structural call binding to a local 20, attached-data-shape state
-  parameter 16, call operation 10, pure scalar initializer 4, call-source
-  assignment 2. Every site is in `typed-trees-to-checked-trees`, so the plan
+  **CML4** owns residual cleanup. Measured on Windows x86-64 by
+  `tools/progress.py` after the construction trace learned to name the store
+  route that got furthest: 72 pass fixtures, 42% of the umbrella's 173
+  failures, omit their Unit plan at local construction — structural call
+  binding to a local 21, field store with no pure scalar source 12, call
+  operation 12, field store whose destination is not a parameter 7, pure
+  scalar initializer 4, attached-data-shape state parameter 4, guard
+  expression 3, scalar field type 2, parameter transfer 2, five singletons.
+  Every site is in `typed-trees-to-checked-trees`, so the plan
   is omitted before a target is chosen and the class is host-neutral by
   construction. Each site is a recognizer for the arrangements earlier
   fixtures needed; the histogram is the size of the gate below. At the
@@ -3154,6 +3157,31 @@ syntax and other terminal services are not prerequisites.
   `bindings.len()` as the binding prefix's statement end (`body.rs`,
   `cases.rs`, `scalar_graph_lowering/bindings.rs`,
   `returns/structural_scalar_return*`), counting marker statements instead.
+  The 21-fixture `record literal field` bucket was a trace artifact: the
+  four store routes in `structural_scalar_store` each name their phases and
+  the last route's precondition label overwrote the decisive one; the trace
+  now keeps the route that got furthest, and the bucket splits into its
+  causes, read 2026-09-22 with the crate harness: float arithmetic or float
+  field reads as store sources (7 fixtures; the checked scalar vocabulary has
+  no float binary form and `lower_structural_parameter_field` excludes F32/
+  F64, the parked computed-IEEE slice), float-to-integer policy casts (3, F4),
+  stores through recast reference locals (5, RECAST-SOURCE-POSITIONS: no
+  Unit-level re-view store vocabulary, and a `self`-rooted borrow alias
+  normalizes to the machine symbol so `primitive_store` never matches it),
+  Trapping integer arithmetic (1, ARITHMETIC-POLICY-REALIZATION), a case
+  literal stored into a field (1: the assignment branch of
+  `values/scalar/computations.rs` gates structural roots on record literals
+  only, while the local branch also admits `is_scalar_case_value`; the fix is
+  that gate plus `EstablishStructuralValue` + `StoreStructuralField` in the
+  store sequence and `ordinary_machine/stores.rs` accepting an established
+  value as the store source), a byte-slice literal into a `&[u8] in Utf8`
+  field (1), a mutable-receiver call nested in an arithmetic source (1:
+  `computation_arguments::structural_computation_argument` admits receivers
+  only through shared borrows), and two local-rooted stores, one of which
+  also exposes a roster defect: `calls/signatures.rs` drops a reference
+  `self` the body never reads while `abi_parameter_count` still counts it,
+  so `Random::next_u32(&mut self, state: &mut RandomState)` is omitted at
+  "parameter access".
   Limits: no producer exists
   for a record member typed `UInt`, for a record with a `&[u8] in Utf8`
   field, or for a primitive-array record field (`[u32; 4]`); the closed-array
