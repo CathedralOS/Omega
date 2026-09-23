@@ -2262,6 +2262,21 @@ syntax and other terminal services are not prerequisites.
   and `::retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_custody`
   pass at `de08bc6b46a^` and fail at `de08bc6b46a`.
 
+  The radius is eleven tests, not two. `checked-trees-to-lowered-psi` goes
+  from 2 failures at `de08bc6b46a^` to 11 at `de08bc6b46a`; the nine it adds
+  are `tests::unit_cleanup::mixed_partial_affine_unit_cleanup_lowers_recursive_maximal_residuals`,
+  `tests::unit_cleanup::partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates`,
+  `crash_member_source::fenced_and_float_equality::fixed_index_argument_prefix_is_canonical_and_rebases_member_crash_routes_end_to_end`,
+  `reference_result_source::projected_record_argument_preserves_original_storage`,
+  `reference_result_source::projected_record_argument_rejects_changed_leaf_custody`,
+  `structural_return_source::claim_transfers_and_returns::literal_fixed_array_custody_crosses_ordinary_unit_calls_without_losing_siblings`,
+  `structural_return_source::claim_transfers_and_returns::literal_fixed_array_custody_reaches_verified_interpreted_terminal_psi`,
+  `value_dispatch::owned_results::interleaved_and_projected_sources::projected_parameter_roots_move_the_selected_child_with_exact_identity`
+  and `::projected_parameter_roots_reject_mutated_residual_cleanup`. Two
+  failures in that crate are OLDER than this commit and are not part of this
+  item: `value_dispatch::owned_results::folded_index_projection::folded_index_faces_the_literal_lowering_boundary`
+  and `owned_record_return_source::effectful_discarded_call_writes_before_return_across_fuel`.
+
   Measured for the fixture's `Root::enter(receipts: [Receipt; 2])` calling
   `Helper::run(receipts[0])`/`(receipts[1])`:
 
