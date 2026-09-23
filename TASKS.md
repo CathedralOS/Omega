@@ -2232,6 +2232,41 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
+- **PROJECTED-PARAMETER-MOVE-CARRIER-GAP.** (new-scope) Two checked tests are
+  red on main and the machine they cover has no plan in either home.
+  `de08bc6b46a` ("route projected parameter moves through the partial-affine
+  carrier") is the exact cause, bisected against its own parent: both
+  `tests::flow::terminal_unit::calls::fixed_array_projections::retains_literal_fixed_array_boundary_settlements_with_sibling_claims`
+  and `::retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_custody`
+  pass at `de08bc6b46a^` and fail at `de08bc6b46a`.
+
+  Measured for the fixture's `Root::enter(receipts: [Receipt; 2])` calling
+  `Helper::run(receipts[0])`/`(receipts[1])`:
+
+  - `facts.flow.terminal_unit_effects.for_machine` is `None`, with omission
+    `LocalConstruction { phase: "completion" }` — the
+    `return_unit_affine_discards(..)?` in
+    `execution/terminal_unit/control/checked_machine.rs`.
+  - `facts.flow.terminal_partial_affine_unit_cleanups.for_machine` is ALSO
+    `None`, so the plan did not relocate to the new carrier; it is gone.
+  - Not about siblings: a single-element `[Receipt; 1]` with one
+    `Helper::run(receipts[0])` is declined identically.
+
+  Reading the two lanes: the ordinary roster declines on
+  `has_projected_parameter_moves`, and
+  `execution/terminal_unit/cleanup/partial_affine_cleanup.rs` republishes only
+  when a `PermissionEventKind::Transfer` event with NON-EMPTY segments exists
+  for that machine/state, which this literal fixed-index projection shape
+  appears not to produce. That reading is not yet confirmed by instrumentation
+  — the three files are inside a live claim, so they were left untouched and
+  the claim carries this same note.
+
+  Acceptance: the two tests pass again with the machine published by exactly
+  one lane, and a body whose projections leave a real residual complement
+  still reaches the partial-affine carrier. Publishing it from both lanes, or
+  relaxing the ordinary roster back to path-sensitive argument custody, is not
+  the repair.
+
 - **AUTHORED-SELECTION-FINALIZATION-GAPS.** (new-scope) Close the authored
   declaration selection occurrences that survive successful checking.
   `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
