@@ -2078,9 +2078,27 @@ syntax and other terminal services are not prerequisites.
   `BorrowedSliceView` onto it, with cleanup and state-graph edges carrying the
   shape. The descriptor exists; what is missing is a callee that READS the
   runtime length, indexes an element or takes a subslice.
-  Extend the Terminal operation/type contract and independent checking rather
-  than erasing extent or adding a sample-specific recognizer. Core
-  `Slice::index<T [copy]>` already settles shared by-value element access.
+  The Terminal operation/type contract this row asks for is BUILT, measured at
+  `6ea83184c5`. `terminal-psi`'s `control_flow/operations.rs` carries
+  `EstablishElementView`, `ElementViewLength`, `ElementViewRead` and
+  `ElementViewSubslice`; `terminal-interpreter/src/element_views.rs` executes
+  all four; `checked-trees-to-lowered-psi` emits them, and its catalog maps
+  `BorrowedSliceView` onto `StructuralTypeShape::ElementView`. A consuming
+  CUSTOMER exists too and is not empty: the
+  `slices/callee_non_byte_view_len_index_subslice` canary uses `sub.len`,
+  `sub[index]` and `sub[1..]` across a call boundary, and it is registered in
+  `CHECKED_ONLY_PASS_CANARIES`.
+
+  What holds it there is one refusal, and the roster comment already names it:
+  "Native production stops at `Lowering(Unsupported("Unit graph borrowed slice
+  is not bytes"))`". That is
+  `unit/attached_unit/composed_control/state_graph/admission.rs`, whose
+  borrowed-parameter admission builds an expected shape for a primitive scalar
+  or a `u8` slice and refuses every other element type instead of producing the
+  `BorrowedSliceView` shape the catalog below it already understands. Start
+  there; do not erase extent or add a sample-specific recognizer.
+
+  Core `Slice::index<T [copy]>` already settles shared by-value element access.
 
   Acceptance: a non-byte-view callee consumes `.len`, indexing and subslicing
   through Terminal production and native realization; bounds, element-type,
