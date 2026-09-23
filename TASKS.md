@@ -2818,9 +2818,16 @@ syntax and other terminal services are not prerequisites.
     `source/library/std/calling.omg` `[u8; 256]::Utf8` both carry
     `package_identity: None`, so `lowering/domain.rs` mints the legacy key
     `[u8; N]::Utf8` for both and `domains.rs` rejects the cross-owner share.
-    It is the only `ACTIVE_PASS_CANARIES` member that declares its own
-    `[u8; N]::Utf8` and is compiled directly rather than elided by an exact
-    native owner, so the collision has one corpus symptom, not none.
+    There are TWO such symptoms, not one: `text/runtime_alias_string_write` is
+    also an `ACTIVE_PASS_CANARIES` member declaring its own `[u8; N]::Utf8`,
+    is rooted but carries no unique exact-native owner to elide it, and fails
+    the corpus compile with the same diagnostic. Both were re-measured at
+    `f2863aa05d`; the reproduction needs the ROOTED native-host route, because
+    an untargeted `Check` compile injects no toolchain std and so raises no
+    collision at all -- a probe that skips the target measures the wrong
+    thing. Instrumented, the two declarations agree on module (both the root
+    handle) and differ only in source package, which is exactly the
+    coordinate the minted legacy key drops.
   - Complete declaration evaluation, including unused initializers:
     specialized provider/target applications, authored NaN identity bits, and
     constrained constants beyond scalar-decodable record/array/case leaves.
