@@ -313,6 +313,14 @@ enum OpaqueTerm {
         dividend: Polynomial,
         divisor: Polynomial,
     },
+    /// An exact left shift keeps both inputs and the shifted carrier's bit
+    /// width: the count's defined range `[0, count_bits)` bounds the factor,
+    /// and re-mints reuse the mint site's width rather than re-deriving it.
+    ShiftLeft {
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    },
 }
 
 pub(super) struct Engine<'program> {
@@ -358,12 +366,13 @@ pub(super) struct Engine<'program> {
     /// Exact integer disequalities retained by strict adapters. A nonzero
     /// difference has no sign; it can establish disequality, not an order bound.
     nonzero_differences: Vec<Polynomial>,
-    /// Derived bounds for truncating integer quotient and remainder atoms.
+    /// Derived bounds for truncating integer quotient, remainder, and shift
+    /// atoms.
     arithmetic_intervals: BTreeMap<String, Interval>,
-    /// Opaque quotient/remainder atoms this engine minted, in mint order with
-    /// each term's operand. An outer term's operand atoms were necessarily
-    /// minted earlier, so one ordered pass transports nested terms
-    /// innermost-first.
+    /// Opaque quotient/remainder/shift atoms this engine minted, in mint
+    /// order with each term's operands. An outer term's operand atoms were
+    /// necessarily minted earlier, so one ordered pass transports nested
+    /// terms innermost-first.
     opaque_terms: Vec<(String, OpaqueTerm)>,
     /// Difference-bound matrix over atoms + the virtual ZERO atom:
     /// `matrix[a][b]` = best known lower bound of `a - b`.
@@ -635,6 +644,28 @@ impl<'program> Engine<'program> {
         self.bind_strict_occurrence(expression, value).then_some(())
     }
 
+    /// The rank-range owner has checked the selected Exact integer meaning and
+    /// supplies the shifted carrier's width; the bound mathematical term does
+    /// not excuse the endpoint's separate count-within-width and
+    /// representability proofs.
+    pub(super) fn bind_strict_integer_shift_left(
+        &mut self,
+        expression: ExpressionHandle,
+        count_bits: u32,
+    ) -> Option<()> {
+        let ExpressionNode::Binary(binary) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let value = self.normalize(binary.left)?;
+        let count = self.normalize(binary.right)?;
+        let value = match binary.operator {
+            BinaryOperator::ShiftLeft => self.integer_shift_left(value, count, count_bits)?,
+            _ => return None,
+        };
+        self.bind_strict_occurrence(expression, value).then_some(())
+    }
+
     fn bind_strict_occurrence(&mut self, expression: ExpressionHandle, value: Polynomial) -> bool {
         if self.strict_symbol_bindings.is_none()
             || !self.strict_symbol_bindings_valid
@@ -869,6 +900,43 @@ impl<'program> Engine<'program> {
         }
     }
 
+    /// The interval an exact left-shift atom takes from its operands':
+    /// `value * 2^count` over the count's DEFINED range `[0, count_bits)`.
+    /// A count at or beyond the shifted carrier's width produces no value,
+    /// so the interval clamps the authored count interval to the defined
+    /// range instead of growing the result past any legal evaluation. The
+    /// F8 count obligation is judged separately; this interval only covers
+    /// evaluations that produce one.
+    fn shift_left_interval(
+        &self,
+        value: &Polynomial,
+        count: &Polynomial,
+        count_bits: u32,
+    ) -> Interval {
+        let value_interval = self.polynomial_interval(&self.substituted(value));
+        let count_interval = self.polynomial_interval(&self.substituted(count));
+        let maximum_count = BigInt::from_u64(u64::from(count_bits - 1));
+        let low_count = count_interval
+            .low
+            .unwrap_or_else(BigInt::zero)
+            .max(BigInt::zero());
+        let high_count = count_interval
+            .high
+            .unwrap_or_else(|| maximum_count.clone())
+            .min(maximum_count);
+        if low_count > high_count {
+            return Interval::unbounded();
+        }
+        // Both ends sit in [0, count_bits): the `u64` reads cannot fail.
+        let (Some(low_bits), Some(high_bits)) = (low_count.to_u64(), high_count.to_u64()) else {
+            return Interval::unbounded();
+        };
+        value_interval.multiply(&Interval {
+            low: Some(BigInt::from_i64(1).shl_bits(low_bits as usize)),
+            high: Some(BigInt::from_i64(1).shl_bits(high_bits as usize)),
+        })
+    }
+
     fn integer_remainder(
         &mut self,
         operand: Polynomial,
@@ -925,6 +993,45 @@ impl<'program> Engine<'program> {
         Some(Polynomial::atom(atom))
     }
 
+    /// Normalize an independently admitted exact integer left shift. The
+    /// caller owns selected meaning and the F8 count/representability
+    /// obligations; this mathematical term supplies neither. A spelled
+    /// constant count outside `[0, count_bits)` never produces a value --
+    /// like a literal zero divisor, refuse the term rather than minting an
+    /// atom that no evaluation can reach.
+    fn integer_shift_left(
+        &mut self,
+        value: Polynomial,
+        count: Polynomial,
+        count_bits: u32,
+    ) -> Option<Polynomial> {
+        if let Some(count) = count.constant_value() {
+            let in_range = count
+                .to_u64()
+                .is_some_and(|bits| bits < u64::from(count_bits));
+            if !in_range {
+                return None;
+            }
+            if let Some(value) = value.constant_value() {
+                return Some(Polynomial::constant(
+                    value.shl_bits(count.to_u64()? as usize),
+                ));
+            }
+        }
+        let interval = self.shift_left_interval(&value, &count, count_bits);
+        let atom = format!("\0integer-shift-left:{value:?}<<{count:?}");
+        self.register_opaque_term(
+            atom.clone(),
+            OpaqueTerm::ShiftLeft {
+                value,
+                count,
+                count_bits,
+            },
+        );
+        self.arithmetic_intervals.insert(atom.clone(), interval);
+        Some(Polynomial::atom(atom))
+    }
+
     /// Range queries mint endpoint terms before installing their hypotheses.
     /// Recompute dependent intervals in mint order once those facts are live:
     /// an inner quotient must tighten before an outer quotient reads it.
@@ -943,6 +1050,11 @@ impl<'program> Engine<'program> {
                     modulus,
                     tight_interval,
                 } => self.remainder_interval(&operand, &modulus, tight_interval),
+                OpaqueTerm::ShiftLeft {
+                    value,
+                    count,
+                    count_bits,
+                } => self.shift_left_interval(&value, &count, count_bits),
             };
             self.arithmetic_intervals.insert(atom, interval);
         }
@@ -951,8 +1063,9 @@ impl<'program> Engine<'program> {
     }
 
     /// Extend a simultaneous argument map across this engine's opaque atoms:
-    /// a remainder or quotient atom whose operands substitute completely is
-    /// re-minted under the transported inputs and mapped to that fresh atom,
+    /// a remainder, quotient, or shift atom whose operands substitute
+    /// completely is re-minted under the transported inputs and mapped to
+    /// that fresh atom,
     /// its interval registered like any minted term. An operand whose leaf
     /// the map does not cover keeps its atom unmapped, so the consuming
     /// substitution still fails closed on it. Mint order transports an inner
@@ -999,6 +1112,26 @@ impl<'program> Engine<'program> {
                     (
                         format!("\0integer-quotient:{dividend:?}/{divisor:?}"),
                         self.quotient_interval(&dividend, &divisor),
+                    )
+                }
+                OpaqueTerm::ShiftLeft {
+                    value,
+                    count,
+                    count_bits,
+                } => {
+                    let Some(value) =
+                        super::inductive_judgment::apply_argument_map(&value, argument_map)
+                    else {
+                        continue;
+                    };
+                    let Some(count) =
+                        super::inductive_judgment::apply_argument_map(&count, argument_map)
+                    else {
+                        continue;
+                    };
+                    (
+                        format!("\0integer-shift-left:{value:?}<<{count:?}"),
+                        self.shift_left_interval(&value, &count, count_bits),
                     )
                 }
             };

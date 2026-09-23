@@ -984,6 +984,7 @@ fn argument_subjects(
                     | BinaryOperator::Subtract
                     | BinaryOperator::Multiply
                     | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
             ) =>
         {
             argument_subjects(program, machine, state, binary.left, subjects, depth + 1)?;

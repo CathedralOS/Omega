@@ -159,6 +159,7 @@ fn operations_land_under(
                     | BinaryOperator::Multiply
                     | BinaryOperator::Divide
                     | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
             ) =>
         {
             binary
@@ -183,12 +184,41 @@ fn operations_land_under(
     }
     let left = operand_primitive(program, machine, state, binary.left);
     let right = operand_primitive(program, machine, state, binary.right);
-    if let (Some(left), Some(right)) = (left, right)
+    // A left shift's count is an independent integer operand: it never
+    // selects or disputes the result carrier, which is the shifted value's
+    // own primitive.
+    let shifting = binary.operator == BinaryOperator::ShiftLeft;
+    if !shifting
+        && let (Some(left), Some(right)) = (left, right)
         && left != right
     {
         return false;
     }
-    if let Some(primitive) = left.or(right) {
+    let primitive = if shifting { left } else { left.or(right) };
+    if shifting {
+        // F8's count ruling at an endpoint: an exact `value << count` owes
+        // a provably in-width count under the same hypotheses, like a
+        // nonzero divisor. Result membership alone cannot establish count
+        // validity, and an anonymous shifted value selects no width at all.
+        let Some(width) =
+            primitive.and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
+        else {
+            return false;
+        };
+        let Some(count) = operation_value(engine, binary.right, arrival) else {
+            return false;
+        };
+        let count = engine.substituted(&count);
+        if !engine.prove_at_least(&count, &BigInt::zero())
+            || !engine.prove_at_least(
+                &Polynomial::constant(BigInt::from_i64(width - 1)).sub(&count),
+                &BigInt::zero(),
+            )
+        {
+            return false;
+        }
+    }
+    if let Some(primitive) = primitive {
         let Some((minimum, maximum)) = super::integer_carrier_bounds(primitive) else {
             return false;
         };
@@ -544,13 +574,12 @@ impl<'program> FieldCoordinate<'program> {
                 owner = next;
             }
         }
-        // A literal's leaf may itself be a quotient or remainder over caller
-        // inputs: mint each division's operand-pair atom the same way a bare
-        // scalar actual's terms are bound, so the leaf normalization keeps
-        // both operands' identity instead of refusing the term.
-        super::meanings::install_integer_division_terms(
-            program, machine, state, engine, current, 0,
-        )?;
+        // A literal's leaf may itself be a quotient, remainder, or exact
+        // shift over caller inputs: mint each non-polynomial operand-pair
+        // atom the same way a bare scalar actual's terms are bound, so the
+        // leaf normalization keeps both operands' identity instead of
+        // refusing the term.
+        super::meanings::install_nonpolynomial_terms(program, machine, state, engine, current, 0)?;
         engine.normalize(current)
     }
 
@@ -685,11 +714,9 @@ impl<'program> FieldCoordinate<'program> {
             }
         }
         // As in `actual`: a rebuilt literal's leaf may spell a runtime
-        // quotient or remainder, so each division's operand-pair atom is
-        // minted before the leaf normalizes.
-        super::meanings::install_integer_division_terms(
-            program, machine, state, engine, current, 0,
-        )?;
+        // quotient, remainder, or exact shift, so each non-polynomial
+        // operand-pair atom is minted before the leaf normalizes.
+        super::meanings::install_nonpolynomial_terms(program, machine, state, engine, current, 0)?;
         engine.normalize(current)
     }
 }

@@ -712,11 +712,11 @@ fn prove_edge(
     }
 
     // Endpoint arithmetic uses the same exact entry aliases and field
-    // coordinates as the rank. Bind quotient meaning after those coordinates
-    // exist; declaration/flow formation and every arrival's pinning remain
-    // independent obligations below.
+    // coordinates as the rank. Bind non-polynomial term meaning after those
+    // coordinates exist; declaration/flow formation and every arrival's
+    // pinning remain independent obligations below.
     for endpoint in [range.start, range.end] {
-        meanings::install_integer_division_terms(program, machine, root, &mut engine, endpoint, 0)?;
+        meanings::install_nonpolynomial_terms(program, machine, root, &mut engine, endpoint, 0)?;
     }
     let floor = engine.normalize(range.start)?;
     let ceiling = engine.normalize(range.end)?;
@@ -943,12 +943,13 @@ fn prove_edge(
                 *argument,
                 coordinate.borrowed,
             )?,
-            // A scalar destination's actual may itself be a quotient or
-            // remainder tree: bind each division's exact-integer meaning the
-            // same way the endpoints were bound above, so normalization keeps
-            // both operands' identity instead of refusing the term.
+            // A scalar destination's actual may itself be a quotient,
+            // remainder, or shift tree: bind each term's exact-integer
+            // meaning the same way the endpoints were bound above, so
+            // normalization keeps both operands' identity instead of
+            // refusing the term.
             None => {
-                meanings::install_integer_division_terms(
+                meanings::install_nonpolynomial_terms(
                     program,
                     machine,
                     state,

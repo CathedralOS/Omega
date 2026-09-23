@@ -182,7 +182,7 @@ pub(crate) fn prove_ranking_range_call_entry(
             _ => rank_coordinate(program, member.machine, &mut engine, measure)?,
         };
         for endpoint in [range.start, range.end] {
-            meanings::install_integer_division_terms(
+            meanings::install_nonpolynomial_terms(
                 program,
                 member.machine,
                 state,
@@ -613,10 +613,10 @@ pub(crate) fn prove_ranking_range_call(
             return None;
         };
         // The entry-spelled endpoint reads the site's already-established
-        // caller coordinates. Its mathematical quotient retains those inputs;
+        // caller coordinates. Its non-polynomial terms retain those inputs;
         // neither callee formals nor callee requirements are available yet.
         for endpoint in [range.start, range.end] {
-            meanings::install_integer_division_terms(
+            meanings::install_nonpolynomial_terms(
                 program,
                 caller.machine,
                 entry,
@@ -703,13 +703,14 @@ pub(crate) fn prove_ranking_range_call(
             expression: *argument,
         });
     }
-    // A scalar destination's actual may itself be a quotient or remainder
-    // tree over caller inputs: bind each division's exact-integer meaning the
-    // same way the endpoints were bound, so normalization keeps both
+    // A scalar destination's actual may itself be a quotient, remainder, or
+    // shift tree over caller inputs: bind each term's exact-integer meaning
+    // the same way the endpoints were bound, so normalization keeps both
     // operands' identity instead of refusing the term. Formation stays with
-    // the actual's own evaluation; a literal zero modulus fails the bind.
+    // the actual's own evaluation; a literal zero modulus or out-of-width
+    // constant shift count fails the bind.
     for binding in &actuals {
-        meanings::install_integer_division_terms(
+        meanings::install_nonpolynomial_terms(
             program,
             caller.machine,
             source,
@@ -848,7 +849,7 @@ pub(crate) fn prove_ranking_range_call(
         // now denote the actuals installed by this call. Bind only now: an
         // earlier occurrence binding would freeze the wrong namespace.
         for endpoint in [range.start, range.end] {
-            meanings::install_integer_division_terms(
+            meanings::install_nonpolynomial_terms(
                 program,
                 callee.machine,
                 destination,
