@@ -2267,6 +2267,41 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
+- **OWNED-SELF-RECEIVER-AFFINE-DISCARD.** (new-scope) An owned `self` receiver
+  now leaves owned custody at every successful exit edge without occurring in
+  any accounted disposition, and it does so regardless of multiplicity.
+  `6e8cb1f85c` ("owned self receivers retire their entry claims at normal
+  completion") added `consume_terminal_self_receiver` to
+  `terminal-verifier/src/validation/frontier/terminators.rs`; it is guarded on
+  `parameter.is_self && parameter.access == Owned` and does NOT consult
+  `multiplicity`, so an Affine owned receiver is removed from
+  `frontier.owned_places` before `validate_scalar_cleanup_actions` runs.
+
+  Measured: `git bisect` over ~4 days names `6e8cb1f85c` as the first bad
+  commit for `terminal-interpreter::unit affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
+  and `::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`,
+  which have been red on main since. Both build a receiver that
+  `tests/unit.rs`'s `structural_parameter` helper declares `is_self: true,
+  access: Owned`, set its multiplicity to `Affine`, and author an explicit
+  `DiscardRoot`. That discard is now rejected as
+  `ScalarReturnAffineDiscardsMismatch` because the place it names is already
+  gone, so no affine discard runs and none is charged — which is exactly what
+  those two tests exist to observe about edge-charge ordering.
+
+  Why this is a meaning question and not a stale fixture:
+  [Terminal ownership](wiki/spec/terminal-psi/ownership.md) says every incoming
+  owned obligation on a returning edge "occurs exactly once in the edge's
+  transfer map, explicit terminal consumption, eligible automatic cleanup, or
+  validated no-code affine discard". Implicit retirement is a fifth route, and
+  for a Linear receiver the commit's reasoning (the machine consumes it by
+  completing) reads coherently, while for an Affine one the discard is the
+  observable, charged disposition the spec's third and fourth routes name.
+
+  Acceptance: decide whether the rule is Linear-only or whether an Affine
+  owned receiver's disposition becomes implicit, and make the two interpreter
+  tests state that decision rather than merely pass. If it stays multiplicity
+  blind, say in the spec which accounted disposition the receiver occurs in.
+
 - **PROJECTED-PARAMETER-MOVE-CARRIER-GAP.** (new-scope) Two checked tests are
   red on main and the machine they cover has no plan in either home.
   `de08bc6b46a` ("route projected parameter moves through the partial-affine
