@@ -22,8 +22,10 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
     else {
         return false;
     };
-    machine.lifetime_parameters.is_empty()
-        && checked.machine_type_parameters(machine).is_empty()
+    // Authored lifetime binders erase at checking: the retained plan's
+    // type identities and custody paths never spell an 'a name. Generic
+    // type parameters still need instantiation machinery and stay out.
+    checked.machine_type_parameters(machine).is_empty()
         // A persistent receiver remains part of every state's invocation
         // custody, even when its body only calls a compile-selected service.
         && checked.machine_states(machine).iter().all(|source| {
@@ -102,7 +104,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             "Unit graph has no authored machine",
         ))?;
     if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || !machine.lifetime_parameters.is_empty()
         || !checked.machine_type_parameters(machine).is_empty()
     {
         return unsupported("Unit graph requires a closed checked body");
