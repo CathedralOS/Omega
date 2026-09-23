@@ -2230,6 +2230,53 @@ syntax and other terminal services are not prerequisites.
   stays multiplicity blind, say in the spec which accounted disposition the
   receiver occurs in.
 
+- **CLOSED-SUM-EDGE-DISCARD-EVIDENCE-DISAGREEMENT.** (new-scope) Two
+  checked-side facts about the same edge disagree, and `c049c026b6`
+  ("constructed arguments and owned edge discards compose through the Unit
+  graph") added the consistency check that catches it. The check is right;
+  one of the two producers is wrong.
+
+  `composed_control/state_graph/edges.rs` now requires an edge's
+  `trivial_affine_discard_parameter_positions` to equal the positions its
+  `terminal_structural_control_cleanups` evidence names, at two sites (the
+  ordinary successor and the closed-sum arm), where both previously refused
+  any nonempty discard outright. Measured by instrumenting the refusal on
+  `optimization-unit-semantics`'s own fixture: state `inspect`, edge ordinal
+  1, `evidence=[1]`, `edge=[]`, `has_cleanup=true`.
+
+  Position 1 of `state inspect(out: &mut [u8], result: Outcome)` is the owned
+  sum `result`, and edge ordinal 1 is the `Outcome::Value { value } ->
+  writable(out, value)` arm -- a closed-sum arm that consumes `result` by
+  destructuring rather than forwarding it. So the question the disagreement
+  poses is whether destructuring a closed sum on a case arm IS a trivial
+  affine discard of the scrutinee: the cleanup evidence says yes, the edge
+  says no. `c049c026b6`'s own body distinguishes the closed-sum edge ("a
+  closed-sum case edge still refuses a forged discard"), so which fact is
+  authoritative there is that commit's call, not a free choice.
+
+  Three tests, one cause, all green at `c049c026b6^` and red from
+  `c049c026b6`: `optimization-unit-semantics
+  tests::structural_cases::owned_results::{owned_call_result_transfers_to_case_parameter,
+  established_scalar_case_transfers_to_owned_block_parameter,
+  owned_result_transfer_rejects_current_custody_corruption}` -- 5 run / 5
+  passed at the parent, 5 run / 2 passed at the commit.
+
+  Acceptance: the two facts agree by construction rather than by a checker
+  comparing them after the fact, with the closed-sum arm's answer stated
+  where the disagreement was. Do not relax the new check to `is_empty()` on
+  either side: it is the control that found this.
+
+  Separately bracketed while measuring the same suite family, NOT this cause:
+  `terminal-verifier::suite structural_unit::partial_affine_moves::direct_field_partial_affine_return_rejects_forged_conservation_shapes`
+  expects `InvalidPartialAffineCleanup` and now gets
+  `UnitReturnAffineDiscardsMismatch`. The forged shape still rejects, so this
+  is refusal-ordering drift rather than an admission hole. It passes at
+  `6e8cb1f85c` and fails at `49533e07d3`; the culprit is in that range and is
+  NOT the `598e3d4811..702e461755` batch, which was ruled out by measuring at
+  `49533e07d3` (already red) before that batch's first commit. Narrowing
+  further needs a bisect over ~2176 first-parent commits whose older points
+  require full rebuilds.
+
 - **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT.** (new-scope) A borrowed-self
   record argument no longer lowers: `checked-trees-to-lowered-psi`'s
   `expression_preparation/source_custody/computation_calls/shared_nominal_arguments.rs`
