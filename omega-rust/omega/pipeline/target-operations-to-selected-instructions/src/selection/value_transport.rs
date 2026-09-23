@@ -62,10 +62,8 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 | Instruction::ElementViewRead { index, length, .. } => {
                     pending.extend([*index, *length])
                 }
-                Instruction::StructuralLeafCopy { index, .. } => {
-                    if let Some(index) = index {
-                        pending.push(index.value)
-                    }
+                Instruction::StructuralLeafCopy { indices, .. } => {
+                    pending.extend(indices.iter().map(|index| index.operand.value))
                 }
                 Instruction::BooleanNot { operand }
                 | Instruction::IntegerWiden { operand, .. }

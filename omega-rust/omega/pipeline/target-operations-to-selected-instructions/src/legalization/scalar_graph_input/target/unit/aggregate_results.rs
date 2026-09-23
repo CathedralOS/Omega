@@ -117,7 +117,7 @@ pub(super) fn validate(
                 source,
                 path,
                 byte_offset,
-                index,
+                indices,
             },
             AbstractOperation::StructuralLeafCopy {
                 psi_operation: expected_operation,
@@ -126,7 +126,7 @@ pub(super) fn validate(
                 path: expected_path,
             },
         ) => {
-            let (expected_offset, expected_shape, expected_index) =
+            let (expected_offset, expected_shape, expected_indices) =
                 scalar_graph_input::structural_case::leaf_copy_layout(
                     optimized,
                     *expected_source,
@@ -134,7 +134,8 @@ pub(super) fn validate(
                     result,
                     plan,
                 )?;
-            let expected_index = expected_index
+            let expected_indices = expected_indices
+                .into_iter()
                 .map(|(selector, stride)| {
                     let parameter = usize::try_from(selector)
                         .ok()
@@ -149,12 +150,12 @@ pub(super) fn validate(
                         stride,
                     })
                 })
-                .transpose()?;
+                .collect::<Result<Vec<_>, _>>()?;
             if psi_operation != expected_operation
                 || source != expected_source
                 || path != expected_path
                 || *byte_offset != expected_offset
-                || *index != expected_index
+                || *indices != expected_indices
                 || *result_home
                     != scalar_graph_input::aggregate_results::result_home(
                         optimized,

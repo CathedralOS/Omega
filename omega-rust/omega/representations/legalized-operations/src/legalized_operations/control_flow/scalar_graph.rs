@@ -103,7 +103,7 @@ impl LegalizedScalarInstruction {
                     LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
                     LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
-                    LegalizedScalarInstructionKind::StructuralLeafCopy { index, .. } => index.is_some_and(|operand| operand.value == value),
+                    LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. } => indices.iter().any(|index| index.operand.value == value),
                     LegalizedScalarInstructionKind::Constant(_)
                     | LegalizedScalarInstructionKind::EstablishReference { .. }
                     | LegalizedScalarInstructionKind::ReleaseReference { .. }
@@ -266,11 +266,10 @@ pub enum LegalizedScalarInstructionKind {
         path: Vec<terminal_psi::StructuralPathSegment>,
         byte_offset: u32,
         shape: calling_conventions::ValueShape,
-        /// Resolved operand for a `RuntimeIndex` segment, scaling by
-        /// `index_stride` before joining `byte_offset`. `None` for fully
-        /// static projections.
-        index: Option<abstract_operations::AbstractResult>,
-        index_stride: u32,
+        /// Resolved operands for `RuntimeIndex` segments in path order;
+        /// each operand scales by its `stride` before joining `byte_offset`.
+        /// Empty for fully static projections.
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     /// Exact admitted byte-input boundary and its owned structural result home.
     HostedReadByte {
@@ -557,6 +556,14 @@ pub enum LegalizedScalarComparison {
     Equal,
     LessThan,
     LessOrEqual,
+}
+
+/// One resolved `RuntimeIndex` traversal inside a structural leaf copy: the
+/// operand scales by `stride` before joining the copy's static byte offset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LegalizedRuntimeIndexOperand {
+    pub operand: abstract_operations::AbstractResult,
+    pub stride: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
