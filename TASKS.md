@@ -3446,9 +3446,11 @@ syntax and other terminal services are not prerequisites.
   service ceiling (`reaches Console`), and behind it
   `control_flow/structural_case.rs::lower` requires a structural home rather
   than a parameter root.
-  `control_flow/record_pattern_arm_rename_guard_exit` stops at
-  `OperationProofUnavailable` for its guard's sum of two unconstrained `i32`
-  fields.
+  `control_flow/record_pattern_arm_rename_guard_exit` now widens its guard
+  (`x as i64 + vertical as i64 == 70`): validation refuses exact guard
+  arithmetic without a range proof (`693a39cd90`). It stops at the same
+  `UnsupportedControlFlow(MachineId(1))` on `Main::main`'s `CallUnit` into
+  `judge`, which also publishes `reaches Console`.
   Unread-`&mut self` roster defect, probed 2026-09-23: replacing the count
   comparison in the four store planners (`primitive_store.rs`,
   `structural_scalar_store/mod.rs`) with a position check that admits an
