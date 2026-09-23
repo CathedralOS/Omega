@@ -342,7 +342,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && !matches!(body.result, AbstractFunctionResult::Unit)
                         && arguments.len() == body.parameters.len()
                 }
-                AbstractOperation::CallUnit { psi_operation, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none()),
+                AbstractOperation::CallUnit { psi_operation, crash_continuations, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)
                     || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.operation == *psi_operation),

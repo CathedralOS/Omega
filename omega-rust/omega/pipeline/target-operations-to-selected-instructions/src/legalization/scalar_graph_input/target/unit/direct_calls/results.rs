@@ -65,7 +65,6 @@ pub(super) fn validate(
                 claim_transfers,
                 returned_claim_transfers: expected_returns,
                 requirement_obligations,
-                crash_continuations,
                 selected_evidence,
                 ..
             },
@@ -106,7 +105,6 @@ pub(super) fn validate(
                 || !returned_claim_transfers.is_empty()
                 || !expected_returns.is_empty()
                 || !requirement_obligations.is_empty()
-                || !crash_continuations.is_empty()
                 || !selected_evidence.is_empty()
             {
                 return Err(invalid());
