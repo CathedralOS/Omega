@@ -2232,6 +2232,35 @@ syntax and other terminal services are not prerequisites.
 
 ## Parallel language and compiler lanes
 
+- **AUTHORED-SELECTION-FINALIZATION-GAPS.** (new-scope) Close the authored
+  declaration selection occurrences that survive successful checking.
+  `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
+  rejects any occurrence still `LateBound` at the end of checking; two
+  unowned customers hit that today and both are measured on main, not
+  inferred:
+
+  - `package-evidence` `terminal_permission_policy::uefi::ordinary_uefi_permission_retains_calling_meaning_omitted_from_accepted_schema_digest`
+    fails with "authored Call declaration selection occurrence 1686 remained
+    unresolved after successful checking (CheckedCall)".
+  - All four `compiler --test canary_suite` `float_semantic_twins` tests fail,
+    and `build_runtime_float_semantics_twins_agree` fails with the Operator
+    twin of the same message, occurrence 178, at
+    `tests/omega/pass/float/build_runtime_semantics_twins/main.omg` line 91
+    column 28 — the outer `==` of `(nan32 == nan32) == false`. Instrumenting
+    the rejection site confirms the node really is `Binary(Equal)`, so it
+    reaches finalization's Binary arm and all three resolvers decline:
+    `checked_generic_operator_target`, `checked_operator_target_for_occurrence`
+    and the `typed_operator_has_no_authored_selection` builtin fallback.
+    Start there. Reduced probes of `(a == b) == false` over `bool`, `i32` and
+    `f32`, with and without an authored `==` declared as a crowned machine or
+    as a trait requirement, all check cleanly, so the trigger is not the
+    comparison shape and not the mere presence of an authored spelling.
+
+  Acceptance: both customers check with every occurrence resolved to a real
+  declaration or to an explicit builtin intrinsic, and an occurrence that
+  genuinely selects nothing still rejects. Do not silence the finalization
+  check or widen `allow_unresolved_toolchain` to cover authored source.
+
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
   [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
@@ -2341,6 +2370,21 @@ syntax and other terminal services are not prerequisites.
     citation/induction case guarantees. Abstract **callee** attribution already
     exists in `specification_calls.rs::RequirementOwner::Signature`; that does
     not validate every call occurring **inside** an abstract contract.
+    Evidence arguments are the measured cost of this gap today, not a
+    hypothetical one: `specification_calls.rs` gates every discharge behind
+    `arguments_select_plainly`, which requires `call.evidence_arguments`
+    to be EMPTY, and its requirement loop proves only `ProofFact::Expression`
+    — a `ProofFact::Proposition` requirement takes the `else { false }` arm
+    unconditionally. So a contract call that explicitly supplies the evidence
+    its callee requires is rejected BECAUSE it supplies it. All eight
+    `package-evidence` `contract_expressions::evidence_calls` tests are red on
+    main for exactly this, on a fixture unchanged since `272a371880c`
+    withheld the route: `pub machine inspect(value: i32) requires p:
+    carries(value) requires observes(value; p)` reports "cannot prove requires
+    contract for specification call `observes`". `encoding.md`'s
+    `evidence argument` row already names the shape a discharge would check —
+    input position, callee proposition id, source evidence term id and
+    instantiated proposition id — so the checked rule has a settled target.
     Establish premises before result formation or guarantee intake, including
     erased/discarded uses; recursion separately requires descent. Preserve
     exact subject/argument identity, complete constructor values versus tag-only
