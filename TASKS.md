@@ -3949,6 +3949,45 @@ but report the missing runtime leg explicitly; it does not close that host row.
   consumers, including `package_inspection`, `offline_package_commands`, and
   `source_diff_commands`.
 
+  THE WHOLE `-p compiler` TEST SURFACE IS UNGATED, and a complete sweep says
+  how much that has cost. `land_tight.sh` checks
+  `--workspace --all-targets --exclude omega-native-differential-test --exclude
+  compiler`, so nothing a landing runs ever executes these targets except
+  `canary_suite`. Swept at `869021cf9c7` on macOS arm64, twelve targets at a
+  time (an unscoped `-p compiler` links ~150 binaries and exhausts this host's
+  disk): of the 110 targets outside `canary_suite`, `samples_compile` and
+  `corpus_runner`, **23 carry 178 failing tests**.
+
+  | n | target | n | target |
+  | --- | --- | --- | --- |
+  | 89 | `native_filesystem_canaries` | 3 | `service_operational_contracts` |
+  | 17 | `recast_views` | 3 | `source_evaluated_native_realization` |
+  | 10 | `runtime_value_generics` | 3 | `subslice_runtime_end_bounds` |
+  | 9 | `plan_laid_repeated_runtime` | 2 | `callback_terminal_custody` |
+  | 7 | `build_target_activation` | 2 | `terminal_authority` |
+  | 7 | `optimizer_opt_in` | 1 | `build_named_inputs` |
+  | 6 | `build_snapshot_outputs` | 1 | `callable_entry_custody` |
+  | 4 | `private_joint_progress` | 1 | `joint_call_rankings` |
+  | 3 | `layout_plans` | 1 | `literal_dispatch_unit_plan_stops` |
+  | 3 | `module_machine_indices` | 1 | `no_selection_golden` |
+  | 3 | `pcc_publication` | 1 | `object_artifact_custody` |
+  | | | 1 | `object_container_custody` |
+
+  `native_filesystem_canaries` is half the total and fails UNIFORMLY -- 89 of
+  89, none passing -- so it is one cause, not eighty-nine. Sampled, it is a
+  visibility rejection rather than the macOS provider absence recorded
+  elsewhere: `public interface selects private domain [u8]::CString`, from
+  `validation/src/declarations/declaration_visibility.rs`. The domain is
+  declared `pub` at `source/library/std/macos_gui.omg:32`, so what the checker
+  reads as its visibility is not what the file says, and that contradiction is
+  the thing to chase -- closing it plausibly returns all 89 at once. It is the
+  same public-interface tightening that drifted the `calling_policy_plans`
+  canary, so look there for the change that moved.
+
+  `build_named_inputs`, `build_snapshot_outputs` and `build_target_activation`
+  are release-gate commands on this very row, so 14 of these sit directly
+  under release closure.
+
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
   round-trip valid evidence, reject hostile/substituted evidence before
   PCC-required interpretation or lowering, and keep ordinary non-PCC output
