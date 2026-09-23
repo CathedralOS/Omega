@@ -1,20 +1,21 @@
 //! Whole owned-affine identity returns, shared by ordinary and selected machines.
 use super::{
-    Block, CheckedTrees, LoweredPsi, LoweringError, MachineContract, MachineId, Multiplicity,
-    ProofBundle, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeId,
-    TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker, allocate_dense, block_id, contract_id, edge_id,
-    lookup_machine_id, lookup_type_id, machine_id, place_id, retain_additional_structural_types,
-    terminal_scalar_type, unsupported, value_id,
+    Block, CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedTrees, LoweredPsi,
+    LoweringError, MachineContract, MachineId, Multiplicity, ProofBundle, StructuralMultiplicity,
+    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration,
+    StructuralTypeDeclaration, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+    allocate_dense, block_id, contract_id, edge_id, lookup_machine_id, lookup_type_id, machine_id,
+    place_id, retain_additional_structural_types, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::attached_unit::lower_unit_parameters;
 
 pub(crate) fn lower_affine_return_machine(
     checked: &CheckedTrees,
-    source_machine: symbols::SymbolHandle,
+    plan: &CheckedClaimFreeAffineStructuralReturnMachinePlan,
 ) -> Result<LoweredPsi, LoweringError> {
     let plans = &checked.facts.flow.terminal_structural_returns;
+    let source_machine = plan.machine;
     let terminal_machine = machine_id(1);
     let mut semantic_module = TerminalModule {
         scalar_qualifications: Default::default(),
@@ -47,12 +48,6 @@ pub(crate) fn lower_affine_return_machine(
         quotient_correspondences: Vec::new(),
         machines: Vec::new(),
     };
-    let plan =
-        plans
-            .claim_free_affine_for_machine(source_machine)
-            .ok_or(LoweringError::Unsupported(
-                "affine identity has no checked return plan",
-            ))?;
     retain_additional_structural_types(
         &mut semantic_module,
         &plans.structural_types,

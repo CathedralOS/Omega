@@ -4,8 +4,10 @@
 //! `terminal_selections.rs` selects machines, `scalar_graph_plans.rs`,
 //! `structural_control_plans.rs` and `composed_unit_control_plans.rs` carry
 //! control graphs, `scalar_return_plans.rs`, `structural_return_plans.rs`
-//! and `structural_return.rs` carry returns, `structural_type_plans.rs` and
-//! `structural_argument_plans.rs` carry structural types and arguments,
+//! and `structural_return.rs` carry returns while `return_plans.rs` names the
+//! one return plan a machine carries across those rosters,
+//! `structural_type_plans.rs` and `structural_argument_plans.rs` carry
+//! structural types and arguments,
 //! `affine_cleanup_plans.rs` carries affine cleanup, `result_binding_plans.rs`
 //! carries result bindings, `unit_effect_plans.rs` carries effect
 //! operations and `boundary_machine_plans.rs` carries boundary machines.
@@ -14,6 +16,7 @@ mod affine_cleanup_plans;
 mod boundary_machine_plans;
 mod composed_unit_control_plans;
 mod result_binding_plans;
+mod return_plans;
 mod scalar_graph_plans;
 mod scalar_return_plans;
 mod structural_argument_plans;
@@ -48,6 +51,7 @@ pub use result_binding_plans::{
     CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralByteSequenceFieldStorePlan,
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralResultBindingPlan,
 };
+pub use return_plans::CheckedReturnPlan;
 pub use scalar_graph_plans::{
     CheckedScalarBinding, CheckedScalarBindingDestination, CheckedScalarBindingValue,
     CheckedScalarBranchDestination, CheckedScalarGraphPlans, CheckedScalarGuardedExit,

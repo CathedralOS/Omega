@@ -1,16 +1,20 @@
 //! Return-transfer machine lowering.
 //!
-//! Owns the producers dispatched for result-bearing plans: owned-affine
-//! identity returns, boundary scalar results, payloadless structural cases and
-//! guarded calls, general structural results, and structural scalar returns.
-//! Structural-type retention shared by the result and control lanes lives here.
+//! `lower_return_machine` lowers the one checked return plan a selected
+//! machine carries: it dispatches on the plan's result kind to the body that
+//! owns it — owned-affine identity returns, boundary scalar results,
+//! payloadless structural cases and guarded calls, general structural results,
+//! structural scalar returns and their operator-realized forms — and publishes
+//! what every kind shares. Structural-type retention shared by the result and
+//! control lanes lives here.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedBoundaryScalarReturnMachinePlan,
-    CheckedNominalAffineUnitCleanupMachinePlan, CheckedScalarBindingValue, CheckedScalarExpression,
+    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedNominalAffineUnitCleanupMachinePlan,
+    CheckedReturnPlan, CheckedScalarBindingValue, CheckedScalarExpression,
     CheckedScalarExpressionRole, CheckedSelectedOperatorStructuralScalarReturnMachinePlan,
     CheckedStructuralReturnMachinePlan, CheckedStructuralScalarIntegerBoundKind,
     CheckedStructuralScalarIntegerBoundPlan, CheckedStructuralScalarReturnCleanupAction,
@@ -54,6 +58,7 @@ use crate::expression_preparation::prepare_expression::{
     lower_checked_scalar_expression_at, lower_checked_scalar_expression_at_with_parameters,
 };
 use crate::lowering_error::{LoweringError, unsupported};
+use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::{
     RESULT_STRUCTURAL_PLACE_ID, lower_boundary_content_guarantees,
@@ -61,7 +66,15 @@ use crate::proofs::content_conservation::{
 };
 use crate::proofs::crash_routes::{lower_boundary_crash_routes, lower_checked_crash_route_buckets};
 use crate::proofs::operation_proofs::finalize_operation_proofs;
+use crate::returns::affine_return::lower_affine_return_machine;
+use crate::returns::boundary_scalar_return::lower_boundary_scalar_return_machine;
 use crate::returns::payloadless_case_return::lower_payloadless_case_return_machine;
+use crate::returns::payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
+use crate::returns::structural_return::lower_structural_return_machine;
+use crate::returns::structural_scalar_return::{
+    lower_selected_operator_structural_scalar_return_machine,
+    lower_structural_scalar_return_machine, lower_trait_operator_scalar_return_machine,
+};
 use crate::returns::structural_types::{
     lower_mixed_cases, lower_mixed_fields, lower_structural_type_plans,
     retain_additional_structural_types, terminal_byte_sequence_carrier,
@@ -92,3 +105,52 @@ pub(crate) mod payloadless_guarded_call_return;
 pub(crate) mod structural_return;
 pub(crate) mod structural_scalar_return;
 pub(crate) mod structural_types;
+
+/// Lower the one checked return plan a selected machine carries: the body
+/// that owns its result kind, then the publication every kind shares. The
+/// published source closure is the selected machine followed by the
+/// realization it calls when the plan is one call; the boundary body alone
+/// publishes an exact machine catalog, and the affine identity body publishes
+/// no debug map.
+pub(crate) fn lower_return_machine(
+    checked: &CheckedTrees,
+    plan: CheckedReturnPlan<'_>,
+) -> Result<LoweredSelectedMachine, LoweringError> {
+    let mut completion = LoweringCompletion::default();
+    let terminal = match plan {
+        CheckedReturnPlan::SelectedOperator(plan) => {
+            lower_selected_operator_structural_scalar_return_machine(checked, plan)?
+        }
+        CheckedReturnPlan::PayloadlessGuardedCall(plan) => {
+            lower_payloadless_guarded_call_return_machine(checked, plan)?
+        }
+        CheckedReturnPlan::TraitOperator(plan) => {
+            lower_trait_operator_scalar_return_machine(checked, plan)?
+        }
+        CheckedReturnPlan::StructuralScalar(plan) => {
+            lower_structural_scalar_return_machine(checked, plan)?
+        }
+        CheckedReturnPlan::BoundaryScalar(plan) => {
+            return Ok(LoweredSelectedMachine::source_mapped(
+                lower_boundary_scalar_return_machine(checked, plan)?,
+                completion,
+            ));
+        }
+        CheckedReturnPlan::PayloadlessCase(plan) => {
+            lower_payloadless_case_return_machine(checked, plan)?
+        }
+        CheckedReturnPlan::Structural(plan) => lower_structural_return_machine(checked, plan)?,
+        CheckedReturnPlan::ClaimFreeAffine(plan) => {
+            completion.debug = DebugPublication::Omit;
+            lower_affine_return_machine(checked, plan)?
+        }
+    };
+    let source_machines = std::iter::once(plan.machine())
+        .chain(plan.realization_machine())
+        .collect();
+    Ok(LoweredSelectedMachine::entry_only(
+        terminal,
+        completion,
+        source_machines,
+    ))
+}
