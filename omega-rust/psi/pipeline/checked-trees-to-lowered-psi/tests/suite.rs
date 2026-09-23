@@ -89,6 +89,7 @@ mod scalar_local_borrows;
 mod scalar_return_calls_source;
 mod scalar_storage_source;
 mod scalar_unit_calls;
+mod signed_wrapping_conversion_values;
 mod state_local_record_lifetimes;
 mod structural_return_source;
 mod unit_boolean_requirements_source;

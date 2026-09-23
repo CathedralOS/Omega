@@ -1583,6 +1583,25 @@ syntax and other terminal services are not prerequisites.
     widening and supported unsigned narrowing. Truncation toward zero does not
     implement a negative value's modular image; bit masking alone supplies no
     proof of the exact-cast range.
+    HALF DONE. Every NARROWING pair with an unsigned DESTINATION now composes,
+    signed source included: `operand & (2^B - 1)` is the modular image already
+    inside the destination, and the bound machinery does carry an interval
+    through the mask, so the exact cast that receives it discharges --
+    `tests/signed_wrapping_conversion_values.rs` EXECUTES the serialized
+    module for `i16 -> u8` and `i32 -> u16`, including the rows truncation
+    toward zero gets wrong (`-1 -> 255`, `-200 -> 56`, `-40000 -> 25536`), so
+    the evidence is an answer and not a composition.
+    The residual is one missing bound, not a missing operation. A narrowing
+    pair with a SIGNED destination needs the window's upper half folded down,
+    `(masked ^ 2^(B-1)) - 2^(B-1)`; the value is right but no interval
+    survives the fold, so the cast reports `OperationProofUnavailable`.
+    Measured: swapping `ExactSubtract` for `WrappingSubtract` does not help,
+    which locates the gap in the fold's RANGE rather than the subtraction's
+    policy. Teach the bound machinery XOR-with-a-constant and
+    subtract-a-constant over an already-bounded operand and this closes.
+    Same-width and sign-widening pairs are a separate matter -- they have no
+    narrowing carrier to spell the mask in at all -- and keep the original
+    refusal, now under its own diagnostic so the two are not confused.
   - Complete signed/mixed-sign saturating conversion beyond existing admitted
     cases. Boolean-to-integer and unsigned narrowing already lower; reuse them
     as controls. A signed saturating subtraction is not the unsigned clamp
