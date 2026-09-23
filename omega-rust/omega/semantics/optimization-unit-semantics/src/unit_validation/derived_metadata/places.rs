@@ -58,6 +58,9 @@ pub(crate) fn reconstruct_declared_places(
                 // The extraction's moved subtree is a declared operation
                 // result place like any establishment's.
                 | O::MoveStructuralField { result, .. }
+                // The copy's fresh owned storage is a declared operation
+                // result place like any establishment's.
+                | O::StructuralLeafCopy { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -153,6 +156,9 @@ pub(crate) fn validate_operation_places(
         }
         O::MoveStructuralField { source, .. } => {
             require(source.place, known)?;
+        }
+        O::StructuralLeafCopy { source, .. } => {
+            require(*source, known)?;
         }
         O::StoreStructuralField {
             destination, value, ..

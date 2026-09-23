@@ -485,6 +485,10 @@ fn structural_operation_result_contract(
                 // The moved subtree leaves the window as an owned whole value;
                 // the repair store consumes it with exactly that custody.
                 | O::MoveStructuralField { result, .. }
+                // A leaf copy establishes fresh owned storage the way an
+                // establishment does: consumers must not alias it back into
+                // the readable root's custody.
+                | O::StructuralLeafCopy { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),

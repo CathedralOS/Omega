@@ -200,6 +200,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         // parameter rewrite may substitute.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        | O::StructuralLeafCopy { .. }
         | O::ReturnUnit { .. }
         | O::ReturnStructural { .. }
         | O::Crash { .. } => {}

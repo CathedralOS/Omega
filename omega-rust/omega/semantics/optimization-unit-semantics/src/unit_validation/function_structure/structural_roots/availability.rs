@@ -30,6 +30,9 @@ pub(crate) fn validate_structural_place_availability(
                 // The extraction produces the moved subtree at its own node;
                 // a repair consuming it must sit downstream.
                 | O::MoveStructuralField { result, .. }
+                // The copy produces the leaf's fresh owned storage at its own
+                // node; a consumer of it must sit downstream.
+                | O::StructuralLeafCopy { result, .. }
                 | O::CallStructural { result, .. }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -183,6 +186,9 @@ pub(in crate::unit_validation::function_structure) fn operation_place_inputs(
         O::StoreStructuralField {
             destination, value, ..
         } => vec![destination.place, value.place],
+        // A leaf copy reads through its borrowed root; the root must
+        // dominate the copy.
+        O::StructuralLeafCopy { source, .. } => vec![*source],
         O::EstablishReference { source, .. } => vec![source.place],
         O::ReleaseReference { source, .. } => vec![*source],
         O::PrimitiveScalarRead { source, .. }

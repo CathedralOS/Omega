@@ -444,6 +444,10 @@ fn operation_observations(
         // of the same storage.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        // A leaf copy reads the borrowed root's subtree and establishes a
+        // fresh owned value: a structural-state event that no pass may erase
+        // or reorder against other observations of the same storage.
+        | O::StructuralLeafCopy { .. }
         | O::BooleanStructuralField { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceSubslice { .. }

@@ -65,6 +65,12 @@ pub(crate) fn resolve_structural_path(
                 terminal_psi::StructuralPathSegment::FixedIndex(index),
                 terminal_psi::StructuralTypeShape::FixedArray { element, length },
             ) if index < length => *element,
+            (
+                terminal_psi::StructuralPathSegment::RuntimeIndex { maximum, .. },
+                terminal_psi::StructuralTypeShape::FixedArray { element, length },
+            ) if terminal_semantics::runtime_index_maximum_within_extent(*maximum, *length) => {
+                *element
+            }
             _ => return None,
         };
     }
