@@ -75,6 +75,7 @@ impl EmbeddedScalarCalls {
                 ))?;
             let mut helper = build_scalar_graph_module(
                 &machine.states,
+                &machine.state_symbols,
                 machine.result_type,
                 &machine.scalar_qualifications,
                 machine.contract,

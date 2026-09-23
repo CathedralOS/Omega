@@ -694,6 +694,17 @@ pub(crate) fn build_checked_scalar_expression_plans(
                                     path.symbol,
                                 )
                                 .and_then(|target_index| states.get(target_index))
+                                .or_else(|| {
+                                    // A target spelling another machine's entry
+                                    // names that machine's first state; its
+                                    // formals pair with the same authored
+                                    // ordinals the in-machine walk uses.
+                                    crate::semantic_calls::find_machine_by_entry_state(
+                                        program,
+                                        path.symbol,
+                                    )
+                                    .map(|(_, entry)| entry)
+                                })
                             else {
                                 continue;
                             };

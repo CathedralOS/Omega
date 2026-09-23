@@ -231,6 +231,189 @@ pub(crate) fn proven_nat_countdown_sccs_with_call_frames(
     Some(retained)
 }
 
+/// Project the same Nat-descending judgment onto a fused scalar graph: the
+/// member set spans states authored under sibling machines, so the SCC and
+/// every edge resolve per member rather than inside one machine's adjacency.
+/// Each member still ranks its own authored formal through its own witness —
+/// the checker remains the sole recognizer.
+pub(crate) fn proven_fused_nat_countdown_sccs_with_call_frames(
+    program: &typed_trees::TypedTrees,
+    member_states: &[symbols::SymbolHandle],
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Option<Vec<ProvenNatCountdownScc>> {
+    if member_states.len() < 2 {
+        return None;
+    }
+    let members = member_states
+        .iter()
+        .map(|state| crate::semantic_calls::find_state_with_machine(program, *state))
+        .collect::<Option<Vec<_>>>()?;
+    let adjacency = members
+        .iter()
+        .map(|(_, source)| {
+            member_states
+                .iter()
+                .enumerate()
+                .filter_map(|(index, target)| {
+                    (!patterns::edges_to_state(program, source, *target).is_empty())
+                        .then_some(index)
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let cyclic_components = graph::strongly_connected_components(&adjacency)
+        .into_iter()
+        .filter(|component| graph::component_is_cyclic(&adjacency, component))
+        .collect::<Vec<_>>();
+    if cyclic_components.is_empty() {
+        return Some(Vec::new());
+    }
+
+    // Every member must carry its own authored ranking witness that resolves
+    // to Nat descending on its own entry state.
+    let mut member_ranks = Vec::with_capacity(members.len());
+    for (member_machine, member_source) in &members {
+        if !matches!(
+            machine_decrease_outcome(program, member_machine, call_frames),
+            DecreaseOutcome::Proven
+        ) {
+            return None;
+        }
+        let member_root = program.machine_states(member_machine).first()?;
+        let witness = member_machine.termination_plan.implementation_witness.as_ref()?;
+        let subjects = resolve_machine_witness_subjects(program, member_machine)?;
+        let [decreases] = subjects.as_slice() else {
+            return None;
+        };
+        let ExpressionNode::Name(decreases_path) =
+            program.expression_table.expression(*decreases)
+        else {
+            return None;
+        };
+        let ranking_view = witness
+            .view_path
+            .split("::")
+            .filter(|member| !member.is_empty())
+            .collect::<Vec<_>>();
+        let OrderResolution::Resolved(RankingOrder::NatDescending) = RankingOrder::resolve(
+            program,
+            member_root,
+            &[*decreases],
+            &ranking_view,
+            &[],
+        ) else {
+            return None;
+        };
+        let decrease_name = program
+            .expression_table
+            .name_path_members(decreases_path.members)
+            .last()
+            .map(|member| member.as_str())
+            .unwrap_or_default();
+        let (rank_parameter_position, rank_parameter) = program
+            .state_parameters(member_source)
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| {
+                !parameter.is_self
+                    && (parameter.symbol == decreases_path.symbol
+                        || parameter.name.as_str() == decrease_name)
+            })?;
+        let rank_primitive_type =
+            program.primitive_type_reference(rank_parameter.type_reference)?;
+        member_ranks.push((
+            *decreases,
+            rank_parameter_position,
+            rank_parameter,
+            rank_primitive_type,
+        ));
+    }
+
+    let mut retained = Vec::with_capacity(cyclic_components.len());
+    for component in cyclic_components {
+        // The plan's header is the earliest member in fused-graph order, so
+        // rejoined rosters compare element for element downstream.
+        let header_index = *component.iter().min()?;
+        let (_, header_rank_position, _, header_primitive) = member_ranks[header_index];
+        let rank_upper_bound = unsigned_maximum(header_primitive)?;
+
+        let mut covered_cyclic_edges = Vec::new();
+        for &source_index in &component {
+            let (decreases, source_rank_position, source_rank_parameter, source_primitive) =
+                member_ranks[source_index];
+            let (_, source) = members[source_index];
+            for &target_index in &component {
+                let (_, _, target_rank_parameter, _) = member_ranks[target_index];
+                let (_, target) = members[target_index];
+                for edge in patterns::edges_to_state(program, source, target.symbol) {
+                    // The retained countdown coordinate currently names
+                    // primary targets.
+                    if edge.is_continuation {
+                        return None;
+                    }
+                    let proof = nat::direct_countdown_edge(
+                        program,
+                        source,
+                        target,
+                        &edge.guards,
+                        edge.arguments,
+                        decreases,
+                    )?;
+                    if proof.source_parameter != source_rank_parameter.symbol
+                        || member_ranks[target_index].3 != source_primitive
+                    {
+                        return None;
+                    }
+                    let target_parameter = program
+                        .state_parameters(target)
+                        .iter()
+                        .filter(|parameter| !parameter.is_self)
+                        .nth(proof.target_argument_index)?;
+                    let target_rank_parameter_position = program
+                        .state_parameters(target)
+                        .iter()
+                        .position(|parameter| parameter.symbol == target_parameter.symbol)?;
+                    if target_parameter.symbol != target_rank_parameter.symbol {
+                        return None;
+                    }
+                    covered_cyclic_edges.push(ProvenNatCountdownEdge {
+                        source_state: source.symbol,
+                        target_state: target.symbol,
+                        statement_ordinal: u32::try_from(edge.statement_ordinal).ok()?,
+                        source_rank_parameter_position: u32::try_from(source_rank_position)
+                            .ok()?,
+                        target_rank_parameter_position: u32::try_from(
+                            target_rank_parameter_position,
+                        )
+                        .ok()?,
+                    });
+                }
+            }
+        }
+        if covered_cyclic_edges.is_empty() {
+            return None;
+        }
+        covered_cyclic_edges.sort_by_key(|edge| {
+            (
+                edge.source_state.arena_index(),
+                edge.source_state.generation(),
+                edge.target_state.arena_index(),
+                edge.target_state.generation(),
+                edge.statement_ordinal,
+            )
+        });
+        retained.push(ProvenNatCountdownScc {
+            header_state: members[header_index].1.symbol,
+            header_rank_parameter_position: u32::try_from(header_rank_position).ok()?,
+            rank_primitive_type: header_primitive,
+            rank_lower_bound: 0,
+            rank_upper_bound,
+            covered_cyclic_edges,
+        });
+    }
+    Some(retained)
+}
+
 fn unsigned_maximum(primitive: typed_trees::types::PrimitiveType) -> Option<u128> {
     use typed_trees::types::PrimitiveType;
     match primitive {

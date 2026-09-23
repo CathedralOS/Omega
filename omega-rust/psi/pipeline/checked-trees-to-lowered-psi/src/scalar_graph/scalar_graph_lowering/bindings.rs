@@ -67,7 +67,6 @@ enum PendingValue {
 pub(super) fn prepare(
     checked: &CheckedTrees,
     qualifications: &PreparedScalarQualifications,
-    machine: symbols::SymbolHandle,
     state: &checked_trees::CheckedScalarStateGraph,
     parameter_types: Vec<QualifiedScalarType>,
     erased_formal_types: Vec<QualifiedScalarType>,
@@ -78,6 +77,10 @@ pub(super) fn prepare(
     next_place: &mut u64,
 ) -> Result<Prepared, LoweringError> {
     let (source_machine, source_state) = source_custody::authored_state(checked, state.state)?;
+    // A fused graph lowers states authored under sibling machines; every
+    // custody, computation-root, and statement lookup keys on the state's own
+    // owner, not the graph's dispatch machine.
+    let machine = source_machine.symbol;
     let authored_prefix = checked
         .statement_table
         .statements(source_state.statement_nodes)
@@ -113,8 +116,7 @@ pub(super) fn prepare(
                 .guard_statement_ordinal
         }
     };
-    if source_machine.symbol != machine
-        || state.bindings.len() + state.unit_operations.len() != authored_prefix
+    if state.bindings.len() + state.unit_operations.len() != authored_prefix
         || usize::try_from(terminator_ordinal).ok() != Some(authored_prefix)
     {
         return unsupported("scalar graph lost its complete authored binding prefix");

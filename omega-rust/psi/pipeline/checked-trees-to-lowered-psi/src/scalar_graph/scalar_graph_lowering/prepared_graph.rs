@@ -124,6 +124,9 @@ pub(crate) struct LoweredScalarArrayConstruction {
 
 pub(crate) struct PreparedScalarMachine {
     pub(crate) source_machine: symbols::SymbolHandle,
+    /// Authored symbols of the leading source rows in `states`, in graph
+    /// order; later rows are synthesized and carry no authored state.
+    pub(crate) state_symbols: Vec<symbols::SymbolHandle>,
     pub(crate) states: Vec<LoweredScalarBranchState>,
     pub(crate) result_type: QualifiedScalarType,
     pub(crate) scalar_qualifications: terminal_psi::ScalarQualificationCatalog,

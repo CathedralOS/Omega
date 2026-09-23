@@ -184,7 +184,9 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
     // static eligibility depend on the closure's worklist order.
     if attached_members
         .iter()
-        .any(|machine| !embedded_roots.contains(machine) && !computation_targets.contains(machine))
+        .any(|machine| {
+            !embedded_roots.contains(machine) && !computation_targets.contains(machine)
+        })
     {
         return unsupported("embedded scalar call closure has an unsupported terminal signature");
     }
