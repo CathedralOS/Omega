@@ -2,7 +2,7 @@
 //!
 //! One bounded specialization family: a `BooleanStructuralField` or
 //! `IntegerStructuralField` observation whose `source` place carries a stored
-//! field value the unit itself proves. Three proofs qualify. Record
+//! field value the unit itself proves. Five proofs qualify. Record
 //! establishment: the place is declared `StructuralPlaceKind::OperationResult`
 //! and its producer node in the same function is an `EstablishRecord` — the
 //! operation-result place is assigned exactly once by its producer and no
@@ -17,9 +17,16 @@
 //! child's own producer then establishes the deeper position, so
 //! `Record { inner: child }` proves `source.inner` reads from the child's
 //! establishment, and a scalar-case child proves `source.inner.Case` reads.
-//! Declared bound: the observed field's declared type is a `BoundedInteger`
-//! whose inclusive bound closes over exactly one value, so every inhabitant
-//! of the position holds that value independently of how the place arrived —
+//! Bound establishment: a `StructuralPlaceKind::BlockParameter` place holds
+//! no producer of its own, but when every incoming edge binds it to the
+//! same place through a whole `Owned`/`SharedBorrow` argument and nothing
+//! in the function rewrites or mutably re-lends it, the parameter's
+//! contents are exactly the bound place's — the bound place's own
+//! establishment proves the parameter's observations, transitively through
+//! further parameters. Declared bound: the observed field's declared type
+//! is a `BoundedInteger` whose inclusive bound closes over exactly one
+//! value, so every inhabitant of the position holds that value independently
+//! of how the place arrived —
 //! parameters, block parameters, results, and non-establishing producers all
 //! qualify, at any resolvable path depth.
 //!
@@ -44,10 +51,11 @@
 //! Reads whose field the unit cannot prove — an unestablished field on a
 //! multi-valued bound, a `Field` descent into a borrowed, pathed, or
 //! unestablished child, a `Case` path on a place established under a
-//! different case, an `Erased` or structural field position, or a path that
-//! fails to resolve — are not covered, and neither is a nonconstant
-//! initializer whose uses escape the substitution lane or which fails to
-//! dominate a use.
+//! different case, a block parameter whose incoming bindings diverge, bind
+//! a pathed place, lend write authority, or leave it rewritable, an
+//! `Erased` or structural field position, or a path that fails to resolve —
+//! are not covered, and neither is a nonconstant initializer whose uses
+//! escape the substitution lane or which fails to dominate a use.
 //! Only machines absent from the authenticated Terminal-cycle component
 //! roster are eligible: a machine containing a verified cyclic component is
 //! frozen byte-exact under `validate_frozen_component_blocks`.

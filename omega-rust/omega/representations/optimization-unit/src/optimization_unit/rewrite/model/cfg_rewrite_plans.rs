@@ -153,9 +153,12 @@ pub struct StateArgumentSpecializationRewrite {
 /// (`source`), the case it asked about (`observed_case`), the case the unit
 /// proves at the observed position (`proven_case`), and the folded verdict
 /// (`outcome`, always `proven_case == observed_case`). `producer` names the
-/// `EstablishScalarCase` operation whose result place the empty-path
-/// observation reads; a roster-proven row — at the place's root type or at a
-/// resolved nested position — carries `None`.
+/// `EstablishScalarCase` operation proving the observed position's case —
+/// the empty-path observation's own result place, the establishment a
+/// uniform whole `Owned`/`SharedBorrow` block-parameter binding forwards
+/// to, or a stored-whole child's producer at a nested `Field` path; a
+/// roster-proven row — at the place's root type or at a resolved nested
+/// position — carries `None`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FoldedCaseMembershipRow {
     pub site: NodeLocation,
@@ -173,8 +176,10 @@ pub struct FoldedCaseMembershipRow {
 /// keeps its operation custody identity, result value, successors,
 /// definitions, uses, ownership events, and fuel settlement; only the
 /// operation and the recomputed unit identity differ. `producer` is the
-/// place's `EstablishScalarCase` root-case witness when one exists — rows
-/// still carry their own basis, so a roster-only candidate holds `None`.
+/// `EstablishScalarCase` root-case witness the place resolves to when one
+/// exists — its own operation result or the establishment a uniform
+/// block-parameter binding forwards to — while rows still carry their own
+/// basis, so a roster-only candidate holds `None`.
 /// Rows are canonical in `site` order.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CaseMembershipSpecializationRewrite {
@@ -226,9 +231,10 @@ pub enum FieldValueResolution {
 /// operation the row's proof draws on — `Some` for an `EstablishRecord`
 /// basis at an empty path, an `EstablishScalarCase` basis at a lone `Case`
 /// path, or the same two reached through `Field` descents across owned,
-/// complete structural children — where `Some` names the operation
-/// establishing the position `path` resolves to. `None` when the field's
-/// declared `BoundedInteger` bound closes over exactly one value
+/// complete structural children or across a uniform whole
+/// `Owned`/`SharedBorrow` block-parameter binding — where `Some` names the
+/// operation establishing the position `path` resolves to. `None` when the
+/// field's declared `BoundedInteger` bound closes over exactly one value
 /// independently of how the place arrived.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FieldValueRow {
@@ -249,10 +255,12 @@ pub struct FieldValueRow {
 /// ownership events, and fuel settlement. A `Forward` row substitutes the
 /// proven initializer at every use of the read's result and retires the
 /// observation node, fusing the read's custody into the following node.
-/// `producer` is the place's establishing operation-result witness — an
-/// `EstablishRecord` or `EstablishScalarCase` — when one exists; rows still
-/// carry their own basis, so a bound-only candidate may hold `None`. Rows
-/// are canonical in `site` order.
+/// `producer` is the place's own establishing operation-result witness —
+/// an `EstablishRecord` or `EstablishScalarCase` — when the observed place
+/// is itself such a result; a block parameter holds no producer of its own
+/// even when its uniform binding forwards to one, so a binding-forwarded
+/// or bound-only candidate carries `None` while its rows still name the
+/// establishment they prove. Rows are canonical in `site` order.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FieldValueSpecializationRewrite {
     pub machine: MachineId,

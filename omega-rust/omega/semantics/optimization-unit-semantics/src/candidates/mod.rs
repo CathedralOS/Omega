@@ -12,6 +12,7 @@ mod proof_check_elision;
 mod rewrite_accounting;
 mod sparse_conditional_constant_propagation;
 mod state_specialization;
+mod structural_bindings;
 
 pub use case_membership_specialization::*;
 pub use control_flow_cleanup::*;

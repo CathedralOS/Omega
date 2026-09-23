@@ -851,6 +851,75 @@ fn parameter_place(unit: &PsiOptimizationUnit) -> PlaceId {
         .id
 }
 
+/// The machine's structural block-parameter place — the state parameter an
+/// edge binding delivers.
+fn block_parameter_place(unit: &PsiOptimizationUnit, machine: MachineId) -> PlaceId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    function
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }))
+        .expect("block parameter exists")
+        .id
+}
+
+/// The place the machine's membership observes — the state's block
+/// parameter in bound fixtures — plus the one place its structural
+/// bindings name, which the fixture requires to be the same place across
+/// every binding.
+fn bound_observation(unit: &PsiOptimizationUnit, machine: MachineId) -> (PlaceId, PlaceId) {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let place = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::StructuralCaseMembership { source, .. } => Some(*source),
+            _ => None,
+        })
+        .expect("a membership observes the parameter");
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)
+        .expect("the observed place is rostered");
+    assert!(
+        matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }),
+        "the fixture's membership observes a block parameter"
+    );
+    let mut bound = None;
+    for edge in function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+    {
+        for binding in &edge.structural_bindings {
+            if binding.parameter != place {
+                continue;
+            }
+            let argument = &binding.argument;
+            assert!(
+                argument.path.is_empty(),
+                "the fixture binds the whole place"
+            );
+            match bound {
+                None => bound = Some(argument.place),
+                Some(seen) => assert_eq!(seen, argument.place, "the fixture binds uniformly"),
+            }
+        }
+    }
+    (place, bound.expect("the parameter is bound"))
+}
+
 /// The only `OperationResult` place in these fixtures, its
 /// `EstablishScalarCase` producer, and the fixed case.
 fn established_place(
@@ -961,6 +1030,241 @@ fn memberships_on(
         }
     }
     memberships
+}
+
+/// A case established in the machine body arrives at the observing state
+/// as a structural block parameter: the state's incoming edge binds the
+/// parameter to the one `EstablishScalarCase` result through an owned,
+/// whole-place argument, so the bound place's establishment proves the
+/// membership even though the parameter itself holds no producer.
+const BOUND_CASE_SOURCE: &str = r#"
+    data Choice { case Empty; case Some(value: u32); }
+    data Root {}
+    machine Root::run() {
+        let c: Choice = Choice::Some { value: 37 };
+        transition { _ -> check(c) }
+        state check(c: Choice) {
+            let m: bool = c in Choice::Some;
+            transition m { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// Two predecessor edges bind the parameter to different established
+/// places: no uniform binding exists, so nothing proves which case the
+/// parameter holds even though every candidate place is itself
+/// established.
+const DIVERGENT_BINDING_SOURCE: &str = r#"
+    data Choice { case Empty; case Some(value: u32); }
+    data Root {}
+    machine Root::run(flag: bool) {
+        let a: Choice = Choice::Some { value: 37 };
+        let b: Choice = Choice::Empty;
+        transition flag { true -> check(a) _ -> check(b) }
+        state check(c: Choice) {
+            let m: bool = c in Choice::Some;
+            transition m { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// A parameter delivered through a relay state resolves transitively: the
+/// membership's parameter binds the relay's parameter, which binds the
+/// established place — the establishment crosses each uniform binding in
+/// turn.
+const CHAINED_BINDING_SOURCE: &str = r#"
+    data Choice { case Empty; case Some(value: u32); }
+    data Root {}
+    machine Root::run() {
+        let c: Choice = Choice::Some { value: 37 };
+        transition { _ -> relay(c) }
+        state relay(d: Choice) {
+            transition { _ -> check(d) }
+        }
+        state check(c: Choice) {
+            let m: bool = c in Choice::Some;
+            transition m { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+#[test]
+fn bound_parameter_membership_folds_through_uniform_binding() {
+    let unit = lowered_unit_entry(BOUND_CASE_SOURCE, "bound parameter membership", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    // The membership observes the state's block parameter while the proof
+    // is the `EstablishScalarCase` result the incoming edge binds it to
+    // whole.
+    let (place, bound) = bound_observation(&input, machine);
+    let (established, producer, established_case) = established_place(&input, machine);
+    assert_eq!(bound, established);
+    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
+
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(
+        patch.producer,
+        Some(producer),
+        "the bound place's establishment is the patch witness"
+    );
+    assert_eq!(commit.input, input.identity);
+    assert_ne!(commit.output, input.identity);
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, membership.0);
+    assert_eq!(row.result, membership.1);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, Some(producer));
+    assert_eq!(row.observed_case, membership.2);
+    assert_eq!(row.proven_case, established_case);
+    assert!(row.outcome);
+
+    // The proposal is deterministic: an independent run commits the same
+    // candidate, custody, and output revision.
+    let replayed = specialize(lowered_unit_entry(
+        BOUND_CASE_SOURCE,
+        "bound parameter membership",
+        "Root::run",
+    ));
+    assert_eq!(replayed.commits(), run.commits());
+
+    let folded = &run.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+    assert_eq!(
+        folded.provenance,
+        vec![PsiProvenance::Operation(membership.0)]
+    );
+    assert!(membership_on(run.session().unit(), machine, place).is_none());
+}
+
+#[test]
+fn divergent_incoming_bindings_decline() {
+    let unit = lowered_unit_entry(
+        DIVERGENT_BINDING_SOURCE,
+        "divergent bindings decline",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = block_parameter_place(&input, machine);
+    // The fixture must actually route both established places into the one
+    // observing parameter — the bindings diverge by place identity.
+    assert!(
+        membership_on(&input, machine, place).is_some(),
+        "the fixture must actually contain a membership on the parameter"
+    );
+    let bound: std::collections::BTreeSet<_> = input.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .flat_map(|node| &node.successors)
+        .flat_map(|edge| &edge.structural_bindings)
+        .filter(|binding| binding.parameter == place)
+        .map(|binding| binding.argument.place)
+        .collect();
+    assert_eq!(bound.len(), 2, "two divergent bound places");
+    assert_declines(unit);
+}
+
+#[test]
+fn chained_binding_forwards_through_relay() {
+    let unit = lowered_unit_entry(CHAINED_BINDING_SOURCE, "chained binding", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    // The membership observes `check`'s parameter, which binds `relay`'s
+    // parameter, which binds the established place — the proof crosses
+    // both uniform bindings.
+    let (place, bound) = bound_observation(&input, machine);
+    let declaration = input.functions[0]
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == bound)
+        .expect("the relay parameter is rostered");
+    assert!(
+        matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }),
+        "the membership's parameter binds another block parameter"
+    );
+    let (_, producer, established_case) = established_place(&input, machine);
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, Some(producer));
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.source, place);
+    assert_eq!(
+        row.producer,
+        Some(producer),
+        "the establishment crosses both uniform bindings"
+    );
+    assert_eq!(row.proven_case, established_case);
+    assert!(row.outcome);
+}
+
+#[test]
+fn replay_rejects_forged_bound_rows() {
+    let unit = lowered_unit_entry(BOUND_CASE_SOURCE, "bound parameter membership", "Root::run");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _patch) = single_commit(&run);
+
+    // A forged row witness — claiming the roster basis — is refused:
+    // replay re-derives the witness through the binding rather than
+    // trusting it.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].producer = None;
+        }),
+    );
+
+    // A forged patch-level producer — claiming the observation's own
+    // custody identity rather than the forwarded establishment.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.producer = Some(patch.memberships[0].psi_operation);
+        }),
+    );
+
+    // A forged proven case on the bound read.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                patch.memberships[0].proven_case.get() + 7,
+            )
+            .expect("forged case identity");
+            patch.memberships[0].outcome =
+                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+        }),
+    );
+
+    // The untampered declaration still validates to the committed output.
+    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
 }
 
 fn lowered_unit_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationUnit {

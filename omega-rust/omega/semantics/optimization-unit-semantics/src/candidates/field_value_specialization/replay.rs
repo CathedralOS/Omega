@@ -43,6 +43,7 @@ use crate::ValidatedPsiRewrite;
 use crate::ValueDefinition;
 use crate::ValueDefinitionSite;
 use crate::candidates::state_specialization::cyclic_machines;
+use crate::candidates::structural_bindings::bound_place;
 use crate::preserve_edge_custody;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::rewrite_scalar_value_uses;
@@ -521,9 +522,12 @@ fn matches_observed_kind(
 /// field stored as an owned, complete structural child place whose declared
 /// type is exactly the field's declared carrier — a pathed or borrowed
 /// argument, a non-operation-result place, and every other producer leave
-/// the nested position unproven. The caller decides what the initializer
-/// proves — a literal fold when it resolves to a same-function constant, a
-/// use substitution when it does not.
+/// the nested position unproven. A place with no producer of its own — a
+/// block parameter — crosses only into the one place every incoming edge
+/// binds it to whole when nothing rewrites or mutably re-lends it. The
+/// caller decides what the initializer proves — a literal fold when it
+/// resolves to a same-function constant, a use substitution when it does
+/// not.
 fn establishment_scalar(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
@@ -535,6 +539,7 @@ fn establishment_scalar(
     let mut producer = evidence.root_producer;
     let mut declared = evidence.root_type;
     let mut segments = path;
+    let mut visiting = BTreeSet::from([place]);
     loop {
         match (producer, segments) {
             (RootProducer::Record(producer), []) => {
@@ -575,10 +580,35 @@ fn establishment_scalar(
                 if declared_structural_type(function, declaration) != Some(next) {
                     return None;
                 }
+                if !visiting.insert(child) {
+                    return None;
+                }
                 place = child;
                 producer = root_producer(function, declaration);
                 declared = Some(next);
                 segments = &segments[1..];
+            }
+            (RootProducer::None, _) => {
+                // The position's place holds no producer of its own, but a
+                // block parameter arrives carrying exactly the place its
+                // uniform binding names — the bound place's own
+                // establishment is the parameter's, provided the binding
+                // preserves the declared structural type exactly.
+                let bound = bound_place(function, place)?;
+                let declaration = function
+                    .structural_places
+                    .iter()
+                    .find(|declaration| declaration.id == bound)?;
+                let bound_type = declared_structural_type(function, declaration);
+                if declared.is_some() && bound_type != declared {
+                    return None;
+                }
+                if !visiting.insert(bound) {
+                    return None;
+                }
+                place = bound;
+                producer = root_producer(function, declaration);
+                declared = bound_type;
             }
             _ => return None,
         }

@@ -32,22 +32,26 @@ use crate::StructuralPlaceKind;
 use crate::StructuralTypeId;
 use crate::ValidatedPsiRewrite;
 use crate::candidates::state_specialization::cyclic_machines;
+use crate::candidates::structural_bindings::bound_place;
 use crate::recompute_psi_optimization_unit_identity;
 use crate::validate_psi_optimization_unit;
-use semantic_vocabulary::BlockId;
+use semantic_vocabulary::{BlockId, StructuralFieldId};
+use std::collections::BTreeSet;
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeShape,
+    RecordFieldValue, StructuralAccess, StructuralFieldType, StructuralPathSegment,
+    StructuralPlaceDeclaration, StructuralTypeShape,
 };
 
 /// The evidence every membership observing `place` resolves against: the
 /// place's rostered declaration, its declared structural type (when the place
-/// kind carries one), and the root proof — the establishment-or-roster basis
-/// empty-path observations may draw on. `None` when `place` is not rostered
-/// in `function`.
+/// kind carries one), the function every proof replays inside, and the root
+/// proof — the establishment-or-roster basis empty-path observations may
+/// draw on. `None` when `place` is not rostered in `function`.
 struct MembershipEvidence<'a> {
     declaration: &'a StructuralPlaceDeclaration,
     root_type: Option<StructuralTypeId>,
     root_basis: Option<(StructuralCaseId, Option<OperationId>)>,
+    function: &'a PsiOptimizationFunction,
 }
 
 /// The membership evidence for one rostered place, or `None` when the place
@@ -65,37 +69,210 @@ fn membership_evidence<'a>(
         declaration,
         root_type: declared_structural_type(function, declaration),
         root_basis: proof_basis(unit, function, declaration),
+        function,
     })
 }
 
 /// The case `place`'s root is proven to hold, plus its establishment
-/// producer when the proof is one `EstablishScalarCase` operation result.
+/// producer when the proof is one `EstablishScalarCase` operation result —
+/// whether the place is itself that result or a block parameter every
+/// incoming edge binds to it whole.
 fn proof_basis(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
 ) -> Option<(StructuralCaseId, Option<OperationId>)> {
-    if let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind {
-        let established = function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .find_map(|node| match &node.operation {
-                O::EstablishScalarCase {
-                    psi_operation,
-                    result,
-                    result_case,
-                    ..
-                } if *psi_operation == producer && result.place == declaration.id => {
-                    Some(*result_case)
-                }
-                _ => None,
-            });
-        if let Some(case) = established {
-            return Some((case, Some(producer)));
-        }
+    if let Some((producer, case)) = established_case_at(unit, function, declaration, &[]) {
+        return Some((case, Some(producer)));
     }
     sole_case(unit, function, declaration).map(|case| (case, None))
+}
+
+/// The establishing operation a place's producer or uniform binding
+/// resolves to, when it is one this family's proofs can draw on: `Record`
+/// for an `EstablishRecord`, `Variant` for an `EstablishScalarCase`
+/// carrying its `result_case`, `None` for every other producer or place
+/// kind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Establishment {
+    None,
+    Record(OperationId),
+    Variant(OperationId, StructuralCaseId),
+}
+
+/// The establishing producer `declaration`'s operation-result kind names,
+/// or `Establishment::None` when the place is not an operation result or
+/// its producer is not an `EstablishRecord`/`EstablishScalarCase` in
+/// `function`.
+fn establishment_producer(
+    function: &PsiOptimizationFunction,
+    declaration: &StructuralPlaceDeclaration,
+) -> Establishment {
+    let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
+        return Establishment::None;
+    };
+    for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+        match &node.operation {
+            O::EstablishRecord {
+                psi_operation,
+                result,
+                ..
+            } if *psi_operation == producer && result.place == declaration.id => {
+                return Establishment::Record(producer);
+            }
+            O::EstablishScalarCase {
+                psi_operation,
+                result,
+                result_case,
+                ..
+            } if *psi_operation == producer && result.place == declaration.id => {
+                return Establishment::Variant(producer, *result_case);
+            }
+            _ => {}
+        }
+    }
+    Establishment::None
+}
+
+/// The case an establishing producer proves at `path`'s resolved position
+/// under `declaration`'s place, witnessed by the `EstablishScalarCase`
+/// operation at that position. `None` when any step is not established: a
+/// `Field` segment crosses only into an `EstablishRecord` field stored as
+/// an owned, complete structural child whose declared type is exactly the
+/// field's declared carrier, and a block parameter — which holds no
+/// producer of its own — crosses only into the one place every incoming
+/// edge binds it to whole when nothing rewrites or mutably re-lends it.
+/// `FixedIndex`, `RuntimeIndex`, `FixedByteRange`, and `Referent` segments
+/// never cross: an `EstablishScalarArray` element is not a placed child.
+fn established_case_at(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    declaration: &StructuralPlaceDeclaration,
+    path: &[StructuralPathSegment],
+) -> Option<(OperationId, StructuralCaseId)> {
+    let mut place = declaration.id;
+    let mut producer = establishment_producer(function, declaration);
+    let mut declared = declared_structural_type(function, declaration);
+    let mut segments = path;
+    let mut visiting = BTreeSet::from([place]);
+    loop {
+        match (producer, segments) {
+            (Establishment::Variant(producer, case), []) => {
+                // An `EstablishScalarCase` proves the case of the position
+                // its result occupies permanently.
+                return Some((producer, case));
+            }
+            (Establishment::Record(operation), [StructuralPathSegment::Field(identity), ..]) => {
+                // A `Field` segment descends into the nested carrier the
+                // record stores whole: the declared carrier must be exactly
+                // the child place's declared type, and the child must reach
+                // this producer's initializer as one owned, complete
+                // structural argument. A pathed or borrowed argument does
+                // not carry the child's own establishment.
+                let (field, next) = descended_field(unit, declared?, identity)?;
+                let child = structural_child(function, operation, place, field)?;
+                let child_declaration = function
+                    .structural_places
+                    .iter()
+                    .find(|candidate| candidate.id == child)?;
+                if declared_structural_type(function, child_declaration) != Some(next) {
+                    return None;
+                }
+                if !visiting.insert(child) {
+                    return None;
+                }
+                place = child;
+                producer = establishment_producer(function, child_declaration);
+                declared = Some(next);
+                segments = &segments[1..];
+            }
+            (Establishment::None, _) => {
+                // The position's place is not itself established, but a
+                // block parameter arrives carrying exactly the place its
+                // uniform binding names — the bound place's own
+                // establishment is the parameter's.
+                let bound = bound_place(function, place)?;
+                let bound_declaration = function
+                    .structural_places
+                    .iter()
+                    .find(|candidate| candidate.id == bound)?;
+                let bound_type = declared_structural_type(function, bound_declaration);
+                if declared.is_some() && bound_type != declared {
+                    return None;
+                }
+                if !visiting.insert(bound) {
+                    return None;
+                }
+                place = bound;
+                producer = establishment_producer(function, bound_declaration);
+                declared = bound_type;
+            }
+            _ => return None,
+        }
+    }
+}
+
+/// The field `identity` names inside `current`'s `Record`/`Mixed`
+/// common-field roster, with the structural type the field declares.
+/// `None` when the shape has no common-field roster, the name is absent, or
+/// the field's declared type is not structural.
+fn descended_field(
+    unit: &PsiOptimizationUnit,
+    current: StructuralTypeId,
+    identity: &str,
+) -> Option<(StructuralFieldId, StructuralTypeId)> {
+    let shape = &unit
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|entry| entry.id == current)?
+        .shape;
+    let fields = match shape {
+        StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
+            fields
+        }
+        _ => return None,
+    };
+    let field = fields.iter().find(|field| field.identity == identity)?;
+    match field.field_type {
+        StructuralFieldType::Structural(next) => Some((field.id, next)),
+        _ => None,
+    }
+}
+
+/// The child place the `EstablishRecord` producer stores whole into
+/// `field`, or `None` when the producer node is absent, is not an
+/// `EstablishRecord` on this place, or `field`'s initializer is not an
+/// owned, complete structural argument — a pathed argument or a borrow does
+/// not carry the child's own establishment.
+fn structural_child(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+) -> Option<PlaceId> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::EstablishRecord {
+                psi_operation,
+                result,
+                fields,
+            } if *psi_operation == producer && result.place == place => Some(fields),
+            _ => None,
+        })?
+        .iter()
+        .find(|initializer| initializer.field == field)
+        .and_then(|initializer| match &initializer.value {
+            RecordFieldValue::Structural(argument)
+                if argument.path.is_empty() && argument.access == StructuralAccess::Owned =>
+            {
+                Some(argument.place)
+            }
+            _ => None,
+        })
 }
 
 /// The declared structural type of one rostered place, or `None` when the
@@ -241,8 +418,10 @@ fn roster_sole_case(
 
 /// The admissibility of one node under `evidence`: a `StructuralCaseMembership`
 /// observing the evidence's place into a Boolean result, whose verdict the
-/// unit proves — the place's root basis at an empty path, or the sole-case
-/// roster at the resolved nested position. `None` for every other node.
+/// unit proves — the place's root basis at an empty path, the establishment
+/// a non-empty path resolves to through stored-whole children and uniform
+/// block-parameter bindings, or the sole-case roster at the resolved nested
+/// position. `None` for every other node.
 fn admit_membership_node(
     unit: &PsiOptimizationUnit,
     evidence: &MembershipEvidence<'_>,
@@ -265,12 +444,17 @@ fn admit_membership_node(
         return None;
     }
     // An empty path observes the place's root case and uses its
-    // establishment-or-roster basis; a non-empty path observes a nested
-    // position only the resolved roster can prove.
+    // establishment-or-roster basis. A non-empty path observes a nested
+    // position proven either by the establishment the path resolves to or
+    // by the sole-case roster at the resolved end type.
     let (proven_case, producer) = if path.is_empty() {
         evidence.root_basis?
     } else {
-        resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None))?
+        established_case_at(unit, evidence.function, evidence.declaration, path)
+            .map(|(operation, case)| (case, Some(operation)))
+            .or_else(|| {
+                resolved_sole_case(unit, evidence.root_type?, path).map(|case| (case, None))
+            })?
     };
     Some(FoldedCaseMembershipRow {
         site: crate::NodeLocation {
@@ -313,8 +497,10 @@ fn plan_memberships(
 
 /// The folded node a row admits at its site: a `BooleanConstant` with the
 /// membership's own custody identity and result value, checked against the
-/// claimed basis — an establishment producer proves only the empty-path root
-/// case, while a roster row must resolve to exactly the claimed case.
+/// claimed basis — an establishment producer must be the `EstablishScalarCase`
+/// the row's path resolves to through stored-whole children and uniform
+/// block-parameter bindings, while a roster row must resolve to exactly the
+/// claimed case.
 fn folded_node(
     row: &FoldedCaseMembershipRow,
     unit: &PsiOptimizationUnit,
@@ -349,41 +535,18 @@ fn folded_node(
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     match row.producer {
-        // The claimed producer must be the place's declared operation-result
-        // producer and an `EstablishScalarCase` fixing the claimed case.
-        // Establishment proves only the place's root case, so a row carrying
-        // a path can never hold this basis.
+        // The claimed producer must be the `EstablishScalarCase` the
+        // establishment chain under `row.source` resolves `path` to — the
+        // observed place's own producer at an empty path, the operation a
+        // uniform block-parameter binding forwards to, or a stored-whole
+        // child's producer at a nested `Field` position.
         Some(producer) => {
-            if !path.is_empty() {
-                return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-            }
-            let declared_producer = function
+            let resolved = function
                 .structural_places
                 .iter()
                 .find(|declaration| declaration.id == row.source)
-                .and_then(|declaration| match declaration.kind {
-                    StructuralPlaceKind::OperationResult { producer, .. } => Some(producer),
-                    _ => None,
-                });
-            if declared_producer != Some(producer)
-                || !function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
-                    .any(|candidate| {
-                        matches!(
-                            &candidate.operation,
-                            O::EstablishScalarCase {
-                                psi_operation,
-                                result,
-                                result_case,
-                                ..
-                            } if *psi_operation == producer
-                                && result.place == row.source
-                                && *result_case == row.proven_case
-                        )
-                    })
-            {
+                .and_then(|declaration| established_case_at(unit, function, declaration, path));
+            if resolved != Some((producer, row.proven_case)) {
                 return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
             }
         }
