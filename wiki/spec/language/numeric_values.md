@@ -111,11 +111,13 @@ may compose, but at most one arithmetic policy governs an operation.
 
 Trapping's language contract is settled — the executable operation owns its
 crash site under the primitive's exact predicate — while its Terminal encoding
-remains unsettled: the reconstructed
+needs an implementation extension: the reconstructed
 [observation profile](../terminal-psi/observations.md) keys crash sites only by
 edge or by `BoundaryCall` route, and an operation-level trap carries neither.
-The profile row shape such a trap joins awaits the named
-`terminal-operation-level-trap-crash-site` decision.
+The `terminal-operation-level-trap-crash-site` representation and versioned
+profile extension are [delegated implementation work](../../../AGENTS.md#psi-implementation-and-deferred-human-audit),
+not an owner decision. Preserve the operation's exact denotation, cause, and
+path-conditioned observation through independent checking and realization.
 
 ### Integer quotient and remainder
 
@@ -363,8 +365,8 @@ boolean-to-integer conversion, unsigned saturating narrowing casts, and
 unsigned-to-unsigned wrapping casts. Signed or mixed-sign saturating and
 modular conversions still refuse at the check stage, and Trapping's
 operation-level crash site has no admitted observation-profile row — its
-Terminal encoding stays unsettled behind the
-`terminal-operation-level-trap-crash-site` question. The leg is tracked under
+Terminal encoding is the delegated `terminal-operation-level-trap-crash-site`
+implementation. The leg is tracked under
 `ARITHMETIC-POLICY-REALIZATION` on [TASKS.md](../../../TASKS.md).
 
 Audited at `d650f2e45ac`: the frontier above matches the realized/refused

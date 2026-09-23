@@ -11,6 +11,11 @@ Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled
 decision's durable identity does not change when this queue is pruned.
 
+Psi representation and encoding design is delegated; human review is deferred
+under [the current policy](AGENTS.md#psi-implementation-and-deferred-human-audit).
+Missing IR operations or a schema change needed for accepted behavior are
+implementation work, not owner questions.
+
 Before a proposed surface becomes an owner question, audit whether it is
 implemented, whether any authored source uses it, and whether ordinary Omega
 already expresses the customer. An unimplemented, unused spelling that adds no
@@ -59,32 +64,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 Proposed solutions below are recommendations, not owner rulings. Where a
 contract already answers a question, the entry says so explicitly.
 
-### Q1 - How should Terminal Psi identify crashes from trapping arithmetic?
-
-Named decision: `terminal-operation-level-trap-crash-site`.
-
-**Context:** [Trapping operations](wiki/spec/terminal-psi/structural_predicates.md)
-already own crash sites. The versioned
-[observation profile](wiki/spec/terminal-psi/observations.md) encodes only
-terminator-edge crashes and `BoundaryCall` crashes.
-
-**Problem:** A trapping addition or conversion has neither an edge coordinate
-nor a boundary identity. **ARITHMETIC-POLICY-REALIZATION** needs an operation
-coordinate that the verifier, interpreter, and native realization agree on.
-
-**Proposed solution:** Add a non-boundary operation-crash group keyed by machine,
-block, operation, and cause. Specify ordering and tags, version the profile,
-and update independent reconstruction together.
-
-**Alternatives:**
-- Unify edge and operation sites under a tagged coordinate, reducing separate
-  groups but changing every ordinary crash-site reader.
-- Generalize boundary-crash rows to all operations, with boundary identity only
-  where applicable. This reuses ordering but broadens that group's meaning.
-- Tempting but wrong: fabricate an edge or boundary identity, or silently change
-  the existing wire schema. Neither preserves the published observation contract.
-
-### Q2 - How should the compiler bound aggregate proof work?
+### Q1 - How should the compiler bound aggregate proof work?
 
 Named decision: `compile-time-proof-work-ceiling`.
 
@@ -110,7 +90,7 @@ No owner permission is needed for the already-settled outcome distinction.
   add only a warning and claim execution is bounded. A cap also does not excuse
   the known algorithmic defect.
 
-### Q3 - Does AArch64 need a separate semantic entry wrapper?
+### Q2 - Does AArch64 need a separate semantic entry wrapper?
 
 Named decision: `aarch64-semantic-wrapper-arrival-shape`.
 
@@ -134,7 +114,7 @@ against their authored plans; do not invent a profile to justify wrapper tests.
 - Tempting but wrong: pass pointers under the same value-register plan fingerprint,
   copy x64 shadow-space rules, or patch an AArch64 branch as a raw x86 displacement.
 
-### Q4 - How should interpreted components execute checked inline assembly?
+### Q3 - How should interpreted components execute checked inline assembly?
 
 Named decision: `interpreted-inline-assembly`.
 
@@ -160,7 +140,7 @@ Validate one real device sequence and one idle/external-entry sequence.
 - Tempting but wrong: replace hardware idle with interpreter pause, redefine
   instructions through provider names, or move OS policy into the compiler.
 
-### Q5 - Does Psi or Omega own post-handoff writer plans?
+### Q4 - Does Psi or Omega own post-handoff writer plans?
 
 Named decision: `post-handoff-writer-ownership`.
 
@@ -184,7 +164,7 @@ validation owner rather than copies in each consumer.
 - Tempting but wrong: rename consumer modules and call the ownership fixed, or
   weaken the firewall merely to legitimize the current placement.
 
-### Q6 - Is passing a Binding by value a move or a copy?
+### Q5 - Is passing a Binding by value a move or a copy?
 
 Named decision: `service-carrier-argument-multiplicity`.
 
@@ -207,32 +187,7 @@ of borrowed storage, and close the stale escalation through the owning task.
 - Tempting but wrong: make Binding copyable only in argument position, or merely
   reclassify the pass fixture without preserving its legitimate borrowed-call use.
 
-### Q7 - How should Terminal represent structural replacement, recast views, and fresh linear values?
-
-Named decision: `terminal-vocabulary-for-unit-bodies`.
-
-**Context:** [Structural access](wiki/spec/terminal-psi/structural_access.md) and
-[ownership](wiki/spec/terminal-psi/ownership.md) govern independently checked
-Terminal operations, not source-shape exceptions.
-
-**Problem:** Unit-body lowering lacks three routes: replacing a non-vacated,
-disposal-free structural field; forming a checked typed view into bytes; and
-establishing custody for a fresh linear record. `StoreStructuralField` currently
-repairs move windows, while `EstablishRecord` excludes linear claims. Customers
-include case-field assignment, descriptor views, and owned receipts.
-
-**Proposed solution:** Specify independently checked operations for replacement,
-recast referents, and fresh root custody. Carry bounds, layout, borrow, and
-claim-lifecycle evidence through lowering and execution. Missing implementation
-alone needs no owner ruling; isolate any genuinely new semantic rule first.
-
-**Alternatives:**
-- Extend existing operations where their invariants genuinely cover the new
-  behavior; use distinct operations where combining rules would obscure checking.
-- Tempting but wrong: remove repair checks, fake a move window, trust a producer's
-  claim assertion, or equate fresh linear custody with permission to mint authority.
-
-### Q8 - What portable identity should a root without a package declaration have?
+### Q6 - What portable identity should a root without a package declaration have?
 
 Named decision: `unmanaged-root-package-identity`.
 
@@ -257,7 +212,7 @@ route. Keep ordinary local compilation separate from portable publication.
 - Tempting but wrong: use host paths or import order, exempt toolchain declarations,
   or assume distinct owner identities make competing visible names unambiguous.
 
-### Q9 - Should a bare case name resolve as a value?
+### Q7 - Should a bare case name resolve as a value?
 
 Named decision: `bare-case-value-names`.
 
@@ -282,7 +237,7 @@ solely to make it pass.
 - Tempting but wrong: choose the first matching case by import order or silently
   prefer a case over a local binding.
 
-### Q10 - Does normal completion consume an owned receiver, including an affine one?
+### Q8 - Does normal completion consume an owned receiver, including an affine one?
 
 Named decision: `owned-self-receiver-implicit-retirement`.
 

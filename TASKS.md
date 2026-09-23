@@ -1415,13 +1415,16 @@ syntax and other terminal services are not prerequisites.
   `checked-trees-to-lowered-psi/src/expression_preparation/`, Terminal
   operation/observation vocabulary and its independent checking/realization.
 
-  - Trapping sites are owner-blocked on
-    `terminal-operation-level-trap-crash-site` in
-    [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md). The current profile has edge and
-    boundary-call crash rows, not an ordinary trapping operation's site.
-    Do not fabricate a boundary identity or terminator edge. Once settled,
-    carry primitive denotation and path-conditioned crash evidence under the
-    same-cause ceiling through all consumers. Trapping casts/shifts currently
+  - Implement `terminal-operation-level-trap-crash-site`: choose an operation-site
+    representation under [delegated Psi design](AGENTS.md#psi-implementation-and-deferred-human-audit),
+    using the [encoding alternatives](wiki/drafts/designs/terminal_operation_trap_crash_site.md)
+    as implementation input, not an approval request. Update the observation
+    specification, schema version, codec, independent reconstruction, interpreter,
+    and native realization together. Retain exact cause, primitive denotation,
+    and path-conditioned evidence under the same-cause ceiling; do not fabricate
+    a boundary identity or terminator edge. Test source-produced arithmetic and
+    conversions after reload, with wrong-site/cause/path and missing-evidence
+    rejection. Trapping casts/shifts currently
     refuse runtime preparation; direct Trapping arithmetic in contract position
     remains invalid, not a new predicate term.
   - Realize nontrivial signed/mixed-sign wrapping conversions beyond identity,
@@ -2959,6 +2962,14 @@ syntax and other terminal services are not prerequisites.
   `typed-trees-to-checked-trees/src/execution/terminal_unit/`, not a historical
   failure histogram. Preserve record-pattern and fresh record/case operand
   support rather than recreating it.
+
+  `terminal-vocabulary-for-unit-bodies` is delegated implementation work:
+  extend or add operations for non-vacated structural replacement, typed recast
+  views, and fresh linear-record custody. This item owns integration with
+  RECAST-SOURCE-POSITIONS and the existing ownership consumers through source,
+  codec, independent verification, and native execution. Preserve bounds, layout,
+  loans, and claim lifecycle; do not fake a move window or equate fresh linear
+  custody with authority issuance. No owner approval of the IR shape is needed.
 
   Current source-to-native customers and gaps:
   - Execute `data/record_pattern_{let_exit,bind_all_exit,double_underscore_field}`
