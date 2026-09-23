@@ -100,7 +100,7 @@ pub fn derive_fused_program_entry_establishments(
     // establishment check still applies to the fields that keep a selection.
     if permit_unsettled {
         service_fields
-            .retain(|(_, carrier)| checked.fused_service_erasure(carrier.requirement).is_some());
+            .retain(|(_, carrier, _path)| checked.fused_service_erasure(carrier.requirement).is_some());
         if service_fields.is_empty() {
             return Ok(Vec::new());
         }

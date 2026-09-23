@@ -17,10 +17,8 @@
 mod fixture_package_inputs;
 #[path = "common/hosted_receiver_project.rs"]
 mod hosted_receiver_project;
-use std::path::{Path, PathBuf};
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 use std::process::Command;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use compiler::{CheckedCompileRequest, compile_to_checked};
 use hosted_receiver_project::{
