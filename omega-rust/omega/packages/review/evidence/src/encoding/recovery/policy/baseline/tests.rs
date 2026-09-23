@@ -239,10 +239,7 @@ fn composed_policy_scale_headroom_admits_beyond_the_legacy_byte_ceiling() {
     let template = value.semantic_dependencies[0].clone();
     value.semantic_dependencies = (0..2_048)
         .map(|ordinal| PackagePolicySemanticDependency {
-            dependency: identity(&format!(
-                "dependency_{ordinal:08}_{}",
-                "d".repeat(4_096)
-            )),
+            dependency: identity(&format!("dependency_{ordinal:08}_{}", "d".repeat(4_096))),
             ..template.clone()
         })
         .collect();
