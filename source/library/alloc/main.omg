@@ -11,6 +11,12 @@
 // Establishing residents still waits on the placed-access operations the
 // strategy's `Vacant` requirements pin.
 //
+// `vec.omg` adds the element-bearing customer: a growable `Vec<T>` over
+// caller-supplied backing under the same explicit-supply / explicit-return
+// contract, bounded at a fixed capacity ladder for this stage.
+//
 // The durable depend-edge consumer is
-// `tests/omega/pass/memory/bump_allocator_canary`.
+// `tests/omega/pass/memory/bump_allocator_canary`, with the vec surface
+// exercised end-to-end by `tests/omega/pass/collections/runtime_vec_u32_growth_exit`.
 use bump;
+use vec;

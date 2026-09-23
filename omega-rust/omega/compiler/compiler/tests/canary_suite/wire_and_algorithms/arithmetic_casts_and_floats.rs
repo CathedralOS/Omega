@@ -268,6 +268,42 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_vec_u32_growth_exit_canary_runs() {
+    // ALLOCATOR STORY STAGE 2: `alloc::vec`'s `Vec<u32>` over caller-supplied
+    // backing pushes ten elements through two growths (4 -> 8 -> 16), reads
+    // the preserved prefix and the new elements back, exercises empty and
+    // duplicate cleanup, a rejected growth preserving contents, and the
+    // explicit drain-and-return of the retired backing. The witness keeps
+    // `main` single-state (the ordinary Unit admission route — composed
+    // states admit no structural call targets yet) and folds verification
+    // into a bit-weighted exit code; exits 70 only when every value and
+    // every custody marker matches.
+    let canary = pass_canary(fixture_roster::RUNTIME_VEC_U32_GROWTH_EXIT);
+    let scratch = std::env::temp_dir().join(format!("omega-vec-u32-growth-{}", std::process::id()));
+
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("vec u32 growth canary should compile");
+
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("vec u32 growth canary should retain its executable receipt");
+    let output = Command::new(executable)
+        .output()
+        .expect("vec u32 growth canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-growth push/read/cleanup round trip to hold (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
+#[test]
 fn runtime_float_negative_ops_exit_canary_runs() {
     // Float operations with negatives -- comparisons (the ucomisd unsigned-flags case),
     // a negative float->int cast (truncation toward zero), and a negative multiply.
