@@ -1597,8 +1597,26 @@ syntax and other terminal services are not prerequisites.
     survives the fold, so the cast reports `OperationProofUnavailable`.
     Measured: swapping `ExactSubtract` for `WrappingSubtract` does not help,
     which locates the gap in the fold's RANGE rather than the subtraction's
-    policy. Teach the bound machinery XOR-with-a-constant and
-    subtract-a-constant over an already-bounded operand and this closes.
+    policy.
+    The gap is on the PRODUCER side, not the checking side -- measured by
+    building both and watching which one still refuses. Checking needs one new
+    affine endpoint step, `x ^ constant`, and it is a small, sound addition:
+    XOR is a permutation, so on an all-ones window `[0, 2^k - 1]` that already
+    contains the constant it moves NEITHER endpoint, and outside such a window
+    it has no total image and must be rejected (it must also be refused
+    outright where a single ROOT bound is mapped forward, since from a bound
+    on `x` nothing follows about `x ^ c`). `Subtract` already exists, so with
+    that step the chain `((x & m) ^ s) - s` derives exactly the destination's
+    range.
+    What still fails after adding it is that NO witness is produced at all --
+    `OperationProofUnavailable`, not a rejected proof. The producer is
+    `proofs/nonzero_divisor_certificate/integer_selection/range.rs`, whose
+    candidate selection reads a root/sibling pair out of ONE term shape
+    (`ExactIntegerMultiply`/`Divide`/`Remainder`/`IntegerBitwiseAnd`) and so
+    reaches the unsigned destination's single masked operand but not the
+    three-level fold above it. Threading a chain through that selection is the
+    work; the checking rule is the easy half and is worth writing second, once
+    something emits the witness.
     Same-width and sign-widening pairs are a separate matter -- they have no
     narrowing carrier to spell the mask in at all -- and keep the original
     refusal, now under its own diagnostic so the two are not confused.
