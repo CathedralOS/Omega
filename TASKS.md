@@ -320,6 +320,13 @@ the complete product bar; focused successes below do not establish that baseline
   and a single site each, so a repair there is measurable against a set that
   is already isolated.
 
+  All of these sites are phases of ONE crate --
+  `typed-trees-to-checked-trees/src/execution/terminal_unit/` (`control/
+  statement_sequence.rs`, `state_graph/mod.rs`,
+  `structural_scalar_store/mod.rs`) -- so the whole cohort belongs to whoever
+  holds that crate, and the sites above are the order to take them in, not
+  four independent lanes.
+
   The 17 WERE exactly the entry-free subset this row describes below,
   so that paragraph is corroborated rather than superseded. The 84-member
   plurality is the same family recorded in
