@@ -248,18 +248,20 @@ fn case_payload_edge_rejects_target_drift() {
 }
 
 #[test]
-fn case_payload_body_markers_stay_the_residual() {
-    // The `__arm_destructure` locals a payload-bearing case pair mints have
-    // no body-accounting lane under a Conditional terminator — marker
-    // validation is ClosedSum-only — so the composed plan still does not
-    // lower end to end. Naming the wall explicitly.
+fn case_payload_pair_admits_and_stops_at_the_payload_channel() {
+    // The pair's second arm is `self.result == OpenResult::Failed`, the
+    // exhaustive complement of the first over a two-variant sum, and
+    // lowering rejoins that fallback independently of the producer. The
+    // `__arm_destructure` locals are accounted by the body walk under a
+    // Conditional terminator. So the plan admits; what remains is emitting
+    // the `[copy]` record payload `info` as a Terminal transfer out of the
+    // tested case. Naming that wall explicitly.
     let (checked, plan) = fixture();
-    let error = match admission::admit(&checked, &plan) {
-        Err(error) => error,
-        Ok(_) => panic!("the marker residual stands"),
-    };
+    admission::admit(&checked, &plan).expect("the payload-bearing pair admits");
+    let error = crate::lower_machine(&checked, crate::TerminalMachineSelection::Name("Root::run"))
+        .expect_err("the case-payload channel residual stands");
     assert!(
-        format!("{error}").contains("dropped or added a body effect"),
-        "the structural destructure markers are the residual: {error}"
+        format!("{error:?}").contains("case-payload transfer has no Terminal channel"),
+        "the case-payload channel is the residual: {error:?}"
     );
 }
