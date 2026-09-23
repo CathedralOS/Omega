@@ -2098,14 +2098,17 @@ syntax and other terminal services are not prerequisites.
   `BorrowedSliceView` shape the catalog below it already understands. Start
   there; do not erase extent or add a sample-specific recognizer.
 
-  It is not the only refusal, so do not expect that branch alone to reach
-  native. Instruction selection refuses the element-view instructions as well:
+  Whether anything else refuses afterwards is UNMEASURED, and one obvious
+  candidate is a red herring:
   `target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs`'s
-  `select_function` lists `EstablishElementView` and `ElementViewSubslice`
-  among the legalized kinds it answers with `Err(invalid())`. So the native leg
-  needs both the Unit-graph admission and a selection arm for those two
-  instructions; the Terminal and interpreter halves above are what is already
-  finished.
+  `select_function` does list `EstablishElementView` and `ElementViewSubslice`
+  among the legalized kinds it answers with `Err(invalid())` -- but it lists
+  `EstablishByteSequenceLiteral` and `ByteSequenceSubslice` there too, and byte
+  views demonstrably reach native (`wire/runtime_wire_decoded_byte_slice_index_exit`
+  and `text/runtime_owned_string_byte_view_exit` are exit canaries). So that
+  scalar-graph arm is not the route byte views take, and its rejection is not
+  evidence that element views need one. Take the Unit-graph branch first and
+  let the next diagnostic name itself.
 
   Core `Slice::index<T [copy]>` already settles shared by-value element access.
 
@@ -2644,7 +2647,28 @@ syntax and other terminal services are not prerequisites.
     evidence, and public-contract boundaries. Unsupported evidence is not proof.
   - Complete selected token-body supply outside the admitted expression routes,
     including open-ended ranges and match-pattern equality. Reproduce the
-    build-machine refusal before assigning its repair. Reuse ordinary calls,
+    build-machine refusal before assigning its repair. Two refusals reproduced
+    at `bbc9e90e8a`, and they are not the same kind:
+
+    - Match-pattern equality refuses in validation with "match value patterns
+      require scalar subjects and scalar pattern values; structural, domain,
+      and case patterns are not supported yet" -- a general pattern limit that
+      a selected token body cannot reach past, not an operator-supply gap.
+    - A crowned `==` does not supply `==`, while a crowned `<` supplies `<`.
+      That asymmetry is SPECIFIED, not a gap:
+      [conformances.md](wiki/spec/language/conformances.md) says "`Equatable`
+      is a sealed type-owned operator route ... `==` and `!=` select it from
+      the operand type, not visibility. Other mathematical relations use
+      separately named contracts and conformances without competing for
+      operator syntax." So equality routing through `Equatable` while `<` goes
+      through the selected declaration is the rule working. Do not "fix" it.
+      What is worth a look is the other end: `machine == Card::same(..)` is
+      ACCEPTED at declaration even though a sealed route means it can never
+      supply `==`. Whether a crowned `==` should refuse where it is written was
+      not settled here.
+
+    (The `==` refusal's own suggested fix spelled a retired unnamed conformance
+    header; `c7a86bebb5` repaired the wording, which is unrelated to the gap.) Reuse ordinary calls,
     attached receiver loans and once-only operand evaluation; no separate
     operator interpreter or fallback arithmetic. These refusals are
     implementation boundaries, not new semantic prohibitions.

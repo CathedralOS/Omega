@@ -32,6 +32,17 @@ const OP_FACTS: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/byte_extent.rs";
+const OP_FACTS_ELEMENT_EXTENT: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/element_extent.rs";
+const TS_SE_ELEMENT_EXTENT: &str =
+    "omega-rust/psi/semantics/terminal-semantics/src/structural_effect/element_extent.rs";
+const VAL_ELEMENTS_ESTABLISH: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_establishment.rs";
+const VAL_ELEMENTS_LENGTH: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_length.rs";
+const VAL_ELEMENTS_READ: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_read.rs";
+const VAL_ELEMENTS_SUBSLICE: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_subslice.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/scalar_case.rs";
 const TV_CALLS: &str =
@@ -470,7 +481,14 @@ static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
     "a validated element-view establishment over a contiguous collection",
     "the establishment observation; it invalidates nothing and publishes no scalar equation",
     EFFECT_DEPS,
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_ELEMENTS_ESTABLISH,
+    ],
 );
 static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(
     "operation:element-view-length",
@@ -478,16 +496,26 @@ static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(
     "the length observation's local equation where the schema declares one",
     &[
         "fact:structural-effect-observation",
+        "fact:element-extent-length",
         "formation:operation-validation",
     ],
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        TS_SE_ELEMENT_EXTENT,
+        OP_FACTS,
+        OP_FACTS_ELEMENT_EXTENT,
+        VAL_OPS,
+        VAL_ELEMENTS_LENGTH,
+    ],
 );
 static OP_ELEMENT_VIEW_READ: TrustedSurfaceEntry = entry(
     "operation:element-view-read",
     "a validated in-bounds element read",
     "the read observation's local equation where the schema declares one",
     EFFECT_DEPS,
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_ELEMENTS_READ],
 );
 static OP_ELEMENT_VIEW_SUBSLICE: TrustedSurfaceEntry = entry(
     "operation:element-view-subslice",
@@ -495,9 +523,19 @@ static OP_ELEMENT_VIEW_SUBSLICE: TrustedSurfaceEntry = entry(
     "the subslice observation and its extent equation where the schema declares one",
     &[
         "fact:structural-effect-observation",
+        "fact:element-extent-length",
         "formation:operation-validation",
     ],
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        TS_SE_ELEMENT_EXTENT,
+        OP_FACTS,
+        OP_FACTS_ELEMENT_EXTENT,
+        VAL_OPS,
+        VAL_ELEMENTS_SUBSLICE,
+    ],
 );
 static OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL: TrustedSurfaceEntry = entry(
     "operation:establish-trivial-affine-local",

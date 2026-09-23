@@ -131,6 +131,64 @@ pub(super) fn validate_byte_sequence_read(
     Ok(())
 }
 
+/// An element read's index and observed length are element counts: exact
+/// `u64` values defined before the read, like the byte-view read's. The
+/// in-bounds obligation `index < length` is only a bounds proof over that
+/// unsigned domain; a signed index would satisfy it at `-1`.
+pub(super) fn validate_element_view_read(
+    operation: &terminal_psi::Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let OperationKind::ElementViewRead { index, length, .. } = operation.kind else {
+        unreachable!("dispatched validate_element_view_read")
+    };
+    let expected =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    for operand in [index, length] {
+        require_defined(operand, value_types, defined)?;
+        let actual = value_types[&operand];
+        if actual != expected {
+            return Err(ModuleError::ElementViewReadOperandTypeMismatch {
+                operation: operation.id,
+                operand,
+                actual,
+            });
+        }
+    }
+    Ok(())
+}
+
+/// An element subslice's endpoints and observed length are exact `u64`
+/// element counts defined before the subslice, like the byte-view
+/// subslice's; the extent equation `end - start` is stated over that domain.
+pub(super) fn validate_element_view_subslice(
+    operation: &terminal_psi::Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let OperationKind::ElementViewSubslice {
+        start, end, length, ..
+    } = operation.kind
+    else {
+        unreachable!("dispatched validate_element_view_subslice")
+    };
+    let expected =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    for operand in [start, end, length] {
+        require_defined(operand, value_types, defined)?;
+        let actual = value_types[&operand];
+        if actual != expected {
+            return Err(ModuleError::ElementViewSubsliceOperandTypeMismatch {
+                operation: operation.id,
+                operand,
+                actual,
+            });
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn validate_establish_primitive_local(
     module: &TerminalModule,
     machine: &TerminalMachine,
