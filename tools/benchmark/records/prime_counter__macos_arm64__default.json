@@ -1,0 +1,90 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-23T11:56:47Z",
+  "subject": {
+    "name": "prime_counter",
+    "root": "samples/cli/arithmetic/prime_counter/main.omg",
+    "source_revision": "0758547f31effa829bdb043749e69d41d7eb13a5"
+  },
+  "key": {
+    "target": "macos_arm64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "darwin",
+    "machine": "arm64",
+    "cpu": "Apple M2 Max",
+    "logical_cpus": 12,
+    "python": "3.9.6",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/500e901f2ac79b1edb3d16c6caa05552e0aedbfd5321d37c06e7c9b98780b017/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        896375.987833
+      ],
+      "median_ms": 896375.987833,
+      "min_ms": 896375.987833,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 155.291,
+        "compile: sources -> requested product": 895894.115,
+        "publish: retained product -> published product": 312.151,
+        "Stage 01: SourceFiles -> TokenStreams": 14.986,
+        "Stage 02: TokenStreams -> SyntaxTrees": 9.15,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 120.954,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 23.171,
+        "Stage 05: TypedTrees -> CheckedTrees": 29030.929,
+        "total elapsed": 896363.268
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 247644160,
+      "run_max_rss": 1720320
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        16640
+      ],
+      "value": 16640,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        175.1453339999216,
+        7.027125000035994,
+        6.324041999960173,
+        6.256915999983903,
+        6.415417000084744
+      ],
+      "median_ms": 6.415417000084744,
+      "min_ms": 6.256915999983903,
+      "exit_codes": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ],
+      "exit_code_expected": 8,
+      "stdin": "devnull",
+      "exit_code_match": true
+    }
+  },
+  "notes": [
+    "matching-host macOS arm64 leg; single compile sample (std-dependent subject ~29min/compile on this shared host); 5 runtime samples, expected exit 8"
+  ]
+}

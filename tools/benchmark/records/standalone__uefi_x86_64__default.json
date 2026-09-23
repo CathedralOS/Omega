@@ -1,0 +1,56 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-23T10:18:41Z",
+  "subject": {
+    "name": "standalone",
+    "root": "samples/cli/basics/standalone/main.omg",
+    "source_revision": "0758547f31effa829bdb043749e69d41d7eb13a5"
+  },
+  "key": {
+    "target": "uefi_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "applicability": {
+    "status": "non_applicable",
+    "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+  },
+  "host": {
+    "os": "darwin",
+    "machine": "arm64",
+    "cpu": "Apple M2 Max",
+    "logical_cpus": 12,
+    "python": "3.9.6",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/500e901f2ac79b1edb3d16c6caa05552e0aedbfd5321d37c06e7c9b98780b017/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "unavailable",
+      "unit": "ms",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    },
+    "peak_memory_bytes": {
+      "status": "unavailable",
+      "unit": "bytes",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    },
+    "code_size_bytes": {
+      "status": "unavailable",
+      "unit": "bytes",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    },
+    "runtime_ms": {
+      "status": "unavailable",
+      "unit": "ms",
+      "reason": "no bound required root slot `uefi_x86_64::ProgramEntry`"
+    }
+  },
+  "notes": [
+    "settlement probe: standalone binds only the four hosted targets"
+  ]
+}
