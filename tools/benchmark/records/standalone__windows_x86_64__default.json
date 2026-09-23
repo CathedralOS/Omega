@@ -1,0 +1,82 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-23T10:14:21Z",
+  "subject": {
+    "name": "standalone",
+    "root": "samples/cli/basics/standalone/main.omg",
+    "source_revision": "0758547f31effa829bdb043749e69d41d7eb13a5"
+  },
+  "key": {
+    "target": "windows_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "darwin",
+    "machine": "arm64",
+    "cpu": "Apple M2 Max",
+    "logical_cpus": 12,
+    "python": "3.9.6",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/500e901f2ac79b1edb3d16c6caa05552e0aedbfd5321d37c06e7c9b98780b017/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        36851.734833,
+        56606.752333000004,
+        72837.71841600002
+      ],
+      "median_ms": 56606.752333000004,
+      "min_ms": 36851.734833,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 106.197,
+        "compile: sources -> requested product": 72383.255,
+        "publish: retained product -> published product": 318.034,
+        "Stage 01: SourceFiles -> TokenStreams": 18.335,
+        "Stage 02: TokenStreams -> SyntaxTrees": 11.982,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 198.053,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 67.393,
+        "Stage 05: TypedTrees -> CheckedTrees": 56170.277,
+        "total elapsed": 72822.409
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 111902720,
+      "run_max_rss": null
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        1024,
+        1024,
+        1024
+      ],
+      "value": 1024,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "skipped",
+      "unit": "ms",
+      "samples": [],
+      "median_ms": null,
+      "min_ms": null,
+      "exit_codes": [],
+      "exit_code_expected": null,
+      "stdin": "devnull",
+      "reason": "--no-run was passed"
+    }
+  },
+  "notes": [
+    "cross-target compile-only leg measured from macOS arm64 host; standalone emits no ProcessExit provider so runtime is structurally skipped"
+  ]
+}

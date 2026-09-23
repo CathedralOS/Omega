@@ -1,0 +1,78 @@
+{
+  "schema": "omega-benchmark-record/1",
+  "recorded_utc": "2026-09-23T12:50:52Z",
+  "subject": {
+    "name": "prime_counter",
+    "root": "samples/cli/arithmetic/prime_counter/main.omg",
+    "source_revision": "0758547f31effa829bdb043749e69d41d7eb13a5"
+  },
+  "key": {
+    "target": "linux_x86_64",
+    "selection": {
+      "enabled": [],
+      "disabled": []
+    },
+    "selection_source": "build.omg enable calls plus --enable/--disable"
+  },
+  "host": {
+    "os": "darwin",
+    "machine": "arm64",
+    "cpu": "Apple M2 Max",
+    "logical_cpus": 12,
+    "python": "3.9.6",
+    "rustc": "rustc 1.100.0-nightly (a69a63265 2026-09-03)",
+    "omega_binary": "/Users/jarod/Library/Caches/mbx/targets/v1/500e901f2ac79b1edb3d16c6caa05552e0aedbfd5321d37c06e7c9b98780b017/debug/omega",
+    "omega_profile": "dev"
+  },
+  "metrics": {
+    "compile_time_ms": {
+      "status": "measured",
+      "unit": "ms",
+      "samples": [
+        817178.622041
+      ],
+      "median_ms": 817178.622041,
+      "min_ms": 817178.622041,
+      "stage_timings_last_sample_ms": {
+        "prepare: project -> prepared sources": 154.288,
+        "compile: sources -> requested product": 816390.987,
+        "publish: retained product -> published product": 615.909,
+        "Stage 01: SourceFiles -> TokenStreams": 14.225,
+        "Stage 02: TokenStreams -> SyntaxTrees": 9.148,
+        "Stage 03: SyntaxTrees -> SymbolResolvedTrees": 117.19,
+        "Stage 04: SymbolResolvedTrees -> TypedTrees": 21.824,
+        "Stage 05: TypedTrees -> CheckedTrees": 32456.985,
+        "total elapsed": 817162.735
+      }
+    },
+    "peak_memory_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "compile_max_rss": 226197504,
+      "run_max_rss": null
+    },
+    "code_size_bytes": {
+      "status": "measured",
+      "unit": "bytes",
+      "samples": [
+        8192
+      ],
+      "value": 8192,
+      "stable": true
+    },
+    "runtime_ms": {
+      "status": "skipped",
+      "unit": "ms",
+      "samples": [],
+      "median_ms": null,
+      "min_ms": null,
+      "exit_codes": [],
+      "exit_code_expected": null,
+      "stdin": "devnull",
+      "reason": "--no-run was passed"
+    }
+  },
+  "notes": [
+    "cross-target compile-only leg measured from macOS arm64 host; single compile sample (std-dependent subject ~15-30min/compile under shared-host load)"
+  ]
+}
