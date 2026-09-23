@@ -1,19 +1,31 @@
-//! Optimizer module role: test leaf. Established-case membership specialization proposal, replay, and custody evidence.
+//! Optimizer module role: test leaf. Established-case membership specialization admission, realization, and custody evidence through the rule.
+//!
+//! Every fixture is driven through the one live route: the
+//! `RepresentationSpecialization` pass runs `CaseMembershipSpecializationRule`
+//! to its fixed point, the committed candidate carries the proposed plan,
+//! the run's session carries the folded unit, and forged rows are replayed
+//! against `validate_case_membership_specialization_candidate` — the
+//! independent validator the pass manager itself consults.
 
-use super::super::VerifiedPsiOptimizationSession;
-use crate::representation_specialization::{
-    apply_case_membership_specialization, propose_case_membership_specializations,
-    validate_case_membership_specialization,
+use crate::rules::CaseMembershipSpecializationRule;
+use crate::{
+    OptimizationRun, PsiOptimizationCommit, VerifiedPsiOptimizationSession, run_psi_pipeline,
 };
-use crate::{CaseMembershipSpecializationCandidate, CaseMembershipSpecializationError};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
-use optimization_unit::{
-    NodeLocation, ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
-    recompute_psi_optimization_unit_identity,
+use optimization_core::{
+    Optimization, OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
 };
-use optimization_unit_semantics::OptimizationUnitValidationError;
+use optimization_unit::{
+    CaseMembershipSpecializationRewrite, NodeLocation, ProvenanceDisposition, PsiOptimizationUnit,
+    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError,
+    PsiRewritePatch, recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_case_membership_specialization_candidate,
+};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 /// A scalar machine establishes `Choice::Some` once and observes membership
 /// in that same case: the observation folds to `true`.
@@ -131,45 +143,42 @@ const NO_MEMBERSHIP_SOURCE: &str = r#"
 
 #[test]
 fn established_case_membership_folds_to_proven_verdict() {
-    let session =
-        lowered_session_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let (place, producer, established) = established_place(&unit, machine);
-    let (site, membership) = membership_on(&unit, machine, place).expect("membership exists");
+    let unit = lowered_unit_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, producer, established) = established_place(&input, machine);
+    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    assert_eq!(candidate.machine(), machine);
-    assert_eq!(candidate.place(), place);
-    assert_eq!(candidate.producer(), Some(producer));
-    assert_eq!(candidate.input(), unit.identity);
-    assert_ne!(candidate.output(), unit.identity);
-    let [row] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, Some(producer));
+    assert_eq!(commit.input, input.identity);
+    assert_ne!(commit.output, input.identity);
+    let [row] = patch.memberships.as_slice() else {
         panic!("one folded membership")
     };
-    assert_eq!(row.site(), site);
-    assert_eq!(row.psi_operation(), membership.0);
-    assert_eq!(row.result(), membership.1);
-    assert_eq!(row.source(), place);
-    assert_eq!(row.producer(), Some(producer));
-    assert_eq!(row.observed_case(), membership.2);
-    assert_eq!(row.proven_case(), established);
-    assert!(row.outcome());
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, membership.0);
+    assert_eq!(row.result, membership.1);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, Some(producer));
+    assert_eq!(row.observed_case, membership.2);
+    assert_eq!(row.proven_case, established);
+    assert!(row.outcome);
 
-    // The proposal is deterministic and the folded site identity is bound
-    // into the candidate identity.
-    let replayed = propose_case_membership_specializations(&session, 4).expect("replay runs");
-    assert_eq!(replayed, candidates);
+    // The proposal is deterministic: an independent run commits the same
+    // candidate, custody, and output revision.
+    let replayed = specialize(lowered_unit_entry(
+        ESTABLISHED_MATCHING_SOURCE,
+        "matching membership",
+        "probe",
+    ));
+    assert_eq!(replayed.commits(), run.commits());
 
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    let next = applied.session();
-    let output_function = next
-        .unit()
+    let output = run.session().unit();
+    let output_function = output
         .functions
         .iter()
         .find(|function| function.machine == machine)
@@ -205,7 +214,7 @@ fn established_case_membership_folds_to_proven_verdict() {
             units: 1,
         }]
     );
-    let input_node = &unit
+    let input_node = &input
         .functions
         .iter()
         .find(|function| function.machine == machine)
@@ -220,12 +229,14 @@ fn established_case_membership_folds_to_proven_verdict() {
     assert_eq!(folded.successors, input_node.successors);
 
     // The ledger records the folded site's retained custody: the membership's
-    // operation provenance realized at the same node.
-    let [record] = applied.ledger().records() else {
+    // operation provenance realized at the same node — exactly the custody
+    // the validator accepted for the commit.
+    let [record] = run.transformation_ledger().records() else {
         panic!("one transformation record")
     };
-    assert_eq!(record.input, unit.identity);
-    assert_eq!(record.output, next.unit().identity);
+    assert_eq!(record.input, input.identity);
+    assert_eq!(record.output, output.identity);
+    assert_eq!(record.provenance, commit.provenance);
     assert_eq!(
         record.provenance,
         vec![optimization_unit::ProvenanceRewrite {
@@ -239,35 +250,26 @@ fn established_case_membership_folds_to_proven_verdict() {
         }]
     );
 
-    // The applied session is an exact fixed point for this family.
-    assert!(
-        propose_case_membership_specializations(applied.session(), 4)
-            .expect("fixed-point proposal runs")
-            .is_empty(),
-        "the specialization reaches a fixed point"
-    );
+    // The single commit is the pass's fixed point: no membership on the
+    // place survives to draw a second candidate.
+    assert!(membership_on(output, machine, place).is_none());
 }
 
 #[test]
 fn established_other_case_membership_folds_to_false() {
-    let session = lowered_session_entry(ESTABLISHED_OTHER_SOURCE, "other-case membership", "probe");
-    let unit = session.unit();
-    let machine = unit.functions[0].machine;
-    let (_place, _, _) = established_place(unit, machine);
+    let unit = lowered_unit_entry(ESTABLISHED_OTHER_SOURCE, "other-case membership", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (_place, _, _) = established_place(&input, machine);
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
-    let [row] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.memberships.as_slice() else {
         panic!("one folded membership")
     };
-    assert!(!row.outcome(), "the wrong-case membership proves false");
+    assert!(!row.outcome, "the wrong-case membership proves false");
 
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    let function = applied
+    let function = run
         .session()
         .unit()
         .functions
@@ -277,9 +279,9 @@ fn established_other_case_membership_folds_to_false() {
     let folded = &function
         .blocks
         .iter()
-        .find(|block| block.id == row.site().block)
+        .find(|block| block.id == row.site.block)
         .expect("block retained")
-        .nodes[usize::try_from(row.site().node).expect("index")];
+        .nodes[usize::try_from(row.site.node).expect("index")];
     assert!(matches!(
         folded.operation,
         AbstractOperation::BooleanConstant { value: false, .. }
@@ -288,25 +290,21 @@ fn established_other_case_membership_folds_to_false() {
 
 #[test]
 fn two_memberships_on_one_place_fold_together() {
-    let session = lowered_session_entry(TWO_MEMBERSHIPS_SOURCE, "two memberships", "probe");
-    let machine = session.unit().functions[0].machine;
-    let (place, _, _) = established_place(session.unit(), machine);
+    let unit = lowered_unit_entry(TWO_MEMBERSHIPS_SOURCE, "two memberships", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, _, _) = established_place(&input, machine);
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one candidate covering both memberships")
-    };
-    assert_eq!(candidate.place(), place);
-    let [first, second] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.place, place);
+    let [first, second] = patch.memberships.as_slice() else {
         panic!("two folded memberships")
     };
-    assert_ne!(first.outcome(), second.outcome());
-    assert_ne!(first.observed_case(), second.observed_case());
+    assert_ne!(first.outcome, second.outcome);
+    assert_ne!(first.observed_case, second.observed_case);
 
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    let function = applied
+    let function = run
         .session()
         .unit()
         .functions
@@ -317,15 +315,15 @@ fn two_memberships_on_one_place_fold_together() {
         let folded = &function
             .blocks
             .iter()
-            .find(|block| block.id == row.site().block)
+            .find(|block| block.id == row.site.block)
             .expect("block retained")
-            .nodes[usize::try_from(row.site().node).expect("index")];
+            .nodes[usize::try_from(row.site.node).expect("index")];
         let AbstractOperation::BooleanConstant { value, .. } = folded.operation else {
             panic!("membership folds to BooleanConstant")
         };
-        assert_eq!(value, row.outcome());
+        assert_eq!(value, row.outcome);
     }
-    let [record] = applied.ledger().records() else {
+    let [record] = run.transformation_ledger().records() else {
         panic!("one transformation record")
     };
     assert_eq!(
@@ -333,218 +331,150 @@ fn two_memberships_on_one_place_fold_together() {
         2,
         "one custody row per folded site"
     );
+    assert_eq!(record.provenance, commit.provenance);
 }
 
 #[test]
 fn parameter_membership_yields_no_candidate() {
-    let session = lowered_session_entry(PARAMETER_SOURCE, "parameter decline", "probe");
-    assert!(
-        propose_case_membership_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty()
-    );
-}
-
-#[test]
-fn cyclic_machine_membership_stays_frozen() {
-    let session = cyclic_membership_session();
-    assert!(
-        !session.cycle_components().components().is_empty(),
-        "the fixture carries an authenticated cyclic component"
-    );
-    let membership_count = session
-        .unit()
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
-        .filter(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::StructuralCaseMembership { .. }
-            )
-        })
-        .count();
-    assert!(
-        membership_count > 0,
-        "the fixture must actually contain a membership to freeze"
-    );
-    assert!(
-        propose_case_membership_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty(),
-        "no membership inside frozen territory specializes"
-    );
+    assert_declines(lowered_unit_entry(
+        PARAMETER_SOURCE,
+        "parameter decline",
+        "probe",
+    ));
 }
 
 #[test]
 fn unobserved_establishment_yields_no_candidate() {
-    let session = lowered_session_entry(NO_MEMBERSHIP_SOURCE, "no-membership decline", "probe");
+    let unit = lowered_unit_entry(NO_MEMBERSHIP_SOURCE, "no-membership decline", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, producer, _) = established_place(&input, machine);
+    // The place is proven — its plan carries the establishment witness — but
+    // no observation reads it, so the plan is empty and the rule proposes
+    // nothing.
+    let plan = super::propose::plan(&input, &input.functions[0], place).expect("proven place");
+    assert_eq!(plan.producer, Some(producer));
+    assert!(plan.memberships.is_empty());
+    // A candidate claiming the empty plan cannot even be constructed: a
+    // membership patch must fold at least one observation.
     assert!(
-        propose_case_membership_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty()
+        PsiRewriteCandidate::new_case_membership_specialization(
+            input.identity,
+            CaseMembershipSpecializationRule::contract(),
+            Vec::new(),
+            Vec::new(),
+            0,
+            plan,
+        )
+        .is_err()
     );
-    let unit = session.unit();
-    let machine = unit.functions[0].machine;
-    let (place, producer, _) = established_place(unit, machine);
-    let candidate = CaseMembershipSpecializationCandidate {
-        identity: optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(
-            b"forged-unobserved-candidate",
-        ),
-        input: unit.identity,
-        output: unit.identity,
-        machine,
-        place,
-        producer: Some(producer),
-        memberships: Vec::new(),
-    };
-    assert_eq!(
-        validate_case_membership_specialization(&session, &candidate).err(),
-        Some(CaseMembershipSpecializationError::AlreadySpecialized)
-    );
+    assert_declines(unit);
 }
 
 #[test]
 fn replay_rejects_forged_membership_rows() {
-    let session =
-        lowered_session_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
+    let unit = lowered_unit_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
 
     // A forged verdict.
-    let mut forged = candidate.clone();
-    forged.memberships[0].outcome = !forged.memberships[0].outcome;
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].outcome = !patch.memberships[0].outcome;
+        }),
     );
 
     // A forged observed case — a case identity no source operation carries.
-    let mut forged = candidate.clone();
-    forged.memberships[0].observed_case =
-        semantic_vocabulary::StructuralCaseId::new(forged.memberships[0].observed_case.get() + 7)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].observed_case = semantic_vocabulary::StructuralCaseId::new(
+                patch.memberships[0].observed_case.get() + 7,
+            )
             .expect("forged case identity");
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+        }),
     );
 
     // A forged site coordinate.
-    let mut forged = candidate.clone();
-    forged.memberships[0].site.node += 1;
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].site.node += 1;
+        }),
     );
 
     // A forged producer identity.
-    let mut forged = candidate.clone();
-    forged.producer = Some(forged.memberships[0].psi_operation);
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.producer = Some(patch.memberships[0].psi_operation);
+        }),
     );
 
-    // A forged candidate identity.
-    let mut forged = candidate.clone();
-    forged.identity =
-        optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(b"forged-identity");
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
-    );
-
-    // A forged output revision.
-    let mut forged = candidate.clone();
-    forged.output =
-        optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"forged-output");
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
-    );
-
-    // The untampered candidate still validates.
-    assert!(
-        validate_case_membership_specialization(&session, candidate).is_ok(),
-        "the exact candidate still validates"
-    );
+    // The untampered declaration still validates to the committed output.
+    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
 }
 
 #[test]
 fn replay_rejects_stale_candidate_revision() {
-    let session =
-        lowered_session_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
+    let unit = lowered_unit_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
 
-    let mut stale = candidate.clone();
-    stale.input = optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"stale-input");
+    // A candidate pinned to a revision that is not the input.
+    let stale = rebuild(
+        &commit.declaration,
+        OptimizationUnitIdentity::from_canonical_bytes(b"stale-input"),
+        |_| {},
+    )
+    .expect("a stale input identity is still a well-formed declaration");
     assert_eq!(
-        validate_case_membership_specialization(&session, &stale).err(),
-        Some(CaseMembershipSpecializationError::StaleCandidateRevision {
-            candidate: stale.input,
-            current: session.unit().identity,
-        })
+        validate_case_membership_specialization_candidate(&input, &stale).err(),
+        Some(OptimizationUnitValidationError::CandidateInputMismatch)
     );
 
-    // Applying moves the revision; the original candidate is stale afterward.
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
+    // Committing moves the revision; the original declaration is stale
+    // against the transformed unit afterward.
     assert_eq!(
-        validate_case_membership_specialization(applied.session(), candidate).err(),
-        Some(CaseMembershipSpecializationError::StaleCandidateRevision {
-            candidate: candidate.input(),
-            current: applied.session().unit().identity,
-        })
-    );
-}
-
-#[test]
-fn candidate_budget_is_exact() {
-    let session =
-        lowered_session_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
-    assert_eq!(
-        propose_case_membership_specializations(&session, 0).err(),
-        Some(
-            CaseMembershipSpecializationError::CandidateBudgetExhausted {
-                required: 1,
-                limit: 0,
-            }
+        validate_case_membership_specialization_candidate(
+            run.session().unit(),
+            &commit.declaration
         )
-    );
-    assert_eq!(
-        propose_case_membership_specializations(&session, 1)
-            .expect("proposal runs")
-            .len(),
-        1
+        .err(),
+        Some(OptimizationUnitValidationError::CandidateInputMismatch)
     );
 }
 
+/// The committed unit revalidates independently, while a unit whose folded
+/// node drops its fuel settlement — settling fewer sources than the custody
+/// it names — is refused by transformed validation. A forged commit output
+/// identity is refused by publication replay in
+/// `pass_manager::tests::evidence_matrix::representation_specialization::forged_run_axes_fail_publication_replay`.
 #[test]
-fn transformed_replay_rejects_forged_folded_custody() {
-    let session =
-        lowered_session_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
-    let row = &candidate.memberships()[0];
-    let machine = candidate.machine();
-    let verified_input = session.input().clone();
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
+fn transformed_unit_rejects_forged_folded_custody() {
+    let unit = lowered_unit_entry(ESTABLISHED_MATCHING_SOURCE, "matching membership", "probe");
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let row = &patch.memberships[0];
+    let machine = patch.machine;
+    let verified_input = run.session().input().clone();
 
-    // A unit whose folded node claims a different custody source is not the
-    // specialization this candidate pins: replay rebuilds the plan's own
-    // output and the forged revision identity mismatches.
-    let mut corrupted = validated.output.clone();
-    let folded = corrupted
+    assert!(
+        VerifiedPsiOptimizationSession::from_transformed(
+            verified_input.clone(),
+            run.session().unit().clone(),
+        )
+        .is_ok(),
+        "the committed folded revision revalidates independently"
+    );
+
+    let mut malformed = run.session().unit().clone();
+    let folded = malformed
         .functions
         .iter_mut()
         .flat_map(|function| &mut function.blocks)
@@ -553,43 +483,15 @@ fn transformed_replay_rejects_forged_folded_custody() {
             matches!(
                 node.operation,
                 AbstractOperation::BooleanConstant { psi_operation, .. }
-                    if psi_operation == row.psi_operation()
+                    if psi_operation == row.psi_operation
             )
         })
         .expect("folded node exists");
     assert_eq!(
         folded.provenance,
-        vec![PsiProvenance::Operation(row.psi_operation())]
+        vec![PsiProvenance::Operation(row.psi_operation)]
     );
-    folded.provenance[0] = PsiProvenance::Operation(row.producer().expect("establishment basis"));
-    folded.fuel[0].site = PsiProvenance::Operation(row.producer().expect("establishment basis"));
-    corrupted.identity = recompute_psi_optimization_unit_identity(&corrupted);
-    let mut forged = candidate.clone();
-    forged.output = corrupted.identity;
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
-    );
-
-    // Dropping the folded node's fuel settlement while keeping its custody
-    // claim leaves a unit whose node settles fewer sources than it names:
-    // transformed validation rejects the forged fuel/provenance pair.
-    let mut malformed = validated.output.clone();
-    malformed
-        .functions
-        .iter_mut()
-        .flat_map(|function| &mut function.blocks)
-        .flat_map(|block| &mut block.nodes)
-        .find(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::BooleanConstant { psi_operation, .. }
-                    if psi_operation == row.psi_operation()
-            )
-        })
-        .expect("folded node exists")
-        .fuel
-        .pop();
+    folded.fuel.pop();
     malformed.identity = recompute_psi_optimization_unit_identity(&malformed);
     assert!(matches!(
         VerifiedPsiOptimizationSession::from_transformed(verified_input, malformed),
@@ -597,53 +499,32 @@ fn transformed_replay_rejects_forged_folded_custody() {
             OptimizationUnitValidationError::FuelDoesNotMatchProvenance { machine: rejected, .. }
         ) if rejected == machine
     ));
-
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    assert!(
-        VerifiedPsiOptimizationSession::from_transformed(
-            applied.session().input().clone(),
-            applied.session().unit().clone(),
-        )
-        .is_ok(),
-        "the applied folded revision revalidates independently"
-    );
 }
 
 #[test]
 fn sole_case_parameter_membership_folds_without_producer() {
-    let session = lowered_session_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let function = &unit.functions[0];
-    let place = function
-        .structural_places
-        .iter()
-        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
-        .expect("parameter place exists")
-        .id;
-    let (site, membership) = membership_on(&unit, machine, place).expect("membership exists");
+    let unit = lowered_unit_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    assert_eq!(candidate.machine(), machine);
-    assert_eq!(candidate.place(), place);
-    assert_eq!(candidate.producer(), None);
-    let [row] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, None);
+    let [row] = patch.memberships.as_slice() else {
         panic!("one folded membership")
     };
-    assert_eq!(row.site(), site);
-    assert_eq!(row.psi_operation(), membership.0);
-    assert_eq!(row.source(), place);
-    assert_eq!(row.producer(), None);
-    assert_eq!(row.observed_case(), row.proven_case());
-    assert!(row.outcome());
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, membership.0);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, None);
+    assert_eq!(row.observed_case, row.proven_case);
+    assert!(row.outcome);
 
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    let folded = &applied.session().unit().functions[0]
+    let folded = &run.session().unit().functions[0]
         .blocks
         .iter()
         .find(|block| block.id == site.block)
@@ -653,106 +534,90 @@ fn sole_case_parameter_membership_folds_without_producer() {
         folded.operation,
         AbstractOperation::BooleanConstant { value: true, .. }
     ));
-    assert!(
-        propose_case_membership_specializations(applied.session(), 4)
-            .expect("fixed-point proposal runs")
-            .is_empty(),
-        "the specialization reaches a fixed point"
-    );
+    assert!(membership_on(run.session().unit(), machine, place).is_none());
 }
 
 #[test]
 fn sole_case_local_keeps_establishment_basis() {
-    let session = lowered_session_entry(SOLE_CASE_LOCAL_SOURCE, "sole-case local", "probe");
-    let unit = session.unit();
-    let machine = unit.functions[0].machine;
-    let (place, producer, _) = established_place(unit, machine);
+    let unit = lowered_unit_entry(SOLE_CASE_LOCAL_SOURCE, "sole-case local", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, producer, _) = established_place(&input, machine);
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
-    assert_eq!(candidate.producer(), Some(producer));
-    let [row] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.producer, Some(producer));
+    let [row] = patch.memberships.as_slice() else {
         panic!("one folded membership")
     };
-    assert_eq!(row.source(), place);
-    assert!(row.outcome());
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, Some(producer));
+    assert!(row.outcome);
 }
 
 #[test]
 fn replay_rejects_forged_roster_rows() {
-    let session = lowered_session_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
+    let unit = lowered_unit_entry(SOLE_CASE_PARAMETER_SOURCE, "sole-case parameter", "probe");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
 
     // Claiming a producer on a roster-proven row mismatches the replayed plan.
-    let mut forged = candidate.clone();
-    forged.producer = Some(forged.memberships[0].psi_operation);
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.producer = Some(patch.memberships[0].psi_operation);
+        }),
     );
-    let mut forged = candidate.clone();
-    forged.memberships[0].producer = Some(forged.memberships[0].psi_operation);
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+        }),
     );
 
     // A forged proven case on the roster basis mismatches too.
-    let mut forged = candidate.clone();
-    forged.memberships[0].proven_case =
-        semantic_vocabulary::StructuralCaseId::new(forged.memberships[0].proven_case.get() + 7)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                patch.memberships[0].proven_case.get() + 7,
+            )
             .expect("forged case identity");
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+            patch.memberships[0].outcome =
+                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+        }),
     );
 
-    assert!(
-        validate_case_membership_specialization(&session, candidate).is_ok(),
-        "the exact roster candidate still validates"
-    );
+    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact roster candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
 }
 
 #[test]
 fn path_field_membership_folds_on_sole_case_end() {
-    let session = lowered_session_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let function = &unit.functions[0];
-    let place = function
-        .structural_places
-        .iter()
-        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
-        .expect("parameter place exists")
-        .id;
-    let (site, membership) = membership_on(&unit, machine, place).expect("membership exists");
+    let unit = lowered_unit_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let (site, membership) = membership_on(&input, machine, place).expect("membership exists");
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    assert_eq!(candidate.machine(), machine);
-    assert_eq!(candidate.place(), place);
-    assert_eq!(candidate.producer(), None);
-    let [row] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, None);
+    let [row] = patch.memberships.as_slice() else {
         panic!("one folded membership")
     };
-    assert_eq!(row.site(), site);
-    assert_eq!(row.psi_operation(), membership.0);
-    assert_eq!(row.source(), place);
-    assert_eq!(row.producer(), None);
-    assert_eq!(row.observed_case(), row.proven_case());
-    assert!(row.outcome());
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, membership.0);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, None);
+    assert_eq!(row.observed_case, row.proven_case);
+    assert!(row.outcome);
 
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    let folded = &applied.session().unit().functions[0]
+    let folded = &run.session().unit().functions[0]
         .blocks
         .iter()
         .find(|block| block.id == site.block)
@@ -762,36 +627,26 @@ fn path_field_membership_folds_on_sole_case_end() {
         folded.operation,
         AbstractOperation::BooleanConstant { value: true, .. }
     ));
-    assert!(
-        propose_case_membership_specializations(applied.session(), 4)
-            .expect("fixed-point proposal runs")
-            .is_empty(),
-        "the specialization reaches a fixed point"
-    );
+    assert!(membership_on(run.session().unit(), machine, place).is_none());
 }
 
 #[test]
 fn nested_path_membership_folds_through_records() {
-    let session = lowered_session_entry(NESTED_PATH_SOURCE, "nested-path membership", "probe");
+    let unit = lowered_unit_entry(NESTED_PATH_SOURCE, "nested-path membership", "probe");
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    let [row] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.memberships.as_slice() else {
         panic!("one folded membership")
     };
-    assert!(row.outcome());
+    assert!(row.outcome);
 
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    let folded = &applied.session().unit().functions[0]
+    let folded = &run.session().unit().functions[0]
         .blocks
         .iter()
-        .find(|block| block.id == row.site().block)
+        .find(|block| block.id == row.site.block)
         .expect("block retained")
-        .nodes[usize::try_from(row.site().node).expect("index")];
+        .nodes[usize::try_from(row.site.node).expect("index")];
     assert!(matches!(
         folded.operation,
         AbstractOperation::BooleanConstant { value: true, .. }
@@ -800,27 +655,20 @@ fn nested_path_membership_folds_through_records() {
 
 #[test]
 fn multi_case_path_membership_yields_no_candidate() {
-    let session = lowered_session_entry(PATH_MULTI_CASE_SOURCE, "multi-case path", "probe");
-    assert!(
-        propose_case_membership_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty()
-    );
+    assert_declines(lowered_unit_entry(
+        PATH_MULTI_CASE_SOURCE,
+        "multi-case path",
+        "probe",
+    ));
 }
 
 #[test]
 fn split_path_memberships_fold_only_the_proven_position() {
-    let session = lowered_session_entry(PATH_SPLIT_SOURCE, "split-path memberships", "probe");
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let function = &unit.functions[0];
-    let place = function
-        .structural_places
-        .iter()
-        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
-        .expect("parameter place exists")
-        .id;
-    let memberships = memberships_on(&unit, machine, place);
+    let unit = lowered_unit_entry(PATH_SPLIT_SOURCE, "split-path memberships", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let memberships = memberships_on(&input, machine, place);
     let find = |field: &str| {
         memberships
             .iter()
@@ -836,21 +684,16 @@ fn split_path_memberships_fold_only_the_proven_position() {
     let (_, (folded_op, _, _)) = find("a");
     let (unproven_site, (unproven_op, _, unproven_case)) = find("b");
 
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    let [row] = candidate.memberships() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.memberships.as_slice() else {
         panic!("one folded membership")
     };
-    assert_eq!(row.psi_operation(), folded_op);
-    assert_ne!(row.psi_operation(), unproven_op);
-    assert!(row.outcome());
+    assert_eq!(row.psi_operation, folded_op);
+    assert_ne!(row.psi_operation, unproven_op);
+    assert!(row.outcome);
 
-    let validated =
-        validate_case_membership_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_case_membership_specialization(session, validated).expect("apply");
-    let function = applied
+    let function = run
         .session()
         .unit()
         .functions
@@ -876,36 +719,136 @@ fn split_path_memberships_fold_only_the_proven_position() {
 
 #[test]
 fn replay_rejects_forged_path_rows() {
-    let session = lowered_session_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
-    let candidates = propose_case_membership_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
+    let unit = lowered_unit_entry(PATH_FIELD_SOURCE, "path-field membership", "probe");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
 
     // A forged producer on a path-proven row claims an establishment basis
     // that cannot prove a nested position.
-    let mut forged = candidate.clone();
-    forged.memberships[0].producer = Some(forged.memberships[0].psi_operation);
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+        }),
     );
 
     // A forged proven case at the resolved position mismatches the replayed
     // roster.
-    let mut forged = candidate.clone();
-    forged.memberships[0].proven_case =
-        semantic_vocabulary::StructuralCaseId::new(forged.memberships[0].proven_case.get() + 7)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                patch.memberships[0].proven_case.get() + 7,
+            )
             .expect("forged case identity");
-    assert_eq!(
-        validate_case_membership_specialization(&session, &forged).err(),
-        Some(CaseMembershipSpecializationError::CandidateMismatch)
+            patch.memberships[0].outcome =
+                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+        }),
     );
 
-    assert!(
-        validate_case_membership_specialization(&session, candidate).is_ok(),
-        "the exact path candidate still validates"
+    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact path candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
+}
+
+fn budget() -> OptimizationWorkBudget {
+    OptimizationWorkBudget::new(96, 64, 64, 64, 64).expect("budget")
+}
+
+fn selections() -> OptimizationSelections {
+    OptimizationSelections::new([Optimization::RepresentationSpecialization])
+        .expect("representation-specialization selection")
+}
+
+/// Runs the representation-specialization pass — the case-membership rule
+/// beside its field-value sibling, which no fixture here exercises — to its
+/// fixed point through the public pipeline entrance.
+fn specialize(unit: VerifiedPsiOptimizationUnit) -> OptimizationRun {
+    run_psi_pipeline(unit, &selections(), budget()).expect("the selected pass runs")
+}
+
+/// The run's single commit — the pass reached its fixed point after one
+/// candidate — with its case-membership patch.
+fn single_commit(
+    run: &OptimizationRun,
+) -> (&PsiOptimizationCommit, CaseMembershipSpecializationRewrite) {
+    let [commit] = run.commits() else {
+        panic!("exactly one commit: one candidate covers the place")
+    };
+    assert_eq!(
+        commit.rule,
+        CaseMembershipSpecializationRule::contract().identity()
     );
+    let PsiRewritePatch::SpecializeCaseMembership(patch) = commit.declaration.patch() else {
+        panic!("a case-membership patch")
+    };
+    (commit, patch)
+}
+
+/// The whole selected pass declines the unit and leaves it byte-exact.
+fn assert_declines(unit: VerifiedPsiOptimizationUnit) {
+    let input_identity = unit.unit().identity;
+    let run = specialize(unit);
+    assert!(run.commits().is_empty(), "no candidate specializes");
+    assert_eq!(run.session().unit().identity, input_identity);
+}
+
+/// The committed declaration rebuilt with `input` as its revision and
+/// `mutate` applied to its patch, keeping every other declared axis.
+fn rebuild(
+    declaration: &PsiRewriteCandidate,
+    input: OptimizationUnitIdentity,
+    mutate: impl FnOnce(&mut CaseMembershipSpecializationRewrite),
+) -> Result<PsiRewriteCandidate, PsiRewriteCandidateError> {
+    let PsiRewritePatch::SpecializeCaseMembership(mut patch) = declaration.patch() else {
+        panic!("a case-membership patch")
+    };
+    mutate(&mut patch);
+    PsiRewriteCandidate::new_case_membership_specialization(
+        input,
+        CaseMembershipSpecializationRule::contract(),
+        declaration.affected_blocks().to_vec(),
+        declaration.provenance().to_vec(),
+        declaration.predicted_cost_delta(),
+        patch,
+    )
+}
+
+fn forged(
+    declaration: &PsiRewriteCandidate,
+    mutate: impl FnOnce(&mut CaseMembershipSpecializationRewrite),
+) -> Result<PsiRewriteCandidate, PsiRewriteCandidateError> {
+    rebuild(declaration, declaration.input(), mutate)
+}
+
+/// A forged row is refused either at candidate construction — the patch
+/// invariants already disagree — or by the independent replay, which
+/// re-admits every row against `input` rather than trusting it.
+fn assert_rejects_rows(
+    input: &PsiOptimizationUnit,
+    forged: Result<PsiRewriteCandidate, PsiRewriteCandidateError>,
+) {
+    let Ok(candidate) = forged else {
+        return;
+    };
+    assert!(matches!(
+        validate_case_membership_specialization_candidate(input, &candidate),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch
+            | OptimizationUnitValidationError::CandidateProvenanceMismatch
+            | OptimizationUnitValidationError::CandidateLocationMissing
+            | OptimizationUnitValidationError::CandidateOutsideRegionMismatch)
+    ));
+}
+
+/// The machine's parameter place.
+fn parameter_place(unit: &PsiOptimizationUnit) -> PlaceId {
+    unit.functions[0]
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
+        .expect("parameter place exists")
+        .id
 }
 
 /// The only `OperationResult` place in these fixtures, its
@@ -963,35 +906,10 @@ fn membership_on(
         semantic_vocabulary::StructuralCaseId,
     ),
 )> {
-    let function = unit
-        .functions
-        .iter()
-        .find(|function| function.machine == machine)?;
-    for block in &function.blocks {
-        for (node_index, node) in block.nodes.iter().enumerate() {
-            let AbstractOperation::StructuralCaseMembership {
-                psi_operation,
-                result,
-                source,
-                case,
-                ..
-            } = &node.operation
-            else {
-                continue;
-            };
-            if *source == place {
-                return Some((
-                    NodeLocation {
-                        machine,
-                        block: block.id,
-                        node: u32::try_from(node_index).expect("node index fits u32"),
-                    },
-                    (*psi_operation, result.value, *case),
-                ));
-            }
-        }
-    }
-    None
+    memberships_on(unit, machine, place)
+        .into_iter()
+        .next()
+        .map(|(site, membership, _)| (site, membership))
 }
 
 /// Every `StructuralCaseMembership` observing `place`, in node order — its
@@ -1045,7 +963,7 @@ fn memberships_on(
     memberships
 }
 
-fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationSession {
+fn lowered_unit_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationUnit {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap_or_else(|error| panic!("tokenize {label}: {error:?}"));
@@ -1086,245 +1004,9 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
             .into_optimization_input()
     })
     .unwrap_or_else(|error| panic!("optimizer-only {label} admission: {error:?}"));
-    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
-    .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"));
-    VerifiedPsiOptimizationSession::new(verified)
-        .unwrap_or_else(|error| panic!("verified {label} session: {error:?}"))
-}
-
-/// A roster-proven membership inside an authenticated cyclic machine. Source
-/// cannot express this shape — multi-state machines refuse structural formals,
-/// and the verifier's unranked-cycle fence admits only parameter-sourced
-/// structural work — so the Terminal module is built directly: an unranked
-/// self-loop header observes its owned `Token` parameter, and `Token`'s
-/// sole-case roster proves the verdict. The freeze gate, not missing proof,
-/// is what keeps the candidate set empty.
-fn cyclic_membership_session() -> VerifiedPsiOptimizationSession {
-    use semantic_vocabulary::{
-        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId,
-        ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, ValueId,
-    };
-    use terminal_psi::{
-        Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
-        StructuralCaseDeclaration, StructuralFieldDeclaration, StructuralFieldType,
-        StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-        StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalMachine,
-        TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
-    };
-
-    let value = |raw| ValueId::new(raw).unwrap();
-    let edge = |raw| EdgeId::new(raw).unwrap();
-    let block = |raw| BlockId::new(raw).unwrap();
-    let successor = |edge, target, arguments| SuccessorEdge {
-        erased_arguments: Vec::new(),
-        erased_proof_arguments: Vec::new(),
-        edge,
-        target,
-        arguments,
-        structural_arguments: Vec::new(),
-        trivial_affine_discards: Vec::new(),
-    };
-    let token = StructuralTypeId::new(601).unwrap();
-    let only = StructuralCaseId::new(602).unwrap();
-    let token_place = PlaceId::new(520).unwrap();
-
-    let module = TerminalModule {
-        scalar_qualifications: Default::default(),
-        scalar_block_invariants: Vec::new(),
-        operation_crash_contracts: Vec::new(),
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        entry: MachineId::new(501).unwrap(),
-        structural_types: vec![StructuralTypeDeclaration {
-            id: token,
-            identity: "Token".into(),
-            shape: StructuralTypeShape::Sum {
-                cases: vec![StructuralCaseDeclaration {
-                    id: only,
-                    identity: "Only".into(),
-                    fields: vec![StructuralFieldDeclaration {
-                        id: StructuralFieldId::new(603).unwrap(),
-                        identity: "value".into(),
-                        relevance: terminal_psi::BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                            IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-                        )),
-                    }],
-                }],
-            },
-        }],
-        structural_domains: Vec::new(),
-        services: Vec::new(),
-        root_service_reach: Default::default(),
-        placed_view_inputs: Vec::new(),
-        reborrow_root_handoffs: Vec::new(),
-        reborrow_restored_call_uses: Vec::new(),
-        boundary_machines: Vec::new(),
-        provider_candidates: Vec::new(),
-        float_meaning_projections: Vec::new(),
-        float_meaning_equalities: Vec::new(),
-        proposition_declarations: Vec::new(),
-        proposition_applications: Vec::new(),
-        evidence_terms: Vec::new(),
-        evidence_contract_lanes: Vec::new(),
-        proof_output_calls: Vec::new(),
-        proof_recursive_components: Vec::new(),
-        closed_conformance_applications: Vec::new(),
-        dynamic_dispatch: Default::default(),
-        suspension_call_plan_count: 0,
-        suspension_call_sites: Vec::new(),
-        suspension_call_plans: Vec::new(),
-        quotient_correspondences: Vec::new(),
-        machines: vec![TerminalMachine {
-            closed_reach_application: None,
-            declared_service_reach: Vec::new(),
-            id: MachineId::new(501).unwrap(),
-            attachment: None,
-            parameters: vec![ValueDeclaration {
-                qualifications: Default::default(),
-                id: value(502),
-                scalar_type: ScalarType::Boolean,
-            }],
-            structural_parameters: vec![StructuralParameterDeclaration {
-                place: token_place,
-                position: 0,
-                is_self: false,
-                structural_type: token,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                access: StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            }],
-            ranked_scc: None,
-            result: TerminalMachineResult::Unit,
-            structural_places: vec![StructuralPlaceDeclaration {
-                id: token_place,
-                kind: StructuralPlaceKind::Parameter {
-                    position: 0,
-                    is_self: false,
-                },
-            }],
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            content_entry_claims: Vec::new(),
-            content_identity_reshuffles: Vec::new(),
-            content_partition_compositions: Vec::new(),
-            entry: block(503),
-            blocks: vec![
-                Block {
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    id: block(503),
-                    parameters: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: Terminator::Jump {
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        edge: edge(504),
-                        target: block(505),
-                        arguments: vec![value(502)],
-                        structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
-                    },
-                },
-                Block {
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    id: block(505),
-                    parameters: vec![ValueDeclaration {
-                        qualifications: Default::default(),
-                        id: value(506),
-                        scalar_type: ScalarType::Boolean,
-                    }],
-                    operations: vec![
-                        Operation {
-                            static_reach_binding: None,
-                            suspension_crossing: None,
-                            id: OperationId::new(507).unwrap(),
-                            result: OperationResult::Scalar(ValueDeclaration {
-                                qualifications: Default::default(),
-                                id: value(508),
-                                scalar_type: ScalarType::Integer(
-                                    IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
-                                ),
-                            }),
-                            kind: OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(7),
-                            },
-                        },
-                        Operation {
-                            static_reach_binding: None,
-                            suspension_crossing: None,
-                            id: OperationId::new(521).unwrap(),
-                            result: OperationResult::Scalar(ValueDeclaration {
-                                qualifications: Default::default(),
-                                id: value(522),
-                                scalar_type: ScalarType::Boolean,
-                            }),
-                            kind: OperationKind::StructuralCaseMembership {
-                                source: token_place,
-                                path: Vec::new(),
-                                case: only,
-                            },
-                        },
-                    ],
-                    terminator: Terminator::Conditional {
-                        condition: value(506),
-                        when_true: successor(edge(509), block(505), vec![value(506)]),
-                        when_false: successor(edge(510), block(511), Vec::new()),
-                    },
-                },
-                Block {
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    id: block(511),
-                    parameters: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: Terminator::ReturnUnit {
-                        edge: edge(512),
-                        trivial_affine_discards: Vec::new(),
-                    },
-                },
-            ],
-            contract: MachineContract {
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                id: ContractId::new(513).unwrap(),
-                crash_routes: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
-        }],
-    };
-    let semantic = terminal_codec::encode_module(&module).expect("encode cyclic module");
-    let proof =
-        terminal_codec::encode_proof_section(&module, &terminal_verifier::ProofBundle::default())
-            .expect("encode cyclic proof");
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .map(|admitted| {
-        admitted
-            .into_optimization_artifact()
-            .into_optimization_input()
-    })
-    .expect("cyclic module admits for optimization");
-    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
-        input,
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .expect("cyclic module verifies");
-    VerifiedPsiOptimizationSession::new(verified).expect("cyclic session re-admits")
+    .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"))
 }

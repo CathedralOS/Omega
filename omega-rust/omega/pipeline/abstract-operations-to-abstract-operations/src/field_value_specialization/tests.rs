@@ -1,19 +1,32 @@
-//! Optimizer module role: test leaf. Proven field-value specialization proposal, replay, and custody evidence.
+//! Optimizer module role: test leaf. Proven field-value specialization admission, realization, and custody evidence through the rule.
+//!
+//! Every fixture is driven through the one live route: the
+//! `RepresentationSpecialization` pass runs `FieldValueSpecializationRule`
+//! to its fixed point, the committed candidate carries the proposed plan,
+//! the run's session carries the folded unit, and forged rows are replayed
+//! against `validate_field_value_specialization_candidate` — the independent
+//! validator the pass manager itself consults.
 
-use super::super::VerifiedPsiOptimizationSession;
-use crate::field_value_specialization::{
-    apply_field_value_specialization, propose_field_value_specializations,
-    validate_field_value_specialization,
+use crate::rules::FieldValueSpecializationRule;
+use crate::{
+    OptimizationRun, PsiOptimizationCommit, VerifiedPsiOptimizationSession, run_psi_pipeline,
 };
-use crate::{FieldValueSpecializationCandidate, FieldValueSpecializationError};
 use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use optimization_core::{
+    Optimization, OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
+};
 use optimization_unit::{
-    FieldValueResolution, FoldedFieldValue, NodeLocation, ProvenanceDisposition,
-    PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    FieldValueResolution, FieldValueSpecializationRewrite, FoldedFieldValue, NodeLocation,
+    ProvenanceDisposition, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
 };
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_field_value_specialization_candidate,
+};
 use semantic_vocabulary::{MachineId, PlaceId, StructuralPlaceKind};
+use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 
 /// A scalar machine establishes `Point` once with constant initializers and
 /// reads both fields: `p.x` folds to `37` and `p.flag` folds to `true` in one
@@ -92,32 +105,30 @@ const NO_READS_SOURCE: &str = r#"
 
 #[test]
 fn established_record_fields_fold_to_proven_values() {
-    let session = lowered_session_entry(
+    let unit = lowered_unit_entry(
         ESTABLISHED_FIELDS_SOURCE,
         "established field values",
         "probe",
     );
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let (place, producer) = established_record_place(&unit, machine);
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, producer) = established_record_place(&input, machine);
 
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    assert_eq!(candidate.machine(), machine);
-    assert_eq!(candidate.place(), place);
-    assert_eq!(candidate.producer(), Some(producer));
-    assert_eq!(candidate.input(), unit.identity);
-    assert_ne!(candidate.output(), unit.identity);
-    let [first, second] = candidate.reads() else {
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, Some(producer));
+    assert_eq!(commit.input, input.identity);
+    assert_ne!(commit.output, input.identity);
+    let [first, second] = patch.reads.as_slice() else {
         panic!("two folded field reads")
     };
-    assert_eq!(first.source(), place);
-    assert_eq!(second.source(), place);
-    assert_eq!(first.producer(), Some(producer));
-    assert_eq!(second.producer(), Some(producer));
-    let mut values = [first.resolution(), second.resolution()];
+    assert_eq!(first.source, place);
+    assert_eq!(second.source, place);
+    assert_eq!(first.producer, Some(producer));
+    assert_eq!(second.producer, Some(producer));
+    let mut values = [&first.resolution, &second.resolution];
     values.sort();
     assert_eq!(
         values,
@@ -129,30 +140,29 @@ fn established_record_fields_fold_to_proven_values() {
         ]
     );
 
-    // The proposal is deterministic and the folded site identity is bound
-    // into the candidate identity.
-    let replayed = propose_field_value_specializations(&session, 4).expect("replay runs");
-    assert_eq!(replayed, candidates);
+    // The proposal is deterministic: an independent run commits the same
+    // candidate, custody, and output revision.
+    let replayed = specialize(lowered_unit_entry(
+        ESTABLISHED_FIELDS_SOURCE,
+        "established field values",
+        "probe",
+    ));
+    assert_eq!(replayed.commits(), run.commits());
 
-    let validated =
-        validate_field_value_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_field_value_specialization(session, validated).expect("apply");
-    let next = applied.session();
-    let output_function = next
-        .unit()
+    let output = run.session().unit();
+    let output_function = output
         .functions
         .iter()
         .find(|function| function.machine == machine)
         .expect("machine retained");
-
-    for row in candidate.reads() {
+    for row in &patch.reads {
         let folded = &output_function
             .blocks
             .iter()
-            .find(|block| block.id == row.site().block)
+            .find(|block| block.id == row.site.block)
             .expect("block retained")
-            .nodes[usize::try_from(row.site().node).expect("index")];
-        match row.resolution() {
+            .nodes[usize::try_from(row.site.node).expect("index")];
+        match &row.resolution {
             FieldValueResolution::Constant(FoldedFieldValue::Boolean(constant)) => {
                 let AbstractOperation::BooleanConstant {
                     psi_operation,
@@ -162,8 +172,8 @@ fn established_record_fields_fold_to_proven_values() {
                 else {
                     panic!("boolean read folds to BooleanConstant")
                 };
-                assert_eq!(*psi_operation, row.psi_operation());
-                assert_eq!(*result, row.result());
+                assert_eq!(*psi_operation, row.psi_operation);
+                assert_eq!(*result, row.result);
                 assert_eq!(value, constant);
             }
             FieldValueResolution::Constant(FoldedFieldValue::Integer(constant)) => {
@@ -176,118 +186,95 @@ fn established_record_fields_fold_to_proven_values() {
                 else {
                     panic!("integer read folds to IntegerConstant")
                 };
-                assert_eq!(*psi_operation, row.psi_operation());
-                assert_eq!(*result, row.result());
+                assert_eq!(*psi_operation, row.psi_operation);
+                assert_eq!(*result, row.result);
                 assert_eq!(value, constant);
             }
             FieldValueResolution::Forward(_) => panic!("constant rows never forward"),
         }
         assert_eq!(
             folded.provenance,
-            vec![PsiProvenance::Operation(row.psi_operation())]
+            vec![PsiProvenance::Operation(row.psi_operation)]
         );
-        let input_node = &unit
+        let input_node = &input
             .functions
             .iter()
             .find(|function| function.machine == machine)
             .expect("input machine")
             .blocks
             .iter()
-            .find(|block| block.id == row.site().block)
+            .find(|block| block.id == row.site.block)
             .expect("input block")
-            .nodes[usize::try_from(row.site().node).expect("index")];
+            .nodes[usize::try_from(row.site.node).expect("index")];
         assert_eq!(folded.definitions, input_node.definitions);
         assert_eq!(folded.uses, input_node.uses);
         assert_eq!(folded.successors, input_node.successors);
     }
 
-    // The ledger records each folded site's retained custody.
-    let [record] = applied.ledger().records() else {
+    // The ledger records each folded site's retained custody — exactly the
+    // custody the validator accepted for the commit.
+    let [record] = run.transformation_ledger().records() else {
         panic!("one transformation record")
     };
-    assert_eq!(record.input, unit.identity);
-    assert_eq!(record.output, next.unit().identity);
+    assert_eq!(record.input, input.identity);
+    assert_eq!(record.output, output.identity);
+    assert_eq!(record.provenance, commit.provenance);
     assert_eq!(record.provenance.len(), 2);
-    for row in candidate.reads() {
-        let site = PsiRealizationSite::Node(row.site());
+    for row in &patch.reads {
+        let site = PsiRealizationSite::Node(row.site);
         assert!(record.provenance.iter().any(|rewrite| {
             rewrite.input == site
                 && rewrite.disposition == ProvenanceDisposition::RealizedAt(site)
-                && rewrite.sources == vec![PsiProvenance::Operation(row.psi_operation())]
+                && rewrite.sources == vec![PsiProvenance::Operation(row.psi_operation)]
         }));
     }
 
-    // The applied session is an exact fixed point for this family.
-    assert!(
-        propose_field_value_specializations(applied.session(), 4)
-            .expect("fixed-point proposal runs")
-            .is_empty(),
-        "the specialization reaches a fixed point"
-    );
+    // The single commit is the pass's fixed point: no field read on the
+    // place survives to draw a second candidate.
+    assert!(field_read_on(output, machine, place).is_none());
 }
 
 #[test]
 fn parameter_field_read_yields_no_candidate() {
-    let session = lowered_session_entry(PARAMETER_FIELD_SOURCE, "parameter decline", "probe");
-    let unit = session.unit();
-    let machine = unit.functions[0].machine;
-    let function = &unit.functions[0];
-    let place = function
-        .structural_places
-        .iter()
-        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
-        .expect("parameter place exists")
-        .id;
+    let unit = lowered_unit_entry(PARAMETER_FIELD_SOURCE, "parameter decline", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
     assert!(
-        field_read_on(unit, machine, place).is_some(),
+        field_read_on(&input, machine, place).is_some(),
         "the fixture must actually contain a field read"
     );
-    assert!(
-        propose_field_value_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty()
-    );
+    assert_declines(unit);
 }
 
 #[test]
 fn bounded_parameter_field_folds_without_producer() {
-    let session = lowered_session_entry(BOUNDED_PARAMETER_SOURCE, "bounded parameter", "probe");
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let function = &unit.functions[0];
-    let place = function
-        .structural_places
-        .iter()
-        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
-        .expect("parameter place exists")
-        .id;
-    let (site, read) = field_read_on(&unit, machine, place).expect("field read exists");
+    let unit = lowered_unit_entry(BOUNDED_PARAMETER_SOURCE, "bounded parameter", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let (site, read) = field_read_on(&input, machine, place).expect("field read exists");
 
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    assert_eq!(candidate.machine(), machine);
-    assert_eq!(candidate.place(), place);
-    assert_eq!(candidate.producer(), None);
-    let [row] = candidate.reads() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, None);
+    let [row] = patch.reads.as_slice() else {
         panic!("one folded field read")
     };
-    assert_eq!(row.site(), site);
-    assert_eq!(row.psi_operation(), read.0);
-    assert_eq!(row.source(), place);
-    assert_eq!(row.producer(), None);
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, read.0);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, None);
     assert_eq!(
-        row.resolution(),
-        &FieldValueResolution::Constant(FoldedFieldValue::Integer(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
             semantic_vocabulary::IntegerValue::Signed(5)
         ))
     );
 
-    let validated =
-        validate_field_value_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_field_value_specialization(session, validated).expect("apply");
-    let folded = &applied.session().unit().functions[0]
+    let folded = &run.session().unit().functions[0]
         .blocks
         .iter()
         .find(|block| block.id == site.block)
@@ -300,68 +287,66 @@ fn bounded_parameter_field_folds_without_producer() {
             ..
         }
     ));
-    assert!(
-        propose_field_value_specializations(applied.session(), 4)
-            .expect("fixed-point proposal runs")
-            .is_empty(),
-        "the specialization reaches a fixed point"
-    );
+    assert!(field_read_on(run.session().unit(), machine, place).is_none());
 }
 
 #[test]
 fn nested_bounded_field_folds_at_path_depth() {
-    let session = lowered_session_entry(NESTED_BOUNDED_SOURCE, "nested bounded field", "probe");
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let function = &unit.functions[0];
-    let place = function
-        .structural_places
-        .iter()
-        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
-        .expect("parameter place exists")
-        .id;
-    let (_, read) = field_read_on(&unit, machine, place).expect("field read exists");
+    let unit = lowered_unit_entry(NESTED_BOUNDED_SOURCE, "nested bounded field", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let (site, read) = field_read_on(&input, machine, place).expect("field read exists");
 
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    let [row] = candidate.reads() else {
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.reads.as_slice() else {
         panic!("one folded field read")
     };
-    assert_eq!(row.producer(), None);
-    assert_eq!(row.path().len(), 1, "the read descends one record field");
-    assert_eq!(row.field(), read.2);
+    assert_eq!(row.producer, None);
+    assert_eq!(row.path.len(), 1, "the read descends one record field");
+    assert_eq!(row.field, read.2);
     assert_eq!(
-        row.resolution(),
-        &FieldValueResolution::Constant(FoldedFieldValue::Integer(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
             semantic_vocabulary::IntegerValue::Signed(7)
         ))
     );
+    let folded = &run.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Signed(7),
+            ..
+        }
+    ));
 }
 
 #[test]
 fn nonconstant_initializer_forwards_to_uses() {
-    let session = lowered_session_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
-    let unit = session.unit().clone();
-    let machine = unit.functions[0].machine;
-    let function = &unit.functions[0];
-    let (place, producer) = established_record_place(&unit, machine);
+    let unit = lowered_unit_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let function = &input.functions[0];
+    let (place, producer) = established_record_place(&input, machine);
 
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("exactly one specialization candidate")
-    };
-    assert_eq!(candidate.machine(), machine);
-    assert_eq!(candidate.place(), place);
-    assert_eq!(candidate.producer(), Some(producer));
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, Some(producer));
 
-    let forward_row = candidate
-        .reads()
+    let forward_row = patch
+        .reads
         .iter()
-        .find(|row| matches!(row.resolution(), FieldValueResolution::Forward(_)))
+        .find(|row| matches!(row.resolution, FieldValueResolution::Forward(_)))
         .expect("one forwarded read");
-    let FieldValueResolution::Forward(forwarded) = forward_row.resolution() else {
+    let FieldValueResolution::Forward(forwarded) = &forward_row.resolution else {
         unreachable!()
     };
     // The front end routes the `x` machine parameter through a block
@@ -374,8 +359,8 @@ fn nonconstant_initializer_forwards_to_uses() {
         .find(|definition| definition.value == forwarded.initializer)
         .expect("the proven initializer is parameter-sourced");
     assert_eq!(forwarded.scalar_type, definition.scalar_type);
-    assert_ne!(forwarded.initializer, forward_row.result());
-    assert_eq!(forward_row.producer(), Some(producer));
+    assert_ne!(forwarded.initializer, forward_row.result);
+    assert_eq!(forward_row.producer, Some(producer));
     assert!(
         !forwarded.uses.is_empty(),
         "the forwarded read has covered uses"
@@ -392,29 +377,37 @@ fn nonconstant_initializer_forwards_to_uses() {
             use_node
                 .uses
                 .iter()
-                .any(|use_site| use_site.value == forward_row.result()),
+                .any(|use_site| use_site.value == forward_row.result),
             "each listed use site references the read's result"
         );
     }
-    let constant_row = candidate
-        .reads()
+    // The candidate declares exactly the one `result → initializer`
+    // substitution the forwarded row implies.
+    let [substitution] = commit.declaration.substitutions() else {
+        panic!("one scalar substitution")
+    };
+    assert_eq!(substitution.from, forward_row.result);
+    assert_eq!(substitution.to, forwarded.initializer);
+    let constant_row = patch
+        .reads
         .iter()
-        .find(|row| matches!(row.resolution(), FieldValueResolution::Constant(_)))
+        .find(|row| matches!(row.resolution, FieldValueResolution::Constant(_)))
         .expect("one folded read");
     assert_eq!(
-        constant_row.resolution(),
-        &FieldValueResolution::Constant(FoldedFieldValue::Boolean(true))
+        constant_row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Boolean(true))
     );
-    assert_eq!(constant_row.producer(), Some(producer));
+    assert_eq!(constant_row.producer, Some(producer));
 
     // The proposal is deterministic.
-    let replayed = propose_field_value_specializations(&session, 4).expect("replay runs");
-    assert_eq!(replayed, candidates);
+    let replayed = specialize(lowered_unit_entry(
+        FORWARDED_FIELD_SOURCE,
+        "forwarded field value",
+        "probe",
+    ));
+    assert_eq!(replayed.commits(), run.commits());
 
-    let validated =
-        validate_field_value_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_field_value_specialization(session, validated).expect("apply");
-    let output_function = applied
+    let output_function = run
         .session()
         .unit()
         .functions
@@ -424,12 +417,12 @@ fn nonconstant_initializer_forwards_to_uses() {
     let input_block = function
         .blocks
         .iter()
-        .find(|block| block.id == forward_row.site().block)
+        .find(|block| block.id == forward_row.site.block)
         .expect("input block");
     let output_block = output_function
         .blocks
         .iter()
-        .find(|block| block.id == forward_row.site().block)
+        .find(|block| block.id == forward_row.site.block)
         .expect("block retained");
     assert_eq!(
         output_block.nodes.len(),
@@ -438,14 +431,14 @@ fn nonconstant_initializer_forwards_to_uses() {
     );
 
     // The node inheriting the vacated index absorbs the read's custody.
-    let receiver = &output_block.nodes[usize::try_from(forward_row.site().node).expect("index")];
+    let receiver = &output_block.nodes[usize::try_from(forward_row.site.node).expect("index")];
     assert!(
         receiver
             .provenance
-            .contains(&PsiProvenance::Operation(forward_row.psi_operation()))
+            .contains(&PsiProvenance::Operation(forward_row.psi_operation))
     );
     assert!(receiver.fuel.iter().any(|settlement| {
-        settlement.site == PsiProvenance::Operation(forward_row.psi_operation())
+        settlement.site == PsiProvenance::Operation(forward_row.psi_operation)
     }));
 
     // No surviving node defines or uses the retired result; every listed use
@@ -455,19 +448,18 @@ fn nonconstant_initializer_forwards_to_uses() {
             !node
                 .definitions
                 .iter()
-                .any(|definition| definition.value == forward_row.result())
+                .any(|definition| definition.value == forward_row.result)
         );
         assert!(
             !node
                 .uses
                 .iter()
-                .any(|use_site| use_site.value == forward_row.result())
+                .any(|use_site| use_site.value == forward_row.result)
         );
     }
     for site in &forwarded.uses {
-        let shift = usize::from(
-            site.block == forward_row.site().block && site.node > forward_row.site().node,
-        );
+        let shift =
+            usize::from(site.block == forward_row.site.block && site.node > forward_row.site.node);
         let output_index = usize::try_from(site.node).expect("index") - shift;
         let node = &output_function
             .blocks
@@ -484,9 +476,9 @@ fn nonconstant_initializer_forwards_to_uses() {
     }
 
     // The folded sibling still lands at its (shifted) site as a constant.
-    let folded_site = constant_row.site();
+    let folded_site = constant_row.site;
     let folded_shift = usize::from(
-        folded_site.block == forward_row.site().block && folded_site.node > forward_row.site().node,
+        folded_site.block == forward_row.site.block && folded_site.node > forward_row.site.node,
     );
     let folded = &output_function
         .blocks
@@ -501,33 +493,27 @@ fn nonconstant_initializer_forwards_to_uses() {
 
     // The ledger records the retired site's custody landing on the node that
     // inherited its index.
-    let [record] = applied.ledger().records() else {
+    let [record] = run.transformation_ledger().records() else {
         panic!("one transformation record")
     };
-    let retired = PsiRealizationSite::Node(forward_row.site());
+    let retired = PsiRealizationSite::Node(forward_row.site);
     assert!(record.provenance.iter().any(|rewrite| {
         rewrite.input == retired
             && rewrite.disposition == ProvenanceDisposition::RealizedAt(retired)
-            && rewrite.sources == vec![PsiProvenance::Operation(forward_row.psi_operation())]
+            && rewrite.sources == vec![PsiProvenance::Operation(forward_row.psi_operation)]
     }));
 
-    // The applied session is an exact fixed point for this family.
-    assert!(
-        propose_field_value_specializations(applied.session(), 4)
-            .expect("fixed-point proposal runs")
-            .is_empty(),
-        "the specialization reaches a fixed point"
-    );
+    // The single commit is the pass's fixed point.
+    assert!(field_read_on(run.session().unit(), machine, place).is_none());
 }
 
 #[test]
 fn replay_rejects_forged_forward_rows() {
-    let session = lowered_session_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
-    let forward_index = candidate
+    let unit = lowered_unit_entry(FORWARDED_FIELD_SOURCE, "forwarded field value", "probe");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    let forward_index = patch
         .reads
         .iter()
         .position(|row| matches!(row.resolution, FieldValueResolution::Forward(_)))
@@ -535,53 +521,54 @@ fn replay_rejects_forged_forward_rows() {
 
     // A forged initializer — replay re-derives the establishment's stored
     // scalar rather than trusting the claimed substitution.
-    let mut forged = candidate.clone();
-    let result = forged.reads[forward_index].result;
-    let FieldValueResolution::Forward(forwarded) = &mut forged.reads[forward_index].resolution
-    else {
-        unreachable!()
-    };
-    forwarded.initializer = result;
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            let result = patch.reads[forward_index].result;
+            let FieldValueResolution::Forward(forwarded) =
+                &mut patch.reads[forward_index].resolution
+            else {
+                unreachable!()
+            };
+            forwarded.initializer = result;
+        }),
     );
 
     // A forged use roster — replay recomputes the complete covered set.
-    let mut forged = candidate.clone();
-    let FieldValueResolution::Forward(forwarded) = &mut forged.reads[forward_index].resolution
-    else {
-        unreachable!()
-    };
-    forwarded.uses.pop();
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            let FieldValueResolution::Forward(forwarded) =
+                &mut patch.reads[forward_index].resolution
+            else {
+                unreachable!()
+            };
+            forwarded.uses.pop();
+        }),
     );
 
     // A forged constant claim on the forwarded read.
-    let mut forged = candidate.clone();
-    forged.reads[forward_index].resolution = FieldValueResolution::Constant(
-        FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(7)),
-    );
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[forward_index].resolution = FieldValueResolution::Constant(
+                FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(7)),
+            );
+        }),
     );
 
-    // The untampered candidate still validates.
-    assert!(
-        validate_field_value_specialization(&session, candidate).is_ok(),
-        "the exact candidate still validates"
-    );
+    // The untampered declaration still validates to the committed output.
+    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
 }
 
 #[test]
 fn nested_structural_child_stays_unproven() {
-    let session = lowered_session_entry(NESTED_UNPROVEN_SOURCE, "nested unproven field", "probe");
-    let unit = session.unit();
-    let machine = unit.functions[0].machine;
-    let field_read_count = unit
+    let unit = lowered_unit_entry(NESTED_UNPROVEN_SOURCE, "nested unproven field", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let field_read_count = input
         .functions
         .iter()
         .filter(|function| function.machine == machine)
@@ -599,234 +586,162 @@ fn nested_structural_child_stays_unproven() {
         field_read_count > 0,
         "the fixture must actually contain a field read"
     );
-    assert!(
-        propose_field_value_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty(),
-        "the EstablishRecord proves only its own level's initializers"
-    );
-}
-
-#[test]
-fn cyclic_machine_field_read_stays_frozen() {
-    let session = cyclic_field_session();
-    assert!(
-        !session.cycle_components().components().is_empty(),
-        "the fixture carries an authenticated cyclic component"
-    );
-    let field_read_count = session
-        .unit()
-        .functions
-        .iter()
-        .flat_map(|function| &function.blocks)
-        .flat_map(|block| &block.nodes)
-        .filter(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::IntegerStructuralField { .. }
-                    | AbstractOperation::BooleanStructuralField { .. }
-            )
-        })
-        .count();
-    assert!(
-        field_read_count > 0,
-        "the fixture must actually contain a field read to freeze"
-    );
-    assert!(
-        propose_field_value_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty(),
-        "no field read inside frozen territory specializes"
-    );
+    // The EstablishRecord proves only its own level's initializers.
+    assert_declines(unit);
 }
 
 #[test]
 fn unobserved_establishment_yields_no_candidate() {
-    let session = lowered_session_entry(NO_READS_SOURCE, "no-reads decline", "probe");
+    let unit = lowered_unit_entry(NO_READS_SOURCE, "no-reads decline", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (place, producer) = established_record_place(&input, machine);
+    // The place is proven — its plan carries the establishment witness — but
+    // no observation reads it, so the plan is empty and the rule proposes
+    // nothing.
+    let plan = super::propose::plan(&input, &input.functions[0], place).expect("proven place");
+    assert_eq!(plan.producer, Some(producer));
+    assert!(plan.reads.is_empty());
+    // A candidate claiming the empty plan cannot even be constructed: a
+    // field-value patch must fold at least one read.
     assert!(
-        propose_field_value_specializations(&session, 4)
-            .expect("proposal runs")
-            .is_empty()
+        PsiRewriteCandidate::new_field_value_specialization(
+            input.identity,
+            FieldValueSpecializationRule::contract(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            0,
+            plan,
+        )
+        .is_err()
     );
-    let unit = session.unit();
-    let machine = unit.functions[0].machine;
-    let (place, producer) = established_record_place(unit, machine);
-    let candidate = FieldValueSpecializationCandidate {
-        identity: optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(
-            b"forged-unobserved-candidate",
-        ),
-        input: unit.identity,
-        output: unit.identity,
-        machine,
-        place,
-        producer: Some(producer),
-        reads: Vec::new(),
-    };
-    assert_eq!(
-        validate_field_value_specialization(&session, &candidate).err(),
-        Some(FieldValueSpecializationError::AlreadySpecialized)
-    );
+    assert_declines(unit);
 }
 
 #[test]
 fn replay_rejects_forged_field_rows() {
-    let session = lowered_session_entry(
+    let unit = lowered_unit_entry(
         ESTABLISHED_FIELDS_SOURCE,
         "established field values",
         "probe",
     );
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
 
     // A forged folded value.
-    let mut forged = candidate.clone();
-    forged.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
-        semantic_vocabulary::IntegerValue::Unsigned(41),
-    ));
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].resolution = FieldValueResolution::Constant(FoldedFieldValue::Integer(
+                semantic_vocabulary::IntegerValue::Unsigned(41),
+            ));
+        }),
     );
 
     // A forged field identity — a field no source operation carries.
-    let mut forged = candidate.clone();
-    forged.reads[0].field =
-        semantic_vocabulary::StructuralFieldId::new(forged.reads[0].field.get() + 7)
-            .expect("forged field identity");
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].field =
+                semantic_vocabulary::StructuralFieldId::new(patch.reads[0].field.get() + 7)
+                    .expect("forged field identity");
+        }),
     );
 
     // A forged path segment.
-    let mut forged = candidate.clone();
-    forged.reads[0].path = vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0)];
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].path =
+                vec![semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(0)];
+        }),
     );
 
     // A forged site coordinate.
-    let mut forged = candidate.clone();
-    forged.reads[0].site.node += 1;
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.reads[0].site.node += 1;
+        }),
     );
 
     // A forged producer identity.
-    let mut forged = candidate.clone();
-    forged.producer = Some(forged.reads[0].psi_operation);
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.producer = Some(patch.reads[0].psi_operation);
+        }),
     );
 
-    // A forged candidate identity.
-    let mut forged = candidate.clone();
-    forged.identity =
-        optimization_core::OptimizationCandidateIdentity::from_canonical_bytes(b"forged-identity");
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
-    );
-
-    // A forged output revision.
-    let mut forged = candidate.clone();
-    forged.output =
-        optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"forged-output");
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
-    );
-
-    // The untampered candidate still validates.
-    assert!(
-        validate_field_value_specialization(&session, candidate).is_ok(),
-        "the exact candidate still validates"
-    );
+    // The untampered declaration still validates to the committed output.
+    let validated = validate_field_value_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
 }
 
 #[test]
 fn replay_rejects_stale_candidate_revision() {
-    let session = lowered_session_entry(
+    let unit = lowered_unit_entry(
         ESTABLISHED_FIELDS_SOURCE,
         "established field values",
         "probe",
     );
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
 
-    let mut stale = candidate.clone();
-    stale.input = optimization_core::OptimizationUnitIdentity::from_canonical_bytes(b"stale-input");
+    // A candidate pinned to a revision that is not the input.
+    let stale = rebuild(
+        &commit.declaration,
+        OptimizationUnitIdentity::from_canonical_bytes(b"stale-input"),
+        |_| {},
+    )
+    .expect("a stale input identity is still a well-formed declaration");
     assert_eq!(
-        validate_field_value_specialization(&session, &stale).err(),
-        Some(FieldValueSpecializationError::StaleCandidateRevision {
-            candidate: stale.input,
-            current: session.unit().identity,
-        })
+        validate_field_value_specialization_candidate(&input, &stale).err(),
+        Some(OptimizationUnitValidationError::CandidateInputMismatch)
     );
 
-    // Applying moves the revision; the original candidate is stale afterward.
-    let validated =
-        validate_field_value_specialization(&session, candidate).expect("independent replay");
-    let applied = apply_field_value_specialization(session, validated).expect("apply");
+    // Committing moves the revision; the original declaration is stale
+    // against the transformed unit afterward.
     assert_eq!(
-        validate_field_value_specialization(applied.session(), candidate).err(),
-        Some(FieldValueSpecializationError::StaleCandidateRevision {
-            candidate: candidate.input(),
-            current: applied.session().unit().identity,
-        })
+        validate_field_value_specialization_candidate(run.session().unit(), &commit.declaration)
+            .err(),
+        Some(OptimizationUnitValidationError::CandidateInputMismatch)
     );
 }
 
+/// The committed unit revalidates independently, while a unit whose folded
+/// node drops its fuel settlement — settling fewer sources than the custody
+/// it names — is refused by transformed validation. A forged commit output
+/// identity is refused by publication replay in
+/// `pass_manager::tests::evidence_matrix::representation_specialization::forged_field_value_run_axes_fail_publication_replay`.
 #[test]
-fn candidate_budget_is_exact() {
-    let session = lowered_session_entry(
+fn transformed_unit_rejects_forged_folded_custody() {
+    let unit = lowered_unit_entry(
         ESTABLISHED_FIELDS_SOURCE,
         "established field values",
         "probe",
     );
-    assert_eq!(
-        propose_field_value_specializations(&session, 0).err(),
-        Some(FieldValueSpecializationError::CandidateBudgetExhausted {
-            required: 1,
-            limit: 0,
-        })
-    );
-    assert_eq!(
-        propose_field_value_specializations(&session, 1)
-            .expect("proposal runs")
-            .len(),
-        1
-    );
-}
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let row = &patch.reads[0];
+    let machine = patch.machine;
+    let verified_input = run.session().input().clone();
 
-#[test]
-fn transformed_replay_rejects_forged_folded_custody() {
-    let session = lowered_session_entry(
-        ESTABLISHED_FIELDS_SOURCE,
-        "established field values",
-        "probe",
+    assert!(
+        VerifiedPsiOptimizationSession::from_transformed(
+            verified_input.clone(),
+            run.session().unit().clone(),
+        )
+        .is_ok(),
+        "the committed folded revision revalidates independently"
     );
-    let candidates = propose_field_value_specializations(&session, 4).expect("proposal runs");
-    let [candidate] = candidates.as_slice() else {
-        panic!("one specialization candidate")
-    };
-    let row = &candidate.reads()[0];
-    let verified_input = session.input().clone();
-    let validated =
-        validate_field_value_specialization(&session, candidate).expect("independent replay");
 
-    // A unit whose folded node claims a different custody source is not the
-    // specialization this candidate pins: replay rebuilds the plan's own
-    // output and the forged revision identity mismatches.
-    let mut corrupted = validated.output.clone();
-    let folded = corrupted
+    let mut malformed = run.session().unit().clone();
+    let folded = malformed
         .functions
         .iter_mut()
         .flat_map(|function| &mut function.blocks)
@@ -836,52 +751,122 @@ fn transformed_replay_rejects_forged_folded_custody() {
                 node.operation,
                 AbstractOperation::BooleanConstant { psi_operation, .. }
                     | AbstractOperation::IntegerConstant { psi_operation, .. }
-                    if psi_operation == row.psi_operation()
+                    if psi_operation == row.psi_operation
             )
         })
         .expect("folded node exists");
     assert_eq!(
         folded.provenance,
-        vec![PsiProvenance::Operation(row.psi_operation())]
+        vec![PsiProvenance::Operation(row.psi_operation)]
     );
-    folded.provenance[0] = PsiProvenance::Operation(row.producer().expect("establishment basis"));
-    folded.fuel[0].site = PsiProvenance::Operation(row.producer().expect("establishment basis"));
-    corrupted.identity = recompute_psi_optimization_unit_identity(&corrupted);
-    let mut forged = candidate.clone();
-    forged.output = corrupted.identity;
-    assert_eq!(
-        validate_field_value_specialization(&session, &forged).err(),
-        Some(FieldValueSpecializationError::CandidateMismatch)
-    );
-
-    // Dropping the folded node's fuel settlement while keeping its custody
-    // claim leaves a unit whose node settles fewer sources than it names:
-    // transformed validation rejects the forged fuel/provenance pair.
-    let mut malformed = validated.output.clone();
-    let machine = candidate.machine();
-    malformed
-        .functions
-        .iter_mut()
-        .flat_map(|function| &mut function.blocks)
-        .flat_map(|block| &mut block.nodes)
-        .find(|node| {
-            matches!(
-                node.operation,
-                AbstractOperation::BooleanConstant { psi_operation, .. }
-                    | AbstractOperation::IntegerConstant { psi_operation, .. }
-                    if psi_operation == row.psi_operation()
-            )
-        })
-        .expect("folded node exists")
-        .fuel
-        .pop();
+    folded.fuel.pop();
     malformed.identity = recompute_psi_optimization_unit_identity(&malformed);
     assert!(matches!(
         VerifiedPsiOptimizationSession::from_transformed(verified_input, malformed),
         Err(
-            optimization_unit_semantics::OptimizationUnitValidationError::FuelDoesNotMatchProvenance { machine: rejected, .. }
+            OptimizationUnitValidationError::FuelDoesNotMatchProvenance { machine: rejected, .. }
         ) if rejected == machine
     ));
+}
+
+fn budget() -> OptimizationWorkBudget {
+    OptimizationWorkBudget::new(96, 64, 64, 64, 64).expect("budget")
+}
+
+fn selections() -> OptimizationSelections {
+    OptimizationSelections::new([Optimization::RepresentationSpecialization])
+        .expect("representation-specialization selection")
+}
+
+/// Runs the representation-specialization pass — the field-value rule beside
+/// its case-membership sibling, which no fixture here exercises — to its
+/// fixed point through the public pipeline entrance.
+fn specialize(unit: VerifiedPsiOptimizationUnit) -> OptimizationRun {
+    run_psi_pipeline(unit, &selections(), budget()).expect("the selected pass runs")
+}
+
+/// The run's single commit — the pass reached its fixed point after one
+/// candidate — with its field-value patch.
+fn single_commit(
+    run: &OptimizationRun,
+) -> (&PsiOptimizationCommit, FieldValueSpecializationRewrite) {
+    let [commit] = run.commits() else {
+        panic!("exactly one commit: one candidate covers the place")
+    };
+    assert_eq!(
+        commit.rule,
+        FieldValueSpecializationRule::contract().identity()
+    );
+    let PsiRewritePatch::SpecializeFieldValue(patch) = commit.declaration.patch() else {
+        panic!("a field-value patch")
+    };
+    (commit, patch)
+}
+
+/// The whole selected pass declines the unit and leaves it byte-exact.
+fn assert_declines(unit: VerifiedPsiOptimizationUnit) {
+    let input_identity = unit.unit().identity;
+    let run = specialize(unit);
+    assert!(run.commits().is_empty(), "no candidate specializes");
+    assert_eq!(run.session().unit().identity, input_identity);
+}
+
+/// The committed declaration rebuilt with `input` as its revision and
+/// `mutate` applied to its patch, keeping every other declared axis.
+fn rebuild(
+    declaration: &PsiRewriteCandidate,
+    input: OptimizationUnitIdentity,
+    mutate: impl FnOnce(&mut FieldValueSpecializationRewrite),
+) -> Result<PsiRewriteCandidate, PsiRewriteCandidateError> {
+    let PsiRewritePatch::SpecializeFieldValue(mut patch) = declaration.patch() else {
+        panic!("a field-value patch")
+    };
+    mutate(&mut patch);
+    PsiRewriteCandidate::new_field_value_specialization(
+        input,
+        FieldValueSpecializationRule::contract(),
+        declaration.affected_blocks().to_vec(),
+        declaration.substitutions().to_vec(),
+        declaration.provenance().to_vec(),
+        declaration.predicted_cost_delta(),
+        patch,
+    )
+}
+
+fn forged(
+    declaration: &PsiRewriteCandidate,
+    mutate: impl FnOnce(&mut FieldValueSpecializationRewrite),
+) -> Result<PsiRewriteCandidate, PsiRewriteCandidateError> {
+    rebuild(declaration, declaration.input(), mutate)
+}
+
+/// A forged row is refused either at candidate construction — the patch
+/// invariants already disagree — or by the independent replay, which
+/// re-admits every row against `input` rather than trusting it.
+fn assert_rejects_rows(
+    input: &PsiOptimizationUnit,
+    forged: Result<PsiRewriteCandidate, PsiRewriteCandidateError>,
+) {
+    let Ok(candidate) = forged else {
+        return;
+    };
+    assert!(matches!(
+        validate_field_value_specialization_candidate(input, &candidate),
+        Err(OptimizationUnitValidationError::CandidatePatchMismatch
+            | OptimizationUnitValidationError::CandidateProvenanceMismatch
+            | OptimizationUnitValidationError::CandidateLocationMissing
+            | OptimizationUnitValidationError::CandidateOutsideRegionMismatch)
+    ));
+}
+
+/// The machine's parameter place.
+fn parameter_place(unit: &PsiOptimizationUnit) -> PlaceId {
+    unit.functions[0]
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::Parameter { .. }))
+        .expect("parameter place exists")
+        .id
 }
 
 /// The `OperationResult` place whose producer is an `EstablishRecord`,
@@ -972,7 +957,7 @@ fn field_read_on(
     None
 }
 
-fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationSession {
+fn lowered_unit_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiOptimizationUnit {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap_or_else(|error| panic!("tokenize {label}: {error:?}"));
@@ -1013,244 +998,9 @@ fn lowered_session_entry(source: &str, label: &str, entry: &str) -> VerifiedPsiO
             .into_optimization_input()
     })
     .unwrap_or_else(|error| panic!("optimizer-only {label} admission: {error:?}"));
-    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+    terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
         input,
         terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
     )
-    .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"));
-    VerifiedPsiOptimizationSession::new(verified)
-        .unwrap_or_else(|error| panic!("verified {label} session: {error:?}"))
-}
-
-/// A bound-proven field read inside an authenticated cyclic machine. Source
-/// cannot express this shape — multi-state machines refuse structural
-/// formals, and the verifier's unranked-cycle fence admits only
-/// parameter-sourced structural work — so the Terminal module is built
-/// directly: an unranked self-loop header observes its owned `Token`
-/// parameter, and `Token`'s record field carries a declared `BoundedInteger`
-/// singleton bound that proves the stored value with no producer at all.
-fn cyclic_field_session() -> VerifiedPsiOptimizationSession {
-    use semantic_vocabulary::{
-        BlockId, BoundedIntegerType, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue,
-        OperationId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
-    };
-    use terminal_psi::{
-        Block, MachineContract, Operation, OperationKind, OperationResult, StructuralAccess,
-        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-        StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-        StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-        Terminator, ValueDeclaration, VocabularyMarker,
-    };
-
-    let value = |raw| ValueId::new(raw).unwrap();
-    let edge = |raw| EdgeId::new(raw).unwrap();
-    let block = |raw| BlockId::new(raw).unwrap();
-    let successor = |edge, target, arguments| SuccessorEdge {
-        erased_arguments: Vec::new(),
-        erased_proof_arguments: Vec::new(),
-        edge,
-        target,
-        arguments,
-        structural_arguments: Vec::new(),
-        trivial_affine_discards: Vec::new(),
-    };
-    let unsigned_32 = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
-    let token = StructuralTypeId::new(601).unwrap();
-    let field = StructuralFieldId::new(603).unwrap();
-    let token_place = PlaceId::new(520).unwrap();
-    let bound = BoundedIntegerType::new(
-        unsigned_32,
-        IntegerValue::Unsigned(7),
-        IntegerValue::Unsigned(7),
-    )
-    .unwrap();
-
-    let module = TerminalModule {
-        scalar_qualifications: Default::default(),
-        scalar_block_invariants: Vec::new(),
-        operation_crash_contracts: Vec::new(),
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        entry: MachineId::new(501).unwrap(),
-        structural_types: vec![StructuralTypeDeclaration {
-            id: token,
-            identity: "Token".into(),
-            shape: StructuralTypeShape::Record {
-                fields: vec![StructuralFieldDeclaration {
-                    id: field,
-                    identity: "value".into(),
-                    relevance: terminal_psi::BindingRelevance::Relevant,
-                    field_type: StructuralFieldType::BoundedInteger(bound),
-                }],
-            },
-        }],
-        structural_domains: Vec::new(),
-        services: Vec::new(),
-        root_service_reach: Default::default(),
-        placed_view_inputs: Vec::new(),
-        reborrow_root_handoffs: Vec::new(),
-        reborrow_restored_call_uses: Vec::new(),
-        boundary_machines: Vec::new(),
-        provider_candidates: Vec::new(),
-        float_meaning_projections: Vec::new(),
-        float_meaning_equalities: Vec::new(),
-        proposition_declarations: Vec::new(),
-        proposition_applications: Vec::new(),
-        evidence_terms: Vec::new(),
-        proof_output_calls: Vec::new(),
-        proof_recursive_components: Vec::new(),
-        evidence_contract_lanes: Vec::new(),
-        closed_conformance_applications: Vec::new(),
-        dynamic_dispatch: Default::default(),
-        suspension_call_plan_count: 0,
-        suspension_call_sites: Vec::new(),
-        suspension_call_plans: Vec::new(),
-        quotient_correspondences: Vec::new(),
-        machines: vec![TerminalMachine {
-            closed_reach_application: None,
-            declared_service_reach: Vec::new(),
-            id: MachineId::new(501).unwrap(),
-            attachment: None,
-            parameters: vec![ValueDeclaration {
-                qualifications: Default::default(),
-                id: value(502),
-                scalar_type: ScalarType::Boolean,
-            }],
-            structural_parameters: vec![StructuralParameterDeclaration {
-                place: token_place,
-                position: 0,
-                is_self: false,
-                structural_type: token,
-                multiplicity: StructuralMultiplicity::Unrestricted,
-                access: StructuralAccess::Owned,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-            }],
-            ranked_scc: None,
-            result: TerminalMachineResult::Unit,
-            structural_places: vec![StructuralPlaceDeclaration {
-                id: token_place,
-                kind: StructuralPlaceKind::Parameter {
-                    position: 0,
-                    is_self: false,
-                },
-            }],
-            entry_claims: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            content_entry_claims: Vec::new(),
-            content_identity_reshuffles: Vec::new(),
-            content_partition_compositions: Vec::new(),
-            entry: block(503),
-            blocks: vec![
-                Block {
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    id: block(503),
-                    parameters: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: Terminator::Jump {
-                        erased_arguments: Vec::new(),
-                        erased_proof_arguments: Vec::new(),
-                        edge: edge(504),
-                        target: block(505),
-                        arguments: vec![value(502)],
-                        structural_arguments: Vec::new(),
-                        trivial_affine_discards: Vec::new(),
-                        residual_affine_discards: Vec::new(),
-                    },
-                },
-                Block {
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    id: block(505),
-                    parameters: vec![ValueDeclaration {
-                        qualifications: Default::default(),
-                        id: value(506),
-                        scalar_type: ScalarType::Boolean,
-                    }],
-                    operations: vec![
-                        Operation {
-                            static_reach_binding: None,
-                            suspension_crossing: None,
-                            id: OperationId::new(507).unwrap(),
-                            result: OperationResult::Scalar(ValueDeclaration {
-                                qualifications: Default::default(),
-                                id: value(508),
-                                scalar_type: ScalarType::Integer(unsigned_32),
-                            }),
-                            kind: OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(7),
-                            },
-                        },
-                        Operation {
-                            static_reach_binding: None,
-                            suspension_crossing: None,
-                            id: OperationId::new(521).unwrap(),
-                            result: OperationResult::Scalar(ValueDeclaration {
-                                qualifications: Default::default(),
-                                id: value(522),
-                                scalar_type: ScalarType::Integer(unsigned_32),
-                            }),
-                            kind: OperationKind::IntegerStructuralField {
-                                source: token_place,
-                                path: Vec::new(),
-                                field,
-                            },
-                        },
-                    ],
-                    terminator: Terminator::Conditional {
-                        condition: value(506),
-                        when_true: successor(edge(509), block(505), vec![value(506)]),
-                        when_false: successor(edge(510), block(511), Vec::new()),
-                    },
-                },
-                Block {
-                    erased_scalar_formals: Vec::new(),
-                    erased_proof_formals: Vec::new(),
-                    structural_parameters: Vec::new(),
-                    id: block(511),
-                    parameters: Vec::new(),
-                    operations: Vec::new(),
-                    terminator: Terminator::ReturnUnit {
-                        edge: edge(512),
-                        trivial_affine_discards: Vec::new(),
-                    },
-                },
-            ],
-            contract: MachineContract {
-                erased_scalar_formals: Vec::new(),
-                erased_proof_formals: Vec::new(),
-                id: ContractId::new(513).unwrap(),
-                crash_routes: Vec::new(),
-                requires: Vec::new(),
-                ensures: Vec::new(),
-                outcome_specific_ensures: Vec::new(),
-            },
-        }],
-    };
-    let semantic = terminal_codec::encode_module(&module).unwrap();
-    let proof =
-        terminal_codec::encode_proof_section(&module, &terminal_verifier::ProofBundle::default())
-            .unwrap();
-    let input = terminal_psi_to_abstract_operations::lower_artifact(
-        terminal_psi_to_abstract_operations::ArtifactSections {
-            semantic_bytes: &semantic,
-            proof_bytes: &proof,
-            obligation_ledger_bytes: None,
-        },
-        &proof_admission::AdmissionProfile::default(),
-    )
-    .map(|admitted| {
-        admitted
-            .into_optimization_artifact()
-            .into_optimization_input()
-    })
-    .unwrap();
-    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
-        input,
-        terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
-    )
-    .unwrap();
-    VerifiedPsiOptimizationSession::new(verified).expect("verified cyclic session")
+    .unwrap_or_else(|error| panic!("build {label} optimizer unit: {error:?}"))
 }

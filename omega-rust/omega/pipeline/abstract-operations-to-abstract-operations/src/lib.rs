@@ -56,12 +56,6 @@ pub(crate) use analyses::{
     analyze_counted_loops, validate_countdown_invariant_constant_analysis,
     validate_countdown_invariant_constant_placement_analysis, validate_counted_loop_analysis,
 };
-pub use field_value_specialization::{
-    AppliedFieldValueSpecialization, FieldValueSpecializationCandidate,
-    FieldValueSpecializationError, ResolvedFieldValue, ValidatedFieldValueSpecialization,
-};
-// Proposal helpers have no consumer outside this crate; they are internal
-// plumbing, not stage entrances.
 pub use pass_manager::{
     CandidateContractAxis, ExternalDecisionContextAxis, ExternalDecisionReplayError,
     OptimizationRun, OptimizationRunError, OptimizationRunUsage, PsiOptimizationCommit,
@@ -78,11 +72,6 @@ pub use ranked_rewrites::{
     apply_loop_invariant_scalar_motion, propose_countdown_invariant_constant_relocations,
     propose_loop_invariant_scalar_motion, validate_countdown_invariant_constant_relocation,
     validate_loop_invariant_scalar_motion,
-};
-pub use representation_specialization::{
-    AppliedCaseMembershipSpecialization, CaseMembershipSpecializationCandidate,
-    CaseMembershipSpecializationError, ResolvedCaseMembership,
-    ValidatedCaseMembershipSpecialization,
 };
 pub use rules::registry::{
     OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
@@ -128,8 +117,4 @@ pub use rules::{
     WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
     WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
     WrappingIntegerSubtractConstantsRule, built_in_psi_registry,
-};
-pub use state_specialization::{
-    AppliedStateArgumentSpecialization, SpecializedStateEdge, StateArgumentSpecializationCandidate,
-    StateArgumentSpecializationError, ValidatedStateArgumentSpecialization,
 };

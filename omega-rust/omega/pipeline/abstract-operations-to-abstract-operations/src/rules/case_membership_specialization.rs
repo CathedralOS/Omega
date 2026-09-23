@@ -4,10 +4,7 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
-    CaseMembershipSpecializationRewrite, FoldedCaseMembershipRow, PsiOptimizationUnit,
-    PsiRewriteCandidate,
-};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use crate::rules::REPRESENTATION_SPECIALIZATION_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
@@ -73,45 +70,26 @@ impl PsiOptimizationRule for CaseMembershipSpecializationRule {
                 continue;
             }
             for declaration in &function.structural_places {
-                let Some(plan) =
+                let Some(patch) =
                     representation_specialization::propose::plan(unit, function, declaration.id)
                 else {
                     continue;
                 };
-                if plan.memberships.is_empty() {
+                if patch.memberships.is_empty() {
                     continue;
                 }
-                let memberships = plan
-                    .memberships
-                    .iter()
-                    .map(|row| FoldedCaseMembershipRow {
-                        site: row.site(),
-                        psi_operation: row.psi_operation(),
-                        result: row.result(),
-                        source: row.source(),
-                        producer: row.producer(),
-                        observed_case: row.observed_case(),
-                        proven_case: row.proven_case(),
-                        outcome: row.outcome(),
-                    })
-                    .collect::<Vec<_>>();
-                let Ok(provenance) =
-                    representation_specialization::validate::provenance_rows(function, &plan)
+                let Some(provenance) =
+                    representation_specialization::accounting::provenance_rows(function, &patch)
                 else {
                     continue;
                 };
-                let mut affected_blocks = memberships
+                let mut affected_blocks = patch
+                    .memberships
                     .iter()
                     .map(|row| row.site.block)
                     .collect::<Vec<_>>();
                 affected_blocks.sort_unstable();
                 affected_blocks.dedup();
-                let patch = CaseMembershipSpecializationRewrite {
-                    machine: plan.machine,
-                    place: plan.place,
-                    producer: plan.producer,
-                    memberships,
-                };
                 let predicted_cost_delta =
                     -i64::try_from(patch.memberships.len()).unwrap_or(i64::MAX);
                 candidates.push(

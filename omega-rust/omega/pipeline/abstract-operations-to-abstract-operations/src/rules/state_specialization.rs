@@ -4,10 +4,7 @@ use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
-use optimization_unit::{
-    PsiOptimizationUnit, PsiRewriteCandidate, SpecializedStateEdgeRow,
-    StateArgumentSpecializationRewrite,
-};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 use crate::rules::STATE_SPECIALIZATION_PASS_NAME;
 use crate::rules::catalog::BuiltInRuleRegistration;
@@ -88,42 +85,23 @@ impl PsiOptimizationRule for StateArgumentSpecializationRule {
                 continue;
             }
             for block in &function.blocks {
-                let Some(plan) =
+                let Some(patch) =
                     state_specialization::propose::plan(unit, function, block.id, constants)
                 else {
                     continue;
                 };
-                if plan.edges.is_empty() {
+                if patch.edges.is_empty() {
                     continue;
                 }
-                let edges = plan
-                    .edges
-                    .iter()
-                    .map(|edge| SpecializedStateEdgeRow {
-                        incoming_edge: edge.incoming_edge(),
-                        predecessor: edge.predecessor(),
-                        parameter: edge.parameter(),
-                        argument: edge.argument(),
-                        constant: edge.constant(),
-                        taken_edge: edge.taken_edge(),
-                        rejected_edge: edge.rejected_edge(),
-                        resolved_target: edge.resolved_target(),
-                    })
-                    .collect::<Vec<_>>();
-                let Ok(provenance) =
-                    state_specialization::validate::provenance_rows(function, plan.machine, &plan)
+                let Some(provenance) =
+                    state_specialization::accounting::provenance_rows(function, &patch)
                 else {
                     continue;
                 };
-                let mut affected_blocks = vec![plan.dispatch];
-                affected_blocks.extend(edges.iter().map(|row| row.predecessor.block));
+                let mut affected_blocks = vec![patch.dispatch];
+                affected_blocks.extend(patch.edges.iter().map(|row| row.predecessor.block));
                 affected_blocks.sort_unstable();
                 affected_blocks.dedup();
-                let patch = StateArgumentSpecializationRewrite {
-                    machine: plan.machine,
-                    dispatch: plan.dispatch,
-                    edges,
-                };
                 let predicted_cost_delta = -i64::try_from(patch.edges.len()).unwrap_or(i64::MAX);
                 candidates.push(
                     PsiRewriteCandidate::new_state_argument_specialization(

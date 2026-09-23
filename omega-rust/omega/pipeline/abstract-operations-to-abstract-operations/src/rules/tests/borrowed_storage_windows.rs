@@ -27,7 +27,6 @@ use terminal_psi::{
 use terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
 use terminal_verifier::ProofBundle;
 
-use crate::representation_specialization::propose_case_membership_specializations;
 use crate::{
     VerifiedPsiOptimizationSession, apply_loop_invariant_scalar_motion,
     optimize_abstract_operations, propose_countdown_invariant_constant_relocations,
@@ -682,19 +681,28 @@ fn loop_invariant_scalar_motion_preserves_the_window_pair() {
     );
 }
 
-/// The standalone specialization boundaries see only closed rosters and
-/// certified countdown components: a record-shaped window machine beside an
-/// unranked cycle offers neither, so both decline outright.
+/// The specialization pass and the standalone countdown boundary see only
+/// closed rosters and certified countdown components: a record-shaped window
+/// machine beside an unranked cycle offers neither, so both decline outright.
 #[test]
 fn specialization_boundaries_decline_around_the_window() {
     let unit = verified_unit(&window_cycle_module());
-    let session = VerifiedPsiOptimizationSession::new(unit).expect("window cycle session");
+    let input_identity = unit.unit().identity;
+    let selections = OptimizationSelections::new([Optimization::RepresentationSpecialization])
+        .expect("representation-specialization selection");
+    let run = run_psi_pipeline(
+        unit,
+        &selections,
+        OptimizationWorkBudget::new(96, 64, 64, 64, 64).expect("budget"),
+    )
+    .expect("the selected pass runs");
     assert!(
-        propose_case_membership_specializations(&session, 8)
-            .unwrap()
-            .is_empty(),
+        run.commits().is_empty(),
         "no sole-case roster exists to fold"
     );
+    assert_eq!(run.session().unit().identity, input_identity);
+    let session = VerifiedPsiOptimizationSession::new(verified_unit(&window_cycle_module()))
+        .expect("window cycle session");
     assert!(
         propose_countdown_invariant_constant_relocations(&session, 8)
             .unwrap()
