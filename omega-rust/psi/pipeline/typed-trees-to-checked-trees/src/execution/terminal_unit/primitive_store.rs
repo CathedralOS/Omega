@@ -592,17 +592,25 @@ fn proven_runtime_index(
     }
     if program.machine_states(machine).first()?.symbol != state.symbol {
         // The contract's entry ranges do not reach a selector this state
-        // carries: its own declared integer range is the bound. A
-        // range-free parameter, a negative declared floor, or a declared
-        // ceiling reaching the array extent keeps the rejection.
-        let bounds = crate::values::bounds::declared_bounds(
-            program,
-            authored.type_reference,
-            primitive_type,
-        )?;
-        bounds.minimum.to_u64()?;
-        let maximum = bounds.maximum.to_u64()?;
-        return (maximum < u64::try_from(extent).ok()?).then(|| index.clone());
+        // carries. Its own declared integer range is the first bound; when
+        // the declaration carries none (or one that does not fit), every
+        // transition edge into this state proves its argument bound instead:
+        // `position < module_name.len && position < 256 { true ->
+        // store(position) }` discharges `position < extent` through the
+        // literal conjunct on that edge. One edge without a literal bound
+        // poisons the proof, matching the range checker's meet.
+        if let Some(bounds) =
+            crate::values::bounds::declared_bounds(program, authored.type_reference, primitive_type)
+            && bounds.minimum.to_u64().is_some()
+            && bounds
+                .maximum
+                .to_u64()
+                .is_some_and(|maximum| maximum < u64::try_from(extent).unwrap_or(u64::MAX))
+        {
+            return Some(index.clone());
+        }
+        return incoming_edges_prove_index_bound(program, machine, state, authored.symbol, extent)
+            .then(|| index.clone());
     }
     let authored_position = parameters
         .iter()
@@ -640,6 +648,223 @@ fn proven_runtime_index(
             .and_then(|(_, maximum)| u64::try_from(maximum).ok())?,
     };
     (maximum < u64::try_from(extent).ok()?).then(|| index.clone())
+}
+
+/// Whether every transition edge into `state` proves the argument feeding
+/// `index_parameter` fits strictly below `extent`. Each edge only certifies
+/// through a literal `<`/`<=` conjunct on its own positive guard
+/// (`position < module_name.len && position < 256 { true ->
+/// store(position) }`); an unguarded edge, a continuation arm (whose guard
+/// is negated), a self-loop, or a conjunct naming no literal keeps the
+/// rejection. Mirrors the edge walk the range checker drives, including
+/// fallthrough misses: a `when` transition without a continuation carries
+/// its negated guard into the next transition, and a negated guard cannot
+/// bound an index from above.
+fn incoming_edges_prove_index_bound(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    index_parameter: SymbolHandle,
+    extent: usize,
+) -> bool {
+    let parameters = program.state_parameters(state);
+    let Some(argument_position) = parameters
+        .iter()
+        .filter(|parameter| !parameter.is_self)
+        .position(|parameter| parameter.symbol == index_parameter)
+    else {
+        return false;
+    };
+    let Ok(extent) = u64::try_from(extent) else {
+        return false;
+    };
+    let mut edges = 0usize;
+    for source in program.machine_states(machine) {
+        for statement in program.statement_table.statements(source.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            match transition.guard {
+                typed_trees::statement::TransitionGuardNode::When(guard) if guard.is_valid() => {
+                    if edge_targets_state(program, transition.target, source.symbol, state.symbol) {
+                        edges += 1;
+                        // The positive arm sees `guard` true; the carried
+                        // fallthrough misses are all negated and cannot
+                        // bound the argument.
+                        let Some(argument) =
+                            edge_arguments_into(program, transition.target, state.symbol)
+                                .and_then(|arguments| arguments.get(argument_position))
+                        else {
+                            return false;
+                        };
+                        if !guard_bounds_argument(program, guard, *argument, extent) {
+                            return false;
+                        }
+                    }
+                    if edge_targets_state(
+                        program,
+                        transition.continuation,
+                        source.symbol,
+                        state.symbol,
+                    ) {
+                        // The continuation sees `guard` negated: no literal
+                        // upper bound survives.
+                        return false;
+                    }
+                }
+                _ => {
+                    // `always` transitions and non-`when` guards carry only
+                    // negated misses, which prove no upper bound.
+                    if edge_targets_state(program, transition.target, source.symbol, state.symbol)
+                        || edge_targets_state(
+                            program,
+                            transition.continuation,
+                            source.symbol,
+                            state.symbol,
+                        )
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    edges > 0
+}
+
+/// The argument span of a `Named` edge that lands on `state`.
+fn edge_arguments_into<'a>(
+    program: &'a TypedTrees,
+    target: typed_trees::statement::TransitionTargetHandle,
+    state: SymbolHandle,
+) -> Option<&'a [typed_trees::expression::ExpressionHandle]> {
+    if !target.is_valid() {
+        return None;
+    }
+    match program.statement_table.transition_target(target) {
+        typed_trees::statement::TransitionTargetNode::Named {
+            path, arguments, ..
+        } if path.symbol == state => Some(program.statement_table.expression_handles(*arguments)),
+        _ => None,
+    }
+}
+
+/// Whether `target` names an edge into `state` at all — `Named` to this
+/// state, or `SelfTarget` when the source state is `state` itself.
+fn edge_targets_state(
+    program: &TypedTrees,
+    target: typed_trees::statement::TransitionTargetHandle,
+    source: SymbolHandle,
+    state: SymbolHandle,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+    match program.statement_table.transition_target(target) {
+        typed_trees::statement::TransitionTargetNode::Named { path, .. } => path.symbol == state,
+        typed_trees::statement::TransitionTargetNode::SelfTarget => source == state,
+        _ => false,
+    }
+}
+
+/// Whether `guard` carries a literal conjunct `argument < K` (or `<=`,
+/// `K >`, `K >=`) with `K` inside `extent`. A `transition S { true -> ... }`
+/// arm tables its predicate as `S == true`, so `== true` layers are peeled
+/// to reach the subject; `== false` negates the subject and cannot bound
+/// from above. `&&` conjuncts each hold on a taken edge; any other node —
+/// including `||`, calls, and field-length comparisons — is no proof.
+fn guard_bounds_argument(
+    program: &TypedTrees,
+    guard: typed_trees::expression::ExpressionHandle,
+    argument: typed_trees::expression::ExpressionHandle,
+    extent: u64,
+) -> bool {
+    let mut guard = guard;
+    loop {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+            break;
+        };
+        if binary.operator != typed_trees::expression::BinaryOperator::Equal {
+            break;
+        }
+        if boolean_literal(program, binary.left) == Some(true) {
+            guard = binary.right;
+        } else if boolean_literal(program, binary.right) == Some(true) {
+            guard = binary.left;
+        } else {
+            break;
+        }
+    }
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return false;
+    };
+    match binary.operator {
+        typed_trees::expression::BinaryOperator::And => {
+            guard_bounds_argument(program, binary.left, argument, extent)
+                || guard_bounds_argument(program, binary.right, argument, extent)
+        }
+        typed_trees::expression::BinaryOperator::Less => {
+            bounded_operand_is_argument(program, binary.left, argument)
+                && integer_literal_within(program, binary.right, extent, true)
+        }
+        typed_trees::expression::BinaryOperator::LessOrEqual => {
+            bounded_operand_is_argument(program, binary.left, argument)
+                && integer_literal_within(program, binary.right, extent, false)
+        }
+        typed_trees::expression::BinaryOperator::Greater => {
+            bounded_operand_is_argument(program, binary.right, argument)
+                && integer_literal_within(program, binary.left, extent, true)
+        }
+        typed_trees::expression::BinaryOperator::GreaterOrEqual => {
+            bounded_operand_is_argument(program, binary.right, argument)
+                && integer_literal_within(program, binary.left, extent, false)
+        }
+        _ => false,
+    }
+}
+
+fn boolean_literal(
+    program: &TypedTrees,
+    operand: typed_trees::expression::ExpressionHandle,
+) -> Option<bool> {
+    let ExpressionNode::Boolean(value) = program.expression_table.expression(operand) else {
+        return None;
+    };
+    Some(*value)
+}
+
+fn bounded_operand_is_argument(
+    program: &TypedTrees,
+    operand: typed_trees::expression::ExpressionHandle,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    program
+        .expression_table
+        .expressions_structurally_equal(operand, argument)
+}
+
+/// `operand < K` proves `operand < extent` when `K <= extent`; `operand <=
+/// K` needs `K < extent`. `strict` selects which comparison the literal
+/// carries.
+fn integer_literal_within(
+    program: &TypedTrees,
+    operand: typed_trees::expression::ExpressionHandle,
+    extent: u64,
+    strict: bool,
+) -> bool {
+    let ExpressionNode::Integer(literal) = program.expression_table.expression(operand) else {
+        return false;
+    };
+    literal
+        .value_bignum()
+        .and_then(|value| value.to_u64())
+        .is_some_and(|bound| {
+            if strict {
+                bound <= extent
+            } else {
+                bound < extent
+            }
+        })
 }
 
 /// Every selector in this expression chain is a proven literal index or a
