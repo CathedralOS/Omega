@@ -2443,6 +2443,12 @@ syntax and other terminal services are not prerequisites.
     `value_dispatch/owned_results/{call_product_arms,folded_index_projection,linear_child_carriers}.rs`:
     checking record-child joins or literal/folded index equivalence does not
     supply leaf emission or claim-bearing body plans.
+    `folded_index_projection::folded_index_faces_the_literal_lowering_boundary`
+    is red since `c37c3dbd91`: the literal `items[1]` now gets a checked plan
+    and stops at "fixed array literal has no Terminal establishment", while
+    the folded `items[0 + 1]` still has no source-independent checked scalar
+    control plan. The folded index needs the same checked plan in
+    typed-trees-to-checked-trees before the pair meets one boundary again.
   - Complete native shared-reference joins. Direct borrowed locals and
     primitive shared joins already lower, verify and interpret. Omega's
     `block_bindings.rs` still limits borrowed block parameters to byte views;

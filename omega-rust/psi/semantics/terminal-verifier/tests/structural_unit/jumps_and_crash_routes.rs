@@ -182,6 +182,51 @@ fn jump_residual_cleanup_module() -> TerminalModule {
     module
 }
 
+/// The same Jump edge with the caller's own parameter as the partial root.
+/// A projected successor argument hands the child to a block of this
+/// machine, so the parameter's complement dies on this edge exactly like a
+/// produced root's; selection arms that move different children could not
+/// agree on partial custody at their join otherwise.
+#[test]
+fn jump_edge_residual_discards_close_a_parameter_root_on_their_edge() {
+    let mut module = jump_residual_cleanup_module();
+    let parameter = place_id(1);
+    let caller = &mut module.machines[0];
+    caller.blocks[0]
+        .operations
+        .retain(|operation| operation.id != operation_id(2));
+    caller.structural_places[0].kind = StructuralPlaceKind::Parameter {
+        position: 0,
+        is_self: false,
+    };
+    caller.structural_parameters = vec![StructuralParameterDeclaration {
+        place: parameter,
+        position: 0,
+        is_self: false,
+        structural_type: structural_type_id(2),
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    }];
+    validate_module(&module)
+        .expect("a parameter root's complement closes on the edge that moves its child");
+
+    let mut leaked = module.clone();
+    let Terminator::Jump {
+        residual_affine_discards,
+        ..
+    } = &mut leaked.machines[0].blocks[0].terminator
+    else {
+        unreachable!()
+    };
+    residual_affine_discards.clear();
+    assert!(
+        validate_module(&leaked).is_err(),
+        "an unnamed complement of parameter {parameter:?} cannot survive the edge"
+    );
+}
+
 #[test]
 fn jump_edge_residual_discards_close_the_projected_argument_root_in_order() {
     let module = jump_residual_cleanup_module();

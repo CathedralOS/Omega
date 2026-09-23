@@ -147,15 +147,13 @@ pub(super) fn validate(
             if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
                 continue;
             }
-            let root_type =
-                partial_affine_root_type(machine, argument.place).ok_or_else(invalid)?;
-            if machine
-                .structural_parameters
-                .iter()
-                .all(|parameter| parameter.place != argument.place)
-            {
-                record_move(&mut roots, &mut moved, argument.place, &argument.path)?;
-            }
+            // Unlike a call operand, a projected successor argument hands the
+            // moved child to a block of this same machine, and a selection
+            // join requires every arriving frontier to agree: arms that move
+            // different children of one parameter root cannot both carry its
+            // partial custody to the join. The complement therefore dies on
+            // this edge for every root, a machine parameter included.
+            let root_type = record_move(&mut roots, &mut moved, argument.place, &argument.path)?;
             let moved_type =
                 resolve_structural_path(module, root_type, &argument.path).ok_or_else(invalid)?;
             if parameter.structural_type != moved_type
