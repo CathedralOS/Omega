@@ -389,6 +389,10 @@ fn operation_effect(
         // consumers but never erasable, duplicable, or reorderable.
         | O::MoveStructuralField { .. }
         | O::StoreStructuralField { .. }
+        // A leaf copy observes the readable root's subtree and establishes
+        // a fresh owned value: structural state, unobservable from scalar
+        // consumers but never erasable, duplicable, or reorderable.
+        | O::StructuralLeafCopy { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }

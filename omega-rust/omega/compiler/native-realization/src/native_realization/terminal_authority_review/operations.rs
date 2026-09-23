@@ -90,6 +90,9 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         // physical edge either.
         | AbstractOperation::MoveStructuralField { .. }
         | AbstractOperation::StoreStructuralField { .. }
+        // A leaf copy is a read-only structural observation on a readable
+        // root; it carries no call, boundary, or physical edge either.
+        | AbstractOperation::StructuralLeafCopy { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IeeeFloatConstant { .. }
         | AbstractOperation::IeeeFloatCompare { .. }

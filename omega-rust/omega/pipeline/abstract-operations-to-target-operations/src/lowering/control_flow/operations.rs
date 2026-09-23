@@ -63,6 +63,7 @@ pub(super) fn lower_operation(
     let accessed_root = match operation {
         AbstractOperation::PrimitiveScalarRead { source, .. }
         | AbstractOperation::StructuralCaseMembership { source, .. }
+        | AbstractOperation::StructuralLeafCopy { source, .. }
         | AbstractOperation::StructuralCase { source, .. }
         | AbstractOperation::IntegerStructuralField { source, .. }
         | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
