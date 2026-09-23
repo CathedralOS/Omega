@@ -480,6 +480,11 @@ pub(crate) fn build_checked_machine_residual_parts(
                 .iter()
                 .filter_map(|argument| argument.source_local_declaration_ordinal())
                 .collect::<Vec<_>>(),
+            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(plan) => plan
+                .value
+                .source_local_declaration_ordinal()
+                .into_iter()
+                .collect(),
             CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::EstablishReference { .. }

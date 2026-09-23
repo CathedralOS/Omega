@@ -17,7 +17,8 @@ use crate::checked_trees::flow::terminal::{
 };
 use crate::checked_trees::values::{CheckedErasedProofParameterPlan, CheckedProofTerm};
 use crate::{
-    CheckedScalarExpression, CheckedStructuralScalarFieldStorePlan, NominalMachineUseSite,
+    CheckedScalarExpression, CheckedStructuralCaseFieldStorePlan,
+    CheckedStructuralScalarFieldStorePlan, NominalMachineUseSite,
 };
 use language_semantics::{SemanticDomainId, ServiceReachPlan, ServiceReachSummary};
 use symbols::SymbolHandle;
@@ -396,6 +397,12 @@ pub enum CheckedUnitEffectOperationPlan {
     /// by the immediately preceding ordinary scalar call or selected
     /// boundary-operator realization.
     StructuralScalarFieldStore(CheckedStructuralScalarFieldStorePlan),
+    /// Replace one relevant unrestricted-sum field through an exact common-field
+    /// path below an exclusive structural parameter. The stored value is a whole
+    /// owned place of the field's declared sum type: an unrestricted sum carries
+    /// no erased or payload custody, so the write copies whole and consumes
+    /// nothing.
+    StructuralCaseFieldStore(CheckedStructuralCaseFieldStorePlan),
     StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ByteSequenceWrite(CheckedByteSequenceWritePlan),

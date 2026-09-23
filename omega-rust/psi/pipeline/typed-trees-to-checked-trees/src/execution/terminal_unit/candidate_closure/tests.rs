@@ -549,6 +549,7 @@ fn retain_available_reference(
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                    | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
                     | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                     | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
