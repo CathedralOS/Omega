@@ -150,6 +150,40 @@ impl ClosedScalarValueContractPlan {
         self.integer_entry_ranges.as_deref()
     }
 
+    /// Fold the authored `requires` conjuncts on one entry scalar parameter
+    /// into the closed inclusive interval they prove — the contract-fact
+    /// evidence a retained integer entry-range row would carry for a bound
+    /// the revoked range suffix never declared. `position` is the dense
+    /// entry scalar parameter position the `Predicate` clauses and
+    /// `CheckedScalarExpression::Parameter` share. An unsigned carrier
+    /// supplies its own `0 <=` half; a signed carrier owes an explicit lower
+    /// conjunct. Conjuncts this fold cannot read — other parameters,
+    /// composed terms, non-literal endpoints, disjunctions, negations —
+    /// stay outside the interval rather than declining it; a missing half
+    /// or an interval that cannot name a nonnegative element declines.
+    pub fn requires_bound_interval(
+        &self,
+        position: usize,
+        primitive_type: typed_trees::types::PrimitiveType,
+    ) -> Option<(i128, i128)> {
+        let mut minimum: Option<i128> = (!primitive_type.is_signed_integer()).then_some(0);
+        let mut maximum = None;
+        for clause in self.authored_requires() {
+            let Some(ClosedScalarContractValue::Predicate(predicate)) = clause else {
+                continue;
+            };
+            fold_requires_bound_conjunct(
+                predicate,
+                position,
+                primitive_type,
+                &mut minimum,
+                &mut maximum,
+            );
+        }
+        let (minimum, maximum) = minimum.zip(maximum)?;
+        (0 <= minimum && minimum <= maximum).then_some((minimum, maximum))
+    }
+
     pub fn requires(&self) -> &[Option<ClosedScalarContractValue>] {
         &self.requires
     }
@@ -195,5 +229,312 @@ impl ClosedScalarValueContractPlan {
 
     pub const fn has_outcome_specific_clauses(&self) -> bool {
         self.has_outcome_specific_clauses
+    }
+}
+
+/// Meet one `requires` conjunct's literal bound on the subject into the
+/// running interval. Canonical lowering leaves only `Equal`, `LessThan` and
+/// `LessOrEqual` integer comparisons: `p <= k` on the left is the upper half
+/// and `k <= p` the lower. Conjuncts over other parameters, composed terms,
+/// or non-literal endpoints are proof facts this fold does not read, not a
+/// reason to decline.
+fn fold_requires_bound_conjunct(
+    predicate: &crate::CheckedBooleanExpression,
+    position: usize,
+    primitive_type: typed_trees::types::PrimitiveType,
+    minimum: &mut Option<i128>,
+    maximum: &mut Option<i128>,
+) {
+    match predicate {
+        crate::CheckedBooleanExpression::And { left, right } => {
+            fold_requires_bound_conjunct(left, position, primitive_type, minimum, maximum);
+            fold_requires_bound_conjunct(right, position, primitive_type, minimum, maximum);
+        }
+        crate::CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
+            let (endpoint, subject_is_left) = if conjunct_subject(left, position, primitive_type) {
+                (conjunct_literal(right), true)
+            } else if conjunct_subject(right, position, primitive_type) {
+                (conjunct_literal(left), false)
+            } else {
+                return;
+            };
+            let Some(endpoint) = endpoint else {
+                return;
+            };
+            let (lower, upper) = match (kind, subject_is_left) {
+                (crate::CheckedIntegerComparisonKind::Equal, _) => (Some(endpoint), Some(endpoint)),
+                (crate::CheckedIntegerComparisonKind::LessOrEqual, true) => (None, Some(endpoint)),
+                (crate::CheckedIntegerComparisonKind::LessThan, true) => {
+                    (None, endpoint.checked_sub(1))
+                }
+                (crate::CheckedIntegerComparisonKind::LessOrEqual, false) => (Some(endpoint), None),
+                (crate::CheckedIntegerComparisonKind::LessThan, false) => {
+                    (endpoint.checked_add(1), None)
+                }
+            };
+            if let Some(lower) = lower {
+                *minimum = Some(minimum.map_or(lower, |bound| bound.max(lower)));
+            }
+            if let Some(upper) = upper {
+                *maximum = Some(maximum.map_or(upper, |bound| bound.min(upper)));
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The conjunct subject is exactly this entry scalar parameter, in the same
+/// dense scalar-parameter namespace the retained `Predicate` positions use.
+fn conjunct_subject(
+    expression: &crate::CheckedScalarExpression,
+    position: usize,
+    primitive_type: typed_trees::types::PrimitiveType,
+) -> bool {
+    matches!(
+        expression,
+        crate::CheckedScalarExpression::Parameter {
+            position: subject,
+            primitive_type: carrier,
+        } if *subject == position && *carrier == primitive_type
+    )
+}
+
+/// A conjunct endpoint lands as a literal only when it carries an exact
+/// integer value; anything wider than both machine carriers stays unread.
+fn conjunct_literal(expression: &crate::CheckedScalarExpression) -> Option<i128> {
+    let crate::CheckedScalarExpression::IntegerLiteral { literal } = expression else {
+        return None;
+    };
+    let value = literal.value_bignum()?;
+    value
+        .to_i64()
+        .map(i128::from)
+        .or_else(|| value.to_u64().map(i128::from))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ClosedScalarContractValue, ClosedScalarValueContractPlan};
+    use crate::{CheckedBooleanExpression, CheckedIntegerComparisonKind, CheckedScalarExpression};
+    use numerics::literals::IntegerLiteral;
+    use typed_trees::types::PrimitiveType;
+
+    fn parameter(position: usize, primitive_type: PrimitiveType) -> Box<CheckedScalarExpression> {
+        Box::new(CheckedScalarExpression::Parameter {
+            position,
+            primitive_type,
+        })
+    }
+
+    fn literal(value: i64) -> Box<CheckedScalarExpression> {
+        Box::new(CheckedScalarExpression::IntegerLiteral {
+            literal: IntegerLiteral::from_value(value),
+        })
+    }
+
+    fn comparison(
+        kind: CheckedIntegerComparisonKind,
+        left: Box<CheckedScalarExpression>,
+        right: Box<CheckedScalarExpression>,
+    ) -> CheckedBooleanExpression {
+        CheckedBooleanExpression::IntegerComparison { kind, left, right }
+    }
+
+    fn plan(predicates: Vec<CheckedBooleanExpression>) -> ClosedScalarValueContractPlan {
+        ClosedScalarValueContractPlan::new(
+            predicates
+                .into_iter()
+                .map(|predicate| Some(ClosedScalarContractValue::Predicate(predicate)))
+                .collect(),
+            Vec::new(),
+            false,
+            false,
+        )
+    }
+
+    #[test]
+    fn unsigned_upper_only_supplies_the_zero_half() {
+        for (kind, expected) in [
+            (CheckedIntegerComparisonKind::LessOrEqual, (0, 1)),
+            (CheckedIntegerComparisonKind::LessThan, (0, 0)),
+            (CheckedIntegerComparisonKind::Equal, (1, 1)),
+        ] {
+            let contract = plan(vec![comparison(
+                kind,
+                parameter(0, PrimitiveType::U64),
+                literal(1),
+            )]);
+            assert_eq!(
+                contract.requires_bound_interval(0, PrimitiveType::U64),
+                Some(expected)
+            );
+        }
+    }
+
+    #[test]
+    fn literal_left_conjuncts_supply_the_lower_half() {
+        let contract = plan(vec![
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                literal(2),
+                parameter(0, PrimitiveType::U64),
+            ),
+            comparison(
+                CheckedIntegerComparisonKind::LessThan,
+                literal(0),
+                parameter(0, PrimitiveType::U64),
+            ),
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::U64),
+                literal(5),
+            ),
+        ]);
+        // 2 <= i and 0 < i meet at the tighter lower bound.
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::U64),
+            Some((2, 5))
+        );
+    }
+
+    #[test]
+    fn nested_conjunctions_meet_every_literal_bound() {
+        let contract = plan(vec![CheckedBooleanExpression::And {
+            left: Box::new(comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                literal(1),
+                parameter(0, PrimitiveType::U64),
+            )),
+            right: Box::new(comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::U64),
+                literal(3),
+            )),
+        }]);
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::U64),
+            Some((1, 3))
+        );
+    }
+
+    #[test]
+    fn signed_carriers_owe_an_explicit_lower_half() {
+        let contract = plan(vec![comparison(
+            CheckedIntegerComparisonKind::LessOrEqual,
+            parameter(0, PrimitiveType::I64),
+            literal(4),
+        )]);
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::I64),
+            None
+        );
+
+        let contract = plan(vec![
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                literal(0),
+                parameter(0, PrimitiveType::I64),
+            ),
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::I64),
+                literal(4),
+            ),
+        ]);
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::I64),
+            Some((0, 4))
+        );
+    }
+
+    #[test]
+    fn conjuncts_on_other_parameters_contribute_nothing() {
+        let contract = plan(vec![
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::U64),
+                parameter(1, PrimitiveType::U64),
+            ),
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(1, PrimitiveType::U64),
+                literal(9),
+            ),
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::U64),
+                literal(7),
+            ),
+        ]);
+        // i <= j reads no literal endpoint and j's bound never transfers.
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::U64),
+            Some((0, 7))
+        );
+        assert_eq!(
+            contract.requires_bound_interval(1, PrimitiveType::U64),
+            Some((0, 9))
+        );
+    }
+
+    #[test]
+    fn missing_upper_half_or_empty_interval_declines() {
+        let contract = plan(vec![comparison(
+            CheckedIntegerComparisonKind::LessOrEqual,
+            literal(0),
+            parameter(0, PrimitiveType::U64),
+        )]);
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::U64),
+            None
+        );
+
+        let contract = plan(vec![
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::U64),
+                literal(0),
+            ),
+            comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                literal(5),
+                parameter(0, PrimitiveType::U64),
+            ),
+        ]);
+        // 5 <= i <= 0 names no element, so no bound evidence survives.
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::U64),
+            None
+        );
+    }
+
+    #[test]
+    fn disjunctions_and_negations_stay_unread() {
+        let contract = plan(vec![CheckedBooleanExpression::Or {
+            left: Box::new(comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::U64),
+                literal(1),
+            )),
+            right: Box::new(comparison(
+                CheckedIntegerComparisonKind::LessOrEqual,
+                parameter(0, PrimitiveType::U64),
+                literal(5),
+            )),
+        }]);
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::U64),
+            None
+        );
+
+        let contract = plan(vec![CheckedBooleanExpression::Not(Box::new(comparison(
+            CheckedIntegerComparisonKind::LessOrEqual,
+            parameter(0, PrimitiveType::U64),
+            literal(1),
+        )))]);
+        assert_eq!(
+            contract.requires_bound_interval(0, PrimitiveType::U64),
+            None
+        );
     }
 }

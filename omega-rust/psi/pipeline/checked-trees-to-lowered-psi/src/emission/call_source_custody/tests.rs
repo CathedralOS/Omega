@@ -125,6 +125,87 @@ fn same_statement_field_store_composes_with_a_carrier_path() {
     );
 }
 
+/// `cells[i].get()` with the selector's bound published as contract facts:
+/// both the retained-range spelling and the authored `requires` spelling
+/// currently stop at the same two upstream owners. The terminal verifier
+/// already replays requires-derived `RuntimeIndex` bounds (the
+/// terminal-interpreter `runtime_index_arguments` tests pin that replay);
+/// what remains upstream is (1) checked admission folding authored
+/// `requires` conjuncts in `execution/terminal_unit/calls/argument_paths.rs`
+/// — under a live CML4 claim — and (2) the scalar-wrapper source path
+/// carrying a dynamic index in `unit/attached_unit/parameters/source_path.rs`
+/// — under a live DOMAIN-ISSUER-ROUTES claim. When the checked stage cannot
+/// prove the selector it emits no Unit-effect body for the caller at all,
+/// so the `requires` variant surfaces as the machine-selection failure
+/// below rather than as an admission diagnostic. This pin records the exact
+/// frontier so landing either leg flips this expectation instead of hiding
+/// inside a probe that only logs errors.
+#[test]
+fn dynamic_indexed_shared_receiver_lane_pends_on_upstream_legs() {
+    for (index_decl, requires, expected) in [
+        (
+            "i: u64 [0..=1]",
+            "",
+            "scalar wrapper structural argument requires a literal index",
+        ),
+        (
+            "i: u64",
+            "requires i <= 1",
+            "machine has no source-independent checked scalar control plan",
+        ),
+    ] {
+        let source = format!(
+            "data Cell {{ value: u64; }}
+             machine Cell::get(&self) -> u64 {{ self.value }}
+             machine run(cells: &[Cell; 2], {index_decl}) -> u64
+             {requires} {{ cells[i].get() }}"
+        );
+        let checked = crate::front_end::checked_program(&source);
+        match lower_machine(&checked, TerminalMachineSelection::Name("run")) {
+            Err(crate::LoweringError::Unsupported(message)) => {
+                assert_eq!(message, expected, "{index_decl} {requires}");
+            }
+            other => panic!(
+                "{index_decl} {requires}: expected the pinned upstream rejection, \
+                 got {other:?} — an upstream leg landed; flip this pin to assert \
+                 the emitted RuntimeIndex segment and terminal production"
+            ),
+        }
+        match terminal_production::TerminalProductionRequest::new(
+            &checked,
+            terminal_production::TerminalMachineSelection::Name("run"),
+        )
+        .produce(
+            terminal_production::TerminalProductionCustody::artifact_only(
+                &mut terminal_production::TerminalProductionTimings::default(),
+            ),
+        ) {
+            Err(error) => match error.error() {
+                // `LoweringError` arrives through terminal-production's own
+                // dependency edge, so this test cannot name the variant —
+                // compare the rendered `Unsupported("…")` instead.
+                terminal_production::TerminalArtifactProductionError::Lowering(inner) => {
+                    assert_eq!(
+                        format!("{inner}"),
+                        format!("Unsupported({expected:?})"),
+                        "{index_decl} {requires}"
+                    );
+                }
+                other => panic!(
+                    "{index_decl} {requires}: expected the pinned production rejection, \
+                     got {other:?} — an upstream leg landed; flip this pin to assert \
+                     the emitted RuntimeIndex segment and terminal production"
+                ),
+            },
+            Ok(_) => panic!(
+                "{index_decl} {requires}: terminal production succeeded — an upstream \
+                 leg landed; flip this pin to assert the emitted RuntimeIndex segment \
+                 and terminal production"
+            ),
+        }
+    }
+}
+
 #[test]
 fn same_statement_field_store_still_refuses_an_unproved_bounded_destination() {
     let Err(diagnostics) = crate::front_end::checked_program_result(BOUNDED_DESTINATION) else {

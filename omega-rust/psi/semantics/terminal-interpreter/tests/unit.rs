@@ -60,6 +60,8 @@ mod records;
 mod reference_records;
 #[path = "unit/result_residuals.rs"]
 mod result_residuals;
+#[path = "unit/runtime_index_arguments.rs"]
+mod runtime_index_arguments;
 #[path = "unit/scalar_arrays.rs"]
 mod scalar_arrays;
 #[path = "unit/scalar_cases.rs"]
