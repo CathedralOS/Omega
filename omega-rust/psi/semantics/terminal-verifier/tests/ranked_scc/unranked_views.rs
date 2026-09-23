@@ -15,6 +15,8 @@ use terminal_psi::{
 
 #[path = "unranked_views/byte_source_access.rs"]
 mod byte_source_access;
+#[path = "unranked_views/element_view_operands.rs"]
+mod element_view_operands;
 #[path = "unranked_views/mutable_write.rs"]
 mod mutable_write;
 #[path = "unranked_views/write_cycle.rs"]

@@ -266,7 +266,7 @@ fn check_equality_operand(
                 return Ok(());
             }
             Err(Diagnostic::error(format!(
-                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `{data_name} satisfies Equatable;` to synthesize structural equality"
+                "cannot compare against payload-bearing case `{data_name}::{case_name}` with `==`: structural equality is not synthesized for non-conforming types -- match on the case in a transition to bind its payload, or declare `{data_name}Equatable: {data_name} satisfies Equatable;` to synthesize structural equality"
             )))
         }
         _ => Ok(()),
