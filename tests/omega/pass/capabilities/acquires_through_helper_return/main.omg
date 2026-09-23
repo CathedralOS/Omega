@@ -1,4 +1,4 @@
-use omega::language::core::binding;
+use omega::language::core::service;
 pub domain [u8]::Utf8
 requires
     valid_utf8(self);

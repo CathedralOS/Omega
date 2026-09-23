@@ -7,7 +7,7 @@
 // Expected output contains: Hello, Omega.
 
 use omega_language_std::console;
-use omega::language::core::binding;
+use omega::language::core::service;
 
 data Main {
     console: Binding<Console>;

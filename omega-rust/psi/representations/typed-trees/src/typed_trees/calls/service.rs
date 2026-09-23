@@ -13,7 +13,6 @@ use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
 pub const SERVICE_CORE_SOURCE: &str = "service.omg";
-pub const BINDING_CORE_SOURCE: &str = "binding.omg";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExactServiceCarrier {
@@ -146,12 +145,14 @@ pub fn is_exact_service_data_symbol(program: &TypedTrees, symbol: SymbolHandle) 
     else {
         return false;
     };
-    // `ForeignBinding<R>` in `core/binding.omg` is the same toolchain carrier under
-    // its ratified name; `service.omg` retains the `Service` spelling for
-    // callers not yet migrated.
+    // One carrier, one source. `ForeignBinding` was listed here as a second
+    // row, which is an artifact of the rename that turned `Service<R>` into
+    // `Binding<R>`: the name it took over had belonged to a routed-service
+    // carrier, but `ForeignBinding` is the compile-time foreign LOCATOR in
+    // `core/external_binding.omg` and is not `boundary data` at all, so it
+    // could never satisfy the shape checked below.
     let carrier_source = match definition.name.as_str() {
         "Binding" => SERVICE_CORE_SOURCE,
-        "ForeignBinding" => BINDING_CORE_SOURCE,
         _ => return false,
     };
     if !exact_toolchain_source(program, symbol, carrier_source) {
