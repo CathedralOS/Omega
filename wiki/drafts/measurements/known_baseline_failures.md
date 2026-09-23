@@ -1562,13 +1562,20 @@ splits three ways:
   fixture under **ENTRY-CONTENT-ROOTS** rather than a checker regression:
   `package-manager operations::check_project::tests::semantic::retained_check_root_uses_final_consumer_bindings_and_requested_entry`.
   It is the only failure in that crate's full integration suite on this host.
-- **Two are live and unattributed** — no row here or on the board names them,
-  and they are not in the linux set:
+- **Two were attributed and one is repaired.** Both
   `abstract-operations-to-target-operations tests::structural_borrows::borrowed_unit_call_preserves_verified_requirement_obligations`
-  and `::borrowed_scalar_call_preserves_verified_requirement_obligations`.
-  That crate's `--lib` run is 162 tests, 160 passed, 2 failed, so these two
-  are its whole red set. Attribution is in progress; until it lands they are
-  an unexplained failure, not an excused one.
+  and `::borrowed_scalar_call_preserves_verified_requirement_obligations`
+  pass at `93489c3a05` and fail at `bd5648555c` ("scalar graphs: admit
+  ambient borrowed-self field reads"), which routed attached machines with a
+  scalar graph and no unit effects onto the scalar route. `915122bedb`
+  repaired the cause of both failures' first symptom — a multi-fact
+  `requires` clause never reached predicate lowering, so it fell through to
+  an unsupported `None` — and the Unit member now passes. The scalar member
+  remains red for a second, separate reason: the scalar route publishes one
+  canonical conjunction obligation where the Unit route publishes one per
+  authored requirement, so `obligations.len() >= 2` fails. That is owned by
+  **SCALAR-ROUTE-REQUIREMENT-OBLIGATION-COUNT** on the board, not excused
+  here.
 
 Two integration failures outside this `--lib` gate, measured on the same host
 and recorded here so an exact-name search finds them:
