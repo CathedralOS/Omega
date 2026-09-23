@@ -428,6 +428,7 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+            | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {}

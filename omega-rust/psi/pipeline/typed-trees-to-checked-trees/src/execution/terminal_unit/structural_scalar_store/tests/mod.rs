@@ -11,6 +11,7 @@ mod borrowed_arrays;
 mod borrowed_records;
 mod byte_view_writes;
 mod call_results;
+mod case_field_stores;
 mod closed_generic_records;
 mod computations;
 mod computed_store_values;
