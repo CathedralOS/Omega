@@ -410,7 +410,7 @@ impl Expansion<'_> {
                         || retained
                             .iter()
                             .zip(&slot.fields)
-                            .any(|(field, (symbol, _, _))| field.symbol != *symbol)
+                            .any(|(field, reserved)| field.symbol != reserved.symbol)
                     {
                         return unsupported("computed case field roster changed after reservation");
                     }
@@ -519,15 +519,15 @@ impl Expansion<'_> {
                 Operand::Case { slot, fields } => {
                     let mut field_types = prefix.clone();
                     let mut completed_fields = Vec::new();
-                    for (field, (_, identity, scalar_type)) in fields.iter().zip(&slot.fields) {
+                    for (field, reserved) in fields.iter().zip(&slot.fields) {
                         let qualified_type = self.argument_type(field, site, input_types)?;
-                        if qualified_type != (*scalar_type).into() {
+                        if qualified_type != reserved.scalar_type.into() {
                             return unsupported(
                                 "computed case field differs from its exact scalar type",
                             );
                         }
                         completed_fields
-                            .push((*identity, parameter(field_types.len(), qualified_type)));
+                            .push(reserved.completed(parameter(field_types.len(), qualified_type)));
                         field_types.push(qualified_type);
                     }
                     let constructor = self.push(LoweredScalarBranchState {

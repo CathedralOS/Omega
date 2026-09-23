@@ -54,7 +54,7 @@ pub(crate) fn emit(
             }
             LoweredScalarEffect::EstablishScalarCase(case) => {
                 crate::scalar_graph::scalar_computations::cases::emit(
-                    case, values, next_value, operations,
+                    case, values, next_value, operations, calls,
                 )?
             }
             LoweredScalarEffect::EstablishScalarArray(array) => {

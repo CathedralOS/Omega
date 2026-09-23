@@ -819,6 +819,7 @@ impl Emission<'_, '_, '_> {
                     &self.values[field_start..],
                     self.next_value,
                     self.operations,
+                    self.calls,
                 )?;
                 let declaration = crate::scalar_graph::scalar_computations::cases::declarations(
                     &self.operations.operations,
