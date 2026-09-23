@@ -21,6 +21,7 @@ fn codec_program(body: &str) -> TypedTrees {
         data Blob {{ #0 value: u64; }}
         data Main {{ value: u64; other: u64; tag: u64; buffer: [u8; 64]; written: u64; }}
         machine pick(a: &mut u64, b: &mut u64, tag: u64) -> &mut u64 {{ match tag {{ 0 -> a, _ -> b }} }}
+        machine hold(value: &mut u64) -> &mut u64 {{ value }}
         machine opaque_ref(value: &mut u64) -> &mut u64 {{ opaque_ref(value) }}
         machine Main::run(&mut self) {{ {body} }}
         "#
@@ -83,5 +84,33 @@ fn a_codec_cursor_bound_to_an_unproven_reference_stays_opaque() {
         caller_frame(&program),
         None,
         "an unproven referent has no spellable set, so the frame fails closed"
+    );
+}
+
+/// The repair has to survive the hops between the binding and the call, which
+/// is where a candidate set is easiest to collapse to one route. A rebind onto
+/// a second binding keeps the whole set.
+///
+/// A HELPER RESULT standing in the middle does not, and that is the gap the
+/// board's remaining composition bullet names: `Blob::encode(.., hold(cursor))`
+/// resolves to an opaque frame. The codec resolver looks its arguments up by
+/// name among the caller's aliases, so a call-expression argument has no entry
+/// to find -- the receiver lane reaches the same shape through result-origin
+/// composition. Closing it is the row's shared candidate-origin propagation,
+/// not a case added here.
+#[test]
+fn a_divergent_codec_cursor_survives_a_rebind() {
+    let body = "let sample: Blob = Blob { value: 7 }; \
+         let cursor: &mut u64 = pick(&mut self.value, &mut self.other, self.tag); \
+         let again: &mut u64 = cursor; \
+         Blob::encode(&sample, &mut self.buffer, again);";
+    assert_eq!(
+        caller_frame(&codec_program(body)),
+        Some(vec![
+            "self.buffer".to_owned(),
+            "self.other".to_owned(),
+            "self.value".to_owned(),
+        ]),
+        "a second binding must not collapse the candidate set"
     );
 }
