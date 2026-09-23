@@ -1541,3 +1541,47 @@ cannot even link the dep chain. The 9 live names above are **unwitnessable
 at this HEAD, not repaired** — re-run them once the consumer legs land
 (ElementView arms + codec tag + the checked-trees-to-lowered-psi emission
 flip for `borrowed slice view has no Terminal descriptor`).
+
+Refresh at `de08bc6b46` (2026-09-22, **macOS aarch64**, cargo — mbx absent):
+`cargo nextest run --workspace --lib --no-fail-fast` reports **7 failed of
+17,107**, which supersedes the 12-of-16,290 macOS reading at `7b7d0fa8d5`
+above. The four `terminal-codec` members that reading added
+(`sections::structural_block_wire_tests::*` and `sections::trust_graph::*`)
+no longer appear; neither do the `package-manager` 6 apart from one. The set
+splits three ways:
+
+- **Four were regressions of `de08bc6b46` itself**, not baseline, and are
+  repaired at the cause in `4f1d813a1f` (landed `18848f50f3`): the two
+  `checked-trees-to-lowered-psi tests::unit_cleanup::{partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates,mixed_partial_affine_unit_cleanup_lowers_recursive_maximal_residuals}`
+  and the two
+  `typed-trees-to-checked-trees tests::flow::terminal_unit::calls::fixed_array_projections::{retains_literal_fixed_array_boundary_settlements_with_sibling_claims,retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_custody}`.
+  All four pass at `de08bc6b46^` and fail at `de08bc6b46`; both crates are
+  green after the repair (5240/5240 and 841/841). Do not carry them as
+  baseline rows.
+- **One reproduces and is already attributed** in the list above, as a stale
+  fixture under **ENTRY-CONTENT-ROOTS** rather than a checker regression:
+  `package-manager operations::check_project::tests::semantic::retained_check_root_uses_final_consumer_bindings_and_requested_entry`.
+  It is the only failure in that crate's full integration suite on this host.
+- **Two are live and unattributed** — no row here or on the board names them,
+  and they are not in the linux set:
+  `abstract-operations-to-target-operations tests::structural_borrows::borrowed_unit_call_preserves_verified_requirement_obligations`
+  and `::borrowed_scalar_call_preserves_verified_requirement_obligations`.
+  That crate's `--lib` run is 162 tests, 160 passed, 2 failed, so these two
+  are its whole red set. Attribution is in progress; until it lands they are
+  an unexplained failure, not an excused one.
+
+Two integration failures outside this `--lib` gate, measured on the same host
+and recorded here so an exact-name search finds them:
+
+- `checked-trees-to-lowered-psi` suite
+  `reference_result_source::{projected_record_argument_preserves_original_storage,projected_record_argument_rejects_changed_leaf_custody}`,
+  both reporting
+  `Lowering(Unsupported("machine has no source-independent checked scalar control plan"))`.
+  Reproduced with the `de08bc6b46` repair's three source files reverted to
+  `2195bd5203`, so they predate it. Unowned.
+- `terminal-codec` suite
+  `artifact::proof_section::pcc_replay_reports_the_qualified_subject_ledger_and_admissions`
+  — **fixed**, not a baseline row. It pinned the literal
+  `"terminal-psi-vocabulary-107"` against a marker `baffe0a0ed` had moved to
+  108; the assertion now reads the marker from `VocabularyMarker`, its owner.
+  The crate is 403/403.
