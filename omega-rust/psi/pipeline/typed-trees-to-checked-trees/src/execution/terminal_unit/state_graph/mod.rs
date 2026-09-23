@@ -494,9 +494,31 @@ pub(super) fn build_traced(
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
-                // A call result may die immediately after its producing call.
+                // The window pair the sequencer itself joined — a move-out
+                // binding the displaced field value and the exact restoration
+                // into the opened hole — carries no new custody across the
+                // selected edges: its owned source, borrowed destination
+                // window, and consumed result binding all rejoined at mint.
+                CheckedUnitEffectOperationPlan::MoveStructuralField { source, .. }
+                    if source.source_parameter_index().is_some()
+                        && source.access == CheckedStructuralAccess::Owned => {}
+                CheckedUnitEffectOperationPlan::StoreStructuralField {
+                    destination,
+                    value,
+                    ..
+                } if destination.source_parameter_index().is_some()
+                    && destination.access == CheckedStructuralAccess::Owned
+                    && matches!(
+                        value.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            ..
+                        }
+                    )
+                    && value.access == CheckedStructuralAccess::Owned => {}
+                // A call result may die on its producing call's continuation.
                 // The cleanup shares the call coordinate rather than consuming
-                // a new authored statement.
+                // a new authored statement; sequenced stores may sit between
+                // the call and the discard that retires a displaced binding.
                 CheckedUnitEffectOperationPlan::CallContinuationCleanup {
                     coordinate,
                     affine_discards,
@@ -508,18 +530,30 @@ pub(super) fn build_traced(
                             ..
                         }
                     )
-                    }) && operation_index.checked_sub(1).is_some_and(|producer| {
-                        matches!(
-                            &operations[producer],
-                            CheckedUnitEffectOperationPlan::StructuralCall {
-                                coordinate: call,
-                                ..
-                            } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                coordinate: call,
-                                ..
-                            } if call == coordinate
-                        )
-                    }) => {}
+                    }) && operations[..operation_index]
+                        .iter()
+                        .rev()
+                        .find(|operation| {
+                            matches!(
+                                operation,
+                                CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                        ..
+                                    }
+                            )
+                        })
+                        .is_some_and(|producer| {
+                            matches!(
+                                producer,
+                                CheckedUnitEffectOperationPlan::StructuralCall {
+                                    coordinate: call,
+                                    ..
+                                } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                                    coordinate: call,
+                                    ..
+                                } if call == coordinate
+                            )
+                        }) => {}
                 _ => {
                     // Name the operation family whose custody the selected
                     // edges cannot yet carry; admitted families never reach
