@@ -6,10 +6,11 @@
 // The fix is the field-receiver idiom (filesystem/field_receiver_method_exit)
 // or inlining the method's expression. Deep fix = thread receiver storage
 // through dispatch (same session as contained same-type aliasing).
-// The modern boundary is earlier: Unit planning omits the param-receiver
-// callee's plan, the caller and the selected entry lose theirs, and the
-// closure check rejects with `missing a checked transitive machine plan`
-// before dispatch lowering runs.
+// The modern boundary is earlier still: `Filesystem` carries a
+// `Binding<FilesystemHost>` field and std declares no Fused FilesystemHost
+// provider, so entry establishment rejects the missing selection before
+// Unit closure or dispatch lowering runs. That wall masks the param-receiver
+// premise until a provider exists.
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
 
