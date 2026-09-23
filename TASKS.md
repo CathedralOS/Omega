@@ -2581,6 +2581,31 @@ syntax and other terminal services are not prerequisites.
   `multiplicity`, so an Affine owned receiver is removed from
   `frontier.owned_places` before `validate_scalar_cleanup_actions` runs.
 
+  TWO MORE red tests live beside these, in
+  `terminal-psi-to-abstract-operations` (unclaimed), unboarded until now and
+  red at least since `c7bccfa6bce` (2026-09-18) though both tests date to
+  `1285562ca29` (2026-08-13) -- so they are long-standing, not a fresh
+  regression. They fail for DIFFERENT reasons, which is why they want separate
+  owners:
+
+  - `scalar_affine_cleanup::structural_return::omega_preserves_exact_singleton_structural_return_custody`
+    stops at `UnsupportedControlFlow`, raised by the entry-admission predicate
+    in `abstract-operations-to-target-operations`'s
+    `lowering/control_flow.rs`. Instrumented, the function it builds carries
+    `entry_claims = 1`, and that predicate ends `|| !function.entry_claims
+    .is_empty()`, so it is refused outright. Independently, its sole
+    structural parameter is `access = Owned, multiplicity = Linear` with
+    `unobserved_owned = false`, and the accepted owned set is Affine, or
+    `is_owned_parameter`, or Unrestricted over a Sum/Record -- Linear is in
+    none of them. Either fact alone refuses it.
+  - `partial_affine_call_results::continuations::source_continuations_retain_distinct_result_owners_and_ordered_residuals`
+    passes that same predicate (`entry_claims = 0`, both parameters Owned +
+    Affine) and stops later at `UnsupportedStructuralArray(StructuralTypeId(4))`.
+
+  Both refusals live in `abstract-operations-to-target-operations`, which is
+  claimed, so the repair belongs to that lane rather than to whoever finds the
+  red.
+
   Measured: `git bisect` over ~4 days names `6e8cb1f85c` as the first bad
   commit for `terminal-interpreter::unit affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
   and `::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`,
