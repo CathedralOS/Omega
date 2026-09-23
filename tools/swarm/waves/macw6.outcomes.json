@@ -1,0 +1,79 @@
+{
+  "wave": "macw6",
+  "host": "local",
+  "host_note": "macOS x86_64 (i9-9880H); native macOS Omega target unsupported",
+  "drained_utc": "2026-09-23T03:30:36Z",
+  "base": "b3f2af33582a4c8408cdae3ce173ea28d4458836",
+  "slots": [
+    {
+      "slot": "coordinator-cml4",
+      "item": "CML4",
+      "result": "landed",
+      "commits": [
+        "de08bc6b46a4b30a4ee61a066fc3056ce8ccdf21"
+      ],
+      "item_closed": false,
+      "note": "Parameter-rooted residual cleanup at ordinary Unit return now routes through the partial-affine carrier: projected owned parameter moves (one residual root plus whole-root sibling discards, mixed parameter+temporary+scalar consumers, multi-block bodies, empty complements keeping ReturnUnit). Verifier separates machine-scoped parameter custody from continuation-edge cleanup and still rejects a second residual parameter root; lowering reconstructs the complement from the checked type plan. 123 producer + 36 lowering/verifier tests pass; mbx check clean on touched crates. Remaining per board: a second partially-moved parameter root, conditional/case successors, structural returns, non-Unit consumers."
+    },
+    {
+      "slot": "module-namespaces",
+      "item": "MODULE-NAMESPACE-RESOLUTION",
+      "result": "landed",
+      "commits": [
+        "4e1576578b68f11053da62200f08522979133e98"
+      ],
+      "item_closed": false,
+      "note": "Landed commit is denotation transport work, not namespace resolution: Boolean identity conversions (not-not, eq-atom, swapped endpoints) now elaborate through checked caseTwo analysis instead of a per-instance rule axiom; kernel re-decides the emitted derivation. Namespace-resolution item itself advanced no further."
+    },
+    {
+      "slot": "finite-dispatch",
+      "item": "FINITE-GENERIC-DISPATCH",
+      "result": "wip-parked",
+      "commits": [],
+      "wip_branch": "swarm/macw6-finite-dispatch",
+      "item_closed": false,
+      "note": "Agent died under provider limits; parked commit 54a1609a64 (wip: finite dispatch family membership and forwarded-call subjects, unvalidated). Separately, external commit c48b78d7ae landed a checked dynamic dispatch plan across the item's owning paths — next worker must reconcile both parked drafts against it."
+    },
+    {
+      "slot": "general-licm",
+      "item": "GENERAL-LICM",
+      "result": "wip-parked",
+      "commits": [],
+      "wip_branch": "swarm/macw6-general-licm",
+      "item_closed": false,
+      "note": "Agent died under provider limits mid-work; parked commit 46a232ec0a (wip: licm call-invariance test scaffolding, unvalidated). No claim was live at drain."
+    },
+    {
+      "slot": "plan-laid-views",
+      "item": "PLAN-LAID-VIEWS",
+      "result": "dead",
+      "commits": [],
+      "item_closed": false,
+      "note": "Agent died before producing commits; branch tip stayed at pre-wave history. Clean worktree removed."
+    },
+    {
+      "slot": "termination-ranking",
+      "item": "TERMINATION-RANKING-CHECKS",
+      "result": "dead",
+      "commits": [],
+      "item_closed": false,
+      "note": "Agent died before producing commits; branch tip stayed at pre-wave history. Item has since been re-claimed by macw7-termination-ranking (ticket a725fc9a) — that claim was left untouched."
+    },
+    {
+      "slot": "domain-issuer-routes",
+      "item": "DOMAIN-ISSUER-ROUTES",
+      "result": "dead",
+      "commits": [],
+      "item_closed": false,
+      "note": "Agent died before producing commits; branch tip stayed at pre-wave history. Clean worktree removed."
+    }
+  ],
+  "board_sweep_commit": "PENDING",
+  "friction": [
+    "Provider rate limits killed three workers before any commits and two mid-work; wave ran the coordinator slice to completion while dead slots were parked rather than refilled.",
+    "Worker report notes were never attached; branch tips and claim registry were the only evidence — two slots initially looked 'landed' only because their uncommitted branch tips were ancestors of main.",
+    "The landing queue head held an hours-expired reservation from linw4-coordinator; enqueue+claim reaped it cleanly.",
+    "landing.py publish requires the main checkout HEAD to equal the integrated candidate; first attempt from the worktree was refused.",
+    "External commit c48b78d7ae landed inside FINITE-GENERIC-DISPATCH's owning paths while the slot was parked — claims are advisory and did not fence it."
+  ]
+}

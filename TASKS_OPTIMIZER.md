@@ -232,6 +232,9 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   - Motion needing new blocks or run duplication rather than the existing
     shared-source preheader, with corresponding block/occurrence evidence.
 
+  Parked WIP: `swarm/macw6-general-licm` (one unvalidated commit 46a232ec0a,
+  call-invariance test scaffolding) — review before resuming.
+
   Acceptance: each transformation independently reconstructs components,
   loop-carried custody, ranking, provenance, effects and fuel. Forged operands,
   retained internal discards, missing exit disposals and stale frontiers reject.
