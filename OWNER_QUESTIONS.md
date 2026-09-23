@@ -550,6 +550,51 @@ ruling or at least a note so later legs make the same choice:
     change what a one-segment name means to proof narrowing and interpreter
     equality, which today treat it as a binding only.
 
+12. **Does an owned `self` receiver retire implicitly at a successful exit
+    edge, and does that depend on its multiplicity?** (named decision:
+    `owned-self-receiver-implicit-retirement`).
+    [Terminal ownership](wiki/spec/terminal-psi/ownership.md) is the contract
+    checked and found silent: it says every incoming owned obligation on a
+    returning edge "occurs exactly once in the edge's transfer map, explicit
+    terminal consumption, eligible automatic cleanup, or validated no-code
+    affine discard" -- four accounted routes. Implicit retirement by reaching
+    normal completion is a fifth, and the clause neither names nor forbids it,
+    so the spelling that decides two live interpreter tests is not written
+    down anywhere.
+
+    The implementation has already chosen, without the clause saying so.
+    `6e8cb1f85c` added `consume_terminal_self_receiver` to
+    `terminal-verifier/src/validation/frontier/terminators.rs`, guarded on
+    `parameter.is_self && parameter.access == Owned` and NOT consulting
+    `multiplicity`, so an Affine owned receiver leaves `frontier.owned_places`
+    before `validate_scalar_cleanup_actions` runs. An authored `DiscardRoot`
+    on that receiver is then rejected as `ScalarReturnAffineDiscardsMismatch`
+    because the place it names is already gone.
+
+    Why multiplicity is the crux rather than a detail: for a Linear receiver,
+    "the machine consumes it by completing" reads coherently against the
+    clause, because a linear value must be used exactly once and completion is
+    that use. For an Affine one the discard is precisely the observable,
+    charged disposition the clause's third and fourth routes name, so removing
+    the place silently deletes the accounting those routes exist to require.
+    A `git bisect` over roughly four days names `6e8cb1f85c` as first-bad for
+    `terminal-interpreter::unit affine_cleanups::scalar_return_performs_affine_discard_only_after_edge_charge`
+    and `::conditional_commits_only_the_selected_affine_cleanup_after_edge_charge`,
+    which exist to observe edge-charge ORDERING and have been red on main
+    since; they are the decision's witnesses, not stale fixtures.
+
+    Options: (a) the implicit route is Linear-only, and an Affine owned
+    receiver keeps its authored discard as a charged disposition -- the two
+    tests then pass unchanged and the guard gains a multiplicity test;
+    (b) the route stays multiplicity blind, and the spec gains a fifth
+    accounted disposition naming what an owned receiver occurs in at a
+    returning edge -- the two tests are then rewritten to state that, not
+    merely repinned. Either way the clause above must end up saying which,
+    because an implementation that silently adds a route the ownership
+    contract enumerates is the thing this queue exists to prevent.
+    **OWNED-SELF-RECEIVER-AFFINE-DISCARD** on `TASKS.md` holds the engineering
+    once the ruling lands.
+
 Settled mathematical binding and proof rules live in the
 [mathematical source contract](wiki/spec/proofs/mathematical_bindings.md) and
 [foundation](wiki/spec/proofs/foundation.md). Their implementation and required

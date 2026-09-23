@@ -2209,10 +2209,17 @@ syntax and other terminal services are not prerequisites.
   completing) reads coherently, while for an Affine one the discard is the
   observable, charged disposition the spec's third and fourth routes name.
 
-  Acceptance: decide whether the rule is Linear-only or whether an Affine
-  owned receiver's disposition becomes implicit, and make the two interpreter
-  tests state that decision rather than merely pass. If it stays multiplicity
-  blind, say in the spec which accounted disposition the receiver occurs in.
+  **Design-blocked** on `owned-self-receiver-implicit-retirement`
+  (OWNER_QUESTIONS.md question 12): implicit retirement at normal completion
+  is a fifth route the ownership clause does not enumerate, so which
+  disposition an owned receiver occurs in is a meaning the spec has to state
+  before the guard can be written either way.
+
+  Acceptance after the ruling: decide whether the rule is Linear-only or
+  whether an Affine owned receiver's disposition becomes implicit, and make
+  the two interpreter tests state that decision rather than merely pass. If it
+  stays multiplicity blind, say in the spec which accounted disposition the
+  receiver occurs in.
 
 - **AMBIENT-SELF-BORROW-NOMINAL-ATTACHMENT.** (new-scope) A borrowed-self
   record argument no longer lowers: `checked-trees-to-lowered-psi`'s
@@ -2302,7 +2309,9 @@ syntax and other terminal services are not prerequisites.
   `Unsupported("scalar contract contains an unsupported clause")`, and the
   Unit half passes with it. What remains is the count alone.
 
-  The fork, for the scalar-graph owner to settle: publish one obligation per
+  The fork, for the scalar-graph owner to settle -- a code-owner call inside
+  this lane, NOT a language-design question, so it stays here rather than in
+  OWNER_QUESTIONS.md: publish one obligation per
   authored requirement on the scalar route too, so a callee's obligation
   roster is a property of its contract rather than of its caller's route; or
   keep the canonical conjunction and state deliberately that obligation
