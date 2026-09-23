@@ -754,7 +754,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/block_views.rs",
-        sha256: Some("611f01b1557a04afaecd286de445107bea2e2fff840e76f7629317e96012bcb9"),
+        sha256: Some("755ffad4151c427b3e56ffffd8a208633ca8be30a9277a6413d0ba75b4fdd75b"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1133,8 +1133,18 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
+        path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case.rs",
+        sha256: Some("b02cfbc573c138d41636d8866a7ba0a1209d592c8d7910ca8ab4e6701335e35d"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case_membership.rs",
         sha256: Some("1065970ab4c95aca3fcc1bba9d417bca015ab644a474d4bae9b93a360915e0d9"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_leaf_copy.rs",
+        sha256: Some("ae53b946f59594b85e4f8ecc10d5f05463c7"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -1335,6 +1345,11 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/scalar_case.rs",
         sha256: Some("27650287aab514589ddd1ea4689f6e05233ddf2f24915045588449021519fa81"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/structural_case.rs",
+        sha256: Some("799ed739a03aab63f2c06f55d2f3aa2495c2f50f50aefe1bb60134147770f07c"),
         inventory_machinery: false,
     },
     ImplementationSite {
