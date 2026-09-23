@@ -379,6 +379,41 @@ the complete product bar; focused successes below do not establish that baseline
   owe [exact intermediate arithmetic](wiki/spec/language/numeric_values.md)
   bounds even when a theorem uses `embed`.
 
+  THE COMPILER TEST TARGETS ARE UNGUARDED, and they have drifted red.
+  `land_tight.sh` runs `cargo check --workspace --all-targets --exclude
+  omega-native-differential-test --exclude compiler`, so nothing a landing
+  gate runs ever executes `-p compiler`'s ~80 test targets except
+  `canary_suite`. Sweeping them in batches (they must be batched -- an
+  unscoped `-p compiler` links ~150 binaries and exhausts this host's disk)
+  turned up reds in four of the first twenty-four targets, several of them
+  stale fixtures rather than real gaps. Repaired so far: three
+  `composed_internal_unit_arguments` cases that never declared the service
+  reach their own chain needs, one `calling_policy_plans` canary/fixture `pub`
+  drift, and five `module_machine_indices::indexed_domains` rejections
+  asserting wording that `060d737656c` replaced. Keep sweeping; the remaining
+  targets are unaudited.
+
+  Three reds in `module_machine_indices` are BEHAVIOR questions, not wording,
+  and are left for their owners:
+
+  - `indexed_domains::qualified_record_projection_rejects_unproven_constructor_membership`
+    expects `Marked` and `not proven`; it now gets `constant CONFIG is
+    invalid: domain constraint Marked for the const leaf value is false`.
+    Unproven and false are not the same claim, so this one asks whether the
+    leaf discharge should be DECIDING a constructor membership it previously
+    only failed to prove.
+  - `indexed_domains::separate_packages_cannot_exchange_mutable_domain_qualifications`
+    expects `a mutable recast must prove fact implication in BOTH
+    directions`; its program now stops earlier, at `cannot prove initializer
+    of local in Main::exchange is in domain u64::Tag; an annotation cannot
+    establish routed qualification`, so it no longer reaches the exchange it
+    exists to reject.
+  - `rational::anonymous_comparisons_cannot_hide_undefined_values_or_landed_operands`
+    requires every listed expression to be refused, and `(1.0f64 < 2.0f64)`
+    now compiles. A float comparison carries none of the undefinedness the
+    other rows do, so admitting it may be intended -- but the fence moved
+    without the test moving with it.
+
   A red OUTSIDE the corpus, found while sweeping crate suites and recorded here
   because nothing else owns it: 8 tests in `package-manager`'s
   `named_workspace_install::cases` fail with `fixture module path ends in
