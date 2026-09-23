@@ -100,3 +100,35 @@ class Surfaces(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CoverageLine(unittest.TestCase):
+    """The umbrella's elision counts are read from its coverage line, so the
+    headline can separate fixtures this run never compiled from passes."""
+
+    def test_elided_counts_are_read_from_the_coverage_line(self):
+        import tempfile
+        tool = load_tool()
+        text = (
+            "pass-canary coverage: selected-active=10 rooted-exact-native-elided=2 "
+            "direct-exact-native-elided=3 active-compiled=5 cross-target-elided=1 "
+            "cross-target-compiled=4\n"
+            "1 pass canary(ies) failed to compile\n"
+            "test result: FAILED. 0 passed; 1 failed\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "pass.log"
+            log.write_text(text, encoding="utf-8")
+            report = tool.parse_pass_log(log, {})
+        self.assertEqual(report["coverage"]["direct-exact-native-elided"], 3)
+        elided = sum(v for k, v in report["coverage"].items() if k.endswith("-elided"))
+        self.assertEqual(elided, 6)
+
+    def test_a_log_without_the_line_reports_no_coverage(self):
+        import tempfile
+        tool = load_tool()
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "pass.log"
+            log.write_text("test result: ok. 1 passed\n", encoding="utf-8")
+            report = tool.parse_pass_log(log, {})
+        self.assertEqual(report["coverage"], {})
