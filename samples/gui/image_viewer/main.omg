@@ -38,11 +38,11 @@ pub boundary trait Gui {
 }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
-    input: Service<Input>;
-    gui: Service<Gui>;
-    raw: Service<FilesystemHost>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
+    input: Binding<Input>;
+    gui: Binding<Gui>;
+    raw: Binding<FilesystemHost>;
     cls: [u8; 7];
     title: [u8; 13];
     message: [u64; 6];

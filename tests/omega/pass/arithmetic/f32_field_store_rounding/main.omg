@@ -15,7 +15,7 @@ use omega::language::core::float_operations;
 
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: f32; }
+data Main { console: Binding<Console>; a: f32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 16777216.0;
     self.a = self.a + 1.0;   // true f32: below the ULP, rounds back to 16777216

@@ -16,8 +16,8 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
-    exit: Service<ProcessExit>;
+    console: Binding<Console>;
+    exit: Binding<ProcessExit>;
 }
 
 machine dbl(x: i32 [0..=1000]) -> i32 {

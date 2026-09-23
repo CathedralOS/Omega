@@ -129,7 +129,7 @@ fn imported_external_binding_vocabulary_has_the_exact_first_rung_shape() {
     let bindings = typed
         .data_definitions()
         .iter()
-        .filter(|definition| definition.name.as_str() == "Binding")
+        .filter(|definition| definition.name.as_str() == "ForeignBinding")
         .collect::<Vec<_>>();
     let [binding] = bindings.as_slice() else {
         panic!("core import must load exactly one Binding declaration");
@@ -145,7 +145,7 @@ fn imported_external_binding_vocabulary_has_the_exact_first_rung_shape() {
     };
     assert_eq!(import.name.as_str(), "DllImport");
     let [payload] = typed.data_payload_fields(import) else {
-        panic!("Binding::DllImport must carry exactly one import payload");
+        panic!("ForeignBinding::DllImport must carry exactly one import payload");
     };
     assert_eq!(payload.name.as_str(), "import");
     let TypeReferenceNode::Generic {
@@ -156,7 +156,7 @@ fn imported_external_binding_vocabulary_has_the_exact_first_rung_shape() {
         .type_reference_table
         .type_reference(payload.type_reference)
     else {
-        panic!("Binding::DllImport payload must be an exact DllImport application");
+        panic!("ForeignBinding::DllImport payload must be an exact DllImport application");
     };
     assert_eq!(*base_symbol, dll_import.symbol);
     let arguments = typed
@@ -174,7 +174,7 @@ fn imported_external_binding_vocabulary_has_the_exact_first_rung_shape() {
 
     assert_eq!(syscall.name.as_str(), "Syscall");
     let [number] = typed.data_payload_fields(syscall) else {
-        panic!("Binding::Syscall must carry exactly one number payload");
+        panic!("ForeignBinding::Syscall must carry exactly one number payload");
     };
     assert_eq!(number.name.as_str(), "number");
     assert_eq!(

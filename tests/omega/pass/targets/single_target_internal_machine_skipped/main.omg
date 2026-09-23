@@ -15,7 +15,7 @@ demo_target machine Helper::paradigm_internal(&self) -> i32 {
     transition { _ -> 63 }
 }
 
-data Main { console: Service<Console>; helper: Helper; }
+data Main { console: Binding<Console>; helper: Helper; }
 
 machine Main::main(&mut self) reaches Console {
     let a: i32 = self.helper.seed;

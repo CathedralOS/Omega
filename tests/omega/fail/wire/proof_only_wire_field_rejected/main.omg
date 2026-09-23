@@ -6,5 +6,5 @@ data Nat { case Zero; case Succ(prev: Nat); }
 data Msg {
     #0 n: Nat;
 }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(0); }

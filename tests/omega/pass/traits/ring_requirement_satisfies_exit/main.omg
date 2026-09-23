@@ -59,7 +59,7 @@ satisfies RingOps::mul as Standard32
     a * b
 }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let s: i32 in Wrapping = add32(2, 1);
     let p: i32 in Wrapping = mul32(s, 2);

@@ -13,7 +13,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cells: [i32 [0..=7]; 4];
     i: u64 [0..=3];
     next: i32 [0..=15];

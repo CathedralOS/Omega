@@ -6,8 +6,8 @@ use super::{
 #[test]
 fn complete_baseline_joins_nonempty_external_supply_and_selected_provider_meaning() {
     let source = r#"use omega::language::core::external_binding;
-pub windows_x86_64 machine import_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" } }
+pub windows_x86_64 machine import_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport { import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" } }
 }
 pub boundary trait Host { machine ping(); }
 pub machine ping_leaf() satisfies Host::ping via import_binding();

@@ -13,7 +13,7 @@ data ForwardedBuffer<const N: u64> {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     forwarded: ForwardedBuffer<4>;
 }
 

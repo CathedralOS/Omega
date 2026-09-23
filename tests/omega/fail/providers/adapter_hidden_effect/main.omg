@@ -13,13 +13,13 @@ boundary trait Quiet {
     machine note(x: i32) -> i32;
 }
 
-data Noisy { console: Service<Console>; }
+data Noisy { console: Binding<Console>; }
 machine Noisy::note_adapter(&mut self, x: i32) -> i32 satisfies Quiet::note {
     self.console.write_line("noisy");
     transition { _ -> (x) }
 }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     self.console.exit_process(70);
 }

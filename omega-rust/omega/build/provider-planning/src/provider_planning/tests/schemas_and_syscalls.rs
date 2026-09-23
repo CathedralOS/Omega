@@ -80,7 +80,7 @@ fn checked_adapter_must_resolve_to_its_exact_checked_provider_conformance() {
         machine OtherProvider::helper() -> i32 { 3 }
         machine Provider::external() -> i32
         satisfies OtherBoundary::other
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
     "#;
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
@@ -248,7 +248,7 @@ fn syscall_derivation_retains_exact_number_before_range_validation() {
 
                 machine exit_leaf(code: i32)
                 satisfies Process::exit
-                via Binding::Syscall({number});
+                via ForeignBinding::Syscall({number});
             "#
         );
         let tokens = source_files_to_tokens::Lexer::new(&source)

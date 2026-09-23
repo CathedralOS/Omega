@@ -43,7 +43,7 @@ machine make_samples() -> Samples {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bytes: [u8; 24];
     index: u64;
     observed_low: u16;

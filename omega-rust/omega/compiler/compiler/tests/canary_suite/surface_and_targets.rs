@@ -362,7 +362,7 @@ pub boundary trait Console {
     machine exit_process(return_code: i32);
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 machine Main::main(&mut self) reaches Console {
     self.console.exit_process(0);
@@ -693,7 +693,7 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let build_dir = scratch.join("out");
     let _ = fs::remove_dir_all(&scratch);
     compile_rooted_canary_for_target(&canary, build_dir.clone(), "linux_x86_64")
-        .expect("qualified Binding::Syscall leaf should cross-compile for linux_x64");
+        .expect("qualified ForeignBinding::Syscall leaf should cross-compile for linux_x64");
 
     let trust = fs::read_to_string(build_dir.join("trust_report.md"))
         .expect("external-leaf syscall trust report should be emitted");
@@ -733,7 +733,7 @@ fn external_leaf_syscall_reaches_linux_x64_backend() {
     let arm_out = arm_scratch.join("out");
     let _ = fs::remove_dir_all(&arm_scratch);
     compile_rooted_canary_for_target(&canary, arm_out.clone(), "linux_arm64")
-        .expect("qualified Binding::Syscall leaf should cross-compile for linux_arm64");
+        .expect("qualified ForeignBinding::Syscall leaf should cross-compile for linux_arm64");
     let arm_elf =
         fs::read(arm_out.join("omega-program")).expect("external-leaf arm syscall ELF emitted");
     let arm_footprints = fs::read_to_string(arm_out.join("08_boundary_footprints.json"))

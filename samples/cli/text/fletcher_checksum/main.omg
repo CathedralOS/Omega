@@ -33,7 +33,7 @@ machine Adder::fletcher(
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     adder: Adder;
     pause: [u8; 256];
 }

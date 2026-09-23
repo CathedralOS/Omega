@@ -3,5 +3,5 @@
 // arithmetic is i64.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; n: isize; }
+data Main { console: Binding<Console>; n: isize; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

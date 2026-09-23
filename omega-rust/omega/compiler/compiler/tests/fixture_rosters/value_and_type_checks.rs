@@ -79,7 +79,7 @@ pub(crate) const BARE_BOUNDARY_SIGNATURE_PARAMETER_VALUE_REJECTED: &str =
 pub(crate) const BARE_BOUNDARY_SIGNATURE_RETURN_VALUE_REJECTED: &str =
     "boundary/bare_signature_return_value_rejected";
 
-// The bare-boundary value-position gate (`Service<R>` is the only service
+// The bare-boundary value-position gate (`Binding<R>` is the only service
 // value spelling) rejects in six positions; the executing test reads each
 // fixture's expected.txt.
 pub(crate) const BARE_BOUNDARY_VALUE_FAIL_CANARIES: &[&str] = &[

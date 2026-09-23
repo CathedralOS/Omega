@@ -17,7 +17,7 @@ use omega::language::core::service;
 // TextEqualsLiteral encoder happened to work when the compared text sat at
 // offset 0 (clobbered base + 0 == base); a leading field makes any future
 // base-clobber regression fail these legs instead of passing by accident.
-data Main { console: Service<Console>; shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
+data Main { console: Binding<Console>; shift: u64; name: [u8; 8] in Utf8; other: [u8; 8] in Utf8; okf: bool; }
 machine Main::main(&mut self) {
     self.name = "omega";
     self.other = "omega";

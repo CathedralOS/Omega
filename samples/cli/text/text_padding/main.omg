@@ -19,7 +19,7 @@ requires
     valid_utf8(self);
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     message: [u8; 32] in Utf8;
     padding: i32 in Saturating;
     pause: [u8; 256];

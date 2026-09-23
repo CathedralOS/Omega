@@ -9,7 +9,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: i32 in Wrapping;
     b: i32 in Wrapping;
     i: i32 in Wrapping;

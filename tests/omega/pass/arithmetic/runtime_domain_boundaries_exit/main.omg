@@ -12,7 +12,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     i32sat: i32 in Saturating;
     i32wrap: i32 in Wrapping;
     u8sat: u8 in Saturating;

@@ -29,7 +29,7 @@ pub boundary trait Console {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     selected: Cell;
     line: CellLine;
     first: Cell;

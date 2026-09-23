@@ -21,7 +21,7 @@ data Main {
     wide: f64;
     narrow: f32;
     zero: f64;
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

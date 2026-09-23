@@ -67,8 +67,8 @@ pub boundary trait ExternalSurface {
     machine ordinal();
 }
 
-pub windows_x86_64 machine named_binding() -> Binding<12, 11, 0> {
-    Binding::DllImport {
+pub windows_x86_64 machine named_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "kernel32.dll",
             export: "ExitProcess",
@@ -76,8 +76,8 @@ pub windows_x86_64 machine named_binding() -> Binding<12, 11, 0> {
     }
 }
 
-windows_x86_64 machine ordinal_binding() -> Binding<10, 0, 0> {
-    Binding::DllImport {
+windows_x86_64 machine ordinal_binding() -> ForeignBinding<10, 0, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByOrdinal {
             library: "user32.dll",
             ordinal: 7,
@@ -258,8 +258,8 @@ pub boundary trait Process {
     machine exit(code: i32);
 }
 
-pub linux_x86_64 machine exit_binding() -> Binding<0, 0, 0> {
-    Binding::Syscall { number: 60 }
+pub linux_x86_64 machine exit_binding() -> ForeignBinding<0, 0, 0> {
+    ForeignBinding::Syscall { number: 60 }
 }
 
 pub machine exit_leaf(code: i32)

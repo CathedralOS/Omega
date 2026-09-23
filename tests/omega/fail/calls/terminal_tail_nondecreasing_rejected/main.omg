@@ -5,7 +5,7 @@
 // (Deleting the base-case exit refuses identically: nothing to refute.)
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::countdown(&mut self, n: u64 [0..=100]) -> u64
 terminates by n;
 {

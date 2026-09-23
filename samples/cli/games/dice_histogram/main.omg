@@ -19,7 +19,7 @@ domain [u8; 24]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     counts: [i32; 6] in Wrapping;
     line: [u8; 24] in Utf8;
     st: u32 in Wrapping;   // xorshift state

@@ -274,9 +274,9 @@ macos_arm64 machine DemoClockProvider::sleep(&mut self, milliseconds: u32) satis
 }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
-    gui: Service<Gui>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
+    gui: Binding<Gui>;
     cls: [u8; 7];
     title: [u8; 11];
     pixels: [i32; 4096];

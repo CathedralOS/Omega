@@ -15,7 +15,7 @@ use omega_language_std::filesystem_host;
 use omega::language::core::service;
 
 data Probe {
-    host: Service<FilesystemHost>;
+    host: Binding<FilesystemHost>;
 }
 
 machine Probe::check(&mut self) -> bool reaches FilesystemHost {
@@ -27,7 +27,7 @@ machine Probe::check(&mut self) -> bool reaches FilesystemHost {
 
 data Main {
     probe: Probe;
-    raw: Service<FilesystemHost>;
+    raw: Binding<FilesystemHost>;
     n: i64;
     here: bool;
 }

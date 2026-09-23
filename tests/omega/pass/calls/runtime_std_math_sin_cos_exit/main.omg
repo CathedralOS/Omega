@@ -13,7 +13,7 @@ use omega::language::core::float_operations;
 use omega_language_std::math;
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     // sin(1) = 0.841470984807896507...
     let s: f64 = sin(1.0);

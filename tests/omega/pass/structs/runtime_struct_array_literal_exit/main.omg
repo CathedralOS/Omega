@@ -20,7 +20,7 @@ data Bag {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bag: Bag;
 }
 

@@ -85,7 +85,7 @@ pub boundary trait Host {
 data Provider {}
 machine Provider::perform<machine Work>()
 where machine Work(flag: bool) crashes Trap permitted(flag);
-satisfies Host::perform via Binding::Syscall(60);
+satisfies Host::perform via ForeignBinding::Syscall(60);
 "#;
     let first = project_with_foreign(
         source,
@@ -121,7 +121,7 @@ pub data Surface {}
 pub data Provider {}
 pub boundary requirement Surface::perform();
 pub machine Provider::perform() satisfies Surface::perform
-via Binding::Syscall(60);
+via ForeignBinding::Syscall(60);
 "#;
     let absent = project(source);
     let explicit = project(&source.replace("perform()", "perform() -> Unit"));
@@ -156,7 +156,7 @@ pub boundary trait LifetimeSlot<'scope> { machine perform(value: u64) -> u64; }
 pub data Provider {}
 pub machine Provider::perform<'left, 'right>(value: u64) -> u64
 satisfies LifetimeSlot<'left>::perform
-via Binding::Syscall(60);
+via ForeignBinding::Syscall(60);
 "#;
     let first = project(source);
     let second = project(&source.replace("LifetimeSlot<'left>", "LifetimeSlot<'right>"));
@@ -198,7 +198,7 @@ pub boundary trait Host {
 pub data Provider {}
 pub machine Provider::perform<machine Work>()
 where machine Work();
-satisfies Host::perform via Binding::Syscall(60);
+satisfies Host::perform via ForeignBinding::Syscall(60);
 "#;
     let absent = project(source);
     let explicit = project(&source.replace("machine Work()", "machine Work() -> Unit"));

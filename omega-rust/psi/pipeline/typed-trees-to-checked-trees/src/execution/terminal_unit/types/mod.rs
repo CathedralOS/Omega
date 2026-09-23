@@ -2008,7 +2008,7 @@ impl<'program> ShapeCollector<'program> {
         })
     }
 
-    /// Admit the first parameter-only Fused Service carrier without widening
+    /// Admit the first parameter-only Fused Binding carrier without widening
     /// ordinary structural shape collection to boundary-opaque data. The
     /// inserted empty record is a compiler-owned erased ABI shape; the exact
     /// typed carrier and selection authority remain in the adjacent receipt.
@@ -2144,7 +2144,7 @@ impl<'program> ShapeCollector<'program> {
 }
 
 /// A provider-backed field's erasure receipt (when the carrier is an exact
-/// `Service<R>` requirement) plus the type node whose identity names the
+/// `Binding<R>` requirement) plus the type node whose identity names the
 /// provider — the carrier itself for a fused service, the unwrapped
 /// boundary-trait referent for a `&'a mut <boundary trait>` field.
 fn provider_backed_field(
@@ -2157,7 +2157,7 @@ fn provider_backed_field(
     if let Some(requirement) =
         typed_trees::service::exact_bound_service_requirement(program, type_reference)
     {
-        // A `Service<boundary>` field with no settled provider selection still
+        // A `Binding<boundary>` field with no settled provider selection still
         // carries a provider handle: mint the unerased ProviderBacked shape so
         // the record keeps its plan. Establishment — not shape collection —
         // owns rejecting the missing selection, which lets the review's

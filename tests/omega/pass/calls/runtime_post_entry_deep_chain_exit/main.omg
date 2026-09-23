@@ -7,7 +7,7 @@
 // Expected exit: 30
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::proc(&self, n: i32 [0..=1000]) -> i32 {
     transition n > 0 {
         true -> work(n)

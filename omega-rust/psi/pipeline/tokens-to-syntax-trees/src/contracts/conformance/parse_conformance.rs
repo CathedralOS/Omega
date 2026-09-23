@@ -58,7 +58,7 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
             let next = rest.take_contextual("via")?;
             let is_bootstrap_binding = next
                 .take_identifier()
-                .is_ok_and(|(root, _)| root.as_str() == "Binding");
+                .is_ok_and(|(root, _)| root.as_str() == "ForeignBinding");
             if is_bootstrap_binding {
                 let (binding, next) =
                     super::external_binding::parse_external_provider_binding(next)?;

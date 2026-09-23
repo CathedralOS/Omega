@@ -5,7 +5,7 @@
 // (k = 3 -> 8). Twin of fail/arithmetic/shift_count_unproven_rejected.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; k: u32 [0..=7]; n: u32; }
+data Main { console: Binding<Console>; k: u32 [0..=7]; n: u32; }
 machine Main::main(&mut self) reaches Console {
     self.k = 3;
     self.n = 1 << self.k;

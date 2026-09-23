@@ -337,7 +337,7 @@ fn other_external_mechanisms_signatures_and_names_do_not_rejoin_as_intrinsic_bou
         data ConsoleNativeProvider {}
         machine ConsoleNativeProvider::write_byte(byte: i64)
             satisfies Console::write_byte
-            via Binding::CompilerIntrinsic;
+            via ForeignBinding::CompilerIntrinsic;
         data Root {}
         machine Root::enter() reaches Console {
             ConsoleNativeProvider::write_byte(37);
@@ -610,7 +610,7 @@ fn retains_provider_attached_boundary_scalar_result_and_exact_requirements() {
             reaches Console;
         }
 
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
 
         machine Main::main(&mut self)
         reaches Console

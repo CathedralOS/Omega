@@ -6,7 +6,7 @@ use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     x: i32 [0 - 1..=40];
 }
 

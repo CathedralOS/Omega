@@ -38,8 +38,8 @@ data Particle {
 }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     ps: [Particle; 4] in Wrapping;
     grid: [i32; 200] in Wrapping; // 20 x 10
     line: [u8; 20] in Utf8;

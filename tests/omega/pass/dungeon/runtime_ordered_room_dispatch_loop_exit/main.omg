@@ -65,7 +65,7 @@ machine Dungeon::enter_room(
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     dungeon: Dungeon;
     parser: CommandParser;
     view: GameView;

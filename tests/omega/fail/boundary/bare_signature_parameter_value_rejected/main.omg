@@ -1,5 +1,5 @@
 // A trait signature parameter spelling a bare boundary trait is a value
-// position; only `Service<R>` carries a service.
+// position; only `Binding<R>` carries a service.
 boundary trait Console {
     machine write_line(text: &[u8]);
 }

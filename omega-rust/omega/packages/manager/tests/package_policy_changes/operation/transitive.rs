@@ -21,9 +21,9 @@ pub(super) fn source_chain(tree: &Tree, leaf_name: &str, leaf_source: &str) {
 
 const LEAF: &str = r#"use omega::language::core::service;
 pub boundary trait Folder { machine touch() reaches Folder; }
-pub data FolderHandle { folder: Service<Folder>; }
+pub data FolderHandle { folder: Binding<Folder>; }
 pub boundary trait RootDir { machine open() -> FolderHandle reaches RootDir; }
-pub data Vault { root: Service<RootDir>; }
+pub data Vault { root: Binding<RootDir>; }
 machine Vault::open_folder(&self) -> FolderHandle reaches RootDir { self.root.open() }
 machine Vault::keep(&self) { _ = self.open_folder(); }
 pub machine Vault::work(&self)

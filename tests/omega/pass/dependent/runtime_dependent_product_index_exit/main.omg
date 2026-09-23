@@ -18,7 +18,7 @@ where
     rows <= 2,
     cols <= 3,
 {
-    console: Service<Console>;
+    console: Binding<Console>;
     pixels: [u8; 12];
     rows: u32;
     cols: u32;

@@ -9,7 +9,7 @@ data Light [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     light: Light;
     number: i32 in Wrapping;
 }

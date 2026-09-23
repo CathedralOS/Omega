@@ -5,7 +5,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 
-data Main { console: Service<Console>; xs: [i32; 4]; }
+data Main { console: Binding<Console>; xs: [i32; 4]; }
 
 machine Main::main(&mut self) {
     self.xs = [1, 2, 3]; // 3 elements into [i32; 4] -- element [3] left uninitialized, must be rejected

@@ -15,8 +15,8 @@ pub boundary trait Gui {
     machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [u32; 64], info: [u32; 11]) -> u32;
 }
 data Main {
-    console: Service<Console>;
-    gui: Service<Gui>;
+    console: Binding<Console>;
+    gui: Binding<Gui>;
     cls: [u8; 7];
     title: [u8; 6];
     pixels: [u32; 64];

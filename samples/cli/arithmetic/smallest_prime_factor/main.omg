@@ -21,7 +21,7 @@ data Trial [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     trial: Trial;
     pause: [u8; 256];
 }

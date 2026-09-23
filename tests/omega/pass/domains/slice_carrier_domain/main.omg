@@ -12,7 +12,7 @@ domain [u8]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::take_slice(&self, text: &[u8] in Utf8) {

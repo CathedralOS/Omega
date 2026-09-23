@@ -7,7 +7,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Summer {}
-data Main { console: Service<Console>; arr: [i32; 4]; summer: Summer; }
+data Main { console: Binding<Console>; arr: [i32; 4]; summer: Summer; }
 machine Summer::sum(&mut self, s: &[i32], acc: i32 in Wrapping) -> i32 in Wrapping
 terminates by s -> Slice::Length;
 {

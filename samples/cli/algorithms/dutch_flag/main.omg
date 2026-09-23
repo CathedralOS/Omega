@@ -37,7 +37,7 @@ data Color [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     items: [Color; 3];
     r: u64 [0..=3];   // red prefix end: items[0..r] are Red
     w: u64 [0..=3];   // white cursor: items[r..w] are White

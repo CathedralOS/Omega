@@ -15,7 +15,7 @@ data Small {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     s: Small;
     big: i64 in Wrapping;
 }

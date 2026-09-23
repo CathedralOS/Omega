@@ -17,7 +17,7 @@ data Card {
 
 measure Card::PowerOrder(power: u64) -> u64 { power }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self) reaches Console {
     let value: u64 = self.weaken(Card { power: 3 });

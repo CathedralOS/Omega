@@ -18,10 +18,10 @@ pub boundary operator F64::negate(value: f64) -> f64;
 pub data FloatProvider {}
 pub machine FloatProvider::negate_f32(value: f32) -> f32
     satisfies F32::negate
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 pub machine FloatProvider::negate_f64(value: f64) -> f64
     satisfies F64::negate
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
 machine exercise() {
     let negative32: f32 = F32::negate(1.0f32);
@@ -148,7 +148,7 @@ pub boundary operator F32::negate(value: f32) -> f32;
 pub data FloatProvider {}
 pub machine FloatProvider::negate(value: f32) -> f32
     satisfies F32::negate
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 machine exercise(value: f32) -> f32 { F32::negate(value) }
 "#,
     );
@@ -199,7 +199,7 @@ pub boundary operator F32::from_f64(value: f64) -> f32;
 pub data FloatProvider {}
 pub machine FloatProvider::from_f64(value: f64) -> f32
     satisfies F32::from_f64
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
     );
     package.write(
@@ -286,7 +286,7 @@ fn review_closes_primitive_float_binary_execution_by_operation_and_format() {
                 "pub boundary operator {spelling} Float::{name}(left: {primitive}, right: {primitive}) -> {result};\n\
                  pub machine FloatProvider::{name}_{primitive}(left: {primitive}, right: {primitive}) -> {result}\n\
                      satisfies Float::{name}\n\
-                     via Binding::CompilerIntrinsic;\n",
+                     via ForeignBinding::CompilerIntrinsic;\n",
             ));
         }
     }
@@ -411,7 +411,7 @@ fn primitive_float_binary_intrinsics_require_the_exact_token_and_shape() {
         package.write(
             "main.omg",
             &format!(
-                "pub data Float {{}}\npub data FloatProvider {{}}\n{operator}\n{machine}\n    satisfies Float::{}\n    via Binding::CompilerIntrinsic;\n",
+                "pub data Float {{}}\npub data FloatProvider {{}}\n{operator}\n{machine}\n    satisfies Float::{}\n    via ForeignBinding::CompilerIntrinsic;\n",
                 if label == "comparison-float-result" {
                     "equal"
                 } else {
@@ -455,7 +455,7 @@ pub boundary operator F32::negate(value: f32) -> f32;
 pub data FloatProvider {}
 pub machine FloatProvider::negate_f32(value: f32) -> f32
     satisfies F32::negate
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
 machine exercise() {
     let negative32: f32 = F32::negate(1.0f32);

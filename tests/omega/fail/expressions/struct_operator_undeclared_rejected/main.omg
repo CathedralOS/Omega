@@ -6,5 +6,5 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data P { x: i32; }
-data Main { console: Service<Console>; a: P; b: P; }
+data Main { console: Binding<Console>; a: P; b: P; }
 machine Main::main(&mut self) { let c: P = self.a + self.b; self.console.exit_process(0); }

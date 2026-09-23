@@ -1,4 +1,4 @@
-// The intrinsic `Service<R>` carrier is the only service value spelling
+// The intrinsic `Binding<R>` carrier is the only service value spelling
 // (32f5182): a bare boundary trait in a data field rejects during source
 // checking rather than waiting for bridge planning.
 boundary trait Console {

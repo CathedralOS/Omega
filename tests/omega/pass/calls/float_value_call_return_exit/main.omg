@@ -13,7 +13,7 @@ use omega::language::core::service;
 machine passthru(x: f64) -> f64 {
     transition { _ -> (x) }
 }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let out: f64 = passthru(3.5);
     transition out == 3.5 { true -> good() _ -> bad() }

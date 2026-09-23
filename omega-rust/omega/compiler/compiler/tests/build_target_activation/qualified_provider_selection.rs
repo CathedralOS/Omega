@@ -275,7 +275,7 @@ use omega::language::core::service;
 pub boundary trait Reader {{ machine read() -> i32; }}
 pub data Provider {{}}
 machine Provider::read() -> i32 satisfies Reader::read {{ {result} }}
-pub data Runner {{ reader: Service<Reader>; }}
+pub data Runner {{ reader: Binding<Reader>; }}
 pub machine Runner::run(&mut self) reaches Reader invokes Reader; crashes Trap {{
     let value: i32 = self.reader.read();
     transition value == {result} {{ true -> done() _ -> wrong() }}
@@ -364,7 +364,7 @@ fn run_module_providers(explicit_selection: bool) {
 use {requirement_module}::Reader;
 use omega_language_std::console;
 use omega::language::core::service;
-data Main {{ reader: Service<Reader>; }}
+data Main {{ reader: Binding<Reader>; }}
 machine Main::run(&mut self) reaches Reader, Console invokes Reader; {{
     block self.reader.check();
 }}
@@ -501,9 +501,9 @@ fn module_qualified_synchronous_cycles_still_reject() {
 use omega::language::core::service;
 pub boundary trait Alpha {{ machine alpha(&mut self) reaches Alpha, Beta invokes Beta; }}
 pub boundary trait Beta {{ machine beta(&mut self) reaches Alpha, Beta invokes Alpha; }}
-data AlphaProvider {{ beta: Service<Beta>; }}
+data AlphaProvider {{ beta: Binding<Beta>; }}
 machine AlphaProvider::alpha_checked(&mut self) satisfies Alpha::alpha reaches Alpha, Beta {{ self.beta.beta(); }}
-data BetaProvider {{ alpha: Service<Alpha>; }}
+data BetaProvider {{ alpha: Binding<Alpha>; }}
 machine BetaProvider::beta_checked(&mut self) satisfies Beta::beta reaches Alpha, Beta {{ {body} }}
 "#
             ),

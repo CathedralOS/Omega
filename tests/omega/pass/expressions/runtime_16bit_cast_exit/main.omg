@@ -18,7 +18,7 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     u16val: u16 in Wrapping;
     i16val: i16 in Wrapping;
     i32val: i32 in Wrapping;

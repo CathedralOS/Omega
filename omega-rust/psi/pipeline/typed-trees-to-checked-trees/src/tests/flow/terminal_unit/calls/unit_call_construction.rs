@@ -16,7 +16,7 @@ fn provider_attachment_retains_ordinary_state_local_construction() {
         data Region { value: u64; }
         machine Region::new(value: u64) -> Region { Region { value: value } }
         machine Region::get(&self) -> u64 { self.value }
-        data Main { output: Service<Output>; }
+        data Main { output: Binding<Output>; }
         machine Main::main(&mut self, input: u64) reaches Output {
             let region: Region = Region::new(input);
             let observed: u64 = region.get();
@@ -77,7 +77,7 @@ fn provider_control_retains_copy_case_constructor_call_closure() {
                 MemoryAlignment::Alignment8 -> (8)
             }
         }
-        data Main { output: Service<Output>; }
+        data Main { output: Binding<Output>; }
         machine Main::main(&mut self) reaches Output {
             let default_alignment: MemoryAlignment = MemoryAlignment::default();
             let fallback_alignment: MemoryAlignment = MemoryAlignment::from(3);
@@ -560,7 +560,7 @@ fn retains_owned_structural_result_for_attached_bodyless_boundary() {
             machine read_byte() -> ByteRead reaches Console;
         }
 
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
         }
@@ -637,7 +637,7 @@ fn retains_closed_sum_inspection_after_structural_boundary_result() {
             machine exit_process(return_code: i32) reaches Console;
         }
 
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {
@@ -826,7 +826,7 @@ fn retains_arm_local_boundary_result_discard_on_each_closed_sum_return() {
             machine read_byte() -> ByteRead reaches Console;
             machine write_byte(value: i32) reaches Console;
         }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             let first: ByteRead = self.console.read_byte();
             transition first {
@@ -893,7 +893,7 @@ fn specializes_one_provider_backed_attachment_field_into_exact_boundary_requirem
             reaches Console;
         }
 
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self)
         reaches Console
         {
@@ -977,7 +977,7 @@ fn composes_closed_guard_with_one_provider_backed_attachment() {
             reaches Console;
         }
         const PAGE_SIZE: u32 = 64;
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self)
         reaches Console
         {
@@ -1173,7 +1173,7 @@ fn provider_attachment_specialization_routes_by_receiver_field_name() {
     let checked = checked_with_service(
         r#"
         pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
-        data Main { console: Service<Console>; backup: Service<Console>; }
+        data Main { console: Binding<Console>; backup: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             self.backup.exit_process(0);
         }
@@ -1197,7 +1197,7 @@ fn provider_attachment_specialization_rejects_unrouted_fields() {
         // A direct boundary call names no `self.<field>` provider receiver.
         r#"
         pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             Console::exit_process(0);
         }
@@ -1221,7 +1221,7 @@ fn unused_provider_attachment_has_an_empty_requirement_set() {
     let checked = checked_with_service(
         r#"
         pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) {}
     "#,
     );

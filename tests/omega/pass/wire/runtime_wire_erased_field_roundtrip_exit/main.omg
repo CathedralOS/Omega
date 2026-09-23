@@ -12,7 +12,7 @@ data CertifiedMessage {
 
 data WireVerdict { case Invalid; case Sound; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buffer: [u8; 32];
     written: u64;
     read: u64;

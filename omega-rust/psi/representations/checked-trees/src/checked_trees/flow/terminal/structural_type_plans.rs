@@ -125,7 +125,7 @@ pub enum CheckedUnitStructuralFieldType {
     ProviderBacked {
         provider_type_identity: String,
     },
-    /// An exact `Service<R> in Bound` carrier authorized for erasure by the
+    /// An exact `Binding<R> in Bound` carrier authorized for erasure by the
     /// matching Fused selected-provider plan. Keeping this separate from the
     /// transitional bare-trait form makes receipt removal a rejecting
     /// corruption rather than a downgrade to legacy behavior.
@@ -148,7 +148,7 @@ pub struct CheckedFusedServiceErasureReceipt {
 }
 
 /// Exact compiler-owned authority for erasing one direct, owned
-/// `Service<R> in Bound` state parameter in a Fused build. The typed symbol
+/// `Binding<R> in Bound` state parameter in a Fused build. The typed symbol
 /// and normalized full carrier identity survive independently of the
 /// structural parameter's dense position and erased base shape so a removed,
 /// moved, or fabricated receipt rejects at the checked-to-Terminal boundary.
@@ -210,7 +210,7 @@ pub struct CheckedUnitStructuralParameterPlan {
     pub qualifications: Vec<SemanticDomainId>,
     pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
     /// Present only for the first direct, owned affine
-    /// `Service<R> in Bound` parameter rung. `None` on a typed Service
+    /// `Binding<R> in Bound` parameter rung. `None` on a typed Service
     /// parameter is a rejecting custody downgrade, never legacy behavior.
     pub fused_service_erasure: Option<CheckedFusedServiceParameterReceipt>,
 }

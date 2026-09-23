@@ -12,7 +12,7 @@ where
     len: u32;
     count: u32;
 }
-data Main { console: Service<Console>; tally: Tally; }
+data Main { console: Binding<Console>; tally: Tally; }
 machine Main::main(&mut self) {
     self.tally.len = 3;
     transition {

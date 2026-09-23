@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // negative process exit code.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: f64; b: f64; ra: i32; rb: i32; }
+data Main { console: Binding<Console>; a: f64; b: f64; ra: i32; rb: i32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 0.0 - 3.7;
     self.b = 0.0 - 100.0;

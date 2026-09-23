@@ -28,7 +28,7 @@ impl Drop for HostedProject {
 }
 
 /// Compile one authored Linux ARM64 receiver application. `bound_service`
-/// selects between `Service<Console>` and a bare interface field that must
+/// selects between `Binding<Console>` and a bare interface field that must
 /// fail closed; `explicit_exit` routes normal completion through
 /// `exit_process(37)` so the provider's own status survives the bridge.
 fn compile_and_run_linux_arm64_hosted_receiver(explicit_exit: bool, bound_service: bool) {
@@ -58,7 +58,7 @@ fn compile_and_run_linux_arm64_hosted_receiver(explicit_exit: bool, bound_servic
         ""
     };
     let console_type = if bound_service {
-        "Service<Console>"
+        "Binding<Console>"
     } else {
         "Console"
     };
@@ -110,7 +110,7 @@ machine Main::main(&mut self) reaches Console {{
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
-                .contains("the intrinsic `Service<R>` carrier is the only service value spelling")),
+                .contains("the intrinsic `Binding<R>` carrier is the only service value spelling")),
             "unexpected bare-carrier rejection: {diagnostics:#?}"
         );
         return;

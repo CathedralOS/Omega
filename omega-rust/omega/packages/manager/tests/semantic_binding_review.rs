@@ -226,7 +226,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     satisfies Console::exit_process;
 windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 "#,
     );
     write_file(
@@ -248,14 +248,14 @@ machine build(builder: &mut Build) {
         r#"use ordinary_console::main;
 use omega::language::core::service;
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {
     self.console.exit_process(70);
 }
 
-pub machine terminate(console: Service<Console>, return_code: i32)
+pub machine terminate(console: Binding<Console>, return_code: i32)
 reaches Console
 invokes console;
 {

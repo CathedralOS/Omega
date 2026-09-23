@@ -2,7 +2,7 @@
 // literal caller does not establish the private body's input contract.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::countdown(&mut self, n: u64) -> u64
 terminates by n in 0..=100;
 {

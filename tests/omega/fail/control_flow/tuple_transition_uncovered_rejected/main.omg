@@ -3,7 +3,7 @@
 // exhaustiveness rewrite only fires for covering matrices.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; out: i32; }
+data Main { console: Binding<Console>; out: i32; }
 machine Main::main(&mut self) {
     let found: bool = true;
     let has_next: bool = false;

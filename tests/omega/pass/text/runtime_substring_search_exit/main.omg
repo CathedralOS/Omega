@@ -23,7 +23,7 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     hay: [u8; 16] in Utf8;
     ndl: [u8; 8] in Utf8;
     lim: i32 in Wrapping; // last start position to try = hay.len - ndl.len

@@ -4,7 +4,7 @@
 // flow-integration rung lands.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 domain i64::Km
 requires

@@ -15,7 +15,7 @@ data Opt {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     vals: [i32; 3] in Wrapping;
     i: i32 in Wrapping;
     x: i32 in Wrapping;

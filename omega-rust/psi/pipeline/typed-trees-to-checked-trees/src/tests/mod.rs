@@ -26,7 +26,7 @@ fn mutable_borrow(target: Expression) -> Expression {
 /// Bind one fused-service erasure authorization per declared boundary trait —
 /// the settled-state input `build_evaluation::settle_checked_providers`
 /// produces on the typed trees before checking when a Fused provider is
-/// selected. Unit-plan fixtures that hold `Service<R>` carriers need this:
+/// selected. Unit-plan fixtures that hold `Binding<R>` carriers need this:
 /// without an authorization the carrier field stays unshaped and the machine
 /// fails closed. The digest is a stand-in; nothing in these harnesses compares
 /// it against a realized plan.

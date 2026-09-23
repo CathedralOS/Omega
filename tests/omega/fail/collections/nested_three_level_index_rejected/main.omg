@@ -8,7 +8,7 @@
 // in lockstep, then flip this canary's spelling into the pass canary.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; vox: [u8; 24]; x: u32 [0..=3]; y: u32 [0..=2]; z: u32 [0..=1]; out: i32; }
+data Main { console: Binding<Console>; vox: [u8; 24]; x: u32 [0..=3]; y: u32 [0..=2]; z: u32 [0..=1]; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.x = 3; self.y = 2; self.z = 1;
     self.out = self.vox[self.z * 12 + self.y * 4 + self.x] as i32;

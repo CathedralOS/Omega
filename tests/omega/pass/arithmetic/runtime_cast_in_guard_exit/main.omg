@@ -9,7 +9,7 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     big: i32 in Wrapping;
     i: i32 in Wrapping;
     neg: i32 in Wrapping;

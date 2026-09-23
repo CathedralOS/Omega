@@ -5,7 +5,7 @@ use omega_language_std::filesystem_host;
 use omega::language::core::service;
 
 data Main {
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     mode: i32;
     new_len: i64;
     zero_off: i64;

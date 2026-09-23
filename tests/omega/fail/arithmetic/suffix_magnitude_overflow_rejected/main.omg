@@ -4,7 +4,7 @@
 // anonymous values: suffixes read VALUES, not bit patterns).
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let a: i8 = 200i8;
     transition a == 100 { true -> done() _ -> done() }

@@ -8,7 +8,7 @@ data CounterMessage {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     slot: i64 in OmegaLayout<CounterMessage>;
 }
 

@@ -14,7 +14,7 @@ domain [u8]::NonEmpty
 requires
     non_empty(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     f: &[u8] in NonEmpty;
 }
 

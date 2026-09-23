@@ -6,9 +6,9 @@ use super::{
 
 fn mixed_provider_fixture(parameter: bool) -> (CheckedTrees, Vec<ProviderPlan>) {
     let receiver_source = if parameter {
-        "machine emit(service: Service<Output>) reaches Output { service.emit(7); }"
+        "machine emit(service: Binding<Output>) reaches Output { service.emit(7); }"
     } else {
-        "data Client { service: Service<Output>; }
+        "data Client { service: Binding<Output>; }
          machine Client::emit(&mut self) reaches Output { self.service.emit(7); }"
     };
     let source = format!(
@@ -16,11 +16,11 @@ fn mixed_provider_fixture(parameter: bool) -> (CheckedTrees, Vec<ProviderPlan>) 
         pub boundary trait Output {{ machine emit(value: i32); }}
         data OutputProvider {{}}
         machine OutputProvider::emit(value: i32) satisfies Output::emit
-            via Binding::CompilerIntrinsic;
+            via ForeignBinding::CompilerIntrinsic;
         pub boundary trait Echo {{ machine echo(value: i32) -> i32; }}
         data EchoProvider {{}}
         machine EchoProvider::echo(value: i32) -> i32 satisfies Echo::echo {{ value }}
-        data EchoClient {{ service: Service<Echo>; }}
+        data EchoClient {{ service: Binding<Echo>; }}
         machine EchoClient::run(&mut self) -> i32 reaches Echo {{ self.service.echo(35) }}
         {receiver_source}
         "#

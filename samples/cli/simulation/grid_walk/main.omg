@@ -24,7 +24,7 @@ data Vec2 [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     px: i32 in Saturating;
     py: i32 in Saturating;
     pause: [u8; 256];

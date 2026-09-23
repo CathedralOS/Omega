@@ -69,7 +69,7 @@ pub data Provider {
 
 machine Provider::first()
 satisfies Pair::first
-via Binding::VtableField(first);
+via ForeignBinding::VtableField(first);
 "#,
     )
     .expect("write provider package source");

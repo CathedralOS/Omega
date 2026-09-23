@@ -37,7 +37,7 @@ machine make_samples() -> Samples {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bytes: [u8; 20];
     row: u64;
     column: u64;

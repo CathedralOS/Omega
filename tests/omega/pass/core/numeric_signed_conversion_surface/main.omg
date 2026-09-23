@@ -3,7 +3,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     exact: i8;
     wrapping: i8;
     saturated_low: i8;

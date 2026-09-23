@@ -2,7 +2,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 const helper: u32 = 7;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine helper() -> u32 {
     transition { _ -> (7) }
 }

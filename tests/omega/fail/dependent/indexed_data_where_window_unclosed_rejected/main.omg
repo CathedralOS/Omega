@@ -9,7 +9,7 @@ where
     start: i32;
     end: i32;
 }
-data Main { console: Service<Console>; maps: [Map; 2]; }
+data Main { console: Binding<Console>; maps: [Map; 2]; }
 machine Main::main(&mut self) {
     self.maps[0].start = 10;
     self.console.exit_process(70);

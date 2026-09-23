@@ -21,7 +21,7 @@ data Fib [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     fib: Fib;
     fa: f64;
     fb: f64;

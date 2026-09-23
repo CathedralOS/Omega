@@ -7,7 +7,7 @@ use omega::language::core::service;
 machine write_build_log(builder: &mut Build)
 reaches Console
 {
-    let mut console: Service<Console>;
+    let mut console: Binding<Console>;
     console.write_line("ordinary runtime boundary");
 }
 

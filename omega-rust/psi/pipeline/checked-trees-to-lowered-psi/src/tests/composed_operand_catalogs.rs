@@ -173,7 +173,7 @@ const DYNAMIC_CONTINUATION_SOURCE: &str = r#"
         Primary: Item satisfies Measure {
             machine measure(&self) -> i32 { transition { _ -> self.value } }
         }
-        data Main { console: Service<Console>; selected: Item; }
+        data Main { console: Binding<Console>; selected: Item; }
         machine Main::main(&mut self) reaches Console {
             let erased: &dyn Measure = &self.selected as &dyn Item::Primary;
             let result: i32 = forward(erased);
@@ -298,7 +298,7 @@ fn closed_sum_computed_operand_keeps_payload_for_the_following_call() {
             machine write_byte(value: i32) reaches Console;
             machine exit_process(value: i32) reaches Console;
         }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {
@@ -384,7 +384,7 @@ const CLOSED_SUM_UNIT_SOURCE: &str = r#"
         machine consume(value: i32) reaches Console {
             Console::write_byte(value);
         }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             let result: ByteRead = self.console.read_byte();
             transition result {
@@ -697,7 +697,7 @@ fn closed_sum_unused_payload_keeps_source_disposal_and_marker_checks() {
             machine read_byte() -> ByteRead reaches Console;
             machine exit_process(value: i32) reaches Console;
         }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             let observed: ByteRead = self.console.read_byte();
             transition observed {

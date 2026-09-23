@@ -4,5 +4,5 @@
 // It is now rejected as a cross-class store, like `let x: bool = 5`.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let b: bool = true; let x: bool = b + b; let r: i32 = x as i32; self.console.exit_process(r); }

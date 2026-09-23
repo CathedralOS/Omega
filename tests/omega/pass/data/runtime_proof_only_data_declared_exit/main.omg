@@ -12,7 +12,7 @@ use omega::language::core::service;
 data Nat { case Zero; case Succ(prev: Nat); }
 data Tree { case Leaf; case Node(forest: Forest); }
 data Forest { case Empty; case Grow(tree: Tree, rest: Forest); }
-data Main { console: Service<Console>; out: i32; }
+data Main { console: Binding<Console>; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.out = 70;
     self.console.exit_process(self.out);

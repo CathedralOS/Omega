@@ -248,7 +248,7 @@ fn composes_a_provider_boundary_prefix_with_implicit_self_edges() {
             machine tick() reaches Console;
             machine exit(code: i32) reaches Console;
         }
-        data Main { console: Service<Console>; }
+        data Main { console: Binding<Console>; }
         machine Main::main(&mut self, first: bool, second: bool) reaches Console {
             self.console.tick();
             transition first { true -> dispatch(second) _ -> no() }

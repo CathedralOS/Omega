@@ -17,7 +17,7 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 
 /// The toolchain core service declaration, resident so fixture sources can
-/// spell `Service<R>` against the real core declaration. These bare pipelines
+/// spell `Binding<R>` against the real core declaration. These bare pipelines
 /// build a `SourceMap` with no package scope, so `use
 /// omega::language::core::service` cannot resolve; installing the source with
 /// `SourceOrigin::Toolchain` gives the typed-trees service classifier the exact
@@ -28,7 +28,7 @@ const CORE_SERVICE_OMG: &str = include_str!(concat!(
 ));
 
 /// Type `source` with the core `Service` declaration resident as a Toolchain
-/// source. Fixtures spelling `Service<R>` carriers must declare the closed-over
+/// source. Fixtures spelling `Binding<R>` carriers must declare the closed-over
 /// requirement trait `pub`.
 fn typed_with_core_service(name: &str, source: &str) -> TypedTrees {
     let mut sources = source::SourceMap::default();
@@ -86,7 +86,7 @@ fn selected_every_plan(plans: &[ProviderPlan]) -> effects::SelectedProviderPlanF
 /// Bind the fused-service erasure each selected boundary plan authorizes, the
 /// way settled orchestration does before checking: one authorization per
 /// selected boundary plan carrying that plan's identity digest. A fixture's
-/// `Service<R>` fields and routed `Service<R>` parameters join adapters through
+/// `Binding<R>` fields and routed `Binding<R>` parameters join adapters through
 /// this digest, so plans must be selected first.
 fn bind_fixture_fused_service_erasures(
     typed: &mut TypedTrees,
@@ -155,19 +155,19 @@ const SOURCE: &str = r#"
         transition { _ -> (value) }
     }
 
-    data EchoClient { service: Service<Echo>; }
+    data EchoClient { service: Binding<Echo>; }
     machine EchoClient::run(&mut self) -> i32 reaches Echo {
         self.service.emit(1);
         transition { _ -> (self.service.echo(35)) }
     }
 
-    data OtherClient { service: Service<Other>; }
+    data OtherClient { service: Binding<Other>; }
     machine OtherClient::run(&mut self) -> i32 reaches Other {
         self.service.emit(2);
         transition { _ -> (self.service.echo(35)) }
     }
 
-    data ForwardClient { service: Service<Forward>; }
+    data ForwardClient { service: Binding<Forward>; }
     machine ForwardClient::run(&mut self) -> i32 reaches Forward {
         self.service.send(3);
         transition { _ -> (self.service.reflect(35)) }

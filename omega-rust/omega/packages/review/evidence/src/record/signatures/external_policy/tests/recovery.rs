@@ -141,7 +141,7 @@ fn trait_and_operator_requirement_coordinates_survive_recovery() {
     policy.signature.lifetime_parameter_count = 2;
     policy.requirement =
         PackagePolicyExternalRequirement::Trait(PackagePolicyCallableConformance {
-            trait_identity: nominal("Service"),
+            trait_identity: nominal("Binding"),
             requirement_identity: nominal("Service::invoke"),
             requirement_lifetime_partition: vec![0, 1, 0],
             trait_lifetime_arguments: vec![1, 0, 1],
@@ -272,7 +272,7 @@ fn structural_contract(depth: usize) -> PackagePolicyMachineParameterContract {
             )),
         }],
         published_crash: Vec::new(),
-        service_reach: vec![nominal("Service")],
+        service_reach: vec![nominal("Binding")],
         service_reach_is_installation_bound: true,
         synchronous_invocations: Vec::new(),
         suspends: false,

@@ -39,7 +39,7 @@ data Watch [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     watch: Watch;
     pause: [u8; 256];
 }

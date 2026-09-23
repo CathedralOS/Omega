@@ -67,7 +67,7 @@ fn compile_and_run_hosted_receiver(
         ""
     };
     let console_type = if bound_service {
-        "Service<Console>"
+        "Binding<Console>"
     } else {
         "Console"
     };
@@ -210,7 +210,7 @@ machine Main::main(&mut self) reaches Console {{
         assert!(
             diagnostics.iter().any(|diagnostic| diagnostic
                 .message
-                .contains("the intrinsic `Service<R>` carrier is the only service value spelling")),
+                .contains("the intrinsic `Binding<R>` carrier is the only service value spelling")),
             "unexpected bare-carrier rejection: {diagnostics:#?}"
         );
         return;
@@ -437,7 +437,7 @@ machine build(builder: &mut Build) {{
             ""
         };
         let service_field = if bound_service {
-            "console: Service<Console>;"
+            "console: Binding<Console>;"
         } else {
             ""
         };

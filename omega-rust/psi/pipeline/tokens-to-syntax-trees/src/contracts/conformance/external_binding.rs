@@ -12,10 +12,10 @@ pub(crate) fn parse_external_provider_binding<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ExternalBinding> {
     let start = input;
     let (root, input) = input.take_identifier()?;
-    if root.as_str() != "Binding" {
+    if root.as_str() != "ForeignBinding" {
         return Err(start.error_here(
-            "an external realization must construct the compiler-known Binding sum; \
-             write `via Binding::Syscall(n)` or another qualified `Binding::Case`",
+            "an external realization must construct the compiler-known ForeignBinding sum; \
+             write `via ForeignBinding::Syscall(n)` or another qualified `ForeignBinding::Case`",
         ));
     }
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
@@ -34,18 +34,18 @@ fn parse_provider_binding_case<'tokens, 'source>(
             Ok((ExternalBinding::Syscall { number }, input))
         }
         "VtableSlot" => Err(input.error_here(
-            "`Binding::VtableSlot` is retired; declare the foreign table layout and use \
-                 `Binding::VtableField(field)`",
+            "`ForeignBinding::VtableSlot` is retired; declare the foreign table layout and use \
+                 `ForeignBinding::VtableField(field)`",
         )),
-        // The string-backed `Binding::DllImport("module", "symbol")` bootstrap
+        // The string-backed `ForeignBinding::DllImport("module", "symbol")` bootstrap
         // is retired: raw foreign bytes never again become binding authority
         // through an authored magic spelling. Durable source evaluates the
-        // compiler-owned `Binding` data sum through an ordinary producer
+        // compiler-owned `ForeignBinding` data sum through an ordinary producer
         // machine, so `via` remains one exact machine call whose result is a
         // typed locator value.
         "DllImport" => Err(input.error_here(
-            "`Binding::DllImport(\"module\", \"symbol\")` is retired; return the \
-             compiler-owned `Binding::DllImport { import: DllImport::Case { .. } }` \
+            "`ForeignBinding::DllImport(\"module\", \"symbol\")` is retired; return the \
+             compiler-owned `ForeignBinding::DllImport { import: DllImport::Case { .. } }` \
              value from one `via` producer machine instead",
         )),
         "CompilerIntrinsic" => Ok((ExternalBinding::CompilerIntrinsic, input)),
@@ -60,7 +60,7 @@ fn parse_provider_binding_case<'tokens, 'source>(
             Ok((ExternalBinding::TableFunction { field }, input))
         }
         // The qualified external-leaf spelling cannot use the legacy bare
-        // field shorthand because `Binding::field` would look like an open
+        // field shorthand because `ForeignBinding::field` would look like an open
         // sum. Keep the normalized binding case explicit.
         "VtableField" => {
             let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
@@ -69,11 +69,11 @@ fn parse_provider_binding_case<'tokens, 'source>(
             Ok((ExternalBinding::VtableField { field }, input))
         }
         other => Err(input.error_here(format!(
-            "unknown Binding case `{other}`: external leaves require one of \
-             `Binding::Syscall(n)`, \
-             `Binding::CompilerIntrinsic`, \
-             `Binding::VtableField(field)`, or `Binding::TableFunction(field)`; \
-             imports evaluate a `Binding::DllImport {{ .. }}` producer through `via`"
+            "unknown ForeignBinding case `{other}`: external leaves require one of \
+             `ForeignBinding::Syscall(n)`, \
+             `ForeignBinding::CompilerIntrinsic`, \
+             `ForeignBinding::VtableField(field)`, or `ForeignBinding::TableFunction(field)`; \
+             imports evaluate a `ForeignBinding::DllImport {{ .. }}` producer through `via`"
         ))),
     }
 }

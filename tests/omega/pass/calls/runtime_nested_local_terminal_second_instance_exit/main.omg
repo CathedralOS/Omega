@@ -22,7 +22,7 @@ machine Mid::run(&mut self) -> i32 in Wrapping {
     let total: i32 in Wrapping = self.t2.drain(3, 0);
     transition { _ -> (total) }
 }
-data Main { console: Service<Console>; mid1: Mid; mid2: Mid; }
+data Main { console: Binding<Console>; mid1: Mid; mid2: Mid; }
 machine Main::main(&mut self) reaches Console {
     self.mid1.t1.count = 1;
     self.mid1.t2.count = 2;

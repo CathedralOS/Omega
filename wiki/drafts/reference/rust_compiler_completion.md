@@ -130,7 +130,7 @@ it is not a pass.
   `const_fold_unsigned_shift_right_arg`, `runtime_bitwise_high_ops`
   (exit 71 where 70 expected).
 - Next acceptance: the dominant ProgramEntry-establishment family and the
-  `Service<R>` fixture drift in `coverage`; re-run both commands on a
+  carrier-spelling fixture drift in `coverage`; re-run both commands on a
   matching host after those legs land.
 
 ## Closure rule

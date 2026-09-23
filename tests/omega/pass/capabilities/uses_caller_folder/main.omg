@@ -16,13 +16,13 @@ pub boundary trait Folder {
 data Librarian {
 }
 
-machine Librarian::archive(&self, folder: Service<Folder>) reaches Folder {
+machine Librarian::archive(&self, folder: Binding<Folder>) reaches Folder {
     folder.write_line("archive entry");
 }
 
 data Main {
     librarian: Librarian;
-    folder: Service<Folder>;
+    folder: Binding<Folder>;
 }
 
 machine Main::main(&mut self) {

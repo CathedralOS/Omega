@@ -21,7 +21,7 @@ use omega::language::std::console;
 use omega::language::core::service;
 
 data Counter { n: i32 in Wrapping; }
-data Main { console: Service<Console>; c: Counter; }
+data Main { console: Binding<Console>; c: Counter; }
 
 machine Main::main(&mut self) {
     transition { _ -> handle(&self.c) } // &self.c (immutable) for a `&mut Counter` param

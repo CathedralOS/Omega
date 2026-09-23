@@ -857,7 +857,7 @@ machine build(builder: &mut Build) {{
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Main::main(&mut self) reaches Console {

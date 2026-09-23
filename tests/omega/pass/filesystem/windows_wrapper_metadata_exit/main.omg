@@ -18,7 +18,7 @@ use omega_language_std::filesystem;
 use omega_language_std::filesystem_host;
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; fs: Filesystem; unit_result: UnitResult; meta_result: MetadataResult; }
+data Main { console: Binding<Console>; fs: Filesystem; unit_result: UnitResult; meta_result: MetadataResult; }
 machine Main::main(&mut self) reaches Console {
     self.unit_result = self.fs.write_all("omega_winmeta_probe.txt", "hello!");
     transition self.unit_result { UnitResult::Ok -> statit() _ -> bad(71) }

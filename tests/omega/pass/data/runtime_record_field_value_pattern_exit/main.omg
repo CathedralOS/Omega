@@ -11,7 +11,7 @@ data Header [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     header: Header;
 }
 

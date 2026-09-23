@@ -30,7 +30,7 @@ Primary: Item satisfies Switch {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     decoy: Item;
     selected: Item;
 }

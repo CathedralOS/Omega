@@ -29,7 +29,7 @@ data Cell {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     grid: [Cell; 24];
     line: [u8; 6] in Utf8;
     r: u32 in Wrapping;   // current row

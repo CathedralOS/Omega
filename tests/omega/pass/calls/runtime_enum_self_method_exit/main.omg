@@ -28,7 +28,7 @@ machine Signal::is_green(&self) -> bool {
     state yes(&self) -> bool { true }
     state no(&self) -> bool { false }
 }
-data Main { console: Service<Console>; s: Signal; v1: i32; v2: i32; v3: i32; flag: bool; }
+data Main { console: Binding<Console>; s: Signal; v1: i32; v2: i32; v3: i32; flag: bool; }
 machine Main::main(&mut self) reaches Console {
     self.s = Signal::Green;
     self.v1 = self.s.go_value();

@@ -19,7 +19,7 @@ use omega_language_std::console;
 use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cells: [u8; 12];
     max_y: u32 [0..=2];
     max_x: u32 [0..=3];

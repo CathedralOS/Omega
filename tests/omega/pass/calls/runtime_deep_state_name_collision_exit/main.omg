@@ -20,7 +20,7 @@ machine Holder::deep(&mut self) -> i32 in Wrapping {
     }
     state done(&mut self, out: i32 in Wrapping) -> i32 in Wrapping { out }
 }
-data Main { console: Service<Console>; holder: Holder; got: i32 in Wrapping; }
+data Main { console: Binding<Console>; holder: Holder; got: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.got = self.holder.deep();
     transition self.got == 9 { true -> good() _ -> bad() }

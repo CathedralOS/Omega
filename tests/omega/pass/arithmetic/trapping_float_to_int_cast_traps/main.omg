@@ -13,7 +13,7 @@ use omega::language::core::float_operations;
 // before cvttsd2si can produce its ambiguous integer-indefinite result.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; f: f64; r: i32; }
+data Main { console: Binding<Console>; f: f64; r: i32; }
 machine Main::main(&mut self) reaches Console {
     self.f = 7.9;
     self.r = (self.f as i32 in Trapping) as i32;

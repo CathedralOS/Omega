@@ -307,12 +307,12 @@ impl EvaluatedForeignSyscall {
     ) -> Result<Self, String> {
         if !matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64) {
             return Err(format!(
-                "evaluated Binding::Syscall is not applicable to selected target `{}`",
+                "evaluated ForeignBinding::Syscall is not applicable to selected target `{}`",
                 target.target_name(),
             ));
         }
         let number = u32::try_from(number)
-            .map_err(|_| "evaluated Binding::Syscall number does not fit u32".to_owned())?;
+            .map_err(|_| "evaluated ForeignBinding::Syscall number does not fit u32".to_owned())?;
         let identity_digest = evaluated_syscall_identity_digest(target, number);
         if receipt.locator_identity_digest() != identity_digest {
             return Err(

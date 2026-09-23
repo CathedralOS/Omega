@@ -5,7 +5,7 @@
 // result-slot fence). id(30) + id(40) = 70. Differential (native must match the interpreter).
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
 machine Main::main(&mut self) reaches Console {
     let a: i32 in Wrapping = self.id(30);

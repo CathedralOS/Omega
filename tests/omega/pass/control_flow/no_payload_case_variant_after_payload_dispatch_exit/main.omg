@@ -20,7 +20,7 @@ data AlarmEvent {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     fire_count: i32 in Wrapping;
 }
 

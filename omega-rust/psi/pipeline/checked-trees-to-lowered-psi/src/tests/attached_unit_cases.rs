@@ -633,7 +633,7 @@ fn attached_unit_borrowed_self_roots_an_ordinary_field_argument_beside_provider_
             reaches Console;
         }
 
-        data Main { console: Service<Console>; pause: [u8; 16] in Utf8; }
+        data Main { console: Binding<Console>; pause: [u8; 16] in Utf8; }
         machine Main::main(&mut self)
         reaches Console
         {

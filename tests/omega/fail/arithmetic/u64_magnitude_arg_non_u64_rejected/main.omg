@@ -3,7 +3,7 @@
 // param keeps the loud rejection (Fire H's negative face).
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     transition { _ -> fwd(18446744073709551614) }
     state fwd(&mut self, n: u32) {

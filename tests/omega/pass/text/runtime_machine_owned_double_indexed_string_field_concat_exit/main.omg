@@ -9,7 +9,7 @@ data Room {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     rooms: [[Room; 2]; 2];
     outer: u64 [0..=1];
     inner: u64 [0..=1];

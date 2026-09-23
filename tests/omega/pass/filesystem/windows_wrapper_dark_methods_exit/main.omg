@@ -22,7 +22,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     fs: Filesystem;
     open_result: OpenResult;
     unit_result: UnitResult;

@@ -10,7 +10,7 @@
 // is pinned by runtime_qualified_case_value_exit.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let code: i32 = Nowhere::NOPE + 7;
     transition code == 70 { true -> good() _ -> bad(71) }

@@ -15,7 +15,7 @@ pub boundary trait Disk {
 }
 
 data Archiver {
-    disk: Service<Disk>;
+    disk: Binding<Disk>;
 }
 
 machine Archiver::flush(&mut self) reaches Disk {

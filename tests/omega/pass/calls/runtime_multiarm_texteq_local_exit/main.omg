@@ -38,7 +38,7 @@ machine Store::check(&mut self, idx: i32) -> bool {
         transition { _ -> (b) }
     }
 }
-data Main { console: Service<Console>; s: Store; }
+data Main { console: Binding<Console>; s: Store; }
 machine Main::main(&mut self) {
     self.s.name = "omega";
     self.s.alt = "other";

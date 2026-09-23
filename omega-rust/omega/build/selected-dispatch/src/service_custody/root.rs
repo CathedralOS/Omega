@@ -107,7 +107,7 @@ pub fn derive_fused_program_entry_establishments(
         }
     }
 
-    // Shape collection cannot retain a Service field without its exact Fused
+    // Shape collection cannot retain a Binding field without its exact Fused
     // selection. Check that prerequisite before looking for the resulting
     // attachment, otherwise a missing provider appears to be a lowering bug.
     // This diagnoses absence only; the field, digest and selected provenance
@@ -115,7 +115,7 @@ pub fn derive_fused_program_entry_establishments(
     for (field, carrier, _path) in &service_fields {
         if checked.fused_service_erasure(carrier.requirement).is_none() {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` requires a selected Fused provider for boundary `{}`",
+                "selected ProgramEntry Binding field `{}::{}` requires a selected Fused provider for boundary `{}`",
                 owner.name,
                 field.name,
                 checked.symbols.display_path(carrier.requirement, "::"),
@@ -209,7 +209,7 @@ pub fn derive_fused_program_entry_establishments(
             Ok(checked_field) => checked_field,
             Err(message) => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "selected ProgramEntry Service field `{}::{}` {message}",
+                    "selected ProgramEntry Binding field `{}::{}` {message}",
                     owner.name, field.name,
                 )));
                 continue;
@@ -221,7 +221,7 @@ pub fn derive_fused_program_entry_establishments(
         } = &checked_field.field_type
         else {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` lacks exact Fused Terminal custody",
+                "selected ProgramEntry Binding field `{}::{}` lacks exact Fused Terminal custody",
                 owner.name, field.name,
             )));
             continue;
@@ -233,21 +233,21 @@ pub fn derive_fused_program_entry_establishments(
             || erasure.requirement != carrier.requirement
         {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` substituted its carrier or requirement",
+                "selected ProgramEntry Binding field `{}::{}` substituted its carrier or requirement",
                 owner.name, field.name,
             )));
             continue;
         }
         let Some(authorization) = checked.fused_service_erasure(carrier.requirement) else {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` lacks Fused erasure authority",
+                "selected ProgramEntry Binding field `{}::{}` lacks Fused erasure authority",
                 owner.name, field.name,
             )));
             continue;
         };
         if authorization.provider_plan_digest != erasure.provider_plan_digest {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` substituted its selected plan digest",
+                "selected ProgramEntry Binding field `{}::{}` substituted its selected plan digest",
                 owner.name, field.name,
             )));
             continue;
@@ -258,7 +258,7 @@ pub fn derive_fused_program_entry_establishments(
             .find(|definition| definition.is_boundary && definition.symbol == carrier.requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` lost its boundary requirement",
+                "selected ProgramEntry Binding field `{}::{}` lost its boundary requirement",
                 owner.name, field.name,
             )));
             continue;
@@ -266,7 +266,7 @@ pub fn derive_fused_program_entry_establishments(
         let Some(schema) = provider_planning::service_schema::from_typed(checked, requirement)
         else {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` cannot reconstruct its schema",
+                "selected ProgramEntry Binding field `{}::{}` cannot reconstruct its schema",
                 owner.name, field.name,
             )));
             continue;
@@ -282,7 +282,7 @@ pub fn derive_fused_program_entry_establishments(
             .collect::<Vec<_>>();
         let [selected_plan] = matching_plans.as_slice() else {
             diagnostics.push(Diagnostic::error(format!(
-                "selected ProgramEntry Service field `{}::{}` rejoins {} exact Fused provider plans; expected one",
+                "selected ProgramEntry Binding field `{}::{}` rejoins {} exact Fused provider plans; expected one",
                 owner.name,
                 field.name,
                 matching_plans.len(),

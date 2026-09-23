@@ -8,7 +8,7 @@ use omega::language::core::float_operations;
 // Guards the validation argument landing (target params zipped with args).
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; expected: f32; }
+data Main { console: Binding<Console>; expected: f32; }
 machine Main::main(&mut self) reaches Console {
     self.expected = 1.00000011920928955078125;
     transition { _ -> check(1.0 + 0.0000000596046483281043038005) }

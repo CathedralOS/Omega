@@ -16,8 +16,8 @@ pub boundary trait Gui {
     machine window_destroy(window: u64) -> u32;
 }
 data Main {
-    console: Service<Console>;
-    gui: Service<Gui>;
+    console: Binding<Console>;
+    gui: Binding<Gui>;
     cls: [u8; 7];
     title: [u8; 10];
     hwnd: u64;

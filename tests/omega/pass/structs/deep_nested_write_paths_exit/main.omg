@@ -17,7 +17,7 @@ data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }
 data Holder { tag: u32; msg: Msg; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     nested: Outer;
     holder: Holder;
     pair: [Inner; 2];

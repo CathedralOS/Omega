@@ -11,12 +11,12 @@ use crate::record::PackageReviewTypeIdentity;
 /// capability classifications.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewExternalBinding {
-    /// Ordinary typed `Binding::DllImport` evaluation: the only import row.
+    /// Ordinary typed `ForeignBinding::DllImport` evaluation: the only import row.
     /// The string-backed `Import { library, symbol }` row is retired, as is
     /// the typed identity behind it; review never reinterprets two
     /// independently authored strings as one atomic physical locator.
     NormalizedImport(PackageReviewEvaluatedImport),
-    /// Ordinary typed `Binding::Syscall` evaluation. This remains distinct
+    /// Ordinary typed `ForeignBinding::Syscall` evaluation. This remains distinct
     /// from the legacy integer syscall carrier and retains its exact producer,
     /// target, evaluator, and materializer receipt.
     NormalizedSyscall(PackageReviewEvaluatedSyscall),

@@ -2,7 +2,7 @@
 // Reading m before establishment cannot exploit its declared nonzero bound.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; m: i32 [1..=100]; q: i32; }
+data Main { console: Binding<Console>; m: i32 [1..=100]; q: i32; }
 machine Main::main(&mut self) {
     self.q = 10 % self.m;
     self.console.exit_process(0);

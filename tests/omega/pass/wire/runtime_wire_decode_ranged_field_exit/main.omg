@@ -16,7 +16,7 @@ data WireVerdict {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buffer: [u8; 32];
     bad_read: u64;
     bad_verdict: WireVerdict;

@@ -16,8 +16,8 @@ pub boundary trait Clock {
 }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     ticks: i32 [0..=3];
 }
 

@@ -18,8 +18,8 @@ pub boundary requirement ForeignMath::exit_with(code: i32);
 
 data ForeignMathProvider {}
 
-windows_x86_64 machine foreign_abs_binding() -> Binding<10, 3, 0> {
-    Binding::DllImport {
+windows_x86_64 machine foreign_abs_binding() -> ForeignBinding<10, 3, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "msvcrt.dll",
             export: "abs",
@@ -27,8 +27,8 @@ windows_x86_64 machine foreign_abs_binding() -> Binding<10, 3, 0> {
     }
 }
 
-linux_x86_64 machine foreign_abs_binding() -> Binding<9, 3, 11> {
-    Binding::DllImport {
+linux_x86_64 machine foreign_abs_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "abs",
@@ -37,8 +37,8 @@ linux_x86_64 machine foreign_abs_binding() -> Binding<9, 3, 11> {
     }
 }
 
-linux_arm64 machine foreign_abs_binding() -> Binding<9, 3, 11> {
-    Binding::DllImport {
+linux_arm64 machine foreign_abs_binding() -> ForeignBinding<9, 3, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "abs",
@@ -47,8 +47,8 @@ linux_arm64 machine foreign_abs_binding() -> Binding<9, 3, 11> {
     }
 }
 
-macos_arm64 machine foreign_abs_binding() -> Binding<17, 4, 0> {
-    Binding::DllImport {
+macos_arm64 machine foreign_abs_binding() -> ForeignBinding<17, 4, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "_abs",
@@ -56,8 +56,8 @@ macos_arm64 machine foreign_abs_binding() -> Binding<17, 4, 0> {
     }
 }
 
-windows_x86_64 machine foreign_exit_binding() -> Binding<10, 4, 0> {
-    Binding::DllImport {
+windows_x86_64 machine foreign_exit_binding() -> ForeignBinding<10, 4, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "msvcrt.dll",
             export: "exit",
@@ -65,8 +65,8 @@ windows_x86_64 machine foreign_exit_binding() -> Binding<10, 4, 0> {
     }
 }
 
-linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
-    Binding::DllImport {
+linux_x86_64 machine foreign_exit_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "exit",
@@ -75,8 +75,8 @@ linux_x86_64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
     }
 }
 
-linux_arm64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
-    Binding::DllImport {
+linux_arm64 machine foreign_exit_binding() -> ForeignBinding<9, 4, 11> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libc.so.6",
             symbol: "exit",
@@ -85,8 +85,8 @@ linux_arm64 machine foreign_exit_binding() -> Binding<9, 4, 11> {
     }
 }
 
-macos_arm64 machine foreign_exit_binding() -> Binding<17, 5, 0> {
-    Binding::DllImport {
+macos_arm64 machine foreign_exit_binding() -> ForeignBinding<17, 5, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "_exit",

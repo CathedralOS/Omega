@@ -22,7 +22,7 @@ data Holder<'item> {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     item: Item;
 }
 

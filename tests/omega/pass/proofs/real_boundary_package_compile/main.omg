@@ -5,7 +5,7 @@ use omega::language::core::real;
 use omega::language::std::console;
 use omega::language::core::service;
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine commute_real_add(a: Real, b: Real)
 ensures Real::add(a, b) == Real::add(b, a)

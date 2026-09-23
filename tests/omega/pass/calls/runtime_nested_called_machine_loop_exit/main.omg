@@ -22,7 +22,7 @@ data Helper {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     helper: Helper;
 }
 

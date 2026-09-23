@@ -4,5 +4,5 @@
 // over BOOL operands stays allowed -- `b & b` keeps {0,1}.)
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let x: bool = 2 & 3; let r: i32 = x as i32; self.console.exit_process(r); }

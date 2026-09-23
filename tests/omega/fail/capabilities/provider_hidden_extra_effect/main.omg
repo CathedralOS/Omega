@@ -4,7 +4,7 @@
 // propagated reach; its authored Clock contribution cannot hide Filesystem.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 boundary trait Clock {
 }

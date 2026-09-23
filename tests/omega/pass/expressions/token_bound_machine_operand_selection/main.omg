@@ -29,7 +29,7 @@ machine by_name(left: &Wrapped, right: &Wrapped) -> u64 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     high: u8;
     low: u8;
 }

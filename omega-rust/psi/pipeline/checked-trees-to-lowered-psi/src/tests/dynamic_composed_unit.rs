@@ -95,7 +95,7 @@ const STORED_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Service<Console>;
+        console: Binding<Console>;
         item: Item;
     }
 
@@ -222,7 +222,7 @@ const DIRECT_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Service<Console>;
+        console: Binding<Console>;
         item: Item;
     }
 
@@ -257,7 +257,7 @@ const REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Service<Console>;
+        console: Binding<Console>;
         decoy: Item;
         selected: Item;
     }
@@ -294,7 +294,7 @@ const FORWARDED_REBOUND_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Service<Console>;
+        console: Binding<Console>;
         decoy: Item;
         selected: Item;
     }
@@ -567,7 +567,7 @@ const MULTI_HOP_DYNAMIC_INTEGER_CONTROL_SOURCE: &str = r#"
     }
 
     data Main {
-        console: Service<Console>;
+        console: Binding<Console>;
         selected: Item;
     }
 

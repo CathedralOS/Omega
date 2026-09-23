@@ -75,17 +75,17 @@ fn validate_atomic_result_custody(program: &TypedTrees) -> Result<(), Vec<Diagno
 }
 
 /// A bare boundary trait in value position does not denote a service carrier:
-/// fields, parameters, signature slots and returns name `Service<R>` instead.
+/// fields, parameters, signature slots and returns name `Binding<R>` instead.
 /// Borrows (`&T`, `&mut T`) and container members are other positions and stay
 /// out of this gate; only the outermost `Named`/`DynamicTrait`/`Generic` head
-/// (through `Constrained` shells) is inspected, so `Service<Console>` itself is
+/// (through `Constrained` shells) is inspected, so `Binding<Console>` itself is
 /// never mistaken for a bare trait.
 fn validate_no_bare_boundary_trait_values(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let mut check = |position: String, type_reference: TypeReferenceHandle| {
         if let Some(trait_name) = bare_boundary_trait_name(program, type_reference) {
             diagnostics.push(Diagnostic::error(format!(
-                "{position} names bare boundary trait `{trait_name}` in value position; the intrinsic `Service<R>` carrier is the only service value spelling"
+                "{position} names bare boundary trait `{trait_name}` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling"
             )));
         }
     };

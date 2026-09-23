@@ -53,7 +53,7 @@ data BigResult {
 }
 
 data Probe {
-    console: Service<Console>;
+    console: Binding<Console>;
     buf: [u8; 16] in LineUtf8;
 }
 
@@ -77,7 +77,7 @@ machine Probe::make(&mut self) -> BigResult reaches Console {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     probe: Probe;
     res: BigResult;
 }

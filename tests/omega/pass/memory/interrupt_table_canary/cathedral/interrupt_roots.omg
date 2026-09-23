@@ -280,4 +280,4 @@ pub InterruptMaskProviderMaskControl: InterruptMaskProvider satisfies InterruptM
 
 machine InterruptMaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;

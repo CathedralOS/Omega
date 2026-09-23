@@ -1,7 +1,7 @@
 pub boundary trait Ping { machine ping(); }
 
-data Service<R> { }
+data Binding<R> { }
 domain<T> T::Bound;
 
-data Main { service: Service<Ping> in Bound; }
+data Main { service: Binding<Ping> in Bound; }
 machine Main::main(&mut self) { self.service.ping(); }

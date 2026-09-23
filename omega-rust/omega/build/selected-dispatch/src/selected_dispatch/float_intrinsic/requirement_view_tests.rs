@@ -26,10 +26,10 @@ const OPERATOR_SOURCE: &str = r#"
     data FloatProvider {}
     machine FloatProvider::negate(value: f32) -> f32
     satisfies F32::negate
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
     machine FloatProvider::minimum(left: f32, right: f32) -> f32
     satisfies F32::minimum
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
     machine run() -> f32 {
         let flipped: f32 = F32::negate(1.0f32);

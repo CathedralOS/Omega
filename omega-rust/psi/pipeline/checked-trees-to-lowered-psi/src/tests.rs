@@ -78,7 +78,7 @@ use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
 /// The toolchain core service declaration, resident so raw-pipeline fixtures
-/// can spell `Service<R>` against the real core declaration. These unit
+/// can spell `Binding<R>` against the real core declaration. These unit
 /// harnesses build a bare `SourceMap` with no package scope, so `use
 /// omega::language::core::service` cannot resolve; installing the source with
 /// `SourceOrigin::Toolchain` gives the service classifier the exact identity
@@ -92,7 +92,7 @@ const CORE_SERVICE_OMG: &str = include_str!(concat!(
 /// one fused-service erasure authorization bound per declared boundary trait —
 /// the settled-state input `build_evaluation` produces before checking when a
 /// Fused provider is selected. Fixtures exercising service-carrier semantics
-/// spell `Service<R>` fields; the requirement trait they close over must be
+/// spell `Binding<R>` fields; the requirement trait they close over must be
 /// `pub`. The digest is a stand-in; nothing here compares it against a
 /// realized plan.
 fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees {

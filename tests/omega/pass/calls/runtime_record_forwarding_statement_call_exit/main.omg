@@ -31,7 +31,7 @@ machine Worker::forward(&mut self, pair: Pair) -> i32 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     worker: Worker;
 }
 

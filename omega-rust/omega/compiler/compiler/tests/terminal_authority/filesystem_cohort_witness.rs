@@ -64,7 +64,7 @@ impl Fixture {
 use omega::language::core::service;
 
 data Main {
-    files: Service<FilesystemHost>;
+    files: Binding<FilesystemHost>;
     fd: i32;
     rc: i32;
 }
@@ -79,7 +79,7 @@ reaches FilesystemHost
 "#,
         )
         .expect("write filesystem cohort source");
-        // The schema-binding preliminary cannot carry the Service carrier
+        // The schema-binding preliminary cannot carry the Binding carrier
         // itself: fused receiver admission requires the binding this
         // preliminary is discovering. A demand-lite root references the
         // canonical trait so the typed program retains it.

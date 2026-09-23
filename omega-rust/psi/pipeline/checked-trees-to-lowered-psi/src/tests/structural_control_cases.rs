@@ -90,7 +90,7 @@ fn lowers_closed_guard_and_provider_attachment_as_one_composed_machine() {
                 machine exit_process(return_code: i32) reaches Console;
             }
             const PAGE_SIZE: u32 = 64;
-            data Main { console: Service<Console>; }
+            data Main { console: Binding<Console>; }
             machine Main::main(&mut self) reaches Console {
                 transition PAGE_SIZE == 64 { true -> yes() _ -> no() }
                 state yes(&mut self) { self.console.exit_process(70); }
@@ -162,7 +162,7 @@ fn provider_attachment_and_ordinary_state_locals_keep_independent_custody() {
             data Region { value: u64; }
             machine Region::new(value: u64) -> Region { Region { value: value } }
             machine Region::get(&self) -> u64 { self.value }
-            data Main { output: Service<Output>; }
+            data Main { output: Binding<Output>; }
             machine Main::main(&mut self, input: u64) reaches Output {
                 let region: Region = INITIALIZER;
                 let observed: u64 = region.get();

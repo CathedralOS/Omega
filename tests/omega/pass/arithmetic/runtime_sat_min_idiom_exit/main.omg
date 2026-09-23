@@ -15,7 +15,7 @@
 // exits: 70 = MIN; 71 = MAX (the old corruption); 99 = other.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let a: i32 in Saturating = (0 as i32 in Saturating) - 2147483648;
     transition a == (0 as i32 in Saturating) - 2147483647 - 1 {

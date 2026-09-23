@@ -13,7 +13,7 @@ fn parses_compiler_intrinsic_external_binding_as_a_closed_binding_case() {
 
         machine console_write_byte(byte: i32)
         satisfies Console::write_byte
-        via Binding::CompilerIntrinsic;
+        via ForeignBinding::CompilerIntrinsic;
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -164,7 +164,7 @@ fn rejects_legacy_named_compiler_intrinsic_payload() {
 
         machine console_write_byte(byte: i32)
         satisfies Console::write_byte
-        via Binding::CompilerIntrinsic("Console::write_byte");
+        via ForeignBinding::CompilerIntrinsic("Console::write_byte");
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -187,7 +187,7 @@ fn retired_vtable_slot_rejects_before_consuming_its_payload() {
 
         machine legacy(this: addr)
         satisfies Firmware::invoke
-        via Binding::VtableSlot(not_an_integer_payload);
+        via ForeignBinding::VtableSlot(not_an_integer_payload);
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -195,8 +195,8 @@ fn retired_vtable_slot_rejects_before_consuming_its_payload() {
     let error = parse_syntax_trees(&tokens).expect_err("authored numeric vtable slots are retired");
     assert_eq!(
         error.message,
-        "`Binding::VtableSlot` is retired; declare the foreign table layout and use \
-         `Binding::VtableField(field)`"
+        "`ForeignBinding::VtableSlot` is retired; declare the foreign table layout and use \
+         `ForeignBinding::VtableField(field)`"
     );
 }
 
@@ -209,7 +209,7 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
 
         machine call_external(value: i64) -> i64
         satisfies Contract::call
-        via Binding::DllImport("legacy.dll", "call");
+        via ForeignBinding::DllImport("legacy.dll", "call");
     "#;
     let tokens = Lexer::new(source)
         .tokenize()
@@ -218,8 +218,8 @@ fn retired_string_backed_dllimport_names_the_evaluated_producer_migration() {
         .expect_err("authored string-backed import bootstrap is retired");
     assert_eq!(
         error.message,
-        "`Binding::DllImport(\"module\", \"symbol\")` is retired; return the \
-         compiler-owned `Binding::DllImport { import: DllImport::Case { .. } }` \
+        "`ForeignBinding::DllImport(\"module\", \"symbol\")` is retired; return the \
+         compiler-owned `ForeignBinding::DllImport { import: DllImport::Case { .. } }` \
          value from one `via` producer machine instead"
     );
 }
@@ -1277,7 +1277,7 @@ fn retired_library_block_names_the_boundary_provider_migration() {
             && error.message.contains("is retired")
             && error
                 .message
-                .contains("producer machine returning `Binding::DllImport"),
+                .contains("producer machine returning `ForeignBinding::DllImport"),
         "got: {}",
         error.message
     );

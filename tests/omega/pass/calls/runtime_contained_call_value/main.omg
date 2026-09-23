@@ -14,7 +14,7 @@ data Random {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     rng: Random;
     reward: Reward;
 }

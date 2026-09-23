@@ -49,7 +49,7 @@ data Log [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     log: Log;
     pause: [u8; 256];
 }

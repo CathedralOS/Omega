@@ -2,7 +2,7 @@
 // operand. The leading scalar consumes rdi, the record consumes rsi/rdx, and
 // the returned record spills from rax/rdx into one result place.
 // The binding is an evaluated typed locator: `aggregate_binding` returns the
-// compiler-owned `Binding::DllImport` value carrying one exact versioned-ELF
+// compiler-owned `ForeignBinding::DllImport` value carrying one exact versioned-ELF
 // import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
 use omega::language::core::service;
@@ -16,8 +16,8 @@ pub boundary trait AggregateImport {
     machine call(tag: u64, pair: Pair) -> Pair;
 }
 
-linux_x86_64 machine aggregate_binding() -> Binding<18, 32, 7> {
-    Binding::DllImport {
+linux_x86_64 machine aggregate_binding() -> ForeignBinding<18, 32, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libomega-probes.so",
             symbol: "omega_sysv_small_aggregate_probe",
@@ -28,7 +28,7 @@ linux_x86_64 machine aggregate_binding() -> Binding<18, 32, 7> {
 
 linux_x86_64 machine aggregate_import(tag: u64, pair: Pair) -> Pair satisfies AggregateImport::call via aggregate_binding();
 
-data Main { foreign: Service<AggregateImport>; pair: Pair; result: Pair; }
+data Main { foreign: Binding<AggregateImport>; pair: Pair; result: Pair; }
 machine Main::main(&mut self) reaches AggregateImport {
     self.pair = Pair { first: 1, second: 2 };
     self.result = self.foreign.call(7, self.pair);

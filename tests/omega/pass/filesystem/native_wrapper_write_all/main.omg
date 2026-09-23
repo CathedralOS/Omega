@@ -15,7 +15,7 @@ use omega::language::core::service;
 
 data Main {
     fs: Filesystem;
-    out: Service<FilesystemHost>;
+    out: Binding<FilesystemHost>;
     wrote: UnitResult;
     got: IoResult;
     gone: UnitResult;

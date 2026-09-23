@@ -10,7 +10,7 @@ data Mixed<T> {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     value: Mixed<i32 in Wrapping>;
 }
 

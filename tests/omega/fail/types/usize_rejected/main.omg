@@ -3,5 +3,5 @@
 // `usize` does not resolve as a builtin type.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; n: usize; }
+data Main { console: Binding<Console>; n: usize; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

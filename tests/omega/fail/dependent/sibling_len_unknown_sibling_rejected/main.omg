@@ -3,7 +3,7 @@
 // nothing could discharge or mint from a phantom sibling.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; buf: [u8; 8]; j: u64; out: i32; }
+data Main { console: Binding<Console>; buf: [u8; 8]; j: u64; out: i32; }
 machine Main::main(&mut self) {
     self.buf[5] = 7;
     self.j = 5;

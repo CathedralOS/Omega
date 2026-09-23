@@ -18,7 +18,7 @@ data Counter {
     value: i32 in Wrapping;
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: Counter;
     b: Counter;
 }

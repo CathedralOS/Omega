@@ -11,7 +11,7 @@ use omega::language::core::service;
 
 data Main {
     fs: Filesystem;
-    raw: Service<FilesystemHost>;
+    raw: Binding<FilesystemHost>;
     mode: i32;
     fd: i32;
     n: i64;

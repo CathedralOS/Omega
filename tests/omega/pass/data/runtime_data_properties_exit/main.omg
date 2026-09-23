@@ -18,7 +18,7 @@ data Holder [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     h: Holder;
 }
 

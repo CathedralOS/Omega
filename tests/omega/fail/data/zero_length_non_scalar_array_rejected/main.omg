@@ -8,6 +8,6 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data Rec { x: u8; }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::take(&mut self, rows: [Rec; 0]) -> u64 { rows.len }
 machine Main::main(&mut self) reaches Console { let n: u64 = self.take([]); self.console.exit_process(0); }

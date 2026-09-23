@@ -868,7 +868,7 @@ fn dependency_provider_plan_retains_exact_dependency_package_provenance() {
         dependency.join("provider.omg"),
         r#"pub boundary trait Pair { machine first(); }
 pub data Provider { first: addr; }
-machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
+machine Provider::first() satisfies Pair::first via ForeignBinding::VtableField(first);
 "#,
     );
 
@@ -994,7 +994,7 @@ fn target_provider_default_cannot_request_independent_composition() {
         root.join("main.omg"),
         r#"pub boundary trait Pair { machine first(); }
 data Provider { first: addr; }
-machine Provider::first() satisfies Pair::first via Binding::VtableField(first);
+machine Provider::first() satisfies Pair::first via ForeignBinding::VtableField(first);
 
 data TargetProviders { }
 linux_x86_64 machine TargetProviders::provider_defaults(defaults: &mut TargetProviders) {
@@ -1240,7 +1240,7 @@ use dep::values;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 data ConsoleProvider { }
 machine ConsoleProvider::exit_process(return_code: i32) satisfies Console::exit_process { }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     transition ANSWER == 42 { true -> yes() _ -> no() }
     state yes(&mut self) { self.console.exit_process(0); }

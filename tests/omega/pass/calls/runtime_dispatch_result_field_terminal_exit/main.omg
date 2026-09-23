@@ -7,7 +7,7 @@
 // the resolved place's REGION. Differential.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; base: i32 in Wrapping; }
+data Main { console: Binding<Console>; base: i32 in Wrapping; }
 machine Main::count(&mut self, i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;
 -> i32 in Wrapping

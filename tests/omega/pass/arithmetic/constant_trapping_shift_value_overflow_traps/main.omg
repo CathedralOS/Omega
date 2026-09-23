@@ -2,7 +2,7 @@
 // domain's value-overflow behavior: u8 200 << 1 is 400, not wrapped 144.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; value: u8 in Trapping; }
+data Main { console: Binding<Console>; value: u8 in Trapping; }
 
 machine Main::main(&mut self) reaches Console {
     let left: u8 in Trapping = 200;

@@ -104,7 +104,7 @@ use omega::language::core::service;
 
 data Main {{
     fs: Filesystem;
-    console: Service<Console>;
+    console: Binding<Console>;
     result: IoResult;
     stats_result: DirStatsResult;
     entry_result: DirEntryResult;

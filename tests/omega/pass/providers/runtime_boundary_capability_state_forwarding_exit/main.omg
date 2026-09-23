@@ -7,15 +7,15 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
-machine forward_console(console: Service<Console>)
+machine forward_console(console: Binding<Console>)
 reaches Console
 {
     transition { _ -> emit(console) }
 
-    state emit(console: Service<Console>) {
+    state emit(console: Binding<Console>) {
         console.write_byte(75);
     }
 }

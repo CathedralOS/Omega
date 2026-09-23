@@ -93,7 +93,7 @@ data Account [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     accounts: [Account; 4];
     query_count: i32 in Wrapping;
     pause: [u8; 256];

@@ -1320,7 +1320,7 @@ fn compiler_body_general_x86_binary_write_footprints_reach_artifacts() {
 use omega::language::core::service;
 data Counter { n: i32 in Wrapping; }
 data Room { exits: [Counter; 3]; }
-data Main { console: Service<Console>; index: u64 [0..=2]; }
+data Main { console: Binding<Console>; index: u64 [0..=2]; }
 machine Main::main(&mut self) reaches Console {
     self.index = 1;
     let room: Room = Room { exits: [Counter { n: 10 }, Counter { n: 20 }, Counter { n: 30 }] };

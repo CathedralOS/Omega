@@ -20,7 +20,7 @@ machine Finder::find(&self, container: Box, k: u64 [0..=1]) -> i32 {
     transition { _ -> v }
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bx: Box;
     worker: Finder;
 }

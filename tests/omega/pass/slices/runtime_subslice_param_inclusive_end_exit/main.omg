@@ -9,7 +9,7 @@ use omega::language::core::service;
 data Entry { value: i32; }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     entries: [Entry; 5];
 }
 

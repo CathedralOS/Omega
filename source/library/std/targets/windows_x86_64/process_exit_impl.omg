@@ -5,7 +5,7 @@
 // diagnostic rather than a substitute outcome.
 windows_x86_64 machine ProcessExitNativeProvider::exit_process(return_code: i32)
     satisfies ProcessExit::exit_process
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
 windows_x86_64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
     defaults.select_provider<ProcessExit, ProcessExitNativeProvider>();

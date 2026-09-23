@@ -12,8 +12,8 @@ pub boundary trait Libm {
 }
 
 data Main {
-    console: Service<Console>;
-    lib: Service<Libm>;
+    console: Binding<Console>;
+    lib: Binding<Libm>;
     root: f64;
 }
 

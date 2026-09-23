@@ -29,19 +29,19 @@ const SOURCE: &str = r#"
     data FloatProvider {}
     machine FloatProvider::minimum(left: f32, right: f32) -> f32
     satisfies F32::minimum
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
     machine FloatProvider::maximum(left: f32, right: f32) -> f32
     satisfies F32::maximum
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
     machine FloatProvider::negate(value: f32) -> f32
     satisfies F32::negate
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
     machine FloatProvider::from_f64(value: f64) -> f32
     satisfies F32::from_f64
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
     machine FloatProvider::from_f64_saturating(value: f64) -> i32 in Saturating
     satisfies I32::from_f64
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
     machine run() -> f32 {
         transition { _ -> (F32::minimum(1.0f32, 2.0f32)) }

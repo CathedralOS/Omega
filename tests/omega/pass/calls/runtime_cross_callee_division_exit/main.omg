@@ -15,7 +15,7 @@ use omega_language_std::time_host;
 use omega_language_std::console;
 use omega::language::core::service;
 
-data Wrapper { host: Service<TimeHost>; }
+data Wrapper { host: Binding<TimeHost>; }
 
 machine Wrapper::rate_a(&mut self) -> u64 reaches TimeHost {
     let ticks: u64 = self.host.monotonic_ticks();
@@ -34,7 +34,7 @@ machine Wrapper::rate_b(&mut self) -> u64 reaches TimeHost {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     wrapper: Wrapper;
     a: u64;
     b: u64;

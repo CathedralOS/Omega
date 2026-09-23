@@ -83,19 +83,19 @@ pub boundary trait WindowsCalls {{
     machine find_close(handle: i64) -> i32;
     machine exit(code: i32);
 }}
-windows_x86_64 machine find_close_binding() -> Binding<12, 9, 0> {{
-    Binding::DllImport {{
+windows_x86_64 machine find_close_binding() -> ForeignBinding<12, 9, 0> {{
+    ForeignBinding::DllImport {{
         import: DllImport::PeByName {{ library: "{library}", export: "FindClose" }},
     }}
 }}
-windows_x86_64 machine exit_binding() -> Binding<12, 11, 0> {{
-    Binding::DllImport {{
+windows_x86_64 machine exit_binding() -> ForeignBinding<12, 11, 0> {{
+    ForeignBinding::DllImport {{
         import: DllImport::PeByName {{ library: "Kernel32.dll", export: "ExitProcess" }},
     }}
 }}
 machine find_close_leaf(handle: i64) -> i32 satisfies WindowsCalls::find_close via find_close_binding();
 machine exit_leaf(code: i32) satisfies WindowsCalls::exit via exit_binding();
-data Main {{ windows: Service<WindowsCalls>; }}
+data Main {{ windows: Binding<WindowsCalls>; }}
 machine Main::main(&mut self) reaches WindowsCalls {{
     let result: i32 = self.windows.find_close(0);
     self.windows.exit(result);

@@ -2612,7 +2612,7 @@ data ComparisonProvider {}
 
 machine ComparisonProvider::equal(left: i32, right: i32) -> bool
     satisfies Comparison::equal
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
 data Main {}
 

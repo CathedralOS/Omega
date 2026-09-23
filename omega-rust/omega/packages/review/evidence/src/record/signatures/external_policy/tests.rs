@@ -528,7 +528,7 @@ fn complete_callable_and_requirement_coordinates_change_policy() {
     let mut trait_requirement = original.clone();
     trait_requirement.requirement =
         PackagePolicyExternalRequirement::Trait(PackagePolicyCallableConformance {
-            trait_identity: nominal("Service"),
+            trait_identity: nominal("Binding"),
             requirement_identity: nominal("invoke"),
             requirement_lifetime_partition: vec![0],
             trait_lifetime_arguments: vec![0],

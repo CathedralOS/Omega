@@ -8,7 +8,7 @@
 // the measure and the bare-loop alternative.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::sum(&mut self, n: i32, acc: i32)
 -> i32
 {

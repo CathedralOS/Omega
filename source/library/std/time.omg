@@ -948,7 +948,7 @@ pub machine SystemTime::saturating_subtract(&self, duration: Duration) -> System
 // value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
 // have no equivalent (the Cathedral no-ambient-authority stance).
 pub data Time {
-    host: Service<TimeHost>;
+    host: Binding<TimeHost>;
 }
 
 // Read the monotonic clock and normalize ONCE (D6): raw ticks + calibration

@@ -5,7 +5,7 @@
 // write proves. Fills [0,1,2,3,4], sums to 10, self-checks. Differential: native == interp.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; sum: i32 in Wrapping; }
+data Main { console: Binding<Console>; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.i = 0;
     transition { _ -> fill() }

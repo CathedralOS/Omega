@@ -17,7 +17,7 @@ pub boundary trait Net {
 }
 
 data Client {
-    net: Service<Net>;
+    net: Binding<Net>;
 }
 
 machine Client::run(&mut self) reaches Net + Allocator {

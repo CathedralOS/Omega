@@ -913,7 +913,7 @@ fn rejects_authored_service_reach_on_external_realization_before_resolved_trees(
 
         machine exit_leaf(code: i32)
         satisfies Process::exit
-        via Binding::Syscall(60)
+        via ForeignBinding::Syscall(60)
         reaches Process;
     "#;
     let tokens = Lexer::new(source)

@@ -4,5 +4,5 @@
 // `let xs: [i32;3] = 5` is the mirror.)
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; xs: [i32; 3]; }
+data Main { console: Binding<Console>; xs: [i32; 3]; }
 machine Main::main(&mut self) { let y: i32 = self.xs; self.console.exit_process(y); }

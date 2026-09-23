@@ -7,7 +7,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Body { pos: Vec2; vel: Vec2; }
-data Main { console: Service<Console>; body: Body; i: i32 in Wrapping; }
+data Main { console: Binding<Console>; body: Body; i: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.body.pos.x = 0;
     self.body.pos.y = 0;

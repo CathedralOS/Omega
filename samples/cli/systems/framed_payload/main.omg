@@ -26,7 +26,7 @@ machine Frame::sum(&self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     frame: Frame;
     pause: [u8; 256];
 }

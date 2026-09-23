@@ -5,7 +5,7 @@
 // shared-slot bug delivered the LAST result to both (f=g=12 -> exit 24).
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; f: i32 in Wrapping; g: i32 in Wrapping; sum: i32 in Wrapping; }
+data Main { console: Binding<Console>; f: i32 in Wrapping; g: i32 in Wrapping; sum: i32 in Wrapping; }
 machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
     let r: i32 in Wrapping = x * 2;
     transition { _ -> r }

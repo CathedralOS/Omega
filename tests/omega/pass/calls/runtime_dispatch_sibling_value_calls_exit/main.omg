@@ -18,7 +18,7 @@ terminates by n -> Nat::Descending;
     state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
 }
 
-data Main { console: Service<Console>; first: Tally; second: Tally; }
+data Main { console: Binding<Console>; first: Tally; second: Tally; }
 
 machine Main::main(&mut self) reaches Console {
     self.first.count = 10;

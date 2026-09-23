@@ -8,7 +8,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     inp: [i32; 6] in Trapping;
     out: [i32; 6] in Trapping;
     idx: i32 in Trapping;

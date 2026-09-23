@@ -75,7 +75,7 @@ follow that reconstruction; an observed length is not a checked bound.
 
 ## Service receipts
 
-An erased `Service<R>` parameter is not an ordinary empty record.
+An erased `Binding<R>` parameter is not an ordinary empty record.
 Its source receipt binds typed parameter symbol and authored position, normalized
 carrier, exact requirement, and selected-plan digest. The current implementation
 also requires the separate service qualification; `ENTRY-CONTENT-ROOTS` owns

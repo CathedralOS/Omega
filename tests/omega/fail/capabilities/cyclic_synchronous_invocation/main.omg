@@ -1,6 +1,6 @@
 use omega::language::core::service;
 // Both selected checked providers realize one direct synchronous edge. The
-// resulting Alpha -> Service<Beta> -> Service<Alpha> component-boundary graph is forbidden even
+// resulting Alpha -> Binding<Beta> -> Binding<Alpha> component-boundary graph is forbidden even
 // though ordinary service reach may remain cyclic.
 
 pub boundary trait Alpha {
@@ -14,7 +14,7 @@ pub boundary trait Beta {
 }
 
 data AlphaProvider {
-    beta: Service<Beta>;
+    beta: Binding<Beta>;
 }
 
 machine AlphaProvider::alpha_checked(&mut self)
@@ -24,7 +24,7 @@ satisfies Alpha::alpha
 }
 
 data BetaProvider {
-    alpha: Service<Alpha>;
+    alpha: Binding<Alpha>;
 }
 
 machine BetaProvider::beta_checked(&mut self)

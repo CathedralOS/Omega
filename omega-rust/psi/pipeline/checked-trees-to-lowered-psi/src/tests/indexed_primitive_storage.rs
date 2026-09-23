@@ -10,7 +10,7 @@ use terminal_psi::{OperationKind, StructuralPathSegment};
 fn source_indexed_primitive_storage_composes_with_boundary_and_successors() {
     let source = r#"
         pub boundary trait Console { machine write_byte(byte: i32) reaches Console; }
-        data Main { value: i32; bytes: [u8; 256]; console: Service<Console>; }
+        data Main { value: i32; bytes: [u8; 256]; console: Binding<Console>; }
         machine Main::main(&mut self) reaches Console {
             transition self.value == 0 { true -> initialized() false -> failed() }
             state initialized(&mut self) {

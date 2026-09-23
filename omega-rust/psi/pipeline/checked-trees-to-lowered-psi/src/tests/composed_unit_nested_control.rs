@@ -166,7 +166,7 @@ fn checked_provider_boundary_prefixed_nested_control() -> CheckedTrees {
                 machine tick() reaches Console;
                 machine exit(code: i32) reaches Console;
             }
-            data Main { console: Service<Console>; }
+            data Main { console: Binding<Console>; }
             machine Main::main(&mut self, first: bool, second: bool) reaches Console {
                 self.console.tick();
                 transition first { true -> dispatch(second) _ -> no() }

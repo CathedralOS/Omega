@@ -23,7 +23,7 @@ data Lookup {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     lookup: Lookup;
     out: Room;
 }

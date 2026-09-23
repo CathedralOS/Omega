@@ -21,7 +21,7 @@ where machine Schema satisfies Callback::call;
 pub machine bind_provider<machine Selected>()
 where machine Selected satisfies Callback::call;
 satisfies CallbackSurface::bind
-via Binding::Syscall(60);
+via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(
@@ -87,7 +87,7 @@ where machine Operation<machine Callback>(value: u64) -> u64
 where machine Callback(value: u64) -> u64;
 ;
     satisfies CallbackSurface::register
-    via Binding::Syscall(60);
+    via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(

@@ -9,7 +9,7 @@
 
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; x: i32 in Wrapping; y: i32 in Wrapping; }
+data Main { console: Binding<Console>; x: i32 in Wrapping; y: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.x = 0 - 2147483647;
     self.x = self.x - 1;       // INT_MIN = -2147483648

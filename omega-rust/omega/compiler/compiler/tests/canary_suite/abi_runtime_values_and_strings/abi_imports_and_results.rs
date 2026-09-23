@@ -575,7 +575,7 @@ fn cross_win64_scalar_float_import_uses_positional_xmm_and_stack_locations() {
 
 // A source-authored external import end to end: the program's bodyless
 // `satisfies Beeper::beep via beeper_binding()` leaf binds the typed
-// compile-time producer's evaluated `Binding::DllImport` value -- the
+// compile-time producer's evaluated `ForeignBinding::DllImport` value -- the
 // normalized `PeByName { library: "msvcrt.dll", export: "abs" }` locator, not
 // the KERNEL32 catalog default -- and abs(-42) delivers 42 through the result
 // place (ZII would exit 71). NATIVE-ONLY: no interpreter provider exists for

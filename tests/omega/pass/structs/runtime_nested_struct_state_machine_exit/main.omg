@@ -20,7 +20,7 @@ data Range {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     acc: Acc;
     rng: Range;
 }

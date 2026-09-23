@@ -22,7 +22,7 @@ data Register [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     register: Register;
 }
 

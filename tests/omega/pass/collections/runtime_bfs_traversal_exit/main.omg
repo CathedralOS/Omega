@@ -11,7 +11,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     adj: [i32; 16] in Wrapping;     // 4x4 adjacency matrix
     visited: [i32; 4] in Wrapping;
     queue: [i32; 8] in Wrapping;    // BFS frontier (no wrap needed: <= 4 enqueues)

@@ -21,7 +21,7 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     row: [u8; 64] in Utf8;
     palette: [u8; 8] in Utf8;
     x: i32 [0..=64];

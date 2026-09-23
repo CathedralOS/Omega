@@ -2,7 +2,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     n: i32;
 }
 machine Main::act(&mut self) {

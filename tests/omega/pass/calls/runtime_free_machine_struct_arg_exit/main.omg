@@ -38,7 +38,7 @@ machine combine(pair: Pair) -> i32 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     v: i32;
 }
 

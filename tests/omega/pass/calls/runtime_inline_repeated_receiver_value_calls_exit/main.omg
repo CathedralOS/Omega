@@ -11,7 +11,7 @@ machine Gauge::next(&mut self, delta: i32 in Wrapping) -> i32 in Wrapping {
     transition { _ -> (self.value + delta) }
 }
 
-data Main { console: Service<Console>; gauge: Gauge; }
+data Main { console: Binding<Console>; gauge: Gauge; }
 
 machine Main::main(&mut self) reaches Console {
     self.gauge.value = 0;

@@ -271,7 +271,7 @@ fn validate_state_signature_types<'program>(
                     || !signature.lifetime_parameters.is_empty())
             {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{owner} state `{}` parameter `{}` uses the routed `Service<R>` carrier outside the first immutable, nongeneric, lifetime-free owned-parameter rung",
+                    "{owner} state `{}` parameter `{}` uses the routed `Binding<R>` carrier outside the first immutable, nongeneric, lifetime-free owned-parameter rung",
                     signature.name, parameter.name,
                 )));
             }

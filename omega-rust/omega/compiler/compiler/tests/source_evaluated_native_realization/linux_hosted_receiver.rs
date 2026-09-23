@@ -120,7 +120,7 @@ use omega::language::core::service;
 data Main {{
     value: i32;
     bytes: [u8; 256];
-    console: Service<Console>;
+    console: Binding<Console>;
 }}
 
 machine Main::main(&mut self) reaches Console {{

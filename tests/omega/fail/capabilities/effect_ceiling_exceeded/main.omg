@@ -14,7 +14,7 @@ boundary trait Console {
 }
 
 data Worker {
-    disk: Service<Disk>;
+    disk: Binding<Disk>;
 }
 
 machine Worker::run(&mut self)

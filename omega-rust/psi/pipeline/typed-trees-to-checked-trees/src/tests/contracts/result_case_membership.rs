@@ -22,7 +22,7 @@ fn check(machine: &str, accepted: bool) {
     }
 }
 
-/// `Service<R>` fixtures lower against the toolchain carrier with the same
+/// `Binding<R>` fixtures lower against the toolchain carrier with the same
 /// fused-service erasure authorizations `settle_checked_providers` binds in
 /// real builds; without them the carrier field stays unshaped and the
 /// machine's unit plan fails closed.
@@ -158,7 +158,7 @@ fn boundary_call_results_carry_their_declaring_case_owner() {
     let source = format!(
         "{PUB_DATA}
         pub boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
-        data Probe {{ input: Service<Input>; buffer: [u8; 4]; }}
+        data Probe {{ input: Binding<Input>; buffer: [u8; 4]; }}
         machine Probe::run(&mut self) reaches Input {{
             transition self.input.read(&mut self.buffer) {{
                 Message::Empty -> done()
@@ -182,7 +182,7 @@ fn boundary_call_results_still_reject_a_foreign_case_owner() {
         "{PUB_DATA}
         data Other {{ case Empty; }}
         pub boundary trait Input {{ machine read(buffer: &mut [u8]) -> Message reaches Input; }}
-        data Probe {{ input: Service<Input>; buffer: [u8; 4]; }}
+        data Probe {{ input: Binding<Input>; buffer: [u8; 4]; }}
         machine Probe::peek(&mut self) -> bool reaches Input {{
             self.input.read(&mut self.buffer) in Other::Empty
         }}"

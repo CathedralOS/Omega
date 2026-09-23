@@ -5,7 +5,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Big { pad0: u64; pad1: u64; value: i32 in Wrapping; }
-data Main { console: Service<Console>; big: Big; got: i32 in Wrapping; }
+data Main { console: Binding<Console>; big: Big; got: i32 in Wrapping; }
 
 machine Main::main(&mut self) reaches Console {
     self.big.pad0 = 111;

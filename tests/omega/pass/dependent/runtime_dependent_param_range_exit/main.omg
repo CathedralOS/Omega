@@ -27,7 +27,7 @@ data Main
 where
     count <= 11,
 {
-    console: Service<Console>;
+    console: Binding<Console>;
     items: [u8; 12];
     count: u32;
     j: u32;

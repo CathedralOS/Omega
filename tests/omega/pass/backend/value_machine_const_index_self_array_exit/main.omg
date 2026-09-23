@@ -21,7 +21,7 @@ machine Probe::fill(&mut self) -> i64 {
     transition true { _ -> go() }
     state go(&mut self) -> i64 { self.buf[4 + 1] as i64 }
 }
-data Main { console: Service<Console>; probe: Probe; out: i64; ncode: i32; }
+data Main { console: Binding<Console>; probe: Probe; out: i64; ncode: i32; }
 machine Main::main(&mut self) reaches Console {
     self.out = self.probe.fill();
     self.ncode = narrow_i64_to_i32_trapping(self.out);

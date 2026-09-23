@@ -35,7 +35,7 @@ data Tagged [copy] {
 TaggedEquatable: Tagged satisfies Equatable;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     a: Certified;
     b: Certified;
     c: Certified;

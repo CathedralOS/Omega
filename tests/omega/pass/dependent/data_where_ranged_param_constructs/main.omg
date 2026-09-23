@@ -11,7 +11,7 @@ where
 {
     health: i32;
 }
-data Main { console: Service<Console>; champion: Player; }
+data Main { console: Binding<Console>; champion: Player; }
 machine Main::recruit(&mut self, strength: i32) -> i32 
 requires 1 <= strength, strength <= 100
 {

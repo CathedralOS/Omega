@@ -47,7 +47,7 @@ data Inventory [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     inv: Inventory;
     pause: [u8; 256];
 }

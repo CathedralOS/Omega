@@ -9,7 +9,7 @@ where
     health: i32;
     score: i32;
 }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let player: Player = Player { health: 50 };
     self.console.exit_process(70);

@@ -24,7 +24,7 @@ data S [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     s: S;
 }
 

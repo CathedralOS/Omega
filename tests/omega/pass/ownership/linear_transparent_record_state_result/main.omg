@@ -14,7 +14,7 @@ data Pair {
     right: Receipt;
 }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::issue(&mut self) -> Pair {
     let left: Receipt = Receipt { code: 1 };

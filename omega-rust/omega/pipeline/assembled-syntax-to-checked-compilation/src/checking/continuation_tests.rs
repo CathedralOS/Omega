@@ -114,7 +114,7 @@ pub boundary trait Sink { machine emit(value: i32); machine echo(value: i32) -> 
 data SinkProvider {}
 machine SinkProvider::emit(RECEIVERvalue: i32) satisfies Sink::emit {}
 machine SinkProvider::echo(RECEIVERvalue: i32) -> i32 satisfies Sink::echo { value }
-data Main { sink: Service<Sink>; }
+data Main { sink: Binding<Sink>; }
 machine Main::main(&mut self) reaches Sink { self.sink.emit(7); }
 machine Main::query(&mut self) -> i32 reaches Sink { self.sink.echo(35) }
 "#
@@ -191,7 +191,7 @@ pub boundary trait Arithmetic { machine max(left: i32, right: i32) -> i32; }
 data Provider {}
 machine Provider::first(left: i32, right: i32) -> i32
 satisfies Arithmetic::max { left }
-data Main { arithmetic: Service<Arithmetic>; }
+data Main { arithmetic: Binding<Arithmetic>; }
 machine Main::main(&mut self) -> i32 reaches Arithmetic {
 self.arithmetic.max(7, 35)
 }
@@ -226,7 +226,7 @@ machine Provider::flip(value: &mut bool) -> bool satisfies Switch::flip {
 value = !value;
 value
 }
-data Main { switch: Service<Switch>; flag: bool; }
+data Main { switch: Binding<Switch>; flag: bool; }
 machine Main::main(&mut self) -> i32 reaches Switch {
 transition self.switch.flip(&mut self.flag) {
     false -> (1)

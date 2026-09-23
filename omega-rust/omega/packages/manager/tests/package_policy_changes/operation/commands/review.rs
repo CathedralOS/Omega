@@ -238,7 +238,7 @@ fn retained_external_supply_recommends_audit_for_repeated_source_upgrades() {
     repeated_update_audit(concat!(
         "pub boundary trait ForeignSurface { machine invoke() reaches ForeignSurface; }\n",
         "pub machine invoke_leaf() satisfies ForeignSurface::invoke\n",
-        " via Binding::Syscall(60);\n",
+        " via ForeignBinding::Syscall(60);\n",
     ));
 }
 

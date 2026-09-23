@@ -19,7 +19,7 @@ machine CanaryIsolatedWorkerProvider::execute<T, Arguments, machine Target>(
 ) -> T
 where machine Target(arguments: Arguments) -> T suspends; blocks;
 satisfies WorkerProvider::execute
-via Binding::CompilerIntrinsic;
+via ForeignBinding::CompilerIntrinsic;
 
 // The missing inherited `WorkerProvider::execute` row: the conformance
 // declares the marker trait but binds nothing.

@@ -12,7 +12,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i8); }
-data Main { console: Service<Console>; k: u64; }
+data Main { console: Binding<Console>; k: u64; }
 machine Main::mk(&mut self, x: u64 [0..=100]) -> Msg {
     transition true { true -> Msg::Pong { y: 5, z: (x as i8) % 10 } }
 }

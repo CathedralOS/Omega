@@ -6,7 +6,7 @@ data Main
 where
     health >= 1,
 {
-    console: Service<Console>;
+    console: Binding<Console>;
     health: i32;
 }
 machine Main::main(&mut self) {

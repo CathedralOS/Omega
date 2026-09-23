@@ -125,7 +125,7 @@ machine Dungeon::initialize(
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     dungeon: Dungeon;
 }
 

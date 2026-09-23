@@ -32,5 +32,5 @@ ensures
         plus_assoc(pred, b, c);
     }
 }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

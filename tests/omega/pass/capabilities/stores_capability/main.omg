@@ -14,7 +14,7 @@ pub boundary trait Console {
 }
 
 data Journal {
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine Journal::record(&mut self) reaches Console {

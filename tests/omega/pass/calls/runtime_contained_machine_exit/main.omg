@@ -29,7 +29,7 @@ machine Counter::get(&self) -> i32 in Wrapping {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     counter: Counter;
 }
 

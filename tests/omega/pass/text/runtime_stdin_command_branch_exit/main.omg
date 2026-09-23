@@ -20,7 +20,7 @@ machine Parser::resolve(&mut self, line: &[u8], count: u64) -> Command {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     line: [u8; 32];
     parser: Parser;
     command: Command;

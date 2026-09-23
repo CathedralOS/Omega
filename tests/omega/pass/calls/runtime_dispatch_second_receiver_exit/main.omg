@@ -20,7 +20,7 @@ terminates by n -> Nat::Descending;
     transition n > 0 { true -> drain(n - 1, acc + self.count) false -> leaf(acc) }
     state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
 }
-data Main { console: Service<Console>; first: Tally; second: Tally; }
+data Main { console: Binding<Console>; first: Tally; second: Tally; }
 machine Main::main(&mut self) reaches Console {
     self.first.count = 100;
     self.second.count = 7;

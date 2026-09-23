@@ -20,7 +20,7 @@ domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     out: [u8; 5] in Utf8;
     n: u32 in Wrapping;
     place: u32 in Wrapping;

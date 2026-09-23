@@ -68,7 +68,7 @@ fn domain_declarations_do_not_create_trust_rows() {
         r#"use omega::language::core::service;
 domain u32::Meters;
 pub boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
@@ -108,7 +108,7 @@ fn trust_report_empty_without_commitments() {
         project.join("main.omg"),
         r#"use omega::language::core::service;
 pub boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -277,7 +277,7 @@ fn domain_and_unmatched_root_grants_reject_without_receipts() {
         r#"use omega::language::core::service;
 domain u32::Meters;
 pub boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     let d: u32 in Meters = (7 as u32 in Meters);
     self.console.exit_process(70);
@@ -407,7 +407,7 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
             r#"use omega::language::core::service;
 boundary machine admitted() ensures {claim};
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Service<Console>; }}
+data Main {{ console: Binding<Console>; }}
 machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
@@ -634,7 +634,7 @@ fn granted_axiom_receipt_drifts_on_claim_edit() {
             r#"use omega::language::core::service;
 use omega::language::core::nat;
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Service<Console>; }}
+data Main {{ console: Binding<Console>; }}
 
 boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
 ensures
@@ -699,7 +699,7 @@ fn granted_axiom_receipt_drifts_on_published_contract_axis_edit() {
         format!(
             r#"use omega::language::core::service;
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
-data Main {{ console: Service<Console>; }}
+data Main {{ console: Binding<Console>; }}
 
 boundary machine admitted_axis()
 {axis}
@@ -775,7 +775,7 @@ Ascending: Card satisfies Ranked {{
 Descending: Card satisfies Ranked {{
     machine before(&self, other: &Card) -> bool {{ self.rank > other.rank }}
 }}
-data Main {{ console: Service<Console>; first: Card; second: Card; }}
+data Main {{ console: Binding<Console>; first: Card; second: Card; }}
 
 machine selected_first(value: &Card) {{}}
 machine selected_second(value: &Card) ensures true {{}}

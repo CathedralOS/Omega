@@ -374,11 +374,11 @@ fn top_level_requirement_external_leaf_satisfier_states_no_contract_of_its_own()
         pub data NegationProvider {}
         machine NegationProvider::flip32(value: f32) -> f32
             satisfies Negation::flip
-            via Binding::CompilerIntrinsic;
+            via ForeignBinding::CompilerIntrinsic;
     "#;
     checked_source(source).expect("an external leaf satisfier restates no guarantee");
     let checked_body = source.replace(
-        "via Binding::CompilerIntrinsic;",
+        "via ForeignBinding::CompilerIntrinsic;",
         "{ transition { _ -> (value) } }",
     );
     let diagnostics = checked_source(&checked_body)

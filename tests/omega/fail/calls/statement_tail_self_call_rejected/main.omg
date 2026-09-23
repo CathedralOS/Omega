@@ -11,7 +11,7 @@
 // (`self.other_machine(..)`) remain legal.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; acc: u32 in Wrapping; }
+data Main { console: Binding<Console>; acc: u32 in Wrapping; }
 machine Main::drip(&mut self, n: u32) {
     self.acc = self.acc + 1;
     transition n > 0 {

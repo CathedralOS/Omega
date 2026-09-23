@@ -40,7 +40,7 @@
 
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: i32; b: i32; }
+data Main { console: Binding<Console>; a: i32; b: i32; }
 machine Main::main(&mut self) {
     self.a = 100000;
     self.b = 100000;

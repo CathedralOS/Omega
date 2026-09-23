@@ -2,5 +2,5 @@
 // compile silently. Rejected now as an unknown data type.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let x: i32 = Nonexistent { a: 1 }; self.console.exit_process(0); }

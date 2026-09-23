@@ -11,12 +11,12 @@ pub boundary trait Host {
     machine ping() suspends; blocks;
 }
 machine ping_leaf()
-satisfies Host::ping via Binding::CompilerIntrinsic;
+satisfies Host::ping via ForeignBinding::CompilerIntrinsic;
 "#;
     let quiet = Fixture::local(source);
     let published = Fixture::local(&source.replace(
-        "via Binding::CompilerIntrinsic;",
-        "via Binding::CompilerIntrinsic suspends; blocks;",
+        "via ForeignBinding::CompilerIntrinsic;",
+        "via ForeignBinding::CompilerIntrinsic suspends; blocks;",
     ));
     let quiet_supply = package_evidence::project_checked_external_supply_policy(
         &quiet.checked,

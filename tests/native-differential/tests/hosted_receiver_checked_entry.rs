@@ -2,7 +2,7 @@
 //! exact custody all the way from source to the published process image.
 //!
 //! This is the differential suite's leg of the canary `entry_and_abi::
-//! hosted_receiver*` contract: an authored `Service<Console>`-carrying
+//! hosted_receiver*` contract: an authored `Binding<Console>`-carrying
 //! receiver compiles through checked trees, retains its binding row on the
 //! admitted native object, replays independently against corruption, and —
 //! on the one host whose produced ELF can execute here — is run natively and
@@ -140,7 +140,7 @@ fn hosted_receiver_checked_entry_rejects_bare_interface_field() {
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("the intrinsic `Service<R>` carrier is the only service value spelling")),
+            .contains("the intrinsic `Binding<R>` carrier is the only service value spelling")),
         "unexpected bare-carrier rejection: {diagnostics:#?}"
     );
 }

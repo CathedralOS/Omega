@@ -7,7 +7,7 @@
 // as a clean-exit run canary -- a trap aborts, it does not exit cleanly.)
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let a: i32 in Trapping = 2000000000;
     let b: i32 in Trapping = a + a;   // 4e9 overflows i32 -> MUST trap here

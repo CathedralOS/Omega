@@ -10,8 +10,8 @@ fn review_projects_root_boundary_and_build_authority() {
         r#"use omega::language::core::external_binding;
 boundary machine host_ping() reaches <= Host;
 boundary trait Host { machine ping(); }
-windows_x86_64 machine ping_binding() -> Binding<10, 9, 0> {
-    Binding::DllImport {
+windows_x86_64 machine ping_binding() -> ForeignBinding<10, 9, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega-test",
             export: "host_ping",
@@ -453,7 +453,7 @@ fn review_projects_plan_name_provider_grant() {
     package.write(
         "main.omg",
         r#"boundary trait Host { machine ping(); }
-machine ping_leaf() satisfies Host::ping via Binding::Syscall(60);
+machine ping_leaf() satisfies Host::ping via ForeignBinding::Syscall(60);
 "#,
     );
     package.write(

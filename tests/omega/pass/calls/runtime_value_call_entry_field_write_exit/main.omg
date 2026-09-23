@@ -24,7 +24,7 @@ machine Probe::make(&mut self, alive: bool) -> Shaped {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     probe: Probe;
     first: Shaped;
     second: Shaped;

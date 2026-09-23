@@ -35,7 +35,7 @@ data Samples { values: [u16; 3]; }
 data TiledView { value: TiledArray<Samples>; }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     bytes: [u8; 16];
     index: u64;
     observed: u16;

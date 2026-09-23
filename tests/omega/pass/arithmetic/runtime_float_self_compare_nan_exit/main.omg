@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     f: f64;
 }
 machine Main::main(&mut self) reaches Console {

@@ -10,7 +10,7 @@ machine Tally::total(&self) -> i32 {
     transition { _ -> (self.count) }
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     tally: Tally;
 }
 machine Main::main(&mut self) {

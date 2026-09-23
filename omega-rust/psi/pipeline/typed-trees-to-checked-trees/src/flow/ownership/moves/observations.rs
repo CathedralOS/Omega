@@ -186,7 +186,7 @@ pub(super) fn append_builtin_collection_view(
 ///   including an `[erased]` one — must hold recursively stable contents.
 ///   Field and case projections keep their ordinary place ownership; only
 ///   the indexed element read detaches.
-/// - A call through a `Service<R>`/boundary-trait receiver receives a
+/// - A call through a `Binding<R>`/boundary-trait receiver receives a
 ///   caller-owned ABI copy of each stable borrowed argument: `self.foreign
 ///   .call(self.field)` resolves to a boundary trait signature whose provider
 ///   sits behind an opaque service handle, so it observes `self.field`
@@ -281,7 +281,7 @@ pub(super) fn detached_borrowed_copy_admitted(
 }
 
 /// Whether `target_symbol` names a machine signature of a `boundary` trait —
-/// the resolved target of a call through an opaque `Service<R>`/boundary
+/// the resolved target of a call through an opaque `Binding<R>`/boundary
 /// receiver. The provider behind that handle is not a custody participant:
 /// the seam marshals a caller-owned copy of each argument, so a stable
 /// borrowed argument is observed, never extracted.

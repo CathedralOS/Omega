@@ -14,8 +14,8 @@ requires
     valid_utf8(self);
 pub boundary trait Clock2 { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock2>;
+    console: Binding<Console>;
+    clock: Binding<Clock2>;
     line: [u8; 12] in Utf8;
     frame: u32 in Wrapping;
     pos: u32 in Wrapping;

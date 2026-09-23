@@ -25,7 +25,7 @@ data PairResult {
 }
 
 data Probe {
-    host: Service<FilesystemHost>;
+    host: Binding<FilesystemHost>;
     flag: bool;
 }
 
@@ -38,7 +38,7 @@ machine Probe::make(&mut self) -> PairResult {
 
 data Main {
     probe: Probe;
-    raw: Service<FilesystemHost>;
+    raw: Binding<FilesystemHost>;
     n: i64;
     res: PairResult;
 }

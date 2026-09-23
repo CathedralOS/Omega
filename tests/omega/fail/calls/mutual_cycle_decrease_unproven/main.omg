@@ -2,7 +2,7 @@
 // so a measured signature alone cannot establish termination.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let r: u64 = self.ping(6);
     transition r == 0 { true -> good() _ -> bad() }

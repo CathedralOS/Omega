@@ -22,7 +22,7 @@ const FAMILY_SETTLES: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
     }
@@ -44,7 +44,7 @@ const FAMILY_NORMALIZED: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -63,7 +63,7 @@ const CORRELATED_FAMILY: &str = r#"
     machine TableProvider::direct() -> u64 {
         transition { _ -> (TableProvider::lookup<16, 4>(7) + TableProvider::lookup<32, 8>(8)) }
     }
-    data Client { service: Service<Table>; }
+    data Client { service: Binding<Table>; }
     machine Client::run(&mut self) -> u64 reaches Table {
         transition { _ -> (self.service.lookup<16, 4>(7) + self.service.lookup<32, 8>(8)) }
     }
@@ -82,7 +82,7 @@ const CORRELATED_MISMATCH: &str = r#"
     machine TableProvider::direct() -> u64 {
         transition { _ -> (TableProvider::lookup<16, 4>(7) + TableProvider::lookup<32, 8>(8)) }
     }
-    data Client { service: Service<Table>; }
+    data Client { service: Binding<Table>; }
     machine Client::run(&mut self) -> u64 reaches Table {
         transition { _ -> (self.service.lookup<16, 8>(7)) }
     }
@@ -98,7 +98,7 @@ const PARTIAL_TUPLE: &str = r#"
     machine TableProvider::lookup<const W: u32, const A: u32>(value: u32) -> u64 satisfies Table::lookup {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Service<Table>; }
+    data Client { service: Binding<Table>; }
     machine Client::run(&mut self) -> u64 reaches Table {
         transition { _ -> (self.service.lookup<16, 4>(7)) }
     }
@@ -113,7 +113,7 @@ const OPAQUE_FAMILY: &str = r#"
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -128,7 +128,7 @@ const RANGE_FAMILY: &str = r#"
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -144,7 +144,7 @@ const FAMILY_WITHOUT_SPECIALIZATIONS: &str = r#"
     machine ScanProvider::scan<const Width: u32>(value: u32) -> u64 satisfies Scanner::scan {
         transition { _ -> (value as u64) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -165,7 +165,7 @@ const PARTIAL_COVERAGE: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -183,7 +183,7 @@ const FAMILY_THREE_TUPLES: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<64>(8)) }
     }
@@ -206,7 +206,7 @@ const PARTIAL_COVERAGE_UNCALLED: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u32 reaches Scanner {
         transition { _ -> (self.service.ping(2)) }
     }
@@ -224,7 +224,7 @@ const STATEMENT_FAMILY: &str = r#"
         WatchProvider::watch<8>(1);
         WatchProvider::watch<16>(2);
     }
-    data Client { service: Service<Watcher>; }
+    data Client { service: Binding<Watcher>; }
     machine Client::run(&mut self) reaches Watcher {
         self.service.watch<16>(1);
     }
@@ -634,7 +634,7 @@ const OFF_ROSTER_WIDTH: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<64>(7)) }
     }
@@ -663,7 +663,7 @@ const SIBLING_PROVIDERS: &str = r#"
     machine ReserveProvider::direct() -> u64 {
         transition { _ -> (ReserveProvider::scan<16>(7) + ReserveProvider::scan<32>(8)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }
@@ -869,7 +869,7 @@ const FAMILY_VALUE_BINDER_SETTLES: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7) + self.service.scan<32>(8)) }
     }
@@ -889,7 +889,7 @@ const FAMILY_VALUE_BINDER_RUNTIME_ARGUMENT: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self, width: u32) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<width>(7)) }
     }
@@ -967,7 +967,7 @@ const FAMILY_VALUE_BINDER_OFF_ROSTER: &str = r#"
     machine ScanProvider::direct() -> u64 {
         transition { _ -> (ScanProvider::scan<16>(7) + ScanProvider::scan<32>(8) + ScanProvider::scan<64>(9)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<64>(7)) }
     }
@@ -988,7 +988,7 @@ const FAMILY_VALUE_BINDER_RUNTIME_DEMAND: &str = r#"
     machine ScanProvider::direct(width: u32) -> u64 {
         transition { _ -> (ScanProvider::scan<width>(7)) }
     }
-    data Client { service: Service<Scanner>; }
+    data Client { service: Binding<Scanner>; }
     machine Client::run(&mut self) -> u64 reaches Scanner {
         transition { _ -> (self.service.scan<16>(7)) }
     }

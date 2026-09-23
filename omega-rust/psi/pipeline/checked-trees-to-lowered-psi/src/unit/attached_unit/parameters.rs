@@ -152,7 +152,7 @@ pub(crate) fn validate_direct_unit_parameter_custody(
                 .bound_service_parameter_carrier(source.type_reference)
                 .map_err(|_| {
                     LoweringError::Unsupported(
-                        "typed Unit parameter has an invalid routed Service carrier",
+                        "typed Unit parameter has an invalid routed Binding carrier",
                     )
                 })?;
             let matches = plan

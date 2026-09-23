@@ -3668,7 +3668,7 @@ fn dangerous_service_projection_reads_console_exit_through_a_package_alias() {
         Some("stdlib"),
         "use stdlib::console;\n\
          use omega::language::core::service;\n\
-         data Main { console: Service<Console>; }\n\
+         data Main { console: Binding<Console>; }\n\
          machine Main::main(&mut self) reaches Console {\n\
              self.console.exit_process(70);\n\
          }\n",
@@ -4925,7 +4925,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "atomics/runtime_atomic_fetch_and_exit",
     "atomics/runtime_atomic_swap_exit",
     "atomics/runtime_atomic_compare_exchange_exit",
-    // Intrinsic `Service<R>` carriers (no authored `in Bound`) keep exact Fused
+    // Intrinsic `Binding<R>` carriers (no authored `in Bound`) keep exact Fused
     // establishment on the selected attached root through native settlement.
     "entry/service_intrinsic_carrier_establishment",
 ];

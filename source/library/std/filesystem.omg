@@ -371,7 +371,7 @@ pub data MetadataResult {
 // largest selected `struct stat` carrier; the target `StatLayout` supplies the
 // live extent and field encodings.
 pub data Filesystem {
-    host: Service<FilesystemHost>;
+    host: Binding<FilesystemHost>;
     create_mode: i32;
     dir_mode: i32;
     read_flags: i32;

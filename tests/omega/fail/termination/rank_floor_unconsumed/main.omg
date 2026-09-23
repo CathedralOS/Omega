@@ -3,7 +3,7 @@
 // supported for other ranked programs.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::climb(&mut self, limit: u64, index: u64)
 terminates by index -> Nat::IncreasingTo(limit) in 1..=limit;
 -> u64

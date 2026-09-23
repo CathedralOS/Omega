@@ -145,18 +145,18 @@ impl Fixture {
 
 pub(super) fn import_producer(indirect: bool, export: &str) -> String {
     let value = format!(
-        r#"Binding::DllImport {{
+        r#"ForeignBinding::DllImport {{
         import: DllImport::PeByName {{ library: "kernel32.dll", export: "{export}" }},
     }}"#
     );
     let body = if indirect {
-        format!("let selected: Binding<12, 11, 0> = {value};\n    selected")
+        format!("let selected: ForeignBinding<12, 11, 0> = {value};\n    selected")
     } else {
         value
     };
     format!(
         r#"use omega::language::core::external_binding;
-pub windows_x86_64 machine import_binding() -> Binding<12, 11, 0> {{
+pub windows_x86_64 machine import_binding() -> ForeignBinding<12, 11, 0> {{
     {body}
 }}
 "#
@@ -169,8 +169,8 @@ pub machine ping_leaf() satisfies Host::ping via import_binding();
 
 pub(super) const SYSCALL: &str = r#"use omega::language::core::external_binding;
 pub boundary trait Process { machine exit(code: i32); }
-pub linux_x86_64 machine exit_binding() -> Binding<0, 0, 0> {
-    Binding::Syscall { number: 60 }
+pub linux_x86_64 machine exit_binding() -> ForeignBinding<0, 0, 0> {
+    ForeignBinding::Syscall { number: 60 }
 }
 pub machine exit_leaf(code: i32) satisfies Process::exit via exit_binding();
 "#;

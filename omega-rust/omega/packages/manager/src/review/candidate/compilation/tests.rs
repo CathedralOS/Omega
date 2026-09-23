@@ -490,7 +490,7 @@ pub boundary trait Console {
 pub data ConsoleNativeProvider { }
 linux_x86_64 machine ConsoleNativeProvider::read_byte() -> ByteRead
     satisfies Console::read_byte
-    via Binding::CompilerIntrinsic
+    via ForeignBinding::CompilerIntrinsic
     crashes Trap
     blocks;
 linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
@@ -538,7 +538,7 @@ impl ConsoleApplicationFixture {
             r#"use ordinary_console::main;
 use omega::language::core::service;
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self)
 reaches Console
 {
@@ -786,12 +786,12 @@ pub boundary trait Pick {
 pub data VtablePick { mark: addr; }
 pub machine VtablePick::mark(value: i32)
 satisfies Pick::mark
-via Binding::VtableField(mark);
+via ForeignBinding::VtableField(mark);
 
 pub data PickProvider { }
 pub machine PickProvider::mark_adapter(value: i32) satisfies Pick::mark { }
 
-pub data ComponentEntry { pick: Service<Pick>; }
+pub data ComponentEntry { pick: Binding<Pick>; }
 pub machine ComponentEntry::main(&mut self) reaches Pick invokes Pick; {
     self.pick.mark(7);
 }
@@ -940,7 +940,7 @@ impl FilesystemApplicationFixture {
             r#"use ordinary_filesystem::main;
 use omega::language::core::service;
 
-pub data Main { files: Service<FilesystemHost>; rc: i32; }
+pub data Main { files: Binding<FilesystemHost>; rc: i32; }
 pub machine Main::main(&mut self)
 reaches FilesystemHost
 invokes FilesystemHost;

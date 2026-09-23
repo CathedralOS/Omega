@@ -261,7 +261,7 @@ fn parse_declared_item<'tokens, 'source>(
 
     if input.at_keyword(KeywordKind::Library) {
         return Err(input.error_here(
-            "the legacy `library \"...\" calling_convention ... { entry ... }` block is retired; declare an exact boundary-trait requirement and realize it with `satisfies ... via` one producer machine returning `Binding::DllImport { ... }`",
+            "the legacy `library \"...\" calling_convention ... { entry ... }` block is retired; declare an exact boundary-trait requirement and realize it with `satisfies ... via` one producer machine returning `ForeignBinding::DllImport { ... }`",
         ));
     }
 

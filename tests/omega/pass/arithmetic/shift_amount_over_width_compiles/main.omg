@@ -8,7 +8,7 @@
 // is robust regardless of the shift's runtime value.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; n: i32 in Wrapping; }
+data Main { console: Binding<Console>; n: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.n = (1 as i32 in Wrapping) << 100; // must not crash the compiler
     self.console.exit_process(0);

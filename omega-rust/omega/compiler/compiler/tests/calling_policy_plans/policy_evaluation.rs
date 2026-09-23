@@ -960,8 +960,8 @@ pub boundary trait Aggregate {
     machine peek(tag: u64, pair: &Pair) -> u64;
 }
 
-linux_x86_64 machine combine_binding() -> Binding<15, 11, 7> {
-    Binding::DllImport {
+linux_x86_64 machine combine_binding() -> ForeignBinding<15, 11, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libagg-probe.so",
             symbol: "agg_combine",
@@ -970,8 +970,8 @@ linux_x86_64 machine combine_binding() -> Binding<15, 11, 7> {
     }
 }
 
-linux_x86_64 machine peek_binding() -> Binding<15, 8, 7> {
-    Binding::DllImport {
+linux_x86_64 machine peek_binding() -> ForeignBinding<15, 8, 7> {
+    ForeignBinding::DllImport {
         import: DllImport::ElfVersioned {
             object: "libagg-probe.so",
             symbol: "agg_peek",
@@ -985,7 +985,7 @@ machine combine_leaf(tag: u64, pair: Pair) -> u64
 machine peek_leaf(tag: u64, pair: &Pair) -> u64
     satisfies Aggregate::peek via peek_binding();
 
-data Main { boundary: Service<Aggregate>; }
+data Main { boundary: Binding<Aggregate>; }
 machine Main::main(&mut self) reaches Aggregate {
     let pair: Pair = Pair { first: 2u64, second: 22u64 };
     let answer: u64 = self.boundary.combine(20u64, pair);

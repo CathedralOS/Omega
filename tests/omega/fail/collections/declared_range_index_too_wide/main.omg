@@ -5,7 +5,7 @@ use omega::language::std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     arr: [i32; 5];
     i: u64 [0..=5];
 }

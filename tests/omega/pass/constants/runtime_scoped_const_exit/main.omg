@@ -15,7 +15,7 @@ const Limits::CEILING: i32 = 60;
 const Limits::DEFAULTS: Limits = Limits { ceiling: 10 };
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     limits: Limits;
     total: i32;
 }

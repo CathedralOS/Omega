@@ -22,7 +22,7 @@ use omega::language::core::service;
 data Sample [copy] { x: f32; }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     f: f32;
     s: Sample;
 }

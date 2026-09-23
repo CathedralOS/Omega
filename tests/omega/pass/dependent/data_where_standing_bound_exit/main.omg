@@ -6,7 +6,7 @@ data Main
 where
     value <= 60,
 {
-    console: Service<Console>;
+    console: Binding<Console>;
     value: i32;
 }
 machine Main::main(&mut self) reaches Console {

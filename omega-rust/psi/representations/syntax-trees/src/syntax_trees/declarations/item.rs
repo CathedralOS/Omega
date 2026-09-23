@@ -69,12 +69,12 @@ pub struct ConstInitializerNormalization {
 /// `Binding::Case(...)` parser. Durable source uses an ordinary `via`
 /// expression and evaluates the compiler-owned closed `Binding` data sum.
 /// The string-backed `DllImport` variant is removed entirely: authored
-/// imports evaluate the compiler-owned `Binding::DllImport` value through a
+/// imports evaluate the compiler-owned `ForeignBinding::DllImport` value through a
 /// `via` producer machine, while `VtableSlot` still survives its own
 /// authored-spelling retirement for decoded artifacts and snapshots.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExternalBinding {
-    /// Linux's stable ABI is the number table: `Binding::Syscall(1)`.
+    /// Linux's stable ABI is the number table: `ForeignBinding::Syscall(1)`.
     Syscall { number: i64 },
     /// Compiler-known target operation. The resolved realization symbol,
     /// normalized signature, and target key the sealed lowering catalog.

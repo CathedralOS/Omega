@@ -6,7 +6,7 @@ use omega::language::std::console;
 use omega::language::core::service;
 data Desc { kind: u64; pages: u64; }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buf: [u8; 64];
     descriptor_size: u32 in Wrapping;
     map_size: u32 in Wrapping;

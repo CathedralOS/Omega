@@ -20,7 +20,7 @@ use omega::language::core::numeric_conversion;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     text: [u8; 16] in Utf8;
     pat: [u8; 8] in Utf8;
     i: u32 in Wrapping;

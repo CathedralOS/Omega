@@ -13,7 +13,7 @@ machine Wrapper::make_pair(&mut self) -> Pair {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     wrapper: Wrapper;
     first: Pair;
     second: Pair;

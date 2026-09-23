@@ -28,7 +28,7 @@ where
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buffer: FixedBuffer<4>;
 }
 

@@ -10,8 +10,8 @@ pub boundary trait ScalarFloatImport {
     machine call(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64;
 }
 
-windows_x86_64 machine scalar_float_binding() -> Binding<19, 30, 0> {
-    Binding::DllImport {
+windows_x86_64 machine scalar_float_binding() -> ForeignBinding<19, 30, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "omega_abi_probe.dll",
             export: "omega_win64_scalar_float_probe",
@@ -22,7 +22,7 @@ windows_x86_64 machine scalar_float_binding() -> Binding<19, 30, 0> {
 windows_x86_64 machine scalar_float_import(before: u64, value: f64, after: u64, fourth: f64, fifth: f64) -> f64 satisfies ScalarFloatImport::call via scalar_float_binding();
 
 data Main {
-    foreign: Service<ScalarFloatImport>;
+    foreign: Binding<ScalarFloatImport>;
     before: u64;
     value: f64;
     after: u64;

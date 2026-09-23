@@ -6,7 +6,7 @@ data Pair {
     x: i32 [0..=100];
     y: i32 [0..=100];
 }
-data Main { console: Service<Console>; pair: Pair; }
+data Main { console: Binding<Console>; pair: Pair; }
 machine Main::main(&mut self) reaches Console {
     self.pair = Pair { x: 30, y: 40 };
     let { x, y } = self.pair;

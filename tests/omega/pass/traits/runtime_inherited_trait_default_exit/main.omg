@@ -75,7 +75,7 @@ machine ResolvedValue::reset(&mut self) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     required_value: RequiredValue;
     parent_value: ParentValue;
     resolved_value: ResolvedValue;

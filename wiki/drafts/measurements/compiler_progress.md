@@ -98,9 +98,9 @@ the host tier from before the cross-target tier existed, and now compile for
 
 Family five is a library gap on the settled carrier. The compiler-known
 runtime carrier is `Binding<R>` ([entry roots](../../spec/build/entry_roots.md));
-the library and corpus still spell it `Service<R>`, and `Binding<...>` still
-names the unrelated foreign locator, which is the migration
-BINDING-CARRIER-NAME owes. A direct entry-receiver field of that carrier
+the library, corpus, samples and the compiler's recognizers spell it so, and
+`ForeignBinding<...>` names the unrelated foreign locator. A direct
+entry-receiver field of that carrier
 demands a selected Fused provider for `R`, and `source/library/std` declares
 exactly three: `ConsoleNativeProvider`, `ProcessExitNativeProvider` and
 `UefiOsHandoffNativeProvider`. The fifteen fixtures declare the carrier over
@@ -180,3 +180,12 @@ not that it exercises their interaction.
   expected is counted as passing; the `run/` corpus of eleven differential
   members, which compare native output against the interpreter, is not folded
   in here.
+- **Elided fixtures.** The pass umbrella does not compile every rostered
+  active fixture: a fixture with a dedicated exact-native owner among the
+  suite's `*_canary_runs` tests is elided from `pass_canaries_compile` and
+  judged only by that owner, which this instrument does not read. Such a
+  fixture appears here as rostered and not failing whether or not its owner is
+  green, so the umbrella counts above are a ceiling on the active tier, not
+  its verdict. The umbrella prints the elided counts under
+  `OMEGA_PASS_CANARY_REPORT_COUNTS=1`; the next full run records them here,
+  and reading the dedicated owners' verdicts is the instrument's next input.

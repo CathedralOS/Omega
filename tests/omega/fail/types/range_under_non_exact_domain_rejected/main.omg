@@ -8,7 +8,7 @@
 // (defined overflow, full type range), never both.
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; i: u8 [0..=4] in Wrapping; }
+data Main { console: Binding<Console>; i: u8 [0..=4] in Wrapping; }
 machine Main::main(&mut self) {
     self.i = 100;
     self.console.exit_process(70);

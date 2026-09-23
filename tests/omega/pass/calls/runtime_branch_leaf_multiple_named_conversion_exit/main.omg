@@ -29,7 +29,7 @@ machine Probe::decode(&mut self) -> i32 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     probe: Probe;
     code: i32;
 }

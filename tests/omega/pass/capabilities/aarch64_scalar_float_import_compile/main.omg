@@ -8,8 +8,8 @@ pub boundary trait ScalarFloatImport {
     machine call(value: f64) -> f64;
 }
 
-macos_arm64 machine scalar_float_binding() -> Binding<17, 24, 0> {
-    Binding::DllImport {
+macos_arm64 machine scalar_float_binding() -> ForeignBinding<17, 24, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "omega_scalar_float_probe",
@@ -19,7 +19,7 @@ macos_arm64 machine scalar_float_binding() -> Binding<17, 24, 0> {
 
 macos_arm64 machine scalar_float_import(value: f64) -> f64 satisfies ScalarFloatImport::call via scalar_float_binding();
 
-data Main { foreign: Service<ScalarFloatImport>; value: f64; result: f64; }
+data Main { foreign: Binding<ScalarFloatImport>; value: f64; result: f64; }
 machine Main::main(&mut self) reaches ScalarFloatImport {
     self.result = self.foreign.call(self.value);
 }

@@ -43,7 +43,7 @@ fn record_literal_stores_each_scalar_member_through_the_field_path() {
         r#"
         {HOST}
         data Handle {{ raw: u8; tag: u8; }}
-        data Main {{ fs: Service<Host>; rc: i32; h: Handle; }}
+        data Main {{ fs: Binding<Host>; rc: i32; h: Handle; }}
         machine Main::main(&mut self) reaches Host {{
             self.h = Handle {{ raw: 7, tag: 9 }};
             self.rc = self.fs.close(0);
@@ -84,7 +84,7 @@ fn record_literal_carries_addr_members_through_the_same_decomposition() {
         r#"
         {HOST}
         data Handle {{ raw: addr; }}
-        data Main {{ fs: Service<Host>; rc: i32; h: Handle; }}
+        data Main {{ fs: Binding<Host>; rc: i32; h: Handle; }}
         machine Main::main(&mut self) reaches Host {{
             self.h = Handle {{ raw: 4096 }};
             self.rc = self.fs.close(0);
@@ -114,7 +114,7 @@ fn a_direct_addr_field_store_is_admitted_like_any_scalar() {
     let plan = plan(&format!(
         r#"
         {HOST}
-        data Main {{ fs: Service<Host>; rc: i32; a: addr; }}
+        data Main {{ fs: Binding<Host>; rc: i32; a: addr; }}
         machine Main::main(&mut self) reaches Host {{
             self.a = 4096;
             self.rc = self.fs.close(0);
@@ -142,7 +142,7 @@ fn a_nested_addr_field_store_is_admitted_like_any_scalar() {
         r#"
         {HOST}
         data Handle {{ raw: addr; }}
-        data Main {{ fs: Service<Host>; rc: i32; h: Handle; }}
+        data Main {{ fs: Binding<Host>; rc: i32; h: Handle; }}
         machine Main::main(&mut self) reaches Host {{
             self.h.raw = 4096;
             self.rc = self.fs.close(0);
@@ -169,7 +169,7 @@ fn record_literal_field_store_rejects_a_non_literal_record_source() {
         r#"
         {HOST}
         data Handle {{ raw: u8; }}
-        data Main {{ fs: Service<Host>; rc: i32; h: Handle; }}
+        data Main {{ fs: Binding<Host>; rc: i32; h: Handle; }}
         machine Main::main(&mut self) reaches Host {{
             let source: Handle = Handle {{ raw: 7 }};
             self.h = source;
@@ -190,7 +190,7 @@ fn record_literal_field_store_rejects_structural_members() {
         {HOST}
         data Inner {{ raw: u8; }}
         data Outer {{ inner: Inner; }}
-        data Main {{ fs: Service<Host>; rc: i32; o: Outer; }}
+        data Main {{ fs: Binding<Host>; rc: i32; o: Outer; }}
         machine Main::main(&mut self) reaches Host {{
             self.o = Outer {{ inner: Inner {{ raw: 7 }} }};
             self.rc = self.fs.close(0);

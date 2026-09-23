@@ -14,7 +14,7 @@ use omega::language::core::service;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
 data Inner { a: u32; b: u32; }
 data Outer { first: Inner; second: Inner; }
-data Main { console: Service<Console>; nested: Outer; }
+data Main { console: Binding<Console>; nested: Outer; }
 machine Main::main(&mut self) {
     self.nested.first.a = 5;
     self.nested.second.b = 9;

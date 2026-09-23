@@ -1,4 +1,4 @@
 use omega::language::core::service;
 pub boundary trait Readable { machine read() -> u64; }
-data Worker { reader: Service<Readable>; }
+data Worker { reader: Binding<Readable>; }
 machine Worker::read(&mut self) -> u64 { self.reader.read() }

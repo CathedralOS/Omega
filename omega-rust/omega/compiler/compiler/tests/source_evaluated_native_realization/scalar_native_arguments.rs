@@ -97,23 +97,23 @@ pub boundary trait ScalarProbe {{
     machine narrow(result: f64) -> f32;
     machine finish(small: f32, result: f64);
 }}
-macos_arm64 machine choose_binding() -> Binding<{install_name_length}, 7, 0> {{
-    Binding::DllImport {{ import: DllImport::MachODylibSymbol {{
+macos_arm64 machine choose_binding() -> ForeignBinding<{install_name_length}, 7, 0> {{
+    ForeignBinding::DllImport {{ import: DllImport::MachODylibSymbol {{
         install_name: "{install_name}", symbol: "_choose",
     }} }}
 }}
-macos_arm64 machine exchange_binding() -> Binding<{install_name_length}, 9, 0> {{
-    Binding::DllImport {{ import: DllImport::MachODylibSymbol {{
+macos_arm64 machine exchange_binding() -> ForeignBinding<{install_name_length}, 9, 0> {{
+    ForeignBinding::DllImport {{ import: DllImport::MachODylibSymbol {{
         install_name: "{install_name}", symbol: "_exchange",
     }} }}
 }}
-macos_arm64 machine finish_binding() -> Binding<{install_name_length}, 7, 0> {{
-    Binding::DllImport {{ import: DllImport::MachODylibSymbol {{
+macos_arm64 machine finish_binding() -> ForeignBinding<{install_name_length}, 7, 0> {{
+    ForeignBinding::DllImport {{ import: DllImport::MachODylibSymbol {{
         install_name: "{install_name}", symbol: "_finish",
     }} }}
 }}
-macos_arm64 machine narrow_binding() -> Binding<{install_name_length}, 7, 0> {{
-    Binding::DllImport {{ import: DllImport::MachODylibSymbol {{
+macos_arm64 machine narrow_binding() -> ForeignBinding<{install_name_length}, 7, 0> {{
+    ForeignBinding::DllImport {{ import: DllImport::MachODylibSymbol {{
         install_name: "{install_name}", symbol: "_narrow",
     }} }}
 }}
@@ -122,7 +122,7 @@ machine exchange_leaf(enabled: bool, small: f32, wide: f64, ordinal: i32) -> f64
     satisfies ScalarProbe::exchange via exchange_binding();
 machine narrow_leaf(result: f64) -> f32 satisfies ScalarProbe::narrow via narrow_binding();
 machine finish_leaf(small: f32, result: f64) satisfies ScalarProbe::finish via finish_binding();
-data Main {{ probe: Service<ScalarProbe>; }}
+data Main {{ probe: Binding<ScalarProbe>; }}
 machine Main::main(&mut self) reaches ScalarProbe {{
     let enabled: bool = self.probe.choose();
     let first: f64 = self.probe.exchange(enabled, 1.5f32, 2.25f64, 17);

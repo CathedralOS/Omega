@@ -20,8 +20,8 @@ use omega::language::core::service;
 pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     time: Time;
     now_keep: SystemTime;
     epoch_2026: SystemTime;

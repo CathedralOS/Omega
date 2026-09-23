@@ -7,7 +7,7 @@
 
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: u8 in Wrapping; b: u8 in Wrapping; }
+data Main { console: Binding<Console>; a: u8 in Wrapping; b: u8 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.a = 200;
     self.b = 100;

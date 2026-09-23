@@ -96,7 +96,7 @@ pub struct TypedTrees {
     pub boundary_calling_plans: Vec<BoundaryCallingPlanIdentity>,
     /// Compiler-owned authorizations for erasing one exact routed service
     /// carrier after a Fused provider selection. Ordinary Psi lowering keeps
-    /// this empty and therefore cannot erase `Service<R>` by type shape alone.
+    /// this empty and therefore cannot erase `Binding<R>` by type shape alone.
     pub fused_service_erasures: Vec<FusedServiceErasureAuthorization>,
     /// PDI3 exact operation/algebra selections for proof-static open index
     /// expressions. The expression tree remains the canonical structural

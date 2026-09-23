@@ -15,7 +15,7 @@ data Inner {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     inner: Inner;
 }
 

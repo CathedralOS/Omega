@@ -7,7 +7,7 @@ use omega::language::core::service;
 data Receipt [linear] { code: i32; }
 machine Receipt::ack(self) {}
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::issue(&mut self) -> Receipt {
     let issued: Receipt = Receipt { code: 7 };

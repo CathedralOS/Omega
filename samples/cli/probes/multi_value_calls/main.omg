@@ -27,7 +27,7 @@ use omega_language_std::console;
 use omega::language::core::service;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     offset: i32 in Saturating;
     pause: [u8; 256];
 }

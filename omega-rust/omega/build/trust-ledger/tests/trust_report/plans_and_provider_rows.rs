@@ -25,8 +25,8 @@ pub boundary trait Flags {{
     machine open_read() -> i32;
 }}
 machine open_read() -> i32
-    satisfies Flags::open_read via Binding::Syscall({slot});
-data Main {{ console: Service<Console>; }}
+    satisfies Flags::open_read via ForeignBinding::Syscall({slot});
+data Main {{ console: Binding<Console>; }}
 machine Main::exercise(&mut self) reaches Console {{
     self.console.exit_process(70);
 }}
@@ -75,8 +75,8 @@ pub boundary trait Flags {
     machine open_read() -> i32;
 }
 machine open_read() -> i32
-    satisfies Flags::open_read via Binding::Syscall(101);
-data Main { console: Service<Console>; }
+    satisfies Flags::open_read via ForeignBinding::Syscall(101);
+data Main { console: Binding<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -174,7 +174,7 @@ machine NoResultPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
 }
 
 pub boundary trait Tick: Calling<NoResultPolicy> { machine tick(); }
-machine tick_leaf() satisfies Tick::tick via Binding::Syscall(102);
+machine tick_leaf() satisfies Tick::tick via ForeignBinding::Syscall(102);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -252,9 +252,9 @@ pub boundary trait Pair {
 }
 
 machine effectful_leaf(callback: &mut Callback)
-    satisfies Pair::effectful via Binding::Syscall(103);
+    satisfies Pair::effectful via ForeignBinding::Syscall(103);
 machine quiet_leaf()
-    satisfies Pair::quiet via Binding::Syscall(104);
+    satisfies Pair::quiet via ForeignBinding::Syscall(104);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -331,7 +331,7 @@ pub boundary trait SchedulerRuntime {
 }
 
 machine wait_leaf(scheduler: SchedulerHandle)
-    satisfies SchedulerRuntime::wait via Binding::Syscall(105);
+    satisfies SchedulerRuntime::wait via ForeignBinding::Syscall(105);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -402,7 +402,7 @@ pub boundary trait Issuer {
 
 machine issue_leaf(id: u64) -> Token in Issued
     satisfies Issuer::issue
-    via Binding::Syscall(106);
+    via ForeignBinding::Syscall(106);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -527,7 +527,7 @@ pub boundary trait Issuer {
 
 machine issue_leaf(id: u64) -> Token in Issued
     satisfies Issuer::issue
-    via Binding::Syscall(106);
+    via ForeignBinding::Syscall(106);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -576,9 +576,9 @@ pub boundary trait Pair {
     machine second(code: i32) -> i32;
 }
 
-machine first_leaf(code: i32) -> i32 satisfies Pair::first via Binding::Syscall(107);
+machine first_leaf(code: i32) -> i32 satisfies Pair::first via ForeignBinding::Syscall(107);
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }
@@ -639,7 +639,7 @@ pub boundary trait Pair {
 }
 
 machine bound_leaf() -> Token in Bound
-    satisfies Pair::bound via Binding::Syscall(108);
+    satisfies Pair::bound via ForeignBinding::Syscall(108);
 
 data Main {}
 machine Main::exercise(&mut self) {}
@@ -706,13 +706,13 @@ pub boundary trait Pair {
 
 data FirstProvider { first: addr; }
 machine FirstProvider::first(code: i32) -> i32
-    satisfies Pair::first via Binding::VtableField(first);
+    satisfies Pair::first via ForeignBinding::VtableField(first);
 
 data SecondProvider { second: addr; }
 machine SecondProvider::second(code: i32) -> i32
-    satisfies Pair::second via Binding::VtableField(second);
+    satisfies Pair::second via ForeignBinding::VtableField(second);
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::exercise(&mut self) reaches Console {
     self.console.exit_process(70);
 }

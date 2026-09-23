@@ -18,7 +18,7 @@ data SampleValue {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     buffer: [u8; 64];
     written: u64;
 }

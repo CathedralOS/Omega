@@ -8,7 +8,7 @@ pub boundary trait Firmware {
 }
 
 data Main {
-    fw: Service<Firmware>;
+    fw: Binding<Firmware>;
     buf: [u8; 12];
     size: u32;
     cap: u32;

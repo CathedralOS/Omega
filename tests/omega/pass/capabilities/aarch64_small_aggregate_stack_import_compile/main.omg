@@ -18,8 +18,8 @@ pub boundary trait AggregateStackImport {
     ) -> i64;
 }
 
-macos_arm64 machine aggregate_stack_binding() -> Binding<17, 33, 0> {
-    Binding::DllImport {
+macos_arm64 machine aggregate_stack_binding() -> ForeignBinding<17, 33, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "omega_small_aggregate_stack_probe",
@@ -38,7 +38,7 @@ macos_arm64 machine aggregate_stack_import(
     pair: Pair
 ) -> i64 satisfies AggregateStackImport::call via aggregate_stack_binding();
 
-data Main { foreign: Service<AggregateStackImport>; pair: Pair; result: i64; }
+data Main { foreign: Binding<AggregateStackImport>; pair: Pair; result: i64; }
 machine Main::main(&mut self) reaches AggregateStackImport {
     self.pair = Pair { first: 8, second: 9 };
     self.result = self.foreign.call(1, 2, 3, 4, 5, 6, 7, self.pair);

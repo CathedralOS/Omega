@@ -11,7 +11,7 @@ use omega_language_std::filesystem_host;
 use omega::language::core::service;
 
 data Main {
-    fs: Service<FilesystemHost>;
+    fs: Binding<FilesystemHost>;
     dirmode: i32;
     filemode: i32;
     rdonly: i32;

@@ -14,7 +14,7 @@ machine EchoProvider::echo_adapter(x: i32) -> i32 satisfies Echo::echo {
     transition { _ -> (x) }
 }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     self.console.exit_process(70);
 }

@@ -41,7 +41,7 @@ fn a_field_store_reads_the_scalar_call_result_its_own_statement_produced() {
     let plan = plan(&format!(
         r#"
         {HOST}
-        data Main {{ fs: Service<Host>; fd_in: i32; rc: i32; }}
+        data Main {{ fs: Binding<Host>; fd_in: i32; rc: i32; }}
         machine Main::main(&mut self) reaches Host {{
             self.fd_in = 5;
             self.rc = self.fs.close(self.fd_in);
@@ -77,7 +77,7 @@ fn consecutive_call_result_stores_keep_dense_scalar_positions() {
     let plan = plan(&format!(
         r#"
         {HOST}
-        data Main {{ fs: Service<Host>; fd_in: i32; rc: i32; written: i64; }}
+        data Main {{ fs: Binding<Host>; fd_in: i32; rc: i32; written: i64; }}
         machine Main::main(&mut self) reaches Host {{
             self.rc = self.fs.close(self.fd_in);
             self.written = self.fs.flush(self.fd_in);
@@ -124,7 +124,7 @@ fn a_call_result_field_store_rejects_a_domain_constrained_field() {
         r#"
         domain i32::Degrees;
         {HOST}
-        data Main {{ fs: Service<Host>; fd_in: i32; rc: i32 in Degrees; }}
+        data Main {{ fs: Binding<Host>; fd_in: i32; rc: i32 in Degrees; }}
         machine Main::main(&mut self) reaches Host {{
             self.rc = self.fs.close(self.fd_in);
         }}

@@ -5,7 +5,7 @@
 // these would break real code. All three stores below are sound and must compile.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; a: i8; b: i64; r: i32; s: i8; }
+data Main { console: Binding<Console>; a: i8; b: i64; r: i32; s: i8; }
 machine Main::main(&mut self) reaches Console {
     self.a = 5;
     self.b = self.a;   // widening i8 -> i64 (always sound)

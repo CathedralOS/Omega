@@ -5,7 +5,7 @@
 // keeps honest unsigned ordering.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::probe(&mut self, stored: u64) reaches Console {
     let under: bool = stored < 18446744073709551615;
     transition under { true -> good() _ -> bad() }

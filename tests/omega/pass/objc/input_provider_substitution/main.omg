@@ -1,7 +1,7 @@
 // PROVES the darwin Input-provider SUBSTITUTION (render fire 26, task #60): declares
-// the UNCHANGED Win32-shaped `boundary trait Input` and holds an `input: Service<Input>` FIELD
+// the UNCHANGED Win32-shaped `boundary trait Input` and holds an `input: Binding<Input>` FIELD
 // with NO `use` of any macOS module -- exactly like samples/gui/window_app. On darwin
-// the compiler injects the bundled MacosInput provider and rewrites `input: Service<Input>` ->
+// the compiler injects the bundled MacosInput provider and rewrites `input: Binding<Input>` ->
 // `MacosInput`, so `self.input.key_state(27)` maps VK 27 (ESC) -> macOS keycode 53 and
 // asks CGEventSourceKeyState whether it is down. In headless CI ESC is not held, so
 // key_state returns 0 -> exit 4. Validates the substitution registry generalizes past
@@ -10,8 +10,8 @@ use omega::language::std::console;
 use omega::language::core::service;
 pub boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 data Main {
-    console: Service<Console>;
-    input: Service<Input>;
+    console: Binding<Console>;
+    input: Binding<Input>;
     esc: u64;
 }
 machine Main::main(&mut self) reaches Console {

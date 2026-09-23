@@ -2,7 +2,7 @@ use omega::language::core::service;
 use omega_language_std::console;
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     line: [u8; 16];
 }
 

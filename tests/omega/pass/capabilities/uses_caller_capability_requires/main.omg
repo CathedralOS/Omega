@@ -22,7 +22,7 @@ pub boundary trait Filesystem {
 }
 
 data Thumbnailer {
-    fs: Service<Filesystem>;
+    fs: Binding<Filesystem>;
 }
 
 machine Thumbnailer::write_cache(&mut self, cache: Folder)

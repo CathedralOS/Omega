@@ -21,8 +21,8 @@ requires
 pub boundary trait Clock { machine sleep(milliseconds: u32); }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     line: [u8; 40] in Utf8;
     cr: [u8; 1] in Utf8;
     p: i32 [0..=40];     // ball column; each move is re-guarded so +1/-1 stays in range

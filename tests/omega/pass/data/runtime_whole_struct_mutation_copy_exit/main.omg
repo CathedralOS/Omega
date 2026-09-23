@@ -11,7 +11,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Pair { a: i64; b: i64; }
-data Main { console: Service<Console>; spot: Pair; scratch: Pair; }
+data Main { console: Binding<Console>; spot: Pair; scratch: Pair; }
 machine Main::main(&mut self) reaches Console {
     transition { _ -> fill(68, 2) }
     state fill(&mut self, x: i64, y: i64) {

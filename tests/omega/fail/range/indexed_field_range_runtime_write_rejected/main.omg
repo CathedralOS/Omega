@@ -9,7 +9,7 @@ data Cell {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cells: [Cell; 4];
     i: u64 [0..=3];
 }

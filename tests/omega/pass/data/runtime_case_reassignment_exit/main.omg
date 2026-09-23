@@ -15,7 +15,7 @@ data Mode {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     mode: Mode;
 }
 

@@ -27,8 +27,8 @@ machine SecondProvider::mark(value: &mut i32) satisfies Pick::mark {
 }
 
 data Main {
-    console: Service<Console>;
-    pick: Service<Pick>;
+    console: Binding<Console>;
+    pick: Binding<Pick>;
     selected: i32;
 }
 

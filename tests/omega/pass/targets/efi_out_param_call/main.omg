@@ -31,7 +31,7 @@ uefi_x86_64 machine EfiBootServicesTable::get_memory_map_leaf(
     key: &mut u64,
     desc_size: &mut u64,
     desc_version: &mut u32
-) -> i32 satisfies BootServices::get_memory_map via Binding::VtableField(get_memory_map);
+) -> i32 satisfies BootServices::get_memory_map via ForeignBinding::VtableField(get_memory_map);
 pub data EfiSystemTable {
     hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
     firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
@@ -39,7 +39,7 @@ pub data EfiSystemTable {
     runtime_services: addr; boot_services: addr;
 }
 pub data Main {
-    bs: Service<BootServices>;
+    bs: Binding<BootServices>;
     map_size: u64;
     key: u64;
     desc_size: u64;

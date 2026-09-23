@@ -40,7 +40,7 @@ data Runner [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     runner: Runner;
     pause: [u8; 256];
 }

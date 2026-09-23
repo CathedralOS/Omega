@@ -361,10 +361,10 @@ macos_arm64 machine CalcClockProvider::sleep(&mut self, milliseconds: u32) satis
 }
 
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
-    input: Service<Input>;
-    gui: Service<Gui>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
+    input: Binding<Input>;
+    gui: Binding<Gui>;
 
     cls: [u8; 7];
     title: [u8; 11];

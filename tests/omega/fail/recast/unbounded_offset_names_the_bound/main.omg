@@ -8,7 +8,7 @@
 use omega::language::std::console;
 use omega::language::core::service;
 data Desc { a: u32; b: u32; }
-data Main { console: Service<Console>; buf: [u8; 16]; }
+data Main { console: Binding<Console>; buf: [u8; 16]; }
 machine Main::main(&mut self, offset: u32) {
     transition { _ -> read(offset) }
     state read(&mut self, off: u32) {

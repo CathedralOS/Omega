@@ -20,7 +20,7 @@ data Room {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     empty_room: Room;
     match_room: Room;
     differ_room: Room;

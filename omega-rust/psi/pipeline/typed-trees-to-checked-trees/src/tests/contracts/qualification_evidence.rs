@@ -5,7 +5,7 @@ use crate::tests::front_end::typed_program_with_core_service;
 use facts::{FactOrigin, FactPayload};
 use language_semantics::{DomainEstablishmentRoute, QualificationEvidenceOrigin};
 
-/// `Service<R>` carrier fixtures check against the toolchain declaration with
+/// `Binding<R>` carrier fixtures check against the toolchain declaration with
 /// the same fused-service erasure authorizations `settle_checked_providers`
 /// binds in real builds; without them the carrier field stays unshaped and the
 /// machine's unit plan fails closed.
@@ -258,7 +258,7 @@ pub boundary trait TokenIssuer {
 }
 data Adapter {}
 machine Adapter::issue(token: Token) -> Token satisfies TokenIssuer::issue { token }
-data Main { issuer: Service<TokenIssuer>; }
+data Main { issuer: Binding<TokenIssuer>; }
 machine consume(token: Token in Issued) -> Token { token as Token }
 machine Main::run(&self, token: Token) -> Token reaches TokenIssuer { let issued: Token = self.issuer.issue(token); consume(issued) }
 "#;
@@ -310,7 +310,7 @@ pub boundary trait MaskControl {
 }
 
 data Main {
-    control: Service<MaskControl>;
+    control: Binding<MaskControl>;
 }
 
 machine Main::run(&mut self) -> Guard in Active reaches MaskControl {
@@ -382,7 +382,7 @@ pub boundary trait TokenIssuer {
 }
 
 data Main {
-    issuer: Service<TokenIssuer>;
+    issuer: Binding<TokenIssuer>;
 }
 
 machine Main::run(&mut self) reaches TokenIssuer {
@@ -463,7 +463,7 @@ pub boundary trait TokenIssuer {
 }
 
 data Main {
-    issuer: Service<TokenIssuer>;
+    issuer: Binding<TokenIssuer>;
 }
 
 machine Main::consume(&self, token: Token in Carry::MovableAddress) -> Token {

@@ -6,7 +6,7 @@ pub boundary trait FilesystemHost {
 }
 
 data SpoofedStager {
-    filesystem: Service<FilesystemHost>;
+    filesystem: Binding<FilesystemHost>;
 }
 
 machine configure_spoofed_stager(builder: &mut Build)

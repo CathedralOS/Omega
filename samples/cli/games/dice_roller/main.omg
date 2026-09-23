@@ -27,7 +27,7 @@ data Roller [copy] {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     roller: Roller;
     pause: [u8; 256];
 }

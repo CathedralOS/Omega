@@ -12,7 +12,7 @@
 use omega_language_std::console;
 use omega::language::core::service;
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     cube: [[[i32; 2]; 2]; 2];
     weird: [[[i32; 1]; 4]; 2];
     k: u64 [0..=1];

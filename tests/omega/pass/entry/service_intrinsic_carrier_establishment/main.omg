@@ -1,6 +1,6 @@
 // One selected attached application root receives exact Fused Service
 // establishment from its generated entry bridge under the intrinsic carrier
-// spelling: `Service<R>` alone denotes the toolchain service era, and the
+// spelling: `Binding<R>` alone denotes the toolchain service era, and the
 // closed carrier admits no authored qualification at all. A same-shaped
 // non-root owner receives no such authority merely because the provider is
 // selected.
@@ -14,7 +14,7 @@ data PingProvider { }
 machine PingProvider::ping() satisfies Ping::ping { }
 
 data Main {
-    service: Service<Ping>;
+    service: Binding<Ping>;
 }
 
 machine Main::main(&mut self)
@@ -24,7 +24,7 @@ reaches Ping
 }
 
 data NonRoot {
-    service: Service<Ping>;
+    service: Binding<Ping>;
 }
 
 machine NonRoot::run(&mut self)

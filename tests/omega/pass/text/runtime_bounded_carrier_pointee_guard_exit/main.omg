@@ -43,7 +43,7 @@ machine Finder::check(&mut self, level: Level) -> i32 {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     level: Level;
     finder: Finder;
 }

@@ -17,7 +17,7 @@ domain [u8; 16]::Utf8
 requires
     valid_utf8(self);
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     input: [u8; 16] in Utf8;
     out: [u8; 16] in Utf8;
     prev: u8;             // the byte of the current run

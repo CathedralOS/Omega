@@ -34,7 +34,7 @@ machine Tracker::mark_room(&mut self, room_index: u64) {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     tracker: Tracker;
     current_room: u64;
     fountain_used: bool;

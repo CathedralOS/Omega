@@ -34,8 +34,8 @@ pub boundary trait Clock { machine sleep(milliseconds: u32); }
 // states upstream), the offsets/distance fold bounded from those ranges, and the
 // ramp level folds through `% 8` (modulo bounds by the divisor).
 data Main {
-    console: Service<Console>;
-    clock: Service<Clock>;
+    console: Binding<Console>;
+    clock: Binding<Clock>;
     line: [u8; 30] in Utf8;   // one rendered row
     ramp: [u8; 8] in Utf8;    // " .:-=+*#"  dim -> bright
     home: [u8; 3] in Utf8;    // ESC [ H  (cursor home)

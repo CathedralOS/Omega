@@ -202,7 +202,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `cli_mvp`, `euclid_gcd`, `generic_counters`, `number_guess` | Complete ordinary review and native CLI execution on Windows x86-64 and both Linux hosts; the recorded macOS ARM64 routes passed. Preserve documented exact output, EOF/Enter and prompt timing where applicable, empty stderr, and exits 0/12/16/70 respectively. Review each checkout/target rather than reusing another checkout's local-source lock. |
   | `print_squares` | Publish and execute the unchanged byte-storage/cyclic program, nine computed rows ending in `081`, exit 0. **NOMINAL-FIELD-FLOW**, **CRASH-CONTRACT** and **GENERAL-CYCLIC-EXECUTION** own facts, envelopes and plans. Wrapping multiplication legalization/selection already exists: rerun the customer, not the obsolete missing-multiply diagnosis. |
   | `recursive_sum`, `framed_payload` | Exits 70/60, preserving saved reads, untouched siblings and shared payload loans. **STATE-LOCAL-VALUE-FRONTIER** and **GENERAL-CYCLIC-EXECUTION** own indexed storage, views and transfers; do not invent scalar-array field IDs or ranking for unranked cycles. |
-  | `dutch_flag` | Native Color-array construction, reads, swaps and case dispatch, Console interaction and exit 70. Its field is already intrinsic `Service<Console>`. **STATE-LOCAL-VALUE-FRONTIER** and **WRITE-ONLY-BORROW** own composition; replacing nominal enum storage with integers is not acceptance. |
+  | `dutch_flag` | Native Color-array construction, reads, swaps and case dispatch, Console interaction and exit 70. Its field is already intrinsic `Binding<Console>`. **STATE-LOCAL-VALUE-FRONTIER** and **WRITE-ONLY-BORROW** own composition; replacing nominal enum storage with integers is not acceptance. |
   | `calendar` | Publish unchanged trapping conversions through **ARITHMETIC-POLICY-REALIZATION**, finish ordinary package review, and verify all five grid rows plus the live 20-byte header in capacity-21 buffers. A `contains: 30` banner match is not a rendered calendar. `compiler --test byte_index_carriers` is the arithmetic/bounds/write control, not application acceptance. |
   | `windowed_calculator` | Reproduce and locate the checked-compilation stall: at `50559da3ab9` on Linux x86-64 it exceeded 25 minutes of CPU without a diagnostic while the other 146 maintained mains checked. The cause was not established; do not label it a provider-selection or proof-search defect without evidence. Native GUI acceptance remains **MACOS-APPLICATION-PUBLICATION**. |
   | Other text/index/match samples | Close `binary_search_viz`, `maze_flood`, `prime_sieve`, `multiplication_table`, `dice_histogram`, `dungeon_render`, `mandelbrot{,_zoom}`, `wire_protocol` and `dungeon_crawler_cli` through **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING** or **CML4**, not one task per source permutation. Encoding facts use ordinary domains, not recognized function names. |
@@ -592,25 +592,12 @@ in implementation evidence elsewhere on this board describe the current code;
 the accepted carrier name is `Binding`. Do not rewrite observed diagnostics until
 the implementation migration actually lands.
 
-- **BINDING-CARRIER-NAME.** (new-scope) Migrate the compiler-known runtime
-  carrier from `Service<R>` to `Binding<R>` and the unrelated native locator from
-  `Binding<...>` to `ForeignBinding<...>`. Owners: `source/library/core/service.omg`,
-  `source/library/core/external_binding.omg`, declaration-identity/semantic-binding
-  consumers, diagnostics, samples, and corpus readers. Preserve exact canonical
-  establishment, affine custody, provider selection, and foreign-locator
-  semantics; do not add a spelling-based privilege or compatibility alias.
-  Acceptance: the actual source-to-native and source-to-Psi binding customers use
-  the new names, missing/forged establishment and wrong locator identities still
-  reject, and an ordinary same-spelled user type gains no compiler authority.
-  Apply normal exact schema/declaration identity migration, not cross-version
-  evidence compatibility guessed from equal spelling or layout.
-
 - **EMBEDDING-SOURCE-TO-HOST.** (new-scope) Deliver compile -> load -> bind ->
   invoke -> host result -> guest result -> close from an ordinary source-authored
   interface package, host implementation, and script entry. Owners: product
   compilation/entry descriptions, `psi/semantics/terminal-interpreter`, and
   selected host adapter realization; expose the library, not command dispatch.
-  Use the ratified carrier name after **BINDING-CARRIER-NAME**. The existing
+  Use the ratified carrier name `Binding<R>`. The existing
   `terminal-interpreter/tests/unit/embedding_lifetimes.rs` probes are scalar,
   source-free mechanics, not this acceptance. Share immutable admitted programs
   across independently reclaimable instances. Two same-trait slots must address
@@ -913,9 +900,9 @@ syntax and other terminal services are not prerequisites.
   [binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry).
   Owners: target package assembly, `program-entry-plan`, Psi
   `terminal-production`, Omega `compiler/native-realization`,
-  `image-emission` and `external-roots`. Existing `Service<R>` source names
-  migrate under **BINDING-CARRIER-NAME**; the old service-only `Bound` domain
-  is already retired and must not return.
+  `image-emission` and `external-roots`. Source names spell the carrier
+  `Binding<R>`; the old service-only `Bound` domain is already retired and
+  must not return.
 
   - Finish activation/result/out-parameter joins using exact closed requirement,
     occurrence and selected-plan validity. Reconcile residual
@@ -1233,8 +1220,8 @@ syntax and other terminal services are not prerequisites.
   and mutable recasts check and execute; incompatible geometry/validity,
   access escalation and conflicting backing use reject at the offending
   location. Preserve precise symbolic/boundary-witness footprint refusals.
-  Migrate stale imports in `recast_position_fenced` and coordinate its carrier
-  spelling with **BINDING-CARRIER-NAME** before using it as fresh evidence.
+  Migrate stale imports in `recast_position_fenced` before using it as fresh
+  evidence.
 
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
   preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),
@@ -2538,9 +2525,8 @@ syntax and other terminal services are not prerequisites.
   - Execute the value-indexed data/storage customer through verified Terminal,
     interpretation and native ordinary call/storage routes. Coordinate
     record-local/provider composition with **STATE-LOCAL-VALUE-FRONTIER** and
-    binding establishment with **ENTRY-CONTENT-ROOTS**. Native fixtures still
-    spell `Service<Console>`; migrate to ratified `Binding<R>`. Their native
-    test module runs only on macOS ARM64; report unavailable hosts separately.
+    binding establishment with **ENTRY-CONTENT-ROOTS**. Their native test
+    module runs only on macOS ARM64; report unavailable hosts separately.
 
   Acceptance: `<Count: u32>` accepts static/runtime arguments under proved
   obligations, while `<const Count: u32>` remains static. One dynamic machine
@@ -2794,7 +2780,6 @@ syntax and other terminal services are not prerequisites.
   with that full customer plan, not another isolated source-shape recognizer.
   The earlier entry-attachment/fused-provider diagnostics at `069276b986dc`
   have not been rerun; re-drive the fixture before treating them as current.
-  Migrate its remaining `Service<R>` spelling with **BINDING-CARRIER-NAME**.
 
   Acceptance: constrained close earns one evidence-bound empty row; failed
   acquisition, escape, reused aliases, second close, invalidating calls and
@@ -3063,7 +3048,24 @@ syntax and other terminal services are not prerequisites.
   assignment 2. Every site is in `typed-trees-to-checked-trees`, so the plan
   is omitted before a target is chosen and the class is host-neutral by
   construction. Each site is a recognizer for the arrangements earlier
-  fixtures needed; the histogram is the size of the gate below.
+  fixtures needed; the histogram is the size of the gate below. At the
+  structural-call-binding site, seven fixtures read with the crate's own
+  harness split into two recognizer gaps and real limits. Gaps: a bare case
+  name (`let signal: Light = On;`) never reaches the `Case` producer because
+  `validation::exact_case_reference_owner` refuses one-segment references
+  while resolution folds only `Light::On`; widening that classifier (carrier
+  = the case symbol's parent) is the one-shape fix, but it changes what a
+  bare name means to proof narrowing and interpreter equality, so it needs
+  the owner. The parser-minted `let __destructure#x#y = self.pair;` marker
+  keeps the inference sentinel `()`, which the site does not treat as a
+  non-storage declaration the way it treats `__arm_destructure#` markers;
+  the fix is that treatment in `erased_alias_locals` /
+  `first_unsupported_statement` plus counting `__destructure#` markers in
+  lowering's `validate_markers`, applied together (the first alone turns a
+  clean omission into a cursor-drift rejection). Limits: no producer exists
+  for a record member typed `UInt`, for a record with a `&[u8] in Utf8`
+  field, or for a primitive-array record field (`[u32; 4]`); the closed-array
+  route exists only for top-level locals.
 
   Remaining work:
 

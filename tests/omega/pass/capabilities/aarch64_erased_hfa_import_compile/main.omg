@@ -18,8 +18,8 @@ pub boundary trait HfaImport {
     machine call(pair: Pair) -> i64;
 }
 
-macos_arm64 machine hfa_binding() -> Binding<17, 15, 0> {
-    Binding::DllImport {
+macos_arm64 machine hfa_binding() -> ForeignBinding<17, 15, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libSystem.B.dylib",
             symbol: "omega_hfa_probe",
@@ -30,7 +30,7 @@ macos_arm64 machine hfa_binding() -> Binding<17, 15, 0> {
 macos_arm64 machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via hfa_binding();
 
 data Main {
-    foreign: Service<HfaImport>;
+    foreign: Binding<HfaImport>;
     pair: Pair;
     result: i64;
 }

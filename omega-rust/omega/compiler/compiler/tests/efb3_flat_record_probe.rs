@@ -30,8 +30,8 @@ pub boundary trait Move {
     machine shift(p: &Point) -> i32 reaches Move;
 }
 
-macos_arm64 machine shift_binding() -> Binding<10, 5, 0> {
-    Binding::DllImport {
+macos_arm64 machine shift_binding() -> ForeignBinding<10, 5, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "libm.dylib",
             symbol: "shift",
@@ -44,7 +44,7 @@ macos_arm64 machine MoveProvider::shift(p: &Point) -> i32
 satisfies Move::shift
 via shift_binding();
 
-data Main { m: Service<Move>; p: Point; }
+data Main { m: Binding<Move>; p: Point; }
 machine Main::main(&mut self) reaches Move {
     let rc: i32 = self.m.shift(&self.p);
     let keep: i32 = rc;
@@ -494,7 +494,7 @@ fn realize_mixed_arguments_probe() -> (Probe, native_artifact::NativeArtifact) {
     let source = fs::read_to_string(&probe.main)
         .unwrap()
         .replace("shift(p: &Point)", "shift(delta: i32, p: &Point, bias: i32)")
-        .replace("Binding<10, 5, 0>", &format!("Binding<{}, 6, 0>", install_name.len()))
+        .replace("ForeignBinding<10, 5, 0>", &format!("ForeignBinding<{}, 6, 0>", install_name.len()))
         .replace("libm.dylib", install_name)
         .replace("symbol: \"shift\"", "symbol: \"_shift\"")
         .replace(
@@ -757,8 +757,8 @@ fn top_level_external_requirement_returns_and_reuses_its_result_natively() {
         r#"use omega::language::core::external_binding;
 pub data ForeignMath {}
 pub boundary requirement ForeignMath::shift(value: i32) -> i32;
-macos_arm64 machine shift_binding() -> Binding<31, 6, 0> {
-    Binding::DllImport {
+macos_arm64 machine shift_binding() -> ForeignBinding<31, 6, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "@executable_path/libshift.dylib",
             symbol: "_shift",
@@ -838,8 +838,8 @@ boundary trait Trace {
     machine record(value: u64, first: u64, second: u64, third: u64,
         fourth: u64, fifth: u64, sixth: u64, seventh: u64, repeated: u64);
 }
-macos_arm64 machine record_binding() -> Binding<31, 6, 0> {
-    Binding::DllImport {
+macos_arm64 machine record_binding() -> ForeignBinding<31, 6, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
             install_name: "@executable_path/libshift.dylib",
             symbol: "_shift",

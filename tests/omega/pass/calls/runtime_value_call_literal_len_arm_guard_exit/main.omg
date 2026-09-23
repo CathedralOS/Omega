@@ -8,7 +8,7 @@
 // is sound -- the re-entrant sibling is fenced (inline_recursive_walk_rejected).
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 machine Main::classify(&mut self, path: &[u8]) -> i32 {
     transition path.len > 3 {
         true -> big()

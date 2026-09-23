@@ -1,7 +1,7 @@
 use omega::language::core::nat;
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 // A refutable axiom: the engine veto must refuse, grants notwithstanding.
 boundary machine false_axiom() -> Nat

@@ -11,7 +11,7 @@ data L2 { l3: L3; }
 data L1 { l2: L2; }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     l1: L1;
     s: i32 in Wrapping;
 }

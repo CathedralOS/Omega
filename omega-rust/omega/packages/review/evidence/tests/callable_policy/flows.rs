@@ -11,11 +11,11 @@ const SOURCE: &str = r#"use omega::language::core::service;
 
 pub boundary trait Folder { machine touch() reaches Folder; }
 pub boundary trait SubFolder { machine touch() reaches SubFolder; }
-pub data FolderHandle { folder: Service<Folder>; }
-pub data SubFolderHandle { sub: Service<SubFolder>; }
+pub data FolderHandle { folder: Binding<Folder>; }
+pub data SubFolderHandle { sub: Binding<SubFolder>; }
 pub boundary trait RootDir { machine open() -> FolderHandle reaches RootDir; }
 pub boundary trait Workspace { machine narrow(parent: FolderHandle) -> SubFolderHandle reaches Workspace; }
-pub data Vault { root: Service<RootDir>; }
+pub data Vault { root: Binding<RootDir>; }
 pub machine Vault::direct(&self) -> FolderHandle
 reaches RootDir
 invokes RootDir;
@@ -26,7 +26,7 @@ pub machine Vault::expose(&self) -> FolderHandle
 reaches RootDir
 invokes RootDir;
 { self.relay() }
-pub data Broker { workspace: Service<Workspace>; }
+pub data Broker { workspace: Binding<Workspace>; }
 machine Broker::narrow(&self, folder: FolderHandle) -> SubFolderHandle reaches Workspace { self.workspace.narrow(folder) }
 pub machine Broker::delegate(&self, folder: FolderHandle) -> SubFolderHandle
 reaches Workspace

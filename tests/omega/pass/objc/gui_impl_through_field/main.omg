@@ -26,7 +26,7 @@ pub boundary trait ObjectiveC {
 }
 
 data GuiImpl {
-    objc: Service<ObjectiveC>;
+    objc: Binding<ObjectiveC>;
     x: f64;
     y: f64;
     w: f64;
@@ -40,7 +40,7 @@ data GuiImpl {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     gui: GuiImpl;
     win: u64;
 }

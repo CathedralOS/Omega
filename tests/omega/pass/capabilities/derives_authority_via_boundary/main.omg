@@ -30,7 +30,7 @@ pub boundary trait Filesystem {
 }
 
 data Worker {
-    fs: Service<Filesystem>;
+    fs: Binding<Filesystem>;
 }
 
 machine Worker::run(&mut self, folder: Folder)

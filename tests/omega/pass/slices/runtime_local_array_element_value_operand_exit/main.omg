@@ -11,7 +11,7 @@
 // value-call arg, 73 forwarded); differential-pinned at 70/70.
 use omega_language_std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; idx: u64; }
+data Main { console: Binding<Console>; idx: u64; }
 machine Main::double(&mut self, v: i32) -> i32 requires 0 <= v, v <= 100 { v + v }
 machine Main::main(&mut self) reaches Console {
     self.idx = 1;

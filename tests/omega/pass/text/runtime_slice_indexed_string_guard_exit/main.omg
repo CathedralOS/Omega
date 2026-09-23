@@ -17,7 +17,7 @@ data Room {
 }
 
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     rooms: [Room; 3];
 }
 

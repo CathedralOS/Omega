@@ -28,7 +28,7 @@ use omega::language::std::filesystem_host;
 data Build {{
     target_index: i64;
     staged: i64;
-    filesystem: Service<FilesystemHost>;
+    filesystem: Binding<FilesystemHost>;
 }}
 
 machine build(builder: &mut Build)
@@ -199,7 +199,7 @@ use omega::language::std::console;
 
 data Build {
     target_index: i64;
-    console: Service<Console>;
+    console: Binding<Console>;
 }
 
 machine build(builder: &mut Build)
@@ -217,7 +217,7 @@ pub boundary trait Beeper { machine beep(count: i32); }
 
 data Build {
     target_index: i64;
-    beeper: Service<Beeper>;
+    beeper: Binding<Beeper>;
 }
 
 machine build(builder: &mut Build)

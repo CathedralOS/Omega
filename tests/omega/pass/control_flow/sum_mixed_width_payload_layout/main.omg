@@ -16,7 +16,7 @@ data Rec {
     case C(f: u8, g: u32);
 }
 
-data Main { console: Service<Console>; }
+data Main { console: Binding<Console>; }
 
 machine Main::main(&mut self) {
     self.check(Rec::B { a: 1000, b: 2000, c: 9000000000 });

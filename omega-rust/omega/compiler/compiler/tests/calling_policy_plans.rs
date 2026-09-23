@@ -426,7 +426,7 @@ MaskProviderInterruptMaskControl: MaskProvider satisfies InterruptMaskControl;
 
 machine MaskProvider::save_and_mask(&mut self) -> InterruptMaskGuard in Active
     satisfies InterruptMaskControl::save_and_mask
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
 pub boundary trait LookalikeMaskControl {
     machine save(&mut self) -> InterruptMaskGuard in Active;
@@ -437,7 +437,7 @@ LookalikeMaskProviderLookalikeMaskControl: LookalikeMaskProvider satisfies Looka
 
 machine LookalikeMaskProvider::save(&mut self) -> InterruptMaskGuard in Active
     satisfies LookalikeMaskControl::save
-    via Binding::CompilerIntrinsic;
+    via ForeignBinding::CompilerIntrinsic;
 
 pub boundary trait TimerRoot: InterruptEntry + Calling<X86InterruptPolicy> {
 }
@@ -642,8 +642,8 @@ pub boundary trait ForeignChannel {
     machine deliver(token: ForeignToken);
 }
 
-windows_x86_64 machine deliver_binding() -> Binding<7, 7, 0> {
-    Binding::DllImport {
+windows_x86_64 machine deliver_binding() -> ForeignBinding<7, 7, 0> {
+    ForeignBinding::DllImport {
         import: DllImport::PeByName {
             library: "foreign",
             export: "deliver",
@@ -655,7 +655,7 @@ machine deliver_leaf(token: ForeignToken)
     satisfies ForeignChannel::deliver
     via deliver_binding();
 
-data Main { channel: Service<ForeignChannel>; }
+data Main { channel: Binding<ForeignChannel>; }
 machine Main::main(&mut self) { }
 "#;
 

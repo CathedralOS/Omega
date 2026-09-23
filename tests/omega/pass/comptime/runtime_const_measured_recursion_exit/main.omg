@@ -23,7 +23,7 @@ machine table_size() -> u64 {
     transition { _ -> (size) }
 }
 
-data Main { console: Service<Console>; buf: [u8; table_size()]; }
+data Main { console: Binding<Console>; buf: [u8; table_size()]; }
 machine Main::main(&mut self) reaches Console {
     self.buf[9] = 7;
     transition self.buf[9] == 7 { true -> yes() _ -> no() }

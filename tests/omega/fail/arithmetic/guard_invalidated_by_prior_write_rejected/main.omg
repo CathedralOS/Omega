@@ -6,7 +6,7 @@
 // enforcement half -- a narrowing without its invalidation is the #40 trap.)
 use omega::language::std::console;
 use omega::language::core::service;
-data Main { console: Service<Console>; count: i32 [0..=100]; }
+data Main { console: Binding<Console>; count: i32 [0..=100]; }
 machine Main::main(&mut self) {
     transition { _ -> head() }
     state head(&mut self) {

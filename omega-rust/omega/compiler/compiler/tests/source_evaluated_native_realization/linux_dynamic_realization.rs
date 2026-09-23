@@ -261,8 +261,8 @@ pub boundary trait Agg {{
     machine {mname}{signature};
 }}
 
-linux_x86_64 machine {mname}_binding() -> Binding<15, 9, 7> {{
-    Binding::DllImport {{
+linux_x86_64 machine {mname}_binding() -> ForeignBinding<15, 9, 7> {{
+    ForeignBinding::DllImport {{
         import: DllImport::ElfVersioned {{
             object: "libagg-probe.so",
             symbol: "agg_probe",
@@ -273,7 +273,7 @@ linux_x86_64 machine {mname}_binding() -> Binding<15, 9, 7> {{
 
 machine {mname}_leaf{signature} satisfies Agg::{mname} via {mname}_binding();
 
-data Main {{ boundary: Service<Agg>; pair: Pair; result: Pair; }}
+data Main {{ boundary: Binding<Agg>; pair: Pair; result: Pair; }}
 machine Main::main(&mut self) reaches Agg {{
     {pre}
     {call}

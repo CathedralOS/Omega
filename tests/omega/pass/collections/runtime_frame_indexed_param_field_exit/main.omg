@@ -8,7 +8,7 @@ data Point {
     y: i32;
 }
 data Main {
-    console: Service<Console>;
+    console: Binding<Console>;
     points: [Point; 3];
 }
 machine Main::main(&mut self) {
