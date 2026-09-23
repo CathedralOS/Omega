@@ -5,9 +5,12 @@ impl<'identity> Encoder<'identity> {
     pub(in crate::encoding::encode) fn policy_membership(
         observer: &'identity mut dyn Observer,
     ) -> Self {
+        // usize::MAX collapses to the shared policy recovery byte ceiling.
+        // Membership re-encodes the canonical baseline, so a package with
+        // hundreds of nominal identities can exceed any smaller bound.
         Self {
             membership: Some(observer),
-            ..Self::policy_bounded(4 * 1024 * 1024)
+            ..Self::policy_bounded(usize::MAX)
         }
     }
 
