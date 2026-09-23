@@ -123,8 +123,18 @@
 //! normalization equates without a closed computation — are decided by
 //! `caseTwo` case analysis on each atom: `refl` closes a branch whose goal
 //! endpoints agree, and `J` eliminates the contradictory premise at a branch
-//! whose premise endpoints disagree. Identities over other carriers beyond a
-//! single swap, dependent codomains, unmatched tagged sums, and endpoints
+//! whose premise endpoints disagree. The `Id Two`/`Int` carrier crossing the
+//! normalized `Truth`/`Falsehood` goals need is also derived, not assumed:
+//! a closed-true goal is inhabited outright — `refl` on a reflexive `Id`,
+//! the binary numeral order on a decided `IntLt`, `eq_le`/`lt_le` on a
+//! decided `IntLe`, and the pair, tag and λ constructions through the
+//! connective denotations — while a closed-false premise refutes, either
+//! through `J`'s discriminant landing on the goal for `Id Two` over
+//! distinct constructors, or through the numeral-order derivation,
+//! substitution and transitivity laws and strict irreflexivity into
+//! `Empty` eliminated into the goal. Identities over other carriers beyond a
+//! single swap, dependent codomains, unmatched tagged sums, open or
+//! undecided relations, and endpoints
 //! outside the denoted Boolean fragment can still require rule-instance
 //! evidence; a bounded construction allowance also declines to that explicit
 //! route rather than rejecting an otherwise supported proof.
@@ -485,6 +495,24 @@ enum MathTermKey {
     Open(IntegerMathTerm),
 }
 
+/// The `IntegerValue` a closed `Int` value denotes when it fits the
+/// fixed scalar literal range the numeral-order derivations cover —
+/// the same boundary `math_term` keeps between shared binary
+/// definitions and opaque closed assumptions. `None` leaves a larger
+/// closed value to the caller's fallback rather than approximating it.
+fn integer_value_of(value: &BigInt) -> Option<IntegerValue> {
+    let (negative, magnitude) = binary_numerals::fixed_magnitude(value)?;
+    Some(if negative && magnitude != 0 {
+        IntegerValue::Signed(if magnitude == 1_u128 << 127 {
+            i128::MIN
+        } else {
+            i128::try_from(magnitude).ok()?.checked_neg()?
+        })
+    } else {
+        IntegerValue::Unsigned(magnitude)
+    })
+}
+
 /// The denoted head of a mathematical-integer proposition — the shape
 /// the integer laws quantify over — with endpoints as interned `Int`
 /// element handles.
@@ -728,6 +756,12 @@ struct Denotation {
     /// `IntegerMathEqual` on closed operands denotes `refl`-provable
     /// `Id Int c c` — and open terms intern by the term itself.
     math_terms: BTreeMap<MathTermKey, u32>,
+    /// `Int` declaration position → the exact closed value it interned
+    /// by — the reverse of `math_terms`' `MathTermKey::Closed` entries.
+    /// The closed Truth/Falsehood carrier crossing reads the decided
+    /// value behind a denoted endpoint to pick the numeral-order
+    /// derivation it needs without re-evaluating the term.
+    closed_math_values: BTreeMap<u32, BigInt>,
     /// Sparse scalar terms outside the compositional Int denotation:
     /// field projections and any constructor `integer_operation_term`
     /// does not classify. Values/closed literals use math_terms; every
@@ -796,6 +830,7 @@ impl Denotation {
             multiplication: multiplication::Multiplication::default(),
             forbidden_roots: forbidden_roots::ForbiddenRoots::default(),
             math_terms: BTreeMap::new(),
+            closed_math_values: BTreeMap::new(),
             scalar_integer_terms: BTreeMap::new(),
             integer_operations: BTreeMap::new(),
             cast_identities: BTreeMap::new(),
@@ -1081,14 +1116,31 @@ impl Denotation {
             && let Some((negative, magnitude)) = binary_numerals::fixed_magnitude(value)
         {
             let position = self.binary_integer(negative, magnitude)?;
+            self.closed_math_values.insert(position, value.clone());
             self.math_terms.insert(key, position);
             return Ok(self.constant(position));
         }
         let ty = self.integer_constant()?;
         let position = self.position()?;
         self.declarations.push(Declaration::assumption(0, ty));
+        if let MathTermKey::Closed(value) = &key {
+            self.closed_math_values.insert(position, value.clone());
+        }
         self.math_terms.insert(key, position);
         Ok(self.constant(position))
+    }
+
+    /// The exact closed value an interned `Int` constant denotes — the
+    /// reverse of `math_terms`' `MathTermKey::Closed` interning, so the
+    /// decided value behind a denoted endpoint is readable without
+    /// re-evaluating. An open leaf, an applicative composition or any
+    /// non-`Int` constant has no decided value here, so the closed
+    /// relation crossing never guesses at what it denotes.
+    fn closed_math_value(&self, term: TermHandle) -> Option<BigInt> {
+        let Term::Constant { declaration, .. } = self.arena.get(term) else {
+            return None;
+        };
+        self.closed_math_values.get(&declaration).cloned()
     }
 
     /// Keep one carrier for fixed scalar equations and orders, including
@@ -2219,10 +2271,12 @@ impl<'a> Elaboration<'a> {
                 // goal; when their terms already agree — a canonical
                 // `Equal`/`IntegerMathEqual` pair — the premise evidence
                 // inhabits the goal with no axiom at all. A reversal nested
-                // inside a connective converts through nested `J`s instead.
+                // inside a connective converts through nested `J`s instead,
+                // and the closed Truth/Falsehood crossing derives its
+                // inhabitant or refutes its premise through `Empty`.
                 if let Some(term) = self
                     .denotation
-                    .oriented_evidence(premise_ty, goal_ty, evidence)
+                    .oriented_evidence(premise_ty, goal_ty, evidence)?
                 {
                     return Ok(term);
                 }
@@ -2912,9 +2966,9 @@ mod tests {
     use terminal_psi::PrimitiveJudgment;
 
     use super::{
-        AcceptedPremise, AcceptedProofRule, BoundedDenotationError, ProofError, ProofNode,
-        ProofRule, Proposition, PropositionContext, ScalarTerm, Term, denote_bounded_certificate,
-        verify_bounded_certificate,
+        AcceptedPremise, AcceptedProofRule, BoundedDenotation, BoundedDenotationError, Elaboration,
+        ProofError, ProofNode, ProofRule, Proposition, PropositionContext, ScalarTerm, Term,
+        denote_bounded_certificate, verify_bounded_certificate,
     };
     use crate::mathematical_core::{
         Budget, DEFAULT_CONVERSION_STEPS, certificate_assumption_closure,
@@ -2936,6 +2990,11 @@ mod tests {
     fn value(id: u64) -> (ValueId, ScalarTerm) {
         let id = ValueId::new(id).expect("value id");
         (id, ScalarTerm::value(id, unsigned64_type()))
+    }
+
+    fn boolean_value(id: u64) -> (ValueId, ScalarTerm) {
+        let id = ValueId::new(id).expect("value id");
+        (id, ScalarTerm::value(id, ScalarType::Boolean))
     }
 
     fn literal(value: u128) -> ScalarTerm {
@@ -4266,5 +4325,230 @@ mod tests {
                 AcceptedProofRule::ValueEqualityTransport
             ],
         );
+    }
+
+    /// Elaborate one `PredicateDenotation` node over the cited premise —
+    /// `Truth` premises are discharged by the primitive judgment, every
+    /// other premise is a cited assumption — and return the elaboration
+    /// so a test can inspect the interned rule axioms.
+    fn predicate_denotation_elaboration(
+        premise: &Proposition,
+        goal: &Proposition,
+    ) -> Result<BoundedDenotation, BoundedDenotationError> {
+        let (premise_proof, roster) = if matches!(premise, Proposition::Truth) {
+            (
+                ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+                },
+                Vec::new(),
+            )
+        } else {
+            (
+                ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                },
+                vec![premise.clone()],
+            )
+        };
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::PredicateDenotation {
+                premise: Box::new(premise_proof),
+            },
+        };
+        let context = PropositionContext::default();
+        let machine_parameters = BTreeSet::new();
+        let mut elaboration = Elaboration::new(&context, goal, &roster, &[], &machine_parameters)
+            .expect("the normalized relation licenses the conversion");
+        let term = elaboration.node(&proof)?;
+        assert_eq!(
+            elaboration.denotation.rule_axioms.len(),
+            0,
+            "{premise:?} -> {goal:?} derives without a rule-instance axiom",
+        );
+        let mut denoted = elaboration.finish(term);
+        verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
+            .expect("the derived judgment re-decides in the kernel");
+        Ok(denoted)
+    }
+
+    /// The closed `Int`-relation → `Id Two zero one` crossing: a decided
+    /// false order or identity refutes through the shared numeral-order
+    /// derivation and strict irreflexivity, then `EmptyElim` — the
+    /// `Id Two`/`Int` carrier crossing's Falsehood side, with no
+    /// rule-instance axiom.
+    #[test]
+    fn closed_false_integer_relations_refute_to_empty_elimination() {
+        for premise in [
+            Proposition::LessThan(literal(3), literal(2)),
+            Proposition::LessThan(literal(2), literal(2)),
+            Proposition::LessOrEqual(literal(3), literal(2)),
+            Proposition::Equal(literal(2), literal(3)),
+            Proposition::Equal(literal(3), literal(2)),
+        ] {
+            let denoted = predicate_denotation_elaboration(&premise, &Proposition::Falsehood)
+                .expect("the closed-false relation denotes a refutation");
+            assert!(
+                matches!(
+                    denoted.arena.get(denoted.certificate.term),
+                    Term::EmptyElim { .. }
+                ),
+                "{premise:?} eliminates its checked `Empty` into Falsehood",
+            );
+        }
+    }
+
+    /// `Id Two zero one` itself is the discriminant case: `J`'s Boolean
+    /// discriminant lands on the goal type directly — the strict `Empty`
+    /// is no `Type 0` branch — so a Falsehood premise transports into
+    /// any licensed goal.
+    #[test]
+    fn the_falsehood_premise_transports_through_the_j_discriminant() {
+        let goal = Proposition::Equal(literal(2), literal(3));
+        let denoted = predicate_denotation_elaboration(&Proposition::Falsehood, &goal)
+            .expect("the Falsehood premise denotes a discriminant elimination");
+        assert!(
+            matches!(
+                denoted.arena.get(denoted.certificate.term),
+                Term::IdElim { .. }
+            ),
+            "the evidence is the `J` discriminant landing on the goal",
+        );
+    }
+
+    /// The `Id Two zero zero` → closed-true side: a Truth-normalized
+    /// goal is inhabited outright — `refl` for the reflexive identity,
+    /// the `eq_le`/`lt_le` roster laws or the numeral-order derivation
+    /// for a decided `IntLe`/`IntLt`, and the pair/tag constructions for
+    /// the connective denotations.
+    #[test]
+    fn closed_true_goals_are_inhabited_outright() {
+        let denoted = predicate_denotation_elaboration(
+            &Proposition::Equal(literal(2), literal(2)),
+            &Proposition::Truth,
+        )
+        .expect("a closed-true identity crosses to Truth");
+        assert!(
+            matches!(
+                denoted.arena.get(denoted.certificate.term),
+                Term::Refl { .. }
+            ),
+            "the `Id Two zero zero` goal is `refl`",
+        );
+
+        for goal in [
+            Proposition::LessThan(literal(1), literal(2)),
+            Proposition::LessOrEqual(literal(2), literal(2)),
+            Proposition::Equal(literal(2), literal(2)),
+        ] {
+            predicate_denotation_elaboration(&Proposition::Truth, &goal)
+                .expect("a Truth premise inhabits the closed-true relation");
+        }
+    }
+
+    /// The crossing reaches inside the connective denotations: a
+    /// conjunction with a refutable child projects the component into
+    /// `Empty`, and a Truth-normalized conjunction or disjunction goal
+    /// is built from its component inhabitants.
+    #[test]
+    fn the_crossing_composes_through_connective_denotations() {
+        let premise = Proposition::Conjunction(vec![
+            Proposition::LessThan(literal(3), literal(2)),
+            Proposition::Equal(literal(2), literal(2)),
+        ]);
+        let denoted = predicate_denotation_elaboration(&premise, &Proposition::Falsehood)
+            .expect("a conjunction with a refutable child denotes a projection");
+        assert!(
+            matches!(
+                denoted.arena.get(denoted.certificate.term),
+                Term::EmptyElim { .. }
+            ),
+            "the refuted component eliminates `Empty` into Falsehood",
+        );
+
+        let goal = Proposition::Conjunction(vec![
+            Proposition::Equal(literal(2), literal(2)),
+            Proposition::LessOrEqual(literal(2), literal(2)),
+        ]);
+        let denoted = predicate_denotation_elaboration(&Proposition::Truth, &goal)
+            .expect("a Truth-normalized conjunction denotes a pair");
+        assert!(
+            matches!(
+                denoted.arena.get(denoted.certificate.term),
+                Term::Pair { .. }
+            ),
+            "the conjunction's components pair",
+        );
+
+        let goal = Proposition::Disjunction(vec![
+            Proposition::Equal(literal(2), literal(3)),
+            Proposition::Truth,
+        ]);
+        let denoted = predicate_denotation_elaboration(&Proposition::Truth, &goal)
+            .expect("a Truth-normalized disjunction denotes a tagged pair");
+        let Term::Pair { first, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the disjunction's inhabited branch pairs with a tag");
+        };
+        assert_eq!(denoted.arena.get(first), Term::TwoOne);
+    }
+
+    /// A `PredicateDenotation` whose normalized expansion still has no
+    /// checked derivation — here the Boolean-equality expansion over
+    /// open atoms — keeps the explicit rule-instance axiom rather than
+    /// assuming a conversion it cannot prove.
+    #[test]
+    fn an_undecided_crossing_keeps_the_explicit_rule_instance() {
+        let (a_id, a) = boolean_value(1);
+        let (b_id, b) = boolean_value(2);
+        let context = PropositionContext::from_value_types([
+            (a_id, ScalarType::Boolean),
+            (b_id, ScalarType::Boolean),
+        ])
+        .expect("context");
+        let premise =
+            Proposition::Equal(ScalarTerm::boolean_not(a.clone()).expect("not"), b.clone());
+        // The normalized `Equal(¬a, b)` expansion: the two
+        // same-valuation conjunctions, disjoined.
+        let goal = Proposition::Disjunction(vec![
+            Proposition::Conjunction(vec![
+                Proposition::Equal(a.clone(), ScalarTerm::Boolean(false)),
+                Proposition::Equal(b.clone(), ScalarTerm::Boolean(true)),
+            ]),
+            Proposition::Conjunction(vec![
+                Proposition::Equal(a.clone(), ScalarTerm::Boolean(true)),
+                Proposition::Equal(b, ScalarTerm::Boolean(false)),
+            ]),
+        ]);
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::PredicateDenotation {
+                premise: Box::new(ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+            },
+        };
+        let machine_parameters = BTreeSet::new();
+        let mut elaboration = Elaboration::new(
+            &context,
+            &goal,
+            std::slice::from_ref(&premise),
+            &[],
+            &machine_parameters,
+        )
+        .expect("the Boolean expansion licenses the conversion");
+        let term = elaboration
+            .node(&proof)
+            .expect("the undecided crossing denotes through the rule instance");
+        assert_eq!(
+            elaboration.denotation.rule_axioms.len(),
+            1,
+            "an open Boolean expansion still names its rule-instance axiom",
+        );
+        let mut denoted = elaboration.finish(term);
+        verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
+            .expect("the rule-instance judgment still re-decides");
     }
 }

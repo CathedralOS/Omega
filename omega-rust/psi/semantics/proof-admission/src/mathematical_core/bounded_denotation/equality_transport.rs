@@ -8,7 +8,10 @@
 //! checks every generated J. Opaque operations remain opaque, and arithmetic
 //! normalization beyond the compositional denotation still needs its own law.
 
-use super::{BoundedDenotationError, Denotation, MAX_ELABORATION_NODES};
+use super::{
+    BoundedDenotationError, Denotation, IntegerLaw, IntegerRelation, MAX_ELABORATION_NODES,
+    integer_value_of,
+};
 use super::{ProofNode, Proposition, Term, TermHandle};
 use crate::mathematical_core::substitution::shift;
 
@@ -113,7 +116,8 @@ impl Denotation {
                 // Integer equality canonicalization can orient the two endpoints
                 // differently after substitution. Its symmetry is itself J, and
                 // the same reversal can sit inside a connective's nested `Id`.
-                let Some(oriented) = self.oriented_evidence(normal_premise, normal_goal, evidence)
+                let Some(oriented) =
+                    self.oriented_evidence(normal_premise, normal_goal, evidence)?
                 else {
                     return Ok(None);
                 };
@@ -361,20 +365,318 @@ impl Denotation {
     /// conjunction, disjunction and implication positions are all covered.
     /// `Id Two` endpoints differing by open `not`/`equal` compositions are
     /// not a swap — they are a Boolean identity decided by `caseTwo` case
-    /// analysis on each neutral atom. `None` keeps the explicit rule-instance
-    /// route for any difference outside these shapes — a dependent codomain,
-    /// an unmatched family, or endpoints that are neither a single swap nor
-    /// a checked Boolean identity.
+    /// analysis on each neutral atom. A goal whose truth is closed-decidable
+    /// — a reflexive `Id`, a decided `IntLt`/`IntLe`, or the connective
+    /// denotation of a Truth-normalized proposition — is inhabited outright;
+    /// a premise whose falsity is closed-decidable refutes to `Empty` and
+    /// eliminates into the goal, the `Id Two`/`Int` carrier crossing.
+    /// `Ok(None)` keeps the explicit rule-instance route for any difference
+    /// outside these shapes — a dependent codomain, an unmatched family, an
+    /// open relation, or endpoints that are neither a single swap nor a
+    /// checked Boolean identity.
     pub(super) fn oriented_evidence(
         &mut self,
         premise: TermHandle,
         goal: TermHandle,
         evidence: TermHandle,
-    ) -> Option<TermHandle> {
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         if self.arena.structurally_equal(premise, goal) {
-            return Some(evidence);
+            return Ok(Some(evidence));
         }
         self.oriented_coercion(premise, goal, evidence)
+    }
+
+    /// An inhabitant of a denoted type whose truth is closed-decidable:
+    /// `refl` for a reflexive `Id`; a decided `IntLt` by the shared
+    /// numeral-order derivation; a decided `IntLe` through `lt_le` or
+    /// `eq_le`; a non-dependent `Σ` pairs component inhabitants, the
+    /// `Σ(t : Two). caseTwo(M, d₀, rest, t)` disjunction denotation tags
+    /// whichever branch carries one, and a non-dependent `Π` abstracts
+    /// it. `Ok(None)` keeps the caller's fallback for an open or
+    /// non-reflexive relation and every other shape — the term is only
+    /// ever built when the kernel would accept it.
+    fn closed_inhabitant(
+        &mut self,
+        goal: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        if let Some((ty, left, right)) = self.identity_parts(goal) {
+            // A non-reflexive identity is not inhabited outright; whether
+            // it is a refutable relation is the premise side's question.
+            return if self.arena.structurally_equal(left, right) {
+                Ok(Some(self.arena.insert(Term::Refl { ty, value: left })))
+            } else {
+                Ok(None)
+            };
+        }
+        match self.integer_relation(goal) {
+            Some(IntegerRelation::LessThan { left, right }) => {
+                let (Some(lower), Some(upper)) =
+                    (self.closed_math_value(left), self.closed_math_value(right))
+                else {
+                    return Ok(None);
+                };
+                if lower >= upper {
+                    return Ok(None);
+                }
+                let (Some(lower), Some(upper)) =
+                    (integer_value_of(&lower), integer_value_of(&upper))
+                else {
+                    return Ok(None);
+                };
+                return self.literal_order(lower, upper).map(Some);
+            }
+            Some(IntegerRelation::LessOrEqual { left, right }) => {
+                let (Some(lower), Some(upper)) =
+                    (self.closed_math_value(left), self.closed_math_value(right))
+                else {
+                    return Ok(None);
+                };
+                if lower > upper {
+                    return Ok(None);
+                }
+                let evidence = if lower == upper {
+                    // `eq_le a a (refl a)` — equal endpoints need no
+                    // numeral derivation, so even an opaque closed
+                    // constant outside the literal range inhabits here.
+                    let integer = self.integer_constant()?;
+                    let reflexive = self.arena.insert(Term::Refl {
+                        ty: integer,
+                        value: left,
+                    });
+                    self.integer_law_application(
+                        IntegerLaw::EqualityToLessOrEqual,
+                        &[left, right, reflexive],
+                    )?
+                } else {
+                    let (Some(lower), Some(upper)) =
+                        (integer_value_of(&lower), integer_value_of(&upper))
+                    else {
+                        return Ok(None);
+                    };
+                    let strict = self.literal_order(lower, upper)?;
+                    self.integer_law_application(
+                        IntegerLaw::LessThanToLessOrEqual,
+                        &[left, right, strict],
+                    )?
+                };
+                return Ok(Some(evidence));
+            }
+            _ => {}
+        }
+        match self.arena.get(goal) {
+            Term::Sigma { domain, codomain } => {
+                if !self.occurs_free(codomain, 0) {
+                    let Some(first) = self.closed_inhabitant(domain)? else {
+                        return Ok(None);
+                    };
+                    let Some(second) = self.closed_inhabitant(codomain)? else {
+                        return Ok(None);
+                    };
+                    return Ok(Some(self.arena.insert(Term::Pair { first, second })));
+                }
+                // The `Σ(t : Two). caseTwo(M, d₀, rest, t)` disjunction
+                // denotation — tag whichever branch carries an inhabitant.
+                if !self.arena.structurally_equal(domain, self.two) {
+                    return Ok(None);
+                }
+                let Term::CaseTwo {
+                    zero_branch,
+                    one_branch,
+                    scrutinee,
+                    ..
+                } = self.arena.get(codomain)
+                else {
+                    return Ok(None);
+                };
+                if !matches!(self.arena.get(scrutinee), Term::Variable(0)) {
+                    return Ok(None);
+                }
+                // A branch payload mentioning the tag is a genuinely
+                // dependent family, not the disjunction denotation — the
+                // pair's `second` could not name its substituted type.
+                if !self.occurs_free(zero_branch, 0)
+                    && let Some(payload) = self.closed_inhabitant(zero_branch)?
+                {
+                    return Ok(Some(self.arena.insert(Term::Pair {
+                        first: self.two_zero,
+                        second: payload,
+                    })));
+                }
+                if !self.occurs_free(one_branch, 0)
+                    && let Some(payload) = self.closed_inhabitant(one_branch)?
+                {
+                    return Ok(Some(self.arena.insert(Term::Pair {
+                        first: self.two_one,
+                        second: payload,
+                    })));
+                }
+                Ok(None)
+            }
+            Term::Pi { domain, codomain } if !self.occurs_free(codomain, 0) => {
+                let Some(body) = self.closed_inhabitant(codomain)? else {
+                    return Ok(None);
+                };
+                Ok(Some(self.arena.insert(Term::Lambda { domain, body })))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    /// `goal`-typed evidence out of a denoted premise whose falsity is
+    /// closed-decidable. `Id Two` between the two constructors eliminates
+    /// through `J`'s discriminant — landing on the goal itself, since the
+    /// strict `Empty` cannot be a `caseTwo` branch; a closed
+    /// `Id Int`/`IntLt`/`IntLe` decided false composes the numeral-order
+    /// derivation with the substitution and transitivity roster laws,
+    /// landing on fixed strict irreflexivity and `EmptyElim`; a
+    /// non-dependent `Σ` projects onto whichever component refutes.
+    /// `Ok(None)` keeps the caller's fallback for an open, true or
+    /// undecided relation and every other shape — a dependent sum's
+    /// `snd` cannot name a non-dependent component type.
+    fn closed_refutation(
+        &mut self,
+        premise: TermHandle,
+        evidence: TermHandle,
+        goal: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        if let Some((ty, left, right)) = self.identity_parts(premise) {
+            if self.arena.structurally_equal(ty, self.two) {
+                // `Id Two` over distinct constructors is a false Boolean
+                // identity — the `J` discriminant lands on the goal.
+                let premise_left_literal = if self.arena.structurally_equal(left, self.two_one) {
+                    true
+                } else if self.arena.structurally_equal(left, self.two_zero) {
+                    false
+                } else {
+                    return Ok(None);
+                };
+                let right_is_other = if premise_left_literal {
+                    self.arena.structurally_equal(right, self.two_zero)
+                } else {
+                    self.arena.structurally_equal(right, self.two_one)
+                };
+                if !right_is_other {
+                    return Ok(None);
+                }
+                return Ok(Some(self.two_identity_discriminant(
+                    left,
+                    right,
+                    goal,
+                    premise_left_literal,
+                    evidence,
+                )));
+            }
+            // `Id Int a b` decided false: order the numerals, substitute
+            // the identity across, and strict irreflexivity lands on
+            // `Empty`. An equal closed pair is a true relation — and an
+            // open or non-`Int` endpoint has no decided value at all.
+            let (Some(left_value), Some(right_value)) =
+                (self.closed_math_value(left), self.closed_math_value(right))
+            else {
+                return Ok(None);
+            };
+            if left_value == right_value {
+                return Ok(None);
+            }
+            let (low, high, low_value, high_value, equality) = if left_value < right_value {
+                (left, right, left_value, right_value, evidence)
+            } else {
+                (
+                    right,
+                    left,
+                    right_value,
+                    left_value,
+                    self.symmetry(ty, left, right, evidence),
+                )
+            };
+            let (Some(low_value), Some(high_value)) =
+                (integer_value_of(&low_value), integer_value_of(&high_value))
+            else {
+                return Ok(None);
+            };
+            let strict = self.literal_order(low_value, high_value)?;
+            let looped = self.integer_law_application(
+                IntegerLaw::LessThanSubstituteLeft,
+                &[low, high, high, equality, strict],
+            )?;
+            let absurd = self.irreflexive(high, looped)?;
+            return Ok(Some(self.arena.insert(Term::EmptyElim {
+                ty: goal,
+                scrutinee: absurd,
+            })));
+        }
+        match self.integer_relation(premise) {
+            Some(IntegerRelation::LessThan { left, right }) => {
+                let (Some(left_value), Some(right_value)) =
+                    (self.closed_math_value(left), self.closed_math_value(right))
+                else {
+                    return Ok(None);
+                };
+                if left_value < right_value {
+                    return Ok(None);
+                }
+                let absurd = if left_value == right_value {
+                    self.irreflexive(left, evidence)?
+                } else {
+                    let (Some(right_value), Some(left_value)) = (
+                        integer_value_of(&right_value),
+                        integer_value_of(&left_value),
+                    ) else {
+                        return Ok(None);
+                    };
+                    let backwards = self.literal_order(right_value, left_value)?;
+                    let looped = self.integer_law_application(
+                        IntegerLaw::LessThanTransitivity,
+                        &[left, right, left, evidence, backwards],
+                    )?;
+                    self.irreflexive(left, looped)?
+                };
+                Ok(Some(self.arena.insert(Term::EmptyElim {
+                    ty: goal,
+                    scrutinee: absurd,
+                })))
+            }
+            Some(IntegerRelation::LessOrEqual { left, right }) => {
+                let (Some(left_value), Some(right_value)) =
+                    (self.closed_math_value(left), self.closed_math_value(right))
+                else {
+                    return Ok(None);
+                };
+                if left_value <= right_value {
+                    return Ok(None);
+                }
+                let (Some(right_value), Some(left_value)) = (
+                    integer_value_of(&right_value),
+                    integer_value_of(&left_value),
+                ) else {
+                    return Ok(None);
+                };
+                let backwards = self.literal_order(right_value, left_value)?;
+                let looped = self.integer_law_application(
+                    IntegerLaw::LessOrEqualLessThanTransitivity,
+                    &[left, right, left, evidence, backwards],
+                )?;
+                let absurd = self.irreflexive(left, looped)?;
+                Ok(Some(self.arena.insert(Term::EmptyElim {
+                    ty: goal,
+                    scrutinee: absurd,
+                })))
+            }
+            _ => match self.arena.get(premise) {
+                // A conjunction denotation is refutable when either
+                // component is — project it out. A dependent sum cannot
+                // name a non-dependent component type, so it declines.
+                Term::Sigma { domain, codomain } if !self.occurs_free(codomain, 0) => {
+                    let first = self.arena.insert(Term::Fst { pair: evidence });
+                    if let Some(refuted) = self.closed_refutation(domain, first, goal)? {
+                        return Ok(Some(refuted));
+                    }
+                    let second = self.arena.insert(Term::Snd { pair: evidence });
+                    self.closed_refutation(codomain, second, goal)
+                }
+                _ => Ok(None),
+            },
+        }
     }
 
     fn oriented_coercion(
@@ -382,9 +684,21 @@ impl Denotation {
         premise: TermHandle,
         goal: TermHandle,
         evidence: TermHandle,
-    ) -> Option<TermHandle> {
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         if self.arena.structurally_equal(premise, goal) {
-            return Some(evidence);
+            return Ok(Some(evidence));
+        }
+        // The closed Truth/Falsehood carrier crossing: a closed-true goal
+        // is inhabited outright — `refl`, the numeral-order derivation or
+        // a weakening law — and a closed-false premise refutes through
+        // `J`'s discriminant or `Empty` elimination into the goal. Both
+        // keep `Ok(None)` for an undecided relation; neither assumes its
+        // conclusion.
+        if let Some(inhabited) = self.closed_inhabitant(goal)? {
+            return Ok(Some(inhabited));
+        }
+        if let Some(refuted) = self.closed_refutation(premise, evidence, goal)? {
+            return Ok(Some(refuted));
         }
         let from = self.arena.get(premise);
         let to = self.arena.get(goal);
@@ -401,14 +715,14 @@ impl Denotation {
                     && self.arena.structurally_equal(goal_left, right)
                     && self.arena.structurally_equal(goal_right, left)
                 {
-                    return Some(self.symmetry(ty, left, right, evidence));
+                    return Ok(Some(self.symmetry(ty, left, right, evidence)));
                 }
                 // Two `Id Two` identities can also differ by open
                 // `not`/`equal` compositions over Boolean atoms — a
                 // Boolean identity the kernel itself decides by `caseTwo`
                 // case analysis on each atom rather than an instance
                 // axiom for the whole judgment.
-                self.boolean_identity_transport(premise, goal, evidence)
+                Ok(self.boolean_identity_transport(premise, goal, evidence))
             }
             (
                 Term::Pi { domain, codomain },
@@ -423,17 +737,22 @@ impl Denotation {
                 // dependent function type — outside this producer's
                 // propositional `Pi`s.
                 if self.occurs_free(codomain, 0) || self.occurs_free(goal_codomain, 0) {
-                    return None;
+                    return Ok(None);
                 }
                 let hypothesis = self.arena.insert(Term::Variable(0));
-                let argument = self.oriented_coercion(goal_domain, domain, hypothesis)?;
+                let Some(argument) = self.oriented_coercion(goal_domain, domain, hypothesis)?
+                else {
+                    return Ok(None);
+                };
                 let function = shift(&mut self.arena, evidence, 0, 1);
                 let applied = self.arena.insert(Term::Apply { function, argument });
-                let body = self.oriented_coercion(codomain, goal_codomain, applied)?;
-                Some(self.arena.insert(Term::Lambda {
+                let Some(body) = self.oriented_coercion(codomain, goal_codomain, applied)? else {
+                    return Ok(None);
+                };
+                Ok(Some(self.arena.insert(Term::Lambda {
                     domain: goal_domain,
                     body,
-                }))
+                })))
             }
             (
                 Term::Sigma { domain, codomain },
@@ -446,7 +765,9 @@ impl Denotation {
                 // directly; each projection coerces covariantly toward the
                 // goal's domain and codomain.
                 let fst = self.arena.insert(Term::Fst { pair: evidence });
-                let first = self.oriented_coercion(domain, goal_domain, fst)?;
+                let Some(first) = self.oriented_coercion(domain, goal_domain, fst)? else {
+                    return Ok(None);
+                };
                 // The disjunction denotation is a `Two`-indexed family
                 // `Σ(t : Two). caseTwo(M, d₀, rest, t)`; coercing its second
                 // projections needs the eliminator that picks the branch
@@ -477,21 +798,29 @@ impl Denotation {
                             .into_iter()
                             .all(|payload| !self.occurs_free(payload, 0)) =>
                     {
-                        self.branch_selected_coercion(
+                        let Some(coerced) = self.branch_selected_coercion(
                             motive, zero, one, goal_zero, goal_one, evidence,
                         )?
+                        else {
+                            return Ok(None);
+                        };
+                        coerced
                     }
                     _ => {
                         if self.occurs_free(codomain, 0) || self.occurs_free(goal_codomain, 0) {
-                            return None;
+                            return Ok(None);
                         }
                         let snd = self.arena.insert(Term::Snd { pair: evidence });
-                        self.oriented_coercion(codomain, goal_codomain, snd)?
+                        let Some(coerced) = self.oriented_coercion(codomain, goal_codomain, snd)?
+                        else {
+                            return Ok(None);
+                        };
+                        coerced
                     }
                 };
-                Some(self.arena.insert(Term::Pair { first, second }))
+                Ok(Some(self.arena.insert(Term::Pair { first, second })))
             }
-            _ => None,
+            _ => Ok(None),
         }
     }
 
@@ -510,7 +839,7 @@ impl Denotation {
         goal_zero: TermHandle,
         goal_one: TermHandle,
         evidence: TermHandle,
-    ) -> Option<TermHandle> {
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         let tag = self.arena.insert(Term::Variable(0));
         let premise_family = self.arena.insert(Term::CaseTwo {
             motive,
@@ -539,13 +868,17 @@ impl Denotation {
             body: coercion_body,
         });
         let hypothesis = self.arena.insert(Term::Variable(0));
-        let zero_coerced = self.oriented_coercion(zero, goal_zero, hypothesis)?;
+        let Some(zero_coerced) = self.oriented_coercion(zero, goal_zero, hypothesis)? else {
+            return Ok(None);
+        };
         let zero_branch = self.arena.insert(Term::Lambda {
             domain: zero,
             body: zero_coerced,
         });
         let hypothesis = self.arena.insert(Term::Variable(0));
-        let one_coerced = self.oriented_coercion(one, goal_one, hypothesis)?;
+        let Some(one_coerced) = self.oriented_coercion(one, goal_one, hypothesis)? else {
+            return Ok(None);
+        };
         let one_branch = self.arena.insert(Term::Lambda {
             domain: one,
             body: one_coerced,
@@ -558,10 +891,10 @@ impl Denotation {
             scrutinee,
         });
         let argument = self.arena.insert(Term::Snd { pair: evidence });
-        Some(self.arena.insert(Term::Apply {
+        Ok(Some(self.arena.insert(Term::Apply {
             function: eliminator,
             argument,
-        }))
+        })))
     }
 
     /// Whether `Variable(index)` — measured from this term's own root —

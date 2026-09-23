@@ -292,17 +292,17 @@ impl Denotation {
     /// `J(λ(y : Two). λ(_ : Id Two pl y). F(y), refl pl, pr, h)` for
     /// `h : Id Two pl pr` where `pl` and `pr` reduce to different
     /// constructors — the `F` discriminant picks `Id Two pl pl` at `pl`'s
-    /// literal and the goal `Id Two gl gr` at `pr`'s, so the elimination
-    /// lands on the goal. `premise_left_literal` is `pl`'s evaluated
-    /// value. This is the same "no confusion" elimination `caseTwo`
-    /// supplies for `Two`, lifted through `J` — no axiom.
-    fn false_identity_elim(
+    /// literal and `at_right` at `pr`'s, so the elimination lands on
+    /// `at_right`. `premise_left_literal` is `pl`'s evaluated value. This
+    /// is the same "no confusion" elimination `caseTwo` supplies for
+    /// `Two`, lifted through `J` — no axiom.
+    pub(super) fn two_identity_discriminant(
         &mut self,
         premise_left: TermHandle,
         premise_right: TermHandle,
-        goal_left: TermHandle,
-        goal_right: TermHandle,
+        at_right: TermHandle,
         premise_left_literal: bool,
+        proof: TermHandle,
     ) -> TermHandle {
         // The proof domain sits under the endpoint binder, so the fixed
         // endpoint `pl` shifts once; the discriminant's branches sit
@@ -317,19 +317,13 @@ impl Denotation {
         });
         // `F(y)` discriminates on the proof's right endpoint under the
         // motive's two binders: at the branch `pl` selects it is `Id Two
-        // pl pl` — closed by `refl` — and at the other it is the goal.
+        // pl pl` — closed by `refl` — and at the other it is `at_right`.
         let shifted_left = shift(&mut self.arena, premise_left, 0, 2);
-        let shifted_goal_left = shift(&mut self.arena, goal_left, 0, 2);
-        let shifted_goal_right = shift(&mut self.arena, goal_right, 0, 2);
+        let shifted_at_right = shift(&mut self.arena, at_right, 0, 2);
         let self_identity = self.arena.insert(Term::Id {
             ty: self.two,
             left: shifted_left,
             right: shifted_left,
-        });
-        let goal_identity = self.arena.insert(Term::Id {
-            ty: self.two,
-            left: shifted_goal_left,
-            right: shifted_goal_right,
         });
         let discriminant_motive = self.arena.insert(Term::Lambda {
             domain: self.two,
@@ -338,11 +332,11 @@ impl Denotation {
         let scrutinee = self.arena.insert(Term::Variable(1));
         // `pl` selects its own literal's branch: `zero` when `pl`
         // evaluated `false`, `one` when it evaluated `true`. `pr` is the
-        // other constructor, so it always lands on the goal.
+        // other constructor, so it always lands on `at_right`.
         let (zero_branch, one_branch) = if premise_left_literal {
-            (goal_identity, self_identity)
+            (shifted_at_right, self_identity)
         } else {
-            (self_identity, goal_identity)
+            (self_identity, shifted_at_right)
         };
         let discriminant = self.arena.insert(Term::CaseTwo {
             motive: discriminant_motive,
@@ -362,13 +356,40 @@ impl Denotation {
             ty: self.two,
             value: premise_left,
         });
-        let proof = self.arena.insert(Term::Variable(0));
         self.arena.insert(Term::IdElim {
             motive,
             base,
             endpoint: premise_right,
             proof,
         })
+    }
+
+    /// The discriminant landing on a goal identity — `h : Id Two pl pr`
+    /// re-presented as `Id Two gl gr`. The closed Falsehood crossing
+    /// supplies the same discriminant with the goal type itself at
+    /// `at_right`: the strict `Empty` is no `Type 0` branch, so a
+    /// refuted `Id Two` lands on its goal type directly.
+    fn false_identity_elim(
+        &mut self,
+        premise_left: TermHandle,
+        premise_right: TermHandle,
+        goal_left: TermHandle,
+        goal_right: TermHandle,
+        premise_left_literal: bool,
+    ) -> TermHandle {
+        let goal = self.arena.insert(Term::Id {
+            ty: self.two,
+            left: goal_left,
+            right: goal_right,
+        });
+        let proof = self.arena.insert(Term::Variable(0));
+        self.two_identity_discriminant(
+            premise_left,
+            premise_right,
+            goal,
+            premise_left_literal,
+            proof,
+        )
     }
 
     /// The denoted Boolean value `term` reduces to, the neutral subterm
