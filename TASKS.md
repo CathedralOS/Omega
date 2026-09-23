@@ -771,10 +771,25 @@ artifact-verification owners, not an assertion-specific interpreter or duplicate
   `native-realization/src/{native_product/realization,native_realization/behavior_exclusions,retained_native_product}.rs`.
   TWO-AXIS-TERMINAL-AUTHORITY-REVIEW separately owns receiving permission.
 
-  Upgrade `sink_composition_physical_exclusion_reaches_native_custody_frontier`
-  in `compiler/tests/build_behavior_exclusions.rs` from its SourceCustodyMismatch
-  sentinel to native empty-output execution and independent retained-product
-  replay. Ordinary custody in `target-operations-to-selected-instructions/src/legalization`
+  That upgrade is DONE, and the row cited a test name that no longer exists.
+  `sink_composition_physical_exclusion_reaches_native_custody_frontier` was
+  renamed for what it now does: measured at `07ba2de339`,
+  `compiler --test build_behavior_exclusions -E 'test(sink_composition)'` is
+  6 run, 6 passed, and the sentinel is gone in both directions the row asked
+  for --
+  `sink_composition_physical_exclusion_reaches_native_execution` asserts a
+  retained native artifact on macos_arm64, linux_x86_64 and windows_x86_64;
+  `sink_composition_physical_exclusion_publishes_and_runs_empty_on_the_host`
+  publishes it and runs it, asserting an empty successful exit (host-gated,
+  with its own SKIP line elsewhere); and
+  `retained_sink_composition_replays_against_the_product_by_consumers`
+  is the independent retained-product replay. The loud-sink controls
+  (`loud_sink_composition_physical_exclusion_rejects_on_every_target`,
+  `retained_loud_sink_composition_replays_the_exclusion_rejection`) preserve
+  the semantic service-exclusion rejection the row required be kept.
+
+  What remains is the envelope carriage, not the test: ordinary custody in
+  `target-operations-to-selected-instructions/src/legalization`
   is the dependency; preserve the semantic service-exclusion rejection for
   that same invocation. Carry exclusion envelopes through image emission,
   COMPONENT-SUBSTRATE replacement, and WIRE-RUNTIME-AND-INSTALLATION.
