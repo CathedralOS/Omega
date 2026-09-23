@@ -97,12 +97,18 @@ class CommandResolution(unittest.TestCase):
             release_matrix.resolve(
                 [release_matrix.MBX, "nextest", "run"], "cargo"))
 
-    def test_cargo_commands_are_never_rewritten_to_mbx(self):
+    def test_the_formatting_leg_is_never_rewritten_to_the_runner(self):
+        # The contract's formatting leg is `python tools/fmt.py --check`, not a
+        # Cargo subcommand, so an installed `mbx` must not capture it.
         self.assertEqual(
-            ["cargo", "fmt", "--all", "--", "--check"],
+            [sys.executable, "tools/fmt.py", "--check"],
             release_matrix.resolve(
-                [release_matrix.CARGO, "fmt", "--all", "--", "--check"],
-                "mbx"))
+                [release_matrix.PYTHON, "tools/fmt.py", "--check"], "mbx"))
+
+    def test_the_formatting_leg_is_supported_without_any_runner(self):
+        self.assertTrue(
+            release_matrix.command_supported(
+                [release_matrix.PYTHON, "tools/fmt.py", "--check"], None))
 
     def test_mbx_command_is_unsupported_without_a_runner(self):
         self.assertFalse(

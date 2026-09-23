@@ -14,7 +14,8 @@ in PowerShell and a POSIX shell: `python tools/release_matrix.py --plan` prints
 what would run on this host; `python tools/release_matrix.py --run` executes it.
 `--gate NAME` (repeatable) selects a subset for a scoped row refresh.
 `mbx` is used when installed, otherwise Cargo, matching the AGENTS.md wrapper
-rule; `cargo fmt` always runs Cargo itself. The host row records the native
+rule; the formatting leg runs this interpreter on the portable `tools/fmt.py`
+route the contract names. The host row records the native
 observation only when this host matches a required runner; the remaining rows
 stay open rather than silently passing.
 """
@@ -29,7 +30,10 @@ import time
 from pathlib import Path
 
 MBX = "mbx"
-CARGO = "cargo"
+# The contract spells the formatting leg `python tools/fmt.py --check`; the
+# leading "python" resolves to the running interpreter, the same way "mbx"
+# resolves to the installed wrapper or Cargo.
+PYTHON = "python"
 
 # Gate table transcribed from wiki/drafts/reference/rust_compiler_completion.md
 # "Release matrix". Commands keep the contract's exact invocations; the leading
@@ -45,7 +49,7 @@ GATES = {
         "capability": "The pinned toolchain formats, lints, type-checks, and "
                       "preserves architectural dependency boundaries.",
         "commands": [
-            [CARGO, "fmt", "--all", "--", "--check"],
+            [PYTHON, "tools/fmt.py", "--check"],
             [MBX, "clippy", "--workspace", "--all-targets", "--", "-D", "warnings"],
             [MBX, "nextest", "run", "-p", "omega-architecture-test",
              "--all-targets", "--no-fail-fast"],
@@ -206,12 +210,15 @@ def host_row():
 def resolve(argv, runner):
     if argv[0] == MBX:
         return [runner] + argv[1:]
+    if argv[0] == PYTHON:
+        return [sys.executable] + argv[1:]
     return list(argv)
 
 
 def command_supported(argv, runner):
-    if argv[0] == CARGO:
-        return shutil.which("cargo") is not None
+    # This interpreter is running, so the formatting leg is always available.
+    if argv[0] == PYTHON:
+        return True
     if argv[0] == MBX and runner is None:
         return False
     if "nextest" in argv:
