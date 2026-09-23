@@ -11,9 +11,10 @@ use crate::execution::terminal_unit::{
     BTreeSet, CarryPolicy, CheckFacts, CheckedStructuralAccess,
     CheckedStructuralScalarParameterPlan, CheckedUnitEntryClaimPlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypeShape, MachineSupplyMode, Multiplicity, PermissionAccess,
-    PermissionClaimIdentity, PermissionEventKind, PermissionEventSource, StateParameter,
-    SymbolHandle, TypeReferenceNode, TypedTrees, is_reference, strips_erased_parameter,
+    CheckedUnitStructuralTypePlan, CheckedUnitStructuralTypeShape, MachineSupplyMode, Multiplicity,
+    PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
+    StateParameter, SymbolHandle, TypeReferenceNode, TypedTrees, is_reference,
+    strips_erased_parameter,
 };
 
 pub(crate) fn structural_signature(
@@ -426,6 +427,32 @@ pub(crate) fn structural_scalar_signature_traced(
         structural_parameters,
         scalar_parameters,
     ))
+}
+
+/// A borrowed `self` is the machine's ambient receiver: it carries the
+/// attachment shape once on the entry roster, which doubles as the machine's
+/// structural namespace, so every scalar-graph state may read through it while
+/// edges keep carrying no receiver argument.
+pub(crate) fn ambient_self_scalar_graph_signature(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+    Vec<CheckedUnitStructuralTypePlan>,
+)> {
+    let mut shapes = ShapeCollector::new(program);
+    let (_, structural, scalar) = structural_scalar_signature_traced(
+        program,
+        &mut shapes,
+        machine,
+        state,
+        &[],
+        true,
+        &LocalConstructionTrace::default(),
+    )?;
+    Some((structural, scalar, shapes.types.into_values().collect()))
 }
 
 pub(crate) fn free_structural_scalar_signature(

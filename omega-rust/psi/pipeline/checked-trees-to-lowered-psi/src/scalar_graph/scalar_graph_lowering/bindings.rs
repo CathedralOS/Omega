@@ -179,12 +179,25 @@ pub(super) fn prepare(
     let mut parameter_types = parameter_types;
     let mut prefixes = Vec::new();
     let mut value_types = parameter_types.clone();
-    let structural_namespace = state
+    let mut structural_namespace = state
         .structural_parameters
         .iter()
         .zip(structural_parameters)
         .map(|(source, emitted)| (source.position, emitted.clone()))
         .collect::<Vec<_>>();
+    // The ambient receiver is machine-scope: every state resolves `self`
+    // through it even though it sits only on the entry roster.
+    if !structural_namespace
+        .iter()
+        .any(|(_, emitted)| emitted.is_self)
+    {
+        structural_namespace.extend(
+            structural_parameters
+                .iter()
+                .filter(|parameter| parameter.is_self)
+                .map(|parameter| (parameter.position, parameter.clone())),
+        );
+    }
     let mut scalar_bindings = storage::ScalarBindings::new(parameter_types.len())
         .with_structural_parameters(&structural_namespace)
         .with_structural_observations(structural_types);

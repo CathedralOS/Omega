@@ -154,7 +154,14 @@ fn arguments(
     let target_state = states.iter().find(|state| state.symbol == target.state)?;
     let source_parameters = program.state_parameters(source_state);
     let target_parameters = program.state_parameters(target_state);
-    if !source.structural_parameters.is_empty() || !target.structural_parameters.is_empty() {
+    let forwarded = |state: &CheckedScalarStateGraph| {
+        state
+            .structural_parameters
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .count()
+    };
+    if forwarded(source) != 0 || forwarded(target) != 0 {
         if states.len() != 1 || source.state != target.state {
             return None;
         }
@@ -209,7 +216,7 @@ fn arguments(
         || arguments.len() != target_formals.len()
         || target_formals.len()
             != target.scalar_parameters.len()
-                + target.structural_parameters.len()
+                + forwarded(target)
                 + target.erased_scalar_parameters.len()
                 + target.erased_proof_parameters.len()
     {

@@ -331,7 +331,14 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
             if !block.structural_parameters.is_empty() {
                 return unsupported("structural binding collided with an existing block namespace");
             }
-            block.structural_parameters = state.structural_parameters.clone();
+            // A borrowed receiver is declared once at machine scope; it is
+            // never a block parameter, so edges carry no lane for it.
+            block.structural_parameters = state
+                .structural_parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .cloned()
+                .collect();
         }
     }
     // parameter_storage -> owned::validate must establish source no-code
@@ -674,7 +681,10 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
                 closed_reach_application: None,
                 declared_service_reach: Vec::new(),
                 id: terminal_machine,
-                attachment: None,
+                attachment: structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.is_self)
+                    .map(|parameter| parameter.structural_type),
                 structural_parameters: structural_parameters.to_vec(),
                 ranked_scc: None,
                 entry_claims: Vec::new(),

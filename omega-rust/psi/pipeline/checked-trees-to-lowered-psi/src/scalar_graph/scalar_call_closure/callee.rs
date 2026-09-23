@@ -20,7 +20,12 @@ impl<'checked> CheckedScalarCallee<'checked> {
         source: symbols::SymbolHandle,
     ) -> Result<Self, LoweringError> {
         let callee = Self::find_for_unit_call(checked, source)?;
-        if !callee.structural_parameters().is_empty() || !callee.entry_claims().is_empty() {
+        if callee
+            .structural_parameters()
+            .iter()
+            .any(|parameter| !parameter.is_self)
+            || !callee.entry_claims().is_empty()
+        {
             return unsupported("scalar callee requires structural call custody");
         }
         Ok(callee)

@@ -4,6 +4,7 @@ use super::{
 use crate::execution::terminal_scalar::checked_branch_destination;
 use crate::tests::front_end::checked_program_result;
 
+mod ambient_self;
 mod cyclic_owned;
 mod primitive_locals;
 mod record_locals;
