@@ -30,8 +30,11 @@ coordinator's procedure — the agents get rendered prompts, not this file.
    tests, fixtures, and acceptance corpus — against live claims too, not
    just its owning paths: a slice whose acceptance tests sit under a
    foreign claim lands code it cannot exercise (macw7 parked an
-   exact-machine leg while `tests/` was held wholesale). Prefer items
-   whose evidence the slot can actually produce. Read
+   exact-machine leg while `tests/` was held wholesale). For e2e-visible
+   work, `python3 tools/corpus_gate.py --filter <domain>` diffs the touched
+   fixture domain against the recorded corpus golden in seconds-to-minutes —
+   a much cheaper validation surface than chaining per-crate nextest suites.
+   Prefer items whose evidence the slot can actually produce. Read
    `tools/swarm/README.md` coordinator selection rules first. Reserve one
    path-disjoint item for the coordinator's own slot — it goes in the wave
    report like every other slot and follows the same claim/land/release
