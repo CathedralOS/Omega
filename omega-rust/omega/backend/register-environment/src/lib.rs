@@ -17,7 +17,10 @@ mod abi_preservation;
 mod catalog;
 mod validation;
 
-pub use abi_preservation::*;
+pub use abi_preservation::{
+    AbiPreservationSelectionError, FrameAbiPreservationConvention, SelectedAbiPreservation,
+    selected_abi_preservation, selected_preservation_storage_catalog,
+};
 
 #[cfg(test)]
 mod tests;

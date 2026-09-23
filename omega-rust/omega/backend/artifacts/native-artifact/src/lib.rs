@@ -14,7 +14,16 @@ mod callable_entry;
 mod native_artifact;
 mod physical;
 
-pub use callable_entry::*;
+pub use callable_entry::{
+    OptimizedOrdinaryCallableEntryCustodyReceipt, OptimizedOrdinaryCallableEntryDecodeError,
+    OptimizedOrdinaryCallableEntryDisposition, OptimizedOrdinaryCallableEntryError,
+    OptimizedOrdinaryCallableEntryManifest, OptimizedOrdinaryCallableEntryManifestDecodeError,
+    OptimizedOrdinaryCallableEntryRecord, OptimizedOrdinaryCallableEntryStage,
+    OptimizedOrdinaryCallableEntryUnavailableData, OptimizedOrdinaryCallableParameter,
+    OptimizedOrdinaryCallableResult, OptimizedOrdinaryCallableReturn,
+    StagedValidatedOptimizedOrdinaryCallableEntry, ValidatedOptimizedOrdinaryCallableEntryManifest,
+    stage_validated_optimized_ordinary_callable_entry, validate_optimized_ordinary_callable_entry,
+};
 pub use image_emission::BoundaryExecutionRecord;
 pub use native_artifact::{
     DynamicElfNativeArtifact, DynamicElfNativeArtifactEmissionParts,
