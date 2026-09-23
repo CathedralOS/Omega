@@ -10,7 +10,7 @@ fn prove(assumptions: &[Proposition], axioms: &[Proposition]) -> Option<ProofNod
         &context(),
         assumptions,
         axioms,
-        &mut DefinitionIndex::new(axioms),
+        &mut DefinitionIndex::new(&context(), assumptions, axioms),
     )
 }
 
@@ -67,7 +67,7 @@ fn carrier_extrema_close_impossible_root_bounds_without_definition_edges() {
                     &context,
                     std::slice::from_ref(&assumption),
                     &[],
-                    &mut DefinitionIndex::new(&[]),
+                    &mut DefinitionIndex::new(&context, std::slice::from_ref(&assumption), &[]),
                 )
                 .expect("carrier bounds contradict values beyond either extremum");
                 check_certificate(
@@ -84,7 +84,7 @@ fn carrier_extrema_close_impossible_root_bounds_without_definition_edges() {
                         &context,
                         std::slice::from_ref(&reachable),
                         &[],
-                        &mut DefinitionIndex::new(&[]),
+                        &mut DefinitionIndex::new(&context, std::slice::from_ref(&reachable), &[]),
                     )
                     .is_none(),
                     "equality at the extremum remains reachable"
@@ -125,7 +125,7 @@ fn incompatible_integer_bounds_retain_exact_projected_premises() {
                 &goal,
                 &assumptions,
                 &axioms,
-                &mut DefinitionIndex::new(&axioms),
+                &mut DefinitionIndex::new(&context(), &assumptions, &axioms),
             );
             if lower == upper && !strict[0] && !strict[1] {
                 assert!(proof.is_none());
@@ -435,7 +435,7 @@ fn carrier_bound_maps_through_exact_add_forward_to_contradict_a_strict_bound() {
         &goal,
         &assumptions,
         &axioms,
-        &mut DefinitionIndex::new(&axioms),
+        &mut DefinitionIndex::new(&context(), &assumptions, &axioms),
     )
     .expect("the carrier bound contradicts the strict premise");
     let acceptance = accept_certificate(&context(), &goal, &assumptions, &axioms, &proof).unwrap();
@@ -452,7 +452,7 @@ fn carrier_bound_maps_through_exact_add_forward_to_contradict_a_strict_bound() {
             &goal,
             &assumptions,
             &axioms[..1],
-            &mut DefinitionIndex::new(&axioms[..1]),
+            &mut DefinitionIndex::new(&context(), &assumptions, &axioms[..1]),
         )
         .is_none()
     );

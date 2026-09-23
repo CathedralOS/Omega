@@ -9,13 +9,15 @@
 //! reconstructs every requirement at admission, so this leg only assembles
 //! the candidate root-bound conjunction from cited facts.
 
+use std::rc::Rc;
+
 use proof_admission::{
     IntegerAffineWitness, ProofNode, ProofRule, check_certificate, check_integer_affine_witness,
     integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm};
 
-use super::super::affine_custody::{self, DefinitionIndex};
+use super::super::affine_custody::{self, CheckedWord, DefinitionIndex};
 use super::super::integer_evidence::projected_facts;
 use super::{bound, exact};
 
@@ -52,6 +54,10 @@ pub(super) fn rooted_bounds(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Vec<RootedBound> {
+    // Every endpoint below resolves its aliases against this same unchanged
+    // roster; one session keeps each lookup proportional to the endpoint's
+    // own incident equalities instead of rescanning the roster per endpoint.
+    let session = exact::session(context, assumptions, semantic_axioms);
     let mut bounds = Vec::new();
     for fact in projected_facts(assumptions, semantic_axioms) {
         let (fact_left, fact_right) = match fact.proposition {
@@ -67,7 +73,7 @@ pub(super) fn rooted_bounds(
             ) {
                 continue;
             }
-            for (root, equality) in value_aliases(context, endpoint, assumptions, semantic_axioms) {
+            for (root, equality) in value_aliases(&session, endpoint) {
                 let (proposition, proof) = if root == *endpoint {
                     (fact.proposition.clone(), fact.proof())
                 } else {
@@ -107,39 +113,8 @@ pub(super) fn rooted_bounds(
 /// when it already is a value, plus every cited `endpoint == value` or
 /// `value == endpoint` partner. Each alias carries the equality certificate the
 /// endpoint substitution must cite.
-fn value_aliases(
-    context: &PropositionContext,
-    endpoint: &ScalarTerm,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-) -> Vec<(ScalarTerm, ProofNode)> {
-    let mut aliases = Vec::new();
-    for fact in projected_facts(assumptions, semantic_axioms) {
-        let Proposition::Equal(left, right) = fact.proposition else {
-            continue;
-        };
-        let alias = if left == endpoint {
-            right
-        } else if right == endpoint {
-            left
-        } else {
-            continue;
-        };
-        if !matches!(alias, ScalarTerm::Value { .. })
-            || aliases.iter().any(|(root, _)| root == alias)
-        {
-            continue;
-        }
-        let Some(equality) = exact::prove(
-            context,
-            &Proposition::Equal(endpoint.clone(), alias.clone()),
-            assumptions,
-            semantic_axioms,
-        ) else {
-            continue;
-        };
-        aliases.push((alias.clone(), equality));
-    }
+fn value_aliases(session: &exact::Session, endpoint: &ScalarTerm) -> Vec<(ScalarTerm, ProofNode)> {
+    let mut aliases = session.value_aliases(endpoint);
     if matches!(endpoint, ScalarTerm::Value { .. })
         && !aliases.iter().any(|(root, _)| root == endpoint)
     {
@@ -238,7 +213,7 @@ pub(super) fn map_word(
     target: &ScalarTerm,
     definition_axioms: &[usize],
 ) -> Option<ProofNode> {
-    let (form, evidence, witness) = check_word(
+    let checked = check_word(
         context,
         semantic_axioms,
         definitions,
@@ -246,7 +221,7 @@ pub(super) fn map_word(
         target,
         definition_axioms,
     )?;
-    if evidence.is_empty() && !matches!(bound.proposition, Proposition::LessThan(_, _)) {
+    if checked.evidence.is_empty() && !matches!(bound.proposition, Proposition::LessThan(_, _)) {
         // A bare non-strict relation is already the ordinary affine path's
         // root bound. This leg exists for strict roots and for the wrapping
         // evidence conjunction the ordinary path cannot construct.
@@ -258,9 +233,9 @@ pub(super) fn map_word(
         semantic_axioms,
         definitions,
         bound,
-        &form,
-        &evidence,
-        witness,
+        &checked,
+        target,
+        definition_axioms,
     )
 }
 
@@ -279,7 +254,7 @@ pub(super) fn map_derived_word(
     target: &ScalarTerm,
     definition_axioms: &[usize],
 ) -> Option<ProofNode> {
-    let (form, evidence, witness) = check_word(
+    let checked = check_word(
         context,
         semantic_axioms,
         definitions,
@@ -293,12 +268,16 @@ pub(super) fn map_derived_word(
         semantic_axioms,
         definitions,
         bound,
-        &form,
-        &evidence,
-        witness,
+        &checked,
+        target,
+        definition_axioms,
     )
 }
 
+/// The kernel witness check for one `(bound, root, target, word)`, memoized
+/// in the definition index: both the goal-directed path and the
+/// contradiction leg pool meet the same candidates, so the check runs once
+/// per word under this scope and each caller still assembles its own proof.
 #[allow(clippy::too_many_arguments)]
 fn check_word(
     context: &PropositionContext,
@@ -307,28 +286,43 @@ fn check_word(
     bound: &RootedBound,
     target: &ScalarTerm,
     definition_axioms: &[usize],
-) -> Option<(
-    proof_admission::CheckedIntegerAffineForm,
-    Vec<Proposition>,
-    IntegerAffineWitness,
-)> {
-    let literal_axioms = affine_custody::literal_axioms(
-        context,
-        semantic_axioms,
-        definitions,
+) -> Option<Rc<CheckedWord>> {
+    if let Some(checked) =
+        definitions.cached_checked_word(&bound.proposition, &bound.root, target, definition_axioms)
+    {
+        return checked;
+    }
+    let checked = (|definitions: &mut DefinitionIndex| {
+        let literal_axioms = affine_custody::literal_axioms(
+            context,
+            semantic_axioms,
+            definitions,
+            &bound.root,
+            definition_axioms,
+            target,
+        )?;
+        let witness = IntegerAffineWitness {
+            root: bound.root.clone(),
+            target: target.clone(),
+            literal_axioms,
+            definition_axioms: definition_axioms.to_vec(),
+        };
+        let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
+        let evidence = integer_affine_wrapping_evidence(&form, &bound.proposition).ok()?;
+        Some(Rc::new(CheckedWord {
+            form,
+            evidence,
+            literal_axioms: witness.literal_axioms,
+        }))
+    })(definitions);
+    definitions.cache_checked_word(
+        &bound.proposition,
         &bound.root,
-        definition_axioms,
         target,
-    )?;
-    let witness = IntegerAffineWitness {
-        root: bound.root.clone(),
-        target: target.clone(),
-        literal_axioms,
-        definition_axioms: definition_axioms.to_vec(),
-    };
-    let form = check_integer_affine_witness(context, semantic_axioms, &witness).ok()?;
-    let evidence = integer_affine_wrapping_evidence(&form, &bound.proposition).ok()?;
-    Some((form, evidence, witness))
+        definition_axioms,
+        checked.clone(),
+    );
+    checked
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -338,13 +332,19 @@ fn map_checked_word(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
     bound: &RootedBound,
-    form: &proof_admission::CheckedIntegerAffineForm,
-    evidence: &[Proposition],
-    witness: IntegerAffineWitness,
+    checked: &CheckedWord,
+    target: &ScalarTerm,
+    definition_axioms: &[usize],
 ) -> Option<ProofNode> {
-    let mut children = Vec::with_capacity(evidence.len() + 1);
+    let witness = IntegerAffineWitness {
+        root: bound.root.clone(),
+        target: target.clone(),
+        literal_axioms: checked.literal_axioms.clone(),
+        definition_axioms: definition_axioms.to_vec(),
+    };
+    let mut children = Vec::with_capacity(checked.evidence.len() + 1);
     children.push(bound.proof.clone());
-    for required in evidence {
+    for required in &checked.evidence {
         children.push(bound::prove_candidate_endpoint(
             context,
             required,
@@ -368,7 +368,7 @@ fn map_checked_word(
             rule: ProofRule::ConjunctionIntroduction(children),
         }
     };
-    let mapped = map_integer_affine_bound(form, &root_bound.conclusion).ok()?;
+    let mapped = map_integer_affine_bound(&checked.form, &root_bound.conclusion).ok()?;
     Some(ProofNode {
         conclusion: mapped,
         rule: ProofRule::IntegerAffineBound {

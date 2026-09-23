@@ -12,7 +12,7 @@ pub(super) fn find<T>(
     definition_words: &[Vec<usize>],
     root: &ScalarTerm,
     target: &ScalarTerm,
-    complete: &mut impl FnMut(IntegerAffineWitness) -> Option<T>,
+    complete: &mut impl FnMut(&DefinitionIndex, IntegerAffineWitness) -> Option<T>,
 ) -> Option<T> {
     find_where(
         context,
@@ -34,7 +34,7 @@ pub(super) fn find_where<T>(
     root: &ScalarTerm,
     target: &ScalarTerm,
     admit: impl Fn(&[usize]) -> bool,
-    complete: &mut impl FnMut(IntegerAffineWitness) -> Option<T>,
+    complete: &mut impl FnMut(&DefinitionIndex, IntegerAffineWitness) -> Option<T>,
 ) -> Option<T> {
     definition_words.iter().find_map(|definition_axioms| {
         if !admit(definition_axioms) {
@@ -48,11 +48,14 @@ pub(super) fn find_where<T>(
             definition_axioms,
             target,
         )?;
-        complete(IntegerAffineWitness {
-            root: root.clone(),
-            target: target.clone(),
-            literal_axioms,
-            definition_axioms: definition_axioms.clone(),
-        })
+        complete(
+            definitions,
+            IntegerAffineWitness {
+                root: root.clone(),
+                target: target.clone(),
+                literal_axioms,
+                definition_axioms: definition_axioms.clone(),
+            },
+        )
     })
 }

@@ -4,7 +4,7 @@ use proof_admission::{ProofNode, ProofRule};
 use semantic_vocabulary::{IntegerValue, Proposition, PropositionContext, ScalarTerm};
 
 use super::super::super::super::affine_custody::DefinitionIndex;
-use super::super::super::bound;
+use super::super::super::{bound, exact};
 use crate::proofs::nonzero_divisor_certificate::integer_evidence::projected_facts;
 
 pub(super) fn prove(
@@ -17,6 +17,9 @@ pub(super) fn prove(
     let Proposition::LessThan(_, goal_right) = goal else {
         return None;
     };
+    // Each subtract candidate asks endpoint equalities against this same
+    // unchanged roster; resolve the session once for all of them.
+    let session = exact::session(context, assumptions, semantic_axioms);
     for fact in projected_facts(assumptions, semantic_axioms) {
         let Proposition::Equal(
             measured,
@@ -57,13 +60,7 @@ pub(super) fn prove(
         // Successor bindings preserve values through cited SSA equalities.
         // Prove the actual subtraction first, then transport its two endpoints
         // with the existing checked substitution rule, never by renaming them.
-        if let Some(proof) = super::complete(
-            context,
-            goal,
-            decrease.clone(),
-            assumptions,
-            semantic_axioms,
-        ) {
+        if let Some(proof) = super::complete(&session, goal, decrease.clone()) {
             return Some(proof);
         }
         // The same decrease still bounds the difference when the minuend
@@ -87,7 +84,7 @@ pub(super) fn prove(
                 middle_to_right: Box::new(bound),
             },
         };
-        if let Some(proof) = super::complete(context, goal, chained, assumptions, semantic_axioms) {
+        if let Some(proof) = super::complete(&session, goal, chained) {
             return Some(proof);
         }
     }
@@ -111,7 +108,7 @@ mod tests {
             goal,
             assumptions,
             semantic_axioms,
-            &mut DefinitionIndex::new(semantic_axioms),
+            &mut DefinitionIndex::new(context, assumptions, semantic_axioms),
         )
     }
 

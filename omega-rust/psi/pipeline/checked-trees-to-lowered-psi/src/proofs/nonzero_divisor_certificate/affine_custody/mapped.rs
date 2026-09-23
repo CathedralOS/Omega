@@ -25,11 +25,12 @@ pub(in super::super) fn prove_mapped_to_target_before(
         root,
         target,
         maximum_axiom,
-        |witness| {
+        |definitions, witness| {
             completion::prove(
                 context,
                 assumptions,
                 semantic_axioms,
+                definitions,
                 maximum_axiom,
                 root_bound,
                 witness,

@@ -14,7 +14,7 @@ pub(super) fn find<T>(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
-    mut complete: impl FnMut(IntegerAffineWitness) -> Option<T>,
+    mut complete: impl FnMut(&DefinitionIndex, IntegerAffineWitness) -> Option<T>,
 ) -> Option<T> {
     let mut targets = targets::values(goal);
     let first_target = targets.next()?;
@@ -47,7 +47,7 @@ pub(super) fn find_target_before<T>(
     root: &ScalarTerm,
     target: &ScalarTerm,
     maximum_axiom: usize,
-    mut complete: impl FnMut(IntegerAffineWitness) -> Option<T>,
+    mut complete: impl FnMut(&DefinitionIndex, IntegerAffineWitness) -> Option<T>,
 ) -> Option<T> {
     let definition_words =
         frontier::definition_words_to_target(context, semantic_axioms, definitions, root, target);
@@ -83,7 +83,7 @@ pub(super) fn find_after<T>(
     definitions: &mut DefinitionIndex,
     root: &ScalarTerm,
     minimum_axiom: usize,
-    mut complete: impl FnMut(IntegerAffineWitness) -> Option<T>,
+    mut complete: impl FnMut(&DefinitionIndex, IntegerAffineWitness) -> Option<T>,
 ) -> Option<T> {
     let mut targets = targets::values(goal);
     let first_target = targets.next()?;

@@ -223,6 +223,10 @@ fn closed_falsehood(
     // This is a bounded two-edge search, not interval propagation. Exhaustion
     // leaves the goal unproved and never changes the reconstructed question.
     let mut remaining_pairs = 4096usize;
+    // Every middle join asks one equality question against this unchanged
+    // scope; the session keeps each lookup at roster-index cost rather than
+    // re-matching the cited roster per candidate pair.
+    let session = super::super::exact::session(context, assumptions, semantic_axioms);
     for lower in legs {
         if !matches!(lower.left, ScalarTerm::Integer { .. }) {
             continue;
@@ -249,12 +253,9 @@ fn closed_falsehood(
             let upper_proof = if lower.right == upper.left {
                 upper.proof.clone()
             } else {
-                let Some(equality) = super::super::exact::prove(
-                    context,
-                    &Proposition::Equal(lower.right.clone(), upper.left.clone()),
-                    assumptions,
-                    semantic_axioms,
-                ) else {
+                let Some(equality) =
+                    session.prove(&Proposition::Equal(lower.right.clone(), upper.left.clone()))
+                else {
                     continue;
                 };
                 ProofNode {

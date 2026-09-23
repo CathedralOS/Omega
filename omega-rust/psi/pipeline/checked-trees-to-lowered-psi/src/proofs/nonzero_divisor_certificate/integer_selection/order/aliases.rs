@@ -15,6 +15,10 @@ pub(super) fn prove(
     let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
         return None;
     };
+    // One roster session serves every endpoint substitution below: the loop
+    // asks hundreds of equality questions against this unchanged scope, so
+    // the cited-fact index is resolved once rather than per question.
+    let session = exact::session(context, assumptions, semantic_axioms);
     let mut pending = cited_facts(assumptions, semantic_axioms)
         .map(|(citation, fact)| citation.proof(fact))
         .collect::<Vec<_>>();
@@ -32,7 +36,7 @@ pub(super) fn prove(
                 }
             }
             Proposition::LessOrEqual(_, _) => {
-                if let Some(proof) = complete(context, goal, proof, assumptions, semantic_axioms) {
+                if let Some(proof) = complete(&session, goal, proof) {
                     return Some(proof);
                 }
             }
@@ -43,8 +47,7 @@ pub(super) fn prove(
                         relation: Box::new(proof),
                     },
                 };
-                if let Some(proof) = complete(context, goal, weakened, assumptions, semantic_axioms)
-                {
+                if let Some(proof) = complete(&session, goal, weakened) {
                     return Some(proof);
                 }
             }
@@ -60,8 +63,7 @@ pub(super) fn prove(
                         Proposition::LessOrEqual(goal_left.clone(), literal.clone()),
                     ] {
                         if let Some(closed) = closed_integer_relation(relation)
-                            && let Some(proof) =
-                                complete(context, goal, closed, assumptions, semantic_axioms)
+                            && let Some(proof) = complete(&session, goal, closed)
                         {
                             return Some(proof);
                         }
@@ -75,35 +77,24 @@ pub(super) fn prove(
 }
 
 fn complete(
-    context: &PropositionContext,
+    session: &exact::Session,
     goal: &Proposition,
     mut relation: ProofNode,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
     let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
         return None;
     };
     for (endpoint, target) in [goal_left, goal_right].into_iter().enumerate() {
-        relation = replace_endpoint(
-            context,
-            relation,
-            endpoint,
-            target,
-            assumptions,
-            semantic_axioms,
-        )?;
+        relation = replace_endpoint(session, relation, endpoint, target)?;
     }
     (relation.conclusion == *goal).then_some(relation)
 }
 
 fn replace_endpoint(
-    context: &PropositionContext,
+    session: &exact::Session,
     relation: ProofNode,
     endpoint: usize,
     target: &ScalarTerm,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
 ) -> Option<ProofNode> {
     let Proposition::LessOrEqual(left, right) = &relation.conclusion else {
         return None;
@@ -117,12 +108,7 @@ fn replace_endpoint(
     } else {
         Proposition::LessOrEqual(left.clone(), target.clone())
     };
-    if let Some(equality) = exact::prove(
-        context,
-        &Proposition::Equal(target.clone(), old.clone()),
-        assumptions,
-        semantic_axioms,
-    ) {
+    if let Some(equality) = session.prove(&Proposition::Equal(target.clone(), old.clone())) {
         return Some(ProofNode {
             conclusion,
             rule: ProofRule::IntegerOrderSubstitution {

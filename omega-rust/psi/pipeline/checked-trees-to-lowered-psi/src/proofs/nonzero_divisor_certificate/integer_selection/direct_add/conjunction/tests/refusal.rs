@@ -44,6 +44,8 @@ fn cycles_type_drift_address_carriers_and_overflow_are_refused() {
     let wrong_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let definitions =
         crate::proofs::nonzero_divisor_certificate::affine_custody::DefinitionIndex::new(
+            &fixture.context,
+            &[],
             &fixture.axioms,
         );
     assert!(

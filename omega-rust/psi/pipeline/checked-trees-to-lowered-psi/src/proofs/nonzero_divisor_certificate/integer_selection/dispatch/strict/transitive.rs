@@ -1,7 +1,7 @@
 //! Join a cited strict edge with an independently derived non-strict bound.
 
 use super::super::super::super::integer_evidence::projected_facts;
-use super::super::super::bound;
+use super::super::super::{bound, exact};
 use super::{DefinitionIndex, ProofNode, ProofRule, Proposition, PropositionContext};
 
 pub(super) fn prove(
@@ -14,6 +14,9 @@ pub(super) fn prove(
     let Proposition::LessThan(goal_left, goal_right) = goal else {
         return None;
     };
+    // Endpoint rejoins ask equality questions against this same unchanged
+    // roster; resolve the session once for every candidate below.
+    let session = exact::session(context, assumptions, semantic_axioms);
     for fact in projected_facts(assumptions, semantic_axioms) {
         let relations = match fact.proposition {
             Proposition::LessThan(_, _) => vec![fact.proof()],
@@ -52,13 +55,7 @@ pub(super) fn prove(
                         Proposition::LessOrEqual(goal_left.clone(), left.clone()),
                     )
                 };
-                let Some(strict) = super::complete(
-                    context,
-                    &strict_goal,
-                    relation.clone(),
-                    assumptions,
-                    semantic_axioms,
-                ) else {
+                let Some(strict) = super::complete(&session, &strict_goal, relation.clone()) else {
                     continue;
                 };
                 let Some(nonstrict) = bound::prove(

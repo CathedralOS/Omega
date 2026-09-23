@@ -13,7 +13,7 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    let cast_roots = definitions.cast_roots().cloned().collect::<Vec<_>>();
+    let cast_roots = definitions.cast_roots();
     cast_roots.iter().find_map(|cast_root| {
         let ScalarType::Integer(cast_type) = cast_root.scalar_type() else {
             return None;

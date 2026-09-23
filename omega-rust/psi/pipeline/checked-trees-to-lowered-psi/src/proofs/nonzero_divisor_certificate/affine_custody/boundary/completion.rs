@@ -3,11 +3,14 @@
 use proof_admission::{IntegerAffineWitness, ProofNode};
 use semantic_vocabulary::{Proposition, PropositionContext};
 
+use super::super::DefinitionIndex;
+
 pub(super) fn prove(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    definitions: &DefinitionIndex,
     minimum_axiom: usize,
     root_bound: &ProofNode,
     witness: IntegerAffineWitness,
@@ -27,6 +30,7 @@ pub(super) fn prove(
             goal,
             assumptions,
             semantic_axioms,
+            definitions,
             root_bound,
             witness,
         )
