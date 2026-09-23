@@ -53,8 +53,11 @@ mutates the caller's field and the caller observes it after return," not just
 "retain borrowed arguments in target operations." Trace the remaining producer
 and consumer dependencies before choosing the first repair. A stage-local repair
 can be a useful checkpoint, but does not automatically complete that assignment.
-This does not require finishing an entire large sample in one invocation; keep
-the chosen scope bounded and the existing proof-obligation and pause rules intact.
+Choose a scope small enough to complete, but own that agreed outcome through its
+customer check. Do not shrink the assignment after discovering the next missing
+stage, or publish a diagnosis and leave the in-scope repair to another invocation.
+Intermediate code checkpoints are allowed; they do not end the assignment.
+Keep the existing proof-obligation, active-assignment, and pause rules intact.
 
 Read the owning design and [completion plan](../../../wiki/drafts/reference/rust_compiler_completion.md).
 For bootstrap work, also read [whole-chain minimization](../../../bootstrap/MINIMIZATION.md).
@@ -86,8 +89,8 @@ capability without defining its limits or authorizing sample-specific semantics,
 intrinsics, relaxed checks, or compiler paths. Implement the smallest capability
 consistent with the design and retain its broader required cases and evidence.
 
-Witness the failure before editing. Read the generated phase artifacts described
-in AGENTS.md before instrumenting compiler code. Distinguish the observed boundary
+Witness the failure before editing. Read existing diagnostics and supported reports
+before instrumenting compiler code. Distinguish the observed boundary
 from downstream gaps inferred from source. A checked-tree milestone can be useful
 while native production remains blocked, but report that boundary accurately.
 On a proof-rejection diagnostic (`cannot prove`, `disproved`, `no entailment
@@ -248,10 +251,13 @@ tested revision, repository-relative command and environment/host, observed resu
 owning implementation path, and next acceptance. Label an unrun probe explicitly.
 Write the new evidence in place of the paragraph it supersedes — the item
 states its current frontier once, not as an appended ledger of landed slices.
-A board-only checkpoint is useful only when it changes the next action or corrects
-materially stale evidence; an unchanged diagnosis at a newer revision is not an
-improvement, and a rerun that reproduces the recorded result at the same revision
-writes nothing — it reports.
+Do not publish a standalone board-only checkpoint during implementation. Report
+new diagnoses through the claim note and session report; continue the assigned
+repair unless a concrete scope, ownership, prerequisite, or owner-decision
+boundary prevents it. The coordinator consolidates useful evidence into the
+existing item. An explicitly assigned board audit is separate work, not a
+substitute for this invocation's customer outcome. Reconfirming a recorded
+failure writes no board change.
 
 After publication, return to the recorded starting checkout and recheck its
 branch and status. If it is still clean and on main, fetch and run
