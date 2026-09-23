@@ -408,13 +408,13 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
     .expect("write build.omg");
     let main_with = |claim: &str| {
         let claim = if claim.trim().is_empty() {
-            "true".to_owned()
+            "value == value".to_owned()
         } else {
             claim.trim().to_owned()
         };
         format!(
             r#"use omega::language::core::service;
-boundary machine admitted() ensures {claim};
+boundary machine admitted(value: i32) ensures {claim};
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Binding<Console>; }}
 machine Main::exercise(&mut self) reaches Console {{
@@ -440,8 +440,12 @@ machine Main::exercise(&mut self) reaches Console {{
         "expected the accepted-machine receipt row:\n{lock}"
     );
 
-    // Drift the granted statement -- the build must refuse.
-    std::fs::write(project.join("main.omg"), main_with("false")).expect("rewrite main.omg");
+    // Drift the granted statement -- the build must refuse. The drifted
+    // statement has to stay a coherent assumption: an accepted axiom spelled
+    // `false` is now refused as disproved before the lock is ever consulted,
+    // which would test the constant-arithmetic check instead of the grant.
+    std::fs::write(project.join("main.omg"), main_with("value >= value"))
+        .expect("rewrite main.omg");
     let drifted = compile(options());
     let message = format!("{:?}", drifted.expect_err("drift should refuse"));
     assert!(
