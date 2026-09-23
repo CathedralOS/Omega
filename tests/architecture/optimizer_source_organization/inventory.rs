@@ -27,6 +27,8 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/object/object-file/src/artifact_custody",
     "omega-rust/omega/backend/artifacts/native-artifact/src/callable_entry",
     "omega-rust/omega/backend/artifacts/native-artifact/src/callable_entry.rs",
+    "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object",
+    "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object.rs",
     "tests/native-differential/tests/pipeline_ownership",
     "omega-rust/omega/representations/legalized-operations",
     "omega-rust/omega/representations/optimization-core",

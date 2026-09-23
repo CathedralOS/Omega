@@ -80,11 +80,11 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
     SemanticLadder {
         family: "ProgramStorage wrapper manifest mutation tests",
         paths: &[
-            "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/mod.rs",
-            "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/fixture.rs",
-            "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/fields.rs",
-            "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/wire.rs",
-            "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/tests/manifest_mutation_matrix/wire_offsets.rs",
+            "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object/tests/manifest_mutation_matrix/mod.rs",
+            "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object/tests/manifest_mutation_matrix/fixture.rs",
+            "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object/tests/manifest_mutation_matrix/fields.rs",
+            "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object/tests/manifest_mutation_matrix/wire.rs",
+            "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object/tests/manifest_mutation_matrix/wire_offsets.rs",
         ],
     },
 ];

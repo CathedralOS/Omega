@@ -158,6 +158,10 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_validated_optimized_ordinary_callable_entry",
     },
     RequiredCoordinationEntrance {
+        path: "omega-rust/omega/backend/artifacts/native-artifact/src/semantic_wrapper_object/composition.rs",
+        coordination_marker: "pub fn compose_optimized_program_storage_semantic_wrapper_object",
+    },
+    RequiredCoordinationEntrance {
         path: "omega-rust/omega/backend/machine-emission/src/function_realization/fixed_frame.rs",
         coordination_marker: "pub fn stage_fixed_frame_function_relative_realization",
     },
@@ -194,7 +198,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn validate_optimized_program_storage_semantic_wrapper_object",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/object/mod.rs",
+        path: "omega-rust/omega/compiler/native-realization/src/optimized_semantic_wrapper_object/object.rs",
         coordination_marker: "pub(crate) fn construct_object",
     },
     RequiredCoordinationEntrance {
