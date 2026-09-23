@@ -2457,6 +2457,30 @@ syntax and other terminal services are not prerequisites.
     `runtime_value_generics::data_value_binder_arguments_carry_no_static_identity`
     currently expects `Index<9>` to assign into `Index<7>` without relating
     those arguments. Shared layout/code does not prove captured indices agree.
+
+    Measured at `9ead87c6fd`, this is not only an identity gap -- it admits a
+    program the declaration's own `where` clause forbids. With
+
+        data Index<Limit: u32> [copy] where value < Limit, { value: u32; }
+        data Main { a: Index<9>; b: Index<7>; }
+        machine take7(v: Index<7>) -> u32 { v.value }
+
+    both `self.a = Index { Limit: 9, value: 8 }; take7(self.a)` and the
+    field assignment `self.b = self.a` are ACCEPTED. The value 8 satisfies
+    `value < 9` and is then admitted where `value < 7` is required, so the
+    applications unify in argument position as well as on assignment. The
+    spec settles it: "compatibility between applications with different
+    runtime subjects requires the relevant checked relationship, such as
+    equality established by a guard; matching variable spellings is not
+    evidence" -- and 9 and 7 are not merely unrelated, they are provably
+    unequal.
+
+    The repair is in type identity, not in the test: literal-subject
+    applications must carry their argument so `Index<9>` and `Index<7>` are
+    distinct, while genuinely runtime subjects still need the checked
+    relationship rather than a spelling match. Expect wide fixture fallout --
+    this changes type equality -- and note FINITE-GENERIC-DISPATCH works the
+    adjacent `monomorphization` and `values/` surfaces.
     Correct application compatibility, bind construction arguments to their
     actual subjects, and retain executable indices as ordinary data, arguments
     or descriptors. Erase proof-only uses only after checking their obligations;
