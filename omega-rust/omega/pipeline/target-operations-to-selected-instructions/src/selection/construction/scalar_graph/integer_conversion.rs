@@ -11,7 +11,7 @@ pub(super) fn emit(
     builder: &mut Builder<'_>,
     function: usize,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     let result = operation.result.as_ref().ok_or_else(invalid)?;
     let scalar_type = result.scalar_type;
     let constraints = builder.constraints;

@@ -1750,40 +1750,6 @@ syntax and other terminal services are not prerequisites.
   layout-dependent-erasure rejection. Do not relax semantically invalid
   qualifier combinations merely to remove an implementation fence.
 
-- **BACKEND-VOCABULARY-REJECTION-AUDIT.** Audited at `e4f9dd8212`; see
-  [the record](wiki/drafts/backend_vocabulary_rejection_audit.md). Admission
-  has three routes, not two — 83 families split 63 body-admitted / 7
-  terminator (split off before `admit` ever runs) / 13 named rejection — and
-  `admission_vocabulary_tests.rs` now pins that with a wildcard-free match, so
-  a new family cannot be silently omitted. The first acceptance clause holds
-  structurally: selection's per-instruction dispatch has no wildcard arm, so
-  every legalized kind is guaranteed an arm at build time.
-  `d37b00b028` (macw7) closed the per-ISA leg through the public compiler —
-  the unsupported-scalar refusal is exercised on all four bound targets with
-  exact `SaturatingIntegerMultiply` diagnostics.
-
-  ONE residual: selection's refusals carry no operation or target, although
-  `LegalizedScalarInstruction` holds `operation` and `LegalizedScalarFunction`
-  holds `machine` where they are raised, so attribution means reading the
-  function back by index. `UnsupportedSourceShape` appears at 12 construction
-  sites, so a `{ function, machine, operation }` variant is bounded work. Not
-  done here because ALIAS-AWARE-MEMORY holds that whole crate.
-
-  Original scope: finish the bounded
-  legalization-to-selection refusal audit in `target-operations-to-selected-instructions`.
-  Existing admission tests classify unsupported families and preserve operation
-  identity in `UnsupportedScalarOperation`; they do not establish that every
-  admitted family either selects on each applicable ISA or returns a structured
-  refusal through the public compiler. Trace admission ordering and downstream
-  filtering, exercise representative admitted-but-unrealizable and unsupported
-  operations through compilation, and retain exact operation/target diagnostics
-  without panics or silent omission. Attribute missing implementations to
-  existing capability owners, including **X86-FMA-PROVIDER-TRANSPORT**; do not
-  expand the accepted vocabulary or build another generic audit framework.
-
-
-## P4 - ABI, borrowing, and callbacks
-
 - **NORMALIZED-ABI-LOWERING.** Finish aggregate and descriptor foreign
   argument/result transport under the
   [calling-plan contract](wiki/spec/build/calling_plans.md). Owners:
@@ -3308,12 +3274,15 @@ syntax and other terminal services are not prerequisites.
   equality.
   Record and case literals passed by value now compose as fresh owned
   operands, and guarded state graphs dispose owned parameters on their edges,
-  so the three arm-pattern canaries plan and lower past their callers: the
+  so the three arm-pattern canaries plan and lower past their callers. The
   two case-payload members (`control_flow/{arm_pattern_rest_optout_exit,
-  case_pattern_rename_waive_exit}`) stop at `computed case field requires its
-  exact plain scalar type`, because their `i32 [0..=50]` payload fields are
-  `BoundedInteger` in Terminal and case establishment into one needs a range
-  obligation this route does not produce;
+  case_pattern_rename_waive_exit}`) now also build their owned
+  `Msg::Move { dx: 30, dy: 40 }` actual with range obligations for its
+  bounded payloads (`6e8a15c777`) and stop at `runtime field observation
+  requires a record-only field path`
+  (`expression_preparation/bindings/structural_fields/mod.rs`): the arm reads
+  its payload binding (`dx as step`) through a case-segment path, and runtime
+  field observation walks only record fields and fixed indexes.
   `control_flow/record_pattern_arm_rename_guard_exit` stops at
   `OperationProofUnavailable` for its guard's sum of two unconstrained `i32`
   fields.

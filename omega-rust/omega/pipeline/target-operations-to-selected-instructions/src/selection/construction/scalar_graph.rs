@@ -48,7 +48,7 @@ pub(super) fn build(
     physical: &ValidatedPhysicalRegisterModel,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     let environment = register_environment::validate_target_register_environment(
         native_target,
         physical.model().clone(),
@@ -58,13 +58,35 @@ pub(super) fn build(
     build_with_environment(function, source, constraints, &environment)
 }
 
+/// Select one legalized function. A shape refusal raised anywhere beneath is
+/// attributed here to the function's machine and to the instruction being
+/// selected at the time, so a diagnostic names the operation without a
+/// reader re-walking the function by index.
 pub(super) fn build_with_environment(
     function: usize,
     source: &LegalizedScalarFunction,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let mut current_operation = None;
+    select_function(
+        function,
+        source,
+        constraints,
+        environment,
+        &mut current_operation,
+    )
+    .map_err(|error| error.attributed(source.machine, current_operation))
+}
+
+fn select_function(
+    function: usize,
+    source: &LegalizedScalarFunction,
+    constraints: &SelectedSelectionConstraints,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    current_operation: &mut Option<semantic_vocabulary::OperationId>,
+) -> Result<SelectedFunction, SelectedInstructionError> {
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     let order = control::block_order(source)?;
     let catalog = environment.constraints();
     let materialize = row(catalog, constraints.keys.materialize_i64)?;
@@ -241,6 +263,7 @@ pub(super) fn build_with_environment(
             structural::block_entry(source, block, &mut builder)?;
         }
         for (operation_index, operation) in block.instructions.iter().enumerate() {
+            *current_operation = Some(operation.operation);
             if matches!(
                 operation.kind,
                 LegalizedScalarInstructionKind::HostedExitProcessI32 { .. }
@@ -1174,6 +1197,7 @@ pub(super) fn build_with_environment(
                 .definitions
                 .push((result.value, output, result.definition_site, scalar_type));
         }
+        *current_operation = None;
         let terminator =
             if let Some(exited) = process_exit::build(block, block_id, start, &mut builder)? {
                 exited

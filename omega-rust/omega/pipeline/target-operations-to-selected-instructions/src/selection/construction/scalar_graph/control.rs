@@ -21,7 +21,7 @@ pub(super) fn build(
     builder: &mut Builder<'_>,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     let constraints = builder.constraints;
     let keys = &constraints.keys;
     match &block.terminator {

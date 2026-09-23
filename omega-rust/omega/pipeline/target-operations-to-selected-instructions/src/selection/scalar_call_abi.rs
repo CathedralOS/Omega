@@ -253,7 +253,7 @@ pub(super) fn validate(
     row: &RegisterInstructionConstraint,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::UnsupportedSourceShape { function };
+    let invalid = || SelectedInstructionError::unsupported_shape(function);
     call.validate_shape().map_err(|_| invalid())?;
     // The retained call plan is producer evidence, not authority: replay the
     // declared ABI over the call's own signature so parameter locations,
