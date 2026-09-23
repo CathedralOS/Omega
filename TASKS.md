@@ -2647,7 +2647,22 @@ syntax and other terminal services are not prerequisites.
     evidence, and public-contract boundaries. Unsupported evidence is not proof.
   - Complete selected token-body supply outside the admitted expression routes,
     including open-ended ranges and match-pattern equality. Reproduce the
-    build-machine refusal before assigning its repair. Reuse ordinary calls,
+    build-machine refusal before assigning its repair. Two refusals reproduced
+    at `bbc9e90e8a`, and they are not the same kind:
+
+    - Match-pattern equality refuses in validation with "match value patterns
+      require scalar subjects and scalar pattern values; structural, domain,
+      and case patterns are not supported yet" -- a general pattern limit that
+      a selected token body cannot reach past, not an operator-supply gap.
+    - A crowned `==` does not supply `==` at all, while a crowned `<` supplies
+      `<`. With `machine == Card::same(..)` declared, `a == b` still refuses
+      with "structural equality is not synthesized for non-conforming types",
+      routing equality through `Equatable` synthesis instead of the selected
+      declaration; the same program's `machine < Card::before(..)` makes
+      `a < b` check. That asymmetry is the concrete supply gap here.
+
+    (The `==` refusal's own suggested fix spelled a retired unnamed conformance
+    header; `c7a86bebb5` repaired the wording, which is unrelated to the gap.) Reuse ordinary calls,
     attached receiver loans and once-only operand evaluation; no separate
     operator interpreter or fallback arithmetic. These refusals are
     implementation boundaries, not new semantic prohibitions.
