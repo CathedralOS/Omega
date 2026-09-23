@@ -347,14 +347,15 @@ fn exact_self_parameter<'program>(
     if machines.next().is_some() {
         return None;
     }
-    let entry = program.machine_states(machine).first()?;
-    let state_symbol = program.symbols.get(entry.symbol);
-    if state_symbol.kind != SymbolKind::State
-        || state_symbol.parent != machine.symbol
-        || program.state_parameters(entry) != parameters
-    {
-        return None;
-    }
+    // `self` is declared on every state of the machine with a distinct
+    // parameter symbol, so the caller's parameter list names exactly one
+    // authoring state — not necessarily the entry state.
+    let state = program.machine_states(machine).iter().find(|state| {
+        let state_symbol = program.symbols.get(state.symbol);
+        state_symbol.kind == SymbolKind::State
+            && state_symbol.parent == machine.symbol
+            && program.state_parameters(state) == parameters
+    })?;
     let mut receivers = parameters
         .iter()
         .enumerate()
@@ -365,7 +366,7 @@ fn exact_self_parameter<'program>(
         || parameter.is_const
         || !parameter.name.is_self_receiver()
         || parameter_symbol.kind != SymbolKind::Parameter
-        || parameter_symbol.parent != entry.symbol
+        || parameter_symbol.parent != state.symbol
         || program.symbols.name(parameter.symbol) != parameter.name.as_str()
         || parameters
             .iter()
