@@ -286,6 +286,16 @@ fn divergent_computed_receiver_unions_candidate_writes() {
             "let sink: u64 = pick_cell(&mut self.c1, &mut self.c2, self.tag).set_n(1);",
             ["self.c1.n", "self.c2.n"].as_slice(),
         ),
+        // The same finite set reached through the binding's NAME rather than
+        // the computing expression. A divergent local used as a receiver had
+        // no member-chain spelling to check, so the demand walk refused it
+        // before contextual substitution even though every route was proven.
+        (
+            "name_receiver",
+            "machine Cell::set_n(&mut self, x: u64) -> u64 { self.n = x; x }",
+            "let chosen: &mut Cell = pick_cell(&mut self.c1, &mut self.c2, self.tag); let sink: u64 = chosen.set_n(1);",
+            ["self.c1.n", "self.c2.n"].as_slice(),
+        ),
         // A match expression receiver carries the same finite set.
         (
             "match_receiver",
