@@ -23,12 +23,12 @@
 //! (`terminal-verifier/src/validation/borrowed_windows.rs`); nothing here is
 //! evidence for it.
 //!
-//! Boundary: the checked Unit plan vocabulary
-//! (`CheckedUnitEffectOperationPlan`) has no row for a move out of borrowed
-//! storage or for a whole structural field store, and the checked stage omits
-//! such a body at local construction, so no plan family calls these emitters
-//! yet. They own the Terminal spelling; the plan rows and the checked-stage
-//! producer are the missing dependencies named on BORROWED-STORAGE-RESTORATION.
+//! Callers: the ordinary single-state machine (`ordinary_machine/stores.rs`)
+//! for a local move-out/restore, and the composed state graph
+//! (`composed_control/emission.rs::emit_call_operations`) for a structural
+//! call result replacing a borrowed field. Each drives one ledger per
+//! straight-line operation sequence and requires it closed before that
+//! sequence's exits.
 
 use super::{
     CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, OperationResult,
