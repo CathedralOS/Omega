@@ -60,7 +60,7 @@ pub(crate) use float_arithmetic::float_source_proves_int_cast;
 pub use guard_narrowing::arrival_integer_expression_bounds;
 pub(crate) use guard_narrowing::{
     fall_through_narrowed_environment, guard_narrowed_environment, incoming_guard_environments,
-    requires_value_environment, seed_out_param_ensures,
+    requires_value_environment, seed_out_param_ensures, validate_guard_ranges,
 };
 pub use integer_ranges::integer_widen_is_total;
 pub(crate) use integer_ranges::{

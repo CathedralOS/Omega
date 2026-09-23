@@ -9,7 +9,9 @@ use super::{
     PrimitiveType, ProofFact, SignatureContractKind, State, TypedTrees, ValueEnvironment,
     declared_place_type_raw, literal_i64, ordered_values, place_path, range_constraint_interval,
 };
+use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
+use typed_trees::expression::UnaryOperator;
 
 mod arrivals;
 use crate::proof_contracts::arithmetic_domains::float_arithmetic::{
@@ -302,6 +304,99 @@ fn negate_comparison(operator: BinaryOperator) -> Option<BinaryOperator> {
         BinaryOperator::NotEqual => BinaryOperator::Equal,
         _ => return None,
     })
+}
+
+/// Validate every Exact operation in a transition guard, evaluating it the
+/// way the guard runs: `a && b` analyzes `b` only under the facts `a` being
+/// true establishes, `a || b` under `a` being false, `!a` and a Boolean
+/// equality with a literal analyze their operand, and any other expression
+/// is an ordinary value whose representability the range analysis checks.
+/// So `depth >= 1 && depth - 1 < 16` admits the subtraction its left
+/// conjunct guards, while `a + b == 70` over unconstrained operands owes
+/// the proof a `let` of the same comparison owes.
+pub(crate) fn validate_guard_ranges(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    condition: ExpressionHandle,
+    environment: &ValueEnvironment,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match program.expression_table.expression(condition) {
+        ExpressionNode::Binary(binary)
+            if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) =>
+        {
+            validate_guard_ranges(
+                program,
+                machine,
+                state,
+                binary.left,
+                environment,
+                owner,
+                diagnostics,
+            );
+            let mut narrowed = environment.clone();
+            narrow_environment_by_condition(
+                program,
+                machine,
+                state,
+                &mut narrowed,
+                binary.left,
+                binary.operator == BinaryOperator::And,
+            );
+            validate_guard_ranges(
+                program,
+                machine,
+                state,
+                binary.right,
+                &narrowed,
+                owner,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => {
+            validate_guard_ranges(
+                program,
+                machine,
+                state,
+                unary.operand,
+                environment,
+                owner,
+                diagnostics,
+            );
+        }
+        ExpressionNode::Binary(equality)
+            if equality.operator == BinaryOperator::Equal
+                && matches!(
+                    program.expression_table.expression(equality.right),
+                    ExpressionNode::Boolean(_)
+                ) =>
+        {
+            validate_guard_ranges(
+                program,
+                machine,
+                state,
+                equality.left,
+                environment,
+                owner,
+                diagnostics,
+            );
+        }
+        _ => {
+            super::validate_value_range(
+                program,
+                machine,
+                state,
+                condition,
+                environment,
+                Some(typed_trees::types::PrimitiveType::Bool),
+                numerics::arithmetic::ArithmeticDomain::Exact,
+                owner,
+                diagnostics,
+            );
+        }
+    }
 }
 
 /// A selected transition arm establishes its whole guard, whether authored as

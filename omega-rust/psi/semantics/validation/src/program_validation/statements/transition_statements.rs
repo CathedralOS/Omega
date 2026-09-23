@@ -33,6 +33,23 @@ pub(super) fn validate(
     let exact_integer_casts = &mut *outputs.exact_integer_casts;
     let diagnostics = &mut *outputs.diagnostics;
     if let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard {
+        // Every Exact operation in a guard owes its representability proof,
+        // as it would in a `let` or a return, under the facts its evaluation
+        // order establishes. Without this, `a + b == 70` over unconstrained
+        // operands passed as a guard and lowering later found no proof.
+        let owner = format!(
+            "machine `{}` state `{state_name}` transition guard",
+            machine.name
+        );
+        arithmetic_domains::validate_guard_ranges(
+            program,
+            machine,
+            current_state,
+            guard,
+            value_environment,
+            &owner,
+            diagnostics,
+        );
         arithmetic_domains::collect_exact_integer_cast_facts(
             program,
             machine,
