@@ -265,7 +265,37 @@ the complete product bar; focused successes below do not establish that baseline
   | 2 | `data <D> literal cannot prove the default domain` |
   | 2 | `domain [u8; N] ...` |
 
-  The 17 are exactly the entry-free subset this row already describes below,
+  Re-measured unfiltered at `988aef22078` (macOS arm64, same command, 1474s):
+  **135 distinct members fail**, down from 160. Two whole cohorts are cleared
+  and the plurality is unmoved:
+
+  | c109b93faf | 988aef22078 | shape |
+  | --- | --- | --- |
+  | 84 | 88 | `selected ProgramEntry establishment rejoins 0 Terminal attachment identities` |
+  | 25 | 26 | `native-artifact Terminal production failed` |
+  | 17 | **0** | `native-artifact production requires one exact selected program entry` |
+  | 15 | 9 | `selected ProgramEntry Binding field ... requires a selected Fused provider` |
+  | 7 | **0** | `cannot transfer a non-copy value out of borrowed storage` |
+  | 2 | 2 | `data <D> literal cannot prove the default domain` |
+  | 2 | 2 | `domain [u8; N] ...` |
+
+  The borrowed-storage cohort going to zero confirms the fixture-debt reading
+  recorded further down this row. The entry-free cohort going to zero means
+  the paragraph immediately below is now HISTORY, not a live subset: no member
+  stops at `requires one exact selected program entry` any more. What is left
+  outside the three large shapes is a tail of ten singletons, each its own
+  cause, none of them a cohort: `dependent/data_where_ranged_param_constructs`
+  and `dependent/data_where_callee_establishes` (default-domain proof),
+  `control_flow/guarded_leaf_branch_expansion` and
+  `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
+  `capabilities/uses_caller_folder`, `capabilities/acquires_through_helper_return`,
+  `domains/explicit_domain_erasure`, `proofs/cauchy_predicates_compile`,
+  `providers/external_leaf_dllimport_compile`,
+  `calls/nested_machine_continuation`,
+  `control_flow/runtime_branching_helper_string` and
+  `core/extent_root_provider_adapter`.
+
+  The 17 WERE exactly the entry-free subset this row describes below,
   so that paragraph is corroborated rather than superseded. The 84-member
   plurality is the same family recorded in
   [the checking-cost record](wiki/drafts/checking_contract_exit_fact_cost.md):
