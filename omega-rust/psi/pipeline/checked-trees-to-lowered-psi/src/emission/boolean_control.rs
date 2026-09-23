@@ -401,11 +401,7 @@ fn emit_reserved_boolean_guard_decision_blocks(
             let when_true = emit_reserved_boolean_guard_decision_blocks(
                 when_true,
                 parameters,
-                dispatch
-                    .payloads
-                    .iter()
-                    .map(|(_, value)| *value)
-                    .collect(),
+                dispatch.payloads.iter().map(|(_, value)| *value).collect(),
                 when_true_target,
                 when_false_target,
                 first_block_identity,

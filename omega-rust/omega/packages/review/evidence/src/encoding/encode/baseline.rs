@@ -24,9 +24,8 @@ impl PackagePolicyBaseline {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
         self.validate_canonical_structure()
             .map_err(PackageReviewEncodingError::new)?;
-        let mut encoder = Encoder::policy_bounded(
-            PackagePolicyRecoveryLimits::default().maximum_bytes,
-        );
+        let mut encoder =
+            Encoder::policy_bounded(PackagePolicyRecoveryLimits::default().maximum_bytes);
         framed_policy(&mut encoder, self)?;
         encoder.finish()
     }
