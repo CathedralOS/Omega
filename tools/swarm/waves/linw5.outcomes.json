@@ -1,0 +1,88 @@
+{
+ "wave": "linw5",
+ "base": "b725fb771e3ea15b00427ea4c2b03d9abc5b97a0",
+ "drained_at": "2026-09-23T09:20Z",
+ "drain_reason": "user-requested drain; free-model rate limit killed all 6 workers ~08:30 UTC in one burst",
+ "tank_model": "6 concurrent local subagents + coordinator slot, paced refill via tools/swarm/fill.py ledger",
+ "slots": [
+  {
+   "slot": "elf-dynamic-relaent",
+   "agent_id": "coordinator",
+   "result": "landed; leg2 RC gate run in flight at drain",
+   "commits": ["c4c12f2c37"],
+   "item_closed": false,
+   "notes": "RC-NATIVE-MATRIX-LINUX-X86-64 attributed defect fixed: emit DT_RELAENT=24 unconditionally after DT_RELA/DT_RELASZ (glibc dereferences l_info[DT_RELAENT] whenever DT_RELA is present; emitted images faulted in ld-linux before _start). Verified: readelf -d on an emitted import-bearing dynamic executable shows RELAENT 24; /lib64/ld-linux-x86-64.so.2 --list resolves libc.so.6 exit 0 through the real loader path; 143/143 image-elf tests incl. semantic replay + corruption matrix for the new row. Static canaries (runtime_write_no_newline_exit) emit no .dynamic and do NOT exercise this path. Leg 2 (full RC gates) running in background at drain: gate 1 omega-native-differential-test done 1120/1158 pass, 38 pre-existing failures (see gate_failures); gates 2 (compiler --all-targets) and 3 (samples_compile) in flight. Claim 486c2957f5644fe3b5fa95e9f8079801 held."
+  },
+  {
+   "slot": "spill-realization",
+   "agent_id": "5dfaa035 -> eca1f782",
+   "result": "landed; refill died on rate limit, no WIP",
+   "commits": ["04d2099ae1"],
+   "item_closed": false,
+   "notes": "Early-clobber tied writes admitted beside unpinned co-readers via dedicated reload pair (Admission::dedicated_tie_uses; validator re-derives from own source scan). Remaining rejected shapes: UseDef early-clobber (second victim write), foreign-class non-IEEE values, entry-bound victims with entry-targeting edges, composition admission."
+  },
+  {
+   "slot": "alias-aware-memory",
+   "agent_id": "2a6d4b26 -> afab64d3",
+   "result": "landed; refill died on rate limit, no WIP",
+   "commits": ["96893353d1"],
+   "item_closed": false,
+   "notes": "Store motion sinks across grown reconvergent regions: frontier fixed-point in admission.rs + validation.rs (fork edges + region exits in absorb order; single-entry acyclic funnel; successor-less refusal) covers chain arms, nested/delayed reconvergence, bypass-into-funnel under one mechanism. Remaining: premise-binding transport of ownership_frontier_facts/loan/compatibility/fact identities into SelectedMemoryAccess or a rewrite receipt (needs SelectedInstructionPlan widening or receipt-level binding)."
+  },
+  {
+   "slot": "proof-kernel-core",
+   "agent_id": "3a62fad8 -> 05eda79e",
+   "result": "landed; refill died on rate limit, no WIP",
+   "commits": ["7d473757be"],
+   "item_closed": false,
+   "notes": "Closed Truth/Falsehood carrier crossings derive through J and Empty (bounded_denotation + equality_transport): 9 crossing families now derive with rule_axioms==0 and re-decide in kernel; undecided residue preserved explicitly. Remaining: other rule_instance fallback arms (other carriers, dependent codomains, open Id Two<->Int endpoints, out-of-numeral-range closed values), indexed-scheme application checks, negative-recursion elaboration; terminal-codec artifact custody matrices deferred to this slot per custody worker handoff."
+  },
+  {
+   "slot": "custody-mutation-coverage",
+   "agent_id": "31191273 -> 093de759",
+   "result": "landed x2; refill died on rate limit, no WIP",
+   "commits": ["9d78249703", "7e1c44a589"],
+   "item_closed": false,
+   "notes": "installed_realization + decoded-container custody matrices migrated to shared driver (custody_field_inventory! + run_one_field_substitution_matrix; 53-lane container inventory with 20 validation + 2 replay verdicts + EnvelopeInformational). Remaining: component-publication matrices (external_stack_provision, installed_runnable_component), executable-installation replacement_join_rejects_each_patch_substitution, terminal codec artifact matrices."
+  },
+  {
+   "slot": "top-level-boundary-requirements",
+   "agent_id": "0fd4e158 -> 7470d627",
+   "result": "landed; refill died on rate limit, no WIP",
+   "commits": ["cd27f6b940"],
+   "item_closed": false,
+   "notes": "Mutable-borrow &mut self requirements settle through receiver-place forwarding; refresh_settled_state_write_frames gained the load-bearing subset-refinement arm (a &mut call retains receiver place as declared write bound; a realization writing less refines to subset). 'self in Domain' receivers are unauthorable (parser rejects 'in' in parameter lists). Remaining: family rows, external satisfiers, write-only/qualified receivers."
+  },
+  {
+   "slot": "general-licm",
+   "agent_id": "42aae5d0",
+   "result": "WIP preserved, claim released",
+   "commits": [],
+   "wip_preserved": ["47b3a72f50 on swarm/linw5-general-licm - 10 files +391/-27: call-motion admission through relocated scalars (loop_invariant_scalar_motion propose + relocated_scalars freeze + invariant_calls validation + structural_requirements/service_calls tests)"],
+   "item_closed": false,
+   "notes": "Agent died on rate limit mid-implementation; fill.py recover WIP-committed the dirty tree and released ticket 10963479fe94482db90668f824aa7aaf. Worktree removed; branch swarm/linw5-general-licm retains the WIP for resume. Board-noted prior parked WIP swarm/macw6-general-licm (46a232ec0a) is absent from origin - do not chase it. Remaining per board: call motion carrying claim transfers / requirement obligations / selected evidence needs reconstruction; affine/linear argument transfers need custody the boundary cannot re-express."
+  }
+ ],
+ "landed_total": 7,
+ "gate_failures": {
+  "command": "cargo nextest run -p omega-native-differential-test --all-targets --no-fail-fast",
+  "host": "Linux x86_64 (jarod-laptop)",
+  "result": "1120/1158 pass, 38 failed, 1 skipped - all pre-existing on base, none in ELF/emission paths",
+  "clusters": {
+   "filesystem_std_module (12)": "hard_link, is_a_directory, error_kind, canonicalize, create_new, locking, ownership, read_dir_stats, read_dir_nth, remove_dir_all, try_exists, filesystem_value_returning_append - host fs semantics/error-kind assertions",
+   "scalar_case_results (8)": "owned_state x6 (case+state compositions), record_reads x2 (parameters, call_requirements)",
+   "terminal_psi_record_returns (6)": "record return transport family (two-register, four-byte, incoming replay/capture)",
+   "real_fs (2)": "scoped_wrapper_read_dir_count, real_provider_serves_full_virtual_op_set",
+   "owned_control_cycles (2)": "whole_owned_backedge_swaps execute + publish_on_four_targets",
+   "singles (5)": "terminal_psi_runnable root-service optimizer admission, terminal_psi_calls i32 exact exportable bytes, terminal_byte_views mutable write admission, pipeline_ownership post-allocation manifest wire matrix, physical_child_replay structural_result_operator, abstract_publication non_adjacent_block_merges ([6,6] vs [5,6] differential)"
+  },
+  "attribution": "SAMPLE-CORPUS owns shared sample failures per board; fs runtime clusters need capability-task attribution; filesystem_path_subslice_domain fails checked-tree proof ('cannot prove subslice range end bound 0..self.k')"
+ },
+ "friction": [
+  "free-model rate limit killed all 6 spawned refill/first-leg agents in one burst ~08:30 UTC - first mass cancellation this wave; drain requested immediately after",
+  "emit-only verification gap: no source fixture reaches a dynamic ELF on this base (read_line envelope wall is SAMPLE-CORPUS; ELF foreign-import binding has a dedicated blocker test) - loader-level proof came from a scratch test driving emit_elf_dynamic_executable with a resolvable libc.so.6 import + ld-linux --list; consider a committed fixture for this",
+  "readelf -d prints 'no .dynamic section in the dynamic segment' warning on emitted executables yet parses the table fine via the segment - cosmetic section-mapping gap, loader unaffected",
+  "claims.py claim rejects comma-separated --paths; needs repeated --path flags",
+  "landing.py publish requires --base even though claim already carries it"
+ ]
+}
