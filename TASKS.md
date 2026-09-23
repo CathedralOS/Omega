@@ -2261,6 +2261,42 @@ syntax and other terminal services are not prerequisites.
   genuinely selects nothing still rejects. Do not silence the finalization
   check or widen `allow_unresolved_toolchain` to cover authored source.
 
+  The third red `package-evidence` suite is unrelated to selections and is
+  recorded here only because it was measured alongside them.
+  `operators::boundary_selection::review_projects_application_closed_inside_specialized_generic_helper`
+  fails in `execution/selected_execution.rs`'s
+  `refresh_settled_state_write_frames` with "settlement changed the complete
+  write frame retained for state `exercise::entry`: retained ["$P0",
+  "self"], settled []". Measured, both frames are right and the rule between
+  them is what is missing:
+
+  - `exercise(value: i32) -> i32 { apply_identity(value) }` calls a helper
+    whose own frame is opaque (the helper calls a bodyless boundary), so the
+    caller falls back to `write_frames/demand.rs`'s
+    `syntactic_call_written_paths` ownership ceiling. Reduced in
+    `typed-trees-to-checked-trees`: the same call written DIRECTLY in
+    `exercise` yields opaque, through a helper it yields Complete
+    `["$P0","self"]`, and with a bodied helper it yields Complete `[]` --
+    generic or not.
+  - Both ceiling entries are deliberate. `self` there is not the caller's
+    receiver -- `exercise` has none -- it is the conservative unknown-place
+    sentinel that `tests/contracts/bounded_returns.rs::unresolved_no_argument_call_preserves_an_unpassed_parameter`
+    pins for a FREE machine, so that proof cannot conclude an unpassed
+    parameter is unmodified. Dropping it because the caller has no receiver
+    turns "unknown write" into "writes nothing" and breaks 19 checked tests;
+    that was tried and reverted. `$P0` is the documented by-value
+    conservatism.
+  - So settlement legitimately narrows a conservative ceiling to the truth,
+    and `refresh_settled_state_write_frames` treats any change to a frame
+    that is not marked opaque as a settlement fault. The frame vocabulary has
+    only `Complete` and `Opaque` (`facts/src/fact_plan/places/write_frame.rs`),
+    with no way to say "complete ceiling, not derived", which is why the
+    ceiling has to claim completeness and then cannot be refined.
+
+  Deciding whether a ceiling is a third completeness, or whether the refresh
+  admits a subset of a ceiling-derived frame, is the open question -- and a
+  subset rule must not let settlement silently drop a genuinely derived write.
+
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
   [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
