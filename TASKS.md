@@ -4441,12 +4441,22 @@ deliverable host runs, not four implementations of the gate.
   RC-REPRESENTATIVE-PROGRAMS (`--test samples_compile`) are unmeasured here,
   and no `macos_arm64` record exists under `tools/release/records/` because
   the recorder writes a lane only with a passing `--native-execution`
-  observation. The observation this lane needs is the canary suite's
-  `_runs` family, which compiles for the native host and executes the emitted
-  Mach-O through `Command::new` (`assert_native_exit_code`) with no `cfg`
-  gate, so the lane IS recordable on this host — the Linux reading of that
-  same command was 143 passed / 770 failed in 110 minutes, so expect it to
-  leave the row open on its own evidence rather than close it.
+  observation. The observation this lane needs is the canary suite's `_runs`
+  family, and it is now measured too, at `61deef7389`: **925 run, 175 passed,
+  750 failed, 554 filtered**, 5176.3 s. It exits 100, so the recorder will
+  not mark the row `recorded`, but it settles where the lane's problem is
+  NOT.
+
+  **Mach-O emission and execution are sound on this host.** 713 of the 750
+  failures panic at "should compile" and **zero are execution mismatches** —
+  no `should exit N, got M`, no launch failure — so every canary that
+  compiled then ran and exited as expected. 533 of those compile failures are
+  the single `selected ProgramEntry establishment rejoins 0 Terminal
+  attachment identities` family that the `linux_x86_64` record also names at
+  ~549. That family is host-independent and gates this lane far more than
+  anything macOS-specific; closing it is the highest-value work for this row.
+  One divergence worth keeping: `const_fold_unsigned_shift_right_arg` passes
+  here and is one of four genuine exit mismatches in the Linux record.
 
 - **RC-NATIVE-MATRIX-WINDOWS-X64.** Run the complete native/source/sample
   gates on Windows x86-64, executing emitted PE products, including the
