@@ -1526,6 +1526,356 @@ fn retained_sink_composition_replays_against_the_product_by_consumers() {
     }
 }
 
+// The output-producing half of the sink-composition verdict
+// (TASKS.md BUILD-EXCLUSION-REALIZATION: "silent and output-producing
+// providers receive distinct physical verdicts"): the same Sink binding and
+// `self.sink.emit("still an invocation")` invocation, but the selected
+// provider is an app-authored LoudSink whose emit reaches Console through
+// the standard library's native output writer — a real ProcessOutput
+// exercise behind the bound service. The authored ProcessOutput exclusion
+// must now reject the composition where the silent QuietSink admitted.
+// The loud kit mirrors the silent one, but its Sink requirement honestly
+// publishes that an emitting provider may reach the Console service — the
+// satisfies check refuses a provider reach the requirement does not allow.
+const LOUD_LOGGER_KIT_MAIN: &str = r#"use omega_language_std::console;
+use omega::language::core::service;
+
+pub boundary trait Sink {
+    machine emit(&mut self, text: &[u8])
+    reaches
+        Console
+    invokes
+        Console;
+}
+
+pub data QuietSink { }
+
+machine QuietSink::emit(&mut self, text: &[u8])
+satisfies Sink::emit
+{
+}
+
+pub machine log_quiet(text: &[u8])
+reaches Sink
+{
+    let marker: u8 = 0;
+}
+"#;
+
+fn loud_logger_kit_build() -> String {
+    format!(
+        "machine build(builder: &mut Build) {{\n    builder.package(\"logger-kit\");\n{}    builder.select_provider<Sink, QuietSink>();\n}}\n",
+        bundled_standard_library_dependency_declaration()
+    )
+}
+
+const LOUD_SINK_APP_MAIN: &str = r#"use logger_kit::main;
+use omega_language_std::console;
+use omega::language::core::service;
+
+data LoudSink {
+    console: Binding<Console>;
+}
+
+machine LoudSink::emit(&mut self, text: &[u8])
+satisfies Sink::emit
+reaches Console
+{
+    self.console.write(text);
+}
+
+data Main {
+    sink: Binding<Sink>;
+}
+
+machine Main::main(&mut self)
+reaches
+    Sink
+    Console
+{
+    block self.sink.emit("still an invocation");
+}
+"#;
+
+fn loud_sink_composition_build(target: &str, extra: &str) -> String {
+    format!(
+        r#"machine build(builder: &mut Build) {{
+    builder.application("sink-physical-loud");
+    builder.depend(Source::Path {{ location: "../logger-kit" }});
+{std_dependency}    builder.select_provider<logger_kit::Sink, LoudSink>();
+    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();
+{extra}    builder.roots.bind({target}::ProgramEntry, Main::main);
+}}
+"#,
+        std_dependency = bundled_standard_library_dependency_declaration(),
+        extra = extra,
+        target = target
+    )
+}
+
+fn loud_sink_composition_request(
+    project: &TempProject,
+    target: &str,
+    product: RequestedCompileProduct,
+) -> CompileRequest {
+    let root_identity = fixture_package_identity(93);
+    let library_identity = fixture_package_identity(94);
+    let inputs = package_compilation::PackageCompilationInputs::new_package(
+        root_identity,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                root_identity,
+                "sink-physical-loud",
+                project.0.join("app"),
+            ),
+            package_compilation::PackageSourceBinding::new(
+                library_identity,
+                "logger-kit",
+                project.0.join("logger-kit"),
+            ),
+            package_compilation::PackageSourceBinding::new(
+                fixture_package_identity(2),
+                "omega-language-std",
+                bundled_standard_library_root(),
+            ),
+        ],
+        vec![
+            package_compilation::PackageDependencyBinding::new(
+                root_identity,
+                "logger_kit",
+                library_identity,
+            ),
+            package_compilation::PackageDependencyBinding::new(
+                root_identity,
+                "omega_language_std",
+                fixture_package_identity(2),
+            ),
+            package_compilation::PackageDependencyBinding::new(
+                library_identity,
+                "omega_language_std",
+                fixture_package_identity(2),
+            ),
+        ],
+    )
+    .expect("fixture packages");
+    // Loading the standard library AS A PACKAGE moves the target's physical
+    // entry contract out of the exact-bundled arm: every checked stage must
+    // see the accepted package-owned entry binding up front, then the
+    // preliminary checked graph supplies the Console dangerous-services
+    // binding the real request carries.
+    let standard_library_identity = fixture_package_identity(2);
+    let standard_library = bundled_standard_library_root();
+    let entry_bindings: Vec<_> = fixture_package_inputs::candidate_program_entry_binding(
+        target,
+        &standard_library,
+        standard_library_identity,
+    )
+    .expect("entry candidate")
+    .into_iter()
+    .collect();
+    let inputs = inputs
+        .with_accepted_semantic_bindings(entry_bindings.clone())
+        .expect("exact entry bindings");
+    let preliminary = compile_to_checked(CheckedCompileRequest {
+        package_inputs: Some(inputs.clone()),
+        ..CheckedCompileRequest::new(&project.0.join("app/main.omg"), Some(target))
+    })
+    .expect("resolve the loud composition's dangerous services");
+    let required =
+        fixture_package_inputs::dangerous_service_acceptance::required_dangerous_services(
+            &preliminary,
+            standard_library_identity,
+        );
+    assert!(
+        required.console.is_some(),
+        "the loud provider exercises Console output"
+    );
+    let mut bindings = entry_bindings;
+    if let Some(console) = required.console {
+        bindings.push(
+            console_acceptance::candidate_console_exit_binding(
+                &preliminary,
+                standard_library_identity,
+                console.output,
+                console.input,
+            )
+            .expect("accept the standard library's Console provider"),
+        );
+    }
+    let inputs = inputs
+        .with_accepted_semantic_bindings(bindings)
+        .expect("exact accepted bindings");
+    CompileRequest::new(CompileOptions {
+        root_path: project.0.join("app/main.omg"),
+        build_dir: None,
+        target_name: Some(target.into()),
+    })
+    .with_package_inputs(inputs)
+    .with_requested_product(product)
+}
+
+#[test]
+fn loud_sink_composition_physical_exclusion_rejects_on_every_target() {
+    // windows_x86_64 stays out of the loop: its `Console::write_byte`
+    // compiler-intrinsic row settles with no closed native catalog
+    // identity (the same frontier class as the UEFI termination edges),
+    // so the loud-provider physical verdict is unreachable there until
+    // the win64 catalog row lands. The verdict itself is target-agnostic:
+    // macos and linux witness both policy arms.
+    for target in ["macos_arm64", "linux_x86_64"] {
+        let project = TempProject::new();
+        project.write("logger-kit/main.omg", LOUD_LOGGER_KIT_MAIN);
+        project.write("logger-kit/build.omg", &loud_logger_kit_build());
+        project.write("app/main.omg", LOUD_SINK_APP_MAIN);
+        project.write(
+            "app/build.omg",
+            &loud_sink_composition_build(
+                target,
+                "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
+            ),
+        );
+        let diagnostics = compile(loud_sink_composition_request(
+            &project,
+            target,
+            RequestedCompileProduct::NativeArtifact,
+        ))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .expect_err("{target}: an output-exercising provider cannot satisfy the exclusion");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("excluded physical authority class ProcessOutput")),
+            "{target}: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
+fn loud_sink_composition_without_exclusion_realizes_and_prints_on_the_host() {
+    let host_target = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "macos_arm64"
+    } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        "windows_x86_64"
+    } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+        "linux_x86_64"
+    } else {
+        ""
+    };
+    // windows_x86_64 stays out of the loop: its `Console::write_byte`
+    // compiler-intrinsic row settles with no closed native catalog
+    // identity (the same frontier class as the UEFI termination edges),
+    // so the loud-provider physical verdict is unreachable there until
+    // the win64 catalog row lands. The verdict itself is target-agnostic:
+    // macos and linux witness both policy arms.
+    for target in ["macos_arm64", "linux_x86_64"] {
+        let project = TempProject::new();
+        project.write("logger-kit/main.omg", LOUD_LOGGER_KIT_MAIN);
+        project.write("logger-kit/build.omg", &loud_logger_kit_build());
+        project.write("app/main.omg", LOUD_SINK_APP_MAIN);
+        project.write("app/build.omg", &loud_sink_composition_build(target, ""));
+        let report = compile(loud_sink_composition_request(
+            &project,
+            target,
+            RequestedCompileProduct::NativeArtifact,
+        ))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| {
+            panic!("{target}: the loud composition realizes without the exclusion: {diagnostics:?}")
+        });
+        if target == host_target {
+            let published = report
+                .publish_retained_native_artifact(&project.0.join("out"))
+                .expect("checked native publication");
+            let executable = published
+                .checked_native_executable_path()
+                .expect("published executable");
+            let output = std::process::Command::new(executable)
+                .output()
+                .expect("run checked native product");
+            assert!(output.status.success(), "native result: {output:?}");
+            assert_eq!(output.stdout, b"still an invocation");
+            assert!(output.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn retained_loud_sink_composition_replays_the_exclusion_rejection() {
+    // The retained Terminal product of the loud composition keeps the
+    // authored ProcessOutput exclusion; an independent consumer's
+    // mechanism-closure replay rejects it under either receiving policy —
+    // the exercised Console leaf is in the closure the artifact retains.
+    // windows_x86_64 stays out of the loop: its `Console::write_byte`
+    // compiler-intrinsic row settles with no closed native catalog
+    // identity (the same frontier class as the UEFI termination edges),
+    // so the loud-provider physical verdict is unreachable there until
+    // the win64 catalog row lands. The verdict itself is target-agnostic:
+    // macos and linux witness both policy arms.
+    for target in ["macos_arm64", "linux_x86_64"] {
+        let project = TempProject::new();
+        project.write("logger-kit/main.omg", LOUD_LOGGER_KIT_MAIN);
+        project.write("logger-kit/build.omg", &loud_logger_kit_build());
+        project.write("app/main.omg", LOUD_SINK_APP_MAIN);
+        project.write(
+            "app/build.omg",
+            &loud_sink_composition_build(
+                target,
+                "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
+            ),
+        );
+        for with_receiving_policy in [false, true] {
+            let retained = compile(loud_sink_composition_request(
+                &project,
+                target,
+                RequestedCompileProduct::TerminalArtifact,
+            ))
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .unwrap_or_else(|diagnostics| {
+                panic!("{target}: the loud composition retains: {diagnostics:?}")
+            })
+            .into_retained_terminal_artifact()
+            .expect("retained Terminal product");
+            let proposal = retained
+                .native_realization_proposal()
+                .expect("native proposal");
+            let subsystem = proposal.subsystem();
+            let accepted_package_policy =
+                native_realization::terminal_authority_permission_policy_with_rows(
+                    proposal.package_terminal_authority_permissions().to_vec(),
+                )
+                .expect("retained package permissions form the accepted policy");
+            let terminal_authority_permission_policy =
+                with_receiving_policy.then(|| accepted_package_policy.clone());
+            let diagnostics = realize_retained_native_artifact(
+                retained,
+                compiler::RetainedNativeRealizationRequest {
+                    profile: &proof_admission::AdmissionProfile::default(),
+                    optimization_selections:
+                        &optimization_core::PostTerminalOptimizationSelections::default(),
+                    terminal_authority_policy:
+                        native_realization::current_terminal_authority_policy(),
+                    accepted_package_terminal_authority_permission_policy: accepted_package_policy,
+                    terminal_authority_permission_policy,
+                    image_request: native_realization::ExecutableImageEmissionRequest::direct(
+                        subsystem,
+                    ),
+                    imports: &[],
+                },
+            )
+            .expect_err(
+                "the retained loud closure cannot satisfy its exclusion under any receiving policy",
+            )
+            .1;
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("excluded physical authority class ProcessOutput")),
+                "{target} receiving_policy={with_receiving_policy}: {diagnostics:?}"
+            );
+        }
+    }
+}
+
 // The foreign-boundary e2e leg of BUILD-EXCLUSION-REALIZATION: a real
 // composition whose boundary requirement binds `ProviderBinding::Import`
 // reaches the mechanism-closure review under an authored exclusion. The
