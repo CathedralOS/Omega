@@ -117,3 +117,29 @@ fn raw_bytes_remain_rejected_in_utf16_text_sugar() {
         "raw byte string literal requires the terminal byte-sequence lowering path"
     );
 }
+
+/// `expressions.md`'s executable-supply table spells a token-bearing
+/// requirement as the ordinary `machine + Name(...)`, and a concrete crowned
+/// declaration already uses that grammar. A trait requirement now accepts it
+/// too, so the token is not reachable only behind the `operator` introducer
+/// the board is retiring. The introducer keeps working: this is additive.
+#[test]
+fn a_trait_requirement_carries_its_token_on_the_ordinary_machine_head() {
+    for source in [
+        "trait Ranked { machine < before(left: Self, right: Self) -> bool; }",
+        "trait Ranked { operator < before(left: Self, right: Self) -> bool; }",
+    ] {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize");
+        parse_syntax_trees(&tokens).expect("a token-bearing trait requirement parses");
+    }
+}
+
+/// A tokenless requirement still parses, and a semicolon head is not mistaken
+/// for a token.
+#[test]
+fn a_tokenless_trait_requirement_is_unaffected() {
+    let tokens = Lexer::new("trait Ranked { machine before(left: Self, right: Self) -> bool; }")
+        .tokenize()
+        .expect("tokenize");
+    parse_syntax_trees(&tokens).expect("a tokenless trait requirement parses");
+}

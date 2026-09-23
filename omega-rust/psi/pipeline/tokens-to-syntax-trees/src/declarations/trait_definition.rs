@@ -158,7 +158,23 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
             }
         } else {
             input = input.take_keyword(KeywordKind::Machine, "machine")?;
-            None
+            // `machine + Name(...)` is the ordinary grammar a token-bearing
+            // requirement is spelled in (expressions.md, executable supply),
+            // and it is what a concrete crowned declaration already uses. The
+            // vocabulary and the non-punctuation/semicolon guard are the same
+            // ones `declarations::machines` applies to every `machine`-headed
+            // form, so a trait requirement is not a separate dialect.
+            if input.tokens.first().is_some_and(|token| {
+                token.punctuation().is_some()
+                    && token.punctuation() != Some(PunctuationKind::Semicolon)
+            }) {
+                let (spelling, rest) =
+                    crate::declarations::operator::parse_operator_spelling(input)?;
+                input = rest;
+                Some(spelling)
+            } else {
+                None
+            }
         };
         let (mut signature, rest) = parse_trait_machine_signature(syntax_trees, input)?;
         signature.spelling = spelling;
