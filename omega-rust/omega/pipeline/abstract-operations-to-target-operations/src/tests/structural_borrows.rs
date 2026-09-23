@@ -187,8 +187,16 @@ fn borrowed_call_requirement_custody(scalar_result: bool) {
             _ => None,
         })
         .expect("authored borrowed call");
-    assert!(obligations.len() >= 2, "both authored requirements survive");
-    assert_ne!(obligations[0], obligations[1]);
+    // The obligation roster is the callee's Terminal `requires` roster. A
+    // Unit callee publishes one row per authored clause; a scalar-graph
+    // callee publishes its clauses as one canonical conjunction
+    // (`PreparedScalarContract::requirement_count`), so its call owes one.
+    if scalar_result {
+        assert_eq!(obligations.len(), 1, "one canonical conjunction survives");
+    } else {
+        assert!(obligations.len() >= 2, "both authored requirements survive");
+        assert_ne!(obligations[0], obligations[1]);
+    }
     let select = |candidate: &TargetUnitOperation| match candidate {
         TargetUnitOperation::Call { psi_operation, .. } => *psi_operation == operation,
         _ => false,
@@ -198,7 +206,10 @@ fn borrowed_call_requirement_custody(scalar_result: bool) {
             crate::lower_to_target_operations(&source, crate::TargetLoweringRequest::new(native))
                 .expect("verified receiver requirements lower");
         crate::validate_abstract_to_target_translation(&source, native, &target).unwrap();
-        for mutation in 0..3 {
+        for mutation in 0..4 {
+            if mutation == 2 && obligations.len() < 2 {
+                continue;
+            }
             let changed = mutate_call_row(&target, select, |call| {
                 let TargetUnitOperation::Call {
                     requirement_obligations,
@@ -221,7 +232,8 @@ fn borrowed_call_requirement_custody(scalar_result: bool) {
                         )
                         .unwrap()
                     }
-                    _ => requirement_obligations.swap(0, 1),
+                    2 => requirement_obligations.swap(0, 1),
+                    _ => requirement_obligations.push(obligations[0]),
                 }
             });
             assert!(

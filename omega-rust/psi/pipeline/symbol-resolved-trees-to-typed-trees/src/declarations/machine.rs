@@ -119,6 +119,42 @@ fn attached_domain_symbol(
     }
 }
 
+/// A machine's attached data owns its type even when no signature spells it:
+/// `data Main` with `machine Main::run(&mut self)` never writes `Main` as a
+/// type, yet a whole `self` operand is typed by that attachment. Later
+/// stages reconstruct the attachment's declared type from the interned
+/// `Named` reference (`find_named_type_reference`), so retain it here, where
+/// declarations acquire type meaning, rather than leave it to whether some
+/// other declaration happens to mention the type. A generic attachment is
+/// typed by its `attached_data_application` instead and needs no bare name.
+fn retain_attached_data_type_reference(lowerer: &mut Lowerer, symbol: symbols::SymbolHandle) {
+    if !symbol.is_valid()
+        || lowerer
+            .typed_trees
+            .type_reference_table
+            .find_named_type_reference(symbol)
+            .is_some()
+    {
+        return;
+    }
+    let Some(owner) = lowerer
+        .source_trees
+        .data_definitions
+        .iter()
+        .find(|owner| owner.symbol == symbol)
+    else {
+        return;
+    };
+    if !owner.type_parameters.is_empty() {
+        return;
+    }
+    let name = crate::lowerer::name::lower_name(&owner.name);
+    lowerer
+        .typed_trees
+        .type_reference_table
+        .insert(typed::types::TypeReferenceNode::Named { symbol, name });
+}
+
 fn lower_machine_contents(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
@@ -133,6 +169,7 @@ fn lower_machine_contents(
             language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
         )?;
     }
+    retain_attached_data_type_reference(lowerer, machine.attached_data_symbol);
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::lowerer::name::lower_name(&machine.name),
