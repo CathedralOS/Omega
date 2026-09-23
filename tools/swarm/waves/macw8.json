@@ -1,0 +1,244 @@
+{
+    "wave": "macw8",
+    "max_acu_limit": 1,
+    "bypass_approval": false,
+    "resumable": true,
+    "tags": [],
+    "owner_label_prefix": "Devin / macw8",
+    "exclusions": [],
+    "sessions": [
+        {
+            "name": "exact-machine",
+            "board": "TASKS_OPTIMIZER.md",
+            "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/catalog.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/module_catalog.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/fixed_view",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/pre_allocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/runtime_rematerialization.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_folds",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/copy_removal",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/copy_removal.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/redundant_extension",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/redundant_extension.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/block_edges.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/window_hazards.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/test_support.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/mod.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/selected_optimization.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/address_fold",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/address_fold.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/arm_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/arm_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/boundary_boolean",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/boundary_boolean.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/boundary_branch",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/boundary_branch.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/bypass_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/bypass_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/bypass_run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/bypass_run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_accesses.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_interchange",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_interchange.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_member_run_interchange",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_member_run_interchange.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_run_interchange",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_run_interchange.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/commuting_run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/condition_state.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/confluence_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/confluence_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/confluence_run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/confluence_run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/constant_boolean",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/constant_boolean.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/constant_branch",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/constant_branch.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/dead_compare",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/dead_compare.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/dead_path.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/diamond_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/diamond_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/diamond_run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/diamond_run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/edge_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/edge_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/edge_run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/edge_run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/fork_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/fork_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/fork_run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/fork_run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/inflow_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/inflow_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/join_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/join_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/local_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/local_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/local_schedule",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/local_schedule.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/member_run_interchange",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/member_run_interchange.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/mod.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/place_storage.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/predecessor_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/predecessor_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/predecessor_run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/predecessor_run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/run_interchange",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/run_interchange.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/run_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/run_relocation.rs",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/triangle_relocation",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/unexecuted/triangle_relocation.rs"
+            ],
+            "suggested_first_slice": "execute one currently-external rewrite family through exact-named selection from the public stage; the established pattern (extension landed at 16e7050320 via the generalized PreAllocationPolicy + joint catalog executor) is: exact selection name, ordered catalog descriptor, candidate discovery binding source/selection identities, independently reconstructed legality. The macw7 parked SelectedAddressOffsetFoldV1 draft (54435f01e0) is NOT in this checkout — re-derive it; the tests/ claim that fenced its acceptance coverage is gone. load_forwarding, dead_store and store_motion are claimed by linw5-alias-aware-memory — pick from the remaining families (address_fold, dead_compare, local_schedule, boundary_*, relocation families). Exclude selected_lowering + analyses/legality (sibling slot) and copy_removal/redundant_extension (landed)",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "declarative-peepholes",
+            "board": "TASKS_OPTIMIZER.md",
+            "item": "DECLARATIVE-PEEPHOLES",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/literal_fold",
+                "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/legality"
+            ],
+            "suggested_first_slice": "declare one further currently-impossible pair relationship — flag-consuming, clobbering, or tied-operand form (zero-compare value partition landed at 3e8da4d90e via PairImmediateBound::EncodingNonZero) — in literal_fold/pair_rule.rs with independent replay coverage in literal_fold/validate; the validator restates every grammar from instruction records and never reads a descriptor. omega-rust/omega/representations/optimization-core is claimed by linw5-custody-mutation-coverage — if your grammar needs representation-level changes, name them in claims notes and defer rather than writing outside your fence. Sibling slots own the other rewrites/ families",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "rep-specialization",
+            "board": "TASKS_OPTIMIZER.md",
+            "item": "REPRESENTATION-SPECIALIZATION",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization",
+                "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/field_value_specialization"
+            ],
+            "suggested_first_slice": "substitution of a proven nonconstant initializer at its uses, preserving exact place/path/provenance and effects — extend field/variant relevance beyond the existing proven-membership and scalar-constant observation folds. linw5-general-licm owns ranked_rewrites/loop_invariant_scalar_motion plus validation/{invariant_calls,invariant_operations}.rs in this crate — stay inside your two dirs; if a validation leg needs other src/validation/ files, name them in claims notes first. Preserve the authenticated cyclic freeze; invariant-window specialization stays blocked upstream — do not invent that input",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "benchmarks",
+            "board": "TASKS_OPTIMIZER.md",
+            "item": "BENCHMARKS",
+            "host": "local",
+            "owning_paths": [
+                "tools/benchmark",
+                "wiki/drafts/measurements/benchmarks.md"
+            ],
+            "suggested_first_slice": "commit the Intel macOS legs: exercise the harness's matching-host flow through the existing prepare/measure/validate/matrix route (the HOST_LEGS label still says native realization is pending — reconcile that stale label with MACOS-X64-HOST-PROFILE, being measured by this wave's coordinator), commit prime_counter (--expected-exit 8) and standalone measurements after reproducing their current package/entry acceptance, regenerate the matrix. Leave Linux ARM64 and Windows x64 rows unmeasured with explicit host reasons; a non-applicable pairing must not erase an unmeasured leg",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "terminal-authority",
+            "board": "TASKS.md",
+            "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/omega/build/build-evaluation/src/provider_settlement",
+                "omega-rust/omega/packages/review/evidence/src/capture/providers",
+                "omega-rust/omega/packages/manager/src/review",
+                "omega-rust/omega/compiler/native-realization/src/native_realization/providers",
+                "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_policy",
+                "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review.rs",
+                "omega-rust/omega/compiler/native-realization/src/native_realization/terminal_authority_review",
+                "omega-rust/omega/compiler/compiler/tests/terminal_authority"
+            ],
+            "suggested_first_slice": "one bounded delivery leg: connect the bounded Linux filesystem plan to native settlement transport — build-evaluation's canonical_filesystem_host already mints accepted-schema plans for supported positional syscalls and compiler/tests/terminal_authority/filesystem_cohort_witness.rs calls set_len pinned at MissingBoundarySettlement; complete that realization path without guessing unsupported target/path/host-error mechanisms. Alternative first leg: carry the exact toolchain-settled identity through package review — packages/review/evidence/src/capture/providers/policy/replay.rs::validate rejects settled plans as authored candidates (see wiki/drafts/designs/toolchain_settled_plan_provenance_replay.md). The mechanism-classification policy merge in native_realization/providers/mod.rs is separate from the optional receiver permission policy; preserve both exact identities",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "pcc-ledger",
+            "board": "TASKS.md",
+            "item": "PCC-CANONICAL-SEMANTIC-LEDGER",
+            "host": "local",
+            "owning_paths": [
+                "omega-rust/psi/semantics/terminal-verifier",
+                "omega-rust/psi/semantics/proof-admission/src/certificate_search"
+            ],
+            "suggested_first_slice": "discharge one ExplicitlyTrusted trusted_surface row family (reconstruction, normalization, scope, invalidation, or call/cycle-composition) with checked evidence and exact dependencies — the inventory mechanically covers dispatch/reconstructed-facts/dependencies; coverage and a Proved label are not proofs; preserve PROVED_ENTRIES and unfinished-dependency checks; revalidate justifications before refreshing any source digest in sites.rs/lib.rs. known_baseline_failures.md names this item the owner of the drifted digest rows — a bounded revalidation leg counts. linw5-proof-kernel-core owns proof-admission's mathematical_core/lib.rs/tests and terminal-codec/src — read them as inputs, do not write outside your fence",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "owned-self",
+            "board": "TASKS.md",
+            "item": "OWNED-SELF-RECEIVER-AFFINE-DISCARD",
+            "host": "local",
+            "layer": 1,
+            "owning_paths": [
+                "omega-rust/psi/semantics/terminal-verifier/src/validation/frontier",
+                "omega-rust/psi/semantics/terminal-interpreter",
+                "wiki/spec/terminal-psi/ownership.md"
+            ],
+            "suggested_first_slice": "decide whether consume_terminal_self_receiver's implicit retirement is Linear-only or whether an Affine owned receiver's disposition also becomes implicit: 6e8cb1f85c is the measured first-bad for terminal-interpreter's scalar_return_performs_affine_discard_only_after_edge_charge and conditional_commits_only_the_selected_affine_cleanup_after_edge_charge (both red on main — they declare is_self+Owned, set Affine, and author an explicit DiscardRoot now rejected as ScalarReturnAffineDiscardsMismatch). Make the two tests state the decided rule rather than merely pass; if the rule stays multiplicity-blind, name in wiki/spec/terminal-psi/ownership.md which accounted disposition the receiver occurs in. Refill slot: your prompt's rendered claim command may be stale — reclaim with these paths if so",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "generated-codec",
+            "board": "TASKS.md",
+            "item": "GENERATED-CODEC-INDEPENDENT-VERIFICATION",
+            "host": "local",
+            "layer": 1,
+            "owning_paths": [
+                "omega-rust/psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_verification.rs",
+                "omega-rust/omega/build/build-evaluation/src/admission/wire_protocol.rs"
+            ],
+            "suggested_first_slice": "connect general codec agreement evidence to the exact realization and public schema, or retain explicit compiler-admitted trust where unavailable — wire_verification.rs's Floor/Ceiling member comparison and malformed-input probes are finite examples, not the general agreement law, and build-evaluation's wire_protocol.rs reports Derived when that probe's gaps are empty; a no-policy generated realization must earn Derived only from independently established requirements, witnessed divergences must reject, unsupported obligations stay honestly admitted. Refill slot: your prompt's rendered claim command may be stale — reclaim with these paths if so",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        },
+        {
+            "name": "coordinator-host-profile",
+            "board": "TASKS.md",
+            "item": "MACOS-X64-HOST-PROFILE",
+            "host": "local",
+            "owning_paths": [
+                "tools/release",
+                "wiki/drafts/measurements/macos_x64_host_profile.md"
+            ],
+            "suggested_first_slice": "exercise the emitted Mach-O route on this Intel macOS host — target/provider recognition, physical-entry reconstruction, hosted receiver, x86-64 Mach-O import pairing — recording exact commands, the base commit b725fb771e, observations and justified skips in wiki/drafts/measurements/macos_x64_host_profile.md (precedent: squalr_geometry_native_hosts.md, structural_borrow_identity_host_legs.md); attribute failures to their capability owners rather than repairing them in this slot. The benchmarks sibling consumes this evidence for the stale HOST_LEGS label",
+            "host_gates": [
+                "which mbx || which cargo"
+            ],
+            "probe_only": false
+        }
+    ]
+}
