@@ -3057,12 +3057,20 @@ syntax and other terminal services are not prerequisites.
   = the case symbol's parent) is the one-shape fix, but it changes what a
   bare name means to proof narrowing and interpreter equality, so it needs
   the owner. The parser-minted `let __destructure#x#y = self.pair;` marker
-  keeps the inference sentinel `()`, which the site does not treat as a
-  non-storage declaration the way it treats `__arm_destructure#` markers;
-  the fix is that treatment in `erased_alias_locals` /
-  `first_unsupported_statement` plus counting `__destructure#` markers in
-  lowering's `validate_markers`, applied together (the first alone turns a
-  clean omission into a cursor-drift rejection). Limits: no producer exists
+  and its per-field locals (`let x = self.pair.x`) all keep the inference
+  sentinel `()` in typed trees (`type_is_inferred`, no primitive reference;
+  probed 2026-09-22), so the Unit builder, which keys every local on its
+  `type_reference`, has nothing to plan: composing past the marker alone
+  moves the omission from statement 1 to statement 2. The general fix starts
+  in typing: materialize the inferred field type into each bound-field
+  local's `type_reference` as `infer_hoist_temp_type` does for `__hoist_N`
+  temps. Then the marker needs the transparent treatment the builder gives
+  `__arm_destructure#` markers (`erased_alias_locals` /
+  `first_unsupported_statement`) and lowering must stop using
+  `bindings.len()` as the binding prefix's statement end (`body.rs`,
+  `cases.rs`, `scalar_graph_lowering/bindings.rs`,
+  `returns/structural_scalar_return*`), counting marker statements instead.
+  Limits: no producer exists
   for a record member typed `UInt`, for a record with a `&[u8] in Utf8`
   field, or for a primitive-array record field (`[u32; 4]`); the closed-array
   route exists only for top-level locals.
