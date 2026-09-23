@@ -87,6 +87,159 @@ fn compare_immediate_fold_rewrites_the_flag_defining_consumer_on_both_linux_targ
 }
 
 #[test]
+fn compare_zero_fold_rewrites_to_the_dedicated_zero_form_on_both_targets() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let zero_row = environment.constraint(keys.compare_i64_zero).unwrap();
+        // The same staged candidate with the folded literal restaged at
+        // zero: the family partition selects `COMPARE_ZERO` and the
+        // dedicated `CompareI64Zero` realization, not the immediate form.
+        let mut inputs = staged_inputs(target);
+        restage_literal(&mut inputs, 0);
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
+            .expect("the zero literal folds to the dedicated form");
+
+        assert_eq!(result.receipt().applied_count(), 1);
+        let action = result.plan().functions[0].action.unwrap();
+        assert_eq!(action.result, None);
+        assert_eq!(action.immediate, 0);
+        assert_eq!(action.surviving, VirtualRegisterId(0));
+        assert_eq!(action.victim, VirtualRegisterId(1));
+        assert_eq!(action.literal_instruction, SelectedInstructionId(0));
+        assert_eq!(action.consumer_instruction, SelectedInstructionId(1));
+        assert_eq!(action.immediate_constraint, keys.compare_i64_zero);
+
+        let function = &result.transformed().functions[0];
+        assert_eq!(function.virtual_registers.len(), 1);
+        let instructions = &function.blocks[0].instructions;
+        assert_eq!(instructions.len(), 1);
+        let rewritten = &instructions[0];
+        assert_eq!(rewritten.id, SelectedInstructionId(0));
+        assert_eq!(rewritten.kind, SelectedInstructionKind::CompareI64Zero);
+        assert_eq!(rewritten.constraint, keys.compare_i64_zero);
+        assert_eq!(rewritten.operands.len(), 1);
+        assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(0));
+        assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+        // The rewritten instruction carries exactly the zero row's unit
+        // surface — the same condition-state definitions the compare
+        // declared and the immediate row would publish.
+        assert_eq!(rewritten.implicit_uses, zero_row.implicit_uses);
+        assert_eq!(rewritten.implicit_defs, zero_row.implicit_defs);
+        assert_eq!(rewritten.clobbers, zero_row.clobbers);
+        assert_eq!(rewritten.provenance.operations.len(), 2);
+
+        // The published plan replays independently: the validator
+        // re-derives the zero realization from the removed literal's
+        // recorded value, never from a descriptor.
+        validate(&inputs, &environment, result.plan().clone())
+            .expect("the published zero fold replays independently");
+    }
+}
+
+#[test]
+fn compare_fold_partitions_the_literal_value_between_forms() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        // The family's admission partition is total over the window: zero
+        // names the dedicated form, every nonzero literal through the
+        // shared twelve-bit encoding limit names the immediate form, and
+        // beyond the window nothing admits. Exactly one pair admits each
+        // candidate, so selection can never be ambiguous.
+        for (literal, expected) in [
+            (1_u64, keys.compare_i64_immediate),
+            (4095_u64, keys.compare_i64_immediate),
+        ] {
+            let mut inputs = staged_inputs(target);
+            restage_literal(&mut inputs, literal);
+            let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
+                .expect("a nonzero in-window literal folds to the immediate form");
+            assert_eq!(
+                result.plan().functions[0]
+                    .action
+                    .unwrap()
+                    .immediate_constraint,
+                expected,
+                "literal {literal} on {target:?}"
+            );
+            assert_eq!(
+                result.transformed().functions[0].blocks[0].instructions[0].kind,
+                SelectedInstructionKind::CompareI64Immediate {
+                    immediate: IntegerValue::Unsigned(u128::from(literal)),
+                }
+            );
+        }
+        let mut inputs = staged_inputs(target);
+        restage_literal(&mut inputs, 0);
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
+            .expect("the zero literal folds");
+        assert_eq!(
+            result.plan().functions[0]
+                .action
+                .unwrap()
+                .immediate_constraint,
+            keys.compare_i64_zero
+        );
+    }
+}
+
+#[test]
+fn compare_zero_fold_replay_rejects_every_decision_field_substitution() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.allocation_constraint_keys();
+    let mut inputs = staged_inputs(target);
+    restage_literal(&mut inputs, 0);
+    let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).unwrap();
+
+    for mutation in 0..10 {
+        let mut plan = result.plan().clone();
+        match mutation {
+            0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
+            1 => plan.functions[0].action.as_mut().unwrap().immediate = 1,
+            2 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .consumer_instruction = SelectedInstructionId(9)
+            }
+            // Claiming the immediate row for the zero literal is the
+            // value partition inverted: the replay binds the zero row
+            // the literal's recorded value names and rejects.
+            3 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .immediate_constraint = keys.compare_i64_immediate
+            }
+            4 => {
+                plan.functions[0]
+                    .action
+                    .as_mut()
+                    .unwrap()
+                    .immediate_constraint
+                    .variant += 1
+            }
+            // The surviving operand is the register the zero row's `Use`
+            // binds; rebinding it to the removed victim replays
+            // differently.
+            5 => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(1),
+            6 => plan.functions[0].action.as_mut().unwrap().victim = VirtualRegisterId(0),
+            7 => plan.functions[0].action = None,
+            8 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
+            _ => plan.usage.candidates += 1,
+        }
+        assert!(
+            validate(&inputs, &environment, plan).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn compare_fold_replay_rejects_every_decision_field_substitution() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
@@ -195,6 +348,20 @@ fn compare_fold_is_deterministic_and_a_fixed_point_on_its_output() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         let inputs = staged_inputs(target);
+        assert_deterministic_fixed_point(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1);
+    }
+}
+
+#[test]
+fn compare_zero_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // The published `CompareI64Zero` plan is itself the legal second
+        // input: the analyses re-derived over the transformed plan find
+        // no materialized literal feeding the compare, so the fold is a
+        // fixed point on the zero form too.
+        let mut inputs = staged_inputs(target);
+        restage_literal(&mut inputs, 0);
         assert_deterministic_fixed_point(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1);
     }
 }

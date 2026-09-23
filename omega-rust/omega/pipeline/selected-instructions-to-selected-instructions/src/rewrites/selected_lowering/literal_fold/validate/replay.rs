@@ -175,23 +175,40 @@ fn reconstruct_action(
             rows.subtract,
             MachineSemanticKind::ExactSubtractI64Immediate,
         ),
-        // The compare binds the same `CompareI64Immediate` row at either
-        // `Use` position, but the grammars are not interchangeable: the
-        // operand-1 subtrahend literal rewrites in place — `x - literal`
-        // keeps the operand order — while the operand-0 minuend literal
-        // rewrites the operand-swapped `x - literal` for `literal - x`,
-        // which preserves the zero condition but inverts every ordering
-        // predicate. The left grammar therefore carries the reader-flow
-        // audit the right one does not need.
-        SelectedInstructionKind::CompareI64 => (
-            if future_use.operand == 0 {
-                SourceShape::CompareLeftImmediate
+        // The compare's folded literal partitions the rewritten form on
+        // its value: a nonzero literal binds the `CompareI64Immediate`
+        // row while a zero literal binds the `CompareI64Zero` row — the
+        // dedicated realization `x - 0` names. The grammars are not
+        // interchangeable either: the operand-1 subtrahend literal
+        // rewrites in place — `x - literal` keeps the operand order —
+        // while the operand-0 minuend literal rewrites the
+        // operand-swapped `x - literal` for `literal - x`, which
+        // preserves the zero condition but inverts every ordering
+        // predicate. The left grammars therefore carry the reader-flow
+        // audit the right ones do not need.
+        SelectedInstructionKind::CompareI64 => {
+            if literal_u64 == 0 {
+                (
+                    if future_use.operand == 0 {
+                        SourceShape::CompareLeftZero
+                    } else {
+                        SourceShape::CompareZero
+                    },
+                    rows.compare_zero,
+                    MachineSemanticKind::CompareI64Zero,
+                )
             } else {
-                SourceShape::BinaryImmediate
-            },
-            rows.compare,
-            MachineSemanticKind::CompareI64Immediate,
-        ),
+                (
+                    if future_use.operand == 0 {
+                        SourceShape::CompareLeftImmediate
+                    } else {
+                        SourceShape::CompareRightImmediate
+                    },
+                    rows.compare,
+                    MachineSemanticKind::CompareI64Immediate,
+                )
+            }
+        }
         SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16
         | SelectedInstructionKind::ZeroExtendU32
@@ -673,13 +690,35 @@ fn reconstruct_action(
         });
     }
     let immediate = match shape {
-        // The operand-swapped compare grammar shares the same twelve-bit
-        // bound the in-place compare grammar admits — the immediate field
-        // the rewritten form encodes is identical.
-        SourceShape::BinaryImmediate
-        | SourceShape::BinaryLeftImmediate
-        | SourceShape::CompareLeftImmediate => {
+        SourceShape::BinaryImmediate | SourceShape::BinaryLeftImmediate => {
             if literal_u64 > 4095 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
+        // The nonzero compare grammars share the same twelve-bit window
+        // minus the zero the dedicated `CompareI64Zero` realization owns:
+        // the immediate field the rewritten form encodes is identical
+        // under either operand order, and a zero literal — which the
+        // kind match above already routed to a zero-compare shape — is a
+        // different computation the replay must not admit here.
+        SourceShape::CompareRightImmediate | SourceShape::CompareLeftImmediate => {
+            if literal_u64 == 0 || literal_u64 > 4095 {
+                return Err(LiteralFoldError::UnsupportedImmediate {
+                    function: function_index,
+                });
+            }
+            literal_u64
+        }
+        // The zero-compare grammars rewrite into the dedicated zero form
+        // only when the folded literal is exactly zero — any other value
+        // is a different computation the replay must not admit. The
+        // recorded immediate is the folded literal itself — zero — which
+        // the `CompareI64Zero` rebuild does not embed.
+        SourceShape::CompareZero | SourceShape::CompareLeftZero => {
+            if literal_u64 != 0 {
                 return Err(LiteralFoldError::UnsupportedImmediate {
                     function: function_index,
                 });
@@ -971,7 +1010,18 @@ fn reconstruct_action(
             }
             Some(result.virtual_register)
         }
-        (SourceShape::BinaryImmediate, [left, right]) => {
+        // The in-place compare grammars — the nonzero immediate fold and
+        // the zero-literal fold to `CompareI64Zero` — carry the same
+        // `[surviving, victim]` `Use` arrangement the flag-defining
+        // binary grammar binds: the folded operand-1 register is the
+        // victim, and the rewritten row's sole `Use` position binds the
+        // surviving operand-0 register.
+        (
+            SourceShape::BinaryImmediate
+            | SourceShape::CompareRightImmediate
+            | SourceShape::CompareZero,
+            [left, right],
+        ) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
                 || right.virtual_register != candidate.victim
@@ -984,7 +1034,9 @@ fn reconstruct_action(
             }
             None
         }
-        // The operand-swapped compare grammar: `[victim, subtrahend]`
+        // The operand-swapped compare grammars — the nonzero
+        // left-immediate fold and the left-zero fold to `CompareI64Zero`:
+        // `[victim, subtrahend]`
         // folds the operand-0 `Use` — the literal minuend — and binds the
         // operand-1 subtrahend `Use` into the rewritten row's sole `Use`
         // position, computing `subtrahend - literal` for
@@ -995,7 +1047,10 @@ fn reconstruct_action(
         // those are the units the rewrite must publish, and an implicit
         // use or clobber the row does not carry would silently stop
         // being observed.
-        (SourceShape::CompareLeftImmediate, [victim, subtrahend]) => {
+        (
+            SourceShape::CompareLeftImmediate | SourceShape::CompareLeftZero,
+            [victim, subtrahend],
+        ) => {
             if victim.access != RegisterOperandAccess::Use
                 || victim.virtual_register != candidate.victim
                 || subtrahend.access != RegisterOperandAccess::Use
@@ -1893,21 +1948,23 @@ fn reconstruct_action(
         });
     }
 
-    // The operand-swapped compare grammar's record-level gate, re-derived
+    // The operand-swapped compare grammars' record-level gate, re-derived
     // on the concrete instruction record rather than read from any
     // producer descriptor: the rewrite keeps the consumer's implicit unit
     // definitions — the rewritten row publishes the identical ones, which
     // the operand-shape and declaration checks above required — but
-    // reverses the comparison's operand order, so the fold is admitted
-    // only while every reader each defined unit reaches through the CFG
-    // is equality-sensing: the boolean-equal materialization and the
-    // generic conditional branch. Ordering predicates observe the
+    // reverses the comparison's operand order, so either left grammar is
+    // admitted only while every reader each defined unit reaches through
+    // the CFG is equality-sensing: the boolean-equal materialization and
+    // the generic conditional branch. Ordering predicates observe the
     // inverted relation and refuse. The validator re-walks the flow
     // itself: the unit resumes at each live successor's head and ends at
-    // any implicit definition or clobber. The right-literal grammar
-    // replaces the operand in place and needs no reader audit.
-    if shape == SourceShape::CompareLeftImmediate
-        && !swapped_condition_flow_admitted(function, block_index, literal_index + 1, consumer)
+    // any implicit definition or clobber. The right-literal grammars
+    // replace the operand in place and need no reader audit.
+    if matches!(
+        shape,
+        SourceShape::CompareLeftImmediate | SourceShape::CompareLeftZero
+    ) && !swapped_condition_flow_admitted(function, block_index, literal_index + 1, consumer)
     {
         return Err(LiteralFoldError::EffectSurfaceMismatch {
             function: function_index,
@@ -1924,6 +1981,7 @@ fn reconstruct_action(
     let surviving = match shape {
         SourceShape::BinaryLeftImmediate
         | SourceShape::CompareLeftImmediate
+        | SourceShape::CompareLeftZero
         | SourceShape::AndZeroLeft
         | SourceShape::XorZeroLeft
         | SourceShape::WrappingAddZeroLeft
@@ -1936,6 +1994,8 @@ fn reconstruct_action(
         | SourceShape::SaturatingSubtractZeroMinuend
         | SourceShape::SaturatingDivideZeroDividend => consumer.operands[1].virtual_register,
         SourceShape::BinaryImmediate
+        | SourceShape::CompareRightImmediate
+        | SourceShape::CompareZero
         | SourceShape::UnaryExtension
         | SourceShape::UnaryCopy
         | SourceShape::DivideIdentity
@@ -2053,13 +2113,32 @@ fn reconstruct_action(
 enum SourceShape {
     BinaryImmediate,
     BinaryLeftImmediate,
-    /// The left-literal compare grammar: `literal - x` rewrites into the
-    /// operand-swapped `x - literal` — the `CompareI64Immediate` row is
-    /// the same one the right-literal compare binds, and the
+    /// The right-literal nonzero compare grammar: a nonzero literal at
+    /// the operand-1 `Use` — `x - literal` — rewrites in place into the
+    /// `CompareI64Immediate` form. The grammar keeps its own shape
+    /// rather than sharing `BinaryImmediate`: the compare family's
+    /// immediate window excludes the zero a dedicated `CompareI64Zero`
+    /// realization binds, while the other binary consumers admit zero
+    /// into the same field.
+    CompareRightImmediate,
+    /// The left-literal nonzero compare grammar: `literal - x` rewrites
+    /// into the operand-swapped `x - literal` — the `CompareI64Immediate`
+    /// row is the same one the right-literal compare binds, and the
     /// preservation of the compare's implicit condition-state
     /// definitions under the reversed subtraction is the flow-sensitive
     /// fact the replay audits independently.
     CompareLeftImmediate,
+    /// The right-literal zero compare grammar: a literal of zero at the
+    /// operand-1 `Use` — `x - 0` — rewrites into the dedicated
+    /// `CompareI64Zero` form rather than the immediate form, the
+    /// realization refinement the folded literal's exact value names.
+    CompareZero,
+    /// The left-literal zero compare grammar: `0 - x` rewrites into the
+    /// `CompareI64Zero` form computing the operand-swapped `x - 0` — the
+    /// zero condition is identical and the ordering predicates invert
+    /// exactly as under the left-immediate grammar, so the same
+    /// reader-flow audit the replay re-derives independently applies.
+    CompareLeftZero,
     UnaryExtension,
     UnaryCopy,
     DivideIdentity,
@@ -2106,9 +2185,12 @@ impl SourceShape {
             | Self::SaturatingSubtractZero
             | Self::SaturatingSubtractZeroScratch
             | Self::SaturatingSubtractUpperBoundSubtrahend
-            | Self::SaturatingDivideOne => 1,
+            | Self::SaturatingDivideOne
+            | Self::CompareRightImmediate
+            | Self::CompareZero => 1,
             Self::BinaryLeftImmediate
             | Self::CompareLeftImmediate
+            | Self::CompareLeftZero
             | Self::UnaryExtension
             | Self::UnaryCopy
             | Self::DivideZeroDividend
@@ -2539,12 +2621,30 @@ fn rebuild_function(
                 accepted_fact,
             },
         ),
-        SelectedInstructionKind::CompareI64 => (
-            rows.compare,
-            SelectedInstructionKind::CompareI64Immediate {
-                immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
-            },
-        ),
+        // The compare's two folded realizations partition on the removed
+        // literal's recorded value — reconstructed from the source
+        // instruction record, not from any descriptor: a zero literal
+        // binds the `CompareI64Zero` row and rebuilds the dedicated
+        // zero form, while every other admitted literal binds the
+        // `CompareI64Immediate` row and rebuilds the immediate form
+        // carrying the recorded payload.
+        SelectedInstructionKind::CompareI64 => {
+            if matches!(
+                literal.kind,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(0),
+                }
+            ) {
+                (rows.compare_zero, SelectedInstructionKind::CompareI64Zero)
+            } else {
+                (
+                    rows.compare,
+                    SelectedInstructionKind::CompareI64Immediate {
+                        immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
+                    },
+                )
+            }
+        }
         SelectedInstructionKind::ZeroExtendU8
         | SelectedInstructionKind::ZeroExtendU16
         | SelectedInstructionKind::ZeroExtendU32

@@ -15,6 +15,10 @@ pub(super) struct ValidationImmediateRows<'a> {
     pub(super) add: Option<&'a RegisterInstructionConstraint>,
     pub(super) subtract: Option<&'a RegisterInstructionConstraint>,
     pub(super) compare: Option<&'a RegisterInstructionConstraint>,
+    /// The `CompareI64Zero` row the zero-literal compare folds rewrite
+    /// into; bound under the same compare policy bit as `compare` — the
+    /// folded literal's value names which row a `CompareI64` fold binds.
+    pub(super) compare_zero: Option<&'a RegisterInstructionConstraint>,
     /// The `MaterializeI64` row the unary extension folds rewrite into; bound
     /// only when the extension-elimination policy bit is selected.
     pub(super) materialize: Option<&'a RegisterInstructionConstraint>,
@@ -177,6 +181,10 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         .enables_compare()
         .then(|| find(keys.compare_i64_immediate))
         .transpose()?;
+    let compare_zero = policy
+        .enables_compare()
+        .then(|| find(keys.compare_i64_zero))
+        .transpose()?;
     let materialize = policy
         .enables_extension()
         .then(|| find(keys.materialize_i64))
@@ -261,6 +269,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         add,
         subtract,
         compare,
+        compare_zero,
         materialize,
         copy,
         load8,
@@ -308,6 +317,11 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         (
             compare,
             MachineSemanticKind::CompareI64Immediate,
+            isolated_rewritten_declaration,
+        ),
+        (
+            compare_zero,
+            MachineSemanticKind::CompareI64Zero,
             isolated_rewritten_declaration,
         ),
         (
@@ -422,6 +436,7 @@ pub(super) fn reconstruct_immediate_rows<'a>(
         add,
         subtract,
         compare,
+        compare_zero,
         materialize,
         copy,
         load8,

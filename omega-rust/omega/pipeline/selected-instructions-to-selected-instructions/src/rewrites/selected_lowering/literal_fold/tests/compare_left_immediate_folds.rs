@@ -1,10 +1,12 @@
-//! The operand-swapped compare grammar: `MaterializeI64` feeding the
+//! The operand-swapped compare grammars: `MaterializeI64` feeding the
 //! operand-0 minuend `Use` of `CompareI64` folds to `CompareI64Immediate`
-//! computing `x - literal` for `literal - x`. The rewrite preserves the
-//! zero condition exactly and inverts every ordering predicate, so the
-//! pair admits the fold only while every reader each preserved
-//! condition-state definition can reach through the function's CFG is
-//! equality-sensing — `MaterializeBooleanEqual` or
+//! computing `x - literal` for `literal - x`, or to `CompareI64Zero`
+//! computing `x - 0` when the folded literal is exactly zero — the
+//! family's value partition binds each realization. Either rewrite
+//! preserves the zero condition exactly and inverts every ordering
+//! predicate, so the pair admits the fold only while every reader each
+//! preserved condition-state definition can reach through the
+//! function's CFG is equality-sensing — `MaterializeBooleanEqual` or
 //! `ConditionalBranchNonZero`. These tests stage that grammar and its
 //! reader-flow audit: same-block readers, readers reached through
 //! successor edges, joins, loops, redefinitions, malformed unit surfaces,
@@ -292,6 +294,116 @@ fn left_compare_fold_rewrites_the_swapped_minuend_on_both_linux_targets() {
         // the immediate row publishes exactly what the compare declared.
         assert_eq!(rewritten.implicit_defs, compare_row.implicit_defs);
         assert_eq!(rewritten.provenance.operations.len(), 2);
+    }
+}
+
+#[test]
+fn left_zero_compare_fold_rewrites_to_the_dedicated_zero_form_on_both_targets() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let keys = environment.allocation_constraint_keys();
+        let zero_row = environment.constraint(keys.compare_i64_zero).unwrap();
+        // The operand-0 minuend literal restaged at zero: `0 - x` folds
+        // into the `CompareI64Zero` form computing `x - 0` — the
+        // operand-swapped realization refinement `x - 0` performs, not
+        // the immediate form.
+        let mut inputs = staged_left_inputs(target);
+        restage_literal(&mut inputs, 0);
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
+            .expect("the left zero literal folds to the dedicated form");
+
+        assert_eq!(result.receipt().applied_count(), 1);
+        let action = result.plan().functions[0].action.unwrap();
+        assert_eq!(action.result, None);
+        assert_eq!(action.immediate, 0);
+        // The surviving register is the compare's operand-1 subtrahend —
+        // it becomes the zero form's sole `Use`.
+        assert_eq!(action.surviving, VirtualRegisterId(0));
+        assert_eq!(action.victim, VirtualRegisterId(1));
+        assert_eq!(action.literal_instruction, SelectedInstructionId(0));
+        assert_eq!(action.consumer_instruction, SelectedInstructionId(1));
+        assert_eq!(action.immediate_constraint, keys.compare_i64_zero);
+
+        let function = &result.transformed().functions[0];
+        let instructions = &function.blocks[0].instructions;
+        assert_eq!(instructions.len(), 1);
+        let rewritten = &instructions[0];
+        assert_eq!(rewritten.id, SelectedInstructionId(0));
+        assert_eq!(rewritten.kind, SelectedInstructionKind::CompareI64Zero);
+        assert_eq!(rewritten.constraint, keys.compare_i64_zero);
+        assert_eq!(rewritten.operands.len(), 1);
+        assert_eq!(rewritten.operands[0].virtual_register, VirtualRegisterId(0));
+        assert_eq!(rewritten.operands[0].access, RegisterOperandAccess::Use);
+        // The condition-state definitions are preserved bit-identically:
+        // the zero row publishes exactly what the compare declared.
+        assert_eq!(rewritten.implicit_defs, zero_row.implicit_defs);
+        assert_eq!(rewritten.provenance.operations.len(), 2);
+
+        // The published plan replays independently: the validator
+        // re-derives the left-zero grammar from the folded literal's
+        // operand position and recorded value, and re-walks the
+        // reader-flow audit itself.
+        validate(&inputs, &environment, result.plan().clone())
+            .expect("the published left-zero fold replays independently");
+    }
+}
+
+#[test]
+fn left_zero_compare_fold_carries_the_reader_flow_audit() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        // `0 - x` rewriting to `x - 0` inverts the ordering predicates
+        // exactly as the left-immediate grammar does: an
+        // ordering-sensitive reader of the kept condition-state
+        // definitions refuses the fold under either admission path —
+        // the producer's pair surface and the replay's independently
+        // re-derived flow audit.
+        let mut inputs = staged_left_inputs(target);
+        restage_literal(&mut inputs, 0);
+        append_reader(
+            &mut inputs,
+            &environment,
+            0,
+            4,
+            SelectedInstructionKind::MaterializeBooleanI64LessThan,
+        );
+        assert_eq!(
+            fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
+            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+            "{target:?} producer"
+        );
+        assert_eq!(
+            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
+            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
+            "{target:?} replay"
+        );
+
+        // The same staging with an equality-sensing reader folds.
+        let mut inputs = staged_left_inputs(target);
+        restage_literal(&mut inputs, 0);
+        append_reader(
+            &mut inputs,
+            &environment,
+            0,
+            4,
+            SelectedInstructionKind::MaterializeBooleanEqual,
+        );
+        let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
+            .expect("the left zero literal folds under an equality reader");
+        assert_eq!(
+            result.transformed().functions[0].blocks[0].instructions[0].kind,
+            SelectedInstructionKind::CompareI64Zero
+        );
+    }
+}
+
+#[test]
+fn left_zero_compare_fold_is_deterministic_and_a_fixed_point_on_its_output() {
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut inputs = staged_left_inputs(target);
+        restage_literal(&mut inputs, 0);
+        assert_deterministic_fixed_point(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1);
     }
 }
 
