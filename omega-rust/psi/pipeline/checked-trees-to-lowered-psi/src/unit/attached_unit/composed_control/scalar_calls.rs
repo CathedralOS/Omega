@@ -87,12 +87,10 @@ fn selected_roots(
                 }
             }
         }
-        for operation in state
-            .operation_dependencies()
-            .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-        {
-            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } =
-                operation
+        for operation in state.operation_dependencies() {
+            if let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result, calls, ..
+            } = operation
             {
                 crate::expression_preparation::source_custody::structural::validate(
                     checked,
@@ -100,6 +98,23 @@ fn selected_roots(
                     state.state,
                     operation,
                 )?;
+                // A member call's scalar arguments are computations in the
+                // same statement; only their roots join the pending set, the
+                // member's statement custody belongs to the construction.
+                for call in calls {
+                    let CheckedUnitEffectOperationPlan::StructuralCall {
+                        scalar_arguments, ..
+                    } = call.operation()
+                    else {
+                        return unsupported("composed scalar selection lost its value call");
+                    };
+                    for argument in scalar_arguments {
+                        let CheckedCallScalarArgument::Computation(handle) = argument else {
+                            continue;
+                        };
+                        pending.push(*handle);
+                    }
+                }
                 pending.extend(
                     checked
                         .facts

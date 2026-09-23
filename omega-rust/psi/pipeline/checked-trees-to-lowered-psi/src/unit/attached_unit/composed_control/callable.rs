@@ -132,6 +132,8 @@ pub(in crate::unit::attached_unit) fn emit(
                     .iter()
                     .map(|parameter| parameter.scalar_type)
                     .collect(),
+                lowered_parameters: signature.parameters.clone(),
+                lowered_scalar_parameters: signature.scalar_parameters.clone(),
                 parameter_relative_crash_routes: crate::unit::effective_crash_routes(
                     checked,
                     target.machine,

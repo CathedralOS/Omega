@@ -163,6 +163,8 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                     .iter()
                     .map(|parameter| parameter.scalar_type)
                     .collect(),
+                lowered_parameters: declaration.structural_parameters.clone(),
+                lowered_scalar_parameters: declaration.parameters.clone(),
                 parameter_relative_crash_routes: crate::unit::effective_crash_routes(
                     checked,
                     entry.machine,

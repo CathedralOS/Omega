@@ -40,6 +40,9 @@ pub(in crate::execution::terminal_unit) fn signature(
         return None;
     }
     let type_identity = shapes.add_type(reference, &[], &[])?;
+    // Nested named carriers carry as one structural member: their own fields
+    // stay inside the member's identity, so the result plan admits the member
+    // by identity alone.
     let valid_fields = |fields: &[CheckedUnitStructuralFieldPlan]| {
         fields.iter().all(|field| {
             !field.relevance.is_erased()
@@ -47,22 +50,14 @@ pub(in crate::execution::terminal_unit) fn signature(
                     field.field_type,
                     CheckedUnitStructuralFieldType::Scalar(_)
                         | CheckedUnitStructuralFieldType::BoundedInteger(_)
+                        | CheckedUnitStructuralFieldType::Structural { .. }
                 )
         })
     };
     let valid = match &shapes.types.get(&type_identity)?.shape {
         CheckedUnitStructuralTypeShape::Record { fields } => valid_fields(fields),
         CheckedUnitStructuralTypeShape::Sum { cases } => {
-            !cases.is_empty()
-                && cases.iter().all(|case| {
-                    case.fields.iter().all(|field| {
-                        matches!(
-                            field.field_type,
-                            CheckedUnitStructuralFieldType::Scalar(_)
-                                | CheckedUnitStructuralFieldType::BoundedInteger(_)
-                        )
-                    })
-                })
+            !cases.is_empty() && cases.iter().all(|case| valid_fields(&case.fields))
         }
         // By-value scalar results stay scalar-graph owned: their graph
         // carries the computation expansion and block-invariant machinery

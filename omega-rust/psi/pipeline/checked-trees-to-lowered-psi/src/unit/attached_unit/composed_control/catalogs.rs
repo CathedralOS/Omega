@@ -1,7 +1,7 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
 use super::super::super::{
     BoundaryMachineId, MachineId, ServiceDeclaration, ServiceId, ServiceReachId, ServiceReachPlan,
-    StructuralDomainDeclaration, StructuralTypeDeclaration,
+    StructuralDomainDeclaration, StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
 use super::super::{
     BoundaryMachineDeclaration, BoundaryMachineResult, CheckedBoundaryMachinePlan,
@@ -76,6 +76,7 @@ fn lower_composed_services(
             CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
@@ -125,6 +126,11 @@ pub(crate) struct LoweredComposedInternalTarget {
     /// allocates one obligation per row.
     pub(super) requires: Vec<Proposition>,
     pub(super) structural_parameters: Vec<checked_trees::CheckedUnitStructuralParameterPlan>,
+    /// The callee's lowered structural parameter declarations in contract
+    /// order; a value-bound call replays them as operand predicates.
+    pub(super) lowered_parameters: Vec<StructuralParameterDeclaration>,
+    /// The callee's lowered scalar parameter declarations in contract order.
+    pub(super) lowered_scalar_parameters: Vec<ValueDeclaration>,
     pub(super) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
 }
 
