@@ -865,3 +865,41 @@ fn ordered_guard_roster_rejects_tampering_and_reconstructs_result_range() {
         );
     }
 }
+
+#[test]
+fn attached_short_circuit_transition_guards_lower_and_execute_on_each_leaf() {
+    // Attached scalar control forwards authored short-circuit guards into
+    // operand evaluation, which must decompose them into leaf decisions.
+    let source = "data Parser {}\nmachine Parser::value(b: u8) -> u8 { transition ((48u8 <= b && b <= 57u8) || (65u8 <= b && b <= 70u8)) { true -> (1) _ -> (0) } }";
+    let checked = checked_source(source, BranchForm::Separate);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Parser::value"),
+    )
+    .unwrap_or_else(|error| panic!("{source}: {error:#?}"));
+    let semantics = encode_module(&lowered.semantic_module).expect("encode semantics");
+    let proof = encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+        .expect("encode proof");
+    for (input, expected) in [
+        (48, 1),
+        (57, 1),
+        (53, 1),
+        (65, 1),
+        (70, 1),
+        (47, 0),
+        (58, 0),
+        (71, 0),
+        (122, 0),
+    ] {
+        assert_eq!(
+            interpret_terminal_artifact(
+                &semantics,
+                &proof,
+                &AdmissionProfile::default(),
+                &[unsigned(8, input)],
+            )
+            .unwrap_or_else(|error| panic!("{source}, b {input}: {error:#?}")),
+            TerminalExecutionResult::Scalar(unsigned(8, expected)),
+        );
+    }
+}
