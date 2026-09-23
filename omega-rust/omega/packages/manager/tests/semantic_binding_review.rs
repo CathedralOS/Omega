@@ -1,4 +1,6 @@
 use crate::accepted_policy_fixture;
+#[path = "semantic_binding_review/entry_service_field.rs"]
+mod entry_service_field;
 #[path = "semantic_binding_review/macos_entry.rs"]
 mod macos_entry;
 

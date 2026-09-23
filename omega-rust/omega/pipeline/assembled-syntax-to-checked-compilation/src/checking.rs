@@ -130,6 +130,12 @@ pub struct CheckedCompileRequest<'a> {
     /// source was prepared; this flag steers only the request-owned fresh
     /// preparation.
     pub collect_timings: bool,
+    /// The consumer-review discovery pass admits a selected entry whose
+    /// `Service` fields have no Fused provider selection yet — nominating
+    /// those selections is what the pass exists for. Unsettled fields stay
+    /// unestablished instead of rejecting; the bound recompile with its
+    /// nominated bindings still derives or diagnoses every field.
+    pub permit_unsettled_fused_service_fields: bool,
 }
 
 impl<'a> CheckedCompileRequest<'a> {
@@ -149,6 +155,7 @@ impl<'a> CheckedCompileRequest<'a> {
             independent_component_discovery_output: None,
             restricted_build_grants: None,
             collect_timings: false,
+            permit_unsettled_fused_service_fields: false,
         }
     }
 
@@ -178,6 +185,7 @@ impl<'a> CheckedCompileRequest<'a> {
                 collect_timings: self.collect_timings,
                 prepared_source_output: None,
                 independent_component_discovery_output: None,
+                permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
             },
             source_output,
             discovery_output,
@@ -219,6 +227,10 @@ struct CheckedChildExecution<'a> {
     /// Consent binding this child's projected restricted build requests join
     /// before their own build effects execute.
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+    /// This child runs a discovery pass: an entry's unsettled `Service` fields
+    /// stay unestablished rather than rejecting the compile they were
+    /// discovered to nominate.
+    permit_unsettled_fused_service_fields: bool,
 }
 
 impl CheckedChildExecution<'_> {
@@ -235,6 +247,7 @@ impl CheckedChildExecution<'_> {
             optimization_rollback: crate::OptimizationRollback::default(),
             independent_component_discovery: None,
             restricted_build_grants: None,
+            permit_unsettled_fused_service_fields: false,
         }
     }
 }
@@ -278,6 +291,7 @@ impl PreparedCheckedSource {
             optimization_rollback: request.optimization_rollback,
             independent_component_discovery: Some(independent_component_discovery),
             restricted_build_grants: request.restricted_build_grants,
+            permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
         })
     }
 
@@ -378,6 +392,7 @@ impl PreparedCheckedSource {
             optimization_rollback: optimization_rollback.clone(),
             independent_component_discovery: None,
             restricted_build_grants: None,
+            permit_unsettled_fused_service_fields: false,
         })
     }
 
@@ -507,6 +522,7 @@ fn compile_assembled_checked_child(
     let package_inputs = child.package_inputs;
     let optimization_rollback = child.optimization_rollback.clone();
     let independent_component_discovery = child.independent_component_discovery.take();
+    let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
     let (built, sources) = build_continuation::evaluate_build_and_continue(
         root_path,
         child,
@@ -542,6 +558,7 @@ fn compile_assembled_checked_child(
         package_inputs,
         &optimization_rollback,
         &mut timings,
+        permit_unsettled_fused_service_fields,
     )?;
     CheckedCompilation::seal(execution, sources, package_inputs, timings)
 }

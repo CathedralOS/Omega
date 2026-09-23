@@ -371,6 +371,11 @@ pub(super) fn compile_dependency_closure(
                     )) as Box<dyn compiler::RestrictedBuildGrants>
                 }),
                 collect_timings: preparation.collect_timings,
+                // A discovery pass admits an entry whose `Service` fields still
+                // lack their selection: this pass's whole product is the
+                // nomination that supplies it.
+                permit_unsettled_fused_service_fields: discovery
+                    == TargetEntryDiscovery::Dependencies,
                 ..CheckedCompileRequest::new(entry, Some(target))
             };
             // A populated slot supplies only this package's binding-independent
@@ -451,6 +456,10 @@ pub(super) fn compile_dependency_closure(
                                 as Box<dyn compiler::RestrictedBuildGrants>
                         }),
                         collect_timings: preparation.collect_timings,
+                        // The retried discovery child keeps the same
+                        // settlement tolerance as the rejected attempt.
+                        permit_unsettled_fused_service_fields: discovery
+                            == TargetEntryDiscovery::Dependencies,
                         ..CheckedCompileRequest::new(entry, Some(target))
                     };
                     request.prepared_source_output = Some(&mut retained);

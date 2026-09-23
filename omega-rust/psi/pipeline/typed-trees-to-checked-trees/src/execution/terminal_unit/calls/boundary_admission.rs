@@ -179,37 +179,60 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
     }) && crate::checks::type_multiplicity(program, source) == Multiplicity::Unrestricted
 }
 
+/// The `self.<field>` receiver a boundary call site routes through, when the
+/// call is carried by an attached provider field at all: the field's authored
+/// name plus the resolved member symbol an expression-site receiver carries.
+/// A direct `Boundary::method` call and a non-`self` receiver have neither.
+fn provider_attachment_receiver(
+    program: &TypedTrees,
+    call_site: &crate::semantic_calls::CallSite<'_>,
+) -> Option<(typed_trees::name::Identifier, Option<SymbolHandle>)> {
+    match call_site {
+        crate::semantic_calls::CallSite::Statement(call) => {
+            let [self_name, field_name] = program.statement_table.name_path_members(call.receiver)
+            else {
+                return None;
+            };
+            if !self_name.is_self_receiver() {
+                return None;
+            }
+            Some((field_name.clone(), None))
+        }
+        crate::semantic_calls::CallSite::Expression { call, .. } => {
+            let (_, Some(receiver)) = crate::lookup::call_receiver_parts(program, call.receiver)
+            else {
+                return None;
+            };
+            let [self_name, field_name] = receiver.members() else {
+                return None;
+            };
+            if !self_name.is_self_receiver() {
+                return None;
+            }
+            Some((field_name.clone(), Some(receiver.member_symbol(1))))
+        }
+        crate::semantic_calls::CallSite::TransitionNamed { .. } => None,
+    }
+}
+
+/// The receiver field's authored name alone, so a caller can tell whether a
+/// call is routed through `self.<field>` at all.
+pub(crate) fn provider_attachment_receiver_field(
+    program: &TypedTrees,
+    call_site: &crate::semantic_calls::CallSite<'_>,
+) -> Option<typed_trees::name::Identifier> {
+    provider_attachment_receiver(program, call_site).map(|(name, _)| name)
+}
+
 pub(crate) fn provider_attachment_receiver_matches(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
     call_site: &crate::semantic_calls::CallSite<'_>,
     provider_symbol: SymbolHandle,
 ) -> bool {
-    let (field_name, selected_field) = match call_site {
-        crate::semantic_calls::CallSite::Statement(call) => {
-            let [self_name, field_name] = program.statement_table.name_path_members(call.receiver)
-            else {
-                return false;
-            };
-            if !self_name.is_self_receiver() {
-                return false;
-            }
-            (field_name.clone(), None)
-        }
-        crate::semantic_calls::CallSite::Expression { call, .. } => {
-            let (_, Some(receiver)) = crate::lookup::call_receiver_parts(program, call.receiver)
-            else {
-                return false;
-            };
-            let [self_name, field_name] = receiver.members() else {
-                return false;
-            };
-            if !self_name.is_self_receiver() {
-                return false;
-            }
-            (field_name.clone(), Some(receiver.member_symbol(1)))
-        }
-        crate::semantic_calls::CallSite::TransitionNamed { .. } => return false,
+    let Some((field_name, selected_field)) = provider_attachment_receiver(program, call_site)
+    else {
+        return false;
     };
     let Some(attached_name) = machine.attached_data.as_ref() else {
         return false;

@@ -1167,15 +1167,34 @@ fn retains_multiple_calls_in_a_composed_leaf_beside_a_boundary_leaf() {
 }
 
 #[test]
-fn provider_attachment_specialization_rejects_ambiguous_or_unrouted_fields() {
-    for source in [
+fn provider_attachment_specialization_routes_by_receiver_field_name() {
+    // Two fields over the same boundary are not ambiguous: the `self.<field>`
+    // receiver names the provider each boundary call answers to.
+    let checked = checked_with_service(
         r#"
         pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
         data Main { console: Service<Console>; backup: Service<Console>; }
         machine Main::main(&mut self) reaches Console {
-            self.console.exit_process(0);
+            self.backup.exit_process(0);
         }
         "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "main"))
+        .expect("the receiver-named provider field resolves among same-boundary fields");
+    let [requirement] = plan.provider_attachment_requirements.as_slice() else {
+        panic!("exactly the receiver-named field is claimed");
+    };
+    assert_eq!(requirement.field_identity, "backup");
+}
+
+#[test]
+fn provider_attachment_specialization_rejects_unrouted_fields() {
+    for source in [
+        // A direct boundary call names no `self.<field>` provider receiver.
         r#"
         pub boundary trait Console { machine exit_process(return_code: i32) reaches Console; }
         data Main { console: Service<Console>; }
