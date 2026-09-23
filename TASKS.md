@@ -393,6 +393,18 @@ the complete product bar; focused successes below do not establish that baseline
   asserting wording that `060d737656c` replaced. Keep sweeping; the remaining
   targets are unaudited.
 
+  `no_selection_golden::native_artifacts::retained_native_bytes_and_metadata_match_every_target_golden`
+  is a byte golden whose drift is worth someone CONFIRMING rather than
+  regenerating blind. On linux_x86_64 the recorded and produced rows differ in
+  exactly two fields -- `semantic` 347 -> 355 bytes and `proof` 70 -> 74, each
+  with a new digest -- while every other field is identical, `object_text`,
+  `image`, `final_text`, symbol and relocation counts, text address and
+  fingerprint, inventory and regions included. So the machine code did not
+  move; only the semantic module and its proof section grew, which is what an
+  addition to the operation roster looks like from here. If that is the
+  intended cause the golden should be regenerated with it named; regenerating
+  it without naming the cause spends the only signal this test carries.
+
   Three reds in `module_machine_indices` are BEHAVIOR questions, not wording,
   and are left for their owners:
 
