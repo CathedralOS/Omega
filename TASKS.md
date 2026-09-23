@@ -393,6 +393,24 @@ the complete product bar; focused successes below do not establish that baseline
   `planned_guard` is written for one condition; extending it to N ordered arms
   is the actual task.
 
+  DO NOT take the cheap route, which looks available and is not.
+  `guard_value` already handles a guard with no computation root -- it falls
+  back to `CheckedCallScalarArgument::Pure` and materializes it -- so simply
+  deleting the two refusals makes the fixture lower. Measured, that also makes
+  this lower:
+
+      transition self.x == 2 && (self.y / self.z) == 1 { .. }   // z == 0
+
+  a conjunction whose RIGHT operand divides by zero on the path where the left
+  is false, which short-circuit semantics never evaluate. (Whether the
+  materialized form actually evaluates it eagerly was not verified -- the
+  program needs a receiver the crate harness does not supply -- so this is a
+  hazard flag, not a proven trap. It is enough to say the refusal is
+  load-bearing rather than merely conservative.) A call on the right operand
+  is stopped earlier, at checked local construction, so traps rather than
+  effects are the concern. The decision-tree route preserves short-circuit by
+  construction; eager materialization does not.
+
   `providers/external_leaf_dllimport_compile` is DIAGNOSED and is FAIL-CLOSED
   BY POSTURE rather than broken. Its `satisfies Leaf::exit via leaf_binding()`
   demands a `NormalizedForeign` mechanism, and
