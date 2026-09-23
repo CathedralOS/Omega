@@ -535,6 +535,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   invent that input locally. Preserve the authenticated cyclic freeze unless a
   checked transformation reconstructs the affected evidence.
 
+  Wave evidence (macw8): parked WIP branch `swarm/macw8-rep-specialization`
+  at `9342ca6ee0e` carries unvalidated substitution-of-proven-nonconstant-
+  initializer work (+1312/−129 across `field_value_specialization`,
+  `representation_specialization` and the `case_membership`/`field_value`
+  replay legs); the slot died to a rate-limit kill before validation.
+  Rebase and revalidate before trusting it.
+
   Acceptance: exact-selected source-produced specialization publishes and
   independently replays. Stale/forged field/path/value evidence rejects,
   disabled selection is identity, and unsupported paths, custody and cyclic
@@ -597,6 +604,14 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   measurement. Preserve compile-only proof work as such rather than inventing
   meaningful runtime behavior for an inert entry. A dependency-free subject
   is not inherently restricted to `--no-run`.
+
+  Wave evidence (macw8): parked WIP branch `swarm/macw8-benchmarks` at
+  `a8c9a8d254a` carries one recorded `standalone` linux_x86_64 measurement,
+  authored `build.omg` legs for `prime_counter`/`wrapping_square_sum`/
+  `standalone`, and a scratch macos_x86_64 probe whose package-review output
+  independently witnesses the admission walls recorded in
+  [macos_x64_host_profile](wiki/drafts/measurements/macos_x64_host_profile.md).
+  Unvalidated; the Intel macOS legs remain unmeasured.
 
   Acceptance: use the existing prepare/measure/validate/matrix flow; records
   bind exact subject/compiler revision, authored enabled/disabled selection,

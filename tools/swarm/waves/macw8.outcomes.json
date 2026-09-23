@@ -1,0 +1,83 @@
+{
+    "wave": "macw8",
+    "host": "local",
+    "drained": "2026-09-23",
+    "base_at_launch": "3d3acf2d5c",
+    "slots": [
+        {
+            "slot": "coordinator-host-profile",
+            "item": "MACOS-X64-HOST-PROFILE",
+            "result": "landed",
+            "commits": ["701b3ba1e58"],
+            "item_closed": false,
+            "note": "first Intel-macOS host record: host() resolves macos_x86_64; every macos_x86_64 leg stops in checked compilation at two attributed admission gaps (ConsoleNativeProvider::exit_process row unselected; macos_x86_64::ProgramEntry root slot unbound) — emitted-Mach-O legs recorded as justified skips; capability owner is provider-settlement/boundary-binding"
+        },
+        {
+            "slot": "pcc-ledger",
+            "item": "PCC-CANONICAL-SEMANTIC-LEDGER",
+            "result": "landed",
+            "commits": ["e47e4defd8"],
+            "item_closed": false,
+            "note": "revalidated drifted ExplicitlyTrusted rows (the known_baseline_failures.md digest-drift rows), refreshed 21 stale digests, registered forbidden_roots.rs as an implementation site; ExplicitlyTrusted families remain undischarged; two partial-affine reds confirmed identical on base 3769ffc967"
+        },
+        {
+            "slot": "terminal-authority",
+            "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
+            "result": "landed",
+            "commits": ["e08628f1326"],
+            "item_closed": false,
+            "note": "toolchain-settled replay rejection coverage: changed settled identity and authored UniqueCoveringCandidate substitution reject at replay; get_last_error pins demand-completeness fail-closed at closure review; obsolete diagnosis doc deleted; MissingBoundarySettlement remains the stop for the filesystem leg"
+        },
+        {
+            "slot": "exact-machine",
+            "item": "EXACT-MACHINE-SIMPLIFICATIONS",
+            "result": "dead-no-output",
+            "commits": [],
+            "item_closed": false,
+            "note": "claimed (ticket f4525fad), rate-limit kill before any commit; worktree clean; claim released at drain"
+        },
+        {
+            "slot": "declarative-peepholes",
+            "item": "DECLARATIVE-PEEPHOLES",
+            "result": "dead-no-output",
+            "commits": [],
+            "item_closed": false,
+            "note": "claimed (ticket 65c9669d), rate-limit kill before any commit; worktree clean; claim released at drain"
+        },
+        {
+            "slot": "rep-specialization",
+            "item": "REPRESENTATION-SPECIALIZATION",
+            "result": "wip-parked",
+            "commits": [],
+            "wip_branch": "swarm/macw8-rep-specialization@9342ca6ee0e",
+            "item_closed": false,
+            "note": "unvalidated +1312/−129 substitution-of-proven-nonconstant-initializer work across field_value/representation specialization and replay legs; rate-limit kill mid-work; WIP committed at drain, evidence recorded on board"
+        },
+        {
+            "slot": "benchmarks",
+            "item": "BENCHMARKS",
+            "result": "wip-parked",
+            "commits": [],
+            "wip_branch": "swarm/macw8-benchmarks@a8c9a8d254a",
+            "item_closed": false,
+            "note": "one recorded standalone linux_x86_64 measurement + authored build.omg legs + scratch macos_x86_64 probe corroborating the host-profile admission walls; rate-limit kill mid-work; WIP committed at drain, evidence recorded on board"
+        },
+        {
+            "slot": "owned-self",
+            "item": "OWNED-SELF-RECEIVER-AFFINE-DISCARD",
+            "result": "dead-no-output",
+            "commits": [],
+            "item_closed": false,
+            "note": "layer-1 backfill; claimed (ticket c12e8b8b) then rate-limit kill before any commit; worktree clean; claim released at drain"
+        },
+        {
+            "slot": "generated-codec",
+            "item": "GENERATED-CODEC-INDEPENDENT-VERIFICATION",
+            "result": "dead-no-output",
+            "commits": [],
+            "item_closed": false,
+            "note": "layer-1 backfill; claimed (ticket eb2c08ce) then rate-limit kill before any commit; worktree clean; claim released at drain"
+        }
+    ],
+    "wave_notes": "six concurrent subagents plus coordinator; three landed before a shared-budget rate-limit kill took the remaining six within one window (resets ~31min). Live-claim leases (120min) auto-reaped mid-cycle for some slots; claims evidence showed landings via publish before release. linw5 wave claimed SPILL-REALIZATION/GENERAL-LICM/ALIAS-AWARE-MEMORY/CUSTODY-MUTATION-COVERAGE concurrently, forcing repartition; a second macw8b wave claimed RC-NATIVE-MATRIX-MACOS-ARM64 during the drain window. zergling-z4's psi/pipeline claim narrowed to typed-trees-to-checked-trees mid-wave."
+}

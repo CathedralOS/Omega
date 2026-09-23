@@ -1698,6 +1698,11 @@ syntax and other terminal services are not prerequisites.
     certificate rows (codec marker 34), producer-side bounded search lives in
     `proof-admission::certificate_search`, and the verifier reconstructs
     questions and replays the supplied route without searching.
+  - `e47e4defd8` (macw8) revalidated the drifted `ExplicitlyTrusted` rows
+    tracked in `known_baseline_failures.md`, refreshed 21 stale source
+    digests, and registered `bounded_denotation/forbidden_roots.rs` as an
+    implementation site; the `ExplicitlyTrusted` families themselves remain
+    undischarged.
   - Discharge `ExplicitlyTrusted` reconstruction, normalization, scope,
     invalidation and call/cycle-composition rows with checked evidence and
     exact dependencies. Preserve `PROVED_ENTRIES`, dispatch/fact coverage,
@@ -2917,14 +2922,12 @@ syntax and other terminal services are not prerequisites.
     path/slice adaptation or host-error mechanisms. General provider planning
     is not the missing implementation for this witness.
     Also carry the exact toolchain-settled identity through package review:
-    `packages/review/evidence/src/capture/providers/policy/replay.rs::validate`
-    currently reconstructs these plans as authored candidates and rejects
-    their deliberately invalid realization symbols. See the
-    [source-backed diagnosis](wiki/drafts/designs/toolchain_settled_plan_provenance_replay.md).
-    Validate the settled target/schema/rows; do not exempt ordinary
-    `UniqueCoveringCandidate` plans. Require successful review projection of
-    the accepted Linux plan, plus rejection of changed settlement identity,
-    authored-candidate substitutions and unsupported demanded leaves.
+    `packages/review/evidence/src/capture/providers/policy/replay.rs` now
+    replays minted plans against their settled provenance — the positive
+    replay landed in `d756f86e21`, and `e08628f1326` (macw8) pins rejection
+    of changed settlement identity, authored-candidate substitution and
+    unsupported demanded leaves (`get_last_error` rejects at closure review).
+    Do not exempt ordinary `UniqueCoveringCandidate` plans.
   - Drive console-exit-app, Cathedral native smoke, `cli_mvp` and Squalr through
     ordinary package acceptance to native production without receiver-policy
     input. Coordinate their application owners, preserving existing host
@@ -4485,6 +4488,15 @@ deliverable host runs, not four implementations of the gate.
   failures to their capability owners. This additional platform task is separate
   from the completion contract's four required release hosts and does not depend
   on an Alpha bootstrap seed.
+
+  Wave evidence (macw8): `701b3ba1e58` landed the first host record,
+  [macos_x64_host_profile](wiki/drafts/measurements/macos_x64_host_profile.md).
+  `TargetProfile::host()` resolves `macos_x86_64` and `--target` accepts it;
+  every `macos_x86_64` leg stops in checked compilation at two attributed
+  admission gaps — the authored `ConsoleNativeProvider::exit_process` row is
+  not selected, and `macos_x86_64::ProgramEntry` has no bound required root
+  slot. Emitted-Mach-O entry/exit, receiver and import legs remain justified
+  skips until the provider-settlement/boundary-binding owner delivers.
 
 ## Omega-written compiler (after Rust completion)
 
