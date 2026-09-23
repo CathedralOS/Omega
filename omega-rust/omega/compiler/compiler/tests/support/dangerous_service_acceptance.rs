@@ -41,10 +41,12 @@ impl ConsoleUse {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RequiredDangerousServices {
     /// The selected entry's receiver demands the standard library's
-    /// `FilesystemHost` boundary through a `Binding<FilesystemHost>` field.
+    /// `FilesystemHost` boundary through a `Binding<FilesystemHost>` field,
+    /// directly or inside a nested record such as `Filesystem`.
     pub filesystem: bool,
     /// The selected entry's receiver demands the standard library's
-    /// `TimeHost` boundary through a `Binding<TimeHost>` field.
+    /// `TimeHost` boundary through a `Binding<TimeHost>` field, directly or
+    /// inside a nested record such as `Time`.
     pub time: bool,
     /// The operations the program resolves against the standard library's
     /// selected `Console` provider; `None` when it selected no such provider
@@ -78,8 +80,9 @@ impl RequiredDangerousServices {
 /// at establishment's missing-Fused-provider rejection even on the targets
 /// whose settlement table does realize the slot. Their demand is instead the
 /// selected entry's own `Binding<R>` field requirements — the same surface
-/// consumer package review nominates these bindings from — which is why the
-/// preliminary compile tolerates the still-unsettled fields.
+/// consumer package review nominates these bindings from, walked by the same
+/// nested-record traversal establishment uses — which is why the preliminary
+/// compile tolerates the still-unsettled fields.
 ///
 /// Console and ProcessExit operations are the trait signatures the program's
 /// call statements resolved to — a `Binding<R>` receiver resolves its call

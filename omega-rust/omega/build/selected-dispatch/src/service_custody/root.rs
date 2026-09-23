@@ -1,5 +1,14 @@
-//! Exact establishment custody for direct Fused fields of one selected
-//! `ProgramEntry` receiver.
+//! Exact establishment custody for the Fused fields of one selected
+//! `ProgramEntry` receiver, at whatever nested-record depth they sit.
+//!
+//! One traversal, `collect_service_fields`, decides which receiver fields are
+//! service carriers. Establishment reads it here, and consumer nomination
+//! (package review, the canary harness) reads the same traversal through
+//! `program_entry_service_requirements` before any provider is selected. A
+//! second walk would let the two disagree: a nomination that sees only direct
+//! fields leaves a nested `Binding<R>` (such as `fs: Filesystem` holding
+//! `Binding<FilesystemHost>`) without a selected provider, and establishment
+//! then rejects the entry for the missing Fused selection.
 
 use super::{
     CheckedTrees, CheckedUnitPlanOmissionStage, CheckedUnitStructuralFieldType,
@@ -9,6 +18,52 @@ use super::{
 use checked_trees::{CheckedUnitStructuralFieldPlan, CheckedUnitStructuralTypePlan};
 use typed_trees::service::ExactServiceCarrier;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+
+/// The boundary requirement of every `Binding<R>` carrier on the attached
+/// receiver record of ProgramEntry machine `machine_symbol`, in authored route
+/// order, found by the same nested-record traversal establishment uses.
+///
+/// This is the nomination surface: it runs before provider selection, so it
+/// cannot demand a selected Fused provider. It also leaves invalid carrier
+/// shapes and ambiguous receiver rejoins to establishment, which diagnoses
+/// them; here they contribute no requirement.
+pub fn program_entry_service_requirements(
+    checked: &CheckedTrees,
+    machine_symbol: symbols::SymbolHandle,
+) -> Vec<symbols::SymbolHandle> {
+    let Some(machine) = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+    else {
+        return Vec::new();
+    };
+    let attached_symbol = machine.attached_data_symbol;
+    if !attached_symbol.is_valid() {
+        return Vec::new();
+    }
+    let mut service_fields = Vec::new();
+    let mut invalid_shapes = Vec::new();
+    for owner in checked
+        .data_definitions()
+        .iter()
+        .filter(|definition| definition.symbol == attached_symbol)
+    {
+        collect_service_fields(
+            checked,
+            owner,
+            owner,
+            &mut Vec::new(),
+            &mut service_fields,
+            &mut invalid_shapes,
+        );
+    }
+    service_fields
+        .into_iter()
+        .map(|(_field, carrier, _route)| carrier.requirement)
+        .collect()
+}
+
 pub fn derive_fused_program_entry_establishments(
     checked: &CheckedTrees,
     source: &program_entry_plan::SelectedProgramEntrySourceSignature,
@@ -557,3 +612,6 @@ fn unconstrained_type_identity(
         .normalized_type_identity(type_reference)
         .into_string()
 }
+
+#[cfg(test)]
+mod tests;

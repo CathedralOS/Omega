@@ -8,6 +8,8 @@
 
 mod boundary_dispatch;
 mod compiler_intrinsic;
+#[cfg(test)]
+mod core_service_fixture;
 mod intrinsic_review;
 mod selected_dispatch;
 mod service_custody;
@@ -28,7 +30,8 @@ pub use intrinsic_review::{
 };
 
 pub use service_custody::{
-    derive_fused_program_entry_establishments, validate_fused_service_terminal_custody,
+    derive_fused_program_entry_establishments, program_entry_service_requirements,
+    validate_fused_service_terminal_custody,
 };
 pub use source_edits::SelectedDispatchSourceEdits;
 
