@@ -2,7 +2,7 @@
 
 use proof_admission::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 mod tests;
@@ -57,7 +57,8 @@ pub(in super::super) fn condition_fact(
 /// `condition == Boolean(positive)` — is assumption zero, and the roster
 /// equations the transport can reach are cited as semantic axioms in
 /// newest-first order so the transport's first-match equation discipline
-/// reproduces the walk's `.rev()` lookup. A certificate the checker rejects
+/// reproduces the walk's `.rev()` lookup. The checker receives only those
+/// cited rows (see [`super::CitedRoster`]). A certificate the checker rejects
 /// leaves the emission under `fact:branch-condition`'s licensed premise
 /// introductions rather than failing the module.
 fn transport_certified(
@@ -69,12 +70,28 @@ fn transport_certified(
     context: &PropositionContext,
 ) -> bool {
     let premise = Proposition::Equal(value_term(condition), ScalarTerm::Boolean(positive));
-    let equalities = reachable_axiom_equalities(axioms, [&premise, proposition])
+    let cited = reachable_axiom_equalities(axioms, [&premise, proposition])
         .into_iter()
-        .map(|(index, axiom)| ProofNode {
-            conclusion: axiom.clone(),
-            rule: ProofRule::SemanticAxiom { index },
-        })
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    transport_accepted(&premise, proposition, axioms, &cited, context)
+}
+
+/// Check the fixed-shape transport certificate citing roster rows `cited`
+/// in the given order, against only those rows.
+fn transport_accepted(
+    premise: &Proposition,
+    proposition: &Proposition,
+    axioms: &[Proposition],
+    cited: &[usize],
+    context: &PropositionContext,
+) -> bool {
+    let Some(roster) = super::CitedRoster::new(axioms, cited.iter().copied()) else {
+        return false;
+    };
+    let equalities = cited
+        .iter()
+        .map(|&index| roster.citation(index))
         .collect::<Vec<_>>();
     let certificate = ProofNode {
         conclusion: proposition.clone(),
@@ -89,8 +106,8 @@ fn transport_certified(
     check_certificate(
         context,
         proposition,
-        std::slice::from_ref(&premise),
-        axioms,
+        std::slice::from_ref(premise),
+        &roster.rows,
         &certificate,
     )
     .is_ok()
@@ -98,53 +115,78 @@ fn transport_certified(
 
 /// The `Equal(Value, _)` axiom rows a value-equality transport can consult
 /// for this premise/conclusion pair, in the roster's newest-first order with
-/// the original `SemanticAxiom` indices. A cited equation participates only
-/// when one of its value identities is reachable from the walked terms —
-/// seeded by the premise and conclusion and closed under the cited
-/// equations' own values — so unreachable rows cannot influence the checked
-/// relation and are not cloned into the certificate. A term whose value
-/// identities cannot be completely walked keeps the whole roster cited.
+/// the original `SemanticAxiom` indices.
+///
+/// The transport rewrites a value only through an equation whose left side
+/// is that value, then continues through the substituted right side. A row
+/// is therefore cited when its defined value is reachable: seeded by the
+/// premise's and conclusion's value identities and closed under the right
+/// sides of the rows already cited. Every row defining a reachable value is
+/// cited, not only the newest, so the checker's own first-equation choice is
+/// unchanged; rows whose defined value is unreachable cannot influence the
+/// checked relation and are not cloned into the certificate. Structural field
+/// leaves carry no value identity and are never rewritten.
+///
+/// When no reachable value has a defining row, the transport rewrites
+/// nothing, but the rule still needs one cited equation. The newest row
+/// mentioning a premise or conclusion value then stands in without rewriting
+/// anything; with no such row nothing is cited and the certificate is
+/// rejected.
 fn reachable_axiom_equalities<'a>(
     axioms: &'a [Proposition],
     roots: [&'a Proposition; 2],
 ) -> Vec<(usize, &'a Proposition)> {
-    let roster_row = |(_, axiom): &(usize, &'a Proposition)| matches!(axiom, Proposition::Equal(left @ ScalarTerm::Value { .. }, right) if left != right);
+    let mut definitions = HashMap::<ValueId, Vec<usize>>::new();
+    for (index, axiom) in axioms.iter().enumerate() {
+        if let Proposition::Equal(left @ ScalarTerm::Value { id, .. }, right) = axiom
+            && left != right
+        {
+            definitions.entry(*id).or_default().push(index);
+        }
+    }
     let mut reachable = HashSet::new();
-    let mut complete = roots.iter().all(|proposition| {
-        proposition.visit_value_ids(|id| {
-            reachable.insert(id);
-        })
-    });
+    let mut pending = Vec::new();
+    for root in roots {
+        root.visit_value_ids(|id| {
+            if reachable.insert(id) {
+                pending.push(id);
+            }
+        });
+    }
     let mut cited = vec![false; axioms.len()];
-    let mut extended = true;
-    while complete && extended {
-        extended = false;
-        for (index, axiom) in axioms.iter().enumerate() {
-            if cited[index] || !roster_row(&(index, axiom)) {
-                continue;
-            }
-            let mut touches = false;
-            complete &= axiom.visit_value_ids(|id| {
-                touches |= reachable.contains(&id);
-            });
-            if !complete {
-                break;
-            }
-            if !touches {
+    let mut any_cited = false;
+    while let Some(value) = pending.pop() {
+        for &index in definitions.get(&value).into_iter().flatten() {
+            if cited[index] {
                 continue;
             }
             cited[index] = true;
-            extended = true;
-            axiom.visit_value_ids(|id| {
-                reachable.insert(id);
+            any_cited = true;
+            axioms[index].visit_value_ids(|id| {
+                if reachable.insert(id) {
+                    pending.push(id);
+                }
             });
+        }
+    }
+    if !any_cited {
+        // Nothing was cited, so `reachable` still holds exactly the root
+        // identities.
+        if let Some(index) = definitions
+            .values()
+            .flatten()
+            .copied()
+            .filter(|&index| axioms[index].any_value_id(|id| reachable.contains(&id)))
+            .max()
+        {
+            cited[index] = true;
         }
     }
     axioms
         .iter()
         .enumerate()
         .rev()
-        .filter(|row| (!complete || cited[row.0]) && roster_row(row))
+        .filter(|(index, _)| cited[*index])
         .collect()
 }
 

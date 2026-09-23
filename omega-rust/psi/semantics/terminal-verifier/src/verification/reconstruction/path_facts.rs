@@ -59,21 +59,27 @@ pub(super) fn bind_successor_axioms(
         let equality_count = target_block.parameters.len().min(arguments.len());
         let equality_indices =
             (established.len()..established.len() + equality_count).collect::<Vec<_>>();
-        let mut seen = axioms.iter().enumerate().fold(
-            HashMap::<_, Vec<_>>::new(),
-            |mut seen, (index, axiom)| {
-                seen.entry(fact_cache_fingerprint(axiom))
-                    .or_default()
-                    .push(index);
-                seen
-            },
-        );
+        // Fingerprint the roster only once some fact actually needs a
+        // duplicate check; an edge whose arguments no fact mentions pays
+        // nothing for the whole roster.
+        let mut seen = None::<HashMap<u64, Vec<usize>>>;
         for (index, proposition) in established.iter().enumerate() {
             if !proposition_mentions_substituted_value(proposition, &substitutions) {
                 continue;
             }
             let rewritten = substitute_proposition_values(proposition, &substitutions);
             let fingerprint = fact_cache_fingerprint(&rewritten);
+            let seen = seen.get_or_insert_with(|| {
+                axioms.iter().enumerate().fold(
+                    HashMap::<_, Vec<_>>::new(),
+                    |mut seen, (index, axiom)| {
+                        seen.entry(fact_cache_fingerprint(axiom))
+                            .or_default()
+                            .push(index);
+                        seen
+                    },
+                )
+            });
             let duplicate = seen
                 .get(&fingerprint)
                 .is_some_and(|indices| indices.iter().any(|index| axioms[*index] == rewritten));
@@ -196,6 +202,48 @@ pub(super) fn append_successor_fact(
     };
     axioms.push(rewritten);
     vec![fact]
+}
+
+/// The roster rows a fixed-shape transport certificate cites, as their own
+/// roster in original order.
+///
+/// Both transport certificates cite only `SemanticAxiom` rows and the
+/// `ValueEqualityTransport` relation consults only its cited equations, so
+/// checking one against the cited rows re-decides the same derivation from a
+/// subset of the premises the full roster offers. Handing the checker the
+/// whole roster instead re-validates and re-denotes every uncited row for each
+/// emitted fact, which grows with the roster rather than the certificate.
+struct CitedRoster {
+    rows: Vec<Proposition>,
+    positions: BTreeMap<usize, usize>,
+}
+
+impl CitedRoster {
+    /// `None` when a cited index is outside the roster.
+    fn new(axioms: &[Proposition], cited: impl IntoIterator<Item = usize>) -> Option<Self> {
+        let mut indices = cited.into_iter().collect::<Vec<_>>();
+        indices.sort_unstable();
+        indices.dedup();
+        let rows = indices
+            .iter()
+            .map(|&index| axioms.get(index).cloned())
+            .collect::<Option<Vec<_>>>()?;
+        let positions = indices
+            .into_iter()
+            .enumerate()
+            .map(|(position, index)| (index, position))
+            .collect();
+        Some(Self { rows, positions })
+    }
+
+    /// The certificate citation of original roster row `index`.
+    fn citation(&self, index: usize) -> proof_admission::ProofNode {
+        let position = self.positions[&index];
+        proof_admission::ProofNode {
+            conclusion: self.rows[position].clone(),
+            rule: proof_admission::ProofRule::SemanticAxiom { index: position },
+        }
+    }
 }
 
 fn append_discrete_fact(propositions: &mut Vec<Proposition>, proposition: &Proposition) {

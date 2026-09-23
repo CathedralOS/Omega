@@ -45,7 +45,8 @@ pub(in super::super) struct RewrittenSuccessorFact {
 /// `equality_indices` name this successor's binding equalities in the same
 /// roster. A stale index, an empty equality list, or a rejected certificate
 /// yields `false`: the emission is correct either way and simply keeps its
-/// licensed-introduction classification.
+/// licensed-introduction classification. The checker receives only the cited
+/// rows (see [`super::CitedRoster`]).
 pub(in super::super) fn successor_rewrite_certified(
     context: &PropositionContext,
     axioms: &[Proposition],
@@ -53,35 +54,22 @@ pub(in super::super) fn successor_rewrite_certified(
     equality_indices: &[usize],
     rewritten: &Proposition,
 ) -> bool {
-    let Some(source) = axioms.get(source_index) else {
-        return false;
-    };
     if equality_indices.is_empty() {
         return false;
     }
-    let equalities = equality_indices
-        .iter()
-        .map(|&index| {
-            axioms.get(index).map(|conclusion| ProofNode {
-                conclusion: conclusion.clone(),
-                rule: ProofRule::SemanticAxiom { index },
-            })
-        })
-        .collect::<Option<Vec<_>>>();
-    let Some(equalities) = equalities else {
+    let cited = equality_indices.iter().copied().chain([source_index]);
+    let Some(roster) = super::CitedRoster::new(axioms, cited) else {
         return false;
     };
     let certificate = ProofNode {
         conclusion: rewritten.clone(),
         rule: ProofRule::ValueEqualityTransport {
-            premise: Box::new(ProofNode {
-                conclusion: source.clone(),
-                rule: ProofRule::SemanticAxiom {
-                    index: source_index,
-                },
-            }),
-            equalities,
+            premise: Box::new(roster.citation(source_index)),
+            equalities: equality_indices
+                .iter()
+                .map(|&index| roster.citation(index))
+                .collect(),
         },
     };
-    check_certificate(context, rewritten, &[], axioms, &certificate).is_ok()
+    check_certificate(context, rewritten, &[], &roster.rows, &certificate).is_ok()
 }

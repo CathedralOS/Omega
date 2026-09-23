@@ -220,3 +220,78 @@ fn classification_carries_proposition_and_certification() {
     assert_eq!(fact.proposition, proposition);
     assert!(!fact.certified);
 }
+
+/// Handing the checker only the cited source fact and binding equalities
+/// decides each rewrite exactly as the complete roster did: unrelated rows
+/// before, between and after the cited ones change neither acceptance nor
+/// rejection, and the source may follow or coincide with the equalities.
+#[test]
+fn cited_rows_decide_like_the_complete_roster() {
+    let scalar_type = ScalarType::Boolean;
+    let equal = |left: u64, right: u64| {
+        Proposition::Equal(value(left, scalar_type), value(right, scalar_type))
+    };
+    let truth = |id: u64| Proposition::Equal(value(id, scalar_type), ScalarTerm::Boolean(true));
+    let axioms = vec![
+        equal(8, 9),
+        truth(1),
+        truth(7),
+        equal(2, 1),
+        equal(6, 5),
+        equal(3, 1),
+        Proposition::Equal(value(4, scalar_type), value(1, scalar_type)),
+        equal(9, 8),
+    ];
+    let proposition_context = context(&(1..=9).map(|id| (id, scalar_type)).collect::<Vec<_>>());
+    let full_roster = |source: usize, equalities: &[usize], rewritten: &Proposition| {
+        let citation = |index: usize| proof_admission::ProofNode {
+            conclusion: axioms[index].clone(),
+            rule: proof_admission::ProofRule::SemanticAxiom { index },
+        };
+        let certificate = proof_admission::ProofNode {
+            conclusion: rewritten.clone(),
+            rule: proof_admission::ProofRule::ValueEqualityTransport {
+                premise: Box::new(citation(source)),
+                equalities: equalities.iter().map(|&index| citation(index)).collect(),
+            },
+        };
+        proof_admission::check_certificate(
+            &proposition_context,
+            rewritten,
+            &[],
+            &axioms,
+            &certificate,
+        )
+        .is_ok()
+    };
+    let cases: [(usize, &[usize], Proposition); 8] = [
+        (1, &[3], truth(2)),
+        (1, &[3, 5], truth(3)),
+        (1, &[5, 3], truth(2)),
+        (1, &[3], truth(3)),
+        (2, &[3], truth(2)),
+        (6, &[3], equal(4, 2)),
+        (3, &[3], equal(2, 2)),
+        (7, &[0], equal(8, 8)),
+    ];
+    let mut accepted = 0;
+    for (source, equalities, rewritten) in &cases {
+        let expected = full_roster(*source, equalities, rewritten);
+        assert_eq!(
+            successor_rewrite_certified(
+                &proposition_context,
+                &axioms,
+                *source,
+                equalities,
+                rewritten
+            ),
+            expected,
+            "source {source}, equalities {equalities:?}, rewritten {rewritten:?}"
+        );
+        accepted += usize::from(expected);
+    }
+    assert!(
+        accepted > 0 && accepted < cases.len(),
+        "{accepted} accepted"
+    );
+}
