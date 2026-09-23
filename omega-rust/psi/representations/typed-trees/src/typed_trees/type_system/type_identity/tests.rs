@@ -749,6 +749,8 @@ fn package_qualified_open_index_authority_qualifies_every_nominal_symbol() {
                 provider: SymbolHandle::invalid(),
                 algebra_trait: SymbolHandle::invalid(),
                 algebra_requirement: "add".to_owned(),
+                commutativity_licensed: true,
+                associativity_licensed: true,
                 algebra_alias: Some("Canonical".to_owned()),
             }],
             normalizer_version: 1,
@@ -1055,6 +1057,8 @@ fn licensed_open_index_identity_flattens_and_sorts_exact_ac_operation() {
                 provider: SymbolHandle::from_arena_index(72),
                 algebra_trait: SymbolHandle::from_arena_index(73),
                 algebra_requirement: "add".to_owned(),
+                commutativity_licensed: true,
+                associativity_licensed: true,
                 algebra_alias: Some("Canonical".to_owned()),
             })
             .collect();
@@ -1098,6 +1102,122 @@ fn licensed_open_index_identity_flattens_and_sorts_exact_ac_operation() {
     assert_ne!(
         program.normalized_type_identity(left_associated),
         program.normalized_type_identity(different_authority)
+    );
+}
+
+/// Each rewrite consumes its own law and one never implies the other
+/// (`wiki/spec/proofs/contracts.md#licensed-normalization`). Every case below
+/// checks both directions: the rewrite whose law the selection records must
+/// fire, and the rewrite whose law it does not record must not.
+#[test]
+fn open_index_identity_consumes_only_the_laws_the_selection_records() {
+    fn name(value: &str) -> Expression {
+        Expression::Name(NamePath::unresolved_from_iter([Identifier::generated(
+            value,
+        )]))
+    }
+    fn add(left: Expression, right: Expression) -> Expression {
+        Expression::Binary(Box::new(BinaryExpression {
+            left,
+            operator: BinaryOperator::Add,
+            right,
+        }))
+    }
+    fn binary_nodes(
+        program: &TypedTrees,
+        expression: ExpressionHandle,
+        output: &mut Vec<ExpressionHandle>,
+    ) {
+        let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+            return;
+        };
+        output.push(expression);
+        binary_nodes(program, binary.left, output);
+        binary_nodes(program, binary.right, output);
+    }
+    /// Inserts one authored shape and licenses every operation in it under one
+    /// algebra recording exactly `(commutativity, associativity)`.
+    fn identity(
+        authored: &Expression,
+        commutativity_licensed: bool,
+        associativity_licensed: bool,
+    ) -> String {
+        let mut program = TypedTrees::default();
+        let expression = program.expression_table.insert_tree(authored);
+        let mut nodes = Vec::new();
+        binary_nodes(&program, expression, &mut nodes);
+        let operations = nodes
+            .into_iter()
+            .map(|expression| OpenIndexOperationSelection {
+                expression,
+                spelling: OperatorSpelling::Add,
+                operator: SymbolHandle::from_arena_index(71),
+                operation_contract_identity: "IndexAlgebra::plus".to_owned(),
+                provider: SymbolHandle::from_arena_index(72),
+                algebra_trait: SymbolHandle::from_arena_index(73),
+                algebra_requirement: "add".to_owned(),
+                algebra_alias: Some("Canonical".to_owned()),
+                commutativity_licensed,
+                associativity_licensed,
+            })
+            .collect();
+        program
+            .open_index_normalizations
+            .push(OpenIndexNormalization {
+                expression,
+                index_type: arena::Handle::invalid(),
+                operations,
+                normalizer_version: 2,
+            });
+        let reference = program
+            .type_reference_table
+            .insert(TypeReferenceNode::ConstExpression(expression));
+        program.normalized_type_identity(reference).into_string()
+    }
+
+    let reordered = add(name("B"), name("A"));
+    let authored = add(name("A"), name("B"));
+    let left_associated = add(add(name("A"), name("B")), name("C"));
+    let right_associated = add(name("A"), add(name("B"), name("C")));
+
+    // Commutativity alone: operands sort, the chain keeps its shape.
+    assert_eq!(
+        identity(&reordered, true, false),
+        identity(&authored, true, false)
+    );
+    assert_ne!(
+        identity(&left_associated, true, false),
+        identity(&right_associated, true, false)
+    );
+
+    // Associativity alone: the chain flattens, operands keep their order.
+    assert_eq!(
+        identity(&left_associated, false, true),
+        identity(&right_associated, false, true)
+    );
+    assert_ne!(
+        identity(&reordered, false, true),
+        identity(&authored, false, true)
+    );
+
+    // Both: one flat, sorted form.
+    assert_eq!(
+        identity(&left_associated, true, true),
+        identity(&right_associated, true, true)
+    );
+    assert_eq!(
+        identity(&add(name("C"), add(name("B"), name("A"))), true, true),
+        identity(&left_associated, true, true)
+    );
+
+    // Neither: the structural identity the unlicensed path already produced.
+    assert_ne!(
+        identity(&reordered, false, false),
+        identity(&authored, false, false)
+    );
+    assert_ne!(
+        identity(&left_associated, false, false),
+        identity(&right_associated, false, false)
     );
 }
 

@@ -9,7 +9,7 @@ use crate::typed_trees::type_system::type_identity::constraint_identity::{
     normalize_constrained_base, normalized_constraints,
 };
 use crate::typed_trees::type_system::type_identity::open_index_identity::{
-    collect_licensed_ac_operands, index_binary_operator_name, open_index_algebra_identity,
+    collect_open_index_operands, index_binary_operator_name, open_index_algebra_identity,
     open_index_operation_identity, open_index_operation_selection,
 };
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
@@ -306,24 +306,13 @@ pub(crate) fn normalize_index_expression(
                     ],
                 );
             };
-            let mut operands = Vec::new();
-            collect_licensed_ac_operands(
+            let operands = collect_open_index_operands(
                 program,
-                binary.left,
+                expression,
                 binary.operator,
                 selection,
                 context,
-                &mut operands,
             );
-            collect_licensed_ac_operands(
-                program,
-                binary.right,
-                binary.operator,
-                selection,
-                context,
-                &mut operands,
-            );
-            operands.sort();
             compound(
                 index_binary_operator_name(binary.operator),
                 std::iter::once(atom(
