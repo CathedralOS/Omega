@@ -476,6 +476,12 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   DECLARATIVE-PEEPHOLES owns general nomination of retired literal folds and
   left-zero compare refinement; ALIAS-AWARE-MEMORY owns memory rewrites.
 
+  Wave evidence (macw8): parked WIP branch `swarm/macw8-exact-machine` at
+  `5b48da98e6a` promotes `unexecuted/address_fold` into an executed family
+  (`rewrites/address_fold{,.rs}` — staged renames plus admission, catalog
+  and lib wiring, +79/−21); the slot died to a rate-limit kill before
+  validation. Rebase and revalidate before trusting it.
+
   Acceptance: source-produced programs select each retained rule by exact name,
   execute on a supported host, and independently replay after publication.
   Empty/disabled selections reproduce identity output. Include a valid window

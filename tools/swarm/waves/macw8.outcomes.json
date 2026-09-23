@@ -31,10 +31,11 @@
         {
             "slot": "exact-machine",
             "item": "EXACT-MACHINE-SIMPLIFICATIONS",
-            "result": "dead-no-output",
+            "result": "wip-parked",
             "commits": [],
+            "wip_branch": "swarm/macw8-exact-machine@5b48da98e6a",
             "item_closed": false,
-            "note": "claimed (ticket f4525fad), rate-limit kill before any commit; worktree clean; claim released at drain"
+            "note": "promoted unexecuted/address_fold to an executed rewrite family (staged renames + admission/catalog/lib wiring, +79/−21); rate-limit kill before validation; WIP committed at drain, evidence recorded on board; claim released"
         },
         {
             "slot": "declarative-peepholes",
