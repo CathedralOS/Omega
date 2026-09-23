@@ -13,10 +13,11 @@ use super::super::super::{
     OptimizedProgramStorageSemanticWrapperObjectManifest,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
 };
-use super::super::{child, composed, encoding};
-use crate::optimized_semantic_wrapper_object::custody::custody;
-use crate::optimized_semantic_wrapper_object::encode_optimized_program_storage_semantic_wrapper_object;
-use crate::optimized_semantic_wrapper_object::object::{compose_object, construct_manifest};
+use super::super::custody;
+use super::super::{child, composed, template};
+use crate::semantic_wrapper_object::compose_optimized_program_storage_semantic_wrapper_object;
+use crate::semantic_wrapper_object::encode_optimized_program_storage_semantic_wrapper_object;
+use crate::semantic_wrapper_object::manifest::construct_manifest;
 use object_file::{
     ObjectLocalSymbolId, RelocationFreeFunctionSymbol, RelocationFreeObjectPlan,
     RelocationFreeObjectSymbolLinkage, RelocationFreeObjectSymbolRole,
@@ -34,13 +35,13 @@ use semantic_vocabulary::MachineId;
 pub(super) fn recompose(
     child: &RelocationFreeObjectPlan,
 ) -> OptimizedProgramStorageSemanticWrapperObjectPlan {
-    compose_object(
+    compose_optimized_program_storage_semantic_wrapper_object(
         [5; 32],
         OptimizedObjectArtifactIdentity::from_canonical_bytes(b"artifact"),
         OptimizedObjectArtifactManifestIdentity::from_canonical_bytes(b"manifest"),
         RelocationFreeObjectContainerIdentity::from_canonical_bytes(b"container"),
         child,
-        &encoding(),
+        &template(),
     )
     .unwrap()
 }
@@ -78,8 +79,7 @@ fn parts(
     OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
 ) {
     let container =
-        encode_optimized_program_storage_semantic_wrapper_object(&object, encoding().template())
-            .unwrap();
+        encode_optimized_program_storage_semantic_wrapper_object(&object, &template()).unwrap();
     let manifest = construct_manifest(&object, &container).unwrap();
     let receipt = custody(&object, &container, &manifest);
     (object, container, manifest, receipt)

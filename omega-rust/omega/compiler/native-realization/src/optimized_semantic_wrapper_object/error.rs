@@ -2,6 +2,7 @@ use crate::{
     NativeProgramEntrySettlementError, OptimizedProgramStorageSemanticWrapperEncodingError,
 };
 use isa_x86_64::X86_64SemanticUnitWrapperResolutionError;
+use native_artifact::OptimizedProgramStorageSemanticWrapperObjectRecordError;
 use object_file::OptimizedObjectArtifactError;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +36,23 @@ impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectError {
 
 impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectError {}
 
+/// Record operations fail with the same-named stage variant, so a failure
+/// reads identically whether the record owner or the stage raised it.
+impl From<OptimizedProgramStorageSemanticWrapperObjectRecordError>
+    for OptimizedProgramStorageSemanticWrapperObjectError
+{
+    fn from(error: OptimizedProgramStorageSemanticWrapperObjectRecordError) -> Self {
+        use OptimizedProgramStorageSemanticWrapperObjectRecordError as Record;
+        match error {
+            Record::LengthOverflow => Self::LengthOverflow,
+            Record::InvalidObject => Self::InvalidObject,
+            Record::ManifestMismatch => Self::ManifestMismatch,
+            Record::SourceObjectMismatch => Self::SourceObjectMismatch,
+            Record::WrapperResolution(error) => Self::WrapperResolution(error),
+        }
+    }
+}
+
 /// Diagnostic-only replay failures for the installed, claim-consuming
 /// ProgramStorage continuation. Validation of detached clones grants no object
 /// or wrapper authority; the owning wrapper stage reruns this same check over
@@ -64,31 +82,3 @@ impl std::fmt::Display for InstalledProgramStorageContinuationEvidenceError {
 }
 
 impl std::error::Error for InstalledProgramStorageContinuationEvidenceError {}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OptimizedProgramStorageSemanticWrapperObjectDecodeError {
-    Truncated,
-    WrongMagic,
-    UnsupportedVersion(u32),
-    InvalidUtf8,
-    InvalidLength,
-    InvalidSymbol,
-    InvalidMachine,
-    InvalidVocabulary,
-    InvalidTarget,
-    UnknownTag,
-    IdentityMismatch,
-    InvalidObject,
-    TrailingBytes,
-}
-
-impl std::fmt::Display for OptimizedProgramStorageSemanticWrapperObjectDecodeError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            formatter,
-            "invalid optimized ProgramStorage wrapper object encoding: {self:?}"
-        )
-    }
-}
-
-impl std::error::Error for OptimizedProgramStorageSemanticWrapperObjectDecodeError {}

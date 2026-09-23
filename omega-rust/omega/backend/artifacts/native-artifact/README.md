@@ -24,7 +24,14 @@ Follow its subordinate owners for:
 
 [callable_entry.rs](src/callable_entry.rs) is the separate entrance for staging
 and replaying optimized ordinary callable entries. Its model, reconstruction,
-and codec live under `callable_entry/`. Follow
+and codec live under `callable_entry/`.
+[semantic_wrapper_object.rs](src/semantic_wrapper_object.rs) declares the
+durable records of the optimized ProgramStorage semantic-wrapper object: plan,
+container, manifest, and custody receipt. Its composition, shape and template
+validation, manifest replay, and codec live under `semantic_wrapper_object/`.
+The native-realization stage that binds these records to settlement and
+encoding custody stays in
+[native-realization](../../../compiler/native-realization/src/optimized_semantic_wrapper_object/mod.rs). Follow
 [physical/derivation.rs](src/physical/derivation.rs) for independent physical
 evidence reconstruction and [physical/mod.rs](src/physical/mod.rs) for its
 retained carriers.

@@ -1,10 +1,12 @@
 //! Optimizer module role: executable entrance.
 
-use crate::optimized_semantic_wrapper_object::model::{
-    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
-    StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
-};
+use super::StagedValidatedOptimizedProgramStorageSemanticWrapperObject;
 use crate::validate_optimized_program_storage_semantic_wrapper_encoding;
+use native_artifact::{
+    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+    decode_optimized_program_storage_semantic_wrapper_object,
+    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
+};
 use object_file::validate_optimized_object_artifact;
 mod entry_contract;
 mod provider_continuation;
@@ -16,13 +18,8 @@ pub(crate) use entry_contract::{
 pub use provider_continuation::validate_installed_program_storage_continuation_evidence;
 pub(crate) use provider_continuation::validate_retained_installed_provider_continuation;
 
-use super::codec::{
-    decode_optimized_program_storage_semantic_wrapper_object,
-    encode_optimized_program_storage_semantic_wrapper_object_preserving_seal,
-};
-use super::custody::custody;
 use super::error::OptimizedProgramStorageSemanticWrapperObjectError;
-use super::object::{construct_object, validate_manifest, validate_object_preserving_seal};
+use super::object::construct_object;
 
 pub fn validate_optimized_program_storage_semantic_wrapper_object(
     staged: &StagedValidatedOptimizedProgramStorageSemanticWrapperObject,
@@ -44,7 +41,9 @@ pub fn validate_optimized_program_storage_semantic_wrapper_object(
     // the `!= expected` join below rejects any stale seal against the freshly
     // recomposed plan with the same `InvalidObject` — so the shape and
     // template checks run without reserializing the identity.
-    validate_object_preserving_seal(&staged.object, staged.encoding.template())?;
+    staged
+        .object
+        .validate_preserving_seal(staged.encoding.template())?;
     if staged.object != expected {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::InvalidObject);
     }
@@ -59,9 +58,12 @@ pub fn validate_optimized_program_storage_semantic_wrapper_object(
     if decoded != expected || staged.container != container {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::ContainerMismatch);
     }
-    validate_manifest(&expected, &container, &staged.manifest.record)?;
-    let manifest = staged.manifest.record.clone();
-    let expected_custody = custody(&expected, &container, &manifest);
+    staged.manifest.replay(&expected, &container)?;
+    let expected_custody = OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt::from_records(
+        &expected,
+        &container,
+        staged.manifest.record(),
+    );
     if staged.custody != expected_custody {
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::ReceiptMismatch);
     }

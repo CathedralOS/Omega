@@ -18,8 +18,8 @@ use super::super::{
 };
 use super::fixture::staged_parts;
 use super::wire_offsets::wire_offsets;
-use crate::optimized_semantic_wrapper_object::codec::encode_plan_content;
-use crate::optimized_semantic_wrapper_object::model::{CODEC_VERSION, CONTAINER_MAGIC};
+use crate::semantic_wrapper_object::codec::encode_plan_content;
+use crate::semantic_wrapper_object::{CODEC_VERSION, CONTAINER_MAGIC};
 
 fn assert_decode_error(
     baseline: &[u8],

@@ -1,8 +1,11 @@
-use crate::optimized_semantic_wrapper_object::error::OptimizedProgramStorageSemanticWrapperObjectError;
-use crate::optimized_semantic_wrapper_object::model::{
+//! Manifest derivation from one plan/container pair, its closed-shape check,
+//! and the replay join that re-derives and round-trips a retained manifest.
+
+use super::{
     OptimizedProgramStorageSemanticWrapperObjectContainer,
     OptimizedProgramStorageSemanticWrapperObjectManifest,
     OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
     OptimizedProgramStorageSemanticWrapperObjectStage,
     OptimizedProgramStorageSemanticWrapperObjectUnavailableData,
 };
@@ -10,12 +13,12 @@ use isa_x86_64::X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT;
 use optimization_core::OptimizedProgramStorageSemanticWrapperObjectManifestIdentity;
 use target::NativeTarget;
 
-pub(crate) fn construct_manifest(
+pub(super) fn construct_manifest(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
     container: &OptimizedProgramStorageSemanticWrapperObjectContainer,
 ) -> Result<
     OptimizedProgramStorageSemanticWrapperObjectManifest,
-    OptimizedProgramStorageSemanticWrapperObjectError,
+    OptimizedProgramStorageSemanticWrapperObjectRecordError,
 > {
     let unavailable = OptimizedProgramStorageSemanticWrapperObjectUnavailableData::Unavailable;
     let mut manifest = OptimizedProgramStorageSemanticWrapperObjectManifest {
@@ -37,9 +40,9 @@ pub(crate) fn construct_manifest(
         wrapper_symbol: object.wrapper_symbol,
         continuation_symbol: object.continuation_symbol,
         text_byte_count: u64::try_from(object.text_bytes.len())
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?,
+            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::LengthOverflow)?,
         symbol_count: u64::try_from(object.symbols.len())
-            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::LengthOverflow)?,
+            .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::LengthOverflow)?,
         relocation_record_count: object.relocation_record_count,
         physical_entry_bridge: unavailable,
         executable_image: unavailable,
@@ -48,26 +51,26 @@ pub(crate) fn construct_manifest(
     };
     manifest.identity = manifest.recomputed_identity();
     if !valid_manifest_shape(&manifest) {
-        return Err(OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch);
+        return Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch);
     }
     Ok(manifest)
 }
 
-pub(crate) fn validate_manifest(
+pub(super) fn validate_manifest(
     object: &OptimizedProgramStorageSemanticWrapperObjectPlan,
     container: &OptimizedProgramStorageSemanticWrapperObjectContainer,
     manifest: &OptimizedProgramStorageSemanticWrapperObjectManifest,
-) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectRecordError> {
     let decoded = OptimizedProgramStorageSemanticWrapperObjectManifest::decode(&manifest.encode())
-        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch)?;
+        .map_err(|_| OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch)?;
     let expected = construct_manifest(object, container)?;
     if decoded != *manifest || *manifest != expected {
-        return Err(OptimizedProgramStorageSemanticWrapperObjectError::ManifestMismatch);
+        return Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch);
     }
     Ok(())
 }
 
-pub(crate) fn valid_manifest_shape(
+pub(super) fn valid_manifest_shape(
     manifest: &OptimizedProgramStorageSemanticWrapperObjectManifest,
 ) -> bool {
     manifest.stage
