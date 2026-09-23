@@ -2898,7 +2898,14 @@ syntax and other terminal services are not prerequisites.
   [evaluation order](wiki/spec/language/expressions.md#evaluation-schedule)
   and [argument/result custody](wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering).
   Retain exact producer, parameter position, result owner and loan activation;
-  **CML4** owns residual cleanup.
+  **CML4** owns residual cleanup. Measured at `117f2abc9c` on Windows x86-64
+  by `tools/progress.py`: 85 pass fixtures, 43% of the umbrella's failures,
+  omit their Unit plan at six construction sites — record-literal field store
+  21, structural call binding to a local 20, attached-data-shape state
+  parameter 16, call operation 10, pure scalar initializer 4, call-source
+  assignment 2 — and two of them fail identically for a Linux target, so the
+  class is not host-specific. Each site is a recognizer for the arrangements
+  earlier fixtures needed; the histogram is the size of the gate below.
 
   Remaining work:
 

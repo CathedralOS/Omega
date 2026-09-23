@@ -62,16 +62,29 @@ diagnostic, five families own 83% of them:
 | 17 | 9% | `native-artifact production requires one exact selected program entry` | corpus: the fixture carries no `build.omg` entry binding |
 | 15 | 8% | `ProgramEntry Service field requires a selected Fused provider` | corpus: the fixture selects no provider |
 
-The first family is one gap, not eighty-five. The Unit builder admits a
-structural field store only for a fixed set of source shapes
-(`structural_scalar_store/mod.rs`); a floating computation, a payloadless sum
-case, a string literal, an indexed byte store or a call result stored into a
-field is refused, and ProgramEntry then cannot establish. The 85 fixtures
-spread over `recast` (22), `float` (14), `filesystem` (12) and `calls` (9)
-because those groups store such values. Compiling two of them for a Linux
-target fails identically, so the class is not host-specific. It is the "one
-statement shape per slice" gate the product-compiler board item already
-flags; this is its size.
+The first family is one mechanism at six sites, not eighty-five gaps. The
+Unit builder constructs a machine's plan site by site, and each site admits a
+fixed set of source shapes; when a statement's shape is outside its site's
+set, the plan is omitted and ProgramEntry cannot establish. The diagnostic
+names the site:
+
+| Fixtures | Omitted at |
+| --- | --- |
+| 21 | structural field store: record literal field |
+| 20 | statement sequence: local data: structural call binding |
+| 16 | state graph: state signature: parameter signature: attached data shape |
+| 10 | statement sequence: call: call operation |
+| 4 | statement sequence: local data: scalar local: pure initializer |
+| 2 | statement sequence: assignment: call source result type |
+
+The field-store site (`structural_scalar_store/mod.rs`) refuses a floating
+computation, a payloadless sum case, a string literal, an indexed byte store
+or a call result stored into a field; `float` (9) and `recast` (5) hit it
+most. Compiling two of the 85 for a Linux target fails identically, so the
+class is not host-specific. Each site is a recognizer for the arrangements a
+prior fixture happened to need, where ordinary statement sequencing would
+admit them all; the product-compiler board item already flags the gate as
+advancing one statement shape per slice, and this is its measured size.
 
 Families four and five are fixture plumbing rather than compiler capability:
 32 fixtures that would be measured natively if they carried an entry binding
