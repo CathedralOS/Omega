@@ -380,7 +380,10 @@ pub(super) fn natural_component_geometry(
                 schedule,
                 memoized_machines,
                 active_machines,
-            )?,
+            )
+            .map_err(|error| {
+                member_closure_error(machine, block.id, &member_of, components, error)
+            })?,
         );
         visit_units_crashed.insert(
             block.id,
@@ -393,7 +396,10 @@ pub(super) fn natural_component_geometry(
                 schedule,
                 memoized_machines,
                 active_machines,
-            )?,
+            )
+            .map_err(|error| {
+                member_closure_error(machine, block.id, &member_of, components, error)
+            })?,
         );
     }
     let blocks: BTreeMap<BlockId, &terminal_psi::Block> = machine
@@ -1393,6 +1399,39 @@ pub(super) fn block_return_visit_units(
             .ok_or(FixedFuelError::BoundOverflow)?;
     }
     Ok(Some(units))
+}
+
+/// Closure failures on a component member name the verifier-derived
+/// component identity and a directed cause — the responsible edge plus its
+/// cyclic component — instead of a flat operation report. An open
+/// descriptor-table callee (`InvocationBoundCallee`) becomes
+/// `OpenCalleeSet`; every other error already names its own obstruction or
+/// marks malformed input, and passes through unchanged. Blocks outside every
+/// component keep the flat error — no component exists to cite.
+fn member_closure_error(
+    machine: &TerminalMachine,
+    block: BlockId,
+    member_of: &BTreeMap<BlockId, usize>,
+    components: &[TerminalNaturalCycle],
+    error: FixedFuelError,
+) -> FixedFuelError {
+    let Some(&index) = member_of.get(&block) else {
+        return error;
+    };
+    match error {
+        FixedFuelError::InvocationBoundCallee { operation, .. } => {
+            let members: Vec<BlockId> = components[index]
+                .ranks
+                .iter()
+                .map(|rank| rank.block)
+                .collect();
+            FixedFuelError::UnboundedCycleComponent {
+                component: terminal_verifier::cyclic_component_identity(machine, &members),
+                cause: UnboundedCycleCause::OpenCalleeSet { operation },
+            }
+        }
+        other => other,
+    }
 }
 
 /// Directed absence-of-bound report for the cyclic component an acyclic
