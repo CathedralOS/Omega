@@ -1,3 +1,10 @@
+//! Source-bound expressions prepared for emission.
+//!
+//! A checked scalar or boolean expression is turned into the bindings,
+//! computation graph, qualifications and source custody an emitted body needs,
+//! before `crate::emission` writes the operations. Every plan family above
+//! reaches through here rather than reading checked expressions directly.
+
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::types::PrimitiveType;
