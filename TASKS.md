@@ -3137,9 +3137,26 @@ syntax and other terminal services are not prerequisites.
     Only that arm was added -- member and indexed spellings still fall through,
     since an interior reference load needs its own load evidence.
 
-    Still open on this bullet: contextual-case and named-state composition, and
-    the acceptance's full source-checking witnesses (coverage above stops at
-    typed-tree frame inference).
+    Still open on this bullet, with the next shape measured. A codec argument
+    spelled as a DIRECT match --
+    `Blob::encode(.., match self.tag { 0 -> &mut self.value, _ -> &mut self.other })`
+    -- still resolves opaque, because only the `Call` arm was delegated and a
+    `Match` argument falls through. `exclusive_reference_origins` already has a
+    `Match` arm that unions its arms, so delegating it is one line; the reason
+    it was NOT done here is that its recursion also reaches Member/Indexed
+    through `carried_reference_origin`/`projected_carrier_reference_origins`,
+    which would let an interior reference load in through a match arm while a
+    direct member spelling still falls through. Settle that first: either those
+    resolvers ARE the "own load evidence" this row demands, in which case the
+    codec leaf's blanket member/indexed exclusion is the stub to remove, or
+    they are not, in which case the delegation needs to exclude them by
+    construction rather than by which arm reached them. Nested helper hops are
+    confirmed working (`hold(hold(cursor))`), so the delegation is recursive
+    rather than one-deep.
+
+    Also still open: named-state composition, and the acceptance's full
+    source-checking witnesses (coverage above stops at typed-tree frame
+    inference).
     Add full source-checking witnesses where coverage stops at typed-tree frame
     inference; retain conservative rejection at reference boundaries lacking
     independent origin/load evidence and unsupported recursive result routes.
