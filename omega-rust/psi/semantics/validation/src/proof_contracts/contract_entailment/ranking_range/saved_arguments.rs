@@ -82,12 +82,12 @@ pub(super) fn install(
             &[local.initial_value],
         );
         bind_local_lengths(program, machine, state, local.initial_value, engine);
-        // The saved initializer may carry a runtime quotient or remainder:
-        // mint each division's operand-pair atom the same way the range owner
-        // does before binding, so the observation saves the exact operation
-        // instead of dropping the local. A failed bind still just leaves the
-        // local unobserved, as before.
-        let _ = meanings::install_integer_division_terms(
+        // The saved initializer may carry a runtime quotient, remainder, or
+        // exact shift: mint each non-polynomial operand-pair atom the same
+        // way the range owner does before binding, so the observation saves
+        // the exact operation instead of dropping the local. A failed bind
+        // still just leaves the local unobserved, as before.
+        let _ = meanings::install_nonpolynomial_terms(
             program,
             machine,
             state,

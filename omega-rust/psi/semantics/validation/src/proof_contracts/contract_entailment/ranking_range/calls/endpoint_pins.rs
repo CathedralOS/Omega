@@ -551,11 +551,12 @@ fn argument_sources<'program>(
             // Normalize before vacuity: even an impossible arm cannot manufacture
             // custody for a foreign symbol or an unsupported actual expression.
             let sources = if exact_integer_parameter(program, parameter.type_reference).is_some() {
-                // The actual may be a quotient or remainder tree over caller
-                // inputs: mint each division's operand-pair atom the same way
-                // the endpoints were bound, or normalization refuses the term
-                // and the slot loses even the evidence it does carry.
-                meanings::install_integer_division_terms(
+                // The actual may be a quotient, remainder, or shift tree over
+                // caller inputs: mint each non-polynomial term's operand-pair
+                // atom the same way the endpoints were bound, or
+                // normalization refuses the term and the slot loses even the
+                // evidence it does carry.
+                meanings::install_nonpolynomial_terms(
                     program,
                     caller.machine,
                     site,
@@ -789,12 +790,14 @@ fn endpoint_inputs<'program>(
                     | BinaryOperator::Multiply
                     | BinaryOperator::Divide
                     | BinaryOperator::Modulo
+                    | BinaryOperator::ShiftLeft
             ) =>
         {
             // Conservation follows both operand dependencies, not the
             // operation's spelling or its output interval. Selected meaning,
-            // defined division and carrier formation are separate call-range
-            // obligations; this traversal grants none of them.
+            // defined division, an in-width shift count, and carrier
+            // formation are separate call-range obligations; this traversal
+            // grants none of them.
             endpoint_inputs(
                 program,
                 machine,

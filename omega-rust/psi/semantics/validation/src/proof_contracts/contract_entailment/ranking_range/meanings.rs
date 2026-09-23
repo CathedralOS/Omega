@@ -1,6 +1,7 @@
 //! The existing declaration/custody owner, not token spelling, admits arithmetic.
 use super::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State, TypedTrees, fields, lengths,
+    BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, TypedTrees,
+    fields, lengths,
 };
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::UnaryOperator;
@@ -121,6 +122,24 @@ pub(super) fn builtin(
         ExpressionNode::Binary(binary) => {
             let left = builtin(program, machine, state, binary.left, depth + 1)?;
             let right = builtin(program, machine, state, binary.right, depth + 1)?;
+            // `<<` names no overloadable spelling: a typed occurrence is the
+            // builtin operator. Its carrier is the shifted operand's own
+            // type; the count is an independent integer operand whose
+            // primitive need not agree with it. Carrier-less counts such as
+            // a slice length remain admissible operands, as for division.
+            if binary.operator == BinaryOperator::ShiftLeft {
+                let integer_carrier = |carrier| {
+                    program
+                        .primitive_type_reference(carrier)
+                        .is_some_and(PrimitiveType::accepts_integer_literal)
+                };
+                return match left {
+                    Some(left) if integer_carrier(left) && right.is_none_or(integer_carrier) => {
+                        Some(Some(left))
+                    }
+                    _ => None,
+                };
+            }
             let spelling = match binary.operator {
                 BinaryOperator::Add => OperatorSpelling::Add,
                 BinaryOperator::Subtract => OperatorSpelling::Subtract,
@@ -170,13 +189,14 @@ pub(super) fn builtin(
     }
 }
 
-/// Bind only Exact integer division terms admitted by this ranking query.
+/// Bind each Exact non-polynomial term admitted by this ranking query.
 /// The general strict arithmetic engine does not infer executable division
-/// from a token. Anonymous rational subtrees still fold as rationals; each
-/// landed quotient or remainder retains both operands for state transport.
-/// This is meaning, not formation: the range owner still checks every operation
-/// before using the endpoint, including an overflowing intermediate quotient.
-pub(super) fn install_integer_division_terms(
+/// or shifting from a token. Anonymous rational subtrees still fold as
+/// rationals; each landed quotient, remainder, or left shift retains both
+/// operands for state transport. This is meaning, not formation: the range
+/// owner still checks every operation before using the endpoint, including
+/// an overflowing intermediate quotient or an out-of-width shift count.
+pub(super) fn install_nonpolynomial_terms(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -192,34 +212,34 @@ pub(super) fn install_integer_division_terms(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Atomic(atomic) => {
-            install_integer_division_terms(
-                program,
-                machine,
-                state,
-                engine,
-                atomic.value,
-                depth + 1,
-            )?;
+            install_nonpolynomial_terms(program, machine, state, engine, atomic.value, depth + 1)?;
         }
         ExpressionNode::Binary(binary) => {
             for operand in [binary.left, binary.right] {
-                install_integer_division_terms(
-                    program,
-                    machine,
-                    state,
-                    engine,
-                    operand,
-                    depth + 1,
-                )?;
+                install_nonpolynomial_terms(program, machine, state, engine, operand, depth + 1)?;
             }
             if matches!(
                 binary.operator,
-                BinaryOperator::Divide | BinaryOperator::Modulo
+                BinaryOperator::Divide | BinaryOperator::Modulo | BinaryOperator::ShiftLeft
             ) {
                 if let Some(carrier) = builtin(program, machine, state, expression, 0)? {
-                    super::exact_integer_parameter(program, carrier)?;
-                    engine.bind_strict_integer_division(expression)?;
-                } else if binary.operator == BinaryOperator::Divide {
+                    let primitive = super::exact_integer_parameter(program, carrier)?;
+                    match binary.operator {
+                        BinaryOperator::Divide | BinaryOperator::Modulo => {
+                            engine.bind_strict_integer_division(expression)?
+                        }
+                        // The count's defined range is the shifted
+                        // carrier's width (the F8 ruling), so the term mints
+                        // with it rather than re-deriving a bound.
+                        BinaryOperator::ShiftLeft => engine.bind_strict_integer_shift_left(
+                            expression,
+                            crate::proof_contracts::arithmetic_domains::integer_bit_width(
+                                primitive,
+                            )? as u32,
+                        )?,
+                        _ => return None,
+                    }
+                } else if binary.operator != BinaryOperator::Modulo {
                     return None;
                 }
                 // Natural coordinates such as a slice length have no machine

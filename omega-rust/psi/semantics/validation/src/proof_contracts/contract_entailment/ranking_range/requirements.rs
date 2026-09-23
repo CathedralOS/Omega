@@ -236,11 +236,11 @@ fn prove(
             let StrictArithmeticBindingValue::Atom { identity, .. } = &binding.value else {
                 return None;
             };
-            // The actual may carry a runtime quotient or remainder: mint each
-            // division's operand-pair atom the same way the range owner does
-            // before normalizing, so the substitution transports the exact
-            // operation instead of refusing the term.
-            meanings::install_integer_division_terms(
+            // The actual may carry a runtime quotient, remainder, or exact
+            // shift: mint each non-polynomial operand-pair atom the same way
+            // the range owner does before normalizing, so the substitution
+            // transports the exact operation instead of refusing the term.
+            meanings::install_nonpolynomial_terms(
                 program,
                 caller,
                 caller_state,

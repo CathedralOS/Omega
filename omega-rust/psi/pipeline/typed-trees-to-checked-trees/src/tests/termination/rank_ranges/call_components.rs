@@ -190,6 +190,87 @@ fn runtime_division_actuals_substitute_through_call_sites() {
     }
 }
 
+const SHIFT_ACTUAL: &str = r#"
+data Main { observed: u64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::first(&mut self, remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+terminates by remaining in 0..(cap / step + 6);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.second(cap, remaining - 1, step, cap << step)
+        false -> remaining
+    }
+}
+
+machine Main::second(&mut self, limit: u64 [0..=20], pending: u64 [0..=5], width: u64 [1..=5], extra: u64)
+requires extra <= 640;
+terminates by pending in 0..(limit / width + 6);
+-> u64 {
+    transition pending > 0 {
+        true -> self.first(pending, limit, width, extra)
+        false -> pending
+    }
+}
+"#;
+
+#[test]
+fn runtime_shift_actuals_substitute_through_call_sites() {
+    // A left shift is an exact non-polynomial term like division: `spare`
+    // rides outside every endpoint atom while the transported actual keeps
+    // the exact `cap`/`step` operands, and the callee's
+    // `requires extra <= 640` discharges the shift's live interval
+    // `[0, 20] * 2^[1, 5]` rather than the formal's name.
+    prove(SHIFT_ACTUAL);
+    // A nested non-polynomial actual transports innermost-first: the
+    // remainder's tight interval is already live when the enclosing shift
+    // mints.
+    prove(&SHIFT_ACTUAL.replace("cap << step)", "(cap % step) << step)"));
+    // A spelled zero count is defined -- `value << 0` is the value -- where
+    // the same spelled expression as a modulus would reject.
+    prove(&SHIFT_ACTUAL.replace("cap << step)", "cap << (step - step))"));
+    // An out-of-width or unproven count never produces a value: the
+    // actual's own formation rejects it, independently of the call-range
+    // substitution it would have fed.
+    for source in [
+        SHIFT_ACTUAL.replace("cap << step)", "cap << 64)"),
+        SHIFT_ACTUAL.replace("cap << step)", "cap << (step - 6))"),
+        SHIFT_ACTUAL.replace("step: u64 [1..=5]", "step: u64 [1..=70]"),
+    ] {
+        let diagnostics = lower_typed_trees(typed_program(&source), &CheckingRequest::settled())
+            .expect_err(&source);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("shift count")),
+            "{source}\n{diagnostics:#?}"
+        );
+    }
+    // Transporting a shift into the endpoint-read `limit` slot changes the
+    // ceiling: `(step << 1) / width` is not `cap / step`.
+    reject(&SHIFT_ACTUAL.replace(
+        "self.second(cap, remaining - 1, step, cap << step)",
+        "self.second(step << 1, remaining - 1, step, cap)",
+    ));
+    // The callee's requirement is a real obligation discharged against the
+    // substituted actual, not the formal name: moving the bound it reads
+    // past the transported shift's interval rejects the call, and the
+    // diagnostic names the transported `cap << step` term.
+    for bound in ["requires extra <= 639;", "requires extra <= width - 1;"] {
+        let tightened = SHIFT_ACTUAL.replace("requires extra <= 640;", bound);
+        let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+            .expect_err(&tightened);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("cannot prove requires")
+                && diagnostic.message.contains("cap << step")),
+            "{tightened}\n{diagnostics:#?}"
+        );
+    }
+}
+
 const REMAINDER_LITERAL: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../../../tests/omega/pass/termination/remainder_literal_call_component/main.omg"
@@ -235,6 +316,93 @@ fn record_literal_remainder_leaves_discharge_field_requirements() {
     );
     // The cycle still owes strict descent on its carried rank.
     reject(&REMAINDER_LITERAL.replace("pending - 1", "pending"));
+}
+
+const SHIFT_LITERAL: &str = r#"
+data Limits {
+    bound: u64 [0..=20];
+    spare: u64;
+    step: u64 [1..=5];
+}
+
+data Main { pad: u64; }
+
+machine Main::main(&mut self) {}
+
+machine Main::walk(&mut self, remaining: u64 [0..=5], held: Limits)
+requires held.spare <= 640;
+terminates by remaining in 0..(held.bound + 6);
+-> u64 {
+    transition remaining > 0 {
+        true -> self.step(remaining, held)
+        false -> remaining
+    }
+}
+
+machine Main::step(&mut self, pending: u64 [0..=5], limits: Limits)
+requires limits.spare <= 640;
+terminates by pending in 0..(limits.bound + 6);
+-> u64 {
+    transition pending > 0 {
+        true -> self.walk(pending - 1, Limits {
+            bound: limits.bound,
+            spare: limits.bound << limits.step,
+            step: limits.step
+        })
+        false -> pending
+    }
+}
+"#;
+
+#[test]
+fn record_literal_shift_leaves_discharge_field_requirements() {
+    // The `spare` leaf of the rebuilt `Limits` literal is the runtime left
+    // shift `limits.bound << limits.step`: `walk`'s
+    // `requires held.spare <= 640` is discharged against that transported
+    // term through the record actual, not the destination formal's name.
+    prove(SHIFT_LITERAL);
+    // A requirement tighter than the shift's live interval rejects the same
+    // way: `limits.bound << limits.step` only proves `<= 640`.
+    let tightened =
+        SHIFT_LITERAL.replace("requires held.spare <= 640;", "requires held.spare <= 639;");
+    let diagnostics = lower_typed_trees(typed_program(&tightened), &CheckingRequest::settled())
+        .expect_err(&tightened);
+    assert!(
+        diagnostics.iter().any(
+            |diagnostic| diagnostic.message.contains("cannot prove requires")
+                && diagnostic.message.contains("limits.bound << limits.step")
+        ),
+        "{tightened}\n{diagnostics:#?}"
+    );
+    // Rebinding `spare` to a leaf whose interval outgrows the requirement
+    // rejects the discharge, and an out-of-width count fails the leaf's own
+    // formation.
+    let outgrown = SHIFT_LITERAL.replace(
+        "limits.bound << limits.step",
+        "limits.bound << (limits.step + 2)",
+    );
+    let diagnostics = lower_typed_trees(typed_program(&outgrown), &CheckingRequest::settled())
+        .expect_err(&outgrown);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove requires")),
+        "{outgrown}\n{diagnostics:#?}"
+    );
+    // An out-of-width count fails the leaf's mint the same way a spelled
+    // `limits.bound % 0` fails a remainder leaf: the term stays unobserved
+    // and the discharge reports the unmet fact.
+    let out_of_width = SHIFT_LITERAL.replace("limits.bound << limits.step", "limits.bound << 64");
+    let diagnostics = lower_typed_trees(typed_program(&out_of_width), &CheckingRequest::settled())
+        .expect_err(&out_of_width);
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove requires")),
+        "{out_of_width}\n{diagnostics:#?}"
+    );
+    // The cycle still owes strict descent on its carried rank.
+    reject(&SHIFT_LITERAL.replace("pending - 1", "pending"));
 }
 
 const PAIR: &str = r#"
