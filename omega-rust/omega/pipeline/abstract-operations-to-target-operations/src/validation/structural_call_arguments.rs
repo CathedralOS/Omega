@@ -3122,6 +3122,36 @@ impl Replay<'_> {
             }
             return Ok(());
         }
+        // The element-view counterpart of the byte window: a whole-field
+        // fixed array loans its backing to a `slice`-shaped parameter, so
+        // the retained transport carries the array's extent and element
+        // stride rather than stride 1.
+        if let Some(length) = self.source.structural_parameters.iter().find_map(|source| {
+            terminal_semantics::fixed_element_array_extent(
+                self.declarations.iter(),
+                source,
+                semantic,
+                declared,
+            )
+        }) {
+            let (array_type, byte_offset) = structural_shapes::project_static_path(
+                root.structural_type,
+                &semantic.path,
+                self.declarations,
+            )
+            .map_err(|_| psi_operation)?;
+            let (_transport_length, expected_stride) =
+                structural_shapes::root_array_transport(array_type, self.declarations)
+                    .map_err(|_| psi_operation)?;
+            if actual.root_structural_type != root.structural_type
+                || actual.source_byte_offset != byte_offset
+                || actual.fixed_array_length != Some(length)
+                || actual.element_stride != expected_stride
+            {
+                return Err(psi_operation);
+            }
+            return Ok(());
+        }
         // A range cannot fall through the ordinary owned projection checks.
         if semantic
             .path

@@ -315,20 +315,20 @@ pub(super) fn validate(
                     })
                 && (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
                     || (parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                        && abstracted.result == AbstractFunctionResult::Unit))
+                        && abstracted.result == AbstractFunctionResult::Unit
+                        && plan.structural_types.iter().any(|declaration| {
+                            declaration.id == parameter.structural_type
+                                && matches!(
+                                    declaration.shape,
+                                    terminal_psi::StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BorrowedView,
+                                    ) | terminal_psi::StructuralTypeShape::ElementView { .. }
+                                )
+                        })))
                 && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
                 && !parameter.is_self
                 && parameter.qualifications.is_empty()
                 && parameter.projected_qualifications.is_empty()
-                && plan.structural_types.iter().any(|declaration| {
-                    declaration.id == parameter.structural_type
-                        && matches!(
-                            declaration.shape,
-                            terminal_psi::StructuralTypeShape::ByteSequence(
-                                terminal_psi::ByteSequenceCarrier::BorrowedView,
-                            ) | terminal_psi::StructuralTypeShape::ElementView { .. }
-                        )
-                })
         }) {
             continue;
         }

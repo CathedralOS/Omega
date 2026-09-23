@@ -194,6 +194,13 @@ pub(crate) fn structural_arguments_match(
                 parameter,
             )
             .is_some()
+                || terminal_semantics::fixed_element_array_extent(
+                    types.values().copied(),
+                    actual,
+                    argument,
+                    parameter,
+                )
+                .is_some()
         }) && !caller
             .entry_claim_declarations
             .iter()
