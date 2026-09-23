@@ -302,6 +302,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::EstablishRecord { fields } => {
             value_operations::encode_establish_record(writer, fields)?
         }
+        OperationKind::EstablishStructuralCase {
+            result_case,
+            fields,
+        } => value_operations::encode_establish_structural_case(writer, result_case, fields)?,
         OperationKind::StoreDynamicDescriptor { descriptor_ordinal } => {
             storage_operations::encode_store_dynamic_descriptor(writer, descriptor_ordinal)?
         }
@@ -829,6 +833,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             value_operations::decode_establish_trivial_affine_local(reader)?
         }
         operation_tags::ESTABLISH_RECORD => value_operations::decode_establish_record(reader)?,
+        operation_tags::ESTABLISH_STRUCTURAL_CASE => {
+            value_operations::decode_establish_structural_case(reader)?
+        }
         operation_tags::CALL_STRUCTURAL_SCALAR => {
             call_operations::decode_call_structural_scalar(reader)?
         }

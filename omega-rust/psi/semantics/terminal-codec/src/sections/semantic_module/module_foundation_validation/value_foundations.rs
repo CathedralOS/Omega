@@ -104,6 +104,83 @@ pub(super) fn validate_establish_scalar_case(
     Ok(())
 }
 
+pub(super) fn validate_establish_structural_case(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishStructuralCase {
+        result_case,
+        fields,
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_establish_structural_case")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("structural case establishment has no structural result");
+    };
+    if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || !result.qualifications.is_empty()
+        || !result.projected_qualifications.is_empty()
+        || !result.claims.is_empty()
+    {
+        return malformed("structural case establishment has an invalid result surface");
+    }
+    if !matches!(
+        machine.structural_places.iter().find(|place| place.id == result.place),
+        Some(StructuralPlaceDeclaration {
+            kind: StructuralPlaceKind::OperationResult { producer, structural_type },
+            ..
+        }) if *producer == operation.id && *structural_type == result.structural_type
+    ) {
+        return malformed("structural case establishment has no matching result place");
+    }
+    let Some(declaration) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)
+    else {
+        return malformed("structural case establishment has an unknown structural type");
+    };
+    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
+        return malformed("structural case establishment requires a sum type");
+    };
+    let Some(selected) = cases.iter().find(|case| case.id == *result_case) else {
+        return malformed("structural case establishment requires an exact member");
+    };
+    if selected.fields.len() != fields.len() {
+        return malformed("structural case establishment requires every selected field");
+    }
+    for (declaration, field) in selected.fields.iter().zip(fields) {
+        if declaration.id != field.field || declaration.relevance.is_erased() {
+            return malformed("structural case establishment has an invalid field binding");
+        }
+        match (&field.value, &declaration.field_type) {
+            (
+                terminal_psi::RecordFieldValue::Scalar {
+                    range_obligation, ..
+                },
+                field_type,
+            ) if field_type.scalar_type().is_some() => {
+                if range_obligation.is_some()
+                    != matches!(field_type, StructuralFieldType::BoundedInteger(_))
+                {
+                    return malformed("structural case establishment has an invalid field binding");
+                }
+            }
+            (
+                terminal_psi::RecordFieldValue::Structural(argument),
+                StructuralFieldType::Structural(_),
+            ) if argument.access == terminal_psi::StructuralAccess::Owned
+                && argument.path.is_empty() => {}
+            _ => return malformed("structural case establishment has an invalid field binding"),
+        }
+    }
+    // Full module validation independently checks exact operand types,
+    // dominance and declaration-derived obligations before acceptance.
+    Ok(())
+}
+
 pub(super) fn validate_establish_byte_sequence_literal(
     module: &TerminalModule,
     machine: &TerminalMachine,

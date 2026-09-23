@@ -104,7 +104,7 @@ pub(super) fn append(
 
 // Whole child transfer preserves observations through exact declaration paths.
 // The prior child equations remain usable until the atomic operation completes.
-fn append_child_fields(
+pub(super) fn append_child_fields(
     module: &TerminalModule,
     structural_type: semantic_vocabulary::StructuralTypeId,
     destination: semantic_vocabulary::PlaceId,

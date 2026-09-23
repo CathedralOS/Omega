@@ -244,7 +244,8 @@ fn consumed_places(walk: &FrontierWalk<'_>, operation: &terminal_psi::Operation)
     } = *walk;
     match &operation.kind {
         OperationKind::ReleaseReference { source } => vec![*source],
-        OperationKind::EstablishRecord { fields } => fields
+        OperationKind::EstablishRecord { fields }
+        | OperationKind::EstablishStructuralCase { fields, .. } => fields
             .iter()
             .filter_map(|field| {
                 let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {

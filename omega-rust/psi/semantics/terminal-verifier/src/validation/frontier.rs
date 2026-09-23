@@ -402,7 +402,9 @@ fn validate_owned_reads(
     frontier: &StructuralOwnershipFrontier,
     dominators: &crate::control_graph::DominatorTree,
 ) -> Result<(), ModuleError> {
-    if let OperationKind::EstablishRecord { fields } = &operation.kind {
+    if let OperationKind::EstablishRecord { fields }
+    | OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind
+    {
         for field in fields {
             let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
                 continue;

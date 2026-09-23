@@ -650,7 +650,8 @@ pub(crate) fn validate_usage(
                             }
                             consumed = result.multiplicity != Multiplicity::Unrestricted;
                         }
-                        checked_trees::CheckedStructuralValueKind::Record { fields, .. } => {
+                        checked_trees::CheckedStructuralValueKind::Record { fields, .. }
+                        | checked_trees::CheckedStructuralValueKind::StructuralCase { fields, .. } => {
                             for field in values.record_fields.span(*fields).ok_or(LoweringError::Unsupported("record consumption field roster missing"))? {
                                 if let checked_trees::CheckedStructuralRecordFieldValue::Structural(value) = field.value { pending.push(value); }
                             }
@@ -1238,7 +1239,8 @@ pub(crate) fn validate_consumer(
                     checked_trees::CheckedStructuralValueKind::Case(constructor) => {
                         (constructor.expression, constructor.type_reference)
                     }
-                    checked_trees::CheckedStructuralValueKind::Record { .. } => (
+                    checked_trees::CheckedStructuralValueKind::Record { .. }
+                    | checked_trees::CheckedStructuralValueKind::StructuralCase { .. } => (
                         node.expression,
                         checked
                             .facts

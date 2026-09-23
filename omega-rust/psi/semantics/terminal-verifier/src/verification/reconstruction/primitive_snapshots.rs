@@ -244,6 +244,7 @@ impl<'a> PrimitiveSnapshots<'a> {
                 | StructuralEffectAction::EstablishAffinePlace
                 | StructuralEffectAction::EstablishRecord
                 | StructuralEffectAction::EstablishScalarCase
+                | StructuralEffectAction::EstablishStructuralCase
                 | StructuralEffectAction::EstablishScalarArray => ReachingEffect::Preserve,
             });
         }
