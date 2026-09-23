@@ -436,22 +436,70 @@ def parse_suite_log(path: Path) -> dict[str, str]:
     return {name: verdict for name, verdict in SUITE_VERDICT.findall(text)}
 
 
-def owner_outcomes(owners: dict[str, list[dict]], verdicts: dict[str, str]) -> dict:
+SUITE_FAILURE_BLOCK = re.compile(r"^---- (\S+) stdout ----\n(.*?)(?=\n\n|\n---- |\Z)", re.M | re.S)
+
+
+def normalize_family(text: str) -> str:
+    return re.sub(r"\d+", "N", re.sub(r"`[^`]*`", "`_`", text))[:90]
+
+
+def parse_suite_failures(path: Path) -> dict[str, dict]:
+    """Per failing test: the stage its assertion names ('compile' for a
+    'should compile' assertion carrying diagnostics, 'check' for 'should
+    check', 'run' for an exit-status or output mismatch) and the family of
+    its first diagnostic, normalized like the umbrella's families."""
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    failures = {}
+    for name, body in SUITE_FAILURE_BLOCK.findall(text):
+        line = next((l for l in body.splitlines() if l.strip() and not l.startswith(("thread '", "note:"))), "")
+        if "should compile" in line or "Diagnostic {" in line:
+            stage = "compile"
+        elif "should check" in line:
+            stage = "check"
+        elif re.search(r"exit|status|stdout|output", line):
+            stage = "run"
+        else:
+            stage = "other"
+        message = re.search(r'message: "([^"]*)', line)
+        failures[name] = {"stage": stage, "family": normalize_family(message.group(1) if message else line)}
+    return failures
+
+
+def owner_outcomes(owners: dict[str, list[dict]], verdicts: dict[str, str], failures: dict[str, dict] | None = None) -> dict:
     """Join each fixture's host-executed owners (rooted or direct) to the
     suite log. A fixture passes when every such owner test passed, fails when
     any failed, and has no verdict when none of its owners ran in the log.
-    Target-only owners compile for another target and are not judged here."""
+    Target-only owners compile for another target and are not judged here.
+    With the log's failure blocks, each failing fixture also carries the
+    stage its owner failed at and the family of the first diagnostic."""
+    failures = failures or {}
     passing, failing, no_verdict = [], [], []
+    stage_of, family_of = {}, {}
     for canary, rows in sorted(owners.items()):
-        judged = [verdicts.get(row["test"]) for row in rows if row["kind"] in ("rooted", "direct")]
-        judged = [v for v in judged if v is not None]
+        tests = [row["test"] for row in rows if row["kind"] in ("rooted", "direct")]
+        judged = [(test, verdicts.get(test)) for test in tests if verdicts.get(test) is not None]
         if not judged:
             no_verdict.append(canary)
-        elif all(v == "ok" for v in judged):
+        elif all(v == "ok" for _, v in judged):
             passing.append(canary)
         else:
             failing.append(canary)
-    return {"passing": passing, "failing": failing, "no_verdict": no_verdict}
+            failed = next(test for test, v in judged if v != "ok")
+            detail = failures.get(failed, {"stage": "other", "family": ""})
+            stage_of[canary] = detail["stage"]
+            family_of[canary] = detail["family"]
+    families: dict[str, int] = {}
+    for family in family_of.values():
+        families[family] = families.get(family, 0) + 1
+    return {
+        "passing": passing,
+        "failing": failing,
+        "no_verdict": no_verdict,
+        "stage_of": stage_of,
+        "families": sorted(families.items(), key=lambda kv: -kv[1]),
+        "elided": sorted(canary for canary, rows in owners.items()
+                         if sum(1 for row in rows if row["kind"] in ("rooted", "direct")) == 1),
+    }
 
 
 def merge_owner_verdicts(pass_outcome: dict, owner_outcome: dict, tier_of: dict[str, str]) -> None:
@@ -464,7 +512,16 @@ def merge_owner_verdicts(pass_outcome: dict, owner_outcome: dict, tier_of: dict[
         tier = tier_of.get(member)
         if tier in pass_outcome["per_tier"]:
             pass_outcome["per_tier"][tier]["failed"] += 1
-    pass_outcome["owners"] = {k: len(v) for k, v in owner_outcome.items()}
+    pass_outcome["owners"] = {
+        "passing": len(owner_outcome["passing"]),
+        "failing": len(owner_outcome["failing"]),
+        "no_verdict": len(owner_outcome["no_verdict"]),
+        "elided": len(owner_outcome.get("elided", [])),
+        "runs": set(owner_outcome["passing"]),
+        "stage_of": owner_outcome.get("stage_of", {}),
+        "families": owner_outcome.get("families", []),
+        "unjudged": set(owner_outcome["no_verdict"]) & set(owner_outcome.get("elided", [])),
+    }
 
 
 def parse_fail_log(path: Path) -> dict:
@@ -547,6 +604,16 @@ def print_report(report: dict) -> None:
             if so["cohort_tests_failed"]:
                 print(f"  cohort tests failed: {', '.join(so['cohort_tests_failed'])}")
 
+    if "levels" in report:
+        print("\n== spec sections by the strongest verified level ==")
+        print("  class      runs  compiles  checks  none  unexercised")
+        for klass, tl in sorted(report["levels"]["tally"].items()):
+            print(f"  {klass:9s} {tl.get('runs', 0):5d} {tl.get('compiles', 0):9d} {tl.get('checks', 0):7d} {tl.get('none', 0):5d} {tl.get('unexercised', 0):12d}")
+        families = (report.get("outcomes", {}).get("pass", {}).get("owners") or {}).get("families") or []
+        if families:
+            print("  owner failures by family (first diagnostic, count):")
+            for family, count in families[:8]:
+                print(f"    {count:4d}  {family}")
     sec = report.get("sections")
     if sec:
         print("\n== spec sections by outcome ==")
@@ -566,6 +633,59 @@ def print_report(report: dict) -> None:
 
 
 NATIVE_TIERS = {"active", "rooted_target", "cross_target", "windows_host"}
+
+
+LEVELS = ("runs", "compiles", "checks", "fails", "unmeasured")
+
+
+def fixture_levels(report: dict) -> dict[str, str]:
+    """The strongest verified predicate per rostered pass fixture. `runs`: a
+    dedicated owner compiled it on the rooted native route, executed it on
+    the host and saw the expected exit. `compiles`: the umbrella produced a
+    native artifact for it, never executed. `checks`: it passes checked
+    semantics only. `fails`: some run refused it. `unmeasured`: elided by the
+    umbrella with no owner verdict in the suite log, or unrostered."""
+    tier_of = report["corpus"]["tier_of"]
+    pass_outcome = report.get("outcomes", {}).get("pass", {})
+    failed = pass_outcome.get("failed_members", {})
+    owners = pass_outcome.get("owners") or {}
+    runs = owners.get("runs", set())
+    unjudged = owners.get("unjudged", set())
+    levels = {}
+    for member in corpus_members("pass"):
+        tier = tier_of.get(member)
+        if member in runs:
+            levels[member] = "runs"
+        elif member in failed:
+            levels[member] = "fails"
+        elif tier is None or member in unjudged:
+            levels[member] = "unmeasured"
+        elif tier in NATIVE_TIERS:
+            levels[member] = "compiles"
+        else:
+            levels[member] = "checks"
+    return levels
+
+
+def section_levels(report: dict, levels: dict[str, str]) -> dict:
+    """Per spec section, the strongest level any fixture in its groups
+    reached, and how many fixtures sit at each level."""
+    by_group: dict[str, list[str]] = {}
+    for member in corpus_members("pass"):
+        by_group.setdefault(member.split("/", 1)[0], []).append(member)
+    rows = []
+    for row in report["spec"]["rows"]:
+        counts = {level: 0 for level in LEVELS}
+        for group in row["groups"]:
+            for member in by_group.get(group, []):
+                counts[levels[member]] += 1
+        best = next((level for level in ("runs", "compiles", "checks") if counts[level]), "none" if row["groups"] else "unexercised")
+        rows.append({**{k: v for k, v in row.items() if k != "groups"}, "best": best, **counts})
+    tally: dict[str, dict[str, int]] = {}
+    for row in rows:
+        bucket = tally.setdefault(row["class"], {})
+        bucket[row["best"]] = bucket.get(row["best"], 0) + 1
+    return {"rows": rows, "tally": tally}
 
 
 def section_outcomes(report: dict) -> dict:
@@ -604,27 +724,31 @@ def headline(report: dict) -> dict:
     arithmetic."""
     c, s, p = report["corpus"], report["spec"], report["pairs"]
     out = {}
-    if "sections" in report:
-        tally = report["sections"]["tally"]
-        def native(klass):
-            return tally.get(klass, {}).get("native", 0)
-        core_n, typ_n = native("core"), native("typical")
+    if "levels" in report:
+        tally = report["levels"]["tally"]
         core_t = s["by_class"].get("core", {}).get("sections", 0)
         typ_t = s["by_class"].get("typical", {}).get("sections", 0)
-        out["core+typical sections natively established"] = f"{core_n + typ_n}/{core_t + typ_t}"
-        out["all sections natively established"] = f"{sum(native(k) for k in tally)}/{s['sections']}"
-        # Depth: a section counts as established on one passing fixture, so
-        # also report how many distinct native fixtures under core+typical
-        # groups pass. A fixture in a group mapped to several sections is
-        # counted once.
+        def at(best, classes):
+            return sum(tally.get(k, {}).get(best, 0) for k in classes)
+        ct = ("core", "typical")
+        out["core+typical sections with a fixture that runs natively"] = f"{at('runs', ct)}/{core_t + typ_t}"
+        out["core+typical sections whose best fixture only compiles"] = f"{at('compiles', ct)}/{core_t + typ_t}"
+        out["core+typical sections whose best fixture only checks"] = f"{at('checks', ct)}/{core_t + typ_t}"
+        out["core+typical sections with no verified fixture"] = f"{at('none', ct)}/{core_t + typ_t}"
+        every = tuple(tally)
+        out["all sections: runs / compiles / checks / none"] = f"{at('runs', every)} / {at('compiles', every)} / {at('checks', every)} / {at('none', every) + at('unexercised', every)} of {s['sections']}"
+        # Depth under core+typical groups: distinct fixtures per level. A
+        # fixture in a group mapped to several sections is counted once.
         groups = set()
         for row in report["sections"]["rows"]:
             if row["class"] in ("core", "typical"):
                 groups |= set(row["groups"])
-        tier_of = report["corpus"]["tier_of"]
-        failed = report.get("outcomes", {}).get("pass", {}).get("failed_members", {})
-        distinct = [m for m in corpus_members("pass") if m.split("/", 1)[0] in groups and tier_of.get(m) in NATIVE_TIERS]
-        out["core+typical native fixtures passing"] = f"{sum(1 for m in distinct if m not in failed)}/{len(distinct)}"
+        levels = report["fixture_levels"]
+        under = [m for m in corpus_members("pass") if m.split("/", 1)[0] in groups]
+        counts = {level: sum(1 for m in under if levels[m] == level) for level in LEVELS}
+        out["core+typical fixtures: runs / compiles / checks / fails / unmeasured"] = " / ".join(str(counts[l]) for l in LEVELS) + f" of {len(under)}"
+        every_counts = {level: sum(1 for m in levels.values() if m == level) for level in LEVELS}
+        out["all pass fixtures: runs / compiles / checks / fails / unmeasured"] = " / ".join(str(every_counts[l]) for l in LEVELS) + f" of {len(levels)}"
     out["spec sections exercised"] = f"{s['covered']}/{s['sections']}"
     core = s["by_class"].get("core", {"covered": 0, "sections": 0})
     typical = s["by_class"].get("typical", {"covered": 0, "sections": 0})
@@ -644,8 +768,13 @@ def headline(report: dict) -> dict:
             out["umbrella-compiled fixtures that pass"] = f"{measured - elided - failed}/{measured - elided}"
         if owners:
             judged = owners["passing"] + owners["failing"]
-            out["elided fixtures judged by their dedicated owner"] = f"{owners['passing']}/{judged}"
-            out["elided fixtures with no owner verdict in the suite log"] = str(owners["no_verdict"])
+            out["elided fixtures judged by their dedicated owner: runs"] = f"{owners['passing']}/{judged}"
+            out["elided fixtures with no owner verdict in the suite log"] = str(len(owners.get("unjudged", ())))
+            stages = {}
+            for stage in owners.get("stage_of", {}).values():
+                stages[stage] = stages.get(stage, 0) + 1
+            if stages:
+                out["owner failures by stage"] = ", ".join(f"{k} {v}" for k, v in sorted(stages.items(), key=lambda kv: -kv[1]))
         native = {t: b for t, b in o["pass"]["per_tier"].items() if t != "checked_only"}
         nm = sum(b["members"] for b in native.values())
         nf = sum(b["failed"] for b in native.values())
@@ -678,7 +807,11 @@ def main() -> int:
     if args.pass_log and args.pass_log.is_file():
         outcomes["pass"] = parse_pass_log(args.pass_log, report["corpus"]["tier_of"])
     if "pass" in outcomes and args.owner_index and args.owner_index.is_file() and args.suite_log and args.suite_log.is_file():
-        verdicts = owner_outcomes(parse_owner_index(args.owner_index), parse_suite_log(args.suite_log))
+        verdicts = owner_outcomes(
+            parse_owner_index(args.owner_index),
+            parse_suite_log(args.suite_log),
+            parse_suite_failures(args.suite_log),
+        )
         merge_owner_verdicts(outcomes["pass"], verdicts, report["corpus"]["tier_of"])
     if args.fail_log and args.fail_log.is_file():
         outcomes["fail"] = parse_fail_log(args.fail_log)
@@ -688,11 +821,19 @@ def main() -> int:
         report["outcomes"] = outcomes
         if "pass" in outcomes:
             report["sections"] = section_outcomes(report)
+            report["fixture_levels"] = fixture_levels(report)
+            report["levels"] = section_levels(report, report["fixture_levels"])
     report["headline"] = headline(report)
     print_report(report)
     if args.json:
         slim = dict(report)
         slim["corpus"] = {k: v for k, v in report["corpus"].items() if k != "tier_of"}
+        if "outcomes" in slim and "owners" in slim["outcomes"].get("pass", {}):
+            owners = dict(slim["outcomes"]["pass"]["owners"])
+            owners["runs"] = sorted(owners["runs"])
+            owners["unjudged"] = sorted(owners["unjudged"])
+            slim["outcomes"] = dict(slim["outcomes"])
+            slim["outcomes"]["pass"] = {**slim["outcomes"]["pass"], "owners": owners}
         args.json.write_text(json.dumps(slim, indent=1), encoding="utf-8")
     return 0
 

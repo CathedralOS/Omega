@@ -3168,6 +3168,9 @@ syntax and other terminal services are not prerequisites.
   operation 12, field store whose destination is not a parameter 7, pure
   scalar initializer 4, attached-data-shape state parameter 4, guard
   expression 3, scalar field type 2, parameter transfer 2, five singletons.
+  On the rooted native route the dedicated owner tests hit the same omission
+  for 532 of the 911 fixtures the umbrella elides, so this mechanism is the
+  first wall between a checked program and a running one.
   Every site is in `typed-trees-to-checked-trees`, so the plan
   is omitted before a target is chosen and the class is host-neutral by
   construction. Each site is a recognizer for the arrangements earlier
