@@ -62,7 +62,10 @@ impl Evaluation {
             .with_local_cases(&self.local_cases)
             .with_structural_locals(&self.structural_locals)
             .with_structural_parameters(&self.structural_parameters)
-            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases);
+            .with_resolved_structural_observations(&self.structural_fields, &self.structural_cases)
+            // A short-circuit guard may read a case payload after its own
+            // case test; the guard's case dispatch binds or refuses each read.
+            .with_deferred_case_payloads();
         let expression = bindings.expression(value)?;
         if !direct_expression_contains_short_circuit(&expression) {
             return Ok(None);

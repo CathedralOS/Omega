@@ -52,6 +52,7 @@ pub(crate) mod scalar_types;
 pub(crate) mod store_destination;
 
 pub(crate) mod boolean_control;
+pub(crate) mod case_payload_dispatch;
 pub(crate) mod selected_comparison;
 
 /// Resolve a byte-sequence store's scalar source against the dense scalar

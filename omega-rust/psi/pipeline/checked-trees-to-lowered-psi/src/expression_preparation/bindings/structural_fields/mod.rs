@@ -8,6 +8,7 @@ use super::{
     LoweringError, PlaceId, ScalarType, StructuralAccess, StructuralParameterDeclaration,
     StructuralTypeDeclaration, unsupported,
 };
+use semantic_vocabulary::StructuralCaseId;
 #[cfg(test)]
 mod tests;
 
@@ -17,6 +18,69 @@ pub(crate) struct StructuralScalarFieldBinding {
     source: PlaceId,
     structural_type: StructuralTypeId,
     declarations: std::sync::Arc<[StructuralTypeDeclaration]>,
+    case_payloads: CasePayloadAccess,
+}
+
+/// Whether a read through a case segment may observe this root's payload.
+///
+/// Terminal has no case-qualified place read: a payload is observable only as
+/// a parameter of the block a `StructuralCase` dispatch selected for that case,
+/// so the verifier's own tag dispatch is the case knowledge. A read therefore
+/// resolves to an established payload value, is deferred for the guard
+/// decision lowering that will introduce the dispatch, or is refused.
+#[derive(Clone, Default)]
+enum CasePayloadAccess {
+    #[default]
+    Unavailable,
+    Deferred,
+    Established(Vec<EstablishedCasePayload>),
+}
+
+/// One payload field bound by a dominating `StructuralCase` successor, at its
+/// dense position in the scalar namespace of the code it dominates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct EstablishedCasePayload {
+    pub(crate) source: PlaceId,
+    pub(crate) case: StructuralCaseId,
+    pub(crate) field: StructuralFieldId,
+    pub(crate) position: usize,
+}
+
+/// A resolved case-qualified payload read.
+pub(crate) enum CasePayloadRead {
+    /// Awaiting a dispatch on `source` selecting `case`; the lowered read keeps
+    /// the canonical `[Case, Field]` path until that dispatch substitutes it.
+    Deferred {
+        source: PlaceId,
+        case: StructuralCaseId,
+        field: StructuralFieldId,
+    },
+    /// The dominating dispatch's payload parameter.
+    Established { position: usize },
+}
+
+/// Let guard lowering keep case-qualified reads for its dispatch to bind.
+pub(crate) fn defer_case_payloads(fields: &mut [StructuralScalarFieldBinding]) {
+    for field in fields {
+        field.case_payloads = CasePayloadAccess::Deferred;
+    }
+}
+
+/// Bind reads of payloads a dominating dispatch selected on every incoming path.
+pub(crate) fn establish_case_payloads(
+    fields: &mut [StructuralScalarFieldBinding],
+    established: &[EstablishedCasePayload],
+) {
+    for field in fields {
+        let rows = established
+            .iter()
+            .filter(|row| row.source == field.source)
+            .copied()
+            .collect::<Vec<_>>();
+        if !rows.is_empty() {
+            field.case_payloads = CasePayloadAccess::Established(rows);
+        }
+    }
 }
 
 impl StructuralScalarFieldBinding {
@@ -42,6 +106,7 @@ impl StructuralScalarFieldBinding {
                 source: parameter.place,
                 structural_type: parameter.structural_type,
                 declarations: std::sync::Arc::clone(&declarations),
+                case_payloads: CasePayloadAccess::Unavailable,
             });
         }
         bindings
@@ -153,6 +218,90 @@ pub(crate) fn resolve(
         structural_type = child;
     }
     unsupported("runtime field observation requires a nonempty field path")
+}
+
+/// Resolve `[Case(case), Field(field)]` below one sum root. The selected case
+/// must belong to the root's exact declared sum and the leaf must be a
+/// relevant scalar payload of the requested carrier; the case itself is known
+/// only through the binding's `CasePayloadAccess`.
+pub(crate) fn resolve_case_payload(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    scalar_type: ScalarType,
+) -> Result<CasePayloadRead, LoweringError> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "case payload observation has no exact readable binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("case payload observation has ambiguous bindings");
+    }
+    let [
+        checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity),
+        checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity),
+    ] = path
+    else {
+        return unsupported("case payload observation requires one case and one payload field");
+    };
+    let mut declarations = binding
+        .declarations
+        .iter()
+        .filter(|declaration| declaration.id == binding.structural_type);
+    let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+        "case payload observation lost its sum declaration",
+    ))?;
+    if declarations.next().is_some() {
+        return unsupported("case payload observation has ambiguous sum declarations");
+    }
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declaration.shape
+    else {
+        return unsupported("case payload observation requires a sum root");
+    };
+    let mut selected = cases.iter().filter(|case| case.identity == *case_identity);
+    let case = selected.next().ok_or(LoweringError::Unsupported(
+        "case payload observation lost its declared case",
+    ))?;
+    let mut payload = case
+        .fields
+        .iter()
+        .filter(|field| field.identity == *field_identity);
+    let field = payload.next().ok_or(LoweringError::Unsupported(
+        "case payload observation lost its declared payload field",
+    ))?;
+    if selected.next().is_some() || payload.next().is_some() || field.relevance.is_erased() {
+        return unsupported("case payload observation has an erased or ambiguous payload");
+    }
+    let declared = match field.field_type {
+        StructuralFieldType::Scalar(scalar) => scalar,
+        StructuralFieldType::BoundedInteger(integer) => ScalarType::Integer(integer.integer_type()),
+        _ => return unsupported("case payload observation requires a scalar payload"),
+    };
+    if declared != scalar_type {
+        return unsupported("case payload observation changes its declared scalar type");
+    }
+    match &binding.case_payloads {
+        CasePayloadAccess::Deferred => Ok(CasePayloadRead::Deferred {
+            source: binding.source,
+            case: case.id,
+            field: field.id,
+        }),
+        CasePayloadAccess::Established(rows) => rows
+            .iter()
+            .find(|row| row.case == case.id && row.field == field.id)
+            .map(|row| CasePayloadRead::Established {
+                position: row.position,
+            })
+            .ok_or(LoweringError::Unsupported(
+                "case payload observation requires an established case",
+            )),
+        CasePayloadAccess::Unavailable => {
+            unsupported("case payload observation requires an established case")
+        }
+    }
 }
 
 pub(crate) fn resolve_byte_length(

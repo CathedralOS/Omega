@@ -21,6 +21,7 @@ use super::StateGraphEmission;
 use crate::emission::boolean_control::LoweredBooleanDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
 use crate::proofs::crash_routes::{lower_checked_crash_exit, lower_checked_crash_predicates};
 
 impl StateGraphEmission<'_, '_> {
@@ -326,11 +327,55 @@ impl StateGraphEmission<'_, '_> {
             evaluation.parameters = entry_parameters;
             evaluation.block_structural_parameters = entry_structural;
         }
+        // A short-circuit guard is planned before the successor closure so
+        // its case dispatches can allocate payload values; the true edge's
+        // arguments then read the payloads its dispatches established.
+        let planned_guard = match &branch_guard {
+            Some(expression) => {
+                let decision = crate::emission::boolean_control::lower_boolean_control_decision(
+                    expression,
+                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                        value: true,
+                    }),
+                    LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
+                        value: false,
+                    }),
+                );
+                let mut namespace = values.clone();
+                let structural_types = &self.catalogs.structural_types;
+                let structural_parameters = &evaluation.structural_parameters;
+                let declared_cases = |place| {
+                    let (_, parameter) = structural_parameters
+                        .iter()
+                        .find(|(_, parameter)| parameter.place == place)?;
+                    match &structural_types
+                        .iter()
+                        .find(|declaration| declaration.id == parameter.structural_type)?
+                        .shape
+                    {
+                        terminal_psi::StructuralTypeShape::Sum { cases }
+                        | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
+                            Some(cases.as_slice())
+                        }
+                        _ => None,
+                    }
+                };
+                let planned = crate::emission::case_payload_dispatch::plan(
+                    decision,
+                    &declared_cases,
+                    &mut namespace,
+                    &mut next_value,
+                )?;
+                Some((planned, namespace))
+            }
+            None => None,
+        };
         let mut edge_blocks = Vec::new();
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
                              case_edge: bool,
-                             values: &[ValueDeclaration]|
+                             values: &[ValueDeclaration],
+                             established: &[EstablishedCasePayload]|
          -> Result<SuccessorEdge, LoweringError> {
             // Every edge retains its local remainder until selected operands
             // finish. A case edge has already consumed only its subject.
@@ -391,7 +436,9 @@ impl StateGraphEmission<'_, '_> {
                 .ok_or(LoweringError::Unsupported(
                     "Unit graph target disappeared during emission",
                 ))?;
-            let stage = case_edge || edge.scalar_arguments.iter().any(|argument| matches!(
+            // Established payloads are parameters of a guard dispatch block,
+            // so the edge's arguments must be evaluated after selection.
+            let stage = case_edge || !established.is_empty() || edge.scalar_arguments.iter().any(|argument| matches!(
                 argument.source, checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
             )) || (condition.is_some() || branch_guard.is_some())
                     && ((current_rank.is_some() && ranking::has_rank(plan, &plan.states[target])) || edge.transfers.iter().any(|transfer| matches!(
@@ -404,6 +451,10 @@ impl StateGraphEmission<'_, '_> {
                 evaluation.current
             };
             let mut edge_evaluation = evaluation.branch(staged, operation_start);
+            crate::expression_preparation::bindings::structural_fields::establish_case_payloads(
+                &mut edge_evaluation.structural_fields,
+                established,
+            );
             edge_evaluation.parameters = payload_values.iter().map(|(_, value)| *value).collect();
             let mut edge_values = values.to_vec();
             let mut arguments = Vec::new();
@@ -906,7 +957,7 @@ impl StateGraphEmission<'_, '_> {
                 }
             }
             CheckedComposedUnitControlTerminatorPlan::Jump { successor: edge } => {
-                let edge = successor(edge, &[], false, &values)?;
+                let edge = successor(edge, &[], false, &values, &[])?;
                 Terminator::Jump {
                     edge: edge.edge,
                     target: edge.target,
@@ -923,9 +974,14 @@ impl StateGraphEmission<'_, '_> {
                 when_false,
                 ..
             } => {
-                let when_true = successor(when_true, &[], false, &values)?;
-                let when_false = successor(when_false, &[], false, &values)?;
-                if let Some(expression) = &branch_guard {
+                let when_true = match &planned_guard {
+                    Some((planned, namespace)) => {
+                        successor(when_true, &[], false, namespace, &planned.established)?
+                    }
+                    None => successor(when_true, &[], false, &values, &[])?,
+                };
+                let when_false = successor(when_false, &[], false, &values, &[])?;
+                if let Some((planned, guard_values)) = &planned_guard {
                     // Successor staging runs only after selection. Its length
                     // observations cannot be reused while evaluating the guard.
                     operations.byte_lengths = inherited_lengths.clone();
@@ -960,17 +1016,9 @@ impl StateGraphEmission<'_, '_> {
                             },
                         });
                     }
-                    let decision = crate::emission::boolean_control::lower_boolean_control_decision(
-                        expression,
-                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
-                            value: true,
-                        }),
-                        LoweredBooleanDecision::Value(LoweredBooleanReturnExpression::Constant {
-                            value: false,
-                        }),
-                    );
+                    let decision = &planned.decision;
                     let tests =
-                        crate::emission::boolean_control::boolean_decision_test_count(&decision);
+                        crate::emission::boolean_control::boolean_decision_test_count(decision);
                     let decision_block = block_id(next_block);
                     next_block = next_block
                         .checked_add(u64::try_from(tests).map_err(|_| {
@@ -981,8 +1029,8 @@ impl StateGraphEmission<'_, '_> {
                         ))?;
                     let (root, nested) =
                         crate::emission::boolean_control::emit_inlined_boolean_guard_blocks(
-                            &decision,
-                            &values,
+                            decision,
+                            guard_values,
                             Vec::new(),
                             &crate::emission::boolean_control::LoweredBooleanDecisionTarget {
                                 block: true_block,
@@ -1043,13 +1091,13 @@ impl StateGraphEmission<'_, '_> {
                     } else {
                         guarded_drafts[index - 1].5.as_slice()
                     };
-                    selected.push(successor(&arm.successor, &[], false, namespace)?);
+                    selected.push(successor(&arm.successor, &[], false, namespace, &[])?);
                 }
                 let mut selected = selected.into_iter();
                 let first = selected.next().ok_or(LoweringError::Unsupported(
                     "guarded jump chain lost its first successor",
                 ))?;
-                let mut fallback_edge = Some(successor(fallback, &[], false, &values)?);
+                let mut fallback_edge = Some(successor(fallback, &[], false, &values, &[])?);
                 for (index, (id, parameters, structural_parameters, operations, guard, _)) in
                     guarded_drafts.into_iter().enumerate()
                 {
@@ -1144,7 +1192,7 @@ impl StateGraphEmission<'_, '_> {
                     .cases
                     .iter()
                     .map(|case| {
-                        let edge = successor(case.successor, &case.values, true, &values)?;
+                        let edge = successor(case.successor, &case.values, true, &values, &[])?;
                         Ok(StructuralCaseSuccessorEdge {
                             edge: edge.edge,
                             target: edge.target,

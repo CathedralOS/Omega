@@ -1,4 +1,5 @@
 //! Short-circuit Boolean decision lowering and terminal control emission.
+use crate::emission::case_payload_dispatch::CaseDispatch;
 use crate::emission::expression_validation::{
     contains_short_circuit, direct_expression_contains_short_circuit,
 };
@@ -9,13 +10,22 @@ use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::lowering_error::LoweringError;
 use crate::terminal_identities::{block_id, edge_id, value_id};
 use semantic_vocabulary::{BlockId, QualifiedScalarType, ValueId};
-use terminal_psi::{Block, SuccessorEdge, Terminator, ValueDeclaration};
+use terminal_psi::{
+    Block, StructuralCaseSuccessorEdge, SuccessorEdge, Terminator, ValueDeclaration,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredBooleanDecision {
     Value(LoweredBooleanReturnExpression),
     Test {
         condition: LoweredBooleanReturnExpression,
+        when_true: Box<LoweredBooleanDecision>,
+        when_false: Box<LoweredBooleanDecision>,
+    },
+    /// A guard's whole-root case test that binds the selected payload; see
+    /// `case_payload_dispatch`. Only guard decision emission realizes it.
+    CaseDispatch {
+        dispatch: CaseDispatch,
         when_true: Box<LoweredBooleanDecision>,
         when_false: Box<LoweredBooleanDecision>,
     },
@@ -77,6 +87,15 @@ where
             when_true: Box::new(bind_boolean_decision(*when_true, continuation)),
             when_false: Box::new(bind_boolean_decision(*when_false, continuation)),
         },
+        LoweredBooleanDecision::CaseDispatch {
+            dispatch,
+            when_true,
+            when_false,
+        } => LoweredBooleanDecision::CaseDispatch {
+            dispatch,
+            when_true: Box::new(bind_boolean_decision(*when_true, continuation)),
+            when_false: Box::new(bind_boolean_decision(*when_false, continuation)),
+        },
     }
 }
 
@@ -104,6 +123,23 @@ fn branch_boolean_decision(
             when_false: nested_false,
         } => LoweredBooleanDecision::Test {
             condition,
+            when_true: Box::new(branch_boolean_decision(
+                *nested_true,
+                when_true.clone(),
+                when_false.clone(),
+            )),
+            when_false: Box::new(branch_boolean_decision(
+                *nested_false,
+                when_true,
+                when_false,
+            )),
+        },
+        LoweredBooleanDecision::CaseDispatch {
+            dispatch,
+            when_true: nested_true,
+            when_false: nested_false,
+        } => LoweredBooleanDecision::CaseDispatch {
+            dispatch,
             when_true: Box::new(branch_boolean_decision(
                 *nested_true,
                 when_true.clone(),
@@ -203,6 +239,11 @@ pub(crate) fn boolean_decision_block_count(decision: &LoweredBooleanDecision) ->
             when_true,
             when_false,
             ..
+        }
+        | LoweredBooleanDecision::CaseDispatch {
+            when_true,
+            when_false,
+            ..
         } => 1 + boolean_decision_block_count(when_true) + boolean_decision_block_count(when_false),
     }
 }
@@ -211,6 +252,11 @@ pub(crate) fn boolean_decision_test_count(decision: &LoweredBooleanDecision) -> 
     match decision {
         LoweredBooleanDecision::Value(_) => 0,
         LoweredBooleanDecision::Test {
+            when_true,
+            when_false,
+            ..
+        }
+        | LoweredBooleanDecision::CaseDispatch {
             when_true,
             when_false,
             ..
@@ -334,6 +380,99 @@ fn emit_reserved_boolean_guard_decision_blocks(
                 arguments: Vec::new(),
             }
         }
+        LoweredBooleanDecision::CaseDispatch {
+            dispatch,
+            when_true,
+            when_false,
+        } => {
+            let block_index = blocks.len();
+            let block = block_id(
+                first_block_identity
+                    .checked_add(
+                        u64::try_from(block_index)
+                            .expect("reserved guard block count fits a semantic identity"),
+                    )
+                    .expect("reserved guard block identity advances"),
+            );
+            blocks.push(None);
+            // The selected block receives the payload as its parameters; the
+            // planner only dispatches when that outcome reads it, so the
+            // outcome is a fresh reserved block rather than a shared target.
+            let when_true = emit_reserved_boolean_guard_decision_blocks(
+                when_true,
+                parameters,
+                dispatch
+                    .payloads
+                    .iter()
+                    .map(|(_, value)| *value)
+                    .collect(),
+                when_true_target,
+                when_false_target,
+                first_block_identity,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            let when_false = emit_reserved_boolean_guard_decision_blocks(
+                when_false,
+                parameters,
+                Vec::new(),
+                when_true_target,
+                when_false_target,
+                first_block_identity,
+                next_value_identity,
+                next_edge_identity,
+                all_operations,
+                blocks,
+            );
+            assert!(
+                when_true.arguments.is_empty() && when_false.arguments.is_empty(),
+                "case dispatch successors bind only payload parameters"
+            );
+            let cases = dispatch
+                .cases
+                .iter()
+                .map(|case| {
+                    let edge = edge_id(*next_edge_identity);
+                    *next_edge_identity = next_edge_identity
+                        .checked_add(1)
+                        .expect("reserved guard case edge identity advances");
+                    let selected = *case == dispatch.selected;
+                    StructuralCaseSuccessorEdge {
+                        edge,
+                        target: if selected {
+                            when_true.block
+                        } else {
+                            when_false.block
+                        },
+                        case: *case,
+                        payload_fields: if selected {
+                            dispatch.payloads.iter().map(|(field, _)| *field).collect()
+                        } else {
+                            Vec::new()
+                        },
+                        trivial_affine_discards: Vec::new(),
+                    }
+                })
+                .collect();
+            blocks[block_index] = Some(Block {
+                structural_parameters: Vec::new(),
+                id: block,
+                parameters: block_parameters,
+                erased_scalar_formals: Vec::new(),
+                erased_proof_formals: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::StructuralCase {
+                    source: dispatch.source,
+                    cases,
+                },
+            });
+            LoweredBooleanDecisionTarget {
+                block,
+                arguments: Vec::new(),
+            }
+        }
     };
     all_operations.byte_lengths.truncate(incoming_lengths);
     target
@@ -393,6 +532,9 @@ fn emit_reserved_boolean_value_blocks(
                 },
             };
             (terminator, all_operations.len())
+        }
+        LoweredBooleanDecision::CaseDispatch { .. } => {
+            unreachable!("case dispatch is planned only for guard decisions")
         }
         LoweredBooleanDecision::Test {
             condition,
@@ -605,6 +747,9 @@ pub(crate) fn emit_reserved_boolean_tuple_stage_blocks(
                 },
                 all_operations.len(),
             )
+        }
+        LoweredBooleanDecision::CaseDispatch { .. } => {
+            unreachable!("case dispatch is planned only for guard decisions")
         }
         LoweredBooleanDecision::Test {
             condition,
