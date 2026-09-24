@@ -11,10 +11,12 @@ use cli::{arguments, compilation, execution, inspection, packages};
 use std::process::ExitCode;
 
 // Compile-bearing operations provision their own large-stack worker inside
-// `run_on_compile_thread`; their recursive paths never touch this stack. The
-// remaining caller-stack recursion lives in the package-management arms'
-// resolution and review walks. Keep this provision for exactly those until
-// those paths have bounded stack use; argument parsing needs no worker.
+// `run_on_compile_thread`; their recursive paths never touch this stack. But
+// every command that reaches a package project first runs the package arm's
+// project discovery, source-closure resolution, and review walks on the
+// caller's stack: `--check`, `run`, and `inspect-terminal` on a package root
+// recurse through `prepare_local_project` before the compile worker exists.
+// Give every dispatched command this stack; only usage output stays shallow.
 const COMPILER_STACK_SIZE: usize = 256 * 1024 * 1024;
 
 fn main() -> ExitCode {
@@ -62,12 +64,12 @@ fn dispatch(invocation: Invocation) {
     }
 }
 
-/// Package-management arms still run resolution and review walks on the
-/// caller's stack. Every other invocation either provisions its own compile
-/// worker inside the operation (`run_on_compile_thread`) or stays shallow.
+/// Every invocation except usage output may recurse on the caller's stack:
+/// package-management arms own resolution and review walks, and the compile,
+/// run, and inspection commands route through that same package preparation
+/// whenever the entry root belongs to a package project. The nested
+/// `run_on_compile_thread` worker inside the compile path stays the boundary
+/// for compiler-stage recursion regardless.
 fn needs_command_worker(invocation: &Invocation) -> bool {
-    matches!(
-        invocation,
-        Invocation::Package { .. } | Invocation::AuditSource(_) | Invocation::AuditPackages(_)
-    )
+    !matches!(invocation, Invocation::Help(_))
 }
