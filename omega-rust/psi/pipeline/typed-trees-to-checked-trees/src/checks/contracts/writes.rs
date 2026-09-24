@@ -134,7 +134,7 @@ pub(super) fn check_domain_field_writes(
                         domain_symbol,
                     )
                     && !(!requires_provenance
-                        && initializer_satisfies_predicate_domain(
+                        && (initializer_satisfies_predicate_domain(
                             program,
                             facts,
                             state_flow,
@@ -142,7 +142,7 @@ pub(super) fn check_domain_field_writes(
                             assignment.value,
                             domain_symbol,
                             &mut Vec::new(),
-                        ))
+                        )))
                 {
                     let target_label = program.expression_table.display_name(assignment.target);
                     diagnostics.push(Diagnostic::error(format!(
@@ -2424,3 +2424,4 @@ fn value_declared_type_carries_domain(
     crate::facts::field_domain::domain_constraint_symbols(program, type_reference)
         .contains(&domain_symbol)
 }
+

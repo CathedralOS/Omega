@@ -922,18 +922,18 @@ fn transition_guard_proves_requires(
                 let contains = |(low, high): (numerics::bignum::BigInt, numerics::bignum::BigInt)| {
                     low >= required_low && high <= required_high
                 };
-                guard_interval_for_label(program, guard, &subject_label).is_some_and(contains)
+                super::intervals::guard_interval_for_label(program, guard, &subject_label).is_some_and(contains)
                     // The subject may be an EXPRESSION rather than a name:
                     // `walk(remaining - 1)` states its bound about the
                     // subtraction, which no guard spells. Read the argument
                     // the requirement is about and shift its interval.
                     || requirement_subject_expression(facts, fact)
                         .and_then(|argument| {
-                            caller_expression_interval(
+                            super::intervals::expression_interval(
                                 program,
                                 machine,
                                 caller_state,
-                                guard,
+                                &[guard],
                                 argument,
                             )
                         })
@@ -1714,130 +1714,6 @@ fn predicate_only_domain_interval(
         minimum,
         maximum,
     ))
-}
-
-/// The closed interval a guard's conjuncts establish for the place spelled
-/// `subject_label`. `&&` intersects; a conjunct that is not a closed
-/// comparison over that exact spelling contributes nothing, so the result is
-/// only ever weaker than the guard.
-fn guard_interval_for_label(
-    program: &typed_trees::TypedTrees,
-    guard: typed_trees::expression::ExpressionHandle,
-    subject_label: &str,
-) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
-    use numerics::bignum::BigInt;
-    use typed_trees::expression::BinaryOperator;
-    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
-        return None;
-    };
-    match binary.operator {
-        BinaryOperator::And => {
-            let left = guard_interval_for_label(program, binary.left, subject_label);
-            let right = guard_interval_for_label(program, binary.right, subject_label);
-            match (left, right) {
-                (Some((left_low, left_high)), Some((right_low, right_high))) => {
-                    Some((left_low.max(right_low), left_high.min(right_high)))
-                }
-                (bound, None) | (None, bound) => bound,
-            }
-        }
-        // A dispatch arm reaches here as `<predicate> == true`.
-        BinaryOperator::Equal
-            if matches!(
-                program.expression_table.expression(binary.right),
-                ExpressionNode::Boolean(true)
-            ) =>
-        {
-            guard_interval_for_label(program, binary.left, subject_label)
-        }
-        _ => {
-            let left_is_subject =
-                program.expression_table.display_name(binary.left) == subject_label;
-            let right_is_subject =
-                program.expression_table.display_name(binary.right) == subject_label;
-            let (literal, subject_on_left) = match (left_is_subject, right_is_subject) {
-                (true, false) => (binary.right, true),
-                (false, true) => (binary.left, false),
-                _ => return None,
-            };
-            let value = validation::closed_integer_range_bound(program, literal)?;
-            let one = BigInt::from_i64(1);
-            let (low, high) =
-                match (binary.operator, subject_on_left) {
-                    (BinaryOperator::LessOrEqual, true)
-                    | (BinaryOperator::GreaterOrEqual, false) => (None, Some(value)),
-                    (BinaryOperator::Less, true) | (BinaryOperator::Greater, false) => {
-                        (None, Some(value.sub(&one)))
-                    }
-                    (BinaryOperator::GreaterOrEqual, true)
-                    | (BinaryOperator::LessOrEqual, false) => (Some(value), None),
-                    (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => {
-                        (Some(value.add(&one)), None)
-                    }
-                    (BinaryOperator::Equal, _) => (Some(value.clone()), Some(value)),
-                    _ => return None,
-                };
-            Some((
-                low.unwrap_or_else(|| BigInt::from_i64(i64::MIN)),
-                high.unwrap_or_else(|| BigInt::from_i64(i64::MAX)),
-            ))
-        }
-    }
-}
-
-/// The interval the caller can prove for `expression`, or `None` when it
-/// cannot be read as a closed one.
-///
-/// A name contributes its DECLARED interval -- a bracketed range or, since
-/// domains carry their bound, a declared domain -- intersected with whatever
-/// the dominating guard says about that same spelling. A literal is exact, and
-/// `+`/`-` against a literal shifts the interval. Anything else declines, so
-/// the result is only ever narrower than the truth.
-fn caller_expression_interval(
-    program: &typed_trees::TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    guard: typed_trees::expression::ExpressionHandle,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
-    use numerics::bignum::BigInt;
-    use typed_trees::expression::BinaryOperator;
-    if let Some(value) = validation::closed_integer_range_bound(program, expression) {
-        return Some((value.clone(), value));
-    }
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Name(_) => {
-            let label = program.expression_table.display_name(expression);
-            let declared = crate::checks::ranges::types::expression_enforced_declared_range(
-                program, machine, state, expression,
-            )
-            .map(|(low, high)| (BigInt::from_i64(low), BigInt::from_i64(high)));
-            let guarded = guard_interval_for_label(program, guard, &label);
-            match (declared, guarded) {
-                (Some((declared_low, declared_high)), Some((guarded_low, guarded_high))) => Some((
-                    declared_low.max(guarded_low),
-                    declared_high.min(guarded_high),
-                )),
-                (Some(interval), None) | (None, Some(interval)) => Some(interval),
-                (None, None) => None,
-            }
-        }
-        ExpressionNode::Binary(binary)
-            if matches!(
-                binary.operator,
-                BinaryOperator::Add | BinaryOperator::Subtract
-            ) =>
-        {
-            let (low, high) =
-                caller_expression_interval(program, machine, state, guard, binary.left)?;
-            let shift = validation::closed_integer_range_bound(program, binary.right)?;
-            match binary.operator {
-                BinaryOperator::Add => Some((low.add(&shift), high.add(&shift))),
-                _ => Some((low.sub(&shift), high.sub(&shift))),
-            }
-        }
-        _ => None,
-    }
 }
 
 /// The caller expression a membership requirement is about.

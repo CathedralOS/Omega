@@ -7,6 +7,7 @@ mod direct;
 mod domains;
 mod dynamic_erased_lane;
 mod entailment;
+mod intervals;
 mod evaluator;
 mod evidence;
 mod exits;
