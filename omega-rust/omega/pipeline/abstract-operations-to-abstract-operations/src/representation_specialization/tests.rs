@@ -132,6 +132,62 @@ const PATH_SPLIT_SOURCE: &str = r#"
     }
 "#;
 
+/// A membership descending into a parameter's array element: the fixed
+/// index resolves to the element's declared sole-case roster, which proves
+/// the verdict regardless of which element the index names.
+const ARRAY_ELEMENT_SOURCE: &str = r#"
+    data Tag { case Only; }
+    machine probe(t: [Tag; 2]) -> bool {
+        t[1] in Tag::Only
+    }
+"#;
+
+/// A two-segment path descends through a parameter's record field into an
+/// array element: the same sole-case roster at the resolved position proves
+/// the verdict.
+const NESTED_ARRAY_SOURCE: &str = r#"
+    data Tag { case Only; }
+    data Rec { inner: [Tag; 2]; }
+    machine probe(r: Rec) -> bool {
+        r.inner[0] in Tag::Only
+    }
+"#;
+
+/// A three-segment path crosses an array element mid-path: the index lands
+/// on a record element whose own field holds the sole-case sum — the roster
+/// at the resolved end proves the verdict at every depth.
+const DEEP_ARRAY_PATH_SOURCE: &str = r#"
+    data Tag { case Only; }
+    data Inner { tag: Tag; }
+    data Mid { arr: [Inner; 2]; }
+    machine probe(m: Mid) -> bool {
+        m.arr[0].tag in Tag::Only
+    }
+"#;
+
+/// A fixed index into a machine receiver's own array field: the receiver is
+/// the machine's `is_self` parameter place and the same roster proof folds
+/// the observation.
+const SELF_ARRAY_SOURCE: &str = r#"
+    data Tag { case Only; }
+    data Root { arr: [Tag; 3]; }
+    machine Root::run(&mut self) {
+        transition self.arr[1] in Tag::Only { true -> good() _ -> bad() }
+        state good(&mut self) {}
+        state bad(&mut self) {}
+    }
+"#;
+
+/// A path descending into a multi-case array element carries no roster
+/// proof: the membership observes a position whose case the unit cannot
+/// fix.
+const ARRAY_MULTI_CASE_SOURCE: &str = r#"
+    data Choice { case Empty; case Some(value: u32); }
+    machine probe(t: [Choice; 2]) -> bool {
+        t[1] in Choice::Some
+    }
+"#;
+
 /// No membership observes the established place at all: no candidate exists.
 const NO_MEMBERSHIP_SOURCE: &str = r#"
     data Choice { case Empty; case Some(value: u32); }
@@ -749,6 +805,248 @@ fn replay_rejects_forged_path_rows() {
 
     let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
         .expect("the exact path candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
+}
+
+/// The folded row's path ends on the sole-case roster below a `FixedIndex`:
+/// the array element's declared element type proves the verdict. One test
+/// asserts each reachable indexed shape — a root index, an index below a
+/// record field, and an index mid-path with a field below it.
+#[test]
+fn array_element_membership_folds_on_sole_case() {
+    let unit = lowered_unit_entry(ARRAY_ELEMENT_SOURCE, "array element membership", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let memberships = memberships_on(&input, machine, place);
+    let [(site, membership, path)] = memberships.as_slice() else {
+        panic!("one membership observes the array")
+    };
+    assert!(
+        matches!(
+            path.as_slice(),
+            [terminal_psi::StructuralPathSegment::FixedIndex(1)]
+        ),
+        "the fixture observes one fixed-index element"
+    );
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(patch.producer, None);
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site, *site);
+    assert_eq!(row.psi_operation, membership.0);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, None);
+    assert_eq!(row.observed_case, row.proven_case);
+    assert!(row.outcome);
+
+    // The proposal is deterministic: an independent run commits the same
+    // candidate, custody, and output revision.
+    let replayed = specialize(lowered_unit_entry(
+        ARRAY_ELEMENT_SOURCE,
+        "array element membership",
+        "probe",
+    ));
+    assert_eq!(replayed.commits(), run.commits());
+
+    let folded = &run.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+    assert!(membership_on(run.session().unit(), machine, place).is_none());
+}
+
+#[test]
+fn nested_array_membership_folds_through_field_index() {
+    let unit = lowered_unit_entry(NESTED_ARRAY_SOURCE, "nested array membership", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let memberships = memberships_on(&input, machine, place);
+    let [(site, membership, path)] = memberships.as_slice() else {
+        panic!("one membership observes the nested element")
+    };
+    assert!(
+        matches!(
+            path.as_slice(),
+            [
+                terminal_psi::StructuralPathSegment::Field(_),
+                terminal_psi::StructuralPathSegment::FixedIndex(0)
+            ]
+        ),
+        "the fixture descends a field then a fixed index"
+    );
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site, *site);
+    assert_eq!(row.psi_operation, membership.0);
+    assert!(row.outcome);
+
+    let folded = &run.session().unit().functions[0]
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+}
+
+#[test]
+fn array_element_path_membership_folds_at_depth() {
+    let unit = lowered_unit_entry(
+        DEEP_ARRAY_PATH_SOURCE,
+        "deep array path membership",
+        "probe",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let memberships = memberships_on(&input, machine, place);
+    let [(site, _, path)] = memberships.as_slice() else {
+        panic!("one membership observes below the element")
+    };
+    assert!(
+        matches!(
+            path.as_slice(),
+            [
+                terminal_psi::StructuralPathSegment::Field(_),
+                terminal_psi::StructuralPathSegment::FixedIndex(0),
+                terminal_psi::StructuralPathSegment::Field(_)
+            ]
+        ),
+        "the fixture crosses an array element mid-path"
+    );
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site, *site);
+    assert!(row.outcome);
+}
+
+#[test]
+fn self_field_array_membership_folds() {
+    let unit = lowered_unit_entry(SELF_ARRAY_SOURCE, "self array membership", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let declaration = input.functions[0]
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)
+        .expect("the receiver is rostered");
+    assert!(
+        matches!(
+            declaration.kind,
+            StructuralPlaceKind::Parameter { is_self: true, .. }
+        ),
+        "the fixture's membership observes the machine's own receiver"
+    );
+    let memberships = memberships_on(&input, machine, place);
+    let [(site, _, path)] = memberships.as_slice() else {
+        panic!("one membership observes the receiver's element")
+    };
+    assert!(
+        matches!(
+            path.as_slice(),
+            [
+                terminal_psi::StructuralPathSegment::Field(_),
+                terminal_psi::StructuralPathSegment::FixedIndex(1)
+            ]
+        ),
+        "the fixture descends the receiver's array field"
+    );
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site, *site);
+    assert_eq!(row.source, place);
+    assert!(row.outcome);
+}
+
+#[test]
+fn multi_case_array_element_membership_yields_no_candidate() {
+    let unit = lowered_unit_entry(ARRAY_MULTI_CASE_SOURCE, "multi-case array element", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = parameter_place(&input);
+    let memberships = memberships_on(&input, machine, place);
+    let [(_, _, path)] = memberships.as_slice() else {
+        panic!("the fixture must contain a membership on the array")
+    };
+    assert!(
+        matches!(
+            path.as_slice(),
+            [terminal_psi::StructuralPathSegment::FixedIndex(1)]
+        ),
+        "the fixture observes one fixed-index element"
+    );
+    assert_declines(unit);
+}
+
+#[test]
+fn replay_rejects_forged_array_rows() {
+    let unit = lowered_unit_entry(ARRAY_ELEMENT_SOURCE, "array element membership", "probe");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
+
+    // A forged proven case at the resolved element mismatches the replayed
+    // roster: the element's declared sole case is the basis, not the row.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                patch.memberships[0].proven_case.get() + 7,
+            )
+            .expect("forged case identity");
+            patch.memberships[0].outcome =
+                patch.memberships[0].proven_case == patch.memberships[0].observed_case;
+        }),
+    );
+
+    // A forged producer claims an establishment basis on a roster-proven
+    // indexed read.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+        }),
+    );
+
+    // A forged site coordinate relocates the fold off the membership.
+    assert_rejects_rows(
+        &input,
+        forged(&commit.declaration, |patch| {
+            patch.memberships[0].site.node += 1;
+        }),
+    );
+
+    let validated = validate_case_membership_specialization_candidate(&input, &commit.declaration)
+        .expect("the exact array candidate still validates");
     assert_eq!(validated.unit().identity, commit.output);
 }
 
