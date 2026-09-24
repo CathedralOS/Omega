@@ -3,8 +3,8 @@
 use super::{
     CheckedScalarBindingValue, CheckedTerminalSignatureEligibility, CheckedTrees, LoweredPsi,
     LoweringError, PrimitiveType, ProofBundle, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalModule,
-    build_scalar_graph_module, machine_id, prepare_scalar_graph_machine, scalar_graph_lowering,
-    unsupported,
+    build_scalar_graph_module, machine_id, prepare_scalar_graph_machine, prepare_scalar_graph_root,
+    scalar_graph_lowering, unsupported,
 };
 pub(crate) mod callee;
 pub(crate) mod embedded;
@@ -329,6 +329,10 @@ fn bounded_static_scalar_dispatch_edge(
         && realization_result == requirement_result
 }
 
+/// Lower the selected root's scalar call closure (`checked_scalar_call_closure`,
+/// root first) into one Terminal module. This is the one route for a
+/// graph-only scalar selection. A root that calls no other machine is a
+/// closure of one, not a separate family.
 pub(crate) fn lower_scalar_call_closure(
     checked: &CheckedTrees,
     closure: &[symbols::SymbolHandle],
@@ -339,7 +343,8 @@ pub(crate) fn lower_scalar_call_closure(
         )?;
     let prepared = closure
         .iter()
-        .map(|machine| {
+        .enumerate()
+        .map(|(index, machine)| {
             let graph = checked
                 .facts
                 .flow
@@ -348,16 +353,27 @@ pub(crate) fn lower_scalar_call_closure(
                 .ok_or(LoweringError::Unsupported(
                     "terminal call-closure machine has no checked scalar graph",
                 ))?;
-            prepare_scalar_graph_machine(checked, &qualifications, *machine, graph)
+            if index == 0 {
+                prepare_scalar_graph_root(checked, &qualifications, *machine, graph)
+            } else {
+                prepare_scalar_graph_machine(checked, &qualifications, *machine, graph)
+            }
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if prepared.iter().any(|machine| {
-        !machine.identity_reshuffles.structural_places.is_empty()
-            || !machine.identity_reshuffles.entry_claims.is_empty()
-            || !machine.identity_reshuffles.reshuffles.is_empty()
-            || !machine.partition_compositions.structural_places.is_empty()
-            || !machine.partition_compositions.compositions.is_empty()
-    }) {
+    // A call between two closure members carries no content-transfer rows in
+    // this assembler, so a member's content effects are admitted only while
+    // no such call exists. Every member after the root entered the closure
+    // through a call from another member, so that holds exactly for a
+    // closure of one.
+    if closure.len() > 1
+        && prepared.iter().any(|machine| {
+            !machine.identity_reshuffles.structural_places.is_empty()
+                || !machine.identity_reshuffles.entry_claims.is_empty()
+                || !machine.identity_reshuffles.reshuffles.is_empty()
+                || !machine.partition_compositions.structural_places.is_empty()
+                || !machine.partition_compositions.compositions.is_empty()
+        })
+    {
         return unsupported(
             "structural/content call effects require the terminal content-call slice",
         );

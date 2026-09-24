@@ -48,18 +48,26 @@ pub(crate) fn prepare_scalar_graph_machine(
     )
 }
 
-pub(crate) fn prepare_standalone_scalar_graph_machine(
+/// Prepare the selected root of a scalar call closure. Its result is the
+/// artifact's direct result, so the one proof-only `FloatMeaning`
+/// reflexivity `ensures` (see
+/// `exact_direct_result_float_meaning_reflexivity_contract`) has no runtime
+/// consumer there and contributes no `MachineContract` value. A callee's
+/// result feeds a caller instead, so callees keep the closed runtime mode,
+/// which rejects that clause rather than erase a guarantee a caller could
+/// cite.
+pub(crate) fn prepare_scalar_graph_root(
     checked: &CheckedTrees,
+    qualifications: &PreparedScalarQualifications,
     machine: symbols::SymbolHandle,
     graph: &CheckedScalarMachineGraph,
 ) -> Result<PreparedScalarMachine, LoweringError> {
-    let qualifications = PreparedScalarQualifications::prepare(checked, &[machine])?;
     prepare_scalar_graph_machine_with_contract_mode(
         checked,
-        &qualifications,
+        qualifications,
         machine,
         graph,
-        ScalarContractMode::StandaloneProofOnlyFloatResult,
+        ScalarContractMode::RootDirectResult,
         &[],
         &[],
         &[],
@@ -97,7 +105,7 @@ pub(crate) fn prepare_scalar_graph_in_namespace(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ScalarContractMode {
     ClosedRuntimeValue,
-    StandaloneProofOnlyFloatResult,
+    RootDirectResult,
 }
 
 fn prepare_scalar_graph_machine_with_contract_mode(
@@ -579,7 +587,9 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .is_some_and(|ranges| !ranges.is_empty());
     // A helper remains a real callee when embedded in another execution plan.
     // Its checked call identity does not discharge requirements or establish
-    // guarantees. Retain the same contract regardless of closure-root position.
+    // guarantees. Retain the same contract regardless of closure-root position;
+    // the root's proof-only float reflexivity clause is the one exception
+    // (`prepare_scalar_graph_root`).
     let contract = if plan.requires().is_empty()
         && plan.ensures().is_empty()
         && !plan.has_outcome_specific_clauses()
@@ -587,7 +597,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         validate_empty_scalar_contract_source(checked, machine)?;
         PreparedScalarContract::Empty
     } else if has_return {
-        if contract_mode == ScalarContractMode::StandaloneProofOnlyFloatResult
+        if contract_mode == ScalarContractMode::RootDirectResult
             && exact_direct_result_float_meaning_reflexivity_contract(
                 checked,
                 machine,
