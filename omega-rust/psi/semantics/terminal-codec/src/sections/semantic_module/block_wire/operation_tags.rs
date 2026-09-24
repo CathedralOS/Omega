@@ -165,3 +165,6 @@ pub(super) const STRUCTURAL_LEAF_COPY: u8 = 84;
 
 /// `OperationKind::StructuralCaseLeafCopy`.
 pub(super) const STRUCTURAL_CASE_LEAF_COPY: u8 = 85;
+
+/// `OperationKind::StructuralByteSequenceFieldRead`.
+pub(super) const STRUCTURAL_BYTE_SEQUENCE_FIELD_READ: u8 = 86;

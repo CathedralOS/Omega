@@ -402,6 +402,24 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE: TrustedSurfaceEntry = entry
         VAL_STRUCTURAL_BYTES_STORE,
     ],
 );
+static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_READ: TrustedSurfaceEntry = entry(
+    "operation:structural-byte-sequence-field-read",
+    "a validated single-byte read of a byte-sequence field",
+    "the read observation's bound obligation is reconstructed against the field's own length",
+    &[
+        "fact:structural-effect-observation",
+        "fact:byte-extent-length",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_STRUCTURAL_BYTES,
+    ],
+);
 static OP_ESTABLISH_SCALAR_CASE: TrustedSurfaceEntry = entry(
     "operation:establish-scalar-case",
     "a validated scalar-case establishment over a sum type",
@@ -1058,6 +1076,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE,
+    OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_READ,
     OP_ESTABLISH_SCALAR_CASE,
     OP_ESTABLISH_STRUCTURAL_CASE,
     OP_ESTABLISH_SCALAR_ARRAY,
@@ -1148,6 +1167,9 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         }
         OperationSemanticTag::StructuralByteSequenceFieldByteStore => {
             &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE
+        }
+        OperationSemanticTag::StructuralByteSequenceFieldRead => {
+            &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_READ
         }
         OperationSemanticTag::EstablishScalarCase => &OP_ESTABLISH_SCALAR_CASE,
         OperationSemanticTag::EstablishStructuralCase => &OP_ESTABLISH_STRUCTURAL_CASE,

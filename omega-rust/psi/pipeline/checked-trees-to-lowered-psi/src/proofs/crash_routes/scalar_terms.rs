@@ -129,6 +129,7 @@ pub(crate) fn lowered_direct_scalar_term(
         LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
+        | LoweredDirectExpression::ByteSequenceFieldRead { .. }
         | LoweredDirectExpression::ElementViewLength { .. }
         | LoweredDirectExpression::ElementViewRead { .. } => {
             return unsupported("view observation has no retained crash predicate term");

@@ -238,6 +238,27 @@ pub(super) fn validate_structural_byte_sequence_field_length(
     Ok(())
 }
 
+pub(super) fn validate_structural_byte_sequence_field_read(
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::StructuralByteSequenceFieldRead { .. } = &operation.kind else {
+        unreachable!("dispatched validate_structural_byte_sequence_field_read")
+    };
+    let expected = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"),
+    );
+    if operation
+        .result
+        .scalar()
+        .is_none_or(|result| result.scalar_type != expected)
+    {
+        return malformed("byte field read requires an unsigned 8-bit scalar result");
+    }
+    // Independent module validation reconstructs exact current length
+    // provenance, scalar operand types, custody, and index bounds.
+    Ok(())
+}
+
 pub(super) fn validate_byte_sequence_subslice(
     module: &TerminalModule,
     machine: &TerminalMachine,

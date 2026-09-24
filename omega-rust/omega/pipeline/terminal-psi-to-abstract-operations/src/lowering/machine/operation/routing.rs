@@ -87,6 +87,9 @@ pub(super) fn lower(
                 field: *field,
             })
         }
+        OperationKind::StructuralByteSequenceFieldRead { .. } => Err(
+            LoweringError::UnsupportedStructuralByteSequenceFieldRead(operation.id),
+        ),
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,

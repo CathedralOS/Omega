@@ -16,18 +16,24 @@ pub(in crate::validation) fn validate(
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
     let invalid = || ModuleError::InvalidStructuralByteSequenceFieldAccess(operation.id);
-    let (root, path, field, writing) = match &operation.kind {
+    let (root, path, field, writing, element_result) = match &operation.kind {
         OperationKind::StructuralByteSequenceFieldLength {
             source,
             path,
             field,
-        } => (*source, path, *field, false),
+        } => (*source, path, *field, false, false),
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,
             field,
             ..
-        } => (*destination, path, *field, true),
+        } => (*destination, path, *field, true, false),
+        OperationKind::StructuralByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            ..
+        } => (*source, path, *field, false, true),
         _ => return Err(invalid()),
     };
     let parameter = machine
@@ -69,6 +75,17 @@ pub(in crate::validation) fn validate(
         {
             return Err(invalid());
         }
+    } else if element_result {
+        // The element bound must discharge against the field's own current
+        // length observation, not a stale snapshot.
+        if operation
+            .result
+            .scalar()
+            .is_none_or(|result| result.scalar_type != element_type())
+            || !freshness::exact_length_is_current(module, machine, operation)
+        {
+            return Err(invalid());
+        }
     } else if operation
         .result
         .scalar()
@@ -81,6 +98,10 @@ pub(in crate::validation) fn validate(
 
 fn byte_count_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"))
+}
+
+fn element_type() -> ScalarType {
+    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"))
 }
 
 /// Resolve the field identity before comparing a call's projected write path.
