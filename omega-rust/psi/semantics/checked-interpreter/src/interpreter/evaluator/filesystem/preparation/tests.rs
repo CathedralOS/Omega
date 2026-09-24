@@ -142,8 +142,8 @@ fn preflight_rechecks_aliased_output_carrier_without_snapshotting_it() {
 
 #[test]
 fn provider_boundaries_only_accept_prepared_calls() {
-    let virtual_source = include_str!("../filesystem/filesystem_calls.rs");
-    let real_source = include_str!("../real_filesystem.rs");
+    let virtual_source = include_str!("../filesystem_calls.rs");
+    let real_source = include_str!("../real.rs");
     let virtual_signatures = virtual_source
         .split_whitespace()
         .collect::<Vec<_>>()
@@ -266,7 +266,7 @@ fn logical_handle_plan_distinguishes_descriptor_native_find_and_pointer_scalars(
 
 #[test]
 fn operation_attempt_encloses_canonical_preparation() {
-    let source = include_str!("../filesystem/filesystem_calls.rs");
+    let source = include_str!("../filesystem_calls.rs");
     let push = source.find("push(attempt_index)").expect("attempt push");
     let prepare = source
         .find(".prepare_filesystem_call(operation, arguments, frame)")

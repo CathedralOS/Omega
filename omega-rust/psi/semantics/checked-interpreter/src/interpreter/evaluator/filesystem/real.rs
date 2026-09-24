@@ -35,9 +35,9 @@ mod descriptor_calls;
 mod directory_calls;
 mod path_calls;
 
-use super::{
+use crate::interpreter::evaluator::{
     EvalResult, FilesystemGrantAccess, FilesystemGrantRefusal, FilesystemGrantRefusalReason,
-    PreparedByteOutput, PreparedFilesystemCall, Value, host_open_flags,
+    PreparedByteOutput, PreparedFilesystemCall, Value,
 };
 use crate::{
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind, FilesystemAuthorizedPath,
@@ -55,14 +55,16 @@ fn io_errno(error: &std::io::Error) -> i32 {
 fn sponsor_value<T>(result: Result<T, crate::FilesystemSponsorError>) -> EvalResult<T> {
     match result {
         Ok(value) => Ok(value),
-        Err(error) => super::filesystem_sponsor_halt(error),
+        Err(error) => crate::interpreter::evaluator::filesystem_sponsor_halt(error),
     }
 }
 
 fn checked_written_count(written: usize) -> EvalResult<i64> {
     match i64::try_from(written) {
         Ok(written) => Ok(written),
-        Err(_) => super::filesystem_sponsor_halt(crate::FilesystemSponsorError::ArithmeticOverflow),
+        Err(_) => crate::interpreter::evaluator::filesystem_sponsor_halt(
+            crate::FilesystemSponsorError::ArithmeticOverflow,
+        ),
     }
 }
 
@@ -91,12 +93,14 @@ fn sponsor_preparation<T>(
             | crate::FilesystemSponsorError::DirectoryNotEmpty(_)
             | crate::FilesystemSponsorError::InvalidDirectoryRename(_),
         ) => Ok(SponsorPreparation::ExpectedHostFailure),
-        Err(error) => super::filesystem_sponsor_halt(error),
+        Err(error) => crate::interpreter::evaluator::filesystem_sponsor_halt(error),
     }
 }
 
 fn unexpected_sponsored_success<T>() -> EvalResult<T> {
-    super::filesystem_sponsor_halt(crate::FilesystemSponsorError::TransactionNoLongerCurrent)
+    crate::interpreter::evaluator::filesystem_sponsor_halt(
+        crate::FilesystemSponsorError::TransactionNoLongerCurrent,
+    )
 }
 
 fn read_only_open_bypasses_sponsor(
@@ -255,7 +259,7 @@ pub(in crate::interpreter) struct RealFs {
     next_fd: i32,
     /// Thread-local errno model, mirroring `virtual_errno`: set from the host
     /// `io::Error` on a failing op, read back by `errno`.
-    pub(super) errno: i32,
+    pub(in crate::interpreter::evaluator) errno: i32,
     /// `Some` under `FilesystemAccess::RealScoped`; `None` is unscoped.
     grants: Option<Grants>,
     sponsor: Option<crate::FilesystemSponsor>,
@@ -276,11 +280,11 @@ impl RealFs {
         })
     }
 
-    pub(super) fn is_scoped(&self) -> bool {
+    pub(in crate::interpreter::evaluator) fn is_scoped(&self) -> bool {
         self.grants.is_some()
     }
 
-    pub(super) fn rooted_path_bytes(
+    pub(in crate::interpreter::evaluator) fn rooted_path_bytes(
         &self,
         identity: FilesystemGrantRootIdentity,
         relative: &[u8],
@@ -438,19 +442,27 @@ fn real_directory_entries(
     }
     let (mut name_bytes, mut record_bytes) = match snapshot_kind {
         DirectoryEntrySnapshotKind::PackedRecords => {
-            let record_bytes = super::checked_directory_record_snapshot_total(0, 1)?;
+            let record_bytes =
+                crate::interpreter::evaluator::checked_directory_record_snapshot_total(0, 1)?;
             (
                 None,
-                Some(super::checked_directory_record_snapshot_total(
-                    record_bytes,
-                    2,
-                )?),
+                Some(
+                    crate::interpreter::evaluator::checked_directory_record_snapshot_total(
+                        record_bytes,
+                        2,
+                    )?,
+                ),
             )
         }
         DirectoryEntrySnapshotKind::FindCursor => {
-            let name_bytes = super::checked_directory_name_snapshot_total(0, 1)?;
+            let name_bytes =
+                crate::interpreter::evaluator::checked_directory_name_snapshot_total(0, 1)?;
             (
-                Some(super::checked_directory_name_snapshot_total(name_bytes, 2)?),
+                Some(
+                    crate::interpreter::evaluator::checked_directory_name_snapshot_total(
+                        name_bytes, 2,
+                    )?,
+                ),
                 None,
             )
         }
@@ -475,18 +487,22 @@ fn real_directory_entries(
         let Some(bytes) = real_os_byte_slice(&file_name) else {
             return Ok(Err(EINVAL));
         };
-        let bytes = super::portable_directory_entry_name(bytes);
+        let bytes = crate::interpreter::evaluator::portable_directory_entry_name(bytes);
         if let Some(current) = name_bytes {
-            name_bytes = Some(super::checked_directory_name_snapshot_total(
-                current,
-                bytes.len(),
-            )?);
+            name_bytes = Some(
+                crate::interpreter::evaluator::checked_directory_name_snapshot_total(
+                    current,
+                    bytes.len(),
+                )?,
+            );
         }
         if let Some(current) = record_bytes {
-            record_bytes = Some(super::checked_directory_record_snapshot_total(
-                current,
-                bytes.len(),
-            )?);
+            record_bytes = Some(
+                crate::interpreter::evaluator::checked_directory_record_snapshot_total(
+                    current,
+                    bytes.len(),
+                )?,
+            );
         }
         children.push((bytes.to_vec(), d_type));
     }
@@ -575,11 +591,11 @@ fn canonical_relative_path(path: &Path) -> Option<Vec<u8>> {
     Some(encoded)
 }
 
-impl<'program> super::Evaluator<'program> {
+impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     /// Mirror of `try_filesystem_call` against the REAL filesystem. The match
     /// exhaustively covers the same closed operation type as the virtual
     /// provider, so neither provider can silently omit a canonical operation.
-    pub(super) fn try_real_filesystem_call(
+    pub(in crate::interpreter::evaluator) fn try_real_filesystem_call(
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<Value> {
@@ -681,15 +697,15 @@ impl<'program> super::Evaluator<'program> {
         let access = flags & 0x3;
         let wants_write = access == 1
             || access == 2
-            || host_open_flags::o_creat(flags)
-            || host_open_flags::o_trunc(flags)
-            || host_open_flags::o_append(flags);
+            || crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
+            || crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags)
+            || crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags);
         match self.authorized_path(&path, wants_write, 0) {
             Some(path) => {
                 let prepared = self.prepare_sponsored_open(
                     &path,
-                    host_open_flags::o_creat(flags),
-                    host_open_flags::o_trunc(flags),
+                    crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags),
+                    crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags),
                     wants_write,
                 )?;
                 let options = open_options_for(flags, mode, create_variant);
@@ -697,7 +713,7 @@ impl<'program> super::Evaluator<'program> {
                 self.finish_real_open(
                     opened,
                     path,
-                    host_open_flags::o_append(flags),
+                    crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags),
                     prepared,
                     false,
                 )
@@ -892,7 +908,7 @@ impl<'program> super::Evaluator<'program> {
         let requested_bytes = match u64::try_from(requested_bytes) {
             Ok(bytes) => bytes,
             Err(_) => {
-                return super::filesystem_sponsor_halt(
+                return crate::interpreter::evaluator::filesystem_sponsor_halt(
                     crate::FilesystemSponsorError::ArithmeticOverflow,
                 );
             }
@@ -919,7 +935,7 @@ impl<'program> super::Evaluator<'program> {
         let written = match u64::try_from(written) {
             Ok(written) => written,
             Err(_) => {
-                return super::filesystem_sponsor_halt(
+                return crate::interpreter::evaluator::filesystem_sponsor_halt(
                     crate::FilesystemSponsorError::ArithmeticOverflow,
                 );
             }
@@ -1423,14 +1439,18 @@ fn open_options_for(flags: i32, mode: u32, apply_creation_mode: bool) -> std::fs
     options
         .read(access == 0 || access == 2)
         .write(access == 1 || access == 2)
-        .append(host_open_flags::o_append(flags))
-        .truncate(host_open_flags::o_trunc(flags))
-        .create(host_open_flags::o_creat(flags));
-    if host_open_flags::o_creat(flags) && host_open_flags::o_excl(flags) {
+        .append(crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags))
+        .truncate(crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags))
+        .create(crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags));
+    if crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
+        && crate::interpreter::evaluator::filesystem::host_open_flags::o_excl(flags)
+    {
         options.create_new(true);
     }
     #[cfg(unix)]
-    if host_open_flags::o_creat(flags) && apply_creation_mode {
+    if crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
+        && apply_creation_mode
+    {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(mode & 0o7777);
     }

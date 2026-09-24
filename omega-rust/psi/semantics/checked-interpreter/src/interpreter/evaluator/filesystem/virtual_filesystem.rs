@@ -4,7 +4,7 @@
 use crate::interpreter::evaluator::{
     EvalResult, Evaluator, FIND_DATA_OUTPUT_BYTES, PreparedByteOutput, VIRTUAL_GID, VIRTUAL_UID,
     VirtualFd, checked_directory_name_snapshot_total, checked_directory_record_snapshot_total,
-    host_open_flags, pack_dirent_records, portable_directory_entry_name,
+    pack_dirent_records, portable_directory_entry_name,
 };
 use crate::{FilesystemMetadataObservation, FilesystemMetadataObservationKind};
 
@@ -272,9 +272,9 @@ impl<'program> Evaluator<'program> {
         // target exactly like Win32.
         let path = self.virtual_symlinks.get(&path).cloned().unwrap_or(path);
         let exists = self.virtual_files.contains_key(&path);
-        let o_creat = host_open_flags::o_creat(flags);
-        let o_trunc = host_open_flags::o_trunc(flags);
-        let o_append = host_open_flags::o_append(flags);
+        let o_creat = crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags);
+        let o_trunc = crate::interpreter::evaluator::filesystem::host_open_flags::o_trunc(flags);
+        let o_append = crate::interpreter::evaluator::filesystem::host_open_flags::o_append(flags);
         let writable = flags & 0x3 != 0; // O_WRONLY | O_RDWR (universal)
         // Opening a directory for writing is EISDIR (Rust `ErrorKind::IsADirectory`).
         // Checked before the ENOENT test so a dir path (never in `virtual_files`)

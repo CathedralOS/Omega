@@ -223,7 +223,7 @@ fn resource_halt_teardown_closes_remaining_descriptors() {
 
     assert!(matches!(
         sponsor_preparation(sponsor.prepare_write(&descriptor, 0, 1)),
-        Err(super::super::Halt::Resource(_))
+        Err(crate::interpreter::evaluator::Halt::Resource(_))
     ));
     drop(filesystem);
 

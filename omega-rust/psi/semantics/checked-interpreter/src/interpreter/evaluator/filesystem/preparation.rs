@@ -22,29 +22,30 @@ pub(crate) use logical_handle_plans::{
 pub(crate) use prepared_calls::PreparedFilesystemCall;
 pub(crate) use prepared_outputs::{PreparedByteOutput, PreparedTransferCount};
 
-use super::{EvalResult, FilesystemHostOperation, Halt, trap};
+use crate::interpreter::evaluator::{EvalResult, FilesystemHostOperation, Halt, trap};
 
-pub(super) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
+pub(in crate::interpreter::evaluator) const MAX_FILESYSTEM_TRANSFER_BYTES: usize = 16 * 1024 * 1024;
 
 const FILETIME_BYTES: usize = 8;
 
-pub(super) const FIND_DATA_OUTPUT_BYTES: usize = 320;
+pub(in crate::interpreter::evaluator) const FIND_DATA_OUTPUT_BYTES: usize = 320;
 
 const OVERLAPPED_BYTES: usize = 32;
 
 const PATH_MAX_OUTPUT_BYTES: usize = 1024;
 
-pub(super) const STAT_OUTPUT_BYTES: usize = crate::FILESYSTEM_METADATA_API_CARRIER_BYTES;
+pub(in crate::interpreter::evaluator) const STAT_OUTPUT_BYTES: usize =
+    crate::FILESYSTEM_METADATA_API_CARRIER_BYTES;
 
 const TIMESPEC_PAIR_BYTES: usize = 32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum FilesystemTransferCountError {
+pub(in crate::interpreter::evaluator) enum FilesystemTransferCountError {
     NegativeOrUnrepresentable,
     ExceedsEvaluatorLimit,
 }
 
-pub(super) fn checked_filesystem_transfer_count(
+pub(in crate::interpreter::evaluator) fn checked_filesystem_transfer_count(
     raw: i64,
 ) -> Result<PreparedTransferCount, FilesystemTransferCountError> {
     let host = usize::try_from(raw)
@@ -82,7 +83,7 @@ fn checked_relative_component(bytes: Vec<u8>) -> EvalResult<Vec<u8>> {
 /// Both interpreter providers model Win32 HANDLEs with their i32 descriptor
 /// tables. Reject values outside that synthetic domain instead of allowing a
 /// lossy cast to alias an unrelated open descriptor.
-pub(super) fn synthetic_handle_fd(handle: i64) -> Option<i32> {
+pub(in crate::interpreter::evaluator) fn synthetic_handle_fd(handle: i64) -> Option<i32> {
     i32::try_from(handle).ok()
 }
 

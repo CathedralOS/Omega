@@ -2,9 +2,7 @@
 //! links, permissions, ownership, canonicalization and path metadata.
 
 use crate::FilesystemMetadataObservationKind;
-use crate::interpreter::evaluator::{
-    EvalResult, PreparedFilesystemCall, VIRTUAL_MTIME_SECS, host_open_flags,
-};
+use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall, VIRTUAL_MTIME_SECS};
 
 impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
     pub(super) fn serve_open_path_handle(
@@ -56,13 +54,18 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let exists = self.virtual_files.contains_key(&path)
                 || self.virtual_dirs.contains(&path)
                 || self.virtual_char_devices.contains(&path);
-            if host_open_flags::o_creat(flags) && host_open_flags::o_excl(flags) && exists {
+            if crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
+                && crate::interpreter::evaluator::filesystem::host_open_flags::o_excl(flags)
+                && exists
+            {
                 self.virtual_errno = 17; // EEXIST (O_CREAT|O_EXCL, path present)
                 -1
             } else {
                 // Whether this call actually creates the file (records the mode
                 // AFTER the open so the create's own access is not gated by it).
-                let created = host_open_flags::o_creat(flags) && !exists;
+                let created =
+                    crate::interpreter::evaluator::filesystem::host_open_flags::o_creat(flags)
+                        && !exists;
                 let fd = self.virtual_open_flags(path.clone(), flags);
                 if fd >= 0 && created {
                     self.virtual_perms.insert(path, (mode as u32) & 0o777);

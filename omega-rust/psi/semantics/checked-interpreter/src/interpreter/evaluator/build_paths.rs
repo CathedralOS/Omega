@@ -1,6 +1,6 @@
 use super::{
     BTreeMap, Cell, EvalResult, Evaluator, ExpressionHandle, FilesystemHostOperation, Frame, Halt,
-    SymbolHandle, TableCall, Value, real_filesystem,
+    SymbolHandle, TableCall, Value,
 };
 use crate::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, FilesystemGrantRootIdentity,
@@ -353,7 +353,7 @@ impl<'program> Evaluator<'program> {
         let scoped_real_output = self
             .real_fs
             .as_ref()
-            .is_some_and(real_filesystem::RealFs::is_scoped);
+            .is_some_and(crate::interpreter::evaluator::filesystem::real::RealFs::is_scoped);
         if !scoped_real_output {
             return Err(Halt::Trap(
                 "generated-source handoff requires a scoped build-output grant".to_owned(),

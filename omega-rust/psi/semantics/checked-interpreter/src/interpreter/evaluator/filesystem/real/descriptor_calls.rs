@@ -1,16 +1,19 @@
 //! Operations on an open descriptor or handle: reads, writes, seeks,
 //! duplication, extents, syncs, locks, and descriptor-scoped metadata.
 
-use super::super::{EvalResult, PreparedFilesystemCall, synthetic_handle_fd};
 use super::{
     EBADF, SelectedFilesystemMetadata, checked_written_count, io_errno, positioned_read,
     positioned_write, real_lock, real_lock_win32, real_os_bytes, win32_error_code,
 };
 use crate::FilesystemMetadataObservationKind;
+use crate::interpreter::evaluator::{EvalResult, PreparedFilesystemCall, synthetic_handle_fd};
 use std::io::{Read, Seek, SeekFrom, Write};
 
-impl<'program> super::super::Evaluator<'program> {
-    pub(super) fn real_read(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
+    pub(in crate::interpreter::evaluator) fn real_read(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Read { fd, buffer, count } = call else {
             unreachable!("dispatched real_read")
         };
@@ -45,7 +48,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_write(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_write(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Write { fd, bytes } = call else {
             unreachable!("dispatched real_write")
         };
@@ -81,7 +87,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_seek(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_seek(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Seek { fd, offset, whence } = call else {
             unreachable!("dispatched real_seek")
         };
@@ -108,7 +117,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_close(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_close(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Close { fd } = call else {
             unreachable!("dispatched real_close")
         };
@@ -125,7 +137,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_close_handle(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_close_handle(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::CloseHandle { handle } = call else {
             unreachable!("dispatched real_close_handle")
         };
@@ -145,7 +160,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_duplicate(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_duplicate(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::Duplicate { fd } = call else {
             unreachable!("dispatched real_duplicate")
         };
@@ -185,7 +203,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_set_len(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_set_len(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::SetLen { fd, length } = call else {
             unreachable!("dispatched real_set_len")
         };
@@ -212,7 +233,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_sync(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_sync(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let (PreparedFilesystemCall::Sync { fd } | PreparedFilesystemCall::SyncData { fd }) = call
         else {
             unreachable!("dispatched real_sync")
@@ -235,7 +259,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_read_at(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_read_at(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::ReadAt {
             fd,
             buffer,
@@ -271,7 +298,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_write_at(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_write_at(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::WriteAt { fd, bytes, offset } = call else {
             unreachable!("dispatched real_write_at")
         };
@@ -308,7 +338,7 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_read_file_metadata(
+    pub(in crate::interpreter::evaluator) fn real_read_file_metadata(
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
@@ -352,7 +382,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_get_osf_handle(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_get_osf_handle(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::GetOsfHandle { fd } = call else {
             unreachable!("dispatched real_get_osf_handle")
         };
@@ -370,7 +403,7 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_final_path_name_by_handle(
+    pub(in crate::interpreter::evaluator) fn real_final_path_name_by_handle(
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
@@ -426,7 +459,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_set_file_time(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_set_file_time(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::SetFileTime {
             handle,
             creation: _,
@@ -479,7 +515,7 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_set_file_permissions(
+    pub(in crate::interpreter::evaluator) fn real_set_file_permissions(
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {
@@ -525,7 +561,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_set_file_times(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_set_file_times(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::SetFileTimes { fd, times } = call else {
             unreachable!("dispatched real_set_file_times")
         };
@@ -565,7 +604,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_lock_file(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_lock_file(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::LockFile { fd, operation } = call else {
             unreachable!("dispatched real_lock_file")
         };
@@ -586,7 +628,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_lock_file_ex(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_lock_file_ex(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::LockFileEx {
             handle,
             flags,
@@ -621,7 +666,10 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_unlock_file(&mut self, call: PreparedFilesystemCall) -> EvalResult<i64> {
+    pub(in crate::interpreter::evaluator) fn real_unlock_file(
+        &mut self,
+        call: PreparedFilesystemCall,
+    ) -> EvalResult<i64> {
         let PreparedFilesystemCall::UnlockFile {
             handle,
             offset_low: _,
@@ -657,7 +705,7 @@ impl<'program> super::super::Evaluator<'program> {
         })
     }
 
-    pub(super) fn real_change_file_owner(
+    pub(in crate::interpreter::evaluator) fn real_change_file_owner(
         &mut self,
         call: PreparedFilesystemCall,
     ) -> EvalResult<i64> {

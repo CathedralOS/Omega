@@ -85,31 +85,26 @@ mod product_schemas;
 mod provider_selections;
 mod root_bindings;
 
-// The filesystem.
-mod filesystem;
-mod filesystem_host_operation;
-mod filesystem_logical_handles;
-mod filesystem_preparation;
-mod host_open_flags;
-/// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
-/// build.omg rung). A CHILD module so it can serve ops against the private
-/// `Evaluator` internals (the fs argument/buffer helpers) without widening
-/// their visibility outside the interpreter owner.
-pub(super) mod real_filesystem;
+// The filesystem. Its own modules live beneath it rather than beside it, so
+// the six names that used to share a `filesystem_`/`real_` prefix now read as
+// what they are: the virtual provider, the host operation, the logical-handle
+// store and the operations over it, call preparation, the host open flags and
+// the real-filesystem provider.
+pub(super) mod filesystem;
 
 // Shared helpers.
 mod directory_entries;
 mod halts;
 mod scalar_numerics;
 
+use crate::interpreter::evaluator::filesystem::logical_handle_store::FilesystemLogicalHandles;
 use build_paths::{rooted_build_path_parts, validate_build_relative_path};
 use directory_entries::{
     checked_directory_name_snapshot_total, checked_directory_record_snapshot_total,
     dirent_record_chunk, pack_dirent_records, portable_directory_entry_name,
 };
-use filesystem_host_operation::{FilesystemHostOperation, FilesystemHostResultKind};
-use filesystem_logical_handles::FilesystemLogicalHandles;
-use filesystem_preparation::{
+use filesystem::host_operation::{FilesystemHostOperation, FilesystemHostResultKind};
+use filesystem::preparation::{
     FIND_DATA_OUTPUT_BYTES, PreparedByteOutput, PreparedFilesystemCall,
     PreparedFilesystemLogicalHandleOutput, PreparedFilesystemLogicalHandlePlan, STAT_OUTPUT_BYTES,
     synthetic_handle_fd,
@@ -386,7 +381,7 @@ pub(crate) struct Evaluator<'program> {
     /// filesystem instead of the virtual model above. The default (`None`)
     /// keeps the interpreter hermetic -- the differential oracle never touches
     /// real disk.
-    pub(super) real_fs: Option<real_filesystem::RealFs>,
+    pub(super) real_fs: Option<crate::interpreter::evaluator::filesystem::real::RealFs>,
     /// The canonical Build activation carried Source/Output facets. In this
     /// mode path-taking host operations require interpreter-retained rooted
     /// provenance; bare byte spellings cannot select a grant root.
