@@ -2283,6 +2283,37 @@ fn expression_is_self_relative(
     }
 }
 
+/// Whether the value's own declared type carries `domain_symbol`.
+///
+/// This is the identity case of membership, not an inference: the type is the
+/// declaration the place was created under, so a read of it is already a value
+/// of that domain. A value with no resolvable declared type, or one carrying a
+/// different domain, answers `false` and leaves every other route to decide.
+fn value_declared_type_carries_domain(
+    program: &typed_trees::TypedTrees,
+    state_flow: &FlowStateFact,
+    value: ExpressionHandle,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == state_flow.state_symbol)
+    else {
+        return false;
+    };
+    let Some(type_reference) =
+        validation::declared_place_type_raw(program, machine, Some(state), value)
+    else {
+        return false;
+    };
+    crate::facts::field_domain::domain_constraint_symbols(program, type_reference)
+        .contains(&domain_symbol)
+}
+
 #[cfg(test)]
 mod predicate_domain_write_probes {
     //! A write establishes a PREDICATE-ONLY domain by satisfying its
@@ -2392,35 +2423,4 @@ mod predicate_domain_write_probes {
             "`self != 3` is not an interval the range proof decides"
         );
     }
-}
-
-/// Whether the value's own declared type carries `domain_symbol`.
-///
-/// This is the identity case of membership, not an inference: the type is the
-/// declaration the place was created under, so a read of it is already a value
-/// of that domain. A value with no resolvable declared type, or one carrying a
-/// different domain, answers `false` and leaves every other route to decide.
-fn value_declared_type_carries_domain(
-    program: &typed_trees::TypedTrees,
-    state_flow: &FlowStateFact,
-    value: ExpressionHandle,
-    domain_symbol: SymbolHandle,
-) -> bool {
-    let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
-        return false;
-    };
-    let Some(state) = program
-        .machine_states(machine)
-        .iter()
-        .find(|state| state.symbol == state_flow.state_symbol)
-    else {
-        return false;
-    };
-    let Some(type_reference) =
-        validation::declared_place_type_raw(program, machine, Some(state), value)
-    else {
-        return false;
-    };
-    crate::facts::field_domain::domain_constraint_symbols(program, type_reference)
-        .contains(&domain_symbol)
 }
