@@ -23,12 +23,10 @@ use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, production lines under its
 /// `src/` that re-export a module with a glob).
-const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
-    (
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
-        12,
-    ),
-];
+const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[(
+    "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
+    12,
+)];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

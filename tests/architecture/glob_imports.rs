@@ -20,12 +20,10 @@ use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, production files under its
 /// `src/` tree carrying a glob import).
-const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
-    (
-        "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
-        11,
-    ),
-];
+const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[(
+    "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
+    11,
+)];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
