@@ -33,7 +33,7 @@ machine Main::main(&mut self) reaches Console {
     state signed_low(&mut self) {
         self.f = 0.0 - 200.0;
         self.i8v = (self.f as i8 in Saturating) as i8;
-        transition self.i8v == (0 as i8 in Wrapping) - 128 { true -> unsigned_low() _ -> bad(73) }
+        transition (self.i8v as i32) == -128 { true -> unsigned_low() _ -> bad(73) }
     }
     state unsigned_low(&mut self) {
         self.f = 0.0 - 3.7;

@@ -26,7 +26,7 @@ machine Main::main(&mut self) reaches Console + TimeHost {
     self.first_ticks = self.host.monotonic_ticks();
     self.host.sleep(30);
     self.second_ticks = self.host.monotonic_ticks();
-    transition self.second_ticks == self.first_ticks + 30 {
+    transition (self.second_ticks as u64 in Wrapping) == (self.first_ticks as u64 in Wrapping) + 30 {
         true -> check_frequency()
         false -> fail_delta()
     }
@@ -36,7 +36,7 @@ machine Main::main(&mut self) reaches Console + TimeHost {
     }
     state check_wall(&mut self) {
         self.wall_raw = self.host.wall_clock_raw();
-        transition self.wall_raw == 1767225600000 + self.second_ticks {
+        transition (self.wall_raw as u64 in Wrapping) == (self.second_ticks as u64 in Wrapping) + 1767225600000 {
             true -> check_wall_units()
             false -> fail_wall()
         }

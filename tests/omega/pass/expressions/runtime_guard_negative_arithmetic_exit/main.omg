@@ -11,14 +11,16 @@
 // miscompile; the differential oracle now pins it. Every arm is reached only on a
 // correct guard, so a regression exits 71-74. (Add/Sub/Mul are modular; div/mod
 // with a negative dividend is a separate, deeper case -- see
-// guard-negative-i32-arithmetic memory.)
+// guard-negative-i32-arithmetic memory.) `x` is declared `in Wrapping` because
+// exact arithmetic owes a representability proof and a state entered without
+// facts about `x` has none; the i32 wrapping add is the arithmetic pinned here.
 
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    x: i32;
+    x: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) reaches Console {

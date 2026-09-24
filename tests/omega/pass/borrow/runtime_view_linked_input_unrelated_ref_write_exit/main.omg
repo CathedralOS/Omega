@@ -44,7 +44,7 @@ machine fill(a: &mut Bag, b: &mut Bag) {
 machine Main::main(&mut self) reaches Console {
     fill(&mut self.first, &mut self.second);
 
-    transition self.first.cells[2].value + self.second.cells[0].value == 8 {
+    transition (self.first.cells[2].value as i64) + (self.second.cells[0].value as i64) == 8 {
         true -> good()
         _ -> bad()
     }
