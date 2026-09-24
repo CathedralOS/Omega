@@ -463,9 +463,19 @@ the complete product bar; focused successes below do not establish that baseline
   bindings and discovery tolerance are unchanged, and skip settlement's
   re-check when selection landed no fold or float destination in the typed
   program; do not weaken review evidence or trust settlement to get there.
+  The canary suite pays the same shape per owner test: the harness's
+  preliminary `compile_to_checked` for dangerous-service acceptance
+  (`support/fixture_package_inputs.rs::reviewed_repository_fixture_package_inputs`,
+  22.4 s in the dev profile with the checking crate optimized) and then the
+  product compile (17.4 s, of which the typed-to-checked stage runs twice at
+  6.7 s: build continuation and settlement); `OMEGA_TEST_TIMINGS=1` prints
+  that split. Optimizing the checking crate alone changed nothing, so the
+  cost is the whole-program check of the assembled root plus library, not
+  one crate's code generation.
   Acceptance: the same command checks std once per invocation and completes
-  in under 12 s, and `--timings` names each review pass with its package and
-  duration.
+  in under 12 s, `--timings` names each review pass with its package and
+  duration, and an owner test compiles its fixture without a second
+  whole-program check of the library.
 
 ## Automatic service reach
 
