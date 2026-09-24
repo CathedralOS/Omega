@@ -517,6 +517,11 @@ Configuration that looks wrong but is deliberate:
 - `debug = 0` in `[profile.dev]` and `[profile.test]` is intentional; opt back
   in per-session with `CARGO_PROFILE_TEST_DEBUG=2` or
   `CARGO_PROFILE_DEV_DEBUG=2`.
+- `opt-level = 1` in `[profile.test]` is intentional: a test that compiles
+  an Omega program checks the whole assembled program, and unoptimized that
+  is 4.6 times slower (40.0 s against 8.6 s per owner canary test) while the
+  edit-loop rebuild stays around 13 s. Override per session with
+  `CARGO_PROFILE_TEST_OPT_LEVEL=0` when stepping through test code.
 - `.gitattributes` forces LF because canonical source and evidence identities
   are byte-sensitive. Windows launchers (`.bat`, `.cmd`) keep CRLF.
 

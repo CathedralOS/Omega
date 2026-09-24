@@ -148,3 +148,13 @@ opt-level = 3
 # be requested explicitly with `CARGO_PROFILE_TEST_DEBUG=2` when needed.
 [profile.test]
 debug = 0
+# Every test that compiles an Omega program checks the whole assembled
+# program (root plus the 27.5k-line standard library) at least twice, and that
+# work is spread across the Psi crates rather than concentrated in one. On a
+# 24-core Windows host, one owner canary test took 40.0 s unoptimized and
+# 8.6 s at opt-level 1 (fixture review 22.4 s -> 4.7 s, compile 17.4 s ->
+# 3.8 s), while rebuilding the canary-suite binary after touching the
+# checking crate took 12.6 s and a full rebuild 2 m 33 s. Optimizing single
+# crates did not move the number. Debug assertions and overflow checks stay
+# on; only codegen changes.
+opt-level = 1
