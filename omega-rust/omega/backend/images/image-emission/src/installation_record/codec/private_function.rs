@@ -5,7 +5,7 @@ use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use super::scalar_abi::{decode_scalar_abi, encode_scalar_abi};
+use super::scalar::abi::{decode_scalar_abi, encode_scalar_abi};
 use crate::installation_record::{
     InstallationError, InstalledCompilerPrivateFunction, Reader, push_u16, push_u32, push_u64,
 };

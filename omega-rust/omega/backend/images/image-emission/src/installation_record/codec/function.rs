@@ -9,32 +9,32 @@ use super::{
     boundary_result_scalar::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
-    function_affine_cleanup::{
+    function::affine_cleanup::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
         encode_scalar_control_affine_cleanups, encode_unit_affine_cleanup,
     },
-    function_parameter::{
+    function::parameter::{
         decode_scalar_parameter_homes, decode_scalar_parameter_records,
         decode_unit_parameter_homes, decode_unit_parameter_records, encode_parameter_homes,
         encode_parameter_records,
     },
-    function_stack::{decode_function_stack_facts, encode_function_stack_facts},
+    function::stack::{decode_function_stack_facts, encode_function_stack_facts},
     mixed_structural_scalar_abi::{
         decode_mixed_structural_scalar_abi, encode_mixed_structural_scalar_abi,
     },
     parameter_abi::{decode_parameter_abi, encode_parameter_abi},
-    scalar_abi::{decode_scalar_abi, encode_scalar_abi},
-    scalar_structural_scalar_field_store::{
+    scalar::abi::{decode_scalar_abi, encode_scalar_abi},
+    scalar::structural_scalar_field_store::{
         decode_scalar_structural_scalar_field_stores, encode_scalar_structural_scalar_field_stores,
     },
-    unit_scalar::{
+    unit::scalar::{
         decode_unit_affine_scalar_records, decode_unit_integer_constants, decode_unit_scalar_homes,
         encode_unit_affine_scalar_records, encode_unit_integer_constants, encode_unit_scalar_homes,
     },
-    unit_structural_scalar_field_store::{
+    unit::structural_scalar_field_store::{
         decode_unit_structural_scalar_field_stores, encode_unit_structural_scalar_field_stores,
     },
-    unit_write_only_primitive_store::{
+    unit::write_only_primitive_store::{
         decode_unit_write_only_primitive_stores, encode_unit_write_only_primitive_stores,
     },
 };
@@ -99,7 +99,7 @@ pub(crate) fn encode_functions(
             bytes,
             &function.scalar_structural_scalar_field_stores,
         )?;
-        super::unit_continuation::encode_unit_continuations(bytes, &function.unit_continuations)?;
+        super::unit::continuation::encode_unit_continuations(bytes, &function.unit_continuations)?;
         match &function.unit_affine_cleanup {
             Some(cleanup) => {
                 bytes.push(1);
@@ -233,7 +233,7 @@ pub(crate) fn decode_functions(
             unit_structural_scalar_field_stores,
             unit_write_only_primitive_stores,
             scalar_structural_scalar_field_stores,
-            unit_continuations: super::unit_continuation::decode_unit_continuations(reader)?,
+            unit_continuations: super::unit::continuation::decode_unit_continuations(reader)?,
             unit_affine_cleanup: match reader.u8()? {
                 0 => {
                     if reader.take(3)? != [0; 3] {
@@ -271,3 +271,9 @@ pub(crate) fn decode_functions(
     }
     Ok(functions)
 }
+
+// The rows one function owns: its parameters, its stack facts and its
+// affine cleanups.
+pub(in crate::installation_record) mod affine_cleanup;
+pub(in crate::installation_record) mod parameter;
+pub(in crate::installation_record) mod stack;

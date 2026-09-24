@@ -8,17 +8,17 @@ use super::record_shape::{
 use super::{
     CallSiteOwner, INSTALLATION_FORMAT_MARKER, InstallationError, InstalledForeignCallStack,
     InstalledFunction, InstalledInternalUnitCall, MachineId, Reader, StructuralTypeId,
-    codec::structural_argument, decode_installation_record, decode_structural_types,
+    codec::structural, decode_installation_record, decode_structural_types,
     encode_structural_types, push_u16, push_u32, push_u64,
 };
 use super::{
-    codec::function::{decode_functions, encode_functions},
-    codec::function_affine_cleanup::{
+    codec::function::affine_cleanup::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
         encode_scalar_control_affine_cleanups,
     },
-    codec::function_stack::{decode_function_stack_facts, encode_function_stack_facts},
-    codec::internal_unit_call::{decode_internal_unit_calls, encode_internal_unit_calls},
+    codec::function::stack::{decode_function_stack_facts, encode_function_stack_facts},
+    codec::function::{decode_functions, encode_functions},
+    codec::internal_unit::call::{decode_internal_unit_calls, encode_internal_unit_calls},
 };
 use crate::installation_record::codec::envelope::MAGIC;
 use crate::installation_record::record_validation::installed_scalar_control_cleanups_match_object;
@@ -421,11 +421,11 @@ fn native_reference_shapes_and_projections_carry_metadata_not_storage() {
         access: terminal_psi::StructuralAccess::MutableBorrow,
     };
     let mut argument_bytes = Vec::new();
-    structural_argument::encode_structural_argument(&mut argument_bytes, &argument)
+    structural::argument::encode_structural_argument(&mut argument_bytes, &argument)
         .expect("encode referent argument");
     let mut reader = Reader::new(&argument_bytes);
     assert_eq!(
-        structural_argument::decode_structural_argument(&mut reader)
+        structural::argument::decode_structural_argument(&mut reader)
             .expect("decode referent argument"),
         argument
     );

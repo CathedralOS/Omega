@@ -4,15 +4,15 @@ use machine_code::ScalarStructuralScalarFieldStoreRecord;
 use semantic_vocabulary::{OperationId, StructuralFieldId};
 use target_operations::TargetScalarImmediate;
 
-use super::{
+use crate::installation_record::codec::{
     boundary_result_scalar::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
-    internal_unit_scalar_call::{decode_offset, encode_offset},
-    unit_scalar::{
+    internal_unit::scalar_call::{decode_offset, encode_offset},
+    unit::scalar::{
         decode_integer_type, decode_integer_value, encode_integer_type, encode_integer_value,
     },
-    unit_structural_scalar_field_store::{
+    unit::structural_scalar_field_store::{
         decode_destination, decode_path, encode_destination, encode_path,
     },
     value_placement::{decode_direct_placement, encode_direct_placement},

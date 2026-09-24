@@ -3,9 +3,9 @@
 use semantic_vocabulary::ValueId;
 use target_operations::{ScalarAbiValue, ScalarFunctionAbi};
 
-use super::{
-    scalar_call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
-    unit_scalar::{decode_scalar_type, encode_scalar_type},
+use crate::installation_record::codec::{
+    scalar::call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
+    unit::scalar::{decode_scalar_type, encode_scalar_type},
     value_placement::{decode_direct_placement, encode_direct_placement},
 };
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};

@@ -1,7 +1,9 @@
 //! Ordered continuation edges retain their own zero-byte cleanup records.
 
-use super::function_affine_cleanup::{decode_unit_affine_cleanup, encode_unit_affine_cleanup};
-use super::unit_scalar::{decode_scalar_type, encode_scalar_type};
+use crate::installation_record::codec::function::affine_cleanup::{
+    decode_unit_affine_cleanup, encode_unit_affine_cleanup,
+};
+use crate::installation_record::codec::unit::scalar::{decode_scalar_type, encode_scalar_type};
 use crate::installation_record::{InstallationError, Reader, push_u32, push_u64};
 use machine_code::UnitContinuationRecord;
 use semantic_vocabulary::{BlockId, ValueId};

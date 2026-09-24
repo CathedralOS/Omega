@@ -1,5 +1,5 @@
 //! Explicit structural source roles in the current installation envelope.
-use super::value_placement::{decode_register, register_tag};
+use crate::installation_record::codec::value_placement::{decode_register, register_tag};
 use crate::installation_record::{InstallationError, Reader, push_u16, push_u32};
 use calling_conventions::IndirectPointerLocation;
 use machine_code::StructuralSourceLocation;

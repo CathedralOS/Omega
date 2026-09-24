@@ -6,9 +6,9 @@
 use machine_code::StructuralReturnRecord;
 use semantic_vocabulary::{ClaimId, EdgeId, MachineId, OperationId, PlaceId};
 
-use super::{
-    scalar_abi::{decode_abi_value, encode_abi_value},
-    structural_signature::{
+use crate::installation_record::codec::{
+    scalar::abi::{decode_abi_value, encode_abi_value},
+    structural::signature::{
         decode_structural_parameter, decode_structural_result, encode_structural_parameter,
         encode_structural_result,
     },

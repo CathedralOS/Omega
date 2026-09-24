@@ -5,8 +5,8 @@ use semantic_vocabulary::ValueId;
 use target_operations::ScalarAbiValue;
 
 use super::{
-    scalar_call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
-    unit_scalar::{decode_scalar_type, encode_scalar_type},
+    scalar::call_plan::{decode_scalar_call_plan, encode_scalar_call_plan},
+    unit::scalar::{decode_scalar_type, encode_scalar_type},
     value_placement::{decode_direct_placement, encode_direct_placement},
     value_placement::{decode_register, register_tag},
 };

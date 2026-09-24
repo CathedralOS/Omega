@@ -1,8 +1,8 @@
 //! Wire codec for the structural type declarations carried by installation
 //! record rows.
 
-use super::boundary_result_scalar;
-use super::structural_scalar::{access_tag, decode_access};
+use crate::installation_record::codec::boundary_result_scalar;
+use crate::installation_record::codec::structural::scalar::{access_tag, decode_access};
 use crate::installation_record::{
     InstallationError, Reader, StructuralTypeId, decode_identity, decode_structural_cases,
     decode_structural_fields, encode_identity, encode_structural_cases, encode_structural_fields,

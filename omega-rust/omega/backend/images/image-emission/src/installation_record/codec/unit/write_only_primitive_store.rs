@@ -7,17 +7,17 @@ use machine_code::{
 use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
 
-use super::{
+use crate::installation_record::codec::{
     boundary_result_scalar::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
-    internal_unit_scalar_call::{decode_offset, encode_offset},
-    structural_scalar::{decode_identity, encode_identity},
-    unit_scalar::{
+    internal_unit::scalar_call::{decode_offset, encode_offset},
+    structural::scalar::{decode_identity, encode_identity},
+    unit::scalar::{
         decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
         encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
     },
-    unit_structural_scalar_field_store::{decode_destination, encode_destination},
+    unit::structural_scalar_field_store::{decode_destination, encode_destination},
     value_placement::{
         decode_direct_placement, decode_register, encode_direct_placement, register_tag,
     },

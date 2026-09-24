@@ -72,13 +72,13 @@ use installed_unit_scalar_transport::{
     validate_installed_unit_write_only_primitive_stores,
 };
 
-use codec::structural_case::{decode_structural_cases, encode_structural_cases};
-use codec::structural_record::{decode_structural_fields, encode_structural_fields};
+use codec::structural::case::{decode_structural_cases, encode_structural_cases};
+use codec::structural::record::{decode_structural_fields, encode_structural_fields};
 
-use codec::structural_scalar::{
+use codec::structural::scalar::{
     decode_identity, decode_multiplicity, encode_identity, multiplicity_tag,
 };
-use codec::structural_type::{decode_structural_types, encode_structural_types};
+use codec::structural::types::{decode_structural_types, encode_structural_types};
 use codec::wire::{Reader, decode_boolean, push_u16, push_u32, push_u64, push_u128};
 use unit_dynamic_descriptor_join::validate_installed_unit_dynamic_descriptor_joins;
 

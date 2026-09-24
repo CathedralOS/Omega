@@ -5,7 +5,9 @@
 
 use semantic_vocabulary::MachineId;
 
-use super::call_site_owner::{decode_call_site_owner, encode_call_site_owner};
+use crate::installation_record::codec::call_site_owner::{
+    decode_call_site_owner, encode_call_site_owner,
+};
 use crate::installation_record::{
     InstallationError, InstalledForeignCallStack, InstalledFunction, Reader, push_u32, push_u64,
 };
