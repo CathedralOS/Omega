@@ -415,5 +415,8 @@ pub(super) fn lower(
         | OperationKind::SaturatingIntegerAdd { .. }
         | OperationKind::SaturatingIntegerSubtract { .. }
         | OperationKind::SaturatingIntegerMultiply { .. } => arithmetic::lower(operation),
+        OperationKind::TrappingInteger { .. } => {
+            Err(LoweringError::UnsupportedTrappingInteger(operation.id))
+        }
     }
 }

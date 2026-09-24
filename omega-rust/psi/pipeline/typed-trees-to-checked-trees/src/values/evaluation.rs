@@ -255,6 +255,11 @@ fn binary(
         CheckedIntegerBinaryKind::TrappingShiftRight => {
             scalar_type.exact_shift_right(left, count_type, right)
         }
+        CheckedIntegerBinaryKind::TrappingAdd => scalar_type.exact_add(left, right),
+        CheckedIntegerBinaryKind::TrappingSubtract => scalar_type.exact_sub(left, right),
+        CheckedIntegerBinaryKind::TrappingMultiply => scalar_type.exact_mul(left, right),
+        CheckedIntegerBinaryKind::TrappingDivide => scalar_type.exact_div(left, right),
+        CheckedIntegerBinaryKind::TrappingRemainder => scalar_type.exact_rem(left, right),
     }
 }
 

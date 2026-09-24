@@ -80,6 +80,11 @@ pub enum PackageReviewIntegerBinaryKind {
     ExactShiftRight,
     TrappingShiftLeft,
     TrappingShiftRight,
+    TrappingAdd,
+    TrappingSubtract,
+    TrappingMultiply,
+    TrappingDivide,
+    TrappingRemainder,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

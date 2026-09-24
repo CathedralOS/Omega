@@ -291,6 +291,10 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         | O::WriteOnlyPrimitiveStore { value, .. }
         | O::StructuralScalarFieldStore { value, .. } => values.push(*value),
         O::BoundaryCall { arguments, .. } => values.extend(arguments),
+        // A Trapping primitive is never removed (it is not an unconditionally
+        // total scalar: a trap is an effect even when the result is dead), so
+        // its operands stay live through it.
+        O::TrappingInteger { operation } => values.extend(operation.operands()),
         O::Call {
             arguments,
             crash_continuations,

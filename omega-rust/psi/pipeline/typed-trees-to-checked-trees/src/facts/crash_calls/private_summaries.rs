@@ -352,6 +352,14 @@ fn inferred_direct_body_crash_buckets(
         .iter()
         .map(|site| SummaryCrashBucket::unconditional(site.cause()))
         .collect::<Vec<_>>();
+    // A Trapping primitive is its own unconditional `Trap` site, exactly like
+    // an explicit crash: its trap predicate reads body values, never only
+    // entry parameters, so no narrower guard is available to publish.
+    if !target.crash.trapping_sites().is_empty() {
+        buckets.push(SummaryCrashBucket::unconditional(
+            checked_trees::CrashCause::Trap,
+        ));
+    }
     // Selected operators are direct invocations in this body's summary, not
     // fabricated machine-call edges. Their producer already distinguishes
     // captured operands from entry values and widens unknown origins to Truth.

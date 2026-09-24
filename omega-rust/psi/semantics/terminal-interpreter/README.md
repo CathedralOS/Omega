@@ -213,6 +213,11 @@ or unsupported guard. This neither changes mathematical integer semantics nor
 adds authored mathematical-guard lowering. The verifier's outcome validator
 reuses the existing positional substitution and closed scalar arithmetic semantics.
 
+A Trapping primitive whose exact value does not exist crashes with cause `Trap`
+at `TerminalCrashSite::Operation` (machine, block, operation) before any
+result is published; its frontier is the machine-local live claim set, as for
+a boundary crash, and no wrapped or saturated value is substituted.
+
 A valid boundary crash retains a tagged machine/block/operation/boundary site,
 not a fabricated edge. The attempted call remains in the effects list: those
 records describe invocation inputs and required normal-completion receipts,

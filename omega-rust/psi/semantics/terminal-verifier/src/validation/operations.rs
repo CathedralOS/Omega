@@ -240,6 +240,9 @@ pub(super) fn validate_operation_operands(
                 defined,
             )
         }
+        OperationKind::TrappingInteger { .. } => {
+            super::trapping_integer::validate_operands(operation, value_types, defined)
+        }
         _ => arithmetic_operands::validate_binary_arithmetic(operation, value_types, defined),
     }
 }

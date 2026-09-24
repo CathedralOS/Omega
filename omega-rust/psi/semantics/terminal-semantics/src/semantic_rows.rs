@@ -259,6 +259,10 @@ operation_semantic_rows! {
         goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::WrappingIntegerMultiply)),
     SaturatingIntegerMultiply => ("schema:operation:saturating-integer-multiply", LeafDenotation,
         goal_free_scalar_leaf(ResultShape::DeclaredInteger, Operands::BinaryInteger, Denotation::SaturatingIntegerMultiply)),
+    // A Trapping primitive is neither goal-free nor proof-bearing: it owes no
+    // formation proof and may crash, so it has no total-leaf schema and is
+    // never `is_unconditionally_total_scalar`.
+    TrappingInteger => ("schema:operation:trapping-integer", LeafDenotation, None),
 }
 
 pub fn exact_operation_semantic_row_in(

@@ -1650,18 +1650,42 @@ syntax and other terminal services are not prerequisites.
   `checked-trees-to-lowered-psi/src/expression_preparation/`, Terminal
   operation/observation vocabulary and its independent checking/realization.
 
-  - Implement `terminal-operation-level-trap-crash-site`: choose an operation-site
-    representation under [delegated Psi design](AGENTS.md#psi-implementation-and-deferred-human-audit),
-    using the [encoding alternatives](wiki/drafts/designs/terminal_operation_trap_crash_site.md)
-    as implementation input, not an approval request. Update the observation
-    specification, schema version, codec, independent reconstruction, interpreter,
-    and native realization together. Retain exact cause, primitive denotation,
-    and path-conditioned evidence under the same-cause ceiling; do not fabricate
-    a boundary identity or terminator edge. Test source-produced arithmetic and
-    conversions after reload, with wrong-site/cause/path and missing-evidence
-    rejection. Trapping casts/shifts currently
-    refuse runtime preparation; direct Trapping arithmetic in contract position
-    remains invalid, not a new predicate term.
+  - Trapping operation-level crash site (Psi half) landed: one
+    `OperationKind::TrappingInteger` per primitive (add, subtract, multiply,
+    divide, remainder, shifts, conversion) is its own `Trap` site; observation
+    profile revision 2 (`omega.terminal.observation-profile.v2`) appends the
+    operation-crash group (machine, block, operation, cause, primitive,
+    carriers). Checked `Trapping{Add,Subtract,Multiply,Divide,Remainder}`
+    kinds plan their values; `CrashPlan::trapping_sites` widens an inferred
+    body's `Trap` cause and private callers inherit it; the verifier derives
+    the denotation, the normal-return equation, and unconditional same-cause
+    coverage; the interpreter returns the exact value or crashes at
+    `TerminalCrashSite::Operation`. `core/numeric_conversion.omg`'s
+    `pub *_trapping` machines now publish `crashes Trap`.
+    `checked-trees-to-lowered-psi/tests/trapping_operation_sites.rs` executes
+    serialized trap/no-trap answers and wrong-site/cause/carrier and
+    missing-ceiling rejections. Next: native realization. On macOS arm64,
+    `cargo nextest run -p compiler --test canary_suite -E
+    'test(/trapping/) | test(/numeric_conversions::/)'` now stops 20
+    canaries (the `arithmetic_domain_trapping_*` family, the trapping shift,
+    guard and let/dead-let aborts, `runtime_i64_divide_modulo_exit`,
+    `value_machine_self_array_local_index_exit`,
+    `runtime_transition_value_guard_narrowing_exit`,
+    `numeric_trapping_conversion_overflow_aborts`,
+    `numeric_cross_signed_trapping_conversions_abort`, and the unsigned and
+    signed `core/numeric_*` surfaces) at `native artifact lowering failed:
+    Lowering(UnsupportedTrappingInteger(OperationId(N)))` in
+    `terminal-psi-to-abstract-operations`; add an abstract Trapping operation
+    whose target/selected-instruction lowering checks the catalog trap
+    predicate and branches to a trap leaf (the hosted `*OrTrapV1` encodings
+    are the local precedent). `runtime_numeric_cross_signed_conversion_surface`
+    then stops at "direct scalar call has no matching checked crash-refinement
+    row" (the `clamp` call inside the cross-signed saturating narrowings, a
+    stop the old refusal masked), and `runtime_addr_field_exit` still plans no
+    value because `addr as i32 in Trapping` has no checked cast (address
+    carriers have no Trapping denotation). Guarded `Trap` ceilings over
+    Trapping arithmetic reject until the operation retains its incoming
+    conjunction.
   - Wrapping conversions landed at `9085ca9132`: `expression_preparation/
     wrapping_cast.rs` realizes `value as T in Wrapping` for every fixed-integer
     sign/width pair from masked halves — unsigned destinations take the
@@ -1670,7 +1694,7 @@ syntax and other terminal services are not prerequisites.
     `low | (bit <<% (B−1))` with each half masked to a range the proof
     machinery can derive, avoiding the direct fold and carrier-less `i_C ->
     i_B` casts. Serialized-Terminal execution tests cover every sign/width
-    combination; trapping controls intentionally still refuse.
+    combination.
   - Complete signed/mixed-sign saturating conversion beyond existing admitted
     cases. Boolean-to-integer and unsigned narrowing already lower; reuse them
     as controls. A signed saturating subtraction is not the unsigned clamp

@@ -657,11 +657,9 @@ impl ScalarBindings {
             | CheckedScalarExpression::IntegerWiden { operand, .. }
             | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
             | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
-            | CheckedScalarExpression::IntegerExactCast { operand, .. } => self.scalar(operand)?,
-            CheckedScalarExpression::IntegerTrappingCast { .. } => {
-                return Err(LoweringError::Unsupported(
-                    "checked trapping conversion requires runtime policy realization",
-                ));
+            | CheckedScalarExpression::IntegerExactCast { operand, .. }
+            | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
+                self.scalar(operand)?
             }
             CheckedScalarExpression::Boolean(expression) => self.boolean(expression)?,
             CheckedScalarExpression::IntegerLiteral { .. }

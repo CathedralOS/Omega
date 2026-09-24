@@ -62,6 +62,11 @@ pub(crate) const fn integer_binary_tag(kind: PackageReviewIntegerBinaryKind) -> 
         PackageReviewIntegerBinaryKind::ExactShiftRight => 21,
         PackageReviewIntegerBinaryKind::TrappingShiftLeft => 22,
         PackageReviewIntegerBinaryKind::TrappingShiftRight => 23,
+        PackageReviewIntegerBinaryKind::TrappingAdd => 24,
+        PackageReviewIntegerBinaryKind::TrappingSubtract => 25,
+        PackageReviewIntegerBinaryKind::TrappingMultiply => 26,
+        PackageReviewIntegerBinaryKind::TrappingDivide => 27,
+        PackageReviewIntegerBinaryKind::TrappingRemainder => 28,
     }
 }
 

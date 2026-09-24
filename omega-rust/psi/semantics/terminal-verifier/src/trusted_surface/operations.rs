@@ -91,6 +91,8 @@ const VAL_CONTRACTS: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/contracts.rs";
 const VAL_DYNAMIC: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/dynamic_dispatch.rs";
+const VAL_TRAPPING: &str =
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/trapping_integer.rs";
 const VAL_SUSPENSION: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/suspension_call_plan.rs";
 
@@ -789,6 +791,19 @@ static OP_SATURATING_INTEGER_MULTIPLY: TrustedSurfaceEntry = entry(
     GOAL_FREE_SITES,
 );
 
+// -- Trapping rows --
+
+static OP_TRAPPING_INTEGER: TrustedSurfaceEntry = entry(
+    "operation:trapping-integer",
+    "a validated Trapping primitive: same-carrier fixed-integer operands for add, subtract, multiply, divide and remainder, a carrier value and fixed count for a shift, any fixed source for a conversion, and a fixed-integer result",
+    "no obligation; the continuation gains result = the exact primitive term; the operation is its own Trap crash site, admitted only under an unconditional same-cause published bucket",
+    &[
+        "fact:trapping-normal-return",
+        "formation:operation-validation",
+    ],
+    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_TRAPPING],
+);
+
 // -- Proof-bearing scalar rows --
 
 static OP_INTEGER_EXACT_CAST: TrustedSurfaceEntry = entry(
@@ -1124,6 +1139,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_SATURATING_INTEGER_SUBTRACT,
     OP_WRAPPING_INTEGER_MULTIPLY,
     OP_SATURATING_INTEGER_MULTIPLY,
+    OP_TRAPPING_INTEGER,
 ];
 
 /// `OperationSemanticTag` -> ledger entry, total by construction.
@@ -1219,5 +1235,6 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::SaturatingIntegerSubtract => &OP_SATURATING_INTEGER_SUBTRACT,
         OperationSemanticTag::WrappingIntegerMultiply => &OP_WRAPPING_INTEGER_MULTIPLY,
         OperationSemanticTag::SaturatingIntegerMultiply => &OP_SATURATING_INTEGER_MULTIPLY,
+        OperationSemanticTag::TrappingInteger => &OP_TRAPPING_INTEGER,
     }
 }

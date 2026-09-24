@@ -60,7 +60,10 @@ range obligations before treating the constructed payload as valid.
 canonical profile encoding and module-bound acceptance for
 [TerminalTraceV1](../../../../wiki/spec/terminal-psi/observations.md). Acceptance
 validates the module, derives its complete identity and site roster independently,
-and compares the decoded profile exactly.
+and compares the decoded profile exactly. Revision 2
+(`omega.terminal.observation-profile.v2`) appended the operation-crash group:
+each `TrappingInteger` operation is its own `Trap` site, recorded with its
+primitive and carriers rather than a fabricated edge or boundary route.
 
 The current encoder writes the terminal-external group with zero count; the
 decoder rejects a nonzero count. That is an implementation fence, not an assertion

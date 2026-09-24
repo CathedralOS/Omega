@@ -172,5 +172,10 @@ const fn integer_binary_name(kind: PackageReviewIntegerBinaryKind) -> &'static s
         PackageReviewIntegerBinaryKind::ExactShiftRight => "exact_shift_right",
         PackageReviewIntegerBinaryKind::TrappingShiftLeft => "trapping_shift_left",
         PackageReviewIntegerBinaryKind::TrappingShiftRight => "trapping_shift_right",
+        PackageReviewIntegerBinaryKind::TrappingAdd => "trapping_add",
+        PackageReviewIntegerBinaryKind::TrappingSubtract => "trapping_subtract",
+        PackageReviewIntegerBinaryKind::TrappingMultiply => "trapping_multiply",
+        PackageReviewIntegerBinaryKind::TrappingDivide => "trapping_divide",
+        PackageReviewIntegerBinaryKind::TrappingRemainder => "trapping_remainder",
     }
 }

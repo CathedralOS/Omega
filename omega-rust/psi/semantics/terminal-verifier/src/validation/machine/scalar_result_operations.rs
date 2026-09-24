@@ -599,6 +599,16 @@ pub(super) fn register_scalar_result_operation(
                 ModuleError::DuplicateObligation,
             )?;
         }
+        OperationKind::TrappingInteger { .. } => {
+            if !matches!(
+                operation.result.expect_scalar().scalar_type,
+                ScalarType::Integer(integer) if !integer.is_address()
+            ) {
+                return Err(ModuleError::TrappingIntegerRequiresFixedIntegerResult(
+                    operation.id,
+                ));
+            }
+        }
         OperationKind::WrappingIntegerAdd { .. } => {
             if !matches!(
                 operation.result.expect_scalar().scalar_type,

@@ -50,7 +50,7 @@ use terminal_psi::{
     Terminator, ValueDeclaration, VocabularyMarker,
 };
 
-const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v1";
+const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v2";
 const ROOT_ROW_TAG: u8 = 1;
 const CRASH_ROW_TAG: u8 = 2;
 const ORDINARY_EVENT_ROW_TAG: u8 = 3;
@@ -90,6 +90,7 @@ struct ProfileSpans {
     crashes: Vec<CrashSpan>,
     boundary_crash_count: Range<usize>,
     boundary_crashes: Vec<BoundaryCrashSpan>,
+    operation_crash_count: Range<usize>,
     event_count: Range<usize>,
     events: Vec<EventSpan>,
     external_count: Range<usize>,
@@ -414,6 +415,14 @@ fn profile_spans(encoded: &[u8]) -> ProfileSpans {
         })
         .collect();
 
+    // These modules own no Trapping primitive, so revision 2's operation
+    // crash group is present and empty.
+    let (operation_crash_count, operation_crashes) = walker.take_count();
+    assert_eq!(
+        operation_crashes, 0,
+        "no Trapping operation in these modules"
+    );
+
     let (event_count, events) = walker.take_count();
     let events = (0..events)
         .map(|_| {
@@ -473,6 +482,7 @@ fn profile_spans(encoded: &[u8]) -> ProfileSpans {
         crashes,
         boundary_crash_count,
         boundary_crashes,
+        operation_crash_count,
         event_count,
         events,
         external_count,
@@ -961,12 +971,19 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
     );
 
     let mut mutated = bytes.clone();
-    mutated[spans.version.clone()].copy_from_slice(&2_u16.to_le_bytes());
+    // Revision 1 predates the operation crash group; its version number no
+    // longer names a decodable row list.
+    mutated[spans.version.clone()].copy_from_slice(&1_u16.to_le_bytes());
     rejected(
         "the schema version",
         &mutated,
-        TerminalTraceV1ProfileCodecError::UnsupportedSchemaVersion(2),
+        TerminalTraceV1ProfileCodecError::UnsupportedSchemaVersion(1),
     );
+
+    // An extra operation crash row is not this module's observer.
+    let mut mutated = bytes.clone();
+    mutated[spans.operation_crash_count.clone()].copy_from_slice(&1_u32.to_le_bytes());
+    rejected_unspecified("an operation crash row count", &mutated);
 
     let mut mutated = bytes.clone();
     mutated[spans.vocabulary.clone()].copy_from_slice(&u16::MAX.to_le_bytes());

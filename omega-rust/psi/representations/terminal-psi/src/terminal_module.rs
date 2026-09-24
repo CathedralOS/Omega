@@ -39,17 +39,18 @@ pub use control_flow::{
     RecordFieldValue, ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, SuccessorEdge, TerminalBlockNaturalRank, TerminalMachine,
     TerminalNaturalCycle, TerminalNaturalRankComparison, TerminalNaturalRankEdge,
-    TerminalRankedScc, Terminator,
+    TerminalRankedScc, Terminator, TrappingIntegerOperation, TrappingIntegerPrimitive,
 };
 pub use identity::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 pub use observation::{
     TerminalObservationSchema, TerminalTraceBoundaryCrashSiteRow, TerminalTraceCrashSiteRow,
-    TerminalTraceOrdinaryEventKind, TerminalTraceOrdinaryEventRow, TerminalTraceResultKind,
-    TerminalTraceResultSchema, TerminalTraceResultValue, TerminalTraceRootRow,
-    TerminalTraceScalarSchema, TerminalTraceScalarValue, TerminalTraceStructuralSchema,
-    TerminalTraceStructuralValue, TerminalTraceV1ConstructionError, TerminalTraceV1Event,
-    TerminalTraceV1Outcome, TerminalTraceV1Profile, TerminalTraceV1Rows,
-    TerminalTraceV1RuntimeTrace, TerminalTraceV1TraceBuilder, TerminalTraceValueComparison,
+    TerminalTraceOperationCrashSiteRow, TerminalTraceOrdinaryEventKind,
+    TerminalTraceOrdinaryEventRow, TerminalTraceResultKind, TerminalTraceResultSchema,
+    TerminalTraceResultValue, TerminalTraceRootRow, TerminalTraceScalarSchema,
+    TerminalTraceScalarValue, TerminalTraceStructuralSchema, TerminalTraceStructuralValue,
+    TerminalTraceV1ConstructionError, TerminalTraceV1Event, TerminalTraceV1Outcome,
+    TerminalTraceV1Profile, TerminalTraceV1Rows, TerminalTraceV1RuntimeTrace,
+    TerminalTraceV1TraceBuilder, TerminalTraceValueComparison,
 };
 pub use ownership::{
     ClaimTransfer, CompletionReceipt, EntryClaim, NominalAffineCleanup,

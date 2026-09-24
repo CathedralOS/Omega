@@ -39,6 +39,12 @@ pub enum LoweringError {
     /// Terminal verifies indexed reads on byte-sequence fields, but Omega has
     /// no target-neutral abstract operation for realizing the field read yet.
     UnsupportedStructuralByteSequenceFieldRead(semantic_vocabulary::OperationId),
+    /// Terminal verifies a Trapping primitive and its operation-level `Trap`
+    /// site, but Omega has no abstract operation realizing the checked
+    /// primitive and its trap leaf yet. Refusing keeps the policy exact:
+    /// lowering it as the Exact, Wrapping, or Saturating sibling would erase
+    /// the trap.
+    UnsupportedTrappingInteger(semantic_vocabulary::OperationId),
     /// A runtime-indexed fixed-array element read did not rejoin its readable
     /// source, element type, or `u64` selector.
     InvalidIndexedPrimitiveRead(semantic_vocabulary::OperationId),

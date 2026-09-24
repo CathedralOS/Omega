@@ -357,6 +357,16 @@ pub(super) fn append_operation(
         return Ok(());
     }
     match operation.kind.clone() {
+        OperationKind::TrappingInteger { .. } => {
+            // A trap ends the path, so only the normal-return continuation
+            // reaches the next operation: the exact result equation is sound
+            // there and owes no obligation.
+            axioms.push(crate::validation::trapping_integer::normal_return_equation(
+                operation,
+                value_types,
+            )?);
+            Ok(())
+        }
         OperationKind::IntegerExactCast { .. }
         | OperationKind::ExactIntegerShiftLeft { .. }
         | OperationKind::ExactIntegerShiftRight { .. }

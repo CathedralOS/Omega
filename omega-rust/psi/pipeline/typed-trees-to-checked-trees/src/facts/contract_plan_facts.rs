@@ -25,6 +25,8 @@ pub(crate) fn build_contract_plans(
     operators: &checked_trees::CheckedOperatorFacts,
     semantic: &facts::FactPlan,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
+    scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
+    scalar_computations: &checked_trees::CheckedScalarComputationPlans,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<checked_trees::MachineContractPlans, Vec<diagnostics::Diagnostic>> {
     let mut machines = Vec::new();
@@ -128,7 +130,13 @@ pub(crate) fn build_contract_plans(
             &content_conservation,
             operators,
             exact_integer_casts,
-        );
+        )
+        .with_trapping_sites(trapping_sites(
+            program,
+            machine,
+            scalar_expressions,
+            scalar_computations,
+        ));
         canonical_facts.extend(encode_contract_set_canonical(
             program,
             program.machine_contracts(machine),
@@ -586,4 +594,136 @@ fn lower_float_meaning_equality_clause(
             equality: None,
         },
     )
+}
+
+/// Body statements whose planned scalar value executes a Trapping primitive.
+///
+/// Each Trapping operation owns a `Trap` crash site at run time, so it is
+/// crash evidence exactly like an explicit crash transition: an inferred body
+/// widens its `Trap` cause to the unconditional route, and private callers
+/// inherit it through the summary fixed point. The rows come from the same
+/// checked scalar expression and computation plans lowering consumes, so a
+/// Trapping operation reaching Terminal has its evidence here; a published
+/// ceiling still has to cover it, which the Terminal verifier checks
+/// independently.
+fn trapping_sites(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
+    scalar_computations: &checked_trees::CheckedScalarComputationPlans,
+) -> Vec<checked_trees::CrashSiteLocation> {
+    let states = program
+        .machine_states(machine)
+        .iter()
+        .map(|state| state.symbol)
+        .collect::<Vec<_>>();
+    let expressions = scalar_expressions
+        .expressions
+        .iter()
+        .filter(|located| {
+            states.contains(&located.state) && located.expression.contains_trapping_operation()
+        })
+        .map(|located| {
+            checked_trees::CrashSiteLocation::new(located.state, located.statement_ordinal)
+        });
+    let computations = scalar_computations
+        .roots
+        .iter()
+        .map(|(_, root)| root)
+        .filter(|root| {
+            root.machine == machine.symbol
+                && computation_contains_trapping_operation(scalar_computations, root.root)
+        })
+        .map(|root| checked_trees::CrashSiteLocation::new(root.state, root.statement_ordinal));
+    expressions.chain(computations).collect()
+}
+
+/// Whether evaluating one computation tree executes a Trapping primitive in
+/// any of its pure expressions, operands, arms, or constructed arguments.
+fn computation_contains_trapping_operation(
+    plans: &checked_trees::CheckedScalarComputationPlans,
+    root: checked_trees::CheckedScalarComputationHandle,
+) -> bool {
+    use checked_trees::{
+        CheckedScalarComputationKind as Kind,
+        CheckedScalarComputationStructuralArgument as Argument,
+        CheckedScalarDispatchPattern as Pattern,
+    };
+    fn push_argument(
+        plans: &checked_trees::CheckedScalarComputationPlans,
+        argument: &Argument,
+        pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+    ) {
+        match argument {
+            Argument::Place(_) => {}
+            Argument::Case(case) => pending.extend(
+                plans
+                    .case_fields
+                    .span_or_empty(case.fields)
+                    .iter()
+                    .map(|field| field.value),
+            ),
+            Argument::Array { elements, .. } => {
+                pending.extend(plans.operands.span_or_empty(*elements).iter().copied())
+            }
+        }
+    }
+    let mut pending = vec![root];
+    while let Some(handle) = pending.pop() {
+        if !plans.nodes.is_valid(handle) {
+            continue;
+        }
+        match &plans.nodes.get(handle).kind {
+            Kind::Value(expression) => {
+                if expression.contains_trapping_operation() {
+                    return true;
+                }
+            }
+            Kind::Apply {
+                expression,
+                operands,
+                ..
+            } => {
+                if expression.contains_trapping_operation() {
+                    return true;
+                }
+                pending.extend(plans.operands.span_or_empty(*operands).iter().copied());
+            }
+            Kind::StructuralField { .. } => {}
+            Kind::CaseMembership { subject, .. } => push_argument(plans, subject, &mut pending),
+            Kind::SelectedComparison { left, right, .. } => pending.extend([*left, *right]),
+            Kind::Qualification { operand, .. } | Kind::BooleanToInteger { operand, .. } => {
+                pending.push(*operand)
+            }
+            Kind::Dispatch { subject, arms, .. } => {
+                pending.push(*subject);
+                for arm in plans.dispatch_arms.span_or_empty(*arms) {
+                    pending.push(arm.value);
+                    if let Pattern::Value(value) = arm.pattern {
+                        pending.push(value);
+                    }
+                }
+            }
+            Kind::Call {
+                arguments,
+                structural_arguments,
+                ..
+            } => {
+                pending.extend(plans.operands.span_or_empty(*arguments).iter().copied());
+                for structural in plans
+                    .structural_arguments
+                    .span_or_empty(*structural_arguments)
+                {
+                    push_argument(plans, structural, &mut pending);
+                }
+            }
+            Kind::Select {
+                condition,
+                when_true,
+                when_false,
+                ..
+            } => pending.extend([*condition, *when_true, *when_false]),
+        }
+    }
+    false
 }

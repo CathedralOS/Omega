@@ -1126,6 +1126,18 @@ pub enum ModuleError {
         block: BlockId,
         cause: CrashCause,
     },
+    /// A Trapping primitive whose machine publishes no unconditional `Trap`
+    /// bucket covering its operation-level crash site.
+    TrappingIntegerCrashUncovered {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
+    },
+    TrappingIntegerRequiresFixedIntegerResult(OperationId),
+    TrappingIntegerOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+    },
     NonCanonicalCrashFrontier(BlockId),
     CrashFrontierMismatch {
         block: BlockId,

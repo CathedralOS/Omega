@@ -614,6 +614,9 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationKind::SaturatingIntegerMultiply { left, right } => {
             scalar_operations::encode_saturating_integer_multiply(writer, left, right)?
         }
+        OperationKind::TrappingInteger { operation } => {
+            scalar_operations::encode_trapping_integer(writer, operation)?
+        }
     }
     writer.boolean(operation.suspension_crossing.is_some());
     if let Some(crossing) = operation.suspension_crossing {
@@ -862,6 +865,7 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         operation_tags::CALL_STRUCTURAL_WITH_SCALAR_ARGUMENTS => {
             call_operations::decode_call_structural_with_scalar_arguments(reader)?
         }
+        operation_tags::TRAPPING_INTEGER => scalar_operations::decode_trapping_integer(reader)?,
         tag => return Err(CodecError::InvalidTag("OperationKind", tag)),
     };
     let suspension_crossing = if reader.boolean()? {

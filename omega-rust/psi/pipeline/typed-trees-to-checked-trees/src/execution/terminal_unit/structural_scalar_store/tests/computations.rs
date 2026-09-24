@@ -205,20 +205,15 @@ fn field_call_assignment_retains_original_root_and_scalar_parameter_namespace() 
     ));
 }
 
-/// A Trapping integer binary keeps its deliberate no-fact boundary: the
-/// checked scalar stage records neither a pure `AssignmentValue` expression
-/// nor a computation root for `self.x + 1`, so the field-store sequence
-/// declines at its source guard -- the destination, field identity, and
-/// arithmetic-policy carrier are all admitted. The missing Trapping operation
-/// family is owned by ARITHMETIC-POLICY-REALIZATION (Terminal Psi has no
-/// Trapping operation to realize) with the check-stage refusal pinned by
-/// `flow/transfers` under NOMINAL-FIELD-FLOW; this lane owns only the proof
-/// that the store declines exactly there. Pins the
+/// A Trapping integer binary now plans its value: the checked scalar stage
+/// records a pure `AssignmentValue` whose `TrappingAdd` keeps the policy (it
+/// is never rewritten into the Exact, Wrapping, or Saturating sibling), the
+/// machine's crash plan retains the statement as `Trap` evidence, and the
+/// field-store sequence builds. Lowering realizes the operation as its own
+/// operation-level crash site (ARITHMETIC-POLICY-REALIZATION). Pins the
 /// `arithmetic/runtime_trapping_overflow_traps` boundary.
 #[test]
-fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
-    use crate::execution::terminal_unit::control::LocalConstructionTrace;
-
+fn trapping_binary_assignment_plans_its_trapping_source() {
     let source = r#"
         data Main { x: i32 in Trapping; }
         machine Main::bump(&mut self) {
@@ -234,52 +229,45 @@ fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
         .find(|machine| machine.name.as_str() == "Main::bump")
         .unwrap();
     let state = &program.machine_states(machine)[0];
-    // The literal store's source binds an ordinary pure expression, so the
-    // receiver destination, the exact field, and the `in Trapping` carrier
-    // all pass admission; only the computed RHS below is unowned.
+    let value = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(
+            state.symbol,
+            1,
+            CheckedScalarExpressionRole::AssignmentValue,
+        )
+        .expect("Trapping `self.x + 1` records its checked scalar value");
     assert!(
-        checked
-            .facts
-            .values
-            .scalar_expressions
-            .expression_at(
-                state.symbol,
-                0,
-                CheckedScalarExpressionRole::AssignmentValue
-            )
-            .is_some(),
-        "literal assignment retains its bound source"
+        matches!(
+            value,
+            checked_trees::CheckedScalarExpression::IntegerBinary {
+                kind: checked_trees::CheckedIntegerBinaryKind::TrappingAdd,
+                ..
+            }
+        ),
+        "the add keeps its Trapping primitive: {value:?}"
     );
+    let crash = &checked
+        .facts
+        .contract_plans
+        .for_machine(machine.symbol)
+        .expect("machine contract plan")
+        .crash;
     assert!(
-        checked
-            .facts
-            .values
-            .scalar_expressions
-            .expression_at(
-                state.symbol,
-                1,
-                CheckedScalarExpressionRole::AssignmentValue
-            )
-            .is_none()
-            && checked
-                .facts
-                .values
-                .scalar_computations
-                .root_at(
-                    state.symbol,
-                    1,
-                    CheckedScalarExpressionRole::AssignmentValue
-                )
-                .is_none(),
-        "Trapping `self.x + 1` records no checked scalar value fact"
+        crash
+            .trapping_sites()
+            .iter()
+            .any(|site| site.state() == state.symbol && site.statement_ordinal() == 1),
+        "the Trapping statement is retained as Trap crash evidence"
     );
     let mut shapes = ShapeCollector::new(program);
     let (_, structural, scalar) =
         structural_scalar_signature(program, &mut shapes, machine, state, &[], true)
             .expect("mutable receiver signature");
-    let trace = LocalConstructionTrace::default();
     assert!(
-        super::super::build_structural_scalar_field_store_sequence_traced(
+        build_structural_scalar_field_store_sequence(
             program,
             &checked.facts,
             machine,
@@ -288,20 +276,9 @@ fn trapping_binary_assignment_declines_at_the_missing_scalar_source() {
             &scalar,
             0,
             None,
-            &trace,
         )
-        .is_none()
-    );
-    // The trace names the route that got furthest: the field-store route
-    // reached its source guard at this statement, so the later record
-    // routes, which decline at their first precondition, do not overwrite it.
-    assert_eq!(
-        trace.stage(),
-        checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-            phase: "structural field store: pure source: scalar expression row",
-            state_index: None,
-            statement_index: Some(1),
-        }
+        .is_some(),
+        "the field-store sequence composes over the planned Trapping source"
     );
 }
 

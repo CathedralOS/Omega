@@ -346,7 +346,8 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. }
         | OperationKind::EstablishRecord { .. }
-        | OperationKind::StoreDynamicDescriptor { .. } => None,
+        | OperationKind::StoreDynamicDescriptor { .. }
+        | OperationKind::TrappingInteger { .. } => None,
     }) else {
         return Ok(());
     };

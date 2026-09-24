@@ -42,19 +42,38 @@ The profile binds, in closed order:
    Route guards speak the boundary's scalar-formal telescope; the call's
    simultaneous positional substitution decides them, never caller value
    identities.
-5. Ordinary external-event sites ordered by machine, block, and operation,
+5. Operation crash sites ordered by machine, block, and operation: every
+   `TrappingInteger` operation keeps its exact cause (`Trap`, fixed by the
+   policy) and primitive denotation — the primitive, the result carrier, and
+   the operand carrier (the right operand for arithmetic, the count for a
+   shift, the source for a conversion).
+6. Ordinary external-event sites ordered by machine, block, and operation,
    with event kind, exact public boundary/service identity, ordered argument
    schemas, and result schema.
-6. Terminal-external sites with exact site, public effect identity, and argument
+7. Terminal-external sites with exact site, public effect identity, and argument
    schemas.
 
 The canonical profile encoding begins with
-`omega.terminal.observation-profile.v1`. It uses fixed little-endian coordinates,
+`omega.terminal.observation-profile.v2` and schema version 2; revision 2
+appended group 5, so a revision-1 consumer rejects the bytes at the domain
+tag instead of misreading a later group. It uses fixed little-endian coordinates,
 length-prefixed canonical identities, and explicit row-group tags and counts,
 including an empty terminal-external group when none exists. Unknown schemas,
 vocabularies, tags, classifications, malformed ordering, duplicate coordinates,
 missing/extra sites, zero module commitments, and empty profiles reject.
 Decoding rejects trailing bytes.
+
+A Trapping primitive is observed at the operation that owns it, not on a
+fabricated terminator edge or boundary identity: lowering it to a comparison,
+a `Conditional`, and a `Crash` terminator would erase its primitive
+denotation. A Terminal operation identity names one operation in one block,
+so the same source operation under a different guard is a different
+operation and a different row; that is the path condition the row keys, as
+edge identity is for group 3. The machine contract must cover the site with
+an unconditional same-cause bucket: the operation retains no incoming
+conjunction, so a guarded `Trap` ceiling rejects rather than being treated as
+covered. The interpreter reports the crash at the operation with its current
+machine-local live claims as the frontier, as for a boundary crash.
 
 A boundary crash is observed at its calling operation, not on a fabricated
 terminator edge: each declared route of each `BoundaryCall` produces its own

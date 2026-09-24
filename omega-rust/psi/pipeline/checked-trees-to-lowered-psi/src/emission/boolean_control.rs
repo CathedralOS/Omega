@@ -988,7 +988,8 @@ pub(crate) fn build_scalar_conditional_target(
             | LoweredDirectExpression::IntegerBinary { .. }
             | LoweredDirectExpression::IntegerBitwiseNot { .. }
             | LoweredDirectExpression::IntegerWiden { .. }
-            | LoweredDirectExpression::IntegerExactCast { .. } => None,
+            | LoweredDirectExpression::IntegerExactCast { .. }
+            | LoweredDirectExpression::IntegerTrappingCast { .. } => None,
         })
         .collect::<Option<Vec<_>>>();
     if let Some(arguments) = direct_arguments {

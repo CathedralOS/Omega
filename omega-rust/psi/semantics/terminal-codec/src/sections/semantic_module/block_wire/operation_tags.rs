@@ -172,3 +172,6 @@ pub(super) const PROJECTED_PRIMITIVE_SCALAR_READ: u8 = 89;
 
 /// `OperationKind::WriteOnlyPrimitiveStore` over a nonempty structural path.
 pub(super) const PROJECTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 90;
+
+/// `OperationKind::TrappingInteger`, followed by one primitive sub-tag.
+pub(super) const TRAPPING_INTEGER: u8 = 91;

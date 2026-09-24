@@ -144,6 +144,8 @@ fn shared_integer_runtime_parameters(
         | LoweredDirectExpression::IntegerBitwiseNot { .. }
         | LoweredDirectExpression::IntegerExactCast { .. }
         | LoweredDirectExpression::IntegerWiden { .. }
+        // A Trapping conversion may crash; it is not a shared total input.
+        | LoweredDirectExpression::IntegerTrappingCast { .. }
         | LoweredDirectExpression::ErasedParameter { .. }
         | LoweredDirectExpression::Boolean { .. } => None,
     }
