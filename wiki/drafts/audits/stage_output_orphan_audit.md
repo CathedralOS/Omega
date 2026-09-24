@@ -85,7 +85,7 @@ test-only channels are cataloged, not flagged.
 | `RetainedAllocation` | omega/pipeline/08_selected-instructions-to-register-homes | 8 | 8 | 0 | 0 |
 | `StagedOptimizedPostAllocationMachinePlan` | omega/pipeline/09_register-homes-to-post-allocation-machine | 0 | — | — | — |
 | `CanonicalTerminalArtifact` | psi/semantics/terminal-codec | 8 | 8 | 0 | 0 |
-| `ProgramEntryTerminalArtifact` | omega/pipeline/02_checked-compilation-to-terminal-artifact | 3 | 3 | 0 | 0 |
+| `ProgramEntryTerminalArtifact` | omega/compiler/terminal-artifact | 3 | 3 | 0 | 0 |
 | `CompileReport` | omega/compiler/compilation-report | 37 | 30 | 4 | 2 |
 | `RetainedGeneratedSyntaxExtension` | omega/compiler/source-assembly | 3 | 3 | 0 | 0 |
 

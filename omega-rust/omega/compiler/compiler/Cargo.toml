@@ -46,7 +46,7 @@ backend-plan = { path = "../../backend/plans/backend-plan" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 artifacts = { path = "../../tooling/artifacts" }
 assembled-syntax-to-checked-compilation = { path = "../checked-compilation" }
-checked-compilation-to-terminal-artifact = { path = "../../pipeline/02_checked-compilation-to-terminal-artifact" }
+checked-compilation-to-terminal-artifact = { path = "../terminal-artifact" }
 source-files-to-assembled-syntax = { path = "../source-assembly" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 checked-interpreter = { path = "../../../psi/semantics/checked-interpreter" }

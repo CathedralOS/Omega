@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
-//! Checked compilation to the canonical Terminal artifact.
+//! Compiler packaging from a checked compilation to the canonical Terminal artifact.
 //!
-//! Start at `terminal_artifact.rs`. This stage consumes one sealed checked
+//! Start at `terminal_artifact.rs`. This compiler operation consumes one sealed checked
 //! compilation and produces the Terminal artifact: the retained product with
 //! its callback custody and native-realization proposal, or the program-entry
 //! artifact the direct native route realizes. `native_proposal` projects what

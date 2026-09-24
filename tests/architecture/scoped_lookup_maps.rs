@@ -224,7 +224,7 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "container section names bound to byte offsets",
     ),
     (
-        "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact/behavior_exclusions.rs",
+        "omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact/behavior_exclusions.rs",
         "normalized service/identity spellings bound to handles",
     ),
     // Review, admission, and diagnostic metadata keyed by catalog names.
