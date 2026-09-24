@@ -274,10 +274,41 @@ pub(crate) fn nested_structural_call_return_type(
         (target.symbol == call.target_symbol).then_some((owner, target))
     });
     let (return_type, ordinary) = if let Some((owner, target)) = targets.next() {
+        // `self.suffix(..)` inside an `&self`/`&mut self` caller reborrows the
+        // caller's own `self` parameter for a shared `&self` callee — the
+        // same runtime receiver the top-level call machinery mints through
+        // `receiver_symbol`, not a free value the operand walk cannot name.
+        // `self` resolves to the calling machine's own symbol, so the
+        // admission is: receiver names the enclosing machine, caller and
+        // callee attach to the same data, and both carry the borrow.
+        let own_self_receiver = || {
+            let caller_machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == caller)?;
+            let ExpressionNode::Name(name) = program.expression_table.expression(call.receiver)
+            else {
+                return None;
+            };
+            (name.symbol == caller_machine.symbol
+                && caller_machine.attached_data_symbol == owner.attached_data_symbol
+                && program
+                    .machine_states(caller_machine)
+                    .first()
+                    .into_iter()
+                    .flat_map(|state| program.state_parameters(state).iter())
+                    .any(|parameter| parameter.is_self)
+                && program
+                    .state_parameters(target)
+                    .iter()
+                    .any(|parameter| parameter.is_self && !parameter.is_mutable))
+            .then_some(())
+        };
         if targets.next().is_some()
             || (owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 && !owner.supply_mode.is_boundary_declaration())
-            || !program.call_has_no_runtime_receiver(call, owner, target)
+            || (!program.call_has_no_runtime_receiver(call, owner, target)
+                && own_self_receiver().is_none())
         {
             return None;
         }
