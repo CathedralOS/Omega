@@ -1570,14 +1570,9 @@ impl Builder<'_, '_> {
             });
         }
         for field in omitted {
-            let Some((primitive_type, element_count)) =
-                zeroed_scalar_array_parts(self.program, field.type_reference)
-            else {
-                return None;
-            };
-            let Some(zero) = zeroed_integer_literal(primitive_type) else {
-                return None;
-            };
+            let (primitive_type, element_count) =
+                zeroed_scalar_array_parts(self.program, field.type_reference)?;
+            let zero = zeroed_integer_literal(primitive_type)?;
             let element = self
                 .plans
                 .nodes

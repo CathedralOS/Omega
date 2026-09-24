@@ -80,9 +80,7 @@ pub(super) fn structural_sequence_length(
         else {
             return None;
         };
-        if program.primitive_type_reference(*element_type).is_none() {
-            return None;
-        }
+        program.primitive_type_reference(*element_type)?;
     } else if !matches!(
         path.last(),
         Some(CheckedStructuralPredicatePathSegment::Field(_))

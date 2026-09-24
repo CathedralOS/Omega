@@ -733,11 +733,11 @@ fn incoming_edges_prove_index_bound(
 }
 
 /// The argument span of a `Named` edge that lands on `state`.
-fn edge_arguments_into<'a>(
-    program: &'a TypedTrees,
+fn edge_arguments_into(
+    program: &TypedTrees,
     target: typed_trees::statement::TransitionTargetHandle,
     state: SymbolHandle,
-) -> Option<&'a [typed_trees::expression::ExpressionHandle]> {
+) -> Option<&[typed_trees::expression::ExpressionHandle]> {
     if !target.is_valid() {
         return None;
     }
@@ -780,10 +780,7 @@ fn guard_bounds_argument(
     extent: u64,
 ) -> bool {
     let mut guard = guard;
-    loop {
-        let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
-            break;
-        };
+    while let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) {
         if binary.operator != typed_trees::expression::BinaryOperator::Equal {
             break;
         }
