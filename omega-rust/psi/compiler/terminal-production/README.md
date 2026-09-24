@@ -11,7 +11,7 @@ Enter [terminal_production.rs](src/terminal_production.rs). The sequence is
 Publication consumes the validated optimization-stage result, not an unoptimized
 producer-private shortcut.
 
-[Optimization ownership](../../pipeline/lowered-psi-to-lowered-psi/README.md)
+[Optimization ownership](../../pipeline/06_lowered-psi-to-lowered-psi/README.md)
 keeps shared retention policy separate from pass execution.
 [Publication ownership](../../pipeline/lowered-psi-to-terminal-psi/README.md)
 separates canonical sealing from checked boundary-operator occurrence replay.

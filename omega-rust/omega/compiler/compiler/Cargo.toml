@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 lowered-psi = { path = "../../../psi/representations/lowered-psi" }
-lowered-psi-to-lowered-psi = { path = "../../../psi/pipeline/lowered-psi-to-lowered-psi" }
+lowered-psi-to-lowered-psi = { path = "../../../psi/pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/lowered-psi-to-terminal-psi" }
 terminal-production = { path = "../../../psi/compiler/terminal-production" }
 build-declarations = { path = "../../build/build-declarations" }

@@ -13,7 +13,7 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/machine-emission/src/text_placement",
     "omega-rust/omega/backend/machine-emission/src/exit_contract",
     "omega-rust/omega/backend/machine-emission/src/frame_application",
-    "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src",
+    "omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi/src",
     "omega-rust/psi/representations/optimization/src",
     "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_entry",
     "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper",
@@ -75,12 +75,12 @@ pub(super) struct RuleStageDescriptor {
 
 pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
     RuleStageDescriptor {
-        entrance: "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/psi_optimization.rs",
+        entrance: "omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi/src/psi_optimization.rs",
         catalog: "omega-rust/psi/representations/optimization/src/optimization_selections/catalog.rs",
         coordination_marker: "pub fn run_psi_optimization",
         catalog_marker: "PRETERMINAL_PSI_PASS_CATALOG",
         next_rungs: &[
-            "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi/src/dead_scalar_elimination",
+            "omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi/src/dead_scalar_elimination",
             "omega-rust/psi/semantics/terminal-verifier/src/optimization.rs",
         ],
         output_marker: "run_psi_optimization",

@@ -211,7 +211,7 @@
       "item": "PSI-PRE-TERMINAL-OPTIMIZATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/lowered-psi-to-lowered-psi"
+        "omega-rust/psi/pipeline/06_lowered-psi-to-lowered-psi"
       ],
       "suggested_first_slice": "Add or generalize one target-neutral lowered-Psi optimization preserving the representation's invariants."
     },
