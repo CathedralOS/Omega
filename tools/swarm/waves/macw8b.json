@@ -1,0 +1,108 @@
+{
+  "wave": "macw8b",
+  "max_acu_limit": 1,
+  "bypass_approval": false,
+  "resumable": true,
+  "tags": [],
+  "owner_label_prefix": "Devin / macw8b",
+  "exclusions": [],
+  "sessions": [
+    {
+      "name": "rep-specialization",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "REPRESENTATION-SPECIALIZATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/representation_specialization",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/field_value_specialization",
+        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/state_specialization",
+        "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates"
+      ],
+      "suggested_first_slice": "extend field/variant relevance beyond the landed specialization cases per the item text; GENERAL-LICM holds ranked_rewrites/loop_invariant_scalar_motion and validation/invariant_* in the same crate \u2014 stay inside the claimed dirs and report blocked if a slice needs them.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "benchmarks",
+      "board": "TASKS_OPTIMIZER.md",
+      "item": "BENCHMARKS",
+      "host": "local",
+      "owning_paths": [
+        "tools/benchmark",
+        "wiki/drafts/measurements/benchmarks.md",
+        "samples/cli/arithmetic"
+      ],
+      "suggested_first_slice": "complete missing subject/selection/target measurements per the item text on this macos_arm64 host \u2014 read tools/benchmark/README.md for the measurement procedure, record exact commands/commit/observations in benchmarks.md. Measurement-only work suits this host; do not repair compiler failures you observe, attribute them.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "terminal-authority",
+      "board": "TASKS.md",
+      "item": "TWO-AXIS-TERMINAL-AUTHORITY-REVIEW",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/omega/build/build-evaluation/src/provider_settlement",
+        "omega-rust/omega/packages/review/evidence/src/capture/providers",
+        "omega-rust/omega/packages/review/evidence/tests",
+        "omega-rust/omega/packages/manager/src/review",
+        "omega-rust/omega/compiler/native-realization/src/native_realization/providers"
+      ],
+      "suggested_first_slice": "take the next 'Remaining delivery' bullet in the item text \u2014 receiver admission / mechanism classification under the production/admission split. Preserve the two policy identities: no receiving permission policy means no admission claim (not denial), and native_realization/providers' mechanism-classification merge is separate from the receiver permission policy.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "arithmetic-policy",
+      "board": "TASKS.md",
+      "item": "ARITHMETIC-POLICY-REALIZATION",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/checked-trees-to-lowered-psi/src/expression_preparation"
+      ],
+      "suggested_first_slice": "complete one executable arithmetic policy leg per the item text \u2014 expression_preparation owners; trapping sites stay owner-blocked on OWNER_QUESTIONS (do not fabricate a boundary identity), so take a non-trapping lane: primitive denotation and path-conditioned crash evidence through Terminal interpretation/native realization. The coordinator checkout holds uncommitted WIP in expression_preparation from a dead session \u2014 work your own worktree on fresh origin/main.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "psiir-fuel",
+      "board": "TASKS.md",
+      "item": "PSIIR",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/semantics/terminal-fixed-fuel"
+      ],
+      "suggested_first_slice": "continue resource analysis in terminal-fixed-fuel: bee9db0661 (macw7) made cyclic closure failures report UnboundedCycleComponent{component, OpenCalleeSet{operation}}; 3c43ed43dc tightened Natural ranked-cycle multipliers to literal requires ceilings with relevant_preconditions. Take the next bound-precision step per the item text \u2014 encoding contract coverage stays with tests/architecture/encoding_contract.rs, not new wire format.",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    },
+    {
+      "name": "range-annotations",
+      "board": "TASKS.md",
+      "item": "REMOVE-BRACKETED-RANGE-ANNOTATIONS",
+      "host": "local",
+      "owning_paths": [
+        "omega-rust/psi/pipeline/tokens-to-syntax-trees/src/type_syntax",
+        "omega-rust/psi/representations/syntax-trees/src/syntax_trees/type_system",
+        "omega-rust/psi/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system",
+        "omega-rust/psi/representations/typed-trees/src/typed_trees/type_system",
+        "omega-rust/psi/semantics/validation/src/proof_contracts/arithmetic_domains"
+      ],
+      "suggested_first_slice": "bounded first slice: reject the revoked `u64 [1..=8]` scalar range suffix in the parser and inventory every Range-variant consumer across resolved/typed trees + arithmetic_domains that must move to explicit domains \u2014 the migration recipe is wiki/drafts/designs/range_suffix_migration.md. Library/sample/Epsilon migrations are follow-on claims, not this slice; corpus fixture edits under tests/omega are allowed except pass/collections and run/ (foreign-held).",
+      "host_gates": [
+        "which mbx || which cargo"
+      ],
+      "probe_only": false
+    }
+  ]
+}
