@@ -15,18 +15,22 @@
 //! the in-block move, the single `Jump` edge, the block chain, the complete
 //! diamond, the bypassed triangle, and each of their run forms — is one
 //! admission over a run and a destination, with its own test in
-//! `relocation/tests.rs`. The eight families that enumerated those same
+//! `relocation/tests.rs`. The twelve families that enumerated those same
 //! windows by hand are deleted rather than staged.
 //!
-//! What remains is what `relocation` does not admit. Its crossing is
-//! `CrossingDirection::Forward` and its audit refuses a move whose gained
-//! or lost traversal set is nonempty, so the upstream families
-//! (`predecessor_relocation`, `join_relocation`, `triangle_relocation`) and
-//! the traversal-changing ones (`arm_relocation`, `fork_relocation`,
-//! `inflow_relocation`, `confluence_relocation`, and their run forms) still
-//! carry their own proofs; the `commuting_*` families prove ordering under
-//! memory commutation, which is a different audit. Extending `relocation`
-//! to the backward direction retires the upstream group the same way.
+//! `relocation` takes whichever direction has acyclic paths, so the upstream
+//! shapes — across the sole edge into a block, out of a join through the
+//! diamond or the bypassed triangle that feeds it — are the same admission
+//! with the arrival block being the run's own rather than the destination.
+//! Blocks on a common cycle reach each other both ways and refuse.
+//!
+//! What remains is what `relocation` does not admit. Its audit refuses a
+//! move whose gained or lost traversal set is nonempty, so the
+//! traversal-changing families — `arm_relocation`, `fork_relocation`,
+//! `inflow_relocation`, `confluence_relocation` and their run forms, the six
+//! that read the `dead_path` audit — carry their own proofs. The
+//! `commuting_*` families prove ordering under memory commutation, a
+//! different audit, and interchange swaps two runs rather than moving one.
 //!
 //! - `address_fold` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `arm_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -46,19 +50,15 @@
 //! - `fork_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `fork_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `inflow_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `join_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `load_forwarding` — staged, owner row **ALIAS-AWARE-MEMORY**
 //! - `local_schedule` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `member_run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `peepholes` (`condition_materialization`, `copied_call_operand`,
 //!   `projected_access`, `terminator_pair`) — staged, owner row
 //!   **DECLARATIVE-PEEPHOLES**
-//! - `predecessor_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `predecessor_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `run_interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `store_motion` — staged, owner row **ALIAS-AWARE-MEMORY**
-//! - `triangle_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //!
 //! `commuting_accesses`, `condition_state`, `dead_path` and `place_storage`
 //! are the shared vocabulary only these families read; `super::block_edges`
@@ -85,18 +85,14 @@ mod dead_store;
 mod fork_relocation;
 mod fork_run_relocation;
 mod inflow_relocation;
-mod join_relocation;
 mod load_forwarding;
 mod local_schedule;
 mod member_run_interchange;
 pub mod peepholes;
 mod place_storage;
-mod predecessor_relocation;
-mod predecessor_run_relocation;
 mod relocation;
 mod run_interchange;
 mod store_motion;
-mod triangle_relocation;
 
 pub use address_fold::{
     AddressFoldError, AddressFoldReceipt, ValidatedAddressFold, fold_selected_address,
@@ -174,10 +170,6 @@ pub use inflow_relocation::{
     InflowRelocationError, InflowRelocationReceipt, ValidatedInflowRelocation,
     relocate_selected_instruction_onto_inflow, validate_inflow_relocation,
 };
-pub use join_relocation::{
-    JoinRelocationError, JoinRelocationReceipt, ValidatedJoinRelocation,
-    relocate_selected_instruction_out_of_join, validate_join_relocation,
-};
 pub use load_forwarding::{
     StoredLoadForwardingError, StoredLoadForwardingReceipt, ValidatedStoredLoadForwarding,
     forward_selected_stored_load, validate_stored_load_forwarding,
@@ -191,15 +183,6 @@ pub use member_run_interchange::{
     MemberRunInterchangeError, MemberRunInterchangeReceipt, ValidatedMemberRunInterchange,
     interchange_selected_member_and_run, validate_member_run_interchange,
 };
-pub use predecessor_relocation::{
-    PredecessorRelocationError, PredecessorRelocationReceipt, ValidatedPredecessorRelocation,
-    relocate_selected_instruction_into_predecessor, validate_predecessor_relocation,
-};
-pub use predecessor_run_relocation::{
-    PredecessorRunRelocationError, PredecessorRunRelocationReceipt,
-    ValidatedPredecessorRunRelocation, relocate_selected_run_into_predecessor,
-    validate_predecessor_run_relocation,
-};
 pub use relocation::{
     MemberRunRelocationError, MemberRunRelocationReceipt, ValidatedMemberRunRelocation,
     relocate_selected_member_run, validate_member_run_relocation,
@@ -211,8 +194,4 @@ pub use run_interchange::{
 pub use store_motion::{
     StoreMutationMotionError, StoreMutationMotionReceipt, ValidatedStoreMutationMotion,
     sink_selected_store_mutation, validate_store_mutation_motion,
-};
-pub use triangle_relocation::{
-    TriangleRelocationError, TriangleRelocationReceipt, ValidatedTriangleRelocation,
-    relocate_selected_instruction_out_of_triangle, validate_triangle_relocation,
 };

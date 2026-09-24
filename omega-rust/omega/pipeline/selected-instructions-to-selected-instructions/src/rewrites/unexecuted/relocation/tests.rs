@@ -632,6 +632,176 @@ fn member_relocates_through_a_diamond_window() {
     .unwrap();
 }
 
+/// The upstream move is the same admission with the paths reversed: the
+/// member leaves B and takes a position in A, the block whose sole edge
+/// reaches it. Every traversal that reaches B comes through A, and A's only
+/// exit is B, so the run executes exactly as often as before. This is what
+/// the per-shape upstream families prove by hand.
+#[test]
+fn member_relocates_upstream_across_the_jump_edge() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = fixture(target);
+    let moved = relocate_member(&source, &environment, HEAD, MOVING).unwrap();
+    let function = &moved.transformed().functions[0];
+    assert_eq!(
+        ids(&function.blocks[0]),
+        vec![LEAD, HEAD, MOVING, MOVING_SECOND, TRAIL]
+    );
+    assert_eq!(ids(&function.blocks[1]), vec![MID, TAIL]);
+    validate_member_run_relocation(
+        &source,
+        0,
+        HEAD,
+        HEAD,
+        MOVING,
+        &environment,
+        budget(),
+        moved.transformed().clone(),
+    )
+    .unwrap();
+    let run = relocate(&source, &environment, HEAD, MID, MOVING).unwrap();
+    let function = &run.transformed().functions[0];
+    assert_eq!(
+        ids(&function.blocks[0]),
+        vec![LEAD, HEAD, MID, MOVING, MOVING_SECOND, TRAIL]
+    );
+    assert_eq!(ids(&function.blocks[1]), vec![TAIL]);
+    validate_member_run_relocation(
+        &source,
+        0,
+        HEAD,
+        MID,
+        MOVING,
+        &environment,
+        budget(),
+        run.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// Upstream out of a converging join, through the complete diamond that
+/// feeds it: the member leaves B and lands in the branching head A, whose
+/// arms C and D alone reach B. Both edges into B are crossed and every exit
+/// of A, C and D is crossed, so no traversal is gained or lost.
+#[test]
+fn member_relocates_upstream_out_of_a_join() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let keys = environment.selected_keys();
+        let branch_row = environment.constraint(keys.conditional_branch).unwrap();
+        let jump_row = environment.constraint(keys.jump).unwrap();
+        let materialize = environment.constraint(keys.materialize_i64).unwrap();
+        let arm = |block_id, member_id, register, jump_id, edge, source_target| {
+            block(
+                block_id,
+                source_target,
+                vec![instruction(
+                    member_id,
+                    SelectedInstructionKind::MaterializeI64 {
+                        value: IntegerValue::Unsigned(31),
+                    },
+                    materialize,
+                    &[register],
+                )],
+                jump_terminator(
+                    instruction(jump_id, SelectedInstructionKind::Jump, jump_row, &[]),
+                    successor(BLOCK_B, BlockId::new(2).unwrap(), edge),
+                ),
+            )
+        };
+        function
+            .blocks
+            .insert(1, arm(BLOCK_C, BRIDGE, R_BRIDGE, BRIDGE_JUMP, EDGE_BC, 3));
+        function
+            .blocks
+            .insert(2, arm(BLOCK_D, SIDE, R_SIDE, SIDE_JUMP, EDGE_AD, 4));
+        function.blocks[0].terminator = SelectedTerminator::ConditionalBranch {
+            instruction: instruction(
+                JUMP,
+                SelectedInstructionKind::ConditionalBranchNonZero,
+                branch_row,
+                &[],
+            ),
+            when_nonzero: successor(BLOCK_C, BlockId::new(3).unwrap(), EDGE_AB),
+            when_zero: successor(BLOCK_D, BlockId::new(4).unwrap(), EDGE_CD),
+        };
+    });
+    let moved = relocate_member(&source, &environment, HEAD, MOVING).unwrap();
+    let function = &moved.transformed().functions[0];
+    assert_eq!(
+        ids(&function.blocks[0]),
+        vec![LEAD, HEAD, MOVING, MOVING_SECOND, TRAIL]
+    );
+    assert_eq!(ids(&function.blocks[3]), vec![MID, TAIL]);
+    validate_member_run_relocation(
+        &source,
+        0,
+        HEAD,
+        HEAD,
+        MOVING,
+        &environment,
+        budget(),
+        moved.transformed().clone(),
+    )
+    .unwrap();
+}
+
+/// A predecessor of the run's own block that no crossed path covers is a
+/// traversal the upstream move would lose: with a second jump edge into B
+/// from a detached side block, the member no longer executes on it.
+#[test]
+fn an_uncrossed_predecessor_of_the_run_block_refuses_upstream() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        function.blocks.push(block(
+            BLOCK_D,
+            4,
+            Vec::new(),
+            jump_terminator(
+                instruction(SIDE_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
+                successor(BLOCK_B, BlockId::new(2).unwrap(), EDGE_DB),
+            ),
+        ));
+    });
+    assert_eq!(
+        relocate_member(&source, &environment, HEAD, MOVING),
+        Err(MemberRunRelocationError::UnsupportedPair)
+    );
+}
+
+/// Two blocks on a common cycle reach each other in both directions. A move
+/// either way changes how often the run executes, and neither traversal
+/// audit is the sound one, so the admission refuses rather than choosing.
+#[test]
+fn blocks_on_a_cycle_refuse_in_both_directions() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        // B jumps back to A, so A reaches B and B reaches A.
+        function.blocks[1].terminator = jump_terminator(
+            instruction(RET, SelectedInstructionKind::Jump, jump_row, &[]),
+            successor(BLOCK_A, BlockId::new(1).unwrap(), EDGE_DB),
+        );
+    });
+    assert_eq!(
+        relocate_member(&source, &environment, MOVING, HEAD),
+        Err(MemberRunRelocationError::UnsupportedPair)
+    );
+    assert_eq!(
+        relocate_member(&source, &environment, HEAD, MOVING),
+        Err(MemberRunRelocationError::UnsupportedPair)
+    );
+}
+
 /// The bypassed triangle — a branch head whose one arm reaches the join and
 /// whose other edge reaches it directly — is a window the shared derivation
 /// covers without a shape of its own: A branches to C and to B, C jumps to B,
@@ -710,6 +880,26 @@ fn member_relocates_through_a_bypassed_triangle_window() {
         run.transformed().clone(),
     )
     .unwrap();
+    // The same triangle upstream, which is what the per-shape triangle family
+    // proves: the member leaves the join and lands in the branching head.
+    let upstream = relocate_member(&source, &environment, HEAD, MOVING).unwrap();
+    let function = &upstream.transformed().functions[0];
+    assert_eq!(
+        ids(&function.blocks[0]),
+        vec![LEAD, HEAD, MOVING, MOVING_SECOND, TRAIL]
+    );
+    assert_eq!(ids(&function.blocks[2]), vec![MID, TAIL]);
+    validate_member_run_relocation(
+        &source,
+        0,
+        HEAD,
+        HEAD,
+        MOVING,
+        &environment,
+        budget(),
+        upstream.transformed().clone(),
+    )
+    .unwrap();
 }
 
 /// A destination predecessor that no crossed path covers is a traversal the
@@ -778,15 +968,40 @@ fn an_uncrossed_exit_of_the_run_block_refuses() {
     );
 }
 
-/// The entry block is reached with no predecessor at all: a member of B
-/// naming a position in A refuses.
+/// Nothing arrives at a detached block, so the arrival audit would prove
+/// nothing there: a B member naming a position in a block with no
+/// predecessor edge refuses in both directions.
 #[test]
-fn the_entry_block_refuses_as_destination() {
+fn an_arrival_block_with_no_predecessor_refuses() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let source = fixture(target);
+    let source = mutated(target, |function, environment| {
+        let jump_row = environment
+            .constraint(environment.selected_keys().jump)
+            .unwrap();
+        // D reaches B but nothing reaches D, so the upstream walk from D
+        // finds the run's block while D itself is never arrived at.
+        function.blocks.push(block(
+            BLOCK_D,
+            4,
+            vec![instruction(
+                SIDE,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(31),
+                },
+                environment
+                    .constraint(environment.selected_keys().materialize_i64)
+                    .unwrap(),
+                &[R_SIDE],
+            )],
+            jump_terminator(
+                instruction(SIDE_JUMP, SelectedInstructionKind::Jump, jump_row, &[]),
+                successor(BLOCK_B, BlockId::new(2).unwrap(), EDGE_DB),
+            ),
+        ));
+    });
     assert_eq!(
-        relocate_member(&source, &environment, HEAD, LEAD),
+        relocate_member(&source, &environment, HEAD, SIDE),
         Err(MemberRunRelocationError::UnsupportedPair)
     );
 }

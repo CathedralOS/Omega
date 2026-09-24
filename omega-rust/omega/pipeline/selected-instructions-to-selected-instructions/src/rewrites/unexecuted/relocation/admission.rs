@@ -1,11 +1,12 @@
 //! The one relocation admission: locate the contiguous member run the two
 //! named members bound inside one block's body, resolve the destination
-//! instruction to a landing position in its block, derive the window the
-//! move crosses over every acyclic path between the two blocks, prove the
-//! move changes no traversal — every predecessor edge into the
-//! destination lies on a crossed path and every exit of every crossed
-//! block reaches the destination — then apply the shared hazard,
-//! transport, memory-roster and settlement audit once.
+//! instruction to a landing position in its block, take the direction whose
+//! acyclic paths exist — downstream to a reachable destination, upstream
+//! from one that reaches the run's block — derive the window the move
+//! crosses over every such path, prove the move changes no traversal —
+//! every predecessor edge into the arrival block lies on a crossed path and
+//! every exit of every crossed block stays on one — then apply the shared
+//! hazard, transport, memory-roster and settlement audit once.
 use std::collections::BTreeSet;
 
 use optimization_core::OptimizationWorkBudget;
@@ -117,49 +118,77 @@ pub(super) fn admit<'source>(
         // Landing inside the run's own span is a degenerate move.
         return Err(MemberRunRelocationError::UnsupportedPair);
     }
-    let crossing = crossed_window(
-        function,
-        run_block,
-        run_start,
-        run_end,
-        destination_block,
-        landing_index,
-        CrossingDirection::Forward,
-        PATH_EDGE_LIMIT,
-    )
-    .ok_or(MemberRunRelocationError::WorkBudgetExceeded)?;
+    // The move's direction is whichever one has acyclic paths: downstream
+    // when the destination is reachable from the run's block, upstream when
+    // the run's block is reachable from the destination. Blocks on a common
+    // cycle reach each other both ways, where a move in either direction
+    // changes how often the run executes, so that case refuses rather than
+    // picking a direction.
+    let window = |direction| {
+        crossed_window(
+            function,
+            run_block,
+            run_start,
+            run_end,
+            destination_block,
+            landing_index,
+            direction,
+            PATH_EDGE_LIMIT,
+        )
+        .ok_or(MemberRunRelocationError::WorkBudgetExceeded)
+    };
+    let mut crossing = window(CrossingDirection::Forward)?;
     if !in_block {
+        let upstream = window(CrossingDirection::Backward)?;
+        // The block every traversal of the run must now arrive through: the
+        // destination downstream, the run's own block upstream. Its
+        // predecessor edges carry the direction's whole traversal claim.
+        let arrival_block = match (crossing.reachable, upstream.reachable) {
+            (true, true) => return Err(MemberRunRelocationError::UnsupportedPair),
+            (false, true) => {
+                crossing = upstream;
+                run_block
+            }
+            _ => destination_block,
+        };
         let destination = &function.blocks[destination_block];
-        // The entry block is reached with no predecessor at all, and an
-        // implementation block's origin carries edge or case work the
-        // audit does not cross.
-        if destination.id == function.entry_block
-            || !matches!(destination.origin, SelectedBlockOrigin::Source(_))
-        {
+        let arrival = &function.blocks[arrival_block];
+        // An implementation block's origin carries edge or case work the
+        // audit does not cross, and the run lands in the destination in
+        // either direction.
+        if !matches!(destination.origin, SelectedBlockOrigin::Source(_)) {
             return Err(MemberRunRelocationError::UnsupportedPair);
         }
         if !crossing.reachable {
             return Err(MemberRunRelocationError::UnsupportedPair);
         }
-        // Traversals gained: an edge into the destination that no path
-        // from the run crosses gives the run a traversal that never ran
-        // it before the move.
+        // Traversals gained downstream, lost upstream: an edge into the
+        // arrival block that no crossed path covers reaches the run's new
+        // position without passing the run's old one. An arrival block
+        // nothing arrives at — the entry block of an acyclic function, a
+        // detached block — makes that audit vacuous, so it must have at
+        // least one predecessor for the claim to mean anything.
         let crossed_edges: BTreeSet<_> = crossing
             .edges
             .iter()
             .map(|edge| (edge.block, edge.successor.psi_edge))
             .collect();
+        let mut arrivals = 0usize;
         for (from, predecessor) in all_edges(function) {
-            if predecessor.block == destination.id
-                && !crossed_edges.contains(&(from, predecessor.psi_edge))
-            {
-                return Err(MemberRunRelocationError::UnsupportedPair);
+            if predecessor.block == arrival.id {
+                arrivals += 1;
+                if !crossed_edges.contains(&(from, predecessor.psi_edge)) {
+                    return Err(MemberRunRelocationError::UnsupportedPair);
+                }
             }
         }
-        // Traversals lost: every exit of every block a path leaves must
-        // itself lie on a complete path to the destination — otherwise
-        // some traversal of the run's region never reaches the run's new
-        // position.
+        if arrivals == 0 {
+            return Err(MemberRunRelocationError::UnsupportedPair);
+        }
+        // The mirrored half, in both directions: every exit of every block a
+        // path leaves must itself lie on a complete crossed path — otherwise
+        // some traversal leaves the crossed region without reaching the run's
+        // new position.
         for source_block in crossing
             .edges
             .iter()
@@ -199,7 +228,7 @@ pub(super) fn admit<'source>(
                 total.checked_add(block.instructions.len())?.checked_add(1)
             })
         })
-        .and_then(|total| total.checked_add(PATH_EDGE_LIMIT))
+        .and_then(|total| total.checked_add(PATH_EDGE_LIMIT.saturating_mul(2)))
         .and_then(|total| {
             function.blocks.iter().try_fold(total, |total, block| {
                 total.checked_add(terminator_successors(&block.terminator).len())
