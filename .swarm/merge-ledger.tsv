@@ -121,3 +121,4 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 36f616376a	leaf/mixed-owned-carrier-home	z5: owned Mixed carriers get retained homes for case dispatch (block_home_layout + parameter_home_required widened, 4 Sum-only projections generalized). 296/296 t2s lib. Next: a2t owned-Mixed-param dispatch (claim-blocked ~04:20Z), Mixed function results, Mixed call args.
 2026-09-24T01:42:54Z	leaf/sum-mixed-reference-case-payloads->main	70c790618a z5 sum/mixed reference carriers t2s+unit-semantics 529/529+532/532
 2026-09-24T01:42:54Z	leaf/mixed-call-arguments->main	9063d257b7 z5 borrowed+owned mixed call args 298/298 + skill inactivity-suspend patch
+2026-09-24T01:47:16Z	leaf/borrowed-whole-view-result-ownership->main	73b0f3ed60 z3 bare whole-view &'a param returns; 6245/6245 3-crate lib; residual: member-projection views + authored subslices (~35-machine family)
