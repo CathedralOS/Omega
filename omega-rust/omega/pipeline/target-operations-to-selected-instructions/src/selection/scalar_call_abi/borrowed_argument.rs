@@ -95,6 +95,7 @@ pub(super) fn validate_borrowed_argument(
                         declaration.shape,
                         terminal_psi::StructuralTypeShape::Record { .. }
                             | terminal_psi::StructuralTypeShape::Sum { .. }
+                            | terminal_psi::StructuralTypeShape::Mixed { .. }
                     )
             })
         })
