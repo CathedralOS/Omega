@@ -527,6 +527,17 @@ fn record_construction_sources(
     Some(output)
 }
 
+/// Whether an immutable local of type `reference` must join its stored
+/// carrier leaves to captured loans (`local_record_loans`). Record loans
+/// belong to a locally constructed record holding reference carriers. A bare
+/// `&'a V` shared view is no construction: a selected borrow binds it through
+/// the shared-borrow join. `is_reference_record` counts that view for result
+/// custody, so this local-construction gate excludes it explicitly. The
+/// checked producer and the lowering replay both ask this one question.
+pub fn local_owes_record_loans(program: &TypedTrees, reference: TypeReferenceHandle) -> bool {
+    is_reference_record(program, reference) && shared_borrowed_parts(program, reference).is_none()
+}
+
 /// Join each stored carrier leaf to its exact captured loan and weakening.
 /// Similar lifetime spelling and UnretainedDerived alone are not authority.
 pub fn local_record_loans(

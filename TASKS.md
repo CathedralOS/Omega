@@ -2244,9 +2244,21 @@ syntax and other terminal services are not prerequisites.
      `attached_unit/ordinary_machine` emission.
   5. Eight return families each have their own builder, roster and module
      assembly (`checked_trees::flow::terminal::return_plans`, `returns/`).
+     A dispatch probe skipped one family at a time over the c2l suite. The
+     general route already lowers every PayloadlessCase program identically,
+     including the exact-shape tests, and no test selects SelectedOperator.
+     PayloadlessCase cannot be deleted alone:
+     `payloadless_guarded_call_return.rs` lowers its callee through
+     `lower_payloadless_case_return_machine` and renumbers it by hand. Lower
+     that callee through the general route, then delete both. Families the
+     general route still refuses, with c2l tests only they lower:
+     StructuralScalar 40, ClaimFreeAffine 16, PayloadlessGuardedCall 12,
+     BoundaryScalar 8, Structural 6, TraitOperator 1.
   6. Structural Unit Control is a second multi-state control-graph family
      with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
-     Widen state-graph admission to cover it rather than extending it.
+     Widen state-graph admission to cover it rather than extending it. The
+     general route refuses all eight `tests::structural_control_cases`
+     programs; start from those.
   7. The checked stage builds the nominal cleanup plan twice
      (`terminal_unit/mod.rs` candidates and
      `build_checked_nominal_affine_unit_cleanup_plans`).

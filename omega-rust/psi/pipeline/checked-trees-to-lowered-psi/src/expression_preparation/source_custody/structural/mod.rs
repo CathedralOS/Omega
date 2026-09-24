@@ -215,7 +215,7 @@ pub(crate) fn validate(
         .statements(source.statement_nodes)
         .get(result.statement_index as usize)
     {
-        if validation::reference_result_custody::is_reference_record(
+        if validation::reference_result_custody::local_owes_record_loans(
             &checked.typed,
             local.type_reference,
         ) {
