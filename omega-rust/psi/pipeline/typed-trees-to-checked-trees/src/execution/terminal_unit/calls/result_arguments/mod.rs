@@ -213,14 +213,16 @@ pub(super) fn argument(
     // so a forwarded view cannot outlast the storage it borrows. Every other
     // shared argument keeps the `&place` lane below, which checks its own
     // borrow expression and referent.
+    // A `&[T]`/`&[u8]` view forwarded whole names a live `Read` loan on the
+    // view symbol — `let`-bound `&[u8]` results register exactly that loan,
+    // so the byte carrier joins the same lane (its element is `u8`, which
+    // the older `&[T]` predicate excluded).
     if !projected
         && access == CheckedStructuralAccess::SharedBorrow
-        && crate::execution::terminal_unit::types::borrowed_slice_view_element(
+        && crate::execution::terminal_unit::types::borrowed_slice_view(
             program,
             parameter.type_reference,
-            &[],
         )
-        .is_some()
         && result.type_identity == target_identity
         && let facts::PlaceRoot::Symbol(view_symbol) = place.root
     {
