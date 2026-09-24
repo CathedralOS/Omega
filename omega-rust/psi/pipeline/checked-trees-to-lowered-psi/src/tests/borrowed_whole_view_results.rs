@@ -49,9 +49,11 @@ fn detached_shared_borrowed_element_view_lowers_and_verifies() {
 }
 
 #[test]
-fn member_whole_view_results_keep_their_decline() {
-    // `&'a self` receivers mint no structural parameter custody, so a whole
-    // view field has no ingress loan to name.
+fn member_whole_view_results_reach_the_leaf_copy_gate() {
+    // A receiver-rooted `self.data` projection mints receiver custody, emits a
+    // `StructuralLeafCopy` over the `&self` parameter's record storage, and
+    // reaches module validation — the decline left is the borrowed byte-view
+    // leaf-shape arm the Terminal channel gate has not admitted yet.
     let checked = crate::front_end::checked_program(
         r#"
             data Views<'r> { data: &'r [u8]; tag: u64; }
@@ -62,12 +64,13 @@ fn member_whole_view_results_keep_their_decline() {
         "#,
     );
     let error = lower_machine(&checked, TerminalMachineSelection::Name("Views::get"))
-        .expect_err("member whole-view results have no receiver custody yet");
+        .expect_err("member whole-view results stop at the leaf-copy module gate");
     assert!(
         matches!(
             error,
-            crate::lowering_error::LoweringError::InvalidUnitMachinePlan { .. }
-                | crate::lowering_error::LoweringError::Unsupported(_)
+            crate::lowering_error::LoweringError::InvalidTerminalModule(
+                terminal_verifier::ModuleError::InvalidStructuralLeafCopy { .. }
+            )
         ),
         "unexpected outcome: {error:?}"
     );

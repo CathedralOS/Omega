@@ -194,9 +194,10 @@ fn boolean_reads(expression: &CheckedBooleanExpression, receiver: u32) -> bool {
 
 /// Whether the body uses the borrowed receiver as storage rather than only
 /// as the ambient attachment its receiver calls share: it reads a receiver
-/// scalar, stores through a receiver-rooted place, or lends a receiver field
-/// to a call. Each of those needs the invocation's actual receiver loan, so
-/// the Unit signature retains `self` as a structural parameter.
+/// scalar or a receiver-rooted projection, stores through a receiver-rooted
+/// place, or lends a receiver field to a call. Each of those needs the
+/// invocation's actual receiver loan, so the Unit signature retains `self`
+/// as a structural parameter.
 pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -245,6 +246,25 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
         })
     });
     if stores_receiver {
+        return true;
+    }
+    // A receiver-rooted projection read in expression position — a
+    // `self.field` leaf the body returns or hands to a structural value —
+    // observes the same receiver storage a scalar member read does; the
+    // scalar-read side above only watches the scalar computation namespaces.
+    let reads_receiver_projection = statements.iter().enumerate().any(|(index, statement)| {
+        let typed_trees::statement::StatementNode::Expression(expression) = statement else {
+            return false;
+        };
+        crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            index,
+            *expression,
+        )
+        .is_some_and(|place| receiver_roots.contains(&place.root) && !place.segments.is_empty())
+    });
+    if reads_receiver_projection {
         return true;
     }
     // Argument accesses key a receiver-rooted place by its field symbol, so
