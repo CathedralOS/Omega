@@ -24,7 +24,7 @@ setup are not additional public program stages.
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/03_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/04_abstract-operations-to-abstract-operations/src/lib.rs) |
-| Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/abstract-operations-to-target-operations/README.md) |
+| Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/05_abstract-operations-to-target-operations/README.md) |
 | Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/target-operations-to-selected-instructions/README.md) |
 | Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/pipeline/selected-instructions-to-selected-instructions/src/lib.rs) |
 | Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/selected-instructions-to-register-homes/README.md) |

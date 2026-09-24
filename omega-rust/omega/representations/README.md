@@ -41,7 +41,7 @@ Independent replay must still reconstruct and check the retained facts. This is
 not the redundant semantic discovery that the ownership rule prohibits.
 Unsupported lowering fails explicitly; a missing selection must not discard a
 write, substitute a slot, or fabricate a result. The
-[lowering owner](../pipeline/abstract-operations-to-target-operations/README.md)
+[lowering owner](../pipeline/05_abstract-operations-to-target-operations/README.md)
 describes current structural access and argument-replay boundaries.
 
 ## Encoding and artifact scope

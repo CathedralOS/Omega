@@ -493,7 +493,7 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "extracted focused tests",
         paths: &[
             "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/analyses/spill_choice/compute/tests.rs",
-            "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/unit/boundary_call/tests.rs",
+            "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/unit/boundary_call/tests.rs",
         ],
     },
     SemanticLadder {

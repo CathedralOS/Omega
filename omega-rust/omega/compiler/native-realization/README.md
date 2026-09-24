@@ -66,7 +66,7 @@ opaque companion by value on both success and rejection. That wrapper does not
 admit, lower, fingerprint, or interpret its contents.
 
 Native callback arguments separately enter the realization request. Their
-[target-side carrier](../../pipeline/abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
+[target-side carrier](../../pipeline/05_abstract-operations-to-target-operations/src/lowering/coordination/native_callbacks.rs)
 binds a Terminal operation, placement index, private function, native parameter
 application, registrar plan/context, and application commitment. Target lowering
 validates the one-slot relation. The commitment remains producer provenance:

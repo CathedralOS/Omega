@@ -34,7 +34,7 @@
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/scalar_graph/scalar_graph_lowering",
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/qualifications.rs",
     "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody",
-    "omega-rust/omega/pipeline/abstract-operations-to-target-operations/src/lowering/control_flow",
+    "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/control_flow",
     "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact/src",
     "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src/boundary_operator_custody",
     "omega-rust/psi/semantics/terminal-verifier/src/validation/crash",

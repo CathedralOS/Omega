@@ -22,7 +22,7 @@ terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
 
 [dev-dependencies]
-abstract-operations-to-target-operations = { path = "../abstract-operations-to-target-operations" }
+abstract-operations-to-target-operations = { path = "../05_abstract-operations-to-target-operations" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 target = { path = "../../representations/target" }
 optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
