@@ -4032,14 +4032,24 @@ but report the missing runtime leg explicitly; it does not close that host row.
   consumers, including `package_inspection`, `offline_package_commands`, and
   `source_diff_commands`.
 
-  THE WHOLE `-p compiler` TEST SURFACE IS UNGATED, and a complete sweep says
-  how much that has cost. `land_tight.sh` checks
-  `--workspace --all-targets --exclude omega-native-differential-test --exclude
-  compiler`, so nothing a landing runs ever executes these targets except
-  `canary_suite`. Swept at `869021cf9c7` on macOS arm64, twelve targets at a
-  time (an unscoped `-p compiler` links ~150 binaries and exhausts this host's
-  disk): of the 110 targets outside `canary_suite`, `samples_compile` and
-  `corpus_runner`, **23 carry 178 failing tests**.
+  THE INTEGRATION TARGETS FAIL WHERE THEY SHOULD SKIP. Correcting an earlier
+  version of this note, which blamed a gate: the documented full baseline is
+  GREEN. `mbx nextest run --workspace --lib --no-fail-fast` is **17265 passed,
+  0 failed, 3 skipped** at `a934945572b` on macOS arm64. Nothing is wrong with
+  the gate, and `--lib` is deliberate -- AGENTS.md puts integration tests
+  outside the portable subset and requires that "platform integration tests
+  are separate and must report an explicit skip when the host cannot run
+  them".
+
+  That requirement is what is actually broken. Swept at `869021cf9c7`, twelve
+  targets at a time (an unscoped `-p compiler` links ~150 binaries and
+  exhausts this host's disk): of the 110 `-p compiler` targets outside
+  `canary_suite`, `samples_compile` and `corpus_runner`, **23 carry 178
+  failing tests** -- failing, not skipping. Some cannot run here and should
+  declare that (the 89 below need a macOS host provider); others are ordinary
+  defects the `--lib` baseline was never going to see, and two such were real:
+  a write-root regression bisected to `04f74670ff5`, and package identities
+  the snake_case migration had not reached.
 
   | n | target | n | target |
   | --- | --- | --- | --- |
