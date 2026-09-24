@@ -236,6 +236,32 @@ fn literal_satisfies_declared_const(
     true
 }
 
+/// A `collection[a..b]` range result is a fresh view over the collection's own
+/// backing at a narrower extent, so the produced reference carries the
+/// collection's resolved reference type. The collection resolves like any
+/// other projected selection — element indexing inside is deliberately not a
+/// range — and `reference_type_matches` keeps the access direction honest:
+/// a shared source cannot authorize a mutable subslice.
+pub(super) fn subslice_view_matches_reference(
+    program: &TypedTrees,
+    indexed: &typed_trees::expression::TableIndexedExpression,
+    required: TypeReferenceHandle,
+) -> bool {
+    let mut substitutions = Vec::new();
+    let Some(collection) =
+        selected_value_type(program, indexed.collection, &mut substitutions, None)
+    else {
+        return false;
+    };
+    let Some(collection) = substituted_reference(program, collection, &substitutions) else {
+        return false;
+    };
+    matches!(
+        program.type_reference_table.type_reference(collection),
+        TypeReferenceNode::Reference { .. }
+    ) && reference_type_matches(program, collection, required, &substitutions)
+}
+
 pub(super) fn projected_matches_reference(
     program: &TypedTrees,
     expression: ExpressionHandle,
