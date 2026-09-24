@@ -4089,54 +4089,62 @@ but report the missing runtime leg explicitly; it does not close that host row.
 
   That requirement is what is actually broken. Swept at `869021cf9c7` and
   completed at `670cba3ee9`: of the 110 `-p compiler` targets outside
-  `canary_suite`, `samples_compile` and `corpus_runner`, **28 carry 243
-  failing tests** -- failing, not skipping.
+  `canary_suite`, `samples_compile` and `corpus_runner`, 28 carried 243
+  failing tests -- failing, not skipping. **16 targets carry 87 now**, of
+  which 89 -- `native_filesystem_canaries` -- needs a host provider and
+  should skip rather than fail.
+
+  A METHOD WARNING for whoever re-measures. An earlier pass reported 178
+  across 23, and that was an undercount: three of its ten batches never ran,
+  because one target in each failed to COMPILE when this host ran out of disk,
+  and `nextest` reports that as `error: could not compile` with no `Summary`
+  line. Grepping only for `FAIL` and `Summary` silently drops the whole batch
+  -- 36 targets, 65 further failures, including the second-largest cluster. A
+  sweep must check that every batch produced a `Summary`, and must watch free
+  space: each test binary is around 350 MB and this host has died under 1 GB
+  free three times in one session. RE-MEASURE BEFORE WORKING A TARGET:
+  twenty-one of the targets once listed here were already green when re-run.
+
+  Remaining, re-measured on macOS arm64 after the repairs below:
 
   | n | target | n | target |
   | --- | --- | --- | --- |
-  | 89 | `native_filesystem_canaries` | 3 | `source_evaluated_native_realization` |
-  | 40 | `package_compilation_inputs` | 3 | `subslice_runtime_end_bounds` |
-  | 17 | `recast_views` | 2 | `callback_terminal_custody` |
-  | 14 | `build_behavior_exclusions` | 2 | `cyclic_receiver_execution` |
-  | 9 | `plan_laid_repeated_runtime` | 2 | `terminal_authority` |
-  | 8 | `behavior_exclusions` | 1 | `build_named_inputs` |
-  | 7 | `optimizer_opt_in` | 1 | `callable_entry_custody` |
-  | 7 | `build_target_activation` | 1 | `joint_call_rankings` |
-  | 6 | `build_snapshot_outputs` | 1 | `literal_dispatch_unit_plan_stops` |
-  | 4 | `private_joint_progress` | 1 | `no_selection_golden` |
-  | 3 | `layout_plans` | 1 | `object_artifact_custody` |
-  | 3 | `module_machine_indices` | 1 | `object_container_custody` |
-  | 3 | `pcc_publication` | 1 | `owned_case_state_transport` |
-  | 3 | `service_operational_contracts` | 10 | `runtime_value_generics` |
+  | 89 | `native_filesystem_canaries` | 2 | `source_evaluated_native_realization` |
+  | 17 | `recast_views` | 2 | `service_operational_contracts` |
+  | 10 | `runtime_value_generics` | 2 | `callback_terminal_custody` |
+  | 9 | `plan_laid_repeated_runtime` | 1 | `joint_call_rankings` |
+  | 6 | `build_target_activation` | 1 | `literal_dispatch_unit_plan_stops` |
+  | 3 | `module_machine_indices` | 1 | `package_compilation_inputs` |
+  | 3 | `private_joint_progress` | 1 | `rank_remainder_endpoints` |
+  | 3 | `subslice_runtime_end_bounds` | 2 | `optimizer_opt_in` |
 
-  A METHOD WARNING for whoever re-measures. The first pass reported 178 across
-  23, and that was an undercount: three of its ten batches never ran, because
-  one target in each failed to COMPILE when this host ran out of disk, and
-  `nextest` reports that as `error: could not compile` with no `Summary` line.
-  Grepping only for `FAIL` and `Summary` silently drops the whole batch -- 36
-  targets, 65 further failures, including the second-largest cluster. A sweep
-  of this suite must check that every batch produced a `Summary`, and must
-  watch free space: each test binary is ~350 MB and this host has died at
-  under 1 GB free three times in one session. Some cannot run here and should
-  declare that (the 89 below need a macOS host provider); others are ordinary
-  defects the `--lib` baseline was never going to see, and two such were real:
-  a write-root regression bisected to `04f74670ff5`, and package identities
-  the snake_case migration had not reached.
+  Cleared: `access_plans`, `application_type_equations`,
+  `bounded_slice_selectors`, `build_named_inputs`, `build_snapshot_outputs`,
+  `byte_field_replacement`, `callable_entry_custody`, `calling_policy_plans`,
+  `composed_internal_unit_arguments`, `constant_expression_casts`,
+  `constant_float_tables`, `cyclic_receiver_execution`,
+  `guarded_operator_execution`, `layout_plans`, `machine_type_equations`,
+  `native_crash_execution`, `no_selection_golden`, `object_artifact_custody`,
+  `object_container_custody`, `owned_case_state_transport`,
+  `pcc_publication`, `terminal_authority`.
 
-  | n | target | n | target |
-  | --- | --- | --- | --- |
-  | 89 | `native_filesystem_canaries` | 3 | `service_operational_contracts` |
-  | 17 | `recast_views` | 3 | `source_evaluated_native_realization` |
-  | 10 | `runtime_value_generics` | 3 | `subslice_runtime_end_bounds` |
-  | 9 | `plan_laid_repeated_runtime` | 2 | `callback_terminal_custody` |
-  | 7 | `build_target_activation` | 2 | `terminal_authority` |
-  | 7 | `optimizer_opt_in` | 1 | `build_named_inputs` |
-  | ~~6~~ 0 | `build_snapshot_outputs` (FIXED) | 1 | `callable_entry_custody` |
-  | 4 | `private_joint_progress` | 1 | `joint_call_rankings` |
-  | 3 | `layout_plans` | 1 | `literal_dispatch_unit_plan_stops` |
-  | 3 | `module_machine_indices` | 1 | `no_selection_golden` |
-  | 3 | `pcc_publication` | 1 | `object_artifact_custody` |
-  | | | 1 | `object_container_custody` |
+  Four causes accounted for nearly all of it, and each recurs: a fixture that
+  does not declare what it reaches or invokes; the snake_case package-name
+  migration reaching a declared package or application identity; an
+  expectation that outlived its behavior (target-qualified provider plan
+  names, and a custody matrix substituting the literal that had since become
+  the current vocabulary marker); and two real compiler defects -- a selected
+  transition arm's machine-storage guard conjunct discarded whenever a
+  state-parameter conjunct shared the `&&`, and runtime ranking admission not
+  recognizing `-> (callee(..))`, the spelling `ac52bc4114` now requires of an
+  attached machine, as the tail arrival its bare form was.
+
+  `service_operational_contracts` keeps two tests blocked on an owner
+  decision, **OWNER_QUESTIONS.md Q6 `borrowed-service-suspension-carrier`**:
+  a machine whose parameters are `&mut Service` and whose published contract
+  is `suspends; blocks;` cannot reach a suspending operation by any spelling
+  the language admits. Do not reshape that fixture again before Q6 is
+  answered.
 
   `native_filesystem_canaries` is half the total and fails UNIFORMLY -- 89 of
   89, none passing -- so it is one cause, not eighty-nine. PEELED, by fixing
