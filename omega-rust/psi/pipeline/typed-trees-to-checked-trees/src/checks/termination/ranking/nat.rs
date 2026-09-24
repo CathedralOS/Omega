@@ -41,6 +41,42 @@ pub(super) fn direct_countdown_edge(
     })
 }
 
+/// The countdown measure `edge_decrease_proven` reads, stated over one
+/// state's own parameters: the subject integer itself, signed or unsigned.
+/// Edge proofs locate a target's subject by name, so every state of a cyclic
+/// component carries a parameter of that name.
+pub(super) fn state_rank(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    subject: ExpressionHandle,
+) -> Option<checked_trees::CheckedStateNaturalRank> {
+    use typed_trees::types::PrimitiveType;
+    let ExpressionNode::Name(_) = program.expression_table.expression(subject) else {
+        return None;
+    };
+    let (position, parameter) =
+        program
+            .state_parameters(state)
+            .iter()
+            .enumerate()
+            .find(|(_, parameter)| {
+                !parameter.is_self && patterns::expression_is_parameter(program, subject, parameter)
+            })?;
+    let primitive_type = program.primitive_type_reference(parameter.type_reference)?;
+    if matches!(
+        primitive_type,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr
+    ) {
+        return None;
+    }
+    Some(checked_trees::CheckedStateNaturalRank {
+        state: state.symbol,
+        parameter: parameter.symbol,
+        parameter_position: u32::try_from(position).ok()?,
+        measure: checked_trees::CheckedNaturalRankMeasure::IntegerParameter { primitive_type },
+    })
+}
+
 pub(super) fn state_has_proven_self_loop(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,

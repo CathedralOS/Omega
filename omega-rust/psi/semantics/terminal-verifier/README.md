@@ -164,7 +164,8 @@ producer's dominance claim or grants facts across a proof-loop cut.
 Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_flow.md).
 [control_cycles](src/control_cycles.rs) reconstructs complete SCC topology,
 rank substitution, and proof questions. The natural carrier selects one fixed
-unsigned type per component; ranks are scalar machine/block parameters or actual
+integer type per component; a signed carrier is a finite order too, and its sign
+enters the relation identity. Ranks are scalar machine/block parameters or actual
 byte-length observations. Its preserving-edge subgraph must be acyclic.
 `proof_bundle.control_cycles` groups those certificates independently of
 [proof-call recursion](src/proof_recursion.rs).

@@ -1,9 +1,16 @@
 //! Retain the selected source view as natural ranks over the emitted graph.
+//!
+//! Each ranked state names one checked measure over its own parameters. The
+//! state's entry evaluates it once; every successor edge into a ranked state
+//! evaluates the same measure over that edge's actual arguments. The verifier
+//! substitutes the arriving evaluation for the target's entry evaluation and
+//! proves the edge's comparison.
 use super::super::super::super::{BlockId, IntegerType, PrimitiveType, TerminalRankedScc, ValueId};
 use super::super::super::{OperationResult, ScalarType, TerminalMachine, Terminator, unsupported};
 use super::super::{CheckedTrees, LoweringError};
 use super::{CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan};
 use checked_trees::CheckedNaturalRankMeasure;
+use language_semantics::RankingViewId;
 use std::collections::BTreeMap;
 use terminal_psi::{
     TerminalBlockNaturalRank, TerminalNaturalCycle, TerminalNaturalRankComparison,
@@ -22,13 +29,13 @@ pub(super) fn validate_witness(
             unsupported("Unit graph has a substituted ranking witness")
         };
     };
+    // A rank range constrains the produced rank; the Terminal certificate
+    // needs only its descent, so the range neither blocks nor enters it.
     if !matches!(
         witness.ranking_view,
-        language_semantics::RankingViewId::SLICE_LENGTH
-            | language_semantics::RankingViewId::NAT_DESCENDING
+        RankingViewId::SLICE_LENGTH | RankingViewId::NAT_DESCENDING
     ) || Some(witness.view_path.as_str()) != witness.ranking_view.canonical_path()
         || !witness.view_arguments.is_empty()
-        || witness.rank_range.is_some()
         || plan.natural_ranks.is_empty()
         || plan.natural_ranks.windows(2).any(|ranks| {
             (ranks[0].state.arena_index(), ranks[0].state.generation())
@@ -84,20 +91,26 @@ pub(super) fn validate_witness(
             ))?;
         let measure_matches = match rank.measure {
             CheckedNaturalRankMeasure::ByteSequenceLength => {
-                witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH
+                witness.ranking_view == RankingViewId::SLICE_LENGTH
                     && state_plan
                         .structural_parameters
                         .iter()
                         .any(|parameter| parameter.position == rank.parameter_position)
             }
-            CheckedNaturalRankMeasure::UnsignedParameter { primitive_type } => {
-                witness.ranking_view == language_semantics::RankingViewId::NAT_DESCENDING
+            CheckedNaturalRankMeasure::IntegerParameter { primitive_type } => {
+                // Signed subjects rank in their own fixed carrier: the
+                // verifier's order over any fixed carrier is well founded.
+                witness.ranking_view == RankingViewId::NAT_DESCENDING
                     && matches!(
                         primitive_type,
                         PrimitiveType::U8
                             | PrimitiveType::U16
                             | PrimitiveType::U32
                             | PrimitiveType::U64
+                            | PrimitiveType::I8
+                            | PrimitiveType::I16
+                            | PrimitiveType::I32
+                            | PrimitiveType::I64
                     )
                     && checked.primitive_type_reference(parameter.type_reference)
                         == Some(primitive_type)
@@ -131,6 +144,8 @@ pub(super) fn parameter_position(
         .position(|parameter| parameter.position == rank.parameter_position)
 }
 
+/// The rank subject's position in the state's scalar parameter lane, which is
+/// also its position among an arriving edge's scalar arguments.
 pub(super) fn scalar_parameter_position(
     plan: &CheckedComposedUnitControlMachinePlan,
     state: &CheckedComposedUnitControlStatePlan,
@@ -139,7 +154,7 @@ pub(super) fn scalar_parameter_position(
         .natural_ranks
         .iter()
         .find(|rank| rank.state == state.state)?;
-    let CheckedNaturalRankMeasure::UnsignedParameter { primitive_type } = rank.measure else {
+    let CheckedNaturalRankMeasure::IntegerParameter { primitive_type } = rank.measure else {
         return None;
     };
     state.scalar_parameters.iter().position(|parameter| {

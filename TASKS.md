@@ -2506,13 +2506,28 @@ syntax and other terminal services are not prerequisites.
   that stopped at `state graph: result signature`, plus
   `runtime_decreases_u64_measure_exit`, all get past it. Each now stops at the
   next missing capability. Repair the capability, not the fixture:
-  - `state graph: natural ranks` (12 run canaries, and
-    `termination/rank_range_state_call`): the ranking witness is
-    `(j, i) -> Nat::BoundedDistance`, a signed `n -> Nat::Descending`, or a
-    `remaining in 0..=9` rank range.
-    `checks/termination/ranking::proven_state_natural_ranks_with_call_frames`
-    derives only unsigned countdowns and slice lengths. The composed ranking
-    emitter has no computed (distance) rank value.
+  - `state graph: natural ranks` (11 run canaries: the
+    `(j, i) -> Nat::BoundedDistance` `runtime_dispatch_*` family,
+    `runtime_decreases_u64_measure_exit`, `runtime_saturating_param_carry_exit`).
+    The shared ranks
+    (`checks/termination/ranking::proven_state_natural_ranks_with_call_frames`)
+    carry every proven `Nat::Descending` countdown, signed or multi-state, but
+    no distance: the proof kernel certifies `x - k < x`
+    (`IntegerSubtractOrder`) and literal bounds, not `x < x + k` or
+    `m - x < m - y` from `y < x`, so no rank over a climbing cursor
+    (`upper - lower` saturated, `MAX - lower`, or the cursor) has a checkable
+    edge. Next: add those two order rules to proof-admission (the core already
+    has `AddRightInverse` and subtraction `Antitone`), admit a computed
+    `MAX - lower` rank substituted per edge in
+    `terminal-verifier/src/control_cycles/validation.rs`, and emit it from
+    `composed_control/state_graph/ranking.rs`.
+  - Signed countdown callers reach verified Terminal Psi.
+    `runtime_dispatch_float_terminal_exit` stops in native legalization: the
+    mixed structural-scalar ABI admits only Boolean and integer results
+    (`target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`).
+    `runtime_nested_field_terminal_second_instance_exit` stops at c2l
+    `emission/call_source_custody.rs` ("Unit body omits or duplicates an
+    authored call"): no Unit operation owns `self.total = self.t2.drain(3, 0)`.
   - `state graph: prefix initializers: short-circuit boolean` (2,
     `Store::check`), `guarded jump successors: receiver transfer` (1,
     `runtime_tuple_transition_exit`), and `conditional successors` (2).
@@ -2533,7 +2548,9 @@ syntax and other terminal services are not prerequisites.
     (`call operation: structural arguments: parameter access`).
     `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in
     native target lowering (`UnsupportedControlFlow`, `borrowed_calls.rs`).
-  `termination/rank_range_state_call` also needs its entry's tail-call
+  `termination/rank_range_state_call` ranks only through its `count`/`step`
+  call cycle, so its machines have no state cycle, no shared ranks, and still
+  stop at `state graph: natural ranks`. It also needs its entry's tail-call
   transition (`_ -> self.count(5)`: statement sequence, unsupported statement
   kind), and the Unit closure rejects its `count`/`step` recursion.
   Acceptance: the run canaries named in the omission roster execute.

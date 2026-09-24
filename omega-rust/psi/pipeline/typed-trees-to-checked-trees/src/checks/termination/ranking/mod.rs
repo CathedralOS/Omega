@@ -477,8 +477,15 @@ pub(crate) fn proven_slice_length_ranks_with_call_frames(
     (!ranks.is_empty()).then_some(ranks)
 }
 
-/// Preserve an already-proven natural measure on the shared executable state
-/// graph. This records its subject, not a fixed-work bound or Terminal proof.
+/// Preserve an already-proven measure on the shared executable state graph:
+/// one rank for every state of every cyclic component, stated over that
+/// state's own parameters. This records the measure, not a fixed-work bound
+/// or Terminal proof; emission evaluates it and the verifier checks each edge.
+///
+/// The measure is the one `nat::edge_decrease_proven` saw decrease, so each
+/// edge inside a component is re-proved against it here: a machine accepted
+/// only through another tier (the relational rank-range judgment) keeps no
+/// shared ranks rather than a measure no edge proof names.
 pub(crate) fn proven_state_natural_ranks_with_call_frames(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -488,30 +495,65 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
     if witness.ranking_view == language_semantics::RankingViewId::SLICE_LENGTH {
         return proven_slice_length_ranks_with_call_frames(program, machine, call_frames);
     }
-    if witness.ranking_view != language_semantics::RankingViewId::NAT_DESCENDING
-        || !witness.view_arguments.is_empty()
-        || witness.rank_range.is_some()
-    {
+    if !matches!(
+        machine_decrease_outcome(program, machine, call_frames),
+        DecreaseOutcome::Proven
+    ) {
         return None;
     }
-    let components = proven_nat_countdown_sccs_with_call_frames(program, machine, call_frames)?;
+    let states = program.machine_states(machine);
+    let root_state = states.first()?;
+    let subjects = resolve_machine_witness_subjects(program, machine)?;
+    let view_arguments = resolve_machine_witness_view_arguments(program, machine)?;
+    let ranking_view = witness
+        .view_path
+        .split("::")
+        .filter(|member| !member.is_empty())
+        .collect::<Vec<_>>();
+    let OrderResolution::Resolved(order) = RankingOrder::resolve(
+        program,
+        root_state,
+        &subjects,
+        &ranking_view,
+        &view_arguments,
+    ) else {
+        return None;
+    };
+    // `Nat::BoundedDistance` and `Nat::IncreasingTo` are proven here too, but
+    // their climbing subject gives no Terminal rank the proof kernel can
+    // compare yet: it certifies `x - k < x` and literal bounds, not `x < x + k`
+    // or antitone subtraction. They stay unranked (and so unplanned) until it
+    // does; see STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.
+    let (RankingOrder::NatDescending, [subject]) = (order, subjects.as_slice()) else {
+        return None;
+    };
+    let measure = DecreaseMeasure::Single(*subject);
+    let adjacency = graph::machine_adjacency(program, machine);
     let mut ranks = Vec::new();
-    for component in components {
-        let state = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.symbol == component.header_state)?;
-        let parameter = program
-            .state_parameters(state)
-            .get(component.header_rank_parameter_position as usize)?;
-        ranks.push(checked_trees::CheckedStateNaturalRank {
-            state: state.symbol,
-            parameter: parameter.symbol,
-            parameter_position: component.header_rank_parameter_position,
-            measure: checked_trees::CheckedNaturalRankMeasure::UnsignedParameter {
-                primitive_type: component.rank_primitive_type,
-            },
-        });
+    for component in graph::strongly_connected_components(&adjacency)
+        .into_iter()
+        .filter(|component| graph::component_is_cyclic(&adjacency, component))
+    {
+        for &source_position in &component {
+            let source = states.get(source_position)?;
+            ranks.push(nat::state_rank(program, source, *subject)?);
+            for &target_position in &component {
+                let target = states.get(target_position)?;
+                for edge in patterns::edges_to_state(program, source, target.symbol) {
+                    if !nat::edge_decrease_proven(
+                        program,
+                        source,
+                        target,
+                        &edge.guards,
+                        edge.arguments,
+                        measure,
+                        DistanceOrientation::Declared,
+                    ) {
+                        return None;
+                    }
+                }
+            }
+        }
     }
     ranks.sort_by_key(|rank| (rank.state.arena_index(), rank.state.generation()));
     (!ranks.is_empty()).then_some(ranks)
