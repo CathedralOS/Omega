@@ -59,8 +59,14 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: &[BoundaryCallingPlanRealization],
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
-    let target_name = selected_target_profile.map(target::TargetProfile::target_name);
-    let provider_selection_target = selected_target_profile
+    // Target-scoped machines were selected before resolution against the
+    // choice `filter_target_machines_by_scope` makes: the requested target,
+    // or the compiler host when none is requested. Provider planning follows
+    // that same choice, so an unprofiled check derives and evaluates exactly
+    // the leaves it selected.
+    let planning_target = selected_target_profile.or_else(target::TargetProfile::host_if_supported);
+    let target_name = planning_target.map(target::TargetProfile::target_name);
+    let provider_selection_target = planning_target
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
     let settled_target_machines =
@@ -71,7 +77,7 @@ pub fn settle_checked_providers(
     // rewrite adapter calls in the interpreter program.
     let evaluated_via_bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
         typed,
-        selected_target_profile,
+        planning_target,
         package_inputs,
     )?;
     let derived_provider_plans = provider_planning::ProviderPlanDerivation::evaluated(
