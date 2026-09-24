@@ -21,6 +21,7 @@ use crate::execution::terminal_unit::calls::structural_arguments::{
 };
 use crate::execution::terminal_unit::calls::{result_arguments, service_forward};
 use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::byte_sequence_carrier;
 use crate::execution::terminal_unit::types::{
     base_type_identity, byte_sequence_type_identity, is_unit, machine_binders,
@@ -61,11 +62,20 @@ pub(in crate::execution) fn build_call_operation(
     allow_field_path_projection: bool,
     expected_call_result: Option<ExpectedCallValueResult<'_>>,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    trace: &LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let coordinate = CheckedUnitCallCoordinate {
         statement_index: u32::try_from(call.statement_index).ok()?,
         call_ordinal: u32::try_from(call.call_ordinal).ok()?,
     };
+    // Each guard family below marks the trace before it can decline, so an
+    // omission at this call names the requirement that refused it rather
+    // than the whole builder.
+    let phase = |name: &'static str| {
+        trace.phase(name);
+        trace.statement(Some(coordinate.statement_index));
+    };
+    phase("call operation: call site");
     let call_site = crate::semantic::calls::find_call_site(
         program,
         machine.symbol,
@@ -150,6 +160,7 @@ pub(in crate::execution) fn build_call_operation(
         })
         .collect::<Vec<_>>();
     if let [(definition, signature)] = static_boundaries.as_slice() {
+        phase("call operation: boundary signature");
         let arguments = crate::semantic::calls::call_site_argument_expressions(program, &call_site);
         let source_parameters = program.state_signature_parameters(signature);
         // A boundary signature is a foreign ABI contract; an erased position
@@ -282,6 +293,7 @@ pub(in crate::execution) fn build_call_operation(
         });
         let mut scalar_parameters = Vec::new();
         let mut structural_arguments = Vec::new();
+        phase("call operation: boundary arguments");
         for (abi_position, ((_, parameter), argument)) in
             abi_parameters.iter().zip(arguments.iter()).enumerate()
         {
@@ -453,6 +465,7 @@ pub(in crate::execution) fn build_call_operation(
                 )?,
             });
         }
+        phase("call operation: boundary telescope");
         if !program.trait_type_parameters(definition).is_empty() {
             return None;
         }
@@ -462,6 +475,7 @@ pub(in crate::execution) fn build_call_operation(
         {
             return None;
         }
+        phase("call operation: boundary parameter custody");
         if program
             .state_signature_parameters(signature)
             .iter()
@@ -489,6 +503,7 @@ pub(in crate::execution) fn build_call_operation(
         {
             return None;
         }
+        phase("call operation: boundary receiver");
         if arguments.len() != abi_parameters.len() {
             return None;
         }
@@ -507,6 +522,7 @@ pub(in crate::execution) fn build_call_operation(
         } {
             return None;
         }
+        phase("call operation: boundary result");
         let signature_return =
             substituted_formal_type(program, signature.return_type, substitutions.as_slice());
         if validation::is_closed_primitive_array_type(program, signature_return) {
@@ -523,6 +539,7 @@ pub(in crate::execution) fn build_call_operation(
         } {
             return None;
         }
+        phase("call operation: boundary contracts");
         if !signature_contracts_are_exact_parameter_qualifications(
             program,
             definition.symbol,
@@ -547,6 +564,7 @@ pub(in crate::execution) fn build_call_operation(
         // permission events are transfers, not the terminal consumption used
         // by an owned receiver. Reuse the exact call-site custody replay so
         // every live claim has a normal-completion receipt at its argument.
+        phase("call operation: boundary claim transfers");
         let completion_receipts = call_claim_transfers(
             facts,
             machine.symbol,
@@ -580,6 +598,7 @@ pub(in crate::execution) fn build_call_operation(
         return None;
     }
 
+    phase("call operation: target state");
     let target_state = crate::semantic::calls::find_state(program, call.target_symbol)?;
     let target_machine = program.machines().iter().find(|candidate| {
         program
@@ -587,6 +606,7 @@ pub(in crate::execution) fn build_call_operation(
             .iter()
             .any(|candidate_state| candidate_state.symbol == target_state.symbol)
     })?;
+    phase("call operation: target contract");
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
     // A bodied `boundary machine` is a checked adapter: callers reach its
     // authored body as an ordinary callee; only the bodyless declaration is
@@ -595,6 +615,7 @@ pub(in crate::execution) fn build_call_operation(
         target_machine.supply_mode.is_boundary_declaration() && !target_machine.body_is_present;
     // Boundary results currently carry identity/claims, not an array payload.
     // Ordinary calls get their payload from the independently checked body.
+    phase("call operation: result shape");
     if boundary && validation::is_closed_primitive_array_type(program, target_state.return_type) {
         return None;
     }
@@ -631,6 +652,7 @@ pub(in crate::execution) fn build_call_operation(
     } {
         return None;
     }
+    phase("call operation: target supply mode");
     if !boundary
         && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
             || (target_machine.supply_mode == MachineSupplyMode::Boundary
@@ -638,6 +660,7 @@ pub(in crate::execution) fn build_call_operation(
     {
         return None;
     }
+    phase("call operation: structural arguments");
     let structural_arguments = structural_call_arguments(
         program,
         facts,
@@ -655,11 +678,13 @@ pub(in crate::execution) fn build_call_operation(
         true,
         allow_field_path_projection,
         caller_structural_results,
+        trace,
     )?;
     // The callee's retained scalar positions: the same authored indices its
     // own signature plan keeps, so the erased position is absent on both
     // sides and `checked_call_scalar_arguments` pairs the caller's dense
     // argument ordinals with the retained parameters only.
+    phase("call operation: scalar parameters");
     let mut scalar_parameters = Vec::new();
     for (position, parameter) in program.state_parameters(target_state).iter().enumerate() {
         if strips_erased_parameter(parameter)? {
@@ -681,11 +706,13 @@ pub(in crate::execution) fn build_call_operation(
             primitive_type,
         });
     }
+    phase("call operation: scalar arguments");
     let scalar_arguments = if boundary {
         checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, true)?
     } else {
         checked_call_scalar_arguments(facts, state.symbol, coordinate, &scalar_parameters, false)?
     };
+    phase("call operation: erased scalar arguments");
     let erased_scalar_parameters =
         crate::execution::terminal_unit::types::erased_scalar_parameter_plans(
             program,
@@ -706,6 +733,7 @@ pub(in crate::execution) fn build_call_operation(
             &erased_scalar_parameters,
         )?
     };
+    phase("call operation: erased proof arguments");
     let erased_proof_parameters =
         crate::execution::terminal_unit::types::erased_proof_parameter_plans(
             program,
@@ -739,6 +767,11 @@ pub(in crate::execution) fn build_call_operation(
                     )
                     .is_some()
                 });
+        phase(if carries_routed_service {
+            "call operation: routed service forward"
+        } else {
+            "call operation: projected operand support"
+        });
         let supported = if carries_routed_service {
             service_forward::exact_single_fused_service_forward_is_supported(
                 program,
@@ -780,6 +813,7 @@ pub(in crate::execution) fn build_call_operation(
         && let Some(ExpectedCallValueResult::Structural(result)) = &expected_call_result
         && result.multiplicity == Multiplicity::Linear
     {
+        phase("call operation: linear structural result");
         if !machine_binders(program, target_machine).is_empty()
             || !program
                 .machine_states(target_machine)
@@ -821,6 +855,7 @@ pub(in crate::execution) fn build_call_operation(
         *retained = custody;
         return Some(operation);
     }
+    phase("call operation: claim transfers");
     let transfers = call_claim_transfers(
         facts,
         machine.symbol,
@@ -850,6 +885,7 @@ pub(in crate::execution) fn build_call_operation(
             completion_receipts: transfers,
         })
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
+        phase("call operation: structural result loan");
         let reference_loan = if crate::execution::terminal_unit::reference_results::parts(
             program,
             target_state.return_type,
@@ -870,6 +906,7 @@ pub(in crate::execution) fn build_call_operation(
         // A result signature is available before its ordinary or graph body plan.
         // The closure pass below retains this call only when that complete body
         // was produced, avoiding an authored machine-order dependency.
+        phase("call operation: structural result operands");
         let args_ok = structural_arguments
             .iter()
             .enumerate()
@@ -990,6 +1027,7 @@ pub(in crate::execution) fn build_call_operation(
                     && !reference_loan.is_valid(),
             });
         }
+        phase("call operation: claim-free affine result");
         let target = facts
             .flow
             .terminal_structural_returns
@@ -1062,6 +1100,7 @@ pub(in crate::execution) fn build_call_operation(
                 || scalar_targets::registered_structural_graph_target(
                     program, facts, scalar_callees, target_machine.symbol, target_state.symbol, result).is_some())
     {
+        phase("call operation: scalar result producer");
         None
     } else {
         Some(CheckedUnitEffectOperationPlan::CallUnit {

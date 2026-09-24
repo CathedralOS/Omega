@@ -955,7 +955,7 @@ pub(in crate::execution::terminal_unit) fn build(
                     local_phase("statement sequence: local data: structural value: value calls");
                     let calls = structural_operands::value_calls(program, facts, scalar_callees, shapes, machine,
                         state, structural_parameters, trivial_affine_locals, entry_claims, &structural_results,
-                        &mut structural_count, root.root)?;
+                        &mut structural_count, root.root, trace)?;
                     local_phase("statement sequence: local data: structural value: source custody");
                     if facts.flow.ownership.owned_selection_at(state.symbol, statement_index).is_some() {
                     retain_selected_sources(facts, state.symbol, statement_index, &structural_results, &mut operations)?;
@@ -1256,6 +1256,7 @@ pub(in crate::execution::terminal_unit) fn build(
                         &structural_results,
                         &mut structural_count,
                         root.root,
+                        trace,
                     )?;
                     consume_value_places(
                         facts,
@@ -1318,6 +1319,7 @@ pub(in crate::execution::terminal_unit) fn build(
                 false,
                 Some(ExpectedCallValueResult::Structural(&result)),
                 &structural_results,
+                trace,
             )?;
             let operation = bind_structural_call_result(operation, result.clone())?;
             consume_results(&mut operations, &operation)?;
@@ -1392,6 +1394,7 @@ pub(in crate::execution::terminal_unit) fn build(
                         .map(|(result, _)| ExpectedCallValueResult::Structural(result))
                 }),
             &structural_results,
+            trace,
         )?;
         call_phase("statement sequence: call: result binding");
         if let Some((result, None)) = &structural_result
@@ -1641,6 +1644,7 @@ pub(in crate::execution::terminal_unit) fn build(
             &structural_results,
             &mut structural_count,
             root.root,
+            trace,
         )?;
         if facts
             .flow

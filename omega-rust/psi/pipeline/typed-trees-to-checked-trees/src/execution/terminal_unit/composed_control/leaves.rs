@@ -53,6 +53,7 @@ pub(super) fn build(
         false,
         None,
         &[],
+        &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
     )?;
     match &operation {
         CheckedUnitEffectOperationPlan::BoundaryCall {

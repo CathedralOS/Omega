@@ -171,6 +171,7 @@ pub(crate) fn build_boundary_scalar_return_machine(
         false,
         Some(ExpectedCallValueResult::Scalar(result_type)),
         &[],
+        &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
     )?;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         target_machine,

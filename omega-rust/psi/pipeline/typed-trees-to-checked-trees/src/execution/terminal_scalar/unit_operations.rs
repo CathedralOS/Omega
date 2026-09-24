@@ -131,6 +131,7 @@ pub(crate) fn finalize(program: &TypedTrees, facts: &mut CheckFacts) {
                                     true,
                                     None,
                                     &[],
+                                    &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
                                 )?;
                             match &operation {
                                 CheckedUnitEffectOperationPlan::CallUnit {
