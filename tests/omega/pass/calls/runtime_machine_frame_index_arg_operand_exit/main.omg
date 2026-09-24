@@ -6,12 +6,16 @@
 // 9+30=39 -> report(9) -> 1.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To50 requires 0 <= self && self <= 50;
+domain i32::I320To40 requires 0 <= self && self <= 40;
+domain u64::U640To3 requires self <= 3;
+domain u64::U640To2 requires self <= 2;
 data Cell {
-    v: i32 [0..=50];
+    v: i32 in I320To50;
 }
 data Main {
     console: Binding<Console>;
-    arr: [i32 [0..=40]; 4];
+    arr: [i32 in I320To40; 4];
     cells: [Cell; 3];
 }
 machine Main::main(&mut self) {
@@ -19,7 +23,7 @@ machine Main::main(&mut self) {
     self.cells[1].v = 30;
     transition { _ -> self.pick(2, 1) }
 }
-machine Main::pick(&mut self, k: u64 [0..=3], j: u64 [0..=2]) reaches Console {
+machine Main::pick(&mut self, k: u64 in U640To3, j: u64 in U640To2) reaches Console {
     let sum: i32 = self.arr[k] + self.cells[j].v;
     transition sum == 39 {
         true -> self.report(self.arr[k])

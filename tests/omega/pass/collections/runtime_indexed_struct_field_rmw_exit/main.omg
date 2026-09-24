@@ -6,13 +6,15 @@
 // offset. cells[2].v: 4 -> 5 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To9 requires 0 <= self && self <= 9;
+domain u64::U640To3 requires self <= 3;
 data Cell {
-    v: i32 [0..=9];
+    v: i32 in I320To9;
 }
 data Main {
     console: Binding<Console>;
     cells: [Cell; 4];
-    k: u64 [0..=3];
+    k: u64 in U640To3;
 }
 machine Main::main(&mut self) reaches Console {
     self.cells[2].v = 4;
