@@ -630,3 +630,63 @@ fn mutable_self_receiver_named_view_result_remains_declined() {
         "mutable `self` named-view return unexpectedly composed",
     );
 }
+
+#[test]
+fn generic_self_return_named_view_remains_declined() {
+    // A generic view receiver `Nv<'r>` returning `&'r Nv<'r>` still
+    // declines at `result type`: the return-type catalog admits named
+    // views over concrete data, not a generic application spelled through
+    // the machine's binder — a genuinely different wall than the
+    // receiver-as-return surface.
+    let checked = checked(
+        r#"
+        data Nv<'r> { tag: &'r u64 }
+
+        machine Nv::selfish<'r>(&self) -> &'r Nv<'r> {
+            self
+        }
+    "#,
+    );
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let selfish = machine_named(&checked, "Nv::selfish");
+    assert!(
+        plans.for_machine(selfish).is_none() && plans.composed_for_machine(selfish).is_none(),
+        "generic `self` named-view return unexpectedly composed",
+    );
+}
+
+const CALLER_FORWARDED_NAMED_VIEW: &str = r#"
+    data Nv { tag: u64 }
+
+    machine Nv::selfish(&self) -> &Nv {
+        self
+    }
+
+    machine consume(v: &Nv) {
+    }
+
+    machine Nv::render(&self) {
+        let v: &Nv = self.selfish();
+        consume(v);
+    }
+"#;
+
+#[test]
+fn caller_forwarded_named_view_result_names_the_call_binding() {
+    // A `let` local binding the `&'a V` result of an attached `&self`
+    // callee, forwarded whole into a consuming call: the local mints the
+    // shelled `ref(...)` custody identity, so both the callee's
+    // result-shape comparator and the Symbol-rooted forward lane match
+    // that spelling — the `let v: &Nv = self.selfish(); consume(v)`
+    // family.
+    let checked = checked(CALLER_FORWARDED_NAMED_VIEW);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let render = machine_named(&checked, "Nv::render");
+    assert!(
+        plans.for_machine(render).is_some() || plans.composed_for_machine(render).is_some(),
+        "caller-forwarded `&'a V` named view declined: {:?}\n  selfish: {:?}\n  consume: {:?}",
+        plans.omission_for_machine(render),
+        plans.omission_for_machine(machine_named(&checked, "Nv::selfish")),
+        plans.omission_for_machine(machine_named(&checked, "consume"))
+    );
+}
