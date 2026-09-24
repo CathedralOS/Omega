@@ -69,6 +69,26 @@ impl<'program> ProofPlan<'program> {
                 }),
         )
     }
+
+    /// [`Self::store_constraint_nodes`] for the one obligation that DEMANDS an
+    /// exact-interval declared domain as its interval; see
+    /// [`ProofConstraint::from_node_with_domain_intervals`].
+    pub(crate) fn store_constraint_nodes_with_domain_intervals(
+        &mut self,
+        program: &TypedTrees,
+        base_type: TypeReferenceHandle,
+        constraints: HandleSpan<TypeConstraintNode>,
+    ) -> HandleSpan<ProofConstraint> {
+        self.type_constraints.insert_many(
+            program
+                .type_reference_table
+                .constraints(constraints)
+                .iter()
+                .filter_map(|constraint| {
+                    ProofConstraint::from_node_with_domain_intervals(program, base_type, constraint)
+                }),
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,14 +157,9 @@ impl ProofConstraint {
             // This lets `f64 in Finite` reuse the established finite-literal,
             // float-range, and invariant-window machinery without pretending
             // that an authored carrier domain was declared.
-            // A declared domain whose membership is exactly an interval
-            // restricts the place as the bracketed range it replaces did, an
-            // unstated side taking the carrier's own extreme; every write owes
-            // that interval.
             TypeConstraintNode::Domain(domain) => {
                 language_semantics::value_domain::ValueDomain::from_name(domain.as_str())
                     .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name())))
-                    .or_else(|| Self::exact_domain_interval(program, base_type, domain))
             }
             TypeConstraintNode::Range {
                 minimum,
@@ -162,6 +177,30 @@ impl ProofConstraint {
             // example, finite Saturating add/subtract/multiply stays Finite).
             TypeConstraintNode::ArithmeticDomain(domain) => Some(Self::ArithmeticDomain(*domain)),
         }
+    }
+
+    /// [`Self::from_node`] reading an exact-interval DECLARED domain as the
+    /// interval it means.
+    ///
+    /// A VALUE of such a domain satisfies that interval, so this is honest
+    /// evidence wherever a value's known constraints are gathered. As an
+    /// obligation's DEMAND it belongs only to a written place, which an
+    /// exact-interval domain restricts exactly as the bracketed range it
+    /// replaced did. Everywhere else the demand stays the domain, because the
+    /// checks that own membership name it in their diagnostics and enforce its
+    /// establishment route, and an interval standing in for it takes both
+    /// away.
+    pub(crate) fn from_node_with_domain_intervals(
+        program: &TypedTrees,
+        base_type: TypeReferenceHandle,
+        constraint: &TypeConstraintNode,
+    ) -> Option<Self> {
+        Self::from_node(program, base_type, constraint).or_else(|| match constraint {
+            TypeConstraintNode::Domain(domain) => {
+                Self::exact_domain_interval(program, base_type, domain)
+            }
+            _ => None,
+        })
     }
 
     fn exact_domain_interval(
