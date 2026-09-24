@@ -61,6 +61,22 @@ the complete product bar; focused successes below do not establish that baseline
   `tests/bootstrap/omega-parser`. Repin the changed D closure and run its parser
   gate; this changes Omega syntax, not the bootstrap languages.
 
+  `b9b68383c9` migrated the 35-fixture
+  `tests/omega/{pass,fail}/{range,ranges,borrow,borrows}` leg (param suffix ->
+  `requires`; field/element bounds -> consumer-state `requires` admission;
+  sum payloads -> `case X(v: T in D)`; result suffix -> `ensures` +
+  transition-arm return; exclusive float bound -> `f64 in Finite`; fail
+  twins re-pinned to requires-contract/domain fragments). Probe-verified
+  routes and the ~172-site Range-variant consumer inventory are recorded on
+  the wave's claim notes. Remaining corpus legs: ~1,300 suffix sites across
+  the other `tests/omega` groups, `source/library`, `samples`,
+  native-differential and the bootstrap fixtures; the
+  `parse_type_constraint_handles` range arm and its consumers delete last.
+  Known migration gaps to route around: requires-admission cannot fold
+  binary args or indexed-path guard facts (hoist to a local), case-payload
+  `in D` cannot satisfy a callee `x in D`, and stale-write invalidation
+  does not reach contract admission.
+
   Acceptance: Squalr's alignment machine returns plain `u64` with
   `ensures result >= 1 && result <= 8` or an explicit domain; its plain local
   retains those facts through calls and joins for division/remainder. An
@@ -1331,14 +1347,22 @@ syntax and other terminal services are not prerequisites.
   vocabulary, envelopes and mathematical certificates; maintain that coverage
   as the operation owners extend it, not another wire-format project.
 
-  In `terminal-fixed-fuel`, derive conditional bounds beyond the existing
-  literal `requires` ceilings and retain unbounded-rank and wait/foreign causes
-  with their cycle/operation identity. Reuse the existing acyclic max-arm,
-  ranked-interior, and topology-derived cycle bounds. An empty precondition
-  set is sound for an unconditional maximum; tighter bounds need checked
-  derivation and independent premise validation. Preserve `InvocationBoundCallee`
-  and `UnboundedCycleComponent` when realization/bound evidence is unavailable;
-  do not fabricate a ceiling.
+  In `terminal-fixed-fuel`, `310b1ca4ba` retained the unbounded-rank cause
+  with cycle/operation identity (`UnboundedCycleComponent{component,
+  UnboundedRank}` across whole-entry, condensed and rank-multiplied
+  interiors; `Unranked`/`InvalidRankedScc` for revisited nodes), and
+  `3f797950ea` landed conditional bounds: `parameter_requires_bound`
+  relaxes a conjunctive `requires` relation graph (`<=` transfers the
+  ceiling, `<` less one, `==` both ways), recovers one achieving simple
+  path deterministically, and binds every contract row on it as
+  `relevant_preconditions`. Reuse the existing acyclic max-arm,
+  ranked-interior, and topology-derived cycle bounds. Remaining:
+  disjunctive/implied ceilings (need per-arm support semantics),
+  `IntegerMath*` vocabulary clauses (linear checked reasoning),
+  guard/path-fact bounds (a separate premise channel, not contract rows),
+  and the wait/foreign-edge cause (needs semantic vocabulary first).
+  Preserve `InvocationBoundCallee` and `UnboundedCycleComponent` when
+  realization/bound evidence is unavailable; do not fabricate a ceiling.
 
   Acceptance: discard source/producer state, independently reconstruct all
   obligations, then interpret or lower the same artifact with exact resource
@@ -1463,21 +1487,15 @@ syntax and other terminal services are not prerequisites.
     rejection. Trapping casts/shifts currently
     refuse runtime preparation; direct Trapping arithmetic in contract position
     remains invalid, not a new predicate term.
-  - Realize nontrivial signed/mixed-sign wrapping conversions beyond identity,
-    widening and supported unsigned narrowing. Truncation toward zero does not
-    implement a negative value's modular image; bit masking alone supplies no
-    proof of the exact-cast range.
-    Preserve unsigned-destination narrowing controls in
-    `tests/signed_wrapping_conversion_values.rs`, including `-1 -> 255`,
-    `-200 -> 56`, and `-40000 -> 25536`. Signed-destination narrowing needs
-    range evidence through `(masked ^ 2^(B-1)) - 2^(B-1)`; the reported refusal
-    is `OperationProofUnavailable` in
-    `proofs/nonzero_divisor_certificate/integer_selection/range.rs`.
-    Replace single-term witness selection with compositional range derivation
-    and independent checking. Bound any XOR transport by its actual premises;
-    changing subtraction policy does not establish the missing range.
-    Same-width and sign-widening pairs need separate realization because they
-    cannot use the narrowing carrier's mask. Keep their diagnostics distinct.
+  - Wrapping conversions landed at `9085ca9132`: `expression_preparation/
+    wrapping_cast.rs` realizes `value as T in Wrapping` for every fixed-integer
+    sign/width pair from masked halves — unsigned destinations take the
+    `operand mod 2^B` residue (`& (2^B−1)` mask for signed sources, low-63 +
+    sign-bit split for `u64`), signed destinations take
+    `low | (bit <<% (B−1))` with each half masked to a range the proof
+    machinery can derive, avoiding the direct fold and carrier-less `i_C ->
+    i_B` casts. Serialized-Terminal execution tests cover every sign/width
+    combination; trapping controls intentionally still refuse.
   - Complete signed/mixed-sign saturating conversion beyond existing admitted
     cases. Boolean-to-integer and unsigned narrowing already lower; reuse them
     as controls. A signed saturating subtraction is not the unsigned clamp
@@ -2690,6 +2708,16 @@ syntax and other terminal services are not prerequisites.
   consumer permission rows. The merge in `native_realization/providers/mod.rs`
   is a **mechanism-classification** policy, separate from the optional receiver
   permission policy; preserve both exact identities.
+
+  A direct-syscall-transport blueprint is designed and partially implemented:
+  reuse `CallingPolicy::LinuxSyscallX86_64`/`LinuxSyscallAarch64`, demand-driven
+  provider-plan settlement for boundaries with an actual `BoundaryCall`,
+  per-arity syscall constraint rows, `DirectSyscallRealization`, and
+  `AdmittedBoundaryExecution::ToolchainSettled` through lowering and
+  provider-plan evidence binding. Resume branch:
+  `swarm/macw8b-terminal-authority` at `7f856f6d43` (20 files, +496/−60 —
+  provider settlement + boundary lowering slice, interrupted mid-work;
+  unvalidated).
 
   Remaining delivery:
 
@@ -4131,6 +4159,20 @@ release acceptance still requires complete coverage. Remaining reported failures
   the recorder procedure in `tools/release/README.md`; it takes no `--all`.
   Acceptance: same-commit full-gate results with native observations and exact
   expected skips; Linux emission evidence cannot close this task.
+
+  All three gates are now measured on the matching host.
+  `omega-native-differential-test --all-targets` at `0e64720850`: 1158 run,
+  1140 passed, 18 failed, 1 skipped (2498.6 s). `-p compiler --all-targets`
+  (RC-SOURCE-SEMANTICS) at `04d2099ae1`: 3281 run, 2014 passed, 1267 failed,
+  0 skipped (22583.2 s) — the `samples_compile` leg inside it
+  (RC-REPRESENTATIVE-PROGRAMS) read 33 run, 11 passed, 22 failed. The full
+  1215-name failure list and dominant diagnostic classes are in
+  [macos_arm64_rc_gates](wiki/drafts/measurements/macos_arm64_rc_gates.md):
+  ProgramEntry/Terminal-attachment rejoins, `runtime policy realization`
+  lowering gaps (ARITHMETIC-POLICY-REALIZATION), and domain-admission gaps
+  (REMOVE-BRACKETED-RANGE-ANNOTATIONS). No `macos_arm64` record exists under
+  `tools/release/records/` — the recorder writes a lane only with a passing
+  `--native-execution` observation, so the row stays open on this evidence.
 
   Use [known baseline failures](wiki/drafts/measurements/known_baseline_failures.md)
   for prior failing names and expected skips, then reproduce at the release

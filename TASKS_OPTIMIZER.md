@@ -521,17 +521,24 @@ physical route. Unsupported cases reject rather than restoring a fallback.
 - **REPRESENTATION-SPECIALIZATION.** Extend field/variant relevance beyond
   existing proven membership and scalar-constant observation folds in
   `abstract-operations-to-abstract-operations/src/{representation_specialization,field_value_specialization}/`.
-  The next field-value mechanism is substitution of a proven nonconstant
-  initializer at its uses, preserving exact place/path/provenance and effects.
+  `92856482da` (macw8b) descended field-value proofs through stored-whole
+  structural children (`Field` path segments, child carrier/type equality,
+  owned empty-path access), and `ca85e84578` (macw8b) reseats producer-less
+  places through uniform `bound_place` block-parameter bindings (all incoming
+  edges binding the same whole empty-path argument, transitive with cycle
+  guards, mirrored replay in `candidates/structural_bindings.rs`). A real
+  completeness gap was also closed: `CallDynamicScalar`/`CallDynamicUnit`/
+  `CallStoredDynamicScalar`/`StoreDynamicDescriptor` selection sources are
+  now scanned for rewrites. Remaining frontier: array-element descent and
+  deeper membership-depth shapes. Reachability bound discovered: an
+  `EstablishRecord` child must be `Record`-shaped (or scalar/reference)
+  transitively — no sum/array children — which bounds how far establishment
+  proofs can descend through stored children.
 
   Invariant-window specialization depends on an upstream operation/evidence
   contract retained into this stage; no such operation reaches it yet. Do not
   invent that input locally. Preserve the authenticated cyclic freeze unless a
   checked transformation reconstructs the affected evidence.
-
-  Unvalidated candidate: `swarm/macw8-rep-specialization` at `9342ca6ee0e`,
-  covering nonconstant initializer substitution and its field/case replay.
-  Inspect against current main and validate before reuse.
 
   Acceptance: exact-selected source-produced specialization publishes and
   independently replays. Stale/forged field/path/value evidence rejects,
@@ -587,19 +594,32 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   stale label with **MACOS-X64-HOST-PROFILE** in [TASKS.md](TASKS.md), whose
   remaining acceptance is matching-host execution, not a new backend.
 
-  Commit missing `prime_counter` (`--expected-exit 8`) and `standalone`
-  measurements after reproducing their current package/entry acceptance.
-  Historical remainder and `Filesystem::host` failures are not current
-  blockers without reproduction. The proof-call selection repair is present;
+  macw8b landed `1faad72412` (8 records: `standalone` compile legs on all 4
+  bound targets + non-applicable `macos_x86_64`/`uefi_x86_64` rows;
+  `prime_counter` macos_arm64 matching-host run row all-exit-8 + a
+  linux_x86_64 compile leg; matrix regenerated) and `58283cc937`
+  (`structural_proofs` measured on macos_arm64/linux_arm64/windows_x86_64 +
+  non-applicable rows; `wrapping_square_sum` macos_arm64 refreshed at
+  `35842c2ab7`). Historical `Filesystem::host` failures did not reproduce —
+  prime_counter `omega update`+resume settled cleanly in ~46 min.
+
+  New blocker for dependent subjects at revs including `7b9dce26d7` onward:
+  `source/library/std` fails the carrier-qualified case check (272
+  diagnostics, e.g. `calling.omg` bare `Float` -> `Type::Float`), so
+  `benchmark.py prepare` cannot settle `omega_language_std` — prime_counter's
+  remaining bound legs and every std-dependent subject are gated on that std
+  migration, not on the harness. Re-verify whether the `core/binding.omg`
+  carrier work resolves it before scheduling a migration.
+
+  Harness gap recorded on the wave notes: `settle_package_review` picks the
+  first `review:` line from `omega update` output; a multi-target lock emits
+  one per settled target, so a later target's prepare can pick an
+  already-accepted doc and skip `--resume`.
+
   `math_proofs` still needs an authored entry/product choice before native
   measurement. Preserve compile-only proof work as such rather than inventing
   meaningful runtime behavior for an inert entry. A dependency-free subject
   is not inherently restricted to `--no-run`.
-
-  Unvalidated candidate: `swarm/macw8-benchmarks` at `a8c9a8d254a`, containing
-  a `standalone` Linux measurement and subject-build changes. Intel macOS
-  remains unmeasured; its [profile record](wiki/drafts/measurements/macos_x64_host_profile.md)
-  is an attribution lead, not native execution evidence.
 
   Acceptance: use the existing prepare/measure/validate/matrix flow; records
   bind exact subject/compiler revision, authored enabled/disabled selection,
