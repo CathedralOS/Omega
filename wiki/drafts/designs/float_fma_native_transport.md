@@ -34,7 +34,7 @@ downstream consumers replay it.
   IEEE-FMA occurrence custody".
 - No `FusedMultiplyAdd`/`VFMADD`/`x86_scalar_fma` production references
   exist in `04_selected-instructions-to-selected-instructions/src`,
-  `08_selected-instructions-to-register-homes/src`,
+  `05_selected-instructions-to-register-homes/src`,
   `09_register-homes-to-post-allocation-machine/src`, or
   `machine-emission/src` beyond the `x86_fma.rs` encoder seam —
   the downstream carry (s2s carry, s2rh XMM allocation, post-allocation
