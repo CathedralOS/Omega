@@ -35,7 +35,7 @@ machine Main::main(&mut self) reaches Console {
     cell.value = 7;
     // `cell` is dead from here on: the receiver-wide loan has ended.
     self.bag.other = 63;
-    transition self.bag.cells[2].value + self.bag.other == 70 {
+    transition (self.bag.cells[2].value as i64) + (self.bag.other as i64) == 70 {
         true -> good()
         false -> bad()
     }

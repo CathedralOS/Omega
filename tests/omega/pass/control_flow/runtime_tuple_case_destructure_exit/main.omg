@@ -40,7 +40,7 @@ machine Main::main(&mut self) reaches Console {
 
     state sum(&mut self, left_n: i32, right_n: i32) {
         transition (self.left, self.right) {
-            (Cell::Value { n as guard_left }, Cell::Value { n as guard_right }) if guard_left + guard_right == left_n + right_n -> records()
+            (Cell::Value { n as guard_left }, Cell::Value { n as guard_right }) if (guard_left as i64) + (guard_right as i64) == (left_n as i64) + (right_n as i64) -> records()
             _ -> wrong()
         }
     }
@@ -51,7 +51,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state check_points(&mut self, ax: i32, ay: i32, bx: i32, by: i32) {
-        transition self.calls == 2 && ax + ay + bx + by == 70 {
+        transition self.calls == 2 && (ax as i64) + (ay as i64) + (bx as i64) + (by as i64) == 70 {
             true -> good()
             _ -> wrong()
         }

@@ -36,7 +36,7 @@ machine Main::main(&mut self) reaches Console {
         exits[index] = e;
         self.got_d = self.room.exits[1].destination;
         self.got_w = self.room.exits[1].weight;
-        transition self.got_d + self.got_w == 13 {
+        transition (self.got_d as u64) + (self.got_w as u64) == 13 {
             true -> good()
             false -> bad()
         }
