@@ -271,7 +271,7 @@ data FieldEntry { key: u64; placement: FieldPlan; }
 data Plan { entries: [FieldEntry; 64]; entry_count: u64; size_fixed: u64; size_is_dynamic: bool; align: u64; }
 pub boundary trait Console { machine write(code: i64); }
 data Chatty { console: Binding<Console>; }
-machine Chatty::plan(&mut self, schema: Schema) -> Plan {
+machine Chatty::plan(&mut self, schema: Schema) -> Plan reaches Console {
     let entries: [FieldEntry; 64];
     self.console.write(1);
     Plan { entries: entries, entry_count: schema.field_count,
