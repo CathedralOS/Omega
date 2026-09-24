@@ -42,8 +42,7 @@ fn folded_index_faces_the_literal_lowering_boundary() {
     };
     let literal = refusal("literal", LITERAL_SOURCE);
     assert_eq!(
-        literal,
-        r#"Unsupported("fixed array literal has no Terminal establishment")"#,
+        literal, r#"Unsupported("fixed array literal has no Terminal establishment")"#,
         "an owned indexed leaf stops at the fixed-array literal it reads"
     );
     assert_eq!(
