@@ -4049,7 +4049,7 @@ but report the missing runtime leg explicitly; it does not close that host row.
   | 9 | `plan_laid_repeated_runtime` | 2 | `callback_terminal_custody` |
   | 7 | `build_target_activation` | 2 | `terminal_authority` |
   | 7 | `optimizer_opt_in` | 1 | `build_named_inputs` |
-  | 6 | `build_snapshot_outputs` | 1 | `callable_entry_custody` |
+  | ~~6~~ 0 | `build_snapshot_outputs` (FIXED) | 1 | `callable_entry_custody` |
   | 4 | `private_joint_progress` | 1 | `joint_call_rankings` |
   | 3 | `layout_plans` | 1 | `literal_dispatch_unit_plan_stops` |
   | 3 | `module_machine_indices` | 1 | `no_selection_golden` |
@@ -4131,6 +4131,22 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `build_named_inputs`, `build_snapshot_outputs` and `build_target_activation`
   are release-gate commands on this very row, so 14 of these sit directly
   under release closure.
+  EIGHT of those 14 are now fixed, by one change:
+  `04f74670ff5` bound the write root's overlap key at admission, but ordinary
+  compilation REPLACES that root before establishing -- `preparation.rs`
+  provisions a fresh private staging root whenever there is no session sponsor
+  -- so establishment compared two unrelated directories and refused every
+  ordinary build that reached it. The baseline now follows the root it
+  describes, re-bound at that provisioning, while every caller-supplied
+  spelling keeps the original alias comparison. `build_snapshot_outputs` is
+  41/41, `build_named_inputs` passes, and one of `build_target_activation`'s
+  six went with them. Bisected: `04f74670ff5` first bad, parent `0f75a052f09`
+  green.
+
+  The remainder of `runtime_value_generics` (10) is the package-name
+  snake_case migration, not a compiler gap: 29 hyphenated identities remain in
+  `compiler/compiler/tests`. That directory is claimed, so it is noted to its
+  holder rather than renamed here.
 
 - **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
   round-trip valid evidence, reject hostile/substituted evidence before
