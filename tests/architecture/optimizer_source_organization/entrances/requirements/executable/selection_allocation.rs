@@ -58,35 +58,35 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(crate) fn project_post_allocation_optimization_manifest",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/source/mod.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/source/mod.rs",
         coordination_marker: "pub(crate) fn derive_source_function_rosters",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/source/scalar_graph.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/source/scalar_graph.rs",
         coordination_marker: "pub(super) fn derive",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/replay/scalar_graph.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/replay/scalar_graph.rs",
         coordination_marker: "pub(super) fn replay",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/replay/mod.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/replay/mod.rs",
         coordination_marker: "pub(crate) fn replay_terminal_legalized_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/mod.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/mod.rs",
         coordination_marker: "pub fn select_instructions",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/construction/mod.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/mod.rs",
         coordination_marker: "pub(super) fn build_plan",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar_graph.rs",
         coordination_marker: "pub(super) fn build",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/validation/scalar_graph.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/validation/scalar_graph.rs",
         coordination_marker: "pub(in crate::selection) fn validate",
     },
     RequiredCoordinationEntrance {
@@ -106,7 +106,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn rematerialize_selected_active_resident",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/validation/mod.rs",
         coordination_marker: "pub fn validate_selected_instructions",
     },
     RequiredCoordinationEntrance {

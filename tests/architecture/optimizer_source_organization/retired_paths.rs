@@ -58,8 +58,8 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/compiler/native-realization/src/realization/providers/settlements.rs",
         "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses/machine_effects/facts/codec.rs",
         "omega-rust/omega/pipeline/post-allocation-machine-to-post-allocation-machine/src/rules/aarch64/materialize_i64_movn/compute.rs",
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/validation/blocks.rs",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization/source/leaves.rs",
         "omega-rust/omega/representations/optimization-unit/src/rewrite/model.rs",
         "omega-rust/omega/representations/optimization-unit/src/construction.rs",
         "omega-rust/omega/backend/machine-emission/src/function_realization/codec.rs",
@@ -250,8 +250,8 @@ pub(crate) fn check(audit: &mut Audit) {
         ));
     }
     for obsolete in [
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/construction/plan.rs",
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/construction/scalar.rs",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/plan.rs",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection/construction/scalar.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

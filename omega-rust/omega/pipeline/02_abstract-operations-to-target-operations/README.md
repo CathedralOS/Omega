@@ -40,7 +40,7 @@ function roster, structural signatures, and selected settlements. This receipt
 does not establish body correctness; there is no whole-function family catalog.
 
 The target-to-selected
-[receiving checker](../06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs)
+[receiving checker](../03_target-operations-to-selected-instructions/src/legalization/scalar_graph_input.rs)
 independently rejoins every graph to its source and optimized operations before
 legalized/selected graph construction. Source order, value
 identity, exact ABI, proof, call, and cleanup obligations remain checked.

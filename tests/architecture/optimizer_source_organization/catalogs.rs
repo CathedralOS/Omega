@@ -217,7 +217,7 @@ pub(crate) fn check(audit: &mut Audit) {
     }
 
     let legalization_root = repository.join(
-        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization",
+        "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization",
     );
     let mut legalization_files = Vec::new();
     match collect_rust_files(&legalization_root, &mut legalization_files) {

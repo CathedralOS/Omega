@@ -50,7 +50,7 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout",
     "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout",
     "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine",
-    "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions",
+    "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/backend/register-environment",
     "omega-rust/omega/compiler/native-realization",
 ];

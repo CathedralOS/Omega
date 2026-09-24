@@ -29,8 +29,8 @@
             "item": "BACKEND-VOCABULARY-REJECTION-AUDIT",
             "host": "local",
             "owning_paths": [
-                "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization",
-                "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection"
+                "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/legalization",
+                "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions/src/selection"
             ],
             "suggested_first_slice": "trace admission ordering and downstream filtering for one admitted-but-unrealizable operation family — establish whether it selects on each applicable ISA or returns a structured refusal through the public compiler, with exact operation/target diagnostics and no panic or silent omission",
             "host_gates": [

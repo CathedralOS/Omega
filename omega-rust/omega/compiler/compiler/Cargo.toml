@@ -75,7 +75,7 @@ serde_json = "1"
 
 [dev-dependencies]
 optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
-target-operations-to-selected-instructions = { path = "../../pipeline/06_target-operations-to-selected-instructions" }
+target-operations-to-selected-instructions = { path = "../../pipeline/03_target-operations-to-selected-instructions" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 legalized-operations = { path = "../../representations/legalized-operations" }
 register-environment = { path = "../../backend/register-environment" }

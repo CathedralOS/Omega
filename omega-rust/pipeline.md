@@ -25,7 +25,7 @@ setup are not additional public program stages.
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/02_abstract-operations-to-target-operations/README.md) |
-| Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/06_target-operations-to-selected-instructions/README.md) |
+| Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/03_target-operations-to-selected-instructions/README.md) |
 | Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/pipeline/07_selected-instructions-to-selected-instructions/src/lib.rs) |
 | Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/08_selected-instructions-to-register-homes/README.md) |
 | Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/pipeline/09_register-homes-to-post-allocation-machine/src/lib.rs) |

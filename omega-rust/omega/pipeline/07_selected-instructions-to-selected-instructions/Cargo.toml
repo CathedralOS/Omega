@@ -17,7 +17,7 @@ register-model = { path = "../../representations/register-model" }
 register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../representations/target" }
-target-operations-to-selected-instructions = { path = "../06_target-operations-to-selected-instructions" }
+target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 optimization-unit = { path = "../../representations/optimization-unit" }
