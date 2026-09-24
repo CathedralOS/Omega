@@ -7,8 +7,10 @@ mod identity;
 mod validation;
 
 use super::{PhysicalRegisterModelIdentity, RegisterUnitId, RegisterViewId};
-pub use identity::*;
-pub use validation::*;
+pub use identity::{PreservationStorageCatalogIdentity, preservation_storage_catalog_identity};
+pub use validation::{
+    PreservationStorageCatalogValidationError, validate_preservation_storage_catalog,
+};
 
 #[cfg(test)]
 mod tests;
