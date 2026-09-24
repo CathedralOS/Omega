@@ -300,7 +300,7 @@ fn omega_pipeline_directories_follow_route_order() {
         "06_register-homes-to-post-allocation-machine",
         "07_post-allocation-machine-to-selected-form-encoding",
         "08_selected-form-encoding-to-resolved-layout",
-        "12_resolved-layout-to-resolved-layout",
+        "09_resolved-layout-to-resolved-layout",
     ];
     let mut directory_names: Vec<String> = pipeline_crates()
         .into_iter()
