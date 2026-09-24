@@ -83,7 +83,7 @@ members = [
     "omega-rust/omega/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/backend/register-environment",
     "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions",
     "omega-rust/omega/pipeline/09_register-homes-to-post-allocation-machine",
     "omega-rust/omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",
     "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout",

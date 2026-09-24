@@ -23,7 +23,7 @@
    "item": "SPILL-REALIZATION",
    "owning_paths": [
     "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes/src/assignment/runtime_spill",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
    ],
    "suggested_first_slice": "Victim/use admission leg: rewrites/runtime_spill/admission.rs still rejects a foreign-class victim without the frame-row transport pair (vector-class values, non-IEEE scalars), an early-clobber write tied to a victim use, an entry-bound victim on an edge targeting the entry block, and multi-chunk stored snapshots with pinned/separated chunk loads. Take ONE bounded step admitting or pinning one of those rejected shapes honestly - foreign-class IEEE scalar via the shared carrier class is the most worked example. Preserve: recovery tries the next roster candidate and fails when exhausted. Fenced: s2rh assignment/stack_slot_coloring, s2s rewrites/{mod.rs,module_catalog.rs,allocation_recovery,load_forwarding,dead_store,store_motion} (linw4-alias-aware-memory holds the memory three). ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   },
@@ -73,9 +73,9 @@
    "board": "TASKS_OPTIMIZER.md",
    "item": "ALIAS-AWARE-MEMORY",
    "owning_paths": [
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
-    "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/load_forwarding",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/dead_store",
+    "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/store_motion"
    ],
    "suggested_first_slice": "Non-aliasing premise leg (continued): byte-view payload rows now bind resolved storage roots at the access-roster producer (88f539e14b) and reconvergent single-join forks cross (3df7aeb6cd). Take ONE bounded step: extend premise binding to retained fact identities beyond storage roots, OR extend store motion across one non-reconvergent fork/join shape without adding or dropping writes, OR run the load-forwarding/dead-store receipt audit per board text and pin one found gap. Follow loan semantics (wiki/spec/terminal-psi/loans.md), not differing PlaceIds; exclusive ownership alone does not establish projection disjointness. Fenced: rewrites/{mod.rs,module_catalog.rs}, selected_optimization.rs, rewrites/{runtime_spill,address_fold,literal_minuend,allocation_recovery}. ONE bounded leg. Never git stash. Land via tools/landing.py. No mbx on this host - use cargo; cap builds CARGO_BUILD_JOBS=4, nextest -j 4."
   },

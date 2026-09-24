@@ -1067,7 +1067,7 @@ fn allocation_algorithms_and_staging_have_one_transform_owner() {
     assert!(!workspace.contains("omega-regalloc"));
 
     let owner = root
-        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
+        .join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src");
     let source = rust_source(&owner);
     assert!(!source.contains("omega_regalloc::"));
     for declaration in [
@@ -1196,7 +1196,7 @@ fn selected_stages_read_current_data_not_producer_ancestry() {
     // custody validators that receive the retained stage objects as evidence
     // and the accessors that expose them.
     let root = repository()
-        .join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src");
+        .join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src");
     let mut files = Vec::new();
     rust_files(&root, &mut files);
     assert!(!files.is_empty());
@@ -1970,7 +1970,7 @@ fn psi_program_roots_expose_concept_owners_without_flat_definition_dumps() {
 #[test]
 fn effect_analysis_does_not_depend_on_optimizer_history() {
     let root = repository();
-    let stage = root.join("omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/analyses/machine_effects");
+    let stage = root.join("omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/machine_effects");
     let source = rust_source(&stage);
     for forbidden in [
         "StagedOptimized",
@@ -2044,7 +2044,7 @@ fn allocation_has_one_phase_owner_and_machine_consumers_ignore_history() {
             "missing allocation owner: {area}"
         );
     }
-    let selected = pipeline.join("07_selected-instructions-to-selected-instructions/src");
+    let selected = pipeline.join("04_selected-instructions-to-selected-instructions/src");
     assert!(!allocation.join("analyses").exists());
     for area in ["analyses", "rewrites"] {
         assert!(selected.join(area).join("mod.rs").is_file());
@@ -2346,7 +2346,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/01_abstract-operations-to-abstract-operations",
         "omega/pipeline/02_abstract-operations-to-target-operations",
         "omega/pipeline/03_target-operations-to-selected-instructions",
-        "omega/pipeline/07_selected-instructions-to-selected-instructions",
+        "omega/pipeline/04_selected-instructions-to-selected-instructions",
         "omega/pipeline/08_selected-instructions-to-register-homes",
         "omega/pipeline/09_register-homes-to-post-allocation-machine",
         "omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",

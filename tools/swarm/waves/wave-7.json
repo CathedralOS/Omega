@@ -57,7 +57,7 @@
       "item": "EXACT-SELECTION-FAMILIES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
+        "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering",
         "omega-rust/omega/representations/optimization-core/src/selection.rs",
         "omega-rust/omega/compiler/compiler/src/pipeline/optimization/build_vocabulary"
       ],

@@ -10,9 +10,9 @@ use crate::Audit;
 
 const SELECTION_SOURCE: &str =
     "omega-rust/omega/representations/optimization-core/src/optimization_core.rs";
-const SELECTED_LOWERING_CATALOG: &str = "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs";
-const PRE_ALLOCATION_CATALOG: &str = "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/catalog.rs";
-const ALLOCATION_RECOVERY_CATALOG: &str = "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/catalog.rs";
+const SELECTED_LOWERING_CATALOG: &str = "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/catalog.rs";
+const PRE_ALLOCATION_CATALOG: &str = "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/catalog.rs";
+const ALLOCATION_RECOVERY_CATALOG: &str = "omega-rust/omega/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/catalog.rs";
 const FUNCTION_RELATIVE_LAYOUT_CATALOG: &str = "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/catalog.rs";
 const INVENTORY_START: &str = "<!-- exact-rule-inventory:start -->";
 const INVENTORY_END: &str = "<!-- exact-rule-inventory:end -->";
