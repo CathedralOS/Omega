@@ -12,7 +12,7 @@ mod error;
 mod replay;
 mod validation;
 
-pub use error::*;
+pub use error::TargetFrameProtocolEncodingError;
 pub use machine_code::target_frame_protocol_encoding_identity;
 pub use validation::validate_target_frame_protocol_encoding;
 

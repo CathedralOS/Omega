@@ -1,5 +1,24 @@
 use super::ValidatedFunctionRelativeOptimizationRealizationManifest;
-use super::prelude::*;
+use crate::exit_contract::ValidatedWholeFunctionExitContract;
+use crate::frame_layout::{
+    NonAuthoritativeCalleeSaveStorageIdentity, ValidatedNonAuthoritativeCalleeSaveStorage,
+    ValidatedTargetFrameLayout,
+};
+use crate::frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use machine_code::{
+    ResolvedMachineLayout, TargetFrameLayoutIdentity, TargetFrameProtocolEncodingIdentity,
+    WholeFunctionExitContractIdentity,
+};
+use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
+use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use resolved_layout_to_resolved_layout::{
+    ResolvedLayoutOptimization, StagedOptimizedX86BranchRelaxation,
+};
+use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use selected_instructions_to_register_homes::{
+    AllocatedCalleeSavedRequirementIdentity, ValidatedAllocatedCalleeSavedRequirements,
+};
 use selected_instructions_to_register_homes::{AllocationEvidence, RetainedAllocation};
 
 /// Direct ordinary realization whose call, preservation, and return effects

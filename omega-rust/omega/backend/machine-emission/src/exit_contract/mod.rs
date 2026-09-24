@@ -8,8 +8,11 @@ mod stage;
 mod validation;
 mod validation_rules;
 
-pub use error::*;
-pub use layout_optimization::*;
+pub use error::WholeFunctionExitContractError;
+pub(crate) use layout_optimization::validate_exit_record_for_replayed_layout;
+pub use layout_optimization::{
+    stage_whole_function_exit_contract_for_layout, validate_whole_function_exit_contract_for_layout,
+};
 #[cfg(any(test, feature = "test-support"))]
 use machine_code::{ResolvedSelectedFormLayoutIdentity, X86BranchRelaxationIdentity};
 pub use machine_code::{
@@ -18,7 +21,12 @@ pub use machine_code::{
     WholeFunctionFrameDisposition, WholeFunctionHardeningPolicy, WholeFunctionReturnEvidence,
     WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
 };
-pub use stage::*;
+pub use stage::{
+    stage_whole_function_exit_contract_after_x86_branch_relaxation,
+    stage_whole_function_exit_contract_with_frame,
+    validate_whole_function_exit_contract_after_x86_branch_relaxation,
+    validate_whole_function_exit_contract_with_frame,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatedWholeFunctionExitContract {

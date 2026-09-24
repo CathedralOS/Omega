@@ -11,7 +11,6 @@ use optimization_core::FunctionFragmentEmissionManifestIdentity;
 use register_model::ValidatedPhysicalRegisterModel;
 use std::collections::BTreeMap;
 
-#[path = "validation_widths.rs"]
 mod widths;
 
 pub(super) fn validate(

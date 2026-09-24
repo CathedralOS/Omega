@@ -19,10 +19,25 @@ mod stack_commit;
 mod unwind;
 mod validation;
 
-pub use error::*;
+pub use error::TargetFrameLayoutError;
 pub use machine_code::target_frame_layout_identity;
-pub use save_storage::*;
-pub use spill_requirements::*;
+pub use save_storage::{
+    FunctionNonAuthoritativeCalleeSaveStorage, NonAuthoritativeCalleeSaveSlot,
+    NonAuthoritativeCalleeSaveSlotId, NonAuthoritativeCalleeSaveStorageError,
+    NonAuthoritativeCalleeSaveStorageIdentity, NonAuthoritativeCalleeSaveStoragePlan,
+    NonAuthoritativeCalleeSaveStoragePolicy, NonAuthoritativeCalleeSaveStorageReceipt,
+    ValidatedNonAuthoritativeCalleeSaveStorage, non_authoritative_callee_save_storage_identity,
+    stage_non_authoritative_callee_save_storage, validate_non_authoritative_callee_save_storage,
+};
+pub use spill_requirements::{
+    FrameAbiPreservationConvention, FunctionSpillFrameRequirements,
+    NonAuthoritativeSpillFrameRequirementIdentity, NonAuthoritativeSpillFrameRequirementPlan,
+    NonAuthoritativeSpillFrameRequirementPolicy, NonAuthoritativeSpillFrameRequirementReceipt,
+    SpillFrameRequirementError, ValidatedNonAuthoritativeSpillFrameRequirements,
+    non_authoritative_spill_frame_requirement_identity,
+    stage_non_authoritative_spill_frame_requirements,
+    validate_non_authoritative_spill_frame_requirements,
+};
 pub use validation::validate_target_frame_layout;
 
 pub(crate) use unwind::{FrameContinuationCustody, frame_unwind_policy};

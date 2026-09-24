@@ -352,7 +352,6 @@ fn shift_foreign_fixup(
 }
 
 #[cfg(test)]
-#[path = "branch_tests.rs"]
 mod branch_tests;
 
 #[cfg(test)]

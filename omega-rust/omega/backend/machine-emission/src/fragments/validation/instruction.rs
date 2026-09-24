@@ -1,7 +1,13 @@
 //! Check instruction spans and row-to-function fixup coordinates directly.
 
 use super::{ResolvedFragmentEmissionError, control, require};
-use ::machine_code::*;
+use machine_code::{
+    FunctionFragmentBranchEvidence, FunctionFragmentConditionalBranchPredicate,
+    FunctionFragmentInstructionSpan, FunctionFragmentInternalMachineFixupKind,
+    FunctionFragmentInternalMachineFixupState, ResolvedBranchEvidence,
+    ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow,
+    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
+};
 use selected_instructions::{SelectedBlock, SelectedInstruction, SelectedInstructionKind};
 
 pub(super) fn check(

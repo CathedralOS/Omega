@@ -1,8 +1,9 @@
-use super::super::prelude::*;
 use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
 };
 use super::target::{architecture_name, object_format_name};
+use machine_code::SelectedFunctionLayoutPolicy;
+use std::fmt::Write;
 
 pub(super) fn render_manifest(
     manifest: &FunctionRelativeOptimizationRealizationManifest,

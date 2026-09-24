@@ -9,7 +9,7 @@ mod rendering;
 mod target;
 
 use super::FunctionRelativeOptimizationRealizationManifest;
-use super::prelude::*;
+use optimization_core::FunctionRelativeOptimizationRealizationManifestIdentity;
 
 use cursor::Cursor;
 pub use error::FunctionRelativeOptimizationRealizationManifestDecodeError;

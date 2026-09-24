@@ -1,4 +1,3 @@
-use super::super::prelude::*;
 use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
 };
@@ -8,6 +7,7 @@ use super::super::{
 };
 use super::post_allocation::encode_optional_custody;
 use super::target::encode_target;
+use machine_code::SelectedFunctionLayoutPolicy;
 
 pub(super) fn encode_manifest_content(
     manifest: &FunctionRelativeOptimizationRealizationManifest,

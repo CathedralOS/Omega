@@ -1,9 +1,26 @@
 //! Optimizer module role: executable entrance. Ordinary realization with exact fixed-frame custody.
 
-use super::{assembly::*, carriers::*, error::*, prelude::*};
+use super::assembly::{expected_fixed_frame_manifest, fixed_frame_custody};
+use super::carriers::{
+    StagedFixedFrameFunctionRelativeRealization,
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+};
+use super::error::FunctionRelativeOptimizationRealizationError;
+use crate::exit_contract::stage_whole_function_exit_contract_for_layout;
+use crate::frame_layout::TargetFrameLayoutPolicy;
+use optimization_core::{OptimizationExecutionPhase, OptimizationWorkBudget};
+use post_allocation_machine_to_selected_form_encoding::{
+    stage_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding,
+};
+use register_homes_to_post_allocation_machine::{
+    StagedOptimizedPostAllocationMachinePlan,
+    validate_optimized_post_allocation_machine_plan_custody,
+};
 use resolved_layout_to_resolved_layout::{
     execute_resolved_layout_optimization, validate_resolved_layout_optimization,
 };
+use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
 use selected_instructions_to_register_homes::{AllocationSource, RetainedAllocation};
 
 pub fn stage_fixed_frame_function_relative_realization(

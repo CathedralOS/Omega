@@ -4,25 +4,49 @@
 
 mod assembly;
 mod carriers;
+mod codec;
+mod error;
 mod fixed_frame;
 #[cfg(any(test, feature = "test-support"))]
 mod fixed_frame_test_support;
 mod frame;
-#[cfg(any(test, feature = "test-support"))]
-pub use fixed_frame_test_support::*;
-pub use frame::FunctionRelativeFrame;
-mod codec;
-mod error;
-mod prelude;
 
-use self::prelude::*;
-pub use carriers::*;
+pub use carriers::{
+    StagedFixedFrameFunctionRelativeRealization,
+    StagedFixedFrameFunctionRelativeRealizationCustodyReceipt,
+};
 pub use codec::FunctionRelativeOptimizationRealizationManifestDecodeError;
 pub use error::FunctionRelativeOptimizationRealizationError;
 pub use fixed_frame::{
     stage_fixed_frame_function_relative_realization,
     validate_fixed_frame_function_relative_realization,
 };
+#[cfg(any(test, feature = "test-support"))]
+pub use fixed_frame_test_support::{
+    FixedFramePublicationCustodyFieldForTest, corrupt_fixed_frame_realization_custody_for_test,
+    corrupt_fixed_frame_realization_exit_for_test,
+    corrupt_fixed_frame_realization_manifest_for_test,
+    replace_fixed_frame_realization_exit_for_test, swap_fixed_frame_realization_source_for_test,
+};
+#[cfg(feature = "test-support")]
+pub use fixed_frame_test_support::{
+    corrupt_fixed_frame_realization_encoding_for_test,
+    corrupt_fixed_frame_realization_layout_for_test,
+};
+pub use frame::FunctionRelativeFrame;
+
+use machine_code::{
+    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
+    TargetFrameLayoutIdentity, TargetFrameProtocolEncodingIdentity,
+    WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
+};
+use optimization_core::{
+    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
+    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
+};
+use selected_instructions::SelectedInstructionPlanIdentity;
+use target::NativeTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {

@@ -1,4 +1,3 @@
-use super::super::prelude::*;
 use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationStatistics,
@@ -11,6 +10,16 @@ use super::cursor::Cursor;
 use super::error::FunctionRelativeOptimizationRealizationManifestDecodeError as Error;
 use super::post_allocation::decode_optional_custody;
 use super::target::decode_target;
+use machine_code::{
+    ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFunctionLayoutPolicy,
+    WholeFunctionExitContractIdentity, X86BranchRelaxationIdentity,
+};
+use optimization_core::{
+    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
+    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    SelectedLoweringOptimizationCompletionIdentity,
+};
+use selected_instructions::SelectedInstructionPlanIdentity;
 
 pub(super) fn decode_manifest_content(
     cursor: &mut Cursor<'_>,

@@ -1,8 +1,23 @@
 //! Retained ordinary frame evidence, shared by all function realization paths.
 
 use super::FunctionRelativeOptimizationRealizationError as Error;
-use super::prelude::*;
+use crate::frame_layout::{
+    NonAuthoritativeCalleeSaveStoragePolicy, TargetFrameLayoutPolicy,
+    ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetFrameLayout,
+    stage_non_authoritative_callee_save_storage, stage_target_frame_layout,
+    validate_non_authoritative_callee_save_storage, validate_target_frame_layout,
+};
+use crate::frame_protocol::{
+    TargetFrameProtocolEncodingPolicy, ValidatedTargetFrameProtocolEncoding,
+    stage_target_frame_protocol_encoding, validate_target_frame_protocol_encoding,
+};
+use optimization_core::OptimizationWorkBudget;
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use selected_instructions_to_register_homes::AllocationOutput;
+use selected_instructions_to_register_homes::{
+    AllocatedCalleeSavedRequirementPolicy, ValidatedAllocatedCalleeSavedRequirements,
+    stage_allocated_callee_saved_requirements, validate_allocated_callee_saved_requirements,
+};
 
 #[derive(Debug, Clone)]
 pub struct FunctionRelativeFrame {

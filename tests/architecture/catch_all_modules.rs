@@ -35,8 +35,7 @@ const CATCH_ALL_NAMES: &[&str] = &[
 
 /// Exact no-growth ratchets: (crate directory, production source files under
 /// its `src/` tree whose name is one of [`CATCH_ALL_NAMES`]).
-const CATCH_ALL_MODULE_CEILINGS: &[(&str, usize)] =
-    &[("omega-rust/omega/backend/machine-emission", 1)];
+const CATCH_ALL_MODULE_CEILINGS: &[(&str, usize)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

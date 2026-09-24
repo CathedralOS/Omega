@@ -21,7 +21,6 @@ use std::path::{Path, PathBuf};
 /// Exact no-growth ratchets: (crate directory, production files under its
 /// `src/` tree carrying a glob import).
 const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
-    ("omega-rust/omega/backend/machine-emission", 20),
     (
         "omega-rust/omega/pipeline/post-allocation-machine-to-selected-form-encoding",
         2,
