@@ -198,7 +198,7 @@ fn nominal_affine_wide_scalar_unit_cleanup_retains_exact_field_shape() {
         assert!(matches!(
             lower_nominal_affine_unit_cleanup_machine(&stale, &stale_plan),
             Err(LoweringError::Unsupported(
-                "nominal affine Unit parameter is outside the bounded record shape"
+                "ordered nominal cleanup parameter shape is outside the bound"
             ))
         ));
     }
@@ -219,7 +219,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&checked, &stale),
         Err(LoweringError::Unsupported(
-            "nominal affine Unit cleanup signature or coordinates drifted"
+            "ordered nominal cleanup parameter join drifted"
         ))
     ));
 
@@ -228,7 +228,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&checked, &stale),
         Err(LoweringError::Unsupported(
-            "nominal cleanup target identity or bounded signature drifted"
+            "ordered nominal cleanup target is not exact and bounded"
         ))
     ));
 
@@ -253,7 +253,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
         Err(LoweringError::Unsupported(
-            "nominal cleanup target identity or bounded signature drifted"
+            "ordered nominal cleanup target is not exact and bounded"
         ))
     ));
 
@@ -280,7 +280,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&stale_checked, &stale_plan),
         Err(LoweringError::Unsupported(
-            "nominal affine Unit parameter is outside the bounded record shape"
+            "ordered nominal cleanup parameter shape is outside the bound"
         ))
     ));
 
@@ -294,7 +294,7 @@ fn nominal_affine_unit_cleanup_lowering_rejects_stale_checked_joins() {
     assert!(matches!(
         lower_nominal_affine_unit_cleanup_machine(&stale_checked, &original),
         Err(LoweringError::Unsupported(
-            "nominal affine Unit machine is also published in the trivial lane"
+            "ordered nominal cleanup caller signature drifted"
         ))
     ));
 }

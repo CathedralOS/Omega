@@ -49,7 +49,7 @@ pub(super) fn lower_ordered_nominal_affine_unit_cleanup_machine(
                 .is_empty()
     };
     let parameter_count = plan.structural_parameters.len();
-    if parameter_count < 2 || nominal.cleanups.len() != parameter_count {
+    if parameter_count == 0 || nominal.cleanups.len() != parameter_count {
         return unsupported("ordered nominal cleanup requires matched actions");
     }
     let [
