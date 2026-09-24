@@ -265,6 +265,47 @@ fn wrapping_add_chain_carries_remainder_bound_to_cast_obligation() {
 }
 
 #[test]
+fn case_payload_structural_result_is_an_owned_return() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data MemoryAlignment [copy] {
+            case Alignment1;
+            case Alignment2;
+            case Alignment4;
+            case Alignment8;
+        }
+        data AlignmentParseResult [copy] {
+            case Invalid;
+            case Parsed(alignment: MemoryAlignment);
+        }
+        machine MemoryAlignment::get_size_in_bytes(&self) -> u64 [1..=8] {
+            transition self {
+                MemoryAlignment::Alignment1 -> (1)
+                MemoryAlignment::Alignment2 -> (2)
+                MemoryAlignment::Alignment4 -> (4)
+                MemoryAlignment::Alignment8 -> (8)
+            }
+        }
+        machine AlignmentParseResult::make() -> AlignmentParseResult {
+            AlignmentParseResult::Parsed { alignment: MemoryAlignment::Alignment1 }
+        }
+        "#,
+    );
+    for machine in [
+        "MemoryAlignment::get_size_in_bytes",
+        "AlignmentParseResult::make",
+    ] {
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(machine)).unwrap();
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
 fn parallel_failures_keep_the_first_pending_obligation_and_publish_nothing() {
     let mut lowered = fixture(17);
     for position in [3, 12] {
