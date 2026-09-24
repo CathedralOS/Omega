@@ -914,7 +914,7 @@ machine Provider::first() satisfies Pair::first via ForeignBinding::VtableField(
 fn independent_provider_selection_reaches_the_componentization_fence() {
     let diagnostics = compile_provider_mode_fixture(
         61,
-        "independent-provider",
+        "independent_provider",
         "",
         "    builder.select_provider<Pair, Provider>(CompositionMode::Independent);",
     )
@@ -937,7 +937,7 @@ fn independent_provider_selection_reaches_the_componentization_fence() {
 fn provider_selection_rejects_an_authored_composition_mode_lookalike() {
     let diagnostics = compile_provider_mode_fixture(
         62,
-        "lookalike-composition-mode",
+        "lookalike_composition_mode",
         "data LocalCompositionMode [copy] { case Independent; }",
         "    builder.select_provider<Pair, Provider>(LocalCompositionMode::Independent);",
     )
@@ -954,7 +954,7 @@ fn provider_selection_rejects_an_authored_composition_mode_lookalike() {
 fn provider_selection_rejects_an_arbitrary_composition_expression() {
     let diagnostics = compile_provider_mode_fixture(
         63,
-        "arbitrary-composition-expression",
+        "arbitrary_composition_expression",
         "",
         "    builder.select_provider<Pair, Provider>(true);",
     )
@@ -971,7 +971,7 @@ fn provider_selection_rejects_an_arbitrary_composition_expression() {
 fn provider_selection_rejects_conflicting_composition_modes() {
     let diagnostics = compile_provider_mode_fixture(
         64,
-        "conflicting-composition-modes",
+        "conflicting_composition_modes",
         "",
         r#"    builder.select_provider<Pair, Provider>(CompositionMode::Fused);
     builder.select_provider<Pair, Provider>(CompositionMode::Independent);"#,
