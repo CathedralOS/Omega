@@ -52,6 +52,48 @@ fn empty_fixed_arrays_preserve_their_element_contents_classification() {
 }
 
 #[test]
+fn closed_const_arguments_own_no_contents() {
+    let declarations = "data Buffer<Element, const Count: u64> { value: i64; } \
+        data Tagged<const Count: u64> { value: u8; } \
+        data Sized<const Count: u64> { values: [u8; Count]; } \
+        data Held<Element, const Count: u64> { value: Element; } \
+        data Borrowed { value: &u8; }";
+    for carrier in [
+        "Buffer<i32, 4>",
+        "Tagged<0>",
+        "Held<u8, 2>",
+        "Held<Tagged<3>, 1>",
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "{declarations} machine inspect(value: {carrier}) {{}}"
+        ));
+        assert!(
+            has_plain_owned_contents(&program, input(&program)),
+            "{carrier}"
+        );
+        assert!(
+            has_stable_observable_contents(&program, input(&program)),
+            "{carrier}"
+        );
+    }
+    // The const argument owns no storage, but a member it sizes has no
+    // literal extent, and a stored reference argument is still a loan.
+    for carrier in ["Sized<4>", "Held<Borrowed, 2>"] {
+        let program = crate::front_end::typed_program(&format!(
+            "{declarations} machine inspect(value: {carrier}) {{}}"
+        ));
+        assert!(
+            !has_plain_owned_contents(&program, input(&program)),
+            "{carrier}"
+        );
+        assert!(
+            !has_plain_owned_contents_with_numeric_constraints(&program, input(&program)),
+            "{carrier}"
+        );
+    }
+}
+
+#[test]
 fn primitive_ranges_inside_owned_records_do_not_introduce_cleanup() {
     let source =
         "data Limits { limit: u64; divisor: u64 [3..=5]; } machine inspect(limits: Limits) {}";

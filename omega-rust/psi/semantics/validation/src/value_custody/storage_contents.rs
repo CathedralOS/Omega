@@ -25,12 +25,15 @@ enum ContentType {
     Slice(Box<ContentType>),
     Shared(Box<ContentType>),
     Data(SymbolHandle, Vec<ContentType>),
+    /// A closed const argument. It fills a const parameter's slot so data
+    /// arguments stay positional, and is never itself a member's contents.
+    ConstValue,
 }
 
 impl ContentType {
     fn size(&self) -> usize {
         match self {
-            Self::Scalar(_) => 1,
+            Self::Scalar(_) | Self::ConstValue => 1,
             Self::Array(element, _) => 1 + element.size(),
             Self::Slice(element) | Self::Shared(element) => 1 + element.size(),
             Self::Data(_, arguments) => 1 + arguments.iter().map(Self::size).sum::<usize>(),
@@ -281,16 +284,34 @@ fn resolve(
             let source_arguments = program
                 .type_reference_table
                 .type_reference_handles(*source_arguments);
-            if parameters.len() != source_arguments.len()
-                || parameters.iter().any(|parameter| {
-                    !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                })
-            {
+            if parameters.len() != source_arguments.len() {
                 return None;
             }
-            let resolved = source_arguments
+            // A closed const argument is a compile-time value, not storage: it
+            // owns no loans, cleanup, or contents. It is closed in the same
+            // normalized form `validate_closed_const_argument` requires, a
+            // symbol-free value leaf; an open binder or unevaluated expression
+            // stays unclassified. A member that sizes storage by it
+            // (`[T; Count]`) still has no literal extent and rejects below, so
+            // admitting the argument never guesses a layout. Runtime-capable
+            // value binders and machine parameters stay out.
+            let resolved = parameters
                 .iter()
-                .map(|reference| resolve(program, *reference, arguments, requirement))
+                .zip(source_arguments)
+                .map(|(parameter, reference)| match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Type => {
+                        resolve(program, *reference, arguments, requirement)
+                    }
+                    typed_trees::data::TypeParameterKind::Const { .. }
+                        if matches!(
+                            program.type_reference_table.type_reference(*reference),
+                            TypeReferenceNode::Named { symbol, .. } if !symbol.is_valid()
+                        ) =>
+                    {
+                        Some(ContentType::ConstValue)
+                    }
+                    _ => None,
+                })
                 .collect::<Option<Vec<_>>>()?;
             Some(ContentType::Data(*base_symbol, resolved))
         }
@@ -432,6 +453,9 @@ fn check_contents(
             | ContentType::Shared(element) => {
                 check_contents(program, element, active, complete, requirement)
             }
+            // A const parameter named where a member type belongs is not
+            // storage the classifier understands.
+            ContentType::ConstValue => false,
             ContentType::Data(..) => unreachable!(),
         };
     };
