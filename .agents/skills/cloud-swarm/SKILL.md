@@ -155,6 +155,13 @@ next settle actually wakes you.
    a low verdict re-asks each diff alone with the causal question before
    you trust it (advisory only; `TYPESAFE_API_KEY` is already injected
    org-wide, `OMEGA_JEV_OFFLINE=1` suppresses).
+   On a NEW red the gate cannot attribute, run
+   `python3 tools/jev_attribute.py --signature "<failing test or diagnostic>"
+   --window <last-green>..<lane-tip> --with-diff 200` BEFORE reaching for a
+   bisect — it ranks blame in ~40s (measured: marker-blob window → true
+   culprit top at 0.96 plus one real co-culprit). Take `contains` solo
+   verdicts in rank order; `inconclusive`/empty means timing-or-environment
+   regression where bisect still owns.
 4. `git push origin HEAD:main`. A rejection means main moved under you —
    re-fetch, re-checkout the fresh tip, re-merge; never rebase the merge
    checkout and never carry a wedged tree forward.
