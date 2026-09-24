@@ -921,9 +921,9 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 
 #[test]
 fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
-    let checked = std::fs::read_to_string(workspace_root().join(
-        "omega-rust/omega/compiler/checked-compilation/src/checking.rs",
-    ))
+    let checked = std::fs::read_to_string(
+        workspace_root().join("omega-rust/omega/compiler/checked-compilation/src/checking.rs"),
+    )
     .expect("read checked compilation entrance");
     assert!(checked.contains("pub struct CheckedCompileRequest"));
     assert!(checked.contains("pub fn compile_to_checked("));
@@ -946,11 +946,10 @@ fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
 
 #[test]
 fn checked_compilation_retains_settlement_and_source_custody() {
-    let root = workspace_root()
-        .join("omega-rust/omega/compiler/checked-compilation/src");
-    let entrance = std::fs::read_to_string(workspace_root().join(
-        "omega-rust/omega/compiler/checked-compilation/src/checking.rs",
-    ))
+    let root = workspace_root().join("omega-rust/omega/compiler/checked-compilation/src");
+    let entrance = std::fs::read_to_string(
+        workspace_root().join("omega-rust/omega/compiler/checked-compilation/src/checking.rs"),
+    )
     .expect("read checked compilation entrance");
     let build = entrance
         .find("build_continuation::evaluate_build_and_continue(")
@@ -999,8 +998,7 @@ fn package_source_snapshot_has_a_physical_capture_owner() {
 fn checked_admission_remains_required_without_debug_dumps() {
     let root = workspace_root();
     let coordinator = compiler_product_coordinator_source(&root);
-    let admission_root = root
-        .join("omega-rust/omega/compiler/checked-compilation/src/admission");
+    let admission_root = root.join("omega-rust/omega/compiler/checked-compilation/src/admission");
     let admission = std::fs::read_to_string(admission_root.join("mod.rs")).unwrap();
     assert_eq!(coordinator.matches("admit_checked_compilation(").count(), 1);
     for required in [
@@ -1412,9 +1410,9 @@ fn compiler_product_stops_delegate_component_progress_admission() {
         root.join("omega-rust/omega/compiler/native-realization/src/native_product/admission.rs"),
     )
     .expect("read native optimization admission owner");
-    let reporting = recursive_rust_source(&root.join(
-        "omega-rust/omega/compiler/checked-compilation/src/admission",
-    ));
+    let reporting = recursive_rust_source(
+        &root.join("omega-rust/omega/compiler/checked-compilation/src/admission"),
+    );
 
     assert_eq!(
         native_admission
@@ -1443,8 +1441,10 @@ fn production_subject_projection_is_report_owned() {
         root.join("omega-rust/omega/compiler/native-realization/src/native_product.rs"),
     )
     .expect("read native optimization join");
-    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs"))
-        .expect("read Terminal product owner");
+    let terminal = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs"),
+    )
+    .expect("read Terminal product owner");
     let product_stops = format!("{driver}\n{native_optimization}\n{terminal}");
     let projection = std::fs::read_to_string(
         root.join("omega-rust/omega/compiler/checked-compilation/src/checking/checked_compilation/production_subject.rs"),
@@ -1487,10 +1487,10 @@ fn optimization_rollback_settlement_is_owner_complete() {
             &root.join("omega-rust/omega/compiler/native-realization/src/native_product")
         )
     );
-    let owner = std::fs::read_to_string(root.join(
-        "omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/mod.rs",
-    ))
-        .expect("read optimization rollback owner");
+    let owner = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/checked-compilation/src/optimization/rollback/mod.rs"),
+    )
+    .expect("read optimization rollback owner");
 
     for required in [
         "struct OptimizationRollbackSettlement",
@@ -2228,8 +2228,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     // the request's product. A direct `lower_machine(` call in its non-test
     // sources would be a second lowering of the same entry beside the one
     // the artifact was published from.
-    let terminal_artifact_sources =
-        root.join("omega-rust/omega/compiler/terminal-artifact/src");
+    let terminal_artifact_sources = root.join("omega-rust/omega/compiler/terminal-artifact/src");
     let mut stack = vec![terminal_artifact_sources];
     while let Some(directory) = stack.pop() {
         for entry in std::fs::read_dir(&directory)
@@ -2926,8 +2925,10 @@ fn retained_native_product_enters_only_terminal_realization() {
             &root.join("omega-rust/omega/compiler/native-realization/src/native_product")
         )
     );
-    let terminal = std::fs::read_to_string(root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs"))
-        .expect("read Terminal product owner");
+    let terminal = std::fs::read_to_string(
+        root.join("omega-rust/omega/compiler/terminal-artifact/src/terminal_artifact.rs"),
+    )
+    .expect("read Terminal product owner");
     let legacy_driver_path =
         root.join("omega-rust/omega/compiler/compiler/src/pipeline/compatibility/harness.rs");
     let request_path = root.join("omega-rust/omega/compiler/compiler/src/compiler/request.rs");

@@ -33,7 +33,8 @@ fn check_build_optimization_vocabulary(audit: &mut Audit) {
     // out of the crate's entry file and into its own domain file beside
     // `build_vocabulary`, leaving `source_assembly.rs` the coordinator. The
     // sole-owner invariant is unchanged — only which file holds the slots.
-    let build_prelude = "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_prelude.rs";
+    let build_prelude =
+        "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_prelude.rs";
     let mut files = Vec::new();
     for root in [
         "omega-rust/omega/compiler/source-assembly/src",
