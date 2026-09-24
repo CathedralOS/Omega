@@ -12,6 +12,8 @@ use crate::unsequenced_spill_stages::{
 };
 
 use super::{Occupant, ReplaySpec, homes};
+use register_homes::FunctionAllocationLegality;
+use selected_instructions::LiveRangePoint;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn reconstruct(
@@ -20,7 +22,7 @@ pub(super) fn reconstruct(
     recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
     recovery: &crate::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryActions,
     prior: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<RecursiveReloadValueHomeAssignment>, RecursiveReloadValueHomeError> {
     let mut pressure = None;
@@ -159,7 +161,7 @@ pub(super) fn reconstruct(
     });
     selected.insert(pressure.result, pressure_view);
 
-    let mut points = BTreeMap::<crate::LiveRangePoint, Vec<&ReplaySpec>>::new();
+    let mut points = BTreeMap::<LiveRangePoint, Vec<&ReplaySpec>>::new();
     for row in specs {
         if !assigned_before.contains(&row.action) && row.action != pressure.result {
             points.entry(row.start).or_default().push(row);

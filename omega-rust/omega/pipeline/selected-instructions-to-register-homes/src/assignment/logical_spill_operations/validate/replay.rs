@@ -6,12 +6,13 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 
-use crate::{
-    FunctionAllocationLegality, FunctionLiveRanges, FunctionSpillChoices, LogicalReloadValueId,
-    LogicalSpillAction, LogicalSpillOperationError, LogicalSpillReload, LogicalSpillStorage,
-    LogicalSpillStorageClass, LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
-    VirtualFixedConstraintSite,
+use crate::LogicalSpillOperationError;
+use register_homes::{
+    FunctionAllocationLegality, FunctionSpillChoices, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
+    LogicalSpillStore, LogicalSpillUseRewrite,
 };
+use selected_instructions::{FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite};
 
 pub(super) fn replay_action(
     function: usize,
@@ -106,7 +107,7 @@ pub(super) fn replay_action(
         .find(|row| row.virtual_register == victim.id)
         .ok_or(LogicalSpillOperationError::FunctionMismatch { function })?;
     let fragment_ok = victim_range.fragments.as_slice()
-        == [crate::LiveRangeFragment {
+        == [LiveRangeFragment {
             block: choice.block,
             start: resident.start,
             end: resident.exclusive_end,

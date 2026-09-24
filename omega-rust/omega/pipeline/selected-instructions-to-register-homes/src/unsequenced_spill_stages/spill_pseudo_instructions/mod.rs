@@ -12,12 +12,21 @@ mod replay;
 mod validate;
 
 use crate::unsequenced_spill_stages::{GeneralizedSpillActionId, RecursiveSpillInsertionIdentity};
-use crate::{AllocatorAvailabilityIdentity, LiveRangePoint, LogicalSpillStorageClass};
-pub use homed::*;
+pub use homed::{
+    FunctionHomedSpillPseudoInstructions, HomedSpillPseudoInstruction,
+    HomedSpillPseudoInstructionError, HomedSpillPseudoInstructionPlan,
+    HomedSpillPseudoInstructionPlanIdentity, HomedSpillPseudoInstructionPolicy,
+    HomedSpillPseudoInstructionReceipt, ValidatedHomedSpillPseudoInstructions,
+    homed_spill_pseudo_instruction_plan_identity, lower_homed_recursive_spill_pseudos,
+    validate_homed_spill_pseudo_instructions,
+};
 pub use identity::spill_pseudo_instruction_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocatorAvailabilityIdentity, LogicalSpillStorageClass};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+use selected_instructions::{
+    LiveRangePoint, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_spill_pseudo_instructions;
 

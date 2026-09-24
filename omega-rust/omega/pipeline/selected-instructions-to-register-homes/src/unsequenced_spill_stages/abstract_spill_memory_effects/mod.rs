@@ -13,11 +13,11 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, HomedSpillPseudoInstructionPlanIdentity, SpillPseudoInstructionId,
     SpillPseudoStoredValue,
 };
-use crate::{AllocatorAvailabilityIdentity, LiveRangePoint, LogicalSpillStorageClass};
 pub use identity::abstract_spill_memory_effect_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocatorAvailabilityIdentity, LogicalSpillStorageClass};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+use selected_instructions::{LiveRangePoint, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_abstract_spill_memory_effects;
 

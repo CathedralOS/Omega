@@ -14,14 +14,16 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillInsertionIdentity, GeneralizedSpillRecoveryChoiceIdentity,
     GeneralizedSpillRecoveryWorkItemId,
 };
-use crate::{
-    AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint, LogicalSpillStorageClass,
-};
 pub use identity::generalized_spill_recovery_action_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocatorAvailabilityIdentity, LogicalSpillStorageClass};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlanIdentity, VirtualRegisterId,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::{
@@ -40,12 +42,12 @@ pub fn plan_generalized_spill_recovery_actions(
     validate_generalized_spill_recovery_actions(insertion, homes, choices, plan)
 }
 
-pub fn plan_generalized_original_spill_recovery_actions<S: crate::ValidatedSelectedAnalysis>(
+pub fn plan_generalized_original_spill_recovery_actions<S: ValidatedSelectedAnalysis>(
     insertion: &crate::unsequenced_spill_stages::ValidatedGeneralizedSpillInsertion,
     homes: &crate::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
     choices: &crate::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryChoices,
     selected: &S,
-    ranges: &crate::ValidatedLiveRanges,
+    ranges: &ValidatedLiveRanges,
     budget: optimization_core::OptimizationWorkBudget,
 ) -> Result<ValidatedGeneralizedSpillRecoveryActions, GeneralizedSpillRecoveryActionError> {
     let plan = compute::compute_original(insertion, homes, choices, selected, ranges, budget)?;

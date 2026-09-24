@@ -60,7 +60,7 @@ fn every_first_under_budget_axis_fails() {
         for budget in budgets {
             assert!(matches!(
                 assign(&fixture, budget),
-                Err(selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::BudgetExceeded {
+                Err(selected_instructions_to_selected_instructions::FixedPrecoloredSegmentHomeError::BudgetExceeded {
                     required: actual,
                     budget: rejected,
                 }) if actual == required && rejected == budget

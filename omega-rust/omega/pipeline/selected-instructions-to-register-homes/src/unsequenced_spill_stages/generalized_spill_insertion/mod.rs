@@ -15,17 +15,18 @@ pub use validate::validate_generalized_spill_insertion;
 
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, SpillRecoveryActionIdentity, SpillRecoveryLogicalReloadId,
-    SpillRecoveryLogicalStorageId, SyntheticReloadValueId,
-};
-use crate::unsequenced_spill_stages::{
-    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryActions,
-};
-use crate::{
-    LiveRangePoint, LogicalReloadValueId, LogicalSpillStorageClass, LogicalSpillStorageId,
+    SpillRecoveryLogicalStorageId, SyntheticReloadValueId, ValidatedAbstractSpillInsertion,
+    ValidatedSpillRecoveryActions,
 };
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{
+    AllocatorAvailabilityIdentity, LogicalReloadValueId, LogicalSpillStorageClass,
+    LogicalSpillStorageId,
+};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
+use selected_instructions::{
+    LiveRangePoint, SelectedBlockId, SelectedInstructionId, VirtualRegisterId,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 pub fn schedule_generalized_spill_insertion(
@@ -85,7 +86,7 @@ pub struct GeneralizedSpillInsertionPlan {
     pub abstract_spill_insertion: AbstractSpillInsertionIdentity,
     pub spill_recovery_actions: SpillRecoveryActionIdentity,
     pub register_environment: TargetRegisterEnvironmentIdentity,
-    pub allocator_availability: crate::AllocatorAvailabilityIdentity,
+    pub allocator_availability: AllocatorAvailabilityIdentity,
     pub optimization_unit: OptimizationUnitIdentity,
     pub fuel_schedule: FuelScheduleIdentity,
     pub policy: GeneralizedSpillInsertionPolicy,
@@ -156,7 +157,7 @@ pub struct GeneralizedSpillInsertionReceipt {
     pub(crate) abstract_spill_insertion: AbstractSpillInsertionIdentity,
     pub(crate) spill_recovery_actions: SpillRecoveryActionIdentity,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
-    pub(crate) allocator_availability: crate::AllocatorAvailabilityIdentity,
+    pub(crate) allocator_availability: AllocatorAvailabilityIdentity,
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) usage: OptimizationWorkUsage,
@@ -179,7 +180,7 @@ impl GeneralizedSpillInsertionReceipt {
     pub const fn register_environment(self) -> TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
-    pub const fn allocator_availability(self) -> crate::AllocatorAvailabilityIdentity {
+    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
     pub const fn optimization_unit(self) -> OptimizationUnitIdentity {

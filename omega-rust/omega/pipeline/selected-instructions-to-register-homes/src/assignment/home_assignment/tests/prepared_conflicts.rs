@@ -2,8 +2,9 @@ use register_model::{RegisterUnitId, RegisterWriteSemantics, validate_physical_r
 use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 
 use super::super::compute::scan_reference;
-use super::{compute_function, fixtures::*, validate};
-use crate::CopyAffinity;
+use super::fixtures::*;
+use super::{compute_function, validate};
+use selected_instructions::CopyAffinity;
 
 #[test]
 fn prepared_constraints_match_original_scans_for_candidate_and_interference_rosters() {

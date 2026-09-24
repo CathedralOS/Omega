@@ -17,15 +17,17 @@ use crate::tests::{
     validate_optimized_ordinary_callable_entry,
 };
 use selected_instructions_to_register_homes::AllocationSource;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
 
 #[test]
 fn fixed_frame_rejects_a_machine_from_another_allocation_before_encoding() {
     let allocate = |target| {
         let selected = staged_exact_add_conditional(target);
         selected_instructions_to_register_homes::stage_register_allocation(
-            selected_instructions_to_register_homes::optimize_selected_instructions(selected)
-                .unwrap(),
+            selected_instructions_to_selected_instructions::optimize_selected_instructions(
+                selected,
+            )
+            .unwrap(),
         )
         .unwrap()
     };

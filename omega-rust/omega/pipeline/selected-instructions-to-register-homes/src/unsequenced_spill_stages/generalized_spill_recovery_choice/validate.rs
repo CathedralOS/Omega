@@ -11,7 +11,9 @@ use crate::unsequenced_spill_stages::{
     ValidatedGeneralizedSpillRecoveryChoices, ValidatedGeneralizedSpillRecoveryWorklist,
     generalized_spill_recovery_choice_identity,
 };
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_generalized_spill_recovery_choices<S: ValidatedSelectedAnalysis>(

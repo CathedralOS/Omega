@@ -12,15 +12,15 @@ mod validate;
 pub use identity::abstract_spill_insertion_identity;
 pub use validate::validate_abstract_spill_insertion;
 
-use crate::{
-    AllocatorAvailabilityIdentity, LiveRangePoint, LogicalReloadValueId,
-    LogicalSpillOperationIdentity, LogicalSpillStorageClass, LogicalSpillStorageId,
-    LogicalSpillUseRewrite, StackSlotColoringIdentity,
-};
 use crate::{ValidatedLogicalSpillOperations, ValidatedStackSlotColoring};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{
+    AllocatorAvailabilityIdentity, LogicalReloadValueId, LogicalSpillOperationIdentity,
+    LogicalSpillStorageClass, LogicalSpillStorageId, LogicalSpillUseRewrite,
+    StackSlotColoringIdentity,
+};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedInstructionId, VirtualRegisterId};
+use selected_instructions::{LiveRangePoint, SelectedInstructionId, VirtualRegisterId};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 
 pub fn schedule_abstract_spill_insertion(

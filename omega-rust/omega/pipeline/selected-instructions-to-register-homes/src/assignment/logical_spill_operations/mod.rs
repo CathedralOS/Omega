@@ -8,7 +8,7 @@
 //! and versioned transport live in `register_homes::logical_spill_operations`;
 //! computation, validation, and replay stay transform-local.
 
-use crate::{
+use selected_instructions_to_selected_instructions::{
     ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
     ValidatedSpillChoices,
 };
@@ -19,14 +19,19 @@ mod validate;
 #[cfg(test)]
 mod tests;
 
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity,
-    SpillChoiceIdentity,
-};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
-pub use register_homes::logical_spill_operations::*;
+pub use register_homes::logical_spill_operations::{
+    FunctionLogicalSpillOperations, LogicalReloadValueId, LogicalSpillAction,
+    LogicalSpillOperationDecodeError, LogicalSpillOperationIdentity, LogicalSpillOperationPlan,
+    LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
+    LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite,
+    logical_spill_operation_identity,
+};
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, SpillChoiceIdentity,
+};
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::FuelScheduleIdentity;
 pub use validate::validate_logical_spill_operations;
 

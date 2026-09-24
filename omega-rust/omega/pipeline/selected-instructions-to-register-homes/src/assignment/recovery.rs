@@ -1,11 +1,12 @@
-use crate::RegisterAllocationError;
 use crate::{
-    FixedViewCopyPolicy, PressureRematerializationPolicy, RecoveryClassificationPolicy,
-    SpillChoicePolicy,
-};
-use crate::{
-    RetainedAllocation, StagedOptimizedAllocationLegality, StagedOptimizedLiveRanges,
+    RegisterAllocationError, RetainedAllocation,
     stage_optimized_active_resident_rematerialization_pressure,
+};
+use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
+use selected_instructions_to_selected_instructions::{
+    FixedViewCopyPolicy, PressureRematerializationPolicy, StagedOptimizedAllocationLegality,
+    StagedOptimizedLiveRanges, StagedOptimizedSelectedReanalysis,
+    probe_optimized_fixed_precolored_segment_homes,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
     stage_optimized_selected_reanalysis,
@@ -20,7 +21,7 @@ use crate::{
 fn fixed_view_reanalysis(
     legality: StagedOptimizedAllocationLegality,
     policy: FixedViewCopyPolicy,
-) -> Result<crate::StagedOptimizedSelectedReanalysis, RegisterAllocationError> {
+) -> Result<StagedOptimizedSelectedReanalysis, RegisterAllocationError> {
     let budget = legality.budget_per_pass();
     let segments = stage_optimized_fixed_precolored_segment_homes(legality, budget)
         .map_err(RegisterAllocationError::FixedSegments)?;
@@ -65,10 +66,9 @@ fn fixed_view_allocation(
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     if policy == FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
         let budget = legality.budget_per_pass();
-        if let Some(decline) =
-            crate::probe_optimized_fixed_precolored_segment_homes(&legality, budget)
-                .err()
-                .and_then(|error| error.capacity_decline())
+        if let Some(decline) = probe_optimized_fixed_precolored_segment_homes(&legality, budget)
+            .err()
+            .and_then(|error| error.capacity_decline())
         {
             return RetainedAllocation::try_from(
                 crate::assignment::runtime_spill::recover_after_declined_fixed_view_probe(

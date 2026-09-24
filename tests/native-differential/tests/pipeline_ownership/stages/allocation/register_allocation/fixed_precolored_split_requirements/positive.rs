@@ -90,7 +90,7 @@ fn joined_unbound_still_rejects_two_connectors_into_one_fragment() {
         let fixture = joined_unbound(target);
         assert!(matches!(
             analyze(&fixture, generous_budget()),
-            Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange { .. })
+            Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::UnsupportedCrossBlockRange { .. })
         ));
     }
 }
@@ -141,7 +141,7 @@ fn chained_forwarded_parameter_partitions_across_a_fragment_chain() {
         assert_ne!(leaf.source, forwarded.fragments[0].block);
 
         let replayed =
-            selected_instructions_to_register_homes::validate_fixed_precolored_split_requirements(
+            selected_instructions_to_selected_instructions::validate_fixed_precolored_split_requirements(
                 fixture.source.live_range_stage().ranges(),
                 fixture.source.legality(),
                 &fixture.fixed,
@@ -280,7 +280,7 @@ fn forwarded_conditional_keeps_abi_transfers_outside_semantic_value_domains() {
         }
 
         let replayed =
-            selected_instructions_to_register_homes::validate_fixed_precolored_split_requirements(
+            selected_instructions_to_selected_instructions::validate_fixed_precolored_split_requirements(
                 fixture.source.live_range_stage().ranges(),
                 fixture.source.legality(),
                 &fixture.fixed,

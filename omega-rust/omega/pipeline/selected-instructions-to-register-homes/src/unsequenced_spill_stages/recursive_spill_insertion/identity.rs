@@ -2,12 +2,12 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionSource, RecursiveSpillActionSource, RecursiveSpillEvent,
     RecursiveSpillInsertionIdentity, RecursiveSpillInsertionPlan, RecursiveSpillInsertionPolicy,
     RecursiveSpillStoredValue,
 };
+use register_homes::LogicalSpillStorageClass;
 
 pub fn recursive_spill_insertion_identity(
     plan: &RecursiveSpillInsertionPlan,

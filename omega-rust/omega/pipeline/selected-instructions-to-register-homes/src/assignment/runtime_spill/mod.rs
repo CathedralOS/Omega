@@ -3,17 +3,25 @@
 mod recovery;
 pub(crate) mod replay;
 
-use crate::{
-    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
-    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
-    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-};
+use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 pub(crate) use recovery::{
     assign_source, recover, recover_after_active_resident_rematerialization,
     recover_after_declined_fixed_view_probe, recover_after_fixed_view_copies,
 };
+use register_homes::{
+    PostAllocationOptimizationManifestError, PostAllocationSelectedTransformation,
+};
 use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId};
+use selected_instructions_to_selected_instructions::{
+    AllocationLegalityError, FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy,
+    LiveRangeError, LivenessError, OptimizedAllocationLegalityCustodyError,
+    OptimizedSelectedReanalysisError, RuntimeRematerializationError, RuntimeSpillError,
+    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
+    ValidatedLiveness, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    probe_optimized_fixed_precolored_segment_homes, validate_optimized_allocation_legality_custody,
+    validate_optimized_selected_reanalysis_custody,
+};
 
 /// Original source custody and rewrite evidence are retained only for replay.
 #[derive(Debug)]
@@ -66,8 +74,8 @@ pub(crate) enum RuntimeSpillSource {
     Legality(StagedOptimizedAllocationLegality),
     DeclinedFixedView {
         legality: StagedOptimizedAllocationLegality,
-        policy: crate::FixedViewCopyPolicy,
-        decline: crate::FixedPrecoloredSegmentHomeDecline,
+        policy: FixedViewCopyPolicy,
+        decline: FixedPrecoloredSegmentHomeDecline,
     },
     FixedViewCopies(StagedOptimizedSelectedReanalysis),
     ActiveResidentRematerialization(crate::StagedOptimizedActiveResidentRematerializationPressure),
@@ -122,7 +130,7 @@ impl RuntimeSpillSource {
             .optimized_target_owner()
     }
 
-    pub(crate) fn allocator_availability(&self) -> &crate::ValidatedAllocatorAvailability {
+    pub(crate) fn allocator_availability(&self) -> &ValidatedAllocatorAvailability {
         self.legality_stage().allocator_availability()
     }
 
@@ -131,7 +139,7 @@ impl RuntimeSpillSource {
     /// arm reads it from the validated reanalysis custody; the declined arm
     /// carries it from the probe the route re-proves on every replay.
     /// `None` on the direct legality and active-resident paths.
-    pub(crate) fn fixed_view_copy_policy(&self) -> Option<crate::FixedViewCopyPolicy> {
+    pub(crate) fn fixed_view_copy_policy(&self) -> Option<FixedViewCopyPolicy> {
         match self {
             Self::Legality(_) | Self::ActiveResidentRematerialization(_) => None,
             Self::DeclinedFixedView { policy, .. } => Some(*policy),
@@ -150,7 +158,7 @@ impl RuntimeSpillSource {
                 Some(optimization_core::Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1)
             }
             _ => match self.fixed_view_copy_policy() {
-                Some(crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1) => {
+                Some(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1) => {
                     Some(optimization_core::Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1)
                 }
                 _ => None,
@@ -162,17 +170,17 @@ impl RuntimeSpillSource {
     /// the direct and pre-copy declined paths, the fixed-view
     /// transformation's copy output, or the active-resident
     /// rematerialization's transformed program.
-    pub(crate) fn base(&self) -> crate::SelectedProgramRef<'_> {
+    pub(crate) fn base(&self) -> SelectedProgramRef<'_> {
         match self {
-            Self::Legality(source) => crate::SelectedProgramRef::new(source.selected()),
+            Self::Legality(source) => SelectedProgramRef::new(source.selected()),
             Self::DeclinedFixedView { legality, .. } => {
-                crate::SelectedProgramRef::new(legality.selected())
+                SelectedProgramRef::new(legality.selected())
             }
             Self::FixedViewCopies(reanalysis) => {
-                crate::SelectedProgramRef::new(reanalysis.transformation_stage().copies())
+                SelectedProgramRef::new(reanalysis.transformation_stage().copies())
             }
             Self::ActiveResidentRematerialization(pressure) => {
-                crate::SelectedProgramRef::new(pressure.rematerialization())
+                SelectedProgramRef::new(pressure.rematerialization())
             }
         }
     }
@@ -223,13 +231,13 @@ impl RuntimeSpillSource {
     ) -> Result<
         (
             optimization_core::PrePhysicalOptimizationManifestIdentity,
-            Vec<crate::PostAllocationSelectedTransformation>,
+            Vec<PostAllocationSelectedTransformation>,
         ),
         RuntimeSpillAllocationError,
     > {
         match self {
             Self::Legality(source) => {
-                let upstream = crate::validate_optimized_allocation_legality_custody(
+                let upstream = validate_optimized_allocation_legality_custody(
                     source.live_range_stage(),
                     source.allocator_availability(),
                     source.legality(),
@@ -240,14 +248,14 @@ impl RuntimeSpillSource {
             Self::DeclinedFixedView {
                 legality, decline, ..
             } => {
-                let upstream = crate::validate_optimized_allocation_legality_custody(
+                let upstream = validate_optimized_allocation_legality_custody(
                     legality.live_range_stage(),
                     legality.allocator_availability(),
                     legality.legality(),
                 )
                 .map_err(RuntimeSpillAllocationError::Upstream)?;
                 let budget = legality.budget_per_pass();
-                match crate::probe_optimized_fixed_precolored_segment_homes(legality, budget) {
+                match probe_optimized_fixed_precolored_segment_homes(legality, budget) {
                     Err(error) if error.capacity_decline() == Some(*decline) => {
                         Ok((upstream.manifest(), Vec::new()))
                     }
@@ -255,7 +263,7 @@ impl RuntimeSpillSource {
                 }
             }
             Self::FixedViewCopies(reanalysis) => {
-                let upstream = crate::validate_optimized_selected_reanalysis_custody(
+                let upstream = validate_optimized_selected_reanalysis_custody(
                     reanalysis.transformation_stage(),
                     reanalysis.liveness(),
                     reanalysis.ranges(),
@@ -264,7 +272,7 @@ impl RuntimeSpillSource {
                 .map_err(RuntimeSpillAllocationError::UpstreamReanalysis)?;
                 Ok((
                     upstream.source().manifest(),
-                    vec![crate::PostAllocationSelectedTransformation::FixedViewCopy(
+                    vec![PostAllocationSelectedTransformation::FixedViewCopy(
                         upstream.source().transformation(),
                     )],
                 ))
@@ -276,7 +284,7 @@ impl RuntimeSpillSource {
                 Ok((
                     upstream.source().manifest(),
                     vec![
-                        crate::PostAllocationSelectedTransformation::PressureRematerialization(
+                        PostAllocationSelectedTransformation::PressureRematerialization(
                             upstream.rematerialization(),
                         ),
                     ],
@@ -310,10 +318,10 @@ impl RuntimeSpillStepRewrite {
         }
     }
 
-    pub(crate) fn selected(&self) -> crate::SelectedProgramRef<'_> {
+    pub(crate) fn selected(&self) -> SelectedProgramRef<'_> {
         match self {
-            Self::Spill(rewrite) => crate::SelectedProgramRef::new(rewrite),
-            Self::Rematerialization(rewrite) => crate::SelectedProgramRef::new(rewrite),
+            Self::Spill(rewrite) => SelectedProgramRef::new(rewrite),
+            Self::Rematerialization(rewrite) => SelectedProgramRef::new(rewrite),
         }
     }
 }
@@ -327,19 +335,19 @@ pub(crate) struct RuntimeSpillFacts {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeSpillAllocationError {
-    Upstream(crate::OptimizedAllocationLegalityCustodyError),
-    UpstreamReanalysis(crate::OptimizedSelectedReanalysisError),
+    Upstream(OptimizedAllocationLegalityCustodyError),
+    UpstreamReanalysis(OptimizedSelectedReanalysisError),
     /// The recorded active-resident prefix could not be independently
     /// replayed — the rematerialization custody the recovery claims was
     /// never proven.
     UpstreamRematerialization(crate::OptimizedActiveResidentRematerializationError),
-    Rewrite(crate::RuntimeSpillError),
-    Rematerialization(crate::RuntimeRematerializationError),
-    Liveness(crate::LivenessError),
-    Ranges(crate::LiveRangeError),
-    Legality(crate::AllocationLegalityError),
+    Rewrite(RuntimeSpillError),
+    Rematerialization(RuntimeRematerializationError),
+    Liveness(LivenessError),
+    Ranges(LiveRangeError),
+    Legality(AllocationLegalityError),
     Homes(crate::RegisterHomeError),
-    Manifest(crate::PostAllocationOptimizationManifestError),
+    Manifest(PostAllocationOptimizationManifestError),
     RecoveryNotRequired,
     /// A declined fixed-view source could not re-prove the capacity verdict
     /// its recorded policy claims — the probe succeeded, declined on a

@@ -3,20 +3,21 @@
 use register_model::RegisterViewId;
 use selected_instructions::VirtualRegisterId;
 
-use crate::LiveRangePoint;
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeError, GeneralizedSpillActionSource, GeneralizedSpillEvent,
     ValidatedSpillRecoveryActions,
 };
+use selected_instructions::LiveRangePoint;
 
 use super::{ReloadSpec, homes};
+use register_homes::FunctionAllocationLegality;
 
 pub(super) fn reconstruct(
     function: usize,
     generalized: &crate::unsequenced_spill_stages::FunctionGeneralizedSpillInsertion,
     first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
     second: &ValidatedSpillRecoveryActions,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
 ) -> Result<Vec<ReloadSpec>, GeneralizedReloadValueHomeError> {
     let mut specs = Vec::with_capacity(generalized.slots.len());
     for slot in &generalized.slots {

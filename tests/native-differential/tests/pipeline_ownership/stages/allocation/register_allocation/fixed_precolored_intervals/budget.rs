@@ -12,7 +12,7 @@ fn every_representable_first_under_budget_fails_before_publication() {
     ] {
         assert!(matches!(
             analyze(&source, budget),
-            Err(selected_instructions_to_register_homes::FixedPrecoloredIntervalError::BudgetExceeded { required, budget: actual })
+            Err(selected_instructions_to_selected_instructions::FixedPrecoloredIntervalError::BudgetExceeded { required, budget: actual })
                 if required == EXACT_USAGE && actual == budget
         ));
     }

@@ -14,6 +14,10 @@ use register_environment::*;
 use register_homes_to_post_allocation_machine::*;
 use selected_form_encoding_to_resolved_layout::*;
 use selected_instructions_to_register_homes::*;
+use selected_instructions_to_selected_instructions::{
+    optimize_selected_instructions, stage_optimized_allocation_legality,
+    stage_optimized_live_ranges, stage_optimized_liveness,
+};
 use semantic_vocabulary::IntegerValue;
 use target::NativeTarget;
 

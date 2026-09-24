@@ -12,16 +12,22 @@ mod validate;
 pub use identity::reload_value_home_identity;
 pub use validate::validate_reload_value_homes;
 
-use crate::unsequenced_spill_stages::AbstractSpillInsertionIdentity;
-use crate::unsequenced_spill_stages::ValidatedAbstractSpillInsertion;
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-    LogicalReloadValueId, LogicalSpillOperationIdentity,
+use crate::ValidatedLogicalSpillOperations;
+use crate::unsequenced_spill_stages::{
+    AbstractSpillInsertionIdentity, ValidatedAbstractSpillInsertion,
 };
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLogicalSpillOperations};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LogicalReloadValueId,
+    LogicalSpillOperationIdentity,
+};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, VirtualRegisterId};
+use selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, VirtualRegisterId,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 use semantic_vocabulary::MachineId;
 
 #[allow(clippy::too_many_arguments)]

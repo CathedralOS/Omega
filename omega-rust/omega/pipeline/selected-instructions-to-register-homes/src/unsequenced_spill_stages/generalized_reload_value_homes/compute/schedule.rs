@@ -4,20 +4,22 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use register_model::ValidatedPhysicalRegisterModel;
 
-use crate::LiveRangePoint;
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeAssignment,
     GeneralizedReloadValueHomeError, GeneralizedReloadValueHomeOutcome,
     GeneralizedReloadValuePressure, GeneralizedSpillActionId, GeneralizedSpillActionSource,
 };
+use selected_instructions::LiveRangePoint;
 
 use super::{ActiveHome, ReloadSpec, homes};
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::FunctionLiveRanges;
 
 #[derive(Clone, Copy)]
 enum Event<'a> {
     Reload(&'a ReloadSpec),
     Original {
-        row: &'a crate::VirtualRegisterAllocationLegality,
+        row: &'a VirtualRegisterAllocationLegality,
         start: LiveRangePoint,
         exclusive_end: LiveRangePoint,
     },
@@ -36,8 +38,8 @@ pub(super) fn assign(
     function: usize,
     specs: &[ReloadSpec],
     first: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<GeneralizedReloadValueHomeOutcome>, GeneralizedReloadValueHomeError> {
     let mut events = specs.iter().map(Event::Reload).collect::<Vec<_>>();

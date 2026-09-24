@@ -6,8 +6,9 @@ use register_model::{
     ValidatedRegisterReservationProfile, target_register_environment_identity,
 };
 
-use crate::{
-    RegisterHomeError, RegisterHomePlan, ValidatedAllocationLegality, ValidatedLiveRanges,
+use crate::{RegisterHomeError, RegisterHomePlan};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 #[allow(clippy::too_many_arguments)]

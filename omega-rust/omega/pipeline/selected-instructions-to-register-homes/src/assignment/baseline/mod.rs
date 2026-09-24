@@ -11,25 +11,34 @@ mod test_support;
 mod validation;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
+pub use test_support::{
+    OptimizedPostCopyRegisterHomeCustodyFieldForTest, OptimizedRegisterHomeCustodyFieldForTest,
+};
 pub use validation::{
     validate_optimized_register_home_after_fixed_view_copy_custody,
     validate_optimized_register_home_custody,
 };
 
-use crate::OptimizedAllocationLegalityCustodyError;
-use crate::{OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysisCustodyReceipt};
 use crate::{
-    PostAllocationOptimizationManifestError, RegisterHomeError, RegisterHomeIdentity,
-    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
+    RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
+    ValidatedRegisterHomes,
 };
-use crate::{StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis};
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
     OptimizedAbstractPlanProjectionIdentity, PostAllocationOptimizationManifestIdentity,
     PrePhysicalOptimizationManifestIdentity,
 };
-use selected_instructions::SelectedInstructionPlanIdentity;
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
+    PostAllocationOptimizationManifestError,
+};
+use selected_instructions::{LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity};
+use selected_instructions_to_selected_instructions::{
+    OptimizedAllocationLegalityCustodyError, OptimizedSelectedReanalysisError,
+    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    StagedOptimizedSelectedReanalysisCustodyReceipt, ValidatedAllocationLegality,
+    ValidatedFixedViewCopies, ValidatedLiveRanges, ValidatedLiveness,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
@@ -151,13 +160,13 @@ impl StagedOptimizedRegisterHomes {
     pub fn budget_per_pass(&self) -> optimization_core::OptimizationWorkBudget {
         self.legality.budget_per_pass()
     }
-    pub const fn liveness(&self) -> &crate::ValidatedLiveness {
+    pub const fn liveness(&self) -> &ValidatedLiveness {
         self.legality.liveness()
     }
-    pub const fn ranges(&self) -> &crate::ValidatedLiveRanges {
+    pub const fn ranges(&self) -> &ValidatedLiveRanges {
         self.legality.ranges()
     }
-    pub const fn legality(&self) -> &crate::ValidatedAllocationLegality {
+    pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.legality.legality()
     }
     /// The retained optimized-target proof input, kept as replay evidence;
@@ -194,11 +203,11 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
     register_environment: register_model::TargetRegisterEnvironmentIdentity,
-    allocator_availability: crate::AllocatorAvailabilityIdentity,
+    allocator_availability: AllocatorAvailabilityIdentity,
     selected: SelectedInstructionPlanIdentity,
-    liveness: crate::LivenessIdentity,
-    ranges: crate::LiveRangeIdentity,
-    legality: crate::AllocationLegalityIdentity,
+    liveness: LivenessIdentity,
+    ranges: LiveRangeIdentity,
+    legality: AllocationLegalityIdentity,
     homes: RegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     function_count: usize,
@@ -233,19 +242,19 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
     pub const fn register_environment(self) -> register_model::TargetRegisterEnvironmentIdentity {
         self.register_environment
     }
-    pub const fn allocator_availability(self) -> crate::AllocatorAvailabilityIdentity {
+    pub const fn allocator_availability(self) -> AllocatorAvailabilityIdentity {
         self.allocator_availability
     }
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected
     }
-    pub const fn liveness(self) -> crate::LivenessIdentity {
+    pub const fn liveness(self) -> LivenessIdentity {
         self.liveness
     }
-    pub const fn ranges(self) -> crate::LiveRangeIdentity {
+    pub const fn ranges(self) -> LiveRangeIdentity {
         self.ranges
     }
-    pub const fn legality(self) -> crate::AllocationLegalityIdentity {
+    pub const fn legality(self) -> AllocationLegalityIdentity {
         self.legality
     }
     pub const fn homes(self) -> RegisterHomeIdentity {
@@ -299,7 +308,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
         &self.reanalysis
     }
     /// The transformed program this assignment describes.
-    pub const fn selected(&self) -> &crate::ValidatedFixedViewCopies {
+    pub const fn selected(&self) -> &ValidatedFixedViewCopies {
         self.reanalysis.transformation_stage().copies()
     }
     pub const fn register_environment(
@@ -316,13 +325,13 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
         self.reanalysis.budget_per_pass()
     }
     /// The reanalyzed facts over the transformed program.
-    pub const fn liveness(&self) -> &crate::ValidatedLiveness {
+    pub const fn liveness(&self) -> &ValidatedLiveness {
         self.reanalysis.liveness()
     }
-    pub const fn ranges(&self) -> &crate::ValidatedLiveRanges {
+    pub const fn ranges(&self) -> &ValidatedLiveRanges {
         self.reanalysis.ranges()
     }
-    pub const fn legality(&self) -> &crate::ValidatedAllocationLegality {
+    pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.reanalysis.legality()
     }
     /// The retained optimized-target proof input, kept as replay evidence;

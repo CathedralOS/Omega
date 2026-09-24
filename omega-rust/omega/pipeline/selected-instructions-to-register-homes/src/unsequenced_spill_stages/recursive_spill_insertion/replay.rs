@@ -4,13 +4,14 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillActionId, GeneralizedSpillEvent, RecursiveSpillActionSource,
     RecursiveSpillEvent, RecursiveSpillInsertionError, RecursiveSpillInsertionPlan,
     RecursiveSpillInsertionPolicy, RecursiveSpillSlot, RecursiveSpillStoredValue,
     ValidatedGeneralizedSpillInsertion, ValidatedGeneralizedSpillRecoveryActions,
 };
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions::LiveRangePoint;
 
 const SLOT_BYTES: u64 = 8;
 
@@ -29,7 +30,7 @@ struct ReplayRow {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct ReplayRewrite {
     block: selected_instructions::SelectedBlockId,
-    point: crate::LiveRangePoint,
+    point: LiveRangePoint,
     instruction: selected_instructions::SelectedInstructionId,
     operand: u16,
 }

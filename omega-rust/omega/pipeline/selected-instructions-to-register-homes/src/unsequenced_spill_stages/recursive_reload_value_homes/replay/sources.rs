@@ -2,13 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use crate::LiveRangePoint;
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, RecursiveReloadValueHomeError,
     RecursiveSpillEvent, RecursiveSpillStoredValue,
 };
+use selected_instructions::LiveRangePoint;
 
 use super::{ReplaySpec, homes};
+use register_homes::FunctionAllocationLegality;
 
 #[derive(Clone, Copy)]
 struct IndexedStore {
@@ -20,7 +21,7 @@ pub(super) fn index(
     function: usize,
     recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
     prior: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
 ) -> Result<Vec<ReplaySpec>, RecursiveReloadValueHomeError> {
     let slots = recursive
         .slots

@@ -10,14 +10,16 @@ use register_model::{
 };
 use selected_instructions::VirtualRegisterId;
 
+use crate::ValidatedLogicalSpillOperations;
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionAction, FunctionReloadValueHomes, ReloadCoexistingHome,
     ReloadValueHomeAssignment, ReloadValueHomeError, ReloadValueHomePlan, ReloadValueHomePolicy,
     ValidatedAbstractSpillInsertion,
 };
-use crate::{
-    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedLogicalSpillOperations, VirtualInterference,
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualInterference};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 #[derive(Clone, Copy)]
@@ -127,8 +129,8 @@ fn admit_roots(
 fn build_function(
     function: usize,
     insertion: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionReloadValueHomes, ReloadValueHomeError> {
     if insertion.machine != legality.machine || insertion.machine != ranges.machine {
@@ -151,8 +153,8 @@ fn build_function(
 fn assign(
     function: usize,
     action: &AbstractSpillInsertionAction,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<ReloadValueHomeAssignment, ReloadValueHomeError> {
     let first = action
@@ -360,9 +362,9 @@ fn insert_reload(
 
 fn legality_row(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&crate::VirtualRegisterAllocationLegality, ReloadValueHomeError> {
+) -> Result<&VirtualRegisterAllocationLegality, ReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()
@@ -375,7 +377,7 @@ fn legality_row(
 
 fn interval(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), ReloadValueHomeError> {
     let first = register
         .points
@@ -396,7 +398,7 @@ fn interval(
 
 fn common_candidates(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<Vec<RegisterViewId>, ReloadValueHomeError> {
     let first = register
         .points
@@ -420,7 +422,7 @@ fn common_candidates(
 
 fn reload_candidates(
     function: usize,
-    victim: &crate::VirtualRegisterAllocationLegality,
+    victim: &VirtualRegisterAllocationLegality,
     start: LiveRangePoint,
     end: LiveRangePoint,
     block: selected_instructions::SelectedBlockId,

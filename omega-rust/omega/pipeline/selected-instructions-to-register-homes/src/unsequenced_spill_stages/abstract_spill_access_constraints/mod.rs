@@ -12,13 +12,13 @@ mod validate;
 use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffectPlanIdentity, GeneralizedSpillActionId, SpillPseudoInstructionId,
 };
-use crate::{AllocatorAvailabilityIdentity, LiveRangePoint};
-pub use error::*;
+pub use error::AbstractSpillAccessConstraintError;
 pub use identity::abstract_spill_access_constraint_plan_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 pub use register_homes::AbstractSpillAccessConstraintPlanIdentity;
+use register_homes::AllocatorAvailabilityIdentity;
 use register_model::TargetRegisterEnvironmentIdentity;
-use selected_instructions::{SelectedBlockId, SelectedInstructionId};
+use selected_instructions::{LiveRangePoint, SelectedBlockId, SelectedInstructionId};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_abstract_spill_access_constraints;
 

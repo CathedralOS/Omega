@@ -16,8 +16,9 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryVictimChoice, ValidatedGeneralizedReloadValueHomes,
     ValidatedGeneralizedSpillRecoveryWorklist,
 };
-use crate::{
-    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+use selected_instructions::LiveRangePoint;
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
 mod original_eligibility;
@@ -188,7 +189,7 @@ fn resolve_resident(
     block: selected_instructions::SelectedBlockId,
     point: LiveRangePoint,
     homes: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &register_homes::FunctionAllocationLegality,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<GeneralizedSpillRecoveryResident, GeneralizedSpillRecoveryChoiceError> {
     checked_view(function, blocker.class, blocker.view, physical)?;
@@ -419,7 +420,7 @@ fn select(
     contenders: &[GeneralizedSpillRecoveryContender],
     residents: &[GeneralizedSpillRecoveryResident],
     selected: &SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &selected_instructions::FunctionLiveRanges,
     work: &mut Work,
 ) -> Result<Option<GeneralizedSpillRecoveryContender>, GeneralizedSpillRecoveryChoiceError> {
     let mut eligible = Vec::new();

@@ -4,6 +4,7 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillMemoryEffect, AbstractSpillMemoryEffectError, HomedSpillPseudoInstruction,
     SpillPseudoStorage,
 };
+use register_homes::LogicalSpillStorageClass;
 
 pub(super) fn project(
     function: usize,
@@ -124,7 +125,7 @@ fn storage_row(
 fn storage_class(
     owner: &crate::unsequenced_spill_stages::FunctionHomedSpillPseudoInstructions,
     id: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
-) -> crate::LogicalSpillStorageClass {
+) -> LogicalSpillStorageClass {
     storage_row(owner, id).class
 }
 

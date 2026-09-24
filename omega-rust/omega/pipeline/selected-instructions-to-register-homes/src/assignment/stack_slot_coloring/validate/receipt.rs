@@ -1,9 +1,7 @@
 use std::collections::BTreeSet;
 
-use crate::{
-    StackSlotColoringError, StackSlotColoringPlan, StackSlotColoringValidationReceipt,
-    stack_slot_coloring_identity,
-};
+use crate::{StackSlotColoringError, StackSlotColoringValidationReceipt};
+use register_homes::{StackSlotColoringPlan, stack_slot_coloring_identity};
 
 pub(super) fn receipt(
     plan: &StackSlotColoringPlan,

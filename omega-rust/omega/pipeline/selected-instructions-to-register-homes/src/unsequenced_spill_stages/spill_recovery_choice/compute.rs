@@ -15,8 +15,10 @@ use crate::unsequenced_spill_stages::{
     SpillRecoveryContender, SpillRecoveryResident, SpillRecoveryVictimChoice,
     ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryWorklist,
 };
-use crate::{
-    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges, VirtualInterference,
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint, VirtualInterference};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
 };
 
 #[derive(Clone, Copy)]
@@ -202,8 +204,8 @@ fn choose(
     function: usize,
     item: &crate::unsequenced_spill_stages::SpillRecoveryWorkItem,
     action: &crate::unsequenced_spill_stages::AbstractSpillInsertionAction,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
     work: &mut Work,
 ) -> Result<SpillRecoveryVictimChoice, SpillRecoveryChoiceError> {
@@ -356,7 +358,7 @@ fn choose(
 
 fn interval(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), SpillRecoveryChoiceError> {
     let first = register
         .points
@@ -377,7 +379,7 @@ fn interval(
 
 fn common_candidates(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<Vec<RegisterViewId>, SpillRecoveryChoiceError> {
     let first = register
         .points

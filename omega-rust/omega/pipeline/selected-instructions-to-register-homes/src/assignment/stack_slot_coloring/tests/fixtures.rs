@@ -1,17 +1,17 @@
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionLogicalSpillOperations,
-    LiveRangeIdentity, LiveRangePoint, LogicalReloadValueId, LogicalSpillAction,
-    LogicalSpillOperationPlan, LogicalSpillOperationPolicy, LogicalSpillOperationValidationReceipt,
-    LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass, LogicalSpillStorageId,
-    LogicalSpillStore, LogicalSpillUseRewrite, SpillChoiceIdentity,
-    ValidatedLogicalSpillOperations, logical_spill_operation_identity,
-};
+use crate::{LogicalSpillOperationValidationReceipt, ValidatedLogicalSpillOperations};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use optimization_unit::ValueDefinitionSite;
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, FunctionLogicalSpillOperations,
+    LogicalReloadValueId, LogicalSpillAction, LogicalSpillOperationPlan,
+    LogicalSpillOperationPolicy, LogicalSpillReload, LogicalSpillStorage, LogicalSpillStorageClass,
+    LogicalSpillStorageId, LogicalSpillStore, LogicalSpillUseRewrite, SpillChoiceIdentity,
+    logical_spill_operation_identity,
+};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlanIdentity, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     BlockId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, ScalarType, ValueId,

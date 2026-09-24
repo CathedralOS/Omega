@@ -10,9 +10,10 @@ use semantic_vocabulary::{IntegerCarrier, IntegerSign, ScalarType};
 use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryChoiceError, GeneralizedSpillRecoveryResident,
 };
-use crate::{LiveRangePoint, VirtualFixedConstraintSite};
+use selected_instructions::{LiveRangePoint, VirtualFixedConstraintSite};
 
 use super::{checked, to_u64};
+use selected_instructions::{FunctionLiveRanges, LiveRangeFragment};
 
 pub(super) fn replay(
     register: selected_instructions::VirtualRegisterId,
@@ -20,7 +21,7 @@ pub(super) fn replay(
     point: LiveRangePoint,
     resident: GeneralizedSpillRecoveryResident,
     selected: &selected_instructions::SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     steps: &mut u64,
 ) -> Result<bool, GeneralizedSpillRecoveryChoiceError> {
     *steps = checked(*steps, to_u64(selected.virtual_registers.len())?)?;
@@ -88,7 +89,7 @@ pub(super) fn replay(
         || ranges.machine != selected.machine
         || range.class != resident.class
         || range.fragments.as_slice()
-            != [crate::LiveRangeFragment {
+            != [LiveRangeFragment {
                 block,
                 start: resident.start,
                 end: resident.exclusive_end,

@@ -32,29 +32,35 @@ use crate::assignment::recovery::{
 use optimization_core::{Optimization, OptimizationExecutionPhase};
 
 use crate::{
-    AllocationReplayError, OptimizedAllocationLegalityCustodyError,
-    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
-    RetainedAllocation, stage_optimized_allocation_legality,
+    AllocationReplayError, OptimizedPostSelectedLoweringHomeCustodyError,
+    OptimizedRegisterHomeCustodyError, RetainedAllocation,
+};
+use selected_instructions_to_selected_instructions::{
+    AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
+    OptimizedSelectedReanalysisError, SelectedInstructionOptimizationError,
+    SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationOutput,
+    selected_allocation_recovery_rule, stage_optimized_allocation_legality,
 };
 
 /// Execute the exact selected allocation rules and publish one current result.
 /// Selected-lowering rewrites have already completed. Assignment consumes their
 /// retained proof; pressure recovery remains internal to allocation.
 pub fn stage_register_allocation(
-    selected: crate::SelectedInstructionOptimizationOutput,
+    selected: SelectedInstructionOptimizationOutput,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
     let ranges = match selected
         .into_replayed_evidence()
         .map_err(RegisterAllocationError::SelectedOptimization)?
     {
-        crate::SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
-        crate::SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
+        SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
+        SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
             let homes =
                 crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering(run)
                 .map_err(RegisterAllocationError::TransformedHomes)?;
             return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
         }
-        crate::SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+        SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
             let homes =
                 crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation(run)
                 .map_err(RegisterAllocationError::PreAllocationHomes)?;
@@ -62,7 +68,7 @@ pub fn stage_register_allocation(
         }
     };
     let selections = ranges.selections().clone();
-    let recovery = crate::selected_allocation_recovery_rule(
+    let recovery = selected_allocation_recovery_rule(
         &selections.project_phase(OptimizationExecutionPhase::AllocationRecovery),
     )
     .map_err(RegisterAllocationError::RecoveryCatalog)?;
@@ -112,13 +118,13 @@ pub fn stage_register_allocation(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RegisterAllocationError {
-    SelectedOptimization(crate::SelectedInstructionOptimizationError),
+    SelectedOptimization(SelectedInstructionOptimizationError),
     UnsupportedComposition,
-    RecoveryCatalog(crate::AllocationRecoveryRuleCatalogError),
-    FixedSegments(crate::OptimizedFixedPrecoloredSegmentHomeCustodyError),
-    FixedViewCopies(crate::OptimizedFixedViewCopyCustodyError),
+    RecoveryCatalog(AllocationRecoveryRuleCatalogError),
+    FixedSegments(OptimizedFixedPrecoloredSegmentHomeCustodyError),
+    FixedViewCopies(OptimizedFixedViewCopyCustodyError),
     FixedViewHomes(crate::OptimizedPostCopyRegisterHomeCustodyError),
-    Reanalysis(crate::OptimizedSelectedReanalysisError),
+    Reanalysis(OptimizedSelectedReanalysisError),
     Rematerialization(crate::OptimizedActiveResidentRematerializationError),
     RuntimeSpill(crate::RuntimeSpillAllocationError),
     Legality(OptimizedAllocationLegalityCustodyError),

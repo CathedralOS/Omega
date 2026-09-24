@@ -14,9 +14,17 @@ use optimization_core::{
     SelectedLoweringOptimizationCompletionIdentity,
 };
 
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedRegisterHomes};
+use crate::ValidatedRegisterHomes;
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
-pub use register_homes::post_allocation_manifest::*;
+pub use register_homes::post_allocation_manifest::{
+    PostAllocationManifestStage, PostAllocationOptimizationManifest,
+    PostAllocationOptimizationManifestDecodeError, PostAllocationOptimizationManifestError,
+    PostAllocationSelectedTransformation, PostAllocationSpillStatus, PostAllocationStatistics,
+    PostAllocationUnavailableData,
+};
 
 pub(crate) fn project_post_allocation_optimization_manifest(
     pre_physical: PrePhysicalOptimizationManifestIdentity,

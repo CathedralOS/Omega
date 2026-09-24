@@ -5,6 +5,11 @@ use crate::{
     StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
+use selected_instructions_to_selected_instructions::FixedViewCopyPolicy;
+#[cfg(feature = "test-support")]
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocatorAvailability, ValidatedFixedViewCopies, ValidatedPressureRematerialization,
+};
 
 #[cfg(test)]
 mod tests;
@@ -41,7 +46,7 @@ impl RetainedAllocation {
     }
 
     #[cfg(feature = "test-support")]
-    pub fn fixed_view_copy_proof_for_test(&self) -> Option<&crate::ValidatedFixedViewCopies> {
+    pub fn fixed_view_copy_proof_for_test(&self) -> Option<&ValidatedFixedViewCopies> {
         match &self.replay {
             ReplayInputs::FixedView(source) => {
                 Some(source.reanalysis_stage().transformation_stage().copies())
@@ -53,7 +58,7 @@ impl RetainedAllocation {
     #[cfg(feature = "test-support")]
     pub fn rematerialization_availability_for_test(
         &self,
-    ) -> Option<&crate::ValidatedAllocatorAvailability> {
+    ) -> Option<&ValidatedAllocatorAvailability> {
         match &self.replay {
             ReplayInputs::Rematerialization(source) => {
                 Some(source.source().allocator_availability())
@@ -65,9 +70,7 @@ impl RetainedAllocation {
     /// Inspect exact rewrite proof details in cross-phase corruption controls.
     /// Production consumers cannot use this to select a source-history route.
     #[cfg(feature = "test-support")]
-    pub fn rematerialization_proof_for_test(
-        &self,
-    ) -> Option<&crate::ValidatedPressureRematerialization> {
+    pub fn rematerialization_proof_for_test(&self) -> Option<&ValidatedPressureRematerialization> {
         match &self.replay {
             ReplayInputs::Rematerialization(source) => Some(source.rematerialization()),
             _ => None,
@@ -248,15 +251,15 @@ fn validate_recovery_selection(
     let expected: &[Optimization] = match current.evidence() {
         AllocationEvidence::FixedViewCopies(receipt) => {
             match receipt.source().source().policy() {
-                crate::FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => {
+                FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => {
                     &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
                 }
                 // Leaf-local, immediate-site, and shared-source-exit copies
                 // are the default-path recovery for authenticated fixed-site
                 // transitions, not a declared selection.
-                crate::FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
-                | crate::FixedViewCopyPolicy::ImmediateBeforeFixedUseV1
-                | crate::FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1 => &[],
+                FixedViewCopyPolicy::LeafLocalBeforeFixedUseV1
+                | FixedViewCopyPolicy::ImmediateBeforeFixedUseV1
+                | FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1 => &[],
             }
         }
         AllocationEvidence::RuntimeSpill(_) => match runtime_spill_prefix_selection {

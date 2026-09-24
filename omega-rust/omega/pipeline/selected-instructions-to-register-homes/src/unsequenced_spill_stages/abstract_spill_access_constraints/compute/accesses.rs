@@ -4,6 +4,7 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillAccessConstraintError, AbstractSpillAccessKind, AbstractSpillAccessPlacement,
     AbstractSpillMemoryEffect, FunctionAbstractSpillMemoryEffects,
 };
+use selected_instructions::LiveRangePoint;
 
 pub(super) fn project(
     function: usize,
@@ -136,10 +137,7 @@ fn validate_geometry(
 
 fn position(
     effect: AbstractSpillMemoryEffect,
-) -> (
-    selected_instructions::SelectedBlockId,
-    crate::LiveRangePoint,
-) {
+) -> (selected_instructions::SelectedBlockId, LiveRangePoint) {
     match effect {
         AbstractSpillMemoryEffect::Write { block, point, .. }
         | AbstractSpillMemoryEffect::Read { block, point, .. } => (block, point),

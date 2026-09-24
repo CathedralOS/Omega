@@ -8,9 +8,10 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionPolicy, AbstractSpillInsertionReceipt, FunctionAbstractSpillInsertion,
     ValidatedAbstractSpillInsertion, abstract_spill_insertion_identity,
 };
-use crate::{
-    LogicalSpillAction, StackSlotAssignment, ValidatedLogicalSpillOperations,
-    ValidatedStackSlotColoring,
+use crate::{ValidatedLogicalSpillOperations, ValidatedStackSlotColoring};
+use register_homes::{
+    FunctionLogicalSpillOperations, FunctionStackSlotColoring, LogicalSpillAction,
+    StackSlotAssignment,
 };
 
 pub fn validate_abstract_spill_insertion(
@@ -82,8 +83,8 @@ fn validate_roots(
 
 fn replay_function(
     function: usize,
-    logical: &crate::FunctionLogicalSpillOperations,
-    slots: &crate::FunctionStackSlotColoring,
+    logical: &FunctionLogicalSpillOperations,
+    slots: &FunctionStackSlotColoring,
 ) -> Result<FunctionAbstractSpillInsertion, AbstractSpillInsertionError> {
     if logical.machine != slots.machine {
         return Err(AbstractSpillInsertionError::FunctionMismatch { function });

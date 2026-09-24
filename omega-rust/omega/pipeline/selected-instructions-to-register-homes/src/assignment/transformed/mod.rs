@@ -12,7 +12,11 @@ mod test_support;
 mod validation;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
+pub use test_support::{
+    OptimizedPostLiteralFoldHomeCustodyFieldForTest,
+    OptimizedPostPreAllocationHomeCustodyFieldForTest,
+    OptimizedPostSelectedLoweringHomeCustodyFieldForTest,
+};
 pub use validation::{
     validate_optimized_register_home_after_literal_fold_custody,
     validate_optimized_register_home_after_pre_allocation_custody,
@@ -20,16 +24,18 @@ pub use validation::{
 };
 
 use crate::{
-    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
-    StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationCustodyReceipt,
+    RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
+    ValidatedRegisterHomes,
 };
-use crate::{
-    PostAllocationOptimizationManifestError, RegisterHomeError, RegisterHomeIdentity,
-    ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
-};
-use crate::{StagedOptimizedLiteralFolds, StagedSelectedLoweringOptimizationRun};
 use optimization_core::PostAllocationOptimizationManifestIdentity;
+use register_homes::PostAllocationOptimizationManifestError;
+use selected_instructions_to_selected_instructions::{
+    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError, SelectedProgramRef,
+    StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
+    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
+    StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedLiveness,
+};
 
 pub fn stage_optimized_register_homes_after_literal_folds(
     folds: StagedOptimizedLiteralFolds,
@@ -86,13 +92,13 @@ impl StagedOptimizedRegisterHomesAfterLiteralFolds {
         self.folds.final_step().fold()
     }
     /// The reanalyzed facts over the final folded program.
-    pub fn liveness(&self) -> &crate::ValidatedLiveness {
+    pub fn liveness(&self) -> &ValidatedLiveness {
         self.folds.final_step().liveness()
     }
-    pub fn ranges(&self) -> &crate::ValidatedLiveRanges {
+    pub fn ranges(&self) -> &ValidatedLiveRanges {
         self.folds.final_step().ranges()
     }
-    pub fn legality(&self) -> &crate::ValidatedAllocationLegality {
+    pub fn legality(&self) -> &ValidatedAllocationLegality {
         self.folds.final_step().legality()
     }
     /// The register environment admitted with the fold's source legality —
@@ -199,28 +205,28 @@ impl StagedOptimizedRegisterHomesAfterSelectedLowering {
     }
     /// The program this assignment describes: the last step's fold when the
     /// suite ran, otherwise the unchanged selected program the run admitted.
-    pub fn selected(&self) -> crate::SelectedProgramRef<'_> {
+    pub fn selected(&self) -> SelectedProgramRef<'_> {
         match self.run.steps().last() {
-            Some(step) => crate::SelectedProgramRef::new(step.fold()),
-            None => crate::SelectedProgramRef::new(self.run.source_legality_stage().selected()),
+            Some(step) => SelectedProgramRef::new(step.fold()),
+            None => SelectedProgramRef::new(self.run.source_legality_stage().selected()),
         }
     }
     /// The facts over the current program: the last step's rebuilt analyses,
     /// or the run's admitted analyses when the suite stayed at the fixed
     /// point.
-    pub fn liveness(&self) -> &crate::ValidatedLiveness {
+    pub fn liveness(&self) -> &ValidatedLiveness {
         match self.run.steps().last() {
             Some(step) => step.liveness(),
             None => self.run.source_legality_stage().liveness(),
         }
     }
-    pub fn ranges(&self) -> &crate::ValidatedLiveRanges {
+    pub fn ranges(&self) -> &ValidatedLiveRanges {
         match self.run.steps().last() {
             Some(step) => step.ranges(),
             None => self.run.source_legality_stage().ranges(),
         }
     }
-    pub fn legality(&self) -> &crate::ValidatedAllocationLegality {
+    pub fn legality(&self) -> &ValidatedAllocationLegality {
         match self.run.steps().last() {
             Some(step) => step.legality(),
             None => self.run.source_legality_stage().legality(),
@@ -332,17 +338,17 @@ impl StagedOptimizedRegisterHomesAfterPreAllocation {
     /// The program this assignment describes: the run's current program —
     /// the last committed step's transformed plan, or the unchanged admitted
     /// source plan when the terminal pass was already clean.
-    pub fn selected(&self) -> crate::SelectedProgramRef<'_> {
+    pub fn selected(&self) -> SelectedProgramRef<'_> {
         self.run.current()
     }
     /// The facts over the current program.
-    pub fn liveness(&self) -> &crate::ValidatedLiveness {
+    pub fn liveness(&self) -> &ValidatedLiveness {
         self.run.liveness()
     }
-    pub fn ranges(&self) -> &crate::ValidatedLiveRanges {
+    pub fn ranges(&self) -> &ValidatedLiveRanges {
         self.run.ranges()
     }
-    pub fn legality(&self) -> &crate::ValidatedAllocationLegality {
+    pub fn legality(&self) -> &ValidatedAllocationLegality {
         self.run.legality()
     }
     /// The register environment admitted with the run's source legality —

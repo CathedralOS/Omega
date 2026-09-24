@@ -158,18 +158,19 @@ use register_model::{
     target_register_environment_identity, validate_register_reservation_profile,
 };
 use selected_instructions::{
-    ArchitecturalUnitActionKind, LiveRangeFragment, LiveRangePoint, VirtualFixedConstraintSite,
-    VirtualInterference, live_range_identity, liveness_identity,
-};
-use selected_instructions::{
-    MachineBarrier, SelectedInstructionId, SelectedInstructionKind, SelectedTerminator,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    ArchitecturalUnitActionKind, LiveRangeFragment, LiveRangePoint, MachineBarrier,
+    SelectedInstructionId, SelectedInstructionKind, SelectedTerminator, VirtualFixedConstraintSite,
+    VirtualInterference, VirtualRegisterId, VirtualRegisterOrigin, live_range_identity,
+    liveness_identity,
 };
 use selected_instructions_to_register_homes::{
+    validate_post_allocation_optimization_manifest, validate_register_homes,
+};
+use selected_instructions_to_selected_instructions::{
     AllocationLegalityError, FixedViewCopyError, FixedViewCopyPolicy, analyze_live_ranges,
     analyze_liveness, choose_spill_victims, classify_pressure_recovery,
     validate_allocation_legality, validate_fixed_view_copies, validate_live_ranges,
-    validate_liveness, validate_post_allocation_optimization_manifest, validate_register_homes,
+    validate_liveness,
 };
 use semantic_vocabulary::{
     BlockId, ContractId, DomainSemanticId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType,

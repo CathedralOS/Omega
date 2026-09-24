@@ -33,7 +33,7 @@ pub(super) fn validate_physical_selections(
         )
         .map_err(OptimizedVerifiedPhysicalPipelineError::PreAllocationRuleCatalog)?;
     }
-    selected_instructions_to_register_homes::selected_allocation_recovery_rule(
+    selected_instructions_to_selected_instructions::selected_allocation_recovery_rule(
         &selections.project_phase(OptimizationExecutionPhase::AllocationRecovery),
     )
     .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationRecoveryRuleCatalog)?;

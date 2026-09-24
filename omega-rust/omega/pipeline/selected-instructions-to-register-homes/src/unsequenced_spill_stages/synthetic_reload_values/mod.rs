@@ -12,12 +12,14 @@ mod validate;
 pub use identity::synthetic_reload_value_plan_identity;
 pub use validate::validate_synthetic_reload_values;
 
-use crate::unsequenced_spill_stages::{AbstractSpillInsertionIdentity, ReloadValueHomeIdentity};
-use crate::unsequenced_spill_stages::{ValidatedAbstractSpillInsertion, ValidatedReloadValueHomes};
-use crate::{LiveRangePoint, LogicalReloadValueId};
+use crate::unsequenced_spill_stages::{
+    AbstractSpillInsertionIdentity, ReloadValueHomeIdentity, ValidatedAbstractSpillInsertion,
+    ValidatedReloadValueHomes,
+};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::LogicalReloadValueId;
 use register_model::{RegisterClassId, RegisterViewId};
-use selected_instructions::SelectedBlockId;
+use selected_instructions::{LiveRangePoint, SelectedBlockId};
 use semantic_vocabulary::MachineId;
 
 pub fn bind_synthetic_reload_values(

@@ -12,7 +12,9 @@ use crate::unsequenced_spill_stages::{
     ValidatedAbstractSpillInsertion, ValidatedGeneralizedSpillInsertion,
     ValidatedSpillRecoveryActions,
 };
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn admit(

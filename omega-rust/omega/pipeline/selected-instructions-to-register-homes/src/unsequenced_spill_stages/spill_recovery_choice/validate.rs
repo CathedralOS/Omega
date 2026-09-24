@@ -11,7 +11,9 @@ use crate::unsequenced_spill_stages::{
     ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryChoices, ValidatedSpillRecoveryWorklist,
     spill_recovery_choice_identity,
 };
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
 #[allow(clippy::too_many_arguments)]
 pub fn validate_spill_recovery_choices(

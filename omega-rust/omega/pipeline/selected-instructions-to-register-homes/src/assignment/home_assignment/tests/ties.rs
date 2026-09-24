@@ -1,7 +1,9 @@
 use register_model::RegisterViewId;
 
-use super::{compute_function, fixtures::*, validate};
+use super::fixtures::*;
+use super::{compute_function, validate};
 use crate::RegisterHomeError;
+use selected_instructions::{EdgeRegisterTransfer, VirtualInterference};
 
 #[test]
 fn edge_transfers_bind_both_predecessors_and_reject_interfering_components() {
@@ -10,7 +12,7 @@ fn edge_transfers_bind_both_predecessors_and_reject_interfering_components() {
     let mut legality = legality(&[(0, 1), (2, 3), (4, 5)]);
     let mut ranges = ranges(3, &[]);
     ranges.edge_transfers = (0..2)
-        .map(|argument| crate::EdgeRegisterTransfer {
+        .map(|argument| EdgeRegisterTransfer {
             source: SelectedBlockId(argument),
             target: SelectedBlockId(2),
             psi_edge: semantic_vocabulary::EdgeId::new(u64::from(argument) + 1).unwrap(),
@@ -64,7 +66,7 @@ fn edge_transfers_bind_both_predecessors_and_reject_interfering_components() {
         validate::replay_function(0, &legality, &early_overlap, &physical),
         unsupported
     );
-    ranges.interference.push(crate::VirtualInterference {
+    ranges.interference.push(VirtualInterference {
         lower: VirtualRegisterId(0),
         higher: VirtualRegisterId(1),
     });

@@ -26,9 +26,10 @@ pub(super) fn exact_usage(target: NativeTarget) -> OptimizationWorkUsage {
 
 pub(super) struct HomeFixture {
     pub(super) source: StagedOptimizedAllocationLegality,
-    pub(super) fixed: selected_instructions_to_register_homes::ValidatedFixedPrecoloredIntervals,
+    pub(super) fixed:
+        selected_instructions_to_selected_instructions::ValidatedFixedPrecoloredIntervals,
     pub(super) requirements:
-        selected_instructions_to_register_homes::ValidatedFixedPrecoloredSplitRequirements,
+        selected_instructions_to_selected_instructions::ValidatedFixedPrecoloredSplitRequirements,
 }
 
 pub(super) fn source(target: NativeTarget) -> HomeFixture {
@@ -36,7 +37,7 @@ pub(super) fn source(target: NativeTarget) -> HomeFixture {
     let liveness = stage_optimized_liveness(selected).unwrap();
     let ranges = stage_optimized_live_ranges(liveness).unwrap();
     let source = stage_optimized_allocation_legality(ranges).unwrap();
-    let fixed = selected_instructions_to_register_homes::analyze_fixed_precolored_intervals(
+    let fixed = selected_instructions_to_selected_instructions::analyze_fixed_precolored_intervals(
         source.live_range_stage().ranges(),
         source.legality(),
         register_homes::FixedPrecoloredIntervalPolicy::FixedConstraintPointIntervalsV1,
@@ -44,7 +45,7 @@ pub(super) fn source(target: NativeTarget) -> HomeFixture {
     )
     .unwrap();
     let requirements =
-        selected_instructions_to_register_homes::analyze_fixed_precolored_split_requirements(
+        selected_instructions_to_selected_instructions::analyze_fixed_precolored_split_requirements(
             source.live_range_stage().ranges(),
             source.legality(),
             &fixed,
@@ -67,8 +68,8 @@ pub(super) fn assign(
     fixture: &HomeFixture,
     budget: OptimizationWorkBudget,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedFixedPrecoloredSegmentHomes,
-    selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError,
+    selected_instructions_to_selected_instructions::ValidatedFixedPrecoloredSegmentHomes,
+    selected_instructions_to_selected_instructions::FixedPrecoloredSegmentHomeError,
 > {
     let environment = fixture
         .source
@@ -76,7 +77,7 @@ pub(super) fn assign(
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    selected_instructions_to_register_homes::assign_fixed_precolored_segment_homes(
+    selected_instructions_to_selected_instructions::assign_fixed_precolored_segment_homes(
         fixture.source.live_range_stage().ranges(),
         fixture.source.legality(),
         &fixture.fixed,
@@ -95,8 +96,8 @@ pub(super) fn validate(
     fixture: &HomeFixture,
     plan: register_homes::FixedPrecoloredSegmentHomePlan,
 ) -> Result<
-    selected_instructions_to_register_homes::ValidatedFixedPrecoloredSegmentHomes,
-    selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError,
+    selected_instructions_to_selected_instructions::ValidatedFixedPrecoloredSegmentHomes,
+    selected_instructions_to_selected_instructions::FixedPrecoloredSegmentHomeError,
 > {
     let environment = fixture
         .source
@@ -104,7 +105,7 @@ pub(super) fn validate(
         .liveness_stage()
         .selected_stage()
         .register_environment();
-    selected_instructions_to_register_homes::validate_fixed_precolored_segment_homes(
+    selected_instructions_to_selected_instructions::validate_fixed_precolored_segment_homes(
         fixture.source.live_range_stage().ranges(),
         fixture.source.legality(),
         &fixture.fixed,

@@ -1,13 +1,23 @@
 //! Executable pressure recovery over a finite roster of original runtime values.
 //! Allocation chooses the values; the selected rewrite owner validates semantics.
 
-use super::replay;
 use super::{
     RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts, RuntimeSpillSource,
-    RuntimeSpillStep, RuntimeSpillStepRewrite,
+    RuntimeSpillStep, RuntimeSpillStepRewrite, replay,
 };
-use crate::{StagedOptimizedAllocationLegality, ValidatedSelectedAnalysis};
-use selected_instructions::{SelectedInstructionPlan, VirtualRegisterId, VirtualRegisterOrigin};
+use register_homes::PostAllocationSelectedTransformation;
+use selected_instructions::{
+    FunctionLiveRanges, SelectedInstructionPlan, VirtualInterference, VirtualRegisterId,
+    VirtualRegisterOrigin,
+};
+use selected_instructions_to_selected_instructions::{
+    FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy, RuntimeSpillSpanPolicy,
+    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
+    ValidatedLiveness, ValidatedSelectedAnalysis, analyze_allocation_legality,
+    analyze_live_ranges_reusing, analyze_liveness_reusing, rematerialize_selected_runtime_value,
+    spill_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
+};
 
 pub(crate) fn assign_source(
     source: &StagedOptimizedAllocationLegality,
@@ -21,8 +31,8 @@ pub(crate) fn assign_source(
 
 pub(super) fn assign(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    ranges: &crate::ValidatedLiveRanges,
-    legality: &crate::ValidatedAllocationLegality,
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
 ) -> Result<crate::ValidatedRegisterHomes, crate::RegisterHomeError> {
     crate::assign_register_homes(
         legality,
@@ -37,15 +47,15 @@ pub(super) fn assign(
 
 pub(super) fn analyze(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
-    availability: &crate::ValidatedAllocatorAvailability,
+    availability: &ValidatedAllocatorAvailability,
     previous: &impl ValidatedSelectedAnalysis,
-    previous_liveness: &crate::ValidatedLiveness,
-    previous_ranges: &crate::ValidatedLiveRanges,
+    previous_liveness: &ValidatedLiveness,
+    previous_ranges: &ValidatedLiveRanges,
     selected: &impl ValidatedSelectedAnalysis,
 ) -> Result<RuntimeSpillFacts, RuntimeSpillAllocationError> {
-    let liveness = crate::analyze_liveness_reusing(previous, previous_liveness, selected)
+    let liveness = analyze_liveness_reusing(previous, previous_liveness, selected)
         .map_err(RuntimeSpillAllocationError::Liveness)?;
-    let ranges = crate::analyze_live_ranges_reusing(
+    let ranges = analyze_live_ranges_reusing(
         previous,
         previous_liveness,
         previous_ranges,
@@ -53,7 +63,7 @@ pub(super) fn analyze(
         &liveness,
     )
     .map_err(RuntimeSpillAllocationError::Ranges)?;
-    let legality = crate::analyze_allocation_legality(
+    let legality = analyze_allocation_legality(
         &ranges,
         availability,
         environment.identity(),
@@ -104,20 +114,20 @@ pub(super) fn candidates(plan: &SelectedInstructionPlan) -> Vec<(usize, VirtualR
 /// Every recorded transformation this recovery produced, appended after the
 /// source's own prefix: a fixed-view entry keeps its copy transformation first.
 pub(super) fn transformations(
-    prefix: &[crate::PostAllocationSelectedTransformation],
+    prefix: &[PostAllocationSelectedTransformation],
     steps: &[RuntimeSpillStep],
-) -> Vec<crate::PostAllocationSelectedTransformation> {
+) -> Vec<PostAllocationSelectedTransformation> {
     prefix
         .iter()
         .cloned()
         .chain(steps.iter().map(|step| match &step.rewrite {
             RuntimeSpillStepRewrite::Spill(rewrite) => {
-                crate::PostAllocationSelectedTransformation::RuntimeSpill(
+                PostAllocationSelectedTransformation::RuntimeSpill(
                     rewrite.receipt().transformed_selected(),
                 )
             }
             RuntimeSpillStepRewrite::Rematerialization(rewrite) => {
-                crate::PostAllocationSelectedTransformation::RuntimeRematerialization(
+                PostAllocationSelectedTransformation::RuntimeRematerialization(
                     rewrite.receipt().transformed_selected(),
                 )
             }
@@ -127,7 +137,7 @@ pub(super) fn transformations(
 
 pub(super) fn overlaps_pressure(
     failure: &crate::RegisterHomeError,
-    ranges: &crate::ValidatedLiveRanges,
+    ranges: &ValidatedLiveRanges,
     function: usize,
     register: VirtualRegisterId,
 ) -> bool {
@@ -157,7 +167,7 @@ pub(super) fn overlaps_pressure(
 // victim overlapping any member fragment — or a member fragment itself, whose
 // own split breaks the shared-home requirement.
 fn split_domain_pressure(
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     leader: VirtualRegisterId,
     register: VirtualRegisterId,
 ) -> bool {
@@ -173,7 +183,7 @@ fn split_domain_pressure(
 // same relations domain construction unions, so this reproduces the split
 // range's membership without rebuilding allocation domains.
 fn split_domain_members(
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     leader: VirtualRegisterId,
 ) -> std::collections::BTreeSet<VirtualRegisterId> {
     let mut members = std::collections::BTreeSet::from([leader]);
@@ -208,7 +218,7 @@ fn split_domain_members(
 }
 
 fn interferes(
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     left: VirtualRegisterId,
     right: VirtualRegisterId,
 ) -> bool {
@@ -219,7 +229,7 @@ fn interferes(
     };
     ranges
         .interference
-        .binary_search(&crate::VirtualInterference { lower, higher })
+        .binary_search(&VirtualInterference { lower, higher })
         .is_ok()
 }
 
@@ -261,7 +271,7 @@ fn candidate_position(
 // at all, so callers keep the predicate and the score from one reconstruction.
 fn split_domain_relief(
     failure: &crate::RegisterHomeError,
-    ranges: &crate::ValidatedLiveRanges,
+    ranges: &ValidatedLiveRanges,
     function: usize,
     register: VirtualRegisterId,
 ) -> usize {
@@ -286,7 +296,7 @@ fn split_domain_relief(
 }
 
 fn member_relief(
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     failed: VirtualRegisterId,
     register: VirtualRegisterId,
 ) -> usize {
@@ -307,7 +317,7 @@ pub(crate) fn recover(
 /// the copy transformation's complete reanalysis becomes the recovery source,
 /// and the produced manifest keeps the copy step ahead of every spill step.
 pub(crate) fn recover_after_fixed_view_copies(
-    reanalysis: crate::StagedOptimizedSelectedReanalysis,
+    reanalysis: StagedOptimizedSelectedReanalysis,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
     recover_over(RuntimeSpillSource::FixedViewCopies(reanalysis))
 }
@@ -319,8 +329,8 @@ pub(crate) fn recover_after_fixed_view_copies(
 /// still binds the declared selection.
 pub(crate) fn recover_after_declined_fixed_view_probe(
     legality: StagedOptimizedAllocationLegality,
-    policy: crate::FixedViewCopyPolicy,
-    decline: crate::FixedPrecoloredSegmentHomeDecline,
+    policy: FixedViewCopyPolicy,
+    decline: FixedPrecoloredSegmentHomeDecline,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
     recover_over(RuntimeSpillSource::DeclinedFixedView {
         legality,
@@ -371,7 +381,7 @@ fn recover_over(
         // per use is strictly cheaper than private storage plus reload pairs,
         // so rematerialization is attempted first. Its admission failure does
         // not commit the step; spilling the same victim remains the fallback.
-        let rewrite = match crate::rematerialize_selected_runtime_value(
+        let rewrite = match rematerialize_selected_runtime_value(
             &selected,
             function,
             register,
@@ -391,13 +401,13 @@ fn recover_over(
                 // shape, so a committed step never strands an unhomeable
                 // interval. Replay independently re-derives this exact
                 // decision.
-                if let Ok(crossing) = crate::spill_selected_runtime_value_with_span_policy(
+                if let Ok(crossing) = spill_selected_runtime_value_with_span_policy(
                     &selected,
                     function,
                     register,
                     environment,
                     budget,
-                    crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                    RuntimeSpillSpanPolicy::UnitWriteCrossing,
                 ) {
                     let probe = analyze(
                         environment,
@@ -405,7 +415,7 @@ fn recover_over(
                         &selected,
                         &current_liveness,
                         &current_ranges,
-                        &crate::SelectedProgramRef::new(&crossing),
+                        &SelectedProgramRef::new(&crossing),
                     )?;
                     match assign(environment, &probe.ranges, &probe.legality) {
                         Ok(homes) => {
@@ -438,7 +448,7 @@ fn recover_over(
                         }
                     }
                 }
-                match crate::spill_selected_runtime_value(
+                match spill_selected_runtime_value(
                     &selected,
                     function,
                     register,

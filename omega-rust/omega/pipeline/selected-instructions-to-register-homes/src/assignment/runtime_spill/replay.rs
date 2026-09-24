@@ -1,13 +1,19 @@
-use super::RuntimeSpillStepRewrite;
 use super::recovery::{analyze, assign, candidates, overlaps_pressure, transformations};
-use super::{RuntimeSpillAllocation, RuntimeSpillAllocationError};
+use super::{RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillStepRewrite};
+use selected_instructions_to_selected_instructions::{
+    RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef,
+    rematerialize_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
+    validate_allocation_legality, validate_live_ranges, validate_liveness,
+    validate_runtime_rematerialization, validate_runtime_spill,
+    validate_runtime_spill_with_span_policy,
+};
 
-pub(super) fn inadmissible(error: &crate::RuntimeSpillError) -> bool {
+pub(super) fn inadmissible(error: &RuntimeSpillError) -> bool {
     matches!(
         error,
-        crate::RuntimeSpillError::UnsupportedValue
-            | crate::RuntimeSpillError::UnsupportedUse
-            | crate::RuntimeSpillError::UnsupportedControlFlow
+        RuntimeSpillError::UnsupportedValue
+            | RuntimeSpillError::UnsupportedUse
+            | RuntimeSpillError::UnsupportedControlFlow
     )
 }
 
@@ -60,7 +66,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                 // The producer's decision is replayed, not trusted: private
                 // storage may stand only while rematerialization remains
                 // inadmissible for the same pressured value.
-                if crate::rematerialize_selected_runtime_value(
+                if rematerialize_selected_runtime_value(
                     &selected,
                     step.function,
                     step.register,
@@ -77,13 +83,13 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                 // inputs: a crossing step must be the last one and validate
                 // under the crossing policy, while every other spill is the
                 // bounded fallback.
-                let expects_crossing = match crate::spill_selected_runtime_value_with_span_policy(
+                let expects_crossing = match spill_selected_runtime_value_with_span_policy(
                     &selected,
                     step.function,
                     step.register,
                     environment,
                     budget,
-                    crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                    RuntimeSpillSpanPolicy::UnitWriteCrossing,
                 ) {
                     Ok(crossing) => {
                         let probe = analyze(
@@ -92,7 +98,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                             &selected,
                             &current_liveness,
                             &current_ranges,
-                            &crate::SelectedProgramRef::new(&crossing),
+                            &SelectedProgramRef::new(&crossing),
                         )?;
                         match assign(environment, &probe.ranges, &probe.legality) {
                             Ok(_) => true,
@@ -108,14 +114,14 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                     if step_index + 1 != staged.steps.len() {
                         return Err(RuntimeSpillAllocationError::CandidateMismatch);
                     }
-                    let replayed = crate::validate_runtime_spill_with_span_policy(
+                    let replayed = validate_runtime_spill_with_span_policy(
                         &selected,
                         step.function,
                         step.register,
                         environment,
                         budget,
                         rewrite.transformed().clone(),
-                        crate::RuntimeSpillSpanPolicy::UnitWriteCrossing,
+                        RuntimeSpillSpanPolicy::UnitWriteCrossing,
                     )
                     .map_err(RuntimeSpillAllocationError::Rewrite)?;
                     if replayed.receipt() != rewrite.receipt() {
@@ -123,7 +129,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                     }
                     RuntimeSpillStepRewrite::Spill(replayed)
                 } else {
-                    let replayed = crate::validate_runtime_spill(
+                    let replayed = validate_runtime_spill(
                         &selected,
                         step.function,
                         step.register,
@@ -139,7 +145,7 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
                 }
             }
             RuntimeSpillStepRewrite::Rematerialization(rewrite) => {
-                let replayed = crate::validate_runtime_rematerialization(
+                let replayed = validate_runtime_rematerialization(
                     &selected,
                     step.function,
                     step.register,
@@ -159,12 +165,11 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
     }
     let final_rewrite = prior.ok_or(RuntimeSpillAllocationError::CandidateMismatch)?;
     let selected = final_rewrite.selected();
-    let liveness = crate::validate_liveness(&selected, staged.facts.liveness.plan().clone())
+    let liveness = validate_liveness(&selected, staged.facts.liveness.plan().clone())
         .map_err(RuntimeSpillAllocationError::Liveness)?;
-    let ranges =
-        crate::validate_live_ranges(&selected, &liveness, staged.facts.ranges.plan().clone())
-            .map_err(RuntimeSpillAllocationError::Ranges)?;
-    let legality = crate::validate_allocation_legality(
+    let ranges = validate_live_ranges(&selected, &liveness, staged.facts.ranges.plan().clone())
+        .map_err(RuntimeSpillAllocationError::Ranges)?;
+    let legality = validate_allocation_legality(
         &ranges,
         source.allocator_availability(),
         environment.identity(),

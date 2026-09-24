@@ -6,11 +6,13 @@ use register_model::RegisterViewId;
 use selected_instructions::VirtualRegisterId;
 
 use super::conflicts::registers_interfere;
-use crate::{LiveRangePoint, RegisterHomeError};
+use crate::RegisterHomeError;
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::{FunctionLiveRanges, LiveRangePoint};
 
 #[derive(Debug)]
 pub(super) struct AllocationDomain<'a> {
-    pub(super) members: Vec<&'a crate::VirtualRegisterAllocationLegality>,
+    pub(super) members: Vec<&'a VirtualRegisterAllocationLegality>,
     pub(super) first_point: LiveRangePoint,
     pub(super) candidates: BTreeSet<RegisterViewId>,
 }
@@ -29,8 +31,8 @@ impl AllocationDomain<'_> {
 
 pub(super) fn build_domains<'a>(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &'a FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
 ) -> Result<Vec<AllocationDomain<'a>>, RegisterHomeError> {
     for (register, range) in legality
         .virtual_registers
@@ -66,9 +68,9 @@ pub(super) fn build_domains<'a>(
 
 fn tied_components<'a>(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
-) -> Result<Vec<Vec<&'a crate::VirtualRegisterAllocationLegality>>, RegisterHomeError> {
+    legality: &'a FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
+) -> Result<Vec<Vec<&'a VirtualRegisterAllocationLegality>>, RegisterHomeError> {
     let positions = legality
         .virtual_registers
         .iter()
@@ -177,7 +179,7 @@ fn tied_components<'a>(
 
 fn build_domain<'a>(
     function: usize,
-    mut members: Vec<&'a crate::VirtualRegisterAllocationLegality>,
+    mut members: Vec<&'a VirtualRegisterAllocationLegality>,
 ) -> Result<AllocationDomain<'a>, RegisterHomeError> {
     members.sort_by_key(|member| member.virtual_register);
     let mut first_point = None;
@@ -222,7 +224,7 @@ fn build_domain<'a>(
 
 fn interval_bounds(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), RegisterHomeError> {
     let first = register
         .points
@@ -243,7 +245,7 @@ fn interval_bounds(
 
 fn common_candidates(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<BTreeSet<RegisterViewId>, RegisterHomeError> {
     let first = register
         .points

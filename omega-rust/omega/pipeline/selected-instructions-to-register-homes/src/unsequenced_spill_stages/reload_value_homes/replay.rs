@@ -12,20 +12,24 @@ use register_model::{
 };
 use selected_instructions::{SelectedBlockId, VirtualRegisterId};
 
+use crate::ValidatedLogicalSpillOperations;
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionAction, FunctionReloadValueHomes, ReloadCoexistingHome,
     ReloadValueHomeAssignment, ReloadValueHomeError, ReloadValueHomePlan, ReloadValueHomePolicy,
     ValidatedAbstractSpillInsertion,
 };
-use crate::{
-    LiveRangePoint, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedLogicalSpillOperations, VirtualInterference,
-};
 use mechanics::{contains_interference, reconstruct_usage, views_overlap};
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
+use selected_instructions::{
+    FunctionLiveRanges, LiveRangeFragment, LiveRangePoint, VirtualInterference,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 
 #[derive(Clone, Copy)]
 struct OriginalEvent<'a> {
-    legality: &'a crate::VirtualRegisterAllocationLegality,
+    legality: &'a VirtualRegisterAllocationLegality,
     exclusive_end: LiveRangePoint,
 }
 
@@ -170,8 +174,8 @@ fn validate_source_chain(
 fn reconstruct_function(
     function: usize,
     insertion: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionReloadValueHomes, ReloadValueHomeError> {
     if [legality.machine, ranges.machine]
@@ -197,8 +201,8 @@ fn reconstruct_function(
 fn reconstruct_assignment(
     function: usize,
     action: &AbstractSpillInsertionAction,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<ReloadValueHomeAssignment, ReloadValueHomeError> {
     let spec = reconstruct_reload_spec(function, action, legality)?;
@@ -268,7 +272,7 @@ fn reconstruct_assignment(
 fn reconstruct_reload_spec(
     function: usize,
     action: &AbstractSpillInsertionAction,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
 ) -> Result<ReloadSpec, ReloadValueHomeError> {
     let first = action
         .rewrites
@@ -326,7 +330,7 @@ fn reconstruct_reload_spec(
 
 fn original_events<'a>(
     function: usize,
-    legality: &'a crate::FunctionAllocationLegality,
+    legality: &'a FunctionAllocationLegality,
 ) -> Result<BTreeMap<LiveRangePoint, Vec<OriginalEvent<'a>>>, ReloadValueHomeError> {
     let mut events = BTreeMap::<LiveRangePoint, Vec<OriginalEvent<'a>>>::new();
     for register in &legality.virtual_registers {
@@ -360,7 +364,7 @@ fn validate_overlapping_shapes(
     action: &AbstractSpillInsertionAction,
     spec: &ReloadSpec,
     events: &BTreeMap<LiveRangePoint, Vec<OriginalEvent<'_>>>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
 ) -> Result<(), ReloadValueHomeError> {
     for (start, starting) in events {
         for event in starting {
@@ -376,7 +380,7 @@ fn validate_overlapping_shapes(
                     register: event.legality.virtual_register.0,
                 })?;
             let local = range.fragments.as_slice()
-                == [crate::LiveRangeFragment {
+                == [LiveRangeFragment {
                     block: spec.block,
                     start: *start,
                     end: event.exclusive_end,
@@ -395,7 +399,7 @@ fn place_original(
     point: LiveRangePoint,
     event: OriginalEvent<'_>,
     action: &AbstractSpillInsertionAction,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     occupants: &mut Vec<Occupant>,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<RegisterViewId, ReloadValueHomeError> {
@@ -516,9 +520,9 @@ fn place_reload(
 
 fn find_legality(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&crate::VirtualRegisterAllocationLegality, ReloadValueHomeError> {
+) -> Result<&VirtualRegisterAllocationLegality, ReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()
@@ -531,7 +535,7 @@ fn find_legality(
 
 fn intersect_original_domain(
     function: usize,
-    register: &crate::VirtualRegisterAllocationLegality,
+    register: &VirtualRegisterAllocationLegality,
 ) -> Result<Vec<RegisterViewId>, ReloadValueHomeError> {
     let mut rows = register.points.iter();
     let first = rows.next().ok_or(ReloadValueHomeError::NoLivePoints {

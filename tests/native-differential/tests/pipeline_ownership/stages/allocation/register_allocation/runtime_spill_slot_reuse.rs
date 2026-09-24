@@ -15,7 +15,8 @@ use crate::tests::{
     stage_shared_entry_fixed_view_register_allocation, staged_shared_spill_slot_legality,
 };
 use selected_instructions::LocalStorageSlotId;
-use selected_instructions_to_register_homes::{AllocationSource, ValidatedSelectedAnalysis};
+use selected_instructions_to_register_homes::AllocationSource;
+use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
 
 fn runtime_spill_steps(
     retained: &selected_instructions_to_register_homes::RetainedAllocation,

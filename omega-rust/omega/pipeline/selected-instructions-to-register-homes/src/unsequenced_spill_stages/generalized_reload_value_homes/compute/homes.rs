@@ -11,9 +11,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingHome, GeneralizedReloadCoexistingValue,
     GeneralizedReloadValueHomeError, GeneralizedSpillActionId,
 };
-use crate::{LiveRangePoint, VirtualInterference};
+use selected_instructions::{LiveRangePoint, VirtualInterference};
 
 use super::{ActiveHome, ReloadSpec};
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
 
 pub(super) fn evict(
     function: usize,
@@ -63,9 +64,9 @@ pub(super) fn record_coexistence(
 
 pub(super) fn legality_row(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&crate::VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
+) -> Result<&VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()
@@ -78,7 +79,7 @@ pub(super) fn legality_row(
 
 pub(super) fn interval(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), GeneralizedReloadValueHomeError> {
     let first = row
         .points
@@ -101,7 +102,7 @@ pub(super) fn interval(
 
 pub(super) fn original_candidates(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
 ) -> Result<Vec<RegisterViewId>, GeneralizedReloadValueHomeError> {
     let mut points = row.points.iter();
     let first = points
@@ -125,7 +126,7 @@ pub(super) fn original_candidates(
 
 pub(super) fn reload_candidates(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
     block: selected_instructions::SelectedBlockId,
     start: LiveRangePoint,
     exclusive_end: LiveRangePoint,

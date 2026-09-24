@@ -1,14 +1,15 @@
-use crate::{
-    PostAllocationSelectedTransformation, PressureRematerializationPolicy,
-    RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedAllocationLegality,
-    ValidatedLiveRanges, ValidatedLiveness, ValidatedPressureRematerialization,
-    ValidatedRecoveryClassifications, ValidatedSpillChoices, validate_allocation_legality,
-    validate_live_ranges, validate_liveness, validate_post_allocation_optimization_manifest,
-    validate_pressure_rematerialization, validate_recovery_classifications,
-    validate_register_homes, validate_spill_choices,
+use crate::{validate_post_allocation_optimization_manifest, validate_register_homes};
+use register_homes::{
+    PostAllocationSelectedTransformation, RecoveryClassificationPolicy, SpillChoicePolicy,
+};
+use selected_instructions_to_selected_instructions::{
+    PressureRematerializationPolicy, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedLiveness, ValidatedPressureRematerialization, ValidatedRecoveryClassifications,
+    ValidatedSpillChoices, validate_allocation_legality, validate_live_ranges, validate_liveness,
+    validate_pressure_rematerialization, validate_recovery_classifications, validate_spill_choices,
 };
 
-use crate::{
+use selected_instructions_to_selected_instructions::{
     StagedOptimizedAllocationLegality, StagedOptimizedAllocationLegalityCustodyReceipt,
     validate_optimized_allocation_legality_custody,
 };

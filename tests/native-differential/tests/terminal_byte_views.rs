@@ -202,11 +202,12 @@ fn select_byte_view(
         )
         .expect("byte observation selects native instructions");
     let liveness =
-        selected_instructions_to_register_homes::stage_optimized_liveness(selected).unwrap();
+        selected_instructions_to_selected_instructions::stage_optimized_liveness(selected).unwrap();
     let ranges =
-        selected_instructions_to_register_homes::stage_optimized_live_ranges(liveness).unwrap();
+        selected_instructions_to_selected_instructions::stage_optimized_live_ranges(liveness)
+            .unwrap();
     let legality =
-        selected_instructions_to_register_homes::stage_optimized_allocation_legality(ranges)
+        selected_instructions_to_selected_instructions::stage_optimized_allocation_legality(ranges)
             .unwrap();
     let homes =
         selected_instructions_to_register_homes::stage_optimized_register_homes(legality).unwrap();

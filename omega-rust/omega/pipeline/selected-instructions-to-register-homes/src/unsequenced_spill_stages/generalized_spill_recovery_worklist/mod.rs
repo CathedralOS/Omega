@@ -15,13 +15,13 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeIdentity, GeneralizedSpillActionId, GeneralizedSpillActionSource,
     GeneralizedSpillInsertionIdentity, SpillRecoveryActionIdentity,
 };
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-};
 pub use identity::generalized_spill_recovery_worklist_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_generalized_spill_recovery_worklist;
 

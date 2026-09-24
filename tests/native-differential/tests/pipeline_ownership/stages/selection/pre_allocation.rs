@@ -15,7 +15,7 @@ use crate::tests::{
     staged_u64_equal_conditional_with_selections, validate_pre_allocation_optimization_custody,
 };
 use optimization_core::OptimizationWorkBudget;
-use selected_instructions_to_register_homes::{
+use selected_instructions_to_selected_instructions::{
     SelectedInstructionOptimizationError, SelectedInstructionOptimizationEvidence,
     ValidatedSelectedAnalysis,
 };

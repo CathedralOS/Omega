@@ -1,4 +1,5 @@
 use super::{StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies};
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 
 optimization_core::custody_field_inventory! {
     /// One substitutable field of [`StagedOptimizedRegisterHomeCustodyReceipt`](super::StagedOptimizedRegisterHomeCustodyReceipt). The custody matrix
@@ -86,7 +87,7 @@ impl StagedOptimizedRegisterHomes {
             }
             OptimizedRegisterHomeCustodyFieldForTest::AllocatorAvailability => {
                 self.custody.allocator_availability =
-                    crate::AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
+                    AllocatorAvailabilityIdentity::from_bytes([0xb0; 32]);
             }
             OptimizedRegisterHomeCustodyFieldForTest::Selected => {
                 self.custody.selected =
@@ -101,7 +102,7 @@ impl StagedOptimizedRegisterHomes {
                     selected_instructions::LiveRangeIdentity::from_bytes([0xab; 32]);
             }
             OptimizedRegisterHomeCustodyFieldForTest::Legality => {
-                self.custody.legality = crate::AllocationLegalityIdentity::from_bytes([0xb1; 32]);
+                self.custody.legality = AllocationLegalityIdentity::from_bytes([0xb1; 32]);
             }
             OptimizedRegisterHomeCustodyFieldForTest::Homes => {
                 self.custody.homes = crate::RegisterHomeIdentity::from_bytes([0xb2; 32]);

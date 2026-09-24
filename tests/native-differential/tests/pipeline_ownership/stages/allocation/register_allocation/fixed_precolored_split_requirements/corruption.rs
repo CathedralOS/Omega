@@ -12,7 +12,7 @@ fn independent_replay_rejects_segment_and_opening_corruption() {
         .clear();
     assert_eq!(
         validate(&fixture, domain),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
     );
 
     let mut opening = canonical.plan().clone();
@@ -24,7 +24,7 @@ fn independent_replay_rejects_segment_and_opening_corruption() {
         };
     assert_eq!(
         validate(&fixture, opening),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
     );
 }
 
@@ -78,7 +78,7 @@ fn independent_replay_rejects_every_output_layer() {
     for corruption in corruptions {
         assert_eq!(
             validate(&fixture, corruption),
-            Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+            Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
         );
     }
 }
@@ -103,7 +103,7 @@ fn independent_replay_rejects_a_reparented_chain_opening() {
         register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector };
     assert_eq!(
         validate(&fixture, plan),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
     );
 
     // A cycle lie: the middle fragment's opening claims its connector comes
@@ -120,7 +120,7 @@ fn independent_replay_rejects_a_reparented_chain_opening() {
         register_homes::FixedPrecoloredSourceSegmentOpening::IncomingSourceEdgeV1 { connector };
     assert_eq!(
         validate(&fixture, plan),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
     );
 }
 
@@ -145,7 +145,7 @@ fn independent_replay_rejects_a_fabricated_component_connector() {
         };
     assert_eq!(
         validate(&fixture, plan),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::NonCanonicalFunctions)
     );
 }
 
@@ -158,20 +158,20 @@ fn root_and_usage_substitution_fail_closed() {
     root.fixed_intervals = register_homes::FixedPrecoloredIntervalPlanIdentity::from_bytes([9; 32]);
     assert_eq!(
         validate(&fixture, root),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::RootMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::RootMismatch)
     );
 
     let mut target = canonical.plan().clone();
     target.target = NativeTarget::linux_arm64();
     assert_eq!(
         validate(&fixture, target),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::RootMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::RootMismatch)
     );
 
     let mut usage = canonical.plan().clone();
     usage.usage.commits += 1;
     assert_eq!(
         validate(&fixture, usage),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSplitRequirementError::UsageMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSplitRequirementError::UsageMismatch)
     );
 }

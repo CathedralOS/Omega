@@ -11,14 +11,13 @@ mod identity;
 mod replay;
 mod validation;
 
-pub use error::*;
+pub use error::AllocatedCalleeSavedRequirementError;
 pub use identity::allocated_callee_saved_requirement_identity;
 pub use validation::validate_allocated_callee_saved_requirements;
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::AllocationSource;
-use crate::RegisterHomeIdentity;
+use crate::{AllocationSource, RegisterHomeIdentity};
 use optimization_core::{OptimizationWorkUsage, PostAllocationOptimizationManifestIdentity};
 pub use register_homes::{
     AllocatedCalleeSavedRequirementIdentity, AllocatedCalleeSavedRequirementPlan,
@@ -26,8 +25,10 @@ pub use register_homes::{
     CalleeSavedModificationWitness, FunctionAllocatedCalleeSavedRequirements,
     encode_callee_saved_modification_witness_identity,
 };
-use register_model::FrameAbiPreservationConvention;
-use register_model::{PhysicalRegisterModelIdentity, TargetRegisterEnvironmentIdentity};
+use register_model::{
+    FrameAbiPreservationConvention, PhysicalRegisterModelIdentity,
+    TargetRegisterEnvironmentIdentity,
+};
 use selected_instructions::SelectedInstructionPlanIdentity;
 use target::NativeTarget;
 

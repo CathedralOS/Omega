@@ -7,7 +7,7 @@ use register_homes::{
     FixedPrecoloredIntervalPlanIdentity, FixedPrecoloredSegmentHomePlanIdentity,
     FixedPrecoloredSplitRequirementPlanIdentity,
 };
-use selected_instructions_to_register_homes::FixedViewCopySourceEvidence;
+use selected_instructions_to_selected_instructions::FixedViewCopySourceEvidence;
 
 use super::fixture::{run, targets};
 
@@ -17,8 +17,11 @@ fn generous_budget() -> OptimizationWorkBudget {
 
 fn replay(
     staged: &StagedOptimizedFixedViewCopies,
-    plan: selected_instructions_to_register_homes::FixedViewCopyPlan,
-) -> Result<selected_instructions_to_register_homes::ValidatedFixedViewCopies, FixedViewCopyError> {
+    plan: selected_instructions_to_selected_instructions::FixedViewCopyPlan,
+) -> Result<
+    selected_instructions_to_selected_instructions::ValidatedFixedViewCopies,
+    FixedViewCopyError,
+> {
     let source = staged.source_segment_home_stage();
     let legality = source.source_legality_stage();
     let selected = legality
@@ -79,7 +82,7 @@ fn shared_entry_copy_consumes_every_authenticated_boundary_and_binds_all_three_r
             staged.custody().transformed_selected()
         );
         assert_eq!(
-            selected_instructions_to_register_homes::FixedViewCopyPlan::decode(
+            selected_instructions_to_selected_instructions::FixedViewCopyPlan::decode(
                 &staged.copies().plan().encode()
             )
             .unwrap(),

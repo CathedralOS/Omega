@@ -6,16 +6,16 @@ use std::collections::BTreeMap;
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
-use super::{
-    conflicts::{candidate_conflicts, domains_constrained},
-    domain::{AllocationDomain, build_domains},
-};
-use crate::{CopyAffinity, FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use super::conflicts::{candidate_conflicts, domains_constrained};
+use super::domain::{AllocationDomain, build_domains};
+use crate::{FunctionRegisterHomes, RegisterHomeError, VirtualRegisterHome};
+use register_homes::FunctionAllocationLegality;
+use selected_instructions::{CopyAffinity, FunctionLiveRanges};
 
 pub(in crate::assignment::home_assignment) fn compute_function(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
-    ranges: &crate::FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<FunctionRegisterHomes, RegisterHomeError> {
     if legality.virtual_registers.len() != ranges.virtual_registers.len() {
@@ -81,7 +81,7 @@ fn preferred_view(
     unassigned: &[usize],
     assigned: &[(usize, RegisterViewId)],
     domains: &[AllocationDomain<'_>],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Option<RegisterViewId>, RegisterHomeError> {
     let domain = &domains[domain_index];
@@ -238,7 +238,7 @@ fn stolen_coalesces(
     homes: &BTreeMap<VirtualRegisterId, RegisterViewId>,
     domains: &[AllocationDomain<'_>],
     affinities: &[CopyAffinity],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<usize, RegisterHomeError> {
     let domain = &domains[domain_index];
@@ -301,7 +301,7 @@ fn select_domain(
     unassigned: &[usize],
     assigned: &[(usize, RegisterViewId)],
     domains: &[AllocationDomain<'_>],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Selection, RegisterHomeError> {
     let mut selected = None::<(usize, Vec<RegisterViewId>, usize)>;
@@ -345,7 +345,7 @@ fn rescan_viable(
     domain: &AllocationDomain<'_>,
     assigned: &[(usize, RegisterViewId)],
     domains: &[AllocationDomain<'_>],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<RegisterViewId>, RegisterHomeError> {
     domain

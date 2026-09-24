@@ -11,9 +11,10 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingHome, GeneralizedReloadCoexistingValue,
     GeneralizedReloadValueHomeError, GeneralizedSpillActionId,
 };
-use crate::{LiveRangePoint, VirtualInterference};
+use selected_instructions::{LiveRangePoint, VirtualInterference};
 
 use super::{Occupant, ReplaySpec};
+use register_homes::{FunctionAllocationLegality, VirtualRegisterAllocationLegality};
 
 pub(super) fn remove_spilled(
     function: usize,
@@ -69,9 +70,9 @@ pub(super) fn retain_pair(
 
 pub(super) fn find_legality(
     function: usize,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
     register: VirtualRegisterId,
-) -> Result<&crate::VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
+) -> Result<&VirtualRegisterAllocationLegality, GeneralizedReloadValueHomeError> {
     legality
         .virtual_registers
         .iter()
@@ -84,7 +85,7 @@ pub(super) fn find_legality(
 
 pub(super) fn original_interval(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
 ) -> Result<(LiveRangePoint, LiveRangePoint), GeneralizedReloadValueHomeError> {
     let Some(first) = row.points.first() else {
         return Err(GeneralizedReloadValueHomeError::NoLivePoints {
@@ -106,7 +107,7 @@ pub(super) fn original_interval(
 
 pub(super) fn original_domain(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
 ) -> Result<Vec<RegisterViewId>, GeneralizedReloadValueHomeError> {
     let Some(first) = row.points.first() else {
         return Err(GeneralizedReloadValueHomeError::NoLivePoints {
@@ -124,7 +125,7 @@ pub(super) fn original_domain(
 
 pub(super) fn reload_domain(
     function: usize,
-    row: &crate::VirtualRegisterAllocationLegality,
+    row: &VirtualRegisterAllocationLegality,
     block: selected_instructions::SelectedBlockId,
     start: LiveRangePoint,
     exclusive_end: LiveRangePoint,

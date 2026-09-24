@@ -13,23 +13,26 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadCoexistingValue, GeneralizedReloadValueHomeIdentity, GeneralizedSpillActionId,
     GeneralizedSpillRecoveryWorkItemId, GeneralizedSpillRecoveryWorklistIdentity,
 };
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-};
 pub use identity::generalized_spill_recovery_choice_identity;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, SelectedInstructionPlanIdentity};
+use selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionPlanIdentity,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
+};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub use validate::validate_generalized_spill_recovery_choices;
 
 #[allow(clippy::too_many_arguments)]
-pub fn choose_generalized_spill_recovery_victims<S: crate::ValidatedSelectedAnalysis>(
+pub fn choose_generalized_spill_recovery_victims<S: ValidatedSelectedAnalysis>(
     worklist: &crate::unsequenced_spill_stages::ValidatedGeneralizedSpillRecoveryWorklist,
     homes: &crate::unsequenced_spill_stages::ValidatedGeneralizedReloadValueHomes,
     selected: &S,
-    ranges: &crate::ValidatedLiveRanges,
-    legality: &crate::ValidatedAllocationLegality,
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
     physical: &register_model::ValidatedPhysicalRegisterModel,
     constraints: &register_model::ValidatedRegisterConstraintCatalog,
     reservations: &register_model::ValidatedRegisterReservationProfile,

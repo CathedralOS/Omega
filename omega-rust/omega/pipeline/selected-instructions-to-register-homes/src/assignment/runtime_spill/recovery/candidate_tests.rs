@@ -5,8 +5,9 @@ use optimization_unit::ValueDefinitionSite;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterClassId;
 use selected_instructions::{
+    DistinctUseDefTie, EdgeRegisterTransfer, FunctionLiveRanges, LiveRangePoint, LivenessPosition,
     SelectedBlockId, SelectedFunction, SelectedInstructionId, SelectedInstructionPlan,
-    VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+    VirtualInterference, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType, ValueId,
@@ -356,23 +357,23 @@ fn nonpressure_failures_do_not_choose_a_runtime_spill() {
     );
 }
 
-fn tie(use_register: u32, def_register: u32) -> crate::DistinctUseDefTie {
-    crate::DistinctUseDefTie {
+fn tie(use_register: u32, def_register: u32) -> DistinctUseDefTie {
+    DistinctUseDefTie {
         block: SelectedBlockId(0),
-        position: crate::LivenessPosition(use_register),
+        position: LivenessPosition(use_register),
         instruction: SelectedInstructionId(use_register),
         use_operand: 0,
         use_virtual_register: VirtualRegisterId(use_register),
-        use_point: crate::LiveRangePoint(use_register),
+        use_point: LiveRangePoint(use_register),
         def_operand: 1,
         def_virtual_register: VirtualRegisterId(def_register),
-        def_point: crate::LiveRangePoint(def_register),
+        def_point: LiveRangePoint(def_register),
         class: RegisterClassId(0),
     }
 }
 
-fn transfer(argument: u32, parameter: u32) -> crate::EdgeRegisterTransfer {
-    crate::EdgeRegisterTransfer {
+fn transfer(argument: u32, parameter: u32) -> EdgeRegisterTransfer {
+    EdgeRegisterTransfer {
         source: SelectedBlockId(0),
         target: SelectedBlockId(1),
         psi_edge: EdgeId::new(u64::from(argument) + 1).unwrap(),
@@ -386,8 +387,8 @@ fn split_ranges(
     ties: &[(u32, u32)],
     transfers: &[(u32, u32)],
     interference: &[(u32, u32)],
-) -> crate::FunctionLiveRanges {
-    crate::FunctionLiveRanges {
+) -> FunctionLiveRanges {
+    FunctionLiveRanges {
         machine: MachineId::new(1).unwrap(),
         block_domains: Vec::new(),
         virtual_registers: Vec::new(),
@@ -404,7 +405,7 @@ fn split_ranges(
         architectural_units: Vec::new(),
         interference: interference
             .iter()
-            .map(|(lower, higher)| crate::VirtualInterference {
+            .map(|(lower, higher)| VirtualInterference {
                 lower: VirtualRegisterId(*lower),
                 higher: VirtualRegisterId(*higher),
             })

@@ -4,8 +4,8 @@ use optimization_core::OptimizationWorkUsage;
 use register_model::{RegisterView, RegisterViewId, ValidatedPhysicalRegisterModel};
 use selected_instructions::VirtualRegisterId;
 
-use crate::VirtualInterference;
 use crate::unsequenced_spill_stages::{FunctionReloadValueHomes, ReloadValueHomeError};
+use selected_instructions::VirtualInterference;
 
 pub(super) fn contains_interference(
     left: VirtualRegisterId,

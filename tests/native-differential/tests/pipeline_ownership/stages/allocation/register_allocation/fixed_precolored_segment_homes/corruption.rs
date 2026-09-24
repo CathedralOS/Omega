@@ -11,7 +11,7 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
         register_homes::FixedPrecoloredSplitRequirementPlanIdentity::from_bytes([9; 32]);
     assert_eq!(
         validate(&fixture, root),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::RootMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSegmentHomeError::RootMismatch)
     );
 
     let mut corruptions = Vec::new();
@@ -38,7 +38,7 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
     for corruption in corruptions {
         assert_eq!(
             validate(&fixture, corruption),
-            Err(selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::NonCanonicalFunctions)
+            Err(selected_instructions_to_selected_instructions::FixedPrecoloredSegmentHomeError::NonCanonicalFunctions)
         );
     }
 
@@ -47,13 +47,13 @@ fn independent_replay_rejects_assignment_and_root_corruption() {
     assert_eq!(
         validate(&fixture, usage),
         Err(
-            selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::UsageMismatch
+            selected_instructions_to_selected_instructions::FixedPrecoloredSegmentHomeError::UsageMismatch
         )
     );
 
     let other = source(NativeTarget::linux_arm64());
     assert_eq!(
         validate(&other, canonical.plan().clone()),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredSegmentHomeError::RootMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredSegmentHomeError::RootMismatch)
     );
 }

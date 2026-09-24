@@ -16,9 +16,10 @@ use crate::unsequenced_spill_stages::{
     SpillRecoveryLogicalUseRewrite, SpillRecoveryVictimChoice, SpillRecoveryWorkItem,
     ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryChoices, ValidatedSpillRecoveryWorklist,
 };
-use crate::{
-    LogicalSpillStorageClass, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedSelectedAnalysis, VirtualFixedConstraintSite,
+use register_homes::{FunctionAllocationLegality, LogicalSpillStorageClass};
+use selected_instructions::{FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -151,8 +152,8 @@ fn build_action(
     choice: &SpillRecoveryVictimChoice,
     item: &SpillRecoveryWorkItem,
     selected: &SelectedFunction,
-    ranges: &crate::FunctionLiveRanges,
-    legality: &crate::FunctionAllocationLegality,
+    ranges: &FunctionLiveRanges,
+    legality: &FunctionAllocationLegality,
     inserted: &crate::unsequenced_spill_stages::FunctionAbstractSpillInsertion,
 ) -> Result<SpillRecoveryLogicalAction, SpillRecoveryActionError> {
     let function = choice.function;
@@ -243,7 +244,7 @@ fn build_action(
         || victim.class != range.class
         || victim.class != legal.class
         || range.fragments.as_slice()
-            != [crate::LiveRangeFragment {
+            != [LiveRangeFragment {
                 block: choice.block,
                 start: resident.start,
                 end: resident.exclusive_end,

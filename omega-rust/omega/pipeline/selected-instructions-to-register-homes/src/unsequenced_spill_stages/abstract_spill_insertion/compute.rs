@@ -7,9 +7,10 @@ use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionAction, AbstractSpillInsertionError, AbstractSpillInsertionPlan,
     AbstractSpillInsertionPolicy, FunctionAbstractSpillInsertion,
 };
-use crate::{
-    LogicalSpillAction, StackSlotAssignment, ValidatedLogicalSpillOperations,
-    ValidatedStackSlotColoring,
+use crate::{ValidatedLogicalSpillOperations, ValidatedStackSlotColoring};
+use register_homes::{
+    FunctionLogicalSpillOperations, FunctionStackSlotColoring, LogicalSpillAction,
+    StackSlotAssignment,
 };
 
 pub(super) fn compute(
@@ -72,8 +73,8 @@ fn admit_roots(
 
 fn build_function(
     function: usize,
-    logical: &crate::FunctionLogicalSpillOperations,
-    slots: &crate::FunctionStackSlotColoring,
+    logical: &FunctionLogicalSpillOperations,
+    slots: &FunctionStackSlotColoring,
 ) -> Result<FunctionAbstractSpillInsertion, AbstractSpillInsertionError> {
     if logical.machine != slots.machine {
         return Err(AbstractSpillInsertionError::FunctionMismatch { function });

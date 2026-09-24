@@ -1,6 +1,7 @@
 use optimization_core::OptimizationWorkUsage;
 
-use crate::{FunctionLogicalSpillOperations, LogicalSpillOperationError};
+use crate::LogicalSpillOperationError;
+use register_homes::FunctionLogicalSpillOperations;
 
 pub(super) fn usage(
     functions: &[FunctionLogicalSpillOperations],

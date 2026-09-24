@@ -50,7 +50,7 @@ pub(super) fn analyze_and_allocate_structural_call(
     )
     .unwrap();
     assert!(
-        selected_instructions_to_register_homes::validate_pre_allocation_machine_effects(
+        selected_instructions_to_selected_instructions::validate_pre_allocation_machine_effects(
             selected.selected(),
             environment.identity(),
             environment.physical(),

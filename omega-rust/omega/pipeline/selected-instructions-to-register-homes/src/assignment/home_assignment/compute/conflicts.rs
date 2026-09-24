@@ -8,13 +8,15 @@ use selected_instructions::VirtualRegisterId;
 use super::domain::AllocationDomain;
 #[cfg(test)]
 use crate::RegisterHomeError;
-use crate::VirtualInterference;
+#[cfg(test)]
+use selected_instructions::FunctionLiveRanges;
+use selected_instructions::VirtualInterference;
 
 #[cfg(test)]
 pub(super) fn domains_constrained(
     left: &AllocationDomain<'_>,
     right: &AllocationDomain<'_>,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
 ) -> bool {
     left.members.iter().any(|left| {
         right.members.iter().any(|right| {
@@ -45,7 +47,7 @@ pub(super) fn candidate_conflicts(
     candidate: RegisterViewId,
     assigned: &[(usize, RegisterViewId)],
     domains: &[AllocationDomain<'_>],
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<bool, RegisterHomeError> {
     let candidate_view = checked_view(function, domain, candidate, physical)?;
@@ -82,7 +84,7 @@ fn interference_conflicts(
     left_view: &RegisterView,
     right: &AllocationDomain<'_>,
     right_view: &RegisterView,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
 ) -> bool {
     left.members.iter().any(|left| {
         right.members.iter().any(|right| {
@@ -101,7 +103,7 @@ fn early_clobber_conflicts(
     left_view: &RegisterView,
     right: &AllocationDomain<'_>,
     right_view: &RegisterView,
-    ranges: &crate::FunctionLiveRanges,
+    ranges: &FunctionLiveRanges,
 ) -> bool {
     ranges.early_clobbers.iter().any(|early| {
         (left.contains(early.def_virtual_register)

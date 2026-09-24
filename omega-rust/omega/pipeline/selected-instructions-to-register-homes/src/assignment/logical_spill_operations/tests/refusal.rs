@@ -1,5 +1,5 @@
 use super::fixtures::fixture;
-use crate::{LogicalSpillOperationDecodeError, LogicalSpillOperationPlan};
+use register_homes::{LogicalSpillOperationDecodeError, LogicalSpillOperationPlan};
 
 #[test]
 fn codec_rejects_envelope_corruption() {

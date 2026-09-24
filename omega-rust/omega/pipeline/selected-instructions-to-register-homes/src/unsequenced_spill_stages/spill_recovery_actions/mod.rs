@@ -15,22 +15,22 @@ pub use validate::validate_spill_recovery_actions;
 
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, SpillRecoveryChoiceIdentity, SpillRecoveryWorklistIdentity,
-    SyntheticReloadValueId,
+    SyntheticReloadValueId, ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryChoices,
+    ValidatedSpillRecoveryWorklist,
 };
-use crate::unsequenced_spill_stages::{
-    ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryChoices, ValidatedSpillRecoveryWorklist,
-};
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-    LogicalReloadValueId, LogicalSpillStorageClass,
-};
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget, OptimizationWorkUsage};
 use optimization_unit::ValueDefinitionSite;
+use register_homes::{
+    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LogicalReloadValueId,
+    LogicalSpillStorageClass,
+};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionPlanIdentity, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlanIdentity, VirtualRegisterId, VirtualRegisterOrigin,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges, ValidatedSelectedAnalysis,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId, ScalarType};
 

@@ -7,6 +7,7 @@ use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeOutcome, GeneralizedReloadValueHomePlan,
     GeneralizedReloadValueHomePolicy, GeneralizedSpillActionSource,
 };
+use selected_instructions::LiveRangePoint;
 
 pub fn generalized_reload_value_home_identity(
     plan: &GeneralizedReloadValueHomePlan,
@@ -75,8 +76,8 @@ fn row(
     result: crate::unsequenced_spill_stages::GeneralizedSpillActionId,
     origin: GeneralizedSpillActionSource,
     block: selected_instructions::SelectedBlockId,
-    start: crate::LiveRangePoint,
-    exclusive_end: crate::LiveRangePoint,
+    start: LiveRangePoint,
+    exclusive_end: LiveRangePoint,
     class: register_model::RegisterClassId,
     candidates: &[register_model::RegisterViewId],
 ) {

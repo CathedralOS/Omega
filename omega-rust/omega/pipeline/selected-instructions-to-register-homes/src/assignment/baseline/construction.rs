@@ -1,8 +1,11 @@
 use crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest;
-use crate::{PostAllocationSelectedTransformation, assign_register_homes, validate_register_homes};
+use crate::{assign_register_homes, validate_register_homes};
+use register_homes::PostAllocationSelectedTransformation;
 
-use crate::{StagedOptimizedAllocationLegality, validate_optimized_allocation_legality_custody};
-use crate::{StagedOptimizedSelectedReanalysis, validate_optimized_selected_reanalysis_custody};
+use selected_instructions_to_selected_instructions::{
+    StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    validate_optimized_allocation_legality_custody, validate_optimized_selected_reanalysis_custody,
+};
 
 use super::custody::{custody_receipt, post_copy_custody_receipt};
 use super::{

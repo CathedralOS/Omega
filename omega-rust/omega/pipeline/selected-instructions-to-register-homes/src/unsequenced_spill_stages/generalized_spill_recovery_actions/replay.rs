@@ -13,7 +13,10 @@ use crate::unsequenced_spill_stages::{
     ValidatedGeneralizedReloadValueHomes, ValidatedGeneralizedSpillInsertion,
     ValidatedGeneralizedSpillRecoveryChoices,
 };
-use crate::{LogicalSpillStorageClass, ValidatedLiveRanges, ValidatedSelectedAnalysis};
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions_to_selected_instructions::{
+    ValidatedLiveRanges, ValidatedSelectedAnalysis,
+};
 
 mod original;
 

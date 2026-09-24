@@ -2,13 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use crate::LiveRangePoint;
 use crate::unsequenced_spill_stages::{
     GeneralizedReloadValueHomeOutcome, GeneralizedSpillActionId, RecursiveReloadValueHomeError,
     RecursiveSpillEvent, RecursiveSpillStoredValue,
 };
+use selected_instructions::LiveRangePoint;
 
 use super::{ReloadSpec, homes};
+use register_homes::FunctionAllocationLegality;
 
 #[derive(Clone, Copy)]
 struct StoreRow {
@@ -20,7 +21,7 @@ pub(super) fn reconstruct(
     function: usize,
     recursive: &crate::unsequenced_spill_stages::FunctionRecursiveSpillInsertion,
     prior: &crate::unsequenced_spill_stages::FunctionGeneralizedReloadValueHomes,
-    legality: &crate::FunctionAllocationLegality,
+    legality: &FunctionAllocationLegality,
 ) -> Result<Vec<ReloadSpec>, RecursiveReloadValueHomeError> {
     let mut stores = BTreeMap::new();
     let mut reloads = BTreeMap::new();

@@ -15,7 +15,7 @@ fn roots_rows_usage_and_cross_target_custody_fail_closed() {
     );
     assert!(matches!(
         validate(&x86, corrupted),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredIntervalError::RootMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredIntervalError::RootMismatch)
     ));
 
     let mut corrupted = valid.plan().clone();
@@ -26,26 +26,26 @@ fn roots_rows_usage_and_cross_target_custody_fail_closed() {
     );
     assert!(matches!(
         validate(&x86, corrupted),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredIntervalError::NonCanonicalFunctions)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredIntervalError::NonCanonicalFunctions)
     ));
 
     let mut corrupted = valid.plan().clone();
     corrupted.functions[0].intervals[0].view.0 += 1;
     assert!(matches!(
         validate(&x86, corrupted),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredIntervalError::NonCanonicalFunctions)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredIntervalError::NonCanonicalFunctions)
     ));
 
     let mut corrupted = valid.plan().clone();
     corrupted.usage.validation_steps += 1;
     assert!(matches!(
         validate(&x86, corrupted),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredIntervalError::UsageMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredIntervalError::UsageMismatch)
     ));
 
     let arm = source(NativeTarget::linux_arm64());
     assert!(matches!(
         validate(&arm, valid.plan().clone()),
-        Err(selected_instructions_to_register_homes::FixedPrecoloredIntervalError::RootMismatch)
+        Err(selected_instructions_to_selected_instructions::FixedPrecoloredIntervalError::RootMismatch)
     ));
 }

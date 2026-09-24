@@ -7,23 +7,20 @@
 //! target into a hidden namespace — a reader following a name from an
 //! entrance into a leaf cannot see where it comes from without opening the
 //! globbed module, which is the navigation failure the source-organization
-//! audits exist to prevent. It records, per crate, how many production source
-//! files still carry a glob import and fails when that number grows.
+//! audits exist to prevent. It recorded, per crate, how many production
+//! source files carried a glob import until every crate reached zero; the
+//! table is now empty, so any production glob import fails.
 //!
-//! An entry records the exact count its crate has right now. Growing past it
-//! fails as a regression; shrinking fails as a stale entry, and the entry is
-//! lowered or deleted. Test trees (`tests/` directories, `tests.rs`,
-//! `*_tests.rs`) are fixtures, not routes, and are not counted.
+//! An entry records an exact count. Growing past it fails as a regression;
+//! shrinking fails as a stale entry. Test trees (`tests/` directories,
+//! `tests.rs`, `*_tests.rs`) are fixtures, not routes, and are not counted.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, production files under its
 /// `src/` tree carrying a glob import).
-const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[(
-    "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
-    11,
-)];
+const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

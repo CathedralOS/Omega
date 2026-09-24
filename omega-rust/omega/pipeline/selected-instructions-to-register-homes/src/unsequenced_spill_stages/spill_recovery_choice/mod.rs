@@ -15,17 +15,17 @@ pub use validate::validate_spill_recovery_choices;
 
 use crate::unsequenced_spill_stages::{
     AbstractSpillInsertionIdentity, SpillRecoveryWorklistIdentity, SyntheticReloadValueId,
-};
-use crate::unsequenced_spill_stages::{
     ValidatedAbstractSpillInsertion, ValidatedSpillRecoveryWorklist,
 };
-use crate::{
-    AllocationLegalityIdentity, AllocatorAvailabilityIdentity, LiveRangeIdentity, LiveRangePoint,
-};
-use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use selected_instructions::{SelectedBlockId, VirtualRegisterId};
+use selected_instructions::{
+    LiveRangeIdentity, LiveRangePoint, SelectedBlockId, VirtualRegisterId,
+};
+use selected_instructions_to_selected_instructions::{
+    ValidatedAllocationLegality, ValidatedLiveRanges,
+};
 use semantic_vocabulary::MachineId;
 
 #[allow(clippy::too_many_arguments)]

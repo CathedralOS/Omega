@@ -6,10 +6,12 @@ use register_model::{
 use selected_instructions::{SelectedBlockId, SelectedInstructionId, VirtualRegisterId};
 use semantic_vocabulary::MachineId;
 
-use crate::{
-    DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, FunctionAllocationLegality,
-    FunctionLiveRanges, LiveRangePoint, LivenessPosition, VirtualLiveRange, VirtualPointLegality,
-    VirtualRegisterAllocationLegality,
+use register_homes::{
+    FunctionAllocationLegality, VirtualPointLegality, VirtualRegisterAllocationLegality,
+};
+use selected_instructions::{
+    DistinctUseDefTie, EarlyClobberConstraint, EarlyClobberUse, FunctionLiveRanges, LiveRangePoint,
+    LivenessPosition, VirtualInterference, VirtualLiveRange,
 };
 
 pub(super) fn physical() -> ValidatedPhysicalRegisterModel {
@@ -125,7 +127,7 @@ pub(super) fn ranges(register_count: u32, interference: &[(u32, u32)]) -> Functi
         architectural_units: Vec::new(),
         interference: interference
             .iter()
-            .map(|(lower, higher)| crate::VirtualInterference {
+            .map(|(lower, higher)| VirtualInterference {
                 lower: VirtualRegisterId(*lower),
                 higher: VirtualRegisterId(*higher),
             })

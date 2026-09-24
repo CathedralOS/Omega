@@ -1,6 +1,6 @@
 use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 
-use crate::{
+use selected_instructions_to_selected_instructions::{
     StagedOptimizedLiteralFoldCustodyReceipt, StagedPreAllocationOptimizationCustodyReceipt,
     StagedSelectedLoweringOptimizationCustodyReceipt,
 };

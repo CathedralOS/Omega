@@ -2,15 +2,15 @@
 
 use std::sync::Arc;
 
-use crate::{
-    OwnedSelectedProgram, SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedLiveness, ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes,
-    ValidatedSelectedAnalysis,
-};
+use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::AllocatedProgram;
+use selected_instructions_to_selected_instructions::{
+    OwnedSelectedProgram, SelectedProgramRef, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedLiveness, ValidatedSelectedAnalysis,
+};
 
 use super::{AllocationEvidence, AllocationOutput, AllocationReplayError};
 

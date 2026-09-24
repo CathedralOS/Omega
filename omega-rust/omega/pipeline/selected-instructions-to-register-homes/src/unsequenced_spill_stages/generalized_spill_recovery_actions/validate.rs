@@ -7,7 +7,9 @@ use crate::unsequenced_spill_stages::{
     ValidatedGeneralizedSpillRecoveryActions, ValidatedGeneralizedSpillRecoveryChoices,
     generalized_spill_recovery_action_identity,
 };
-use crate::{ValidatedLiveRanges, ValidatedSelectedAnalysis};
+use selected_instructions_to_selected_instructions::{
+    ValidatedLiveRanges, ValidatedSelectedAnalysis,
+};
 
 pub fn validate_generalized_spill_recovery_actions(
     insertion: &ValidatedGeneralizedSpillInsertion,

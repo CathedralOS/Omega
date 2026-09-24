@@ -15,7 +15,8 @@ use crate::unsequenced_spill_stages::{
     GeneralizedSpillRecoveryLogicalUseRewrite, GeneralizedSpillRecoveryVictim,
     GeneralizedSpillRecoveryVictimChoice,
 };
-use crate::{FunctionLiveRanges, LogicalSpillStorageClass, VirtualFixedConstraintSite};
+use register_homes::LogicalSpillStorageClass;
+use selected_instructions::{FunctionLiveRanges, LiveRangeFragment, VirtualFixedConstraintSite};
 
 pub(super) fn build(
     choice: &GeneralizedSpillRecoveryVictimChoice,
@@ -114,7 +115,7 @@ pub(super) fn build(
         || value.class != resident.class
         || range.class != resident.class
         || range.fragments.as_slice()
-            != [crate::LiveRangeFragment {
+            != [LiveRangeFragment {
                 block: choice.block,
                 start: resident.start,
                 end: resident.exclusive_end,

@@ -3,10 +3,10 @@ use selected_instructions::VirtualRegisterOrigin;
 use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
 use sha2::{Digest, Sha256};
 
-use crate::LogicalSpillStorageClass;
 use crate::unsequenced_spill_stages::{
     SpillRecoveryActionIdentity, SpillRecoveryActionPlan, SpillRecoveryActionPolicy,
 };
+use register_homes::LogicalSpillStorageClass;
 
 pub fn spill_recovery_action_identity(
     plan: &SpillRecoveryActionPlan,

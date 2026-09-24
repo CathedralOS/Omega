@@ -1,9 +1,11 @@
 use crate::{
-    LogicalSpillOperationIdentity, StackSlotColoringError, StackSlotColoringPlan,
-    StackSlotColoringPolicy, ValidatedLogicalSpillOperations, color_logical_spill_stack_slots,
+    StackSlotColoringError, ValidatedLogicalSpillOperations, color_logical_spill_stack_slots,
     validate_stack_slot_coloring,
 };
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
+use register_homes::{
+    LogicalSpillOperationIdentity, StackSlotColoringPlan, StackSlotColoringPolicy,
+};
 
 use super::fixtures::{budget, source, validated_source};
 
