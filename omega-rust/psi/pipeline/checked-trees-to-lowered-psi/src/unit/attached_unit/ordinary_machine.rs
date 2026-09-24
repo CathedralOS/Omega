@@ -1132,6 +1132,7 @@ impl MachineEmission<'_> {
             | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
             | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+            | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
             | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 return self.emit_through_frame(operation, step.source_value_count);
             }
@@ -1167,9 +1168,6 @@ impl MachineEmission<'_> {
             }
             CheckedUnitEffectOperationPlan::SelectedIeeeFloatFusedMultiplyAdd { .. } => {
                 self.selected_ieee_float_fused_multiply_add(operation)?
-            }
-            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_) => {
-                return unsupported("Unit structural case field store has no lowered operation");
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
             | CheckedUnitEffectOperationPlan::Complete { .. } => {
