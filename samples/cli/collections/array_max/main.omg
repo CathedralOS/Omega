@@ -12,10 +12,11 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain i32::I320To6 requires self >= 0 && self <= 6;
 data Main {
     console: Binding<Console>;
     nums: [i32; 6];
-    i: i32;
+    i: i32 in I320To6;
     cur: i32;
     max: i32;
     pause: [u8; 256];
