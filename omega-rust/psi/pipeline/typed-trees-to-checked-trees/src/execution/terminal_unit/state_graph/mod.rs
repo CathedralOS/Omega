@@ -440,14 +440,15 @@ pub(super) fn build_traced(
                                 && matches!(argument.access,
                                     CheckedStructuralAccess::SharedBorrow
                                         | CheckedStructuralAccess::MutableBorrow))
-                            // The statement sequencer already rejoins a local
-                            // receiver to its completed producer and exact loan.
-                            // State ownership, not parameter spelling, governs
-                            // keeping that same home until the selected exit.
-                            || (argument.source_structural_result_binding_ordinal().is_some()
-                                && matches!(argument.access,
-                                    CheckedStructuralAccess::SharedBorrow
-                                        | CheckedStructuralAccess::MutableBorrow))
+                            // The ordinary call sequencer has already joined
+                            // owned arguments to their exact Consume events and
+                            // completion receipts, exactly as it does for a
+                            // boundary call. Graph topology does not change that
+                            // operation's custody, so the same whole-parameter
+                            // owned argument is admitted here.
+                            || (argument.source_parameter_index().is_some()
+                                && argument.path.is_empty()
+                                && argument.access == CheckedStructuralAccess::Owned)
                     }) => {}
                 CheckedUnitEffectOperationPlan::ScalarCall {
                     structural_arguments,
@@ -463,15 +464,15 @@ pub(super) fn build_traced(
                                 && matches!(argument.access,
                                     CheckedStructuralAccess::SharedBorrow
                                         | CheckedStructuralAccess::MutableBorrow))
-                            // The statement sequencer already rejoins a local
-                            // receiver to its completed producer and exact
-                            // loan. State ownership, not parameter spelling,
-                            // governs keeping that same home until the
-                            // selected exit.
-                            || (argument.source_structural_result_binding_ordinal().is_some()
-                                && matches!(argument.access,
-                                    CheckedStructuralAccess::SharedBorrow
-                                        | CheckedStructuralAccess::MutableBorrow))
+                            // The ordinary call sequencer has already joined
+                            // owned arguments to their exact Consume events and
+                            // completion receipts, exactly as it does for a
+                            // boundary call. Graph topology does not change that
+                            // operation's custody, so the same whole-parameter
+                            // owned argument is admitted here.
+                            || (argument.source_parameter_index().is_some()
+                                && argument.path.is_empty()
+                                && argument.access == CheckedStructuralAccess::Owned)
                     }) => {}
                 CheckedUnitEffectOperationPlan::StructuralCall {
                     discard_result_on_return: false,
