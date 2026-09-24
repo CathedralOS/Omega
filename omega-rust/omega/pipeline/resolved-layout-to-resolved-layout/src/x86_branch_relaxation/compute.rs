@@ -16,7 +16,8 @@ mod work;
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::ValidatedPhysicalRegisterModel;
 
-use crate::{ResolvedSelectedFunctionLayout, StagedOptimizedResolvedSelectedFormLayout};
+use machine_code::ResolvedSelectedFunctionLayout;
+use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::{
     StagedOptimizedX86BranchRelaxation, X86BranchRelaxationAction, X86BranchRelaxationAttempt,

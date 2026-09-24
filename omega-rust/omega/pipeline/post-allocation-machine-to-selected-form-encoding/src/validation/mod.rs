@@ -6,9 +6,10 @@
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use crate::StagedOptimizedPostAllocationMachinePlan;
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
-use super::{OptimizedSelectedFormEncodingError, SelectedFormEncoding};
+use super::OptimizedSelectedFormEncodingError;
+use machine_code::SelectedFormEncoding;
 
 mod aggregate;
 mod ordinary;

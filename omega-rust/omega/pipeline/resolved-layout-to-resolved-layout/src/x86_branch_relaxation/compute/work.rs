@@ -1,6 +1,6 @@
 //! Ordered branch locations, byte measure, and distinct producer/replay charging.
 
-use crate::ResolvedSelectedFunctionLayout;
+use machine_code::ResolvedSelectedFunctionLayout;
 
 use super::super::error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis};
 

@@ -9,7 +9,7 @@ use isa_x86_64::{
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::SelectedBlockId;
 
-use crate::{
+use machine_code::{
     ResolvedConditionalBranchPredicate, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
 };
 

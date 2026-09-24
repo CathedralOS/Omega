@@ -18,9 +18,8 @@ use selected_instructions_to_register_homes::{
     ValidatedRegisterHomes, ValidatedSelectedAnalysis,
 };
 
-use crate::{
-    PostAllocationMachineError, ValidatedPostAllocationMachinePlan, post_allocation_receipt,
-};
+use super::post_allocation_receipt;
+use crate::{PostAllocationMachineError, ValidatedPostAllocationMachinePlan};
 use physical_instructions::{PostAllocationMachinePlan, post_allocation_machine_identity};
 use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 

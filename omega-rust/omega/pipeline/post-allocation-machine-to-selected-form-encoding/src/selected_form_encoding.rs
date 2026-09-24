@@ -11,7 +11,7 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 mod compute;
 mod error;
 
-pub use error::*;
+pub use error::OptimizedSelectedFormEncodingError;
 
 use crate::validation;
 use machine_code::{

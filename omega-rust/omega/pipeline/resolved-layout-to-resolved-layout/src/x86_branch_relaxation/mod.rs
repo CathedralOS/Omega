@@ -11,24 +11,24 @@ pub use catalog::{
     FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG, FunctionRelativeLayoutCatalogError,
     FunctionRelativeLayoutRuleCatalogEntry, ORDERED_FUNCTION_RELATIVE_LAYOUT_RULES,
 };
-pub use error::*;
+pub use error::{OptimizedX86BranchRelaxationError, X86BranchRelaxationWorkAxis};
 
 use optimization_core::OptimizationWorkBudget;
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use crate::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
-use crate::{
-    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
-};
 use compute::{compute_relaxation, replay_relaxation};
 pub use machine_code::layout::evidence::{
     X86BranchRelaxationAction, X86BranchRelaxationAttempt, X86BranchRelaxationAttemptOutcome,
     X86BranchRelaxationIdentity, X86BranchRelaxationPolicy, X86BranchRelaxationRevisionIdentity,
 };
+use machine_code::{ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFunctionLayout};
 use optimization_core::OptimizationWorkUsage;
 use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use selected_form_encoding_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
+};
 use target::NativeTarget;
 use validation::{compare_replayed_evidence, validate_roots};
 

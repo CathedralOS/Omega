@@ -12,9 +12,10 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
 use super::{decoded_footprint, operand_views, validate_machine_footprint, validate_size};
-use crate::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncodingState,
-    SelectedFormInternalMachineFixupKind, SelectedFormInternalMachineFixupState,
+use crate::OptimizedSelectedFormEncodingError;
+use machine_code::{
+    SelectedFormEncodingState, SelectedFormInternalMachineFixupKind,
+    SelectedFormInternalMachineFixupState,
 };
 
 pub(super) fn validate(

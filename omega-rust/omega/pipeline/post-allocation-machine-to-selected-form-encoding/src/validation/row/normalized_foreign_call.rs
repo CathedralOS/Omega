@@ -14,9 +14,10 @@ use selected_instructions::{SelectedInstructionId, SelectedInstructionKind};
 use target::{Architecture, NativeTarget};
 
 use super::{decoded_footprint, operand_views, validate_machine_footprint, validate_size};
-use crate::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncodingState,
-    SelectedFormNormalizedForeignCallFixupKind, SelectedFormNormalizedForeignCallFixupState,
+use crate::OptimizedSelectedFormEncodingError;
+use machine_code::{
+    SelectedFormEncodingState, SelectedFormNormalizedForeignCallFixupKind,
+    SelectedFormNormalizedForeignCallFixupState,
 };
 
 /// Independently validate one unresolved normalized-foreign-call row. The

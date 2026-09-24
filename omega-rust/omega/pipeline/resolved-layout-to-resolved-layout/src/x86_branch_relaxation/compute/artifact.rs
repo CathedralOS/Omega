@@ -2,7 +2,7 @@
 
 use optimization_core::OptimizationWorkBudget;
 
-use crate::StagedOptimizedResolvedSelectedFormLayout;
+use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 use super::super::{
     StagedOptimizedX86BranchRelaxation, X86BranchRelaxationPolicy,

@@ -14,7 +14,7 @@ use isa_x86_64::{
 use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedBlockId, SelectedInstructionId};
 
-use crate::{ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout};
+use machine_code::{ResolvedConditionalBranchPredicate, ResolvedSelectedFunctionLayout};
 
 use super::super::error::OptimizedX86BranchRelaxationError;
 use super::work::checked_delta;
@@ -264,7 +264,7 @@ fn assign_dense_offsets(
 }
 
 fn rewrite_branch_offsets(
-    branch: &mut crate::ResolvedConditionalBranchEvidence,
+    branch: &mut machine_code::ResolvedConditionalBranchEvidence,
     instruction_offset: u64,
     instruction_size: usize,
     offsets: &BTreeMap<SelectedBlockId, u64>,

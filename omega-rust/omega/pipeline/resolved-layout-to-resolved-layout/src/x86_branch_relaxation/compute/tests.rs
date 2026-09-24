@@ -12,7 +12,7 @@ use selected_instructions::{
 use semantic_vocabulary::{EdgeId, MachineId};
 use target::NativeTarget;
 
-use crate::{
+use machine_code::{
     ResolvedConditionalBranchPredicate, ResolvedSelectedBlockLayout,
     ResolvedSelectedFormLayoutIdentity, ResolvedSelectedFormRow, ResolvedSelectedFunctionLayout,
 };
@@ -119,7 +119,7 @@ fn conditional_function(
                     offset: 0,
                     bytes: near.bytes().to_vec(),
                     branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        crate::ResolvedConditionalBranchEvidence {
+                        machine_code::ResolvedConditionalBranchEvidence {
                             predicate,
                             source_block: entry,
                             when_taken_edge: EdgeId::new(1).unwrap(),
@@ -220,7 +220,7 @@ fn backward_conditional_function(target_block_bytes: usize) -> ResolvedSelectedF
                     offset: branch_offset,
                     bytes: near.bytes().to_vec(),
                     branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        crate::ResolvedConditionalBranchEvidence {
+                        machine_code::ResolvedConditionalBranchEvidence {
                             predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
                             source_block: entry,
                             when_taken_edge: EdgeId::new(1).unwrap(),
@@ -319,7 +319,7 @@ fn jump_across_branch_function(fallthrough_arm_bytes: usize) -> ResolvedSelected
                     offset: branch_offset,
                     bytes: near.bytes().to_vec(),
                     branch: Some(Box::new(machine_code::ResolvedBranchEvidence::Conditional(
-                        crate::ResolvedConditionalBranchEvidence {
+                        machine_code::ResolvedConditionalBranchEvidence {
                             predicate: ResolvedConditionalBranchPredicate::NonZeroV1,
                             source_block: entry,
                             when_taken_edge: EdgeId::new(1).unwrap(),
@@ -379,7 +379,7 @@ fn conditional_branch_mut(
     function: &mut ResolvedSelectedFunctionLayout,
     block_index: usize,
     instruction_index: usize,
-) -> &mut crate::ResolvedConditionalBranchEvidence {
+) -> &mut machine_code::ResolvedConditionalBranchEvidence {
     let Some(branch) = function.blocks[block_index].instructions[instruction_index]
         .branch
         .as_deref_mut()

@@ -10,11 +10,12 @@ mod test_support;
 mod validation;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
-pub use validation::*;
+pub use test_support::PostAllocationMachineCustodyFieldForTest;
+pub use validation::validate_optimized_post_allocation_machine_plan_custody;
 
 use crate::PostAllocationMachineError;
-use crate::{ValidatedPostAllocationMachinePlan, analyze_post_allocation_machine_plan};
+use crate::ValidatedPostAllocationMachinePlan;
+use crate::plan::analyze_post_allocation_machine_plan;
 use physical_instructions::PostAllocationMachineIdentity;
 use selected_instructions_to_register_homes::AllocationReplayError;
 use selected_instructions_to_register_homes::MachineEffectStageError;

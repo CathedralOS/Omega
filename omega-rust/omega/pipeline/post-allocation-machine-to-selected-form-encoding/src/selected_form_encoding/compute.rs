@@ -2,12 +2,12 @@ use register_model::ValidatedPhysicalRegisterModel;
 use selected_instructions::{SelectedInstruction, SelectedTerminator};
 use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
 
-use crate::StagedOptimizedPostAllocationMachinePlan;
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 
-use crate::{
-    OptimizedSelectedFormEncodingError, SelectedFormEncoding, SelectedFormEncodingCounts,
-    SelectedFormEncodingIdentity, SelectedFormEncodingRow, SelectedFormEncodingState,
-    row_encoding::encode_row,
+use crate::{OptimizedSelectedFormEncodingError, row_encoding::encode_row};
+use machine_code::{
+    SelectedFormEncoding, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
+    SelectedFormEncodingRow, SelectedFormEncodingState,
 };
 
 pub(super) fn compute<S: ValidatedSelectedAnalysis>(
