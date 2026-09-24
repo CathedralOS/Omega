@@ -160,7 +160,7 @@ These ranking ranges belong to `terminates by ... in 0..N`, not a scalar
 type-annotation suffix. The current premise-carrier query also protects legacy
 range-constrained entries. Removing those source annotations must preserve the
 same protection for facts supplied by contracts, guards, and domain predicates;
-`REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../../TASKS.md) tracks
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../../TASKS.md) tracks
 that migration without removing ranking-range reasoning.
 
 `contract_entailment/ranking_range/` uses one arithmetic entry/edge judgment for

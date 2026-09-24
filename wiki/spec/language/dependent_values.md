@@ -84,6 +84,10 @@ representation guarantee, not universal semantic membership or ambient write
 authority. A zeroed storage representation can be accessed as an established
 value only after its default-domain obligations hold.
 
+Anonymous interval constraints on common fields are written in the data `where`;
+constraints involving one case's payload are written in that case's `where`.
+Bracketed scalar range suffixes are not a second default-domain syntax.
+
 Compiler-known `Binding<R>` additionally requires established binding custody as
 part of carrier validity. It needs no authored domain qualification. Zeroing its
 storage does not create a service; containing values remain unavailable until

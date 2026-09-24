@@ -15,6 +15,11 @@ Erased fields instead follow [erased construction](../proofs/contracts.md#explic
 an accessible nullary constructor may supply an omitted term without requiring
 runtime layout or a zero value.
 
+Scalar field relationships belong to the data declaration's ordinary `where`;
+case-payload relationships belong to that case's `where`. Field and payload type
+spellings do not carry bracketed scalar range suffixes. Construction and every
+restoring write prove the owning default-domain clauses.
+
 Case-bearing values use a case literal, not record-only construction. Common
 and payload fields may be named together and evaluate exactly once in authored
 order. Common fields are accessible independently of the active case; payload

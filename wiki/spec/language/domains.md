@@ -8,23 +8,33 @@ carry, and provider evidence keep their own judgments.
 
 ## Declaration and membership
 
-Explicit value refinements use domain qualifications. Scalar types have no
-bracketed range-annotation suffix. Bounds learned from `requires`, `ensures`,
-guards, or arithmetic remain ordinary subject-bound proof facts; they need not
-be repeated on a local's type. A call's checked postconditions apply to its exact
-result even when the receiving local is declared with the bare carrier.
+Scalar interval relationships use ordinary propositions, not a bracketed type
+suffix (`scalar-range-contract-spelling`). Put common-field relationships in the
+data declaration's `where`, case-payload relationships in the case's `where`,
+parameter/state-parameter obligations in `requires`, and result obligations in
+`ensures`. Locals receive facts from their initializer, guards, calls, and
+checked qualification. A call's checked postconditions apply to its exact result
+even when the receiving local is declared with the bare carrier.
 
-To publish a reusable bound in a type, declare a predicate domain and return or
-accept its qualified carrier:
+Domain qualification remains a distinct facility. `value: T in D` requires the
+exact named domain `D` and is equivalent to an implicit `requires value in D`
+for call admission; it is appropriate when that nominal domain identity,
+semantic contribution, or establishment route is intentional. Do not generate
+a domain merely to replace an anonymous interval. Equal predicates do not merge
+domain identities.
+
+To publish a reusable named classification, declare a predicate domain and
+return or accept its qualified carrier:
 
 ```omega
 domain u64::AlignmentSize
     requires self >= 1 && self <= 8;
 ```
 
-A result may be declared `u64 in AlignmentSize`. Alternatively, return plain
-`u64` with `ensures result >= 1 && result <= 8`; the receiving local needs no
-qualification to use those established facts.
+A result may be declared `u64 in AlignmentSize` when callers need that exact
+domain. Otherwise return plain `u64` with
+`ensures result >= 1 && result <= 8`; the receiving local needs no qualification
+to use those established facts.
 
 Data and case `where` couplings remain their ordinary
 [default-domain obligations](dependent_values.md#default-domains-and-zero-initialization).

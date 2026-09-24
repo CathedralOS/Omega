@@ -385,7 +385,7 @@ and its
 controls pin that boundary.
 The ranking range in `terminates by ... in 0..N` remains valid source syntax.
 The query's legacy range-constrained entry inputs are migration debt under
-`REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../../TASKS.md), not a
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../../TASKS.md), not a
 reason to retain scalar type suffixes. Contracts, guards, and domain predicates
 must retain their exact premise carriers after that migration.
 The [relational countdown](../../../../tests/omega/pass/termination/measure_field_relational_range/README.md)

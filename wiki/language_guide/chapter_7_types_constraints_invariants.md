@@ -13,6 +13,12 @@ equations, without removing common constraints. Construction proves them;
 matching recovers them. There is no separate authored `invariant` clause.
 See [dependent data](chapter_12_dependent_types.md).
 
+Omega uses these clauses as the canonical scalar-bound syntax. There is no
+`T [lo..=hi]` scalar type suffix: data and case relationships use `where`,
+parameters use `requires`, results use `ensures`, and locals retain facts from
+their producing expressions and guards. `T in D` is reserved for an intentionally
+named domain rather than anonymous range sugar.
+
 A write may temporarily leave default-domain facts unproved. That opens an
 [invariant window](chapter_11_invariant_windows.md): code must restore the facts
 before the next operation that consumes the value under them. Zeroed storage is

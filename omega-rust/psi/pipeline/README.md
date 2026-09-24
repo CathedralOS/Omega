@@ -231,8 +231,9 @@ carrier, const, and predicate obligations still apply. Contracts and guards
 retain their ordinary implicit proof facts without creating new type structure.
 
 The current compiler and `declared_range_endpoint_inference` fixtures still use
-removed scalar range annotations and range-shell inference. Their migration is
-tracked by `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../TASKS.md).
+scalar range annotations and range-shell inference pending canonical migration.
+Their migration is tracked by `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the
+[board](../../../TASKS.md).
 That implementation is not the accepted structural inference contract, and
 existing test results do not establish support for the replacement syntax.
 

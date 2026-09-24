@@ -287,9 +287,9 @@ computation plans; do not describe a source classifier as finished execution.
 ## Guarded primitive-reference operand
 
 The existing regression passes source checking and publishes a ranked Terminal
-artifact using legacy scalar range annotations. The example below expresses its
+artifact using scalar range annotations pending canonical migration. The example below expresses its
 bounds as a machine contract under the accepted language; it is a migration
-target, not a newly tested replacement. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on
+target, not a newly tested replacement. `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on
 the [board](../../../../TASKS.md) tracks the fixture/compiler migration.
 
 ```omega

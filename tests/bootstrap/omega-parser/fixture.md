@@ -8,11 +8,11 @@ observation is `000000000041`. This fixture does not establish full Omega
 acceptance: `Complete` owns the retained syntax rows described by D's README,
 while `Incomplete` leaves those rows unavailable to consumers.
 
-The unchanged fixture includes the removed scalar range-annotation syntax.
-Its acceptance counts below document the legacy parser, not accepted Omega
-syntax. `REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the
-[board](../../../TASKS.md) tracks fixture and parser migration; this note claims
-no validation of a replacement fixture.
+The unchanged fixture includes scalar range-annotation syntax pending canonical
+migration. Its acceptance counts below document the old parser, not the selected
+Omega surface. `CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the
+[board](../../../TASKS.md) tracks fixture and parser migration; the replacement
+must preserve the same parser obligations under the owning proposition clauses.
 
 The first data input retains four fields. Each contributes a named base and one
 wrapper: fixed array, inclusive-range constraint, reference, and domain

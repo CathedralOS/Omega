@@ -20,7 +20,7 @@ service; it does not reinterpret its language semantics.
 
 The compiler still contains scalar range-annotation evaluation and range-shell
 probes. Those are legacy implementation paths pending removal under
-`REMOVE-BRACKETED-RANGE-ANNOTATIONS` on the [board](../../../../TASKS.md), not
+`CANONICALIZE-SCALAR-RANGE-CONTRACTS` on the [board](../../../../TASKS.md), not
 accepted source forms or an alternative to domain/type-argument inference.
 
 Shared scalar evaluation preserves each argument's declared carrier and selected
