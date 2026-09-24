@@ -512,36 +512,6 @@ fn sysv_vtable_field_call_emits_indirect_dispatch() {
 // reads the layout-computed +40 field. Cross-compiled for uefi_x64 on every
 // host.
 #[test]
-fn efi_two_table_function_leaves_cross_compile() {
-    let canary = pass_canary(fixture_roster::EFI_TWO_TABLE_FUNCTION_LEAVES);
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-two-table-leaves-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CanaryCompileSpec {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some("uefi_x86_64".to_owned()),
-        product: CanaryCompileProduct::NativeArtifactAndPublish,
-    })
-    .expect("two attached table-function leaves should cross-compile for uefi_x64");
-    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
-        .expect("backend report should be written");
-    assert!(
-        report.contains(
-            " table function EfiBootServicesTable.get_memory_map (+40) arity 6 (table not passed)"
-        ),
-        "get_memory_map must select the attached TableFunction leaf with one dispatch-only table operand"
-    );
-    assert!(
-        report.contains(
-            " table function EfiBootServicesTable.exit_boot_services (+48) arity 3 (table not passed)"
-        ),
-        "exit_boot_services must select the attached TableFunction leaf with one dispatch-only table operand"
-    );
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn efi_out_param_call_marshals_addresses_and_stack_args() {
     let canary = pass_canary(fixture_roster::EFI_OUT_PARAM_CALL);
     let build_dir = std::env::temp_dir().join(format!("omega-out-param-{}", std::process::id()));

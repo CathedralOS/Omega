@@ -1,5 +1,6 @@
 //! Owned entry values keep their ABI and an exact activation-local readable home.
 use super::super::{produce_source, publish};
+use calling_conventions::{MachineRegister, ValueLocation};
 use target::NativeTarget;
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -154,6 +155,91 @@ fn owned_record_entry_fields_survive_surrounding_calls() {
             false,
         );
     }
+}
+
+#[test]
+fn owned_record_entry_erased_field_contributes_no_abi_fragment() {
+    // `[erased]` evidence stays part of Pair's semantic identity but has no
+    // runtime bytes: the stripped record is two u64 fragments, arriving whole
+    // in the next two integer registers after the leading scalar.
+    let artifact = produce_source(
+        "observe",
+        "data Evidence { case Only; }
+         data Pair {
+             first: u64;
+             proof [erased]: Evidence;
+             second: u64;
+         }
+         machine identity(value: u64) -> u64 { value }
+         machine observe(tag: u64, pair: Pair) -> u64 {
+             identity(tag) ^ pair.first ^ (pair.second & identity(pair.first))
+         }",
+    );
+    for (target, first, second) in [
+        (
+            NativeTarget::linux_x64(),
+            MachineRegister::X86Rsi,
+            MachineRegister::X86Rdx,
+        ),
+        (
+            NativeTarget::linux_arm64(),
+            MachineRegister::Aarch64X(1),
+            MachineRegister::Aarch64X(2),
+        ),
+    ] {
+        let (image, _) = publish(&artifact, target);
+        let record = image_emission::build_installation_record(
+            &image,
+            semantic_vocabulary::ProfileDecisionId::new(1).unwrap(),
+        )
+        .unwrap();
+        let entry = record
+            .functions()
+            .iter()
+            .find_map(|function| {
+                function
+                    .mixed_structural_scalar_abi
+                    .as_ref()
+                    .filter(|abi| abi.structural_parameters.len() == 1)
+            })
+            .expect("observe publishes one mixed scalar/structural signature");
+        let pair = &entry.structural_parameters[0];
+        assert_eq!(
+            pair.shape.byte_size, 16,
+            "{target:?}: erased field has no bytes"
+        );
+        assert_eq!(
+            pair.placement.locations,
+            [
+                ValueLocation::Register {
+                    register: first,
+                    value_byte_offset: 0,
+                    byte_size: 8,
+                },
+                ValueLocation::Register {
+                    register: second,
+                    value_byte_offset: 8,
+                    byte_size: 8,
+                },
+            ],
+            "{target:?}: the stripped record follows the leading scalar in consecutive registers"
+        );
+    }
+    execute(
+        &artifact,
+        r#"
+        #include <stdint.h>
+        typedef struct { uint64_t first; uint64_t second; } Pair;
+        extern uint64_t omega_entry(uint64_t tag, Pair pair);
+        int main(void) {
+            Pair pair = { UINT64_C(0x00ff00ff00ff00ff), UINT64_C(0xfedcba9876543210) };
+            uint64_t tag = UINT64_C(0x8000000000000001);
+            uint64_t expected = tag ^ pair.first ^ (pair.second & pair.first);
+            return omega_entry(tag, pair) == expected ? 0 : 1;
+        }
+    "#,
+        false,
+    );
 }
 
 #[test]

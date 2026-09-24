@@ -1,6 +1,0 @@
-
-machine build(builder: &mut Build) {
-    builder.application("efi_u64_constant_result_entry");
-    builder.subsystem = Subsystem::EfiApplication;
-    builder.freestanding = true;
-}

@@ -1,6 +1,0 @@
-// A small INTEGER/INTEGER entry result returns from runtime storage in rax/rdx.
-pub data Pair { first: u64; second: u64; }
-pub data Main { output: Pair; }
-boundary machine Main::main(&self) -> Pair {
-    transition { _ -> (Pair { first: self.output.first, second: self.output.second }) }
-}

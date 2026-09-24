@@ -1,8 +1,8 @@
 // The NON-boundary flavor of task #37's guard face: `transition r.c == 9`
 // with `r: &Pt` in a non-boundary machine. Non-boundary &Struct params are
 // call-site ALIAS slots sharing the caller's storage, so the flat member
-// fold reads the RIGHT value (the boundary flavor instead pointee-hoists --
-// pinned by targets/efi_ref_param_direct_faces). Value-validated: c = 9 at
+// fold reads the RIGHT value (the boundary flavor instead pointee-hoists).
+// Value-validated: c = 9 at
 // field offset 4; a garbage flat read of `a` (= 4, offset 0) would exit 2.
 use omega_language_std::console;
 use omega::language::core::binding;

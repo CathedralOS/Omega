@@ -14,7 +14,6 @@ pub const SHARED_RECEIVER_ATOMIC_STORE: &str = "atomics/shared_receiver_atomic_s
 pub const RUNTIME_CONSOLE_BYTE_ECHO_EXIT: &str = "host/runtime_console_byte_echo_exit";
 pub const EFI_VTABLE_FIELD_CALL: &str = "targets/efi_vtable_field_call";
 pub const SYSV_VTABLE_FIELD_CALL: &str = "targets/sysv_vtable_field_call";
-pub const EFI_TWO_TABLE_FUNCTION_LEAVES: &str = "targets/efi_two_table_function_leaves";
 pub const EFI_OUT_PARAM_CALL: &str = "targets/efi_out_param_call";
 pub const CROSS_CONSOLE_BYTE_TARGETS: &str = "host/cross_console_byte_targets";
 pub const CONSOLE_BYTE_FIELD_TARGET_REJECTED: &str = "host/console_byte_field_target_rejected";
@@ -39,7 +38,6 @@ pub const PASS_CANARIES: &[&str] = &[
     RUNTIME_CONSOLE_BYTE_ECHO_EXIT,
     EFI_VTABLE_FIELD_CALL,
     SYSV_VTABLE_FIELD_CALL,
-    EFI_TWO_TABLE_FUNCTION_LEAVES,
     EFI_OUT_PARAM_CALL,
     CROSS_CONSOLE_BYTE_TARGETS,
     SCALAR_HOST_CALL_FIELD_STORE,

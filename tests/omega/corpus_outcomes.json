@@ -26630,175 +26630,12 @@
   ]
  },
  {
-  "fixture": "pass/targets/aarch64_large_aggregate_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 3,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
-  ]
- },
- {
-  "fixture": "pass/targets/aarch64_large_aggregate_stack_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 5,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
-  ]
- },
- {
-  "fixture": "pass/targets/aarch64_large_result_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 2,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 0)"
-  ]
- },
- {
-  "fixture": "pass/targets/aarch64_small_aggregate_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 2,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
-  ]
- },
- {
-  "fixture": "pass/targets/aarch64_small_aggregate_stack_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 3,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
-  ]
- },
- {
-  "fixture": "pass/targets/aarch64_small_result_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 2,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 0)"
-  ]
- },
- {
-  "fixture": "pass/targets/aarch64_wide_aggregate_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 2,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).",
-   "exact arithmetic in machine `Main::main` state `main` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`)."
-  ]
- },
- {
-  "fixture": "pass/targets/aggregate_literal_result_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 2,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
   "fixture": "pass/targets/efi_conout_projection",
   "tier": "pass",
   "status": "checked",
   "millis": 571,
   "expected_satisfied": null,
   "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_entry_arguments",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 571,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_float_entry_argument",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 24137,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_float_literal_result_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 24140,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_float_result_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 23867,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_freestanding_skeleton",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 562,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_large_aggregate_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 569,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_large_aggregate_stack_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 572,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_large_result_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 531,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 0)"
-  ]
  },
  {
   "fixture": "pass/targets/efi_out_param_call",
@@ -26817,56 +26654,6 @@
   "diagnostics": [
    "machine `Main::main` state `main` assignment cannot write `msg` because it is not mutable in this state (if `msg` is undeclared -- a typo -- no such field or local exists)"
   ]
- },
- {
-  "fixture": "pass/targets/efi_ref_param_direct_faces",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 601,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_small_aggregate_entry",
-  "tier": "pass",
-  "status": "rejected",
-  "millis": 535,
-  "expected_satisfied": null,
-  "diagnostics": [
-   "cannot transfer a non-copy value out of borrowed storage without replacing its owner in `Main::main`, state `main` (statement 1)"
-  ]
- },
- {
-  "fixture": "pass/targets/efi_stack_entry_argument",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 555,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_struct_handoff",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 566,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_two_table_function_leaves",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 601,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/efi_u64_constant_result_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 554,
-  "expected_satisfied": null,
-  "diagnostics": []
  },
  {
   "fixture": "pass/targets/efi_vtable_call",
@@ -26888,34 +26675,10 @@
   ]
  },
  {
-  "fixture": "pass/targets/entry_run_args_bytes",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 5,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/indexed_scalar_result_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 3,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
   "fixture": "pass/targets/single_target_internal_machine_skipped",
   "tier": "pass",
   "status": "checked",
   "millis": 2919,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/sysv_erased_small_aggregate_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 5,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -26936,26 +26699,10 @@
   "diagnostics": []
  },
  {
-  "fixture": "pass/targets/sysv_large_aggregate_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 6,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
   "fixture": "pass/targets/sysv_large_hfa_result_entry",
   "tier": "pass",
   "status": "checked",
   "millis": 19881,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/sysv_large_result_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 5,
   "expected_satisfied": null,
   "diagnostics": []
  },
@@ -26984,30 +26731,6 @@
   "diagnostics": []
  },
  {
-  "fixture": "pass/targets/sysv_small_aggregate_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 6,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/sysv_small_aggregate_stack_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 35,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
-  "fixture": "pass/targets/sysv_small_result_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 3,
-  "expected_satisfied": null,
-  "diagnostics": []
- },
- {
   "fixture": "pass/targets/sysv_vtable_field_call",
   "tier": "pass",
   "status": "rejected",
@@ -27023,14 +26746,6 @@
    "machine `Main::main` state `main` assignment cannot write `array_output` because it is not mutable in this state (if `array_output` is undeclared -- a typo -- no such field or local exists)",
    "machine `Main::main` state `main` assignment cannot write `wrapped_output` because it is not mutable in this state (if `wrapped_output` is undeclared -- a typo -- no such field or local exists)"
   ]
- },
- {
-  "fixture": "pass/targets/sysv_wide_aggregate_entry",
-  "tier": "pass",
-  "status": "checked",
-  "millis": 9,
-  "expected_satisfied": null,
-  "diagnostics": []
  },
  {
   "fixture": "pass/targets/sysv_wrapped_float_entry",
