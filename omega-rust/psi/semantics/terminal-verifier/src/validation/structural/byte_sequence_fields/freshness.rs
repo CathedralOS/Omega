@@ -236,6 +236,38 @@ pub(crate) fn replacement_length_equation(
             )));
         }
     }
+    // A fresh observation of a field whose extent an earlier observation
+    // already measured carries the same value while every path between them
+    // preserves the extent — `unchanged_since` enforces dominance including
+    // backedges, so a guard's `i < self.view.len` discharges a later store's
+    // index obligation bound against the successor's own observation.
+    for observation in machine.blocks.iter().flat_map(|block| &block.operations) {
+        let OperationKind::StructuralByteSequenceFieldLength {
+            source,
+            path: observed_path,
+            field: observed_field,
+        } = &observation.kind
+        else {
+            continue;
+        };
+        if observation.id == operation.id
+            || source != root
+            || observed_path != path
+            || observed_field != field
+            || !unchanged_since(machine, observation.id, operation.id, |candidate| {
+                changes_length(module, machine, *root, &exact_path, candidate)
+            })
+        {
+            continue;
+        }
+        let Some(observed) = observation.result.scalar() else {
+            continue;
+        };
+        return Ok(Some(Proposition::Equal(
+            ScalarTerm::value(result, byte_count_type()),
+            ScalarTerm::value(observed.id, byte_count_type()),
+        )));
+    }
     Ok(None)
 }
 

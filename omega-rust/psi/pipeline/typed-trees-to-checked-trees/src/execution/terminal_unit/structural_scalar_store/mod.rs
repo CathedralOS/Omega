@@ -1117,9 +1117,23 @@ fn build_structural_field_store_at(
         return None;
     }
     trace.phase("structural field store: byte sequence carrier");
-    if let Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) =
-        byte_sequence_carrier(program, field.type_reference, &[])
-    {
+    let byte_sequence_carrier = byte_sequence_carrier(program, field.type_reference, &[]);
+    // An indexed store through a `&'r mut [u8]` field composes over the
+    // caller's live extent exactly as over bounded-owned backing: the mutable
+    // borrow already guarantees exclusive access. A shared `&'r` view still
+    // declines — the Reference node's access is the only place that
+    // distinction survives, so the mint gate enforces it here before the
+    // carrier collapses to a bare `BorrowedView` downstream.
+    let (indexed_byte_store_carrier, bounded_capacity) = match byte_sequence_carrier {
+        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) => {
+            (true, Some(capacity))
+        }
+        Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView) => {
+            (field_view_is_mutable(program, field.type_reference), None)
+        }
+        _ => (false, None),
+    };
+    if indexed_byte_store_carrier {
         if result_local.is_some() {
             trace.phase("structural field store: byte sequence carrier: result local");
             return None;
@@ -1179,6 +1193,9 @@ fn build_structural_field_store_at(
                 ),
             );
         }
+        // Whole-value literal replacement needs the bounded capacity the
+        // declared carrier keeps; a borrowed view cannot host a literal.
+        let capacity = bounded_capacity?;
         let ExpressionNode::String(bytes) = program.expression_table.expression(assignment.value)
         else {
             return None;
@@ -1747,6 +1764,27 @@ fn crosses_reference(
         TypeReferenceNode::Reference { .. } => true,
         TypeReferenceNode::Constrained { base_type, .. } => crosses_reference(program, *base_type),
         _ => false,
+    }
+}
+
+/// Whether the field's declared type passes through an exclusive `&mut`
+/// reference. The byte-sequence carrier collapses `&'r [u8]` and `&'r mut
+/// [u8]` to the same `BorrowedView`, so the access distinction is enforced
+/// here while the Reference node still exists.
+fn field_view_is_mutable(
+    program: &TypedTrees,
+    mut type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => {
+                type_reference = *base_type;
+            }
+            TypeReferenceNode::Reference { access, .. } => {
+                return *access == language_semantics::ReferenceAccess::Mutable;
+            }
+            _ => return false,
+        }
     }
 }
 

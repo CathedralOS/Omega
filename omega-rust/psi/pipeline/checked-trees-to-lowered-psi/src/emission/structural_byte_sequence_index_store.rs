@@ -183,7 +183,10 @@ pub(crate) fn emit(
     )?;
     if !matches!(
         field.field_type,
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+        StructuralFieldType::ByteSequence(
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                | terminal_psi::ByteSequenceCarrier::BorrowedView
+        )
     ) || !matches!(
         index.scalar_type(),
         semantic_vocabulary::ScalarType::Integer(_)
@@ -203,23 +206,42 @@ pub(crate) fn emit(
     validate_direct_parameter_types(value, &types)?;
     let index = super::emit_byte_index(index, values, next_value, next_obligation, operations)?;
     let value = emit_direct_expression(value, values, next_value, operations);
-    let length = value_id(allocate_dense(next_value)?);
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Scalar(ValueDeclaration {
-            qualifications: Default::default(),
-            id: length,
-            scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
-        }),
-        kind: OperationKind::StructuralByteSequenceFieldLength {
-            source: parameter.place,
-            path: path.clone(),
-            field: field.id,
+    // A bound proven against an earlier field `.len` observation discharges
+    // this store only when the operand names that same dominating value;
+    // otherwise mint a current observation, whose bound the certificate must
+    // then derive from the extent itself — the same rule the field read uses.
+    // A byte store preserves the field's extent, so a fresh observation also
+    // stands as the dominating record for later accesses.
+    let length = match operations.field_byte_lengths.iter().rev().find_map(
+        |(place, carrier, named, value)| {
+            (*place == parameter.place && *carrier == path && *named == field.id).then_some(*value)
         },
-    });
+    ) {
+        Some(length) => length,
+        None => {
+            let length = value_id(allocate_dense(next_value)?);
+            let id = operations.allocate();
+            operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: length,
+                    scalar_type: terminal_scalar_type(PrimitiveType::U64)?,
+                }),
+                kind: OperationKind::StructuralByteSequenceFieldLength {
+                    source: parameter.place,
+                    path: path.clone(),
+                    field: field.id,
+                },
+            });
+            operations
+                .field_byte_lengths
+                .push((parameter.place, path.clone(), field.id, length));
+            length
+        }
+    };
     Ok(OperationKind::StructuralByteSequenceFieldByteStore {
         destination: parameter.place,
         path,
