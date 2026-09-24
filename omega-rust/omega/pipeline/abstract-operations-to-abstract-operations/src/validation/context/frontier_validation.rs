@@ -161,6 +161,11 @@ fn validate_surviving_byte_operations(
                 obligation,
                 ..
             }
+            | O::IndexedPrimitiveRead {
+                psi_operation,
+                obligation,
+                ..
+            }
             | O::ElementViewSubslice {
                 psi_operation,
                 obligation,
@@ -346,6 +351,26 @@ fn validate_surviving_byte_operations(
                         obligation: *obligation,
                     },
                 ),
+                O::IndexedPrimitiveRead {
+                    result,
+                    source,
+                    path,
+                    index,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+                        qualifications: Default::default(),
+                        id: result.value,
+                        scalar_type: result.scalar_type,
+                    }),
+                    terminal_psi::OperationKind::IndexedPrimitiveRead {
+                        source: *source,
+                        path: path.clone(),
+                        index: index.value,
+                        obligation: *obligation,
+                    },
+                ),
                 O::ElementViewSubslice {
                     result,
                     source,
@@ -507,6 +532,25 @@ fn byte_operation_kind_matches(
                 && root_matches(*expected_source, *actual_source)
                 && operand_matches(*expected_index, *actual_index)
                 && operand_matches(*expected_length, *actual_length)
+        }
+        (
+            terminal_psi::OperationKind::IndexedPrimitiveRead {
+                source: expected_source,
+                path: expected_path,
+                index: expected_index,
+                obligation: expected_obligation,
+            },
+            terminal_psi::OperationKind::IndexedPrimitiveRead {
+                source: actual_source,
+                path: actual_path,
+                index: actual_index,
+                obligation: actual_obligation,
+            },
+        ) => {
+            expected_obligation == actual_obligation
+                && expected_path == actual_path
+                && root_matches(*expected_source, *actual_source)
+                && operand_matches(*expected_index, *actual_index)
         }
         (
             terminal_psi::OperationKind::ElementViewSubslice {

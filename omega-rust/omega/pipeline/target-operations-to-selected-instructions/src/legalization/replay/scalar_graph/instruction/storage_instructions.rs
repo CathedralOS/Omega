@@ -121,16 +121,75 @@ pub(super) fn validate_write_only_indexed_primitive_store(
             expected_value.scalar_type,
             &unit.structural_types,
         ) != Some((*byte_offset, *byte_size, *extent))
-        || !unit.accepted_obligation_facts.iter().any(|fact| {
-            fact.machine == optimized.machine
-                && fact.operation == operation
-                && fact.obligation == *obligation
-                && fact.identity == *accepted_fact
-        })
+        || !accepted(optimized, unit, operation, *obligation, *accepted_fact)
     {
         return Err(invalid);
     }
     Ok(())
+}
+
+pub(super) fn validate_indexed_primitive_read(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::IndexedPrimitiveRead {
+            source,
+            path,
+            index,
+            byte_offset,
+            byte_size,
+            extent,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::IndexedPrimitiveRead {
+            path: expected_path,
+            index: expected_index,
+            obligation: expected_obligation,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_indexed_primitive_read")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    let (expected_source, layout) = scalar_graph_input::structural_fields::indexed_read(
+        optimized,
+        &node.operation,
+        &unit.structural_types,
+    )
+    .ok_or(invalid.clone())?;
+    if source != &expected_source
+        || path != expected_path
+        || index != expected_index
+        || obligation != expected_obligation
+        || layout != (*byte_offset, *byte_size, *extent)
+        || !accepted(optimized, unit, operation, *obligation, *accepted_fact)
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
+/// The recorded certificate is the verifier's accepted fact for exactly this
+/// obligation at this operation of this machine.
+fn accepted(
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+    obligation: semantic_vocabulary::ObligationId,
+    identity: optimization_core::AcceptedObligationFactIdentity,
+) -> bool {
+    unit.accepted_obligation_facts.iter().any(|fact| {
+        fact.machine == optimized.machine
+            && fact.operation == operation
+            && fact.obligation == obligation
+            && fact.identity == identity
+    })
 }
 
 pub(super) fn validate_structural_scalar_field_store(

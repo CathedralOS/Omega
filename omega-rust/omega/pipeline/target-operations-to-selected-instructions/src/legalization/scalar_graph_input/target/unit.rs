@@ -388,6 +388,56 @@ pub(super) fn validate_operation(
             primitive_store::validate(target, abstracted, parameters, sources, optimized, unit)?;
         }
         (
+            TargetUnitOperation::IndexedPrimitiveRead {
+                psi_operation,
+                result,
+                source,
+                path,
+                index,
+                obligation,
+            },
+            AbstractOperation::IndexedPrimitiveRead {
+                psi_operation: expected_operation,
+                result: expected,
+                path: expected_path,
+                index: expected_index,
+                obligation: expected_obligation,
+                ..
+            },
+        ) => {
+            // The runtime index resolves to an exact dominating source, as the
+            // indexed store's does; the element becomes an ordinary result home.
+            let (expected_source, _) = super::super::structural_fields::indexed_read(
+                optimized,
+                abstracted,
+                &unit.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
+            if psi_operation != expected_operation
+                || result != expected
+                || source != &expected_source
+                || path != expected_path
+                || obligation != expected_obligation
+                || index.source_value() != expected_index.value
+                || index.scalar_type() != expected_index.scalar_type
+                || !sources
+                    .iter()
+                    .any(|(identity, known)| *identity == expected_index.value && index == known)
+            {
+                return Err(LegalizationError::custody());
+            }
+            sources.push((
+                result.value,
+                Source::Home(target_operations::TargetUnitScalarHomeRequirement {
+                    defining_operation: *psi_operation,
+                    source_value: result.value,
+                    scalar_type: result.scalar_type,
+                    shape: super::super::scalar_shape(result.scalar_type)
+                        .ok_or(LegalizationError::custody())?,
+                }),
+            ));
+        }
+        (
             TargetUnitOperation::WriteOnlyIndexedPrimitiveStore { .. },
             AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. },
         ) => {

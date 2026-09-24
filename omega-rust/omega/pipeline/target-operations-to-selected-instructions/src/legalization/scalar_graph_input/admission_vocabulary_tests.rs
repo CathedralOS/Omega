@@ -182,6 +182,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::IntegerBitwiseXor { .. }
         | AbstractOperation::IntegerConstant { .. }
         | AbstractOperation::IntegerEqual { .. }
+        | AbstractOperation::IndexedPrimitiveRead { .. }
         | AbstractOperation::IntegerExactCast { .. }
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::IntegerLessThan { .. }

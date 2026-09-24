@@ -66,6 +66,7 @@ pub(super) fn lower_operation(
         | AbstractOperation::StructuralLeafCopy { source, .. }
         | AbstractOperation::StructuralCase { source, .. }
         | AbstractOperation::IntegerStructuralField { source, .. }
+        | AbstractOperation::IndexedPrimitiveRead { source, .. }
         | AbstractOperation::BooleanStructuralField { source, .. } => Some(*source),
         AbstractOperation::PrimitiveLocalStore { destination, .. } => Some(*destination),
         AbstractOperation::WriteOnlyPrimitiveStore { destination, .. }
@@ -366,6 +367,7 @@ pub(super) fn lower_operation(
         | AbstractOperation::PrimitiveScalarRead { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::IntegerStructuralField { .. }
+        | AbstractOperation::IndexedPrimitiveRead { .. }
         | AbstractOperation::BooleanStructuralField { .. } => super::primitive_storage::lower(
             operation,
             function,

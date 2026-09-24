@@ -90,6 +90,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         }
+        | AbstractOperation::IndexedPrimitiveRead {
+            psi_operation,
+            result,
+            ..
+        }
         | AbstractOperation::StructuralCaseMembership {
             psi_operation,
             result,
@@ -762,6 +767,15 @@ pub(super) fn validate(
                 if !super::byte_views::contains_view(optimized, *source)
                     || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                     || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                {
+                    return Err(LegalizationError::custody());
+                }
+                result.scalar_type
+            }
+            AbstractOperation::IndexedPrimitiveRead { result, index, .. } => {
+                if index.scalar_type != ScalarType::Integer(u64_type())
+                    || value_type(optimized, index.value) != Some(index.scalar_type)
+                    || scalar_shape(result.scalar_type).is_none()
                 {
                     return Err(LegalizationError::custody());
                 }

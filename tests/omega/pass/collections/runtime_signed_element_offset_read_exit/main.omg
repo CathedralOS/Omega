@@ -1,0 +1,36 @@
+// A runtime-indexed element read of a narrow signed array that does not start
+// the referent: `values` follows the console binding and a u64 field, so the
+// element address is the array's nonzero base plus index * 4, and the i32
+// load must sign-extend. values[2] is -7; only a read that addresses the
+// array field and restores the sign compares equal. The declared domain
+// `i: u64 in U640To3` proves the element obligation. -> exit 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain u64::U640To3 requires self <= 3;
+data Main {
+    console: Binding<Console>;
+    tag: u64;
+    values: [i32; 4];
+    i: u64 in U640To3;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.tag = 99;
+    self.values[0] = 5;
+    self.values[1] = 11;
+    self.values[2] = -7;
+    self.values[3] = 13;
+    self.i = 2;
+    transition { _ -> read() }
+
+    state read(&mut self) {
+        let v: i32 = self.values[self.i];
+        transition v == -7 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

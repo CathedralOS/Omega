@@ -496,6 +496,18 @@ pub enum AbstractOperation {
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         field: semantic_vocabulary::StructuralFieldId,
     },
+    /// One element of a fixed-array leaf beneath a structural place, read at a
+    /// proven runtime position. `path` ends at the array itself; the `u64`
+    /// index and its bounds obligation ride as operands, as for the indexed
+    /// primitive store.
+    IndexedPrimitiveRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: PlaceId,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: AbstractResult,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     BooleanNot {
         psi_operation: OperationId,
         result: ValueId,
@@ -802,4 +814,103 @@ pub enum AbstractOperation {
         site_guard: Vec<terminal_psi::CrashPredicateTerm>,
         frontier_lower_bound: Vec<ClaimId>,
     },
+}
+
+impl AbstractOperation {
+    /// The authored Terminal operation this row realizes, or `None` for a
+    /// control transfer (identified by its edge) and a dynamic descriptor
+    /// parameter (identified by its place).
+    pub fn psi_operation(&self) -> Option<OperationId> {
+        match self {
+            Self::WriteOnlyPrimitiveStore { psi_operation, .. }
+            | Self::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
+            | Self::ByteSequenceWrite { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldByteStore { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldStore { psi_operation, .. }
+            | Self::EstablishPrimitiveLocal { psi_operation, .. }
+            | Self::PrimitiveLocalStore { psi_operation, .. }
+            | Self::PrimitiveScalarRead { psi_operation, .. }
+            | Self::StructuralCaseMembership { psi_operation, .. }
+            | Self::StructuralByteSequenceFieldLength { psi_operation, .. }
+            | Self::StructuralScalarFieldStore { psi_operation, .. }
+            | Self::MoveStructuralField { psi_operation, .. }
+            | Self::StoreStructuralField { psi_operation, .. }
+            | Self::StructuralLeafCopy { psi_operation, .. }
+            | Self::StoreDynamicDescriptor { psi_operation, .. }
+            | Self::EstablishScalarArray { psi_operation, .. }
+            | Self::EstablishScalarCase { psi_operation, .. }
+            | Self::EstablishByteSequenceLiteral { psi_operation, .. }
+            | Self::EstablishTrivialAffineLocal { psi_operation, .. }
+            | Self::EstablishRecord { psi_operation, .. }
+            | Self::EstablishReference { psi_operation, .. }
+            | Self::ReleaseReference { psi_operation, .. }
+            | Self::AtomicEvent { psi_operation, .. }
+            | Self::CallUnit { psi_operation, .. }
+            | Self::CallUnitWithDynamicArguments { psi_operation, .. }
+            | Self::CallStructuralScalar { psi_operation, .. }
+            | Self::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
+            | Self::CallDynamicScalar { psi_operation, .. }
+            | Self::CallStoredDynamicScalar { psi_operation, .. }
+            | Self::CallDynamicParameterScalar { psi_operation, .. }
+            | Self::CallDynamicUnit { psi_operation, .. }
+            | Self::CallDynamicParameterUnit { psi_operation, .. }
+            | Self::CallStructural { psi_operation, .. }
+            | Self::BoundaryCall { psi_operation, .. }
+            | Self::PortWrite { psi_operation, .. }
+            | Self::Call { psi_operation, .. }
+            | Self::IntegerConstant { psi_operation, .. }
+            | Self::IeeeFloatConstant { psi_operation, .. }
+            | Self::IeeeFloatCompare { psi_operation, .. }
+            | Self::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
+            | Self::BooleanConstant { psi_operation, .. }
+            | Self::BooleanStructuralField { psi_operation, .. }
+            | Self::ByteSequenceRead { psi_operation, .. }
+            | Self::ByteSequenceSubslice { psi_operation, .. }
+            | Self::ByteSequenceLength { psi_operation, .. }
+            | Self::EstablishElementView { psi_operation, .. }
+            | Self::ElementViewLength { psi_operation, .. }
+            | Self::ElementViewRead { psi_operation, .. }
+            | Self::ElementViewSubslice { psi_operation, .. }
+            | Self::IntegerStructuralField { psi_operation, .. }
+            | Self::IndexedPrimitiveRead { psi_operation, .. }
+            | Self::BooleanNot { psi_operation, .. }
+            | Self::BooleanEqual { psi_operation, .. }
+            | Self::IntegerEqual { psi_operation, .. }
+            | Self::IntegerLessThan { psi_operation, .. }
+            | Self::IntegerLessOrEqual { psi_operation, .. }
+            | Self::IntegerBitwiseNot { psi_operation, .. }
+            | Self::IntegerWiden { psi_operation, .. }
+            | Self::IntegerExactCast { psi_operation, .. }
+            | Self::IntegerBitwiseAnd { psi_operation, .. }
+            | Self::IntegerBitwiseOr { psi_operation, .. }
+            | Self::IntegerBitwiseXor { psi_operation, .. }
+            | Self::WrappingIntegerShiftLeft { psi_operation, .. }
+            | Self::WrappingIntegerShiftRight { psi_operation, .. }
+            | Self::ExactIntegerShiftLeft { psi_operation, .. }
+            | Self::ExactIntegerShiftRight { psi_operation, .. }
+            | Self::WrappingIntegerAdd { psi_operation, .. }
+            | Self::ExactIntegerAdd { psi_operation, .. }
+            | Self::SaturatingIntegerAdd { psi_operation, .. }
+            | Self::WrappingIntegerSubtract { psi_operation, .. }
+            | Self::ExactIntegerSubtract { psi_operation, .. }
+            | Self::SaturatingIntegerSubtract { psi_operation, .. }
+            | Self::WrappingIntegerMultiply { psi_operation, .. }
+            | Self::ExactIntegerMultiply { psi_operation, .. }
+            | Self::ExactIntegerDivide { psi_operation, .. }
+            | Self::ExactIntegerRemainder { psi_operation, .. }
+            | Self::WrappingIntegerDivide { psi_operation, .. }
+            | Self::WrappingIntegerRemainder { psi_operation, .. }
+            | Self::SaturatingIntegerDivide { psi_operation, .. }
+            | Self::SaturatingIntegerRemainder { psi_operation, .. }
+            | Self::SaturatingIntegerMultiply { psi_operation, .. } => Some(*psi_operation),
+            Self::DynamicDescriptorParameter { .. }
+            | Self::Jump { .. }
+            | Self::Conditional { .. }
+            | Self::StructuralCase { .. }
+            | Self::Return { .. }
+            | Self::ReturnUnit { .. }
+            | Self::ReturnStructural { .. }
+            | Self::Crash { .. } => None,
+        }
+    }
 }

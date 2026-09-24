@@ -90,7 +90,7 @@ fn derive_optimized_scope(
     let mut final_operations = BTreeMap::new();
     for function in &final_plan.functions {
         for (operation_ordinal, operation) in function.operations.iter().enumerate() {
-            let Some(psi_operation) = abstract_operation_psi_operation(operation) else {
+            let Some(psi_operation) = operation.psi_operation() else {
                 continue;
             };
             if final_operations
@@ -109,7 +109,7 @@ fn derive_optimized_scope(
     let mut dynamic_call_occurrences = Vec::new();
     for function in &final_plan.functions {
         for (operation_ordinal, operation) in function.operations.iter().enumerate() {
-            let Some(psi_operation) = abstract_operation_psi_operation(operation) else {
+            let Some(psi_operation) = operation.psi_operation() else {
                 continue;
             };
             if d29_operations.contains(&psi_operation) {
@@ -279,101 +279,6 @@ fn validated_authority_bytes(authority: ValidatedProjectionCoordinates) -> Vec<u
     canonical.extend_from_slice(&authority.validation.bytes());
     canonical.extend_from_slice(&authority.final_unit.bytes());
     canonical
-}
-
-fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<OperationId> {
-    match operation {
-        AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
-        | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
-        | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
-        | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
-        | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
-        | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
-        | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
-        | AbstractOperation::PrimitiveScalarRead { psi_operation, .. }
-        | AbstractOperation::StructuralCaseMembership { psi_operation, .. }
-        | AbstractOperation::StructuralByteSequenceFieldLength { psi_operation, .. }
-        | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. }
-        | AbstractOperation::MoveStructuralField { psi_operation, .. }
-        | AbstractOperation::StoreStructuralField { psi_operation, .. }
-        | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
-        | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. }
-        | AbstractOperation::EstablishScalarArray { psi_operation, .. }
-        | AbstractOperation::EstablishScalarCase { psi_operation, .. }
-        | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
-        | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
-        | AbstractOperation::EstablishRecord { psi_operation, .. }
-        | AbstractOperation::EstablishReference { psi_operation, .. }
-        | AbstractOperation::ReleaseReference { psi_operation, .. }
-        | AbstractOperation::AtomicEvent { psi_operation, .. }
-        | AbstractOperation::CallUnit { psi_operation, .. }
-        | AbstractOperation::CallUnitWithDynamicArguments { psi_operation, .. }
-        | AbstractOperation::CallStructuralScalar { psi_operation, .. }
-        | AbstractOperation::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
-        | AbstractOperation::CallDynamicScalar { psi_operation, .. }
-        | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. }
-        | AbstractOperation::CallDynamicParameterScalar { psi_operation, .. }
-        | AbstractOperation::CallDynamicUnit { psi_operation, .. }
-        | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. }
-        | AbstractOperation::CallStructural { psi_operation, .. }
-        | AbstractOperation::BoundaryCall { psi_operation, .. }
-        | AbstractOperation::PortWrite { psi_operation, .. }
-        | AbstractOperation::Call { psi_operation, .. }
-        | AbstractOperation::IntegerConstant { psi_operation, .. }
-        | AbstractOperation::IeeeFloatConstant { psi_operation, .. }
-        | AbstractOperation::IeeeFloatCompare { psi_operation, .. }
-        | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { psi_operation, .. }
-        | AbstractOperation::BooleanConstant { psi_operation, .. }
-        | AbstractOperation::BooleanStructuralField { psi_operation, .. }
-        | AbstractOperation::ByteSequenceRead { psi_operation, .. }
-        | AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
-        | AbstractOperation::ByteSequenceLength { psi_operation, .. }
-        | AbstractOperation::EstablishElementView { psi_operation, .. }
-        | AbstractOperation::ElementViewLength { psi_operation, .. }
-        | AbstractOperation::ElementViewRead { psi_operation, .. }
-        | AbstractOperation::ElementViewSubslice { psi_operation, .. }
-        | AbstractOperation::IntegerStructuralField { psi_operation, .. }
-        | AbstractOperation::BooleanNot { psi_operation, .. }
-        | AbstractOperation::BooleanEqual { psi_operation, .. }
-        | AbstractOperation::IntegerEqual { psi_operation, .. }
-        | AbstractOperation::IntegerLessThan { psi_operation, .. }
-        | AbstractOperation::IntegerLessOrEqual { psi_operation, .. }
-        | AbstractOperation::IntegerBitwiseNot { psi_operation, .. }
-        | AbstractOperation::IntegerWiden { psi_operation, .. }
-        | AbstractOperation::IntegerExactCast { psi_operation, .. }
-        | AbstractOperation::IntegerBitwiseAnd { psi_operation, .. }
-        | AbstractOperation::IntegerBitwiseOr { psi_operation, .. }
-        | AbstractOperation::IntegerBitwiseXor { psi_operation, .. }
-        | AbstractOperation::WrappingIntegerShiftLeft { psi_operation, .. }
-        | AbstractOperation::WrappingIntegerShiftRight { psi_operation, .. }
-        | AbstractOperation::ExactIntegerShiftLeft { psi_operation, .. }
-        | AbstractOperation::ExactIntegerShiftRight { psi_operation, .. }
-        | AbstractOperation::WrappingIntegerAdd { psi_operation, .. }
-        | AbstractOperation::ExactIntegerAdd { psi_operation, .. }
-        | AbstractOperation::SaturatingIntegerAdd { psi_operation, .. }
-        | AbstractOperation::WrappingIntegerSubtract { psi_operation, .. }
-        | AbstractOperation::ExactIntegerSubtract { psi_operation, .. }
-        | AbstractOperation::SaturatingIntegerSubtract { psi_operation, .. }
-        | AbstractOperation::WrappingIntegerMultiply { psi_operation, .. }
-        | AbstractOperation::ExactIntegerMultiply { psi_operation, .. }
-        | AbstractOperation::ExactIntegerDivide { psi_operation, .. }
-        | AbstractOperation::ExactIntegerRemainder { psi_operation, .. }
-        | AbstractOperation::WrappingIntegerDivide { psi_operation, .. }
-        | AbstractOperation::WrappingIntegerRemainder { psi_operation, .. }
-        | AbstractOperation::SaturatingIntegerDivide { psi_operation, .. }
-        | AbstractOperation::SaturatingIntegerRemainder { psi_operation, .. }
-        | AbstractOperation::SaturatingIntegerMultiply { psi_operation, .. } => {
-            Some(*psi_operation)
-        }
-        AbstractOperation::DynamicDescriptorParameter { .. }
-        | AbstractOperation::Jump { .. }
-        | AbstractOperation::Conditional { .. }
-        | AbstractOperation::StructuralCase { .. }
-        | AbstractOperation::Return { .. }
-        | AbstractOperation::ReturnUnit { .. }
-        | AbstractOperation::ReturnStructural { .. }
-        | AbstractOperation::Crash { .. } => None,
-    }
 }
 
 fn terminal_identity_bytes(terminal: TerminalPsiIdentity) -> Vec<u8> {

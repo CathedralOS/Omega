@@ -209,6 +209,29 @@ fn runtime_declared_range_index_read_exit_canary_runs() {
     let _ = fs::remove_dir_all(&scratch);
 }
 
+// A runtime-indexed read of a narrow signed array at a nonzero offset: the
+// element address joins the array base, and the i32 load is sign-restored.
+// values[2] = -7 -> exit 70.
+
+#[test]
+fn runtime_signed_element_offset_read_exit_canary_runs() {
+    let canary = pass_canary(fixture_roster::RUNTIME_SIGNED_ELEMENT_OFFSET_READ_EXIT);
+    let scratch =
+        std::env::temp_dir().join(format!("omega-signed-elem-read-{}", std::process::id()));
+
+    let _ = fs::remove_dir_all(&scratch);
+    let compilation = compile_rooted_canary_for_native_host(&canary, scratch.clone())
+        .expect("signed element offset read canary should compile");
+    assert_native_exit_code(
+        &compilation,
+        70,
+        "signed element offset read canary",
+        "the indexed read should address the array field and restore its sign",
+    );
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 // The WRITE face of the declared-range index proof: `self.arr[self.i] = 30`
 // with `i: usize [0..=4]` and no dominating guard -> read-back -> exit 30.
 

@@ -81,93 +81,134 @@ pub struct LegalizedValueDefinition {
 
 impl LegalizedScalarInstruction {
     pub fn references_value(&self, value: ValueId) -> bool {
+        let mut found = false;
+        self.visit_scalar_operands(|operand| found |= operand == value);
+        found
+    }
+
+    /// Every scalar value this instruction reads, in operand order. Structural
+    /// subjects, results and metadata carried beside the operands are not
+    /// reads; a value appears once per operand position that reads it.
+    pub fn visit_scalar_operands(&self, mut visit: impl FnMut(ValueId)) {
         match &self.kind {
-                    LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => elements.contains(&value),
-                    LegalizedScalarInstructionKind::EstablishRecord { fields, .. } => fields.iter().any(|field| matches!(&field.value, terminal_psi::RecordFieldValue::Scalar { value: source, .. } if *source == value)),
-                    LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => fields.iter().any(|field| field.value == value),
-                    LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
-                    | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => *source == value,
-                    LegalizedScalarInstructionKind::StructuralScalarFieldStore { value: stored, .. }
-                    | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value: stored, .. }
-                    | LegalizedScalarInstructionKind::PrimitiveLocalStore { value: stored, .. }
-                    | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value: stored, .. } => stored.value == value,
-                    LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
-                        index,
-                        value: stored,
-                        ..
-                    } => index.value == value || stored.value == value,
-                    LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
-                    LegalizedScalarInstructionKind::ElementViewSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
-                    LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => *index == value || *length == value,
-                    LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => *length == value,
-                    LegalizedScalarInstructionKind::ByteSequenceWrite { index, value: stored, length, .. }
-                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { index, value: stored, length, .. } => [*index, *stored, *length].contains(&value),
-                    LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. } => *index == value || *length == value,
-                    LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. } => indices.iter().any(|index| index.operand.value == value),
-                    LegalizedScalarInstructionKind::Constant(_)
-                    | LegalizedScalarInstructionKind::EstablishReference { .. }
-                    | LegalizedScalarInstructionKind::ReleaseReference { .. }
-                    | LegalizedScalarInstructionKind::HostedReadByte { .. }
-                    | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
-                    | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
-                    | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
-                    | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
-                    | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
-                    | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
-                    | LegalizedScalarInstructionKind::EstablishElementView { .. }
-                    | LegalizedScalarInstructionKind::ElementViewLength { .. }
-                    | LegalizedScalarInstructionKind::BoundarySettlement(_)
-                    | LegalizedScalarInstructionKind::DynamicParameterCall(_) => false,
-                    LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
-                        .scalar_arguments
-                        .iter()
-                        .any(|argument| argument.source.source_value() == value),
-                    LegalizedScalarInstructionKind::BooleanNot { operand }
-                    | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
-                        | LegalizedScalarInstructionKind::BitwiseNot { operand }
-                        | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => {
-                        *operand == value
+            LegalizedScalarInstructionKind::EstablishScalarArray { elements, .. } => {
+                elements.iter().copied().for_each(visit)
+            }
+            LegalizedScalarInstructionKind::EstablishRecord { fields, .. } => {
+                for field in fields {
+                    if let terminal_psi::RecordFieldValue::Scalar { value, .. } = &field.value {
+                        visit(*value);
                     }
-                    LegalizedScalarInstructionKind::Call(call) => call
-                        .arguments
-                        .iter()
-                        .any(|argument| matches!(argument, LegalizedScalarArgument::Scalar {source, ..} if *source == value)),
-                    LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
-                    | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
-                    | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
-                    | LegalizedScalarInstructionKind::SaturatingRemainder { left, right, .. }
-                    | LegalizedScalarInstructionKind::SaturatingMultiply { left, right, .. }
-                    | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
-                    | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
-                    | LegalizedScalarInstructionKind::WrappingDivide { left, right, .. }
-                    | LegalizedScalarInstructionKind::WrappingAdd { left, right }
-                    | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
-                    | LegalizedScalarInstructionKind::WrappingMultiply { left, right }
-                    | LegalizedScalarInstructionKind::WrappingShiftLeft {
-                        value: left,
-                        count: right,
-                    }
-                    | LegalizedScalarInstructionKind::WrappingShiftRight {
-                        value: left,
-                        count: right,
-                    }
-                    | LegalizedScalarInstructionKind::ExactShiftLeft {
-                        value: left,
-                        count: right,
-                        ..
-                    }
-                    | LegalizedScalarInstructionKind::ExactShiftRight {
-                        value: left,
-                        count: right,
-                        ..
-                    }
-                    | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
-                    | LegalizedScalarInstructionKind::BitwiseOr { left, right }
-                    | LegalizedScalarInstructionKind::BitwiseXor { left, right }
-                    | LegalizedScalarInstructionKind::Compare { left, right, .. }
-                    | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
-                        *left == value || *right == value
-                    }
+                }
+            }
+            LegalizedScalarInstructionKind::EstablishScalarCase { fields, .. } => {
+                fields.iter().for_each(|field| visit(field.value))
+            }
+            LegalizedScalarInstructionKind::HostedWriteByteI32 { source, .. }
+            | LegalizedScalarInstructionKind::HostedExitProcessI32 { source, .. } => visit(*source),
+            LegalizedScalarInstructionKind::StructuralScalarFieldStore { value, .. }
+            | LegalizedScalarInstructionKind::EstablishPrimitiveLocal { value, .. }
+            | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. }
+            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { value, .. } => {
+                visit(value.value)
+            }
+            LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore {
+                index, value, ..
+            } => [index.value, value.value].into_iter().for_each(visit),
+            LegalizedScalarInstructionKind::IndexedPrimitiveRead { index, .. } => {
+                visit(index.value)
+            }
+            LegalizedScalarInstructionKind::ByteSequenceSubslice {
+                start, end, length, ..
+            }
+            | LegalizedScalarInstructionKind::ElementViewSubslice {
+                start, end, length, ..
+            } => [*start, *end, *length].into_iter().for_each(visit),
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => {
+                visit(*length)
+            }
+            LegalizedScalarInstructionKind::ByteSequenceWrite {
+                index,
+                value,
+                length,
+                ..
+            }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
+                index,
+                value,
+                length,
+                ..
+            } => [*index, *value, *length].into_iter().for_each(visit),
+            LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. }
+            | LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => {
+                [*index, *length].into_iter().for_each(visit)
+            }
+            LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. } => {
+                indices.iter().for_each(|index| visit(index.operand.value))
+            }
+            LegalizedScalarInstructionKind::Constant(_)
+            | LegalizedScalarInstructionKind::EstablishReference { .. }
+            | LegalizedScalarInstructionKind::ReleaseReference { .. }
+            | LegalizedScalarInstructionKind::HostedReadByte { .. }
+            | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. }
+            | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
+            | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
+            | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
+            | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
+            | LegalizedScalarInstructionKind::EstablishElementView { .. }
+            | LegalizedScalarInstructionKind::ElementViewLength { .. }
+            | LegalizedScalarInstructionKind::BoundarySettlement(_)
+            | LegalizedScalarInstructionKind::DynamicParameterCall(_) => {}
+            LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
+                .scalar_arguments
+                .iter()
+                .for_each(|argument| visit(argument.source.source_value())),
+            LegalizedScalarInstructionKind::BooleanNot { operand }
+            | LegalizedScalarInstructionKind::IntegerWiden { operand, .. }
+            | LegalizedScalarInstructionKind::BitwiseNot { operand }
+            | LegalizedScalarInstructionKind::IntegerExactCast { operand, .. } => visit(*operand),
+            LegalizedScalarInstructionKind::Call(call) => call
+                .arguments
+                .iter()
+                .filter_map(LegalizedScalarArgument::scalar_source)
+                .for_each(visit),
+            LegalizedScalarInstructionKind::SaturatingAdd { left, right, .. }
+            | LegalizedScalarInstructionKind::SaturatingSubtract { left, right, .. }
+            | LegalizedScalarInstructionKind::SaturatingDivide { left, right, .. }
+            | LegalizedScalarInstructionKind::SaturatingRemainder { left, right, .. }
+            | LegalizedScalarInstructionKind::SaturatingMultiply { left, right, .. }
+            | LegalizedScalarInstructionKind::ExactBinary { left, right, .. }
+            | LegalizedScalarInstructionKind::WrappingRemainder { left, right, .. }
+            | LegalizedScalarInstructionKind::WrappingDivide { left, right, .. }
+            | LegalizedScalarInstructionKind::WrappingAdd { left, right }
+            | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
+            | LegalizedScalarInstructionKind::WrappingMultiply { left, right }
+            | LegalizedScalarInstructionKind::WrappingShiftLeft {
+                value: left,
+                count: right,
+            }
+            | LegalizedScalarInstructionKind::WrappingShiftRight {
+                value: left,
+                count: right,
+            }
+            | LegalizedScalarInstructionKind::ExactShiftLeft {
+                value: left,
+                count: right,
+                ..
+            }
+            | LegalizedScalarInstructionKind::ExactShiftRight {
+                value: left,
+                count: right,
+                ..
+            }
+            | LegalizedScalarInstructionKind::BitwiseAnd { left, right }
+            | LegalizedScalarInstructionKind::BitwiseOr { left, right }
+            | LegalizedScalarInstructionKind::BitwiseXor { left, right }
+            | LegalizedScalarInstructionKind::Compare { left, right, .. }
+            | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
+                [*left, *right].into_iter().for_each(visit)
+            }
         }
     }
 }
@@ -225,6 +266,21 @@ pub enum LegalizedScalarInstructionKind {
     StructuralScalarFieldRead {
         source: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
+    },
+    /// One fixed-array element read at a proven runtime index. `path` resolves
+    /// to the array beneath `source`; `byte_offset` is its base within the
+    /// referent and `byte_size` is both the element width and the stride.
+    /// `obligation`/`accepted_fact` carry the verifier's `index < extent`
+    /// certificate, as for the indexed store.
+    IndexedPrimitiveRead {
+        source: terminal_psi::StructuralArgument,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: abstract_operations::AbstractResult,
+        byte_offset: u32,
+        byte_size: u8,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     /// Exact bounded-field metadata subject; selection reconstructs its offset.
     StructuralByteSequenceFieldLength {

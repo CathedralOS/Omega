@@ -64,6 +64,17 @@ pub(crate) fn operation_scalar_types_match(
         }
         // The runtime selector rejoins its dominating u64 definition; the
         // stored scalar keeps the array's exact element type.
+        // The element read rejoins its dominating u64 selector and yields the
+        // array's exact element type; the structural root check binds that type.
+        O::IndexedPrimitiveRead { result, index, .. } => {
+            scalar(index.value) == Some(index.scalar_type)
+                && index.scalar_type
+                    == ScalarType::Integer(
+                        IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                            .expect("u64 is valid"),
+                    )
+                && scalar(result.value) == Some(result.scalar_type)
+        }
         O::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
             scalar(index.value) == Some(index.scalar_type)
                 && index.scalar_type
