@@ -1235,3 +1235,71 @@ fn lowers_joined_retained_integer_field_guard_into_entry_comparison() {
         comparison.result.expect_scalar().id
     );
 }
+
+const JOINED_TWO_PARAMETER_EQUALITY_GUARD_SOURCE: &str = r#"
+    trait Measure {
+        machine measure(&self) -> bool;
+    }
+
+    data Item [copy] { marker: bool; }
+
+    Primary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    Secondary: Item satisfies Measure {
+        machine measure(&self) -> bool { transition { _ -> self.marker } }
+    }
+
+    data Main [copy] { first: Item; second: Item; }
+
+    machine Main::run(&self, flag: bool, other_flag: bool) {
+        transition flag == other_flag {
+            true -> take_first()
+            _ -> take_second()
+        }
+
+        state take_first(&self) {
+            let selected: &dyn Measure = &self.first as &dyn Item::Primary;
+            let result: bool = finish(selected);
+        }
+
+        state take_second(&self) {
+            let selected: &dyn Measure = &self.second as &dyn Item::Secondary;
+            let result: bool = finish(selected);
+        }
+    }
+
+    machine finish(erased: &dyn Measure) -> bool {
+        let result: bool = erased.measure();
+        transition { _ -> result }
+    }
+"#;
+
+#[test]
+fn lowers_joined_two_parameter_equality_guard_into_entry_comparison() {
+    let caller = lower_joined_guard_caller(JOINED_TWO_PARAMETER_EQUALITY_GUARD_SOURCE);
+    let [flag, other_flag] = caller.parameters.as_slice() else {
+        panic!("joined caller keeps both Boolean parameters")
+    };
+    assert_eq!(flag.scalar_type, semantic_vocabulary::ScalarType::Boolean);
+    assert_eq!(
+        other_flag.scalar_type,
+        semantic_vocabulary::ScalarType::Boolean
+    );
+    let [equality] = caller.blocks[0].operations.as_slice() else {
+        panic!(
+            "two-parameter equality lowers to a single comparison: {:?}",
+            caller.blocks[0].operations
+        )
+    };
+    let OperationKind::BooleanEqual { left, right } = equality.kind else {
+        panic!("two-parameter equality guard lowers to BooleanEqual: {equality:?}")
+    };
+    assert_eq!(left, flag.id);
+    assert_eq!(right, other_flag.id);
+    assert_eq!(
+        joined_entry_condition(&caller),
+        equality.result.expect_scalar().id
+    );
+}

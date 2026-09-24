@@ -7,18 +7,18 @@ use super::super::{
 
 pub(super) fn exact_guard(
     expression: &CheckedScalarExpression,
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
     bindings: &[CheckedScalarBinding],
 ) -> Option<CheckedScalarExpression> {
     let CheckedScalarExpression::Boolean(boolean) = expression else {
         return None;
     };
     match (bindings, boolean.as_ref()) {
-        // The joined guard evaluates at the caller: the sole scalar
-        // parameter (when present), a retained `self` field, and literal
-        // constants are its admitted operand roots.
-        ([], shape) if admitted_guard_shape(shape, scalar_parameter) => Some(expression.clone()),
-        ([], shape) if scalar_parameter.is_none() && closed_boolean(shape) => {
+        // The joined guard evaluates at the caller: the scalar parameters,
+        // a retained `self` field, and literal constants are its admitted
+        // operand roots.
+        ([], shape) if admitted_guard_shape(shape, scalar_parameters) => Some(expression.clone()),
+        ([], shape) if scalar_parameters.is_empty() && closed_boolean(shape) => {
             Some(expression.clone())
         }
         (
@@ -38,17 +38,17 @@ pub(super) fn exact_guard(
     }
 }
 
-/// Guard shapes the joined caller can evaluate itself: the sole Boolean
-/// parameter, a retained `self` field, equality or integer-equality over the
+/// Guard shapes the joined caller can evaluate itself: a Boolean parameter
+/// operand, a retained `self` field, equality or integer-equality over the
 /// admitted operand roots, and negations of those. Everything else —
-/// locals, calls, ordering comparisons, parameter-on-parameter equality —
-/// still declines.
+/// locals, calls, and ordering comparisons — still declines.
 fn admitted_guard_shape(
     expression: &checked_trees::CheckedBooleanExpression,
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
     match expression {
-        checked_trees::CheckedBooleanExpression::Parameter { position: 0 } => scalar_parameter
+        checked_trees::CheckedBooleanExpression::Parameter { position } => scalar_parameters
+            .get(*position)
             .is_some_and(|parameter| parameter.primitive_type == PrimitiveType::Bool),
         checked_trees::CheckedBooleanExpression::StructuralParameterField {
             parameter_position,
@@ -56,11 +56,11 @@ fn admitted_guard_shape(
         } => retained_field_subject(*parameter_position, path),
         checked_trees::CheckedBooleanExpression::Equal { left, right } => {
             (boolean_subject(left) || boolean_subject(right))
-                && boolean_operand(left, scalar_parameter)
-                && boolean_operand(right, scalar_parameter)
+                && boolean_operand(left, scalar_parameters)
+                && boolean_operand(right, scalar_parameters)
         }
         checked_trees::CheckedBooleanExpression::Not(inner) => {
-            admitted_guard_shape(inner, scalar_parameter)
+            admitted_guard_shape(inner, scalar_parameters)
         }
         checked_trees::CheckedBooleanExpression::IntegerComparison {
             kind: checked_trees::CheckedIntegerComparisonKind::Equal,
@@ -68,8 +68,8 @@ fn admitted_guard_shape(
             right,
         } => {
             (integer_subject(left) || integer_subject(right))
-                && integer_operand(left, scalar_parameter)
-                && integer_operand(right, scalar_parameter)
+                && integer_operand(left, scalar_parameters)
+                && integer_operand(right, scalar_parameters)
         }
         _ => false,
     }
@@ -93,14 +93,15 @@ fn retained_field_subject(
         })
 }
 
-/// One Boolean operand of a joined equality: the sole Boolean parameter, a
+/// One Boolean operand of a joined equality: a Boolean parameter, a
 /// retained `self` field, or a Boolean literal.
 fn boolean_operand(
     expression: &checked_trees::CheckedBooleanExpression,
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
     match expression {
-        checked_trees::CheckedBooleanExpression::Parameter { position: 0 } => scalar_parameter
+        checked_trees::CheckedBooleanExpression::Parameter { position } => scalar_parameters
+            .get(*position)
             .is_some_and(|parameter| parameter.primitive_type == PrimitiveType::Bool),
         checked_trees::CheckedBooleanExpression::Constant(_) => true,
         checked_trees::CheckedBooleanExpression::StructuralParameterField {
@@ -111,17 +112,19 @@ fn boolean_operand(
     }
 }
 
-/// One integer operand of a joined equality: the sole scalar parameter
-/// (typed to match it), a retained `self` field, or an integer literal.
+/// One integer operand of a joined equality: a scalar parameter (typed to
+/// match it), a retained `self` field, or an integer literal.
 fn integer_operand(
     expression: &CheckedScalarExpression,
-    scalar_parameter: Option<&CheckedStructuralScalarParameterPlan>,
+    scalar_parameters: &[CheckedStructuralScalarParameterPlan],
 ) -> bool {
     match expression {
         CheckedScalarExpression::Parameter {
-            position: 0,
+            position,
             primitive_type,
-        } => scalar_parameter.is_some_and(|parameter| parameter.primitive_type == *primitive_type),
+        } => scalar_parameters
+            .get(*position)
+            .is_some_and(|parameter| parameter.primitive_type == *primitive_type),
         CheckedScalarExpression::IntegerLiteral { .. } => true,
         CheckedScalarExpression::StructuralParameterField {
             parameter_position,
@@ -132,12 +135,12 @@ fn integer_operand(
     }
 }
 
-/// Whether an equality operand names a runtime subject — the joined
+/// Whether an equality operand names a runtime subject — a joined
 /// parameter or a retained field — rather than a pair of literals.
 fn boolean_subject(expression: &checked_trees::CheckedBooleanExpression) -> bool {
     matches!(
         expression,
-        checked_trees::CheckedBooleanExpression::Parameter { position: 0 }
+        checked_trees::CheckedBooleanExpression::Parameter { .. }
             | checked_trees::CheckedBooleanExpression::StructuralParameterField { .. }
     )
 }
@@ -145,7 +148,7 @@ fn boolean_subject(expression: &checked_trees::CheckedBooleanExpression) -> bool
 fn integer_subject(expression: &CheckedScalarExpression) -> bool {
     matches!(
         expression,
-        CheckedScalarExpression::Parameter { position: 0, .. }
+        CheckedScalarExpression::Parameter { .. }
             | CheckedScalarExpression::StructuralParameterField { .. }
     )
 }
