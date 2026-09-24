@@ -3860,6 +3860,11 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
                 place,
                 structural_type,
                 ..
+            }
+            | AbstractOperation::EstablishTrivialAffineLocal {
+                place,
+                structural_type,
+                ..
             } => (place.id, structural_type.id),
             AbstractOperation::BoundaryCall {
                 result: AbstractBoundaryResult::Structural(result),

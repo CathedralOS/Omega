@@ -168,12 +168,17 @@ pub(super) fn membership_layout(
 
 /// These places are created inside the graph, not copied from incoming parameters.
 /// Each constructor/call and its complete storage is checked at its instruction.
+/// Whether the body establishes activation-local aggregate values, which is
+/// what admits a function with no structural parameters to the structural
+/// graph. An empty-record local counts: it occupies no bytes, but its
+/// establishment is the producer a zero-byte owned call argument names.
 pub(super) fn has_local_aggregates(source: &LegalizedScalarFunction) -> bool {
     source
         .blocks
         .iter()
         .flat_map(|block| &block.instructions)
         .any(|row| match &row.kind {
+            LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. } => true,
             LegalizedScalarInstructionKind::EstablishRecord { .. } => {
                 super::record_input::fields(source, row).is_some()
             }

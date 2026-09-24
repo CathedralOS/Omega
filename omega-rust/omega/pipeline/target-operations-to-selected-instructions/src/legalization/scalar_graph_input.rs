@@ -21,6 +21,7 @@ mod custody;
 pub(super) use custody::validate_unit_custody;
 pub(super) mod address_joins;
 pub(super) mod aggregate_results;
+pub(super) mod borrowed_windows;
 mod byte_views;
 mod header;
 mod hosted_scalar;
@@ -319,6 +320,9 @@ pub(super) fn match_input(
     for node in optimized.blocks.iter().flat_map(|block| &block.nodes) {
         if let AbstractOperation::EstablishByteSequenceLiteral {
             structural_type, ..
+        }
+        | AbstractOperation::EstablishTrivialAffineLocal {
+            structural_type, ..
         } = &node.operation
             && (!plan.structural_types.contains(structural_type)
                 || !unit.structural_types.contains(structural_type))
@@ -344,7 +348,8 @@ pub(super) fn match_input(
         {
             return Err(LegalizationError::custody());
         }
-        if let AbstractOperation::StructuralLeafCopy { result, .. } = &node.operation
+        if let AbstractOperation::StructuralLeafCopy { result, .. }
+        | AbstractOperation::MoveStructuralField { result, .. } = &node.operation
             && (!plan
                 .structural_types
                 .iter()

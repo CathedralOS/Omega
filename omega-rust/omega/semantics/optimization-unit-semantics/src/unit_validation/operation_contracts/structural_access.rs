@@ -428,6 +428,7 @@ pub(crate) fn structural_source_contract(
             projected_qualifications: &parameter.projected_qualifications,
         })
         .or_else(|| structural_operation_result_contract(caller, place))
+        .or_else(|| trivial_affine_local_contract(caller, place))
         .or_else(|| {
             allow_byte_literal.then_some(())?;
             caller
@@ -452,6 +453,34 @@ pub(crate) fn structural_source_contract(
                         projected_qualifications: &[],
                     })
                 })
+        })
+}
+
+/// An empty-record local minted by `EstablishTrivialAffineLocal` is an owned
+/// affine value: ownership replay inserts exactly that custody at the
+/// establishment, so a call consuming the local sees the same contract. The
+/// establishment carries no qualification roster.
+fn trivial_affine_local_contract(
+    caller: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<StructuralSourceContract<'_>> {
+    caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::EstablishTrivialAffineLocal {
+                place: declaration,
+                structural_type,
+                ..
+            } if declaration.id == place => Some(StructuralSourceContract {
+                structural_type: structural_type.id,
+                multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+                access: terminal_psi::StructuralAccess::Owned,
+                qualifications: &[],
+                projected_qualifications: &[],
+            }),
+            _ => None,
         })
 }
 

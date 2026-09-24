@@ -147,6 +147,8 @@ impl LegalizedScalarInstruction {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
             LegalizedScalarInstructionKind::Constant(_)
+            | LegalizedScalarInstructionKind::StoreStructuralField { .. }
+            | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
             | LegalizedScalarInstructionKind::EstablishReference { .. }
             | LegalizedScalarInstructionKind::ReleaseReference { .. }
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
@@ -316,9 +318,11 @@ pub enum LegalizedScalarInstructionKind {
         case_tag: u32,
         tag_byte_offset: u32,
     },
-    /// One owned copy of a readable root's `Unrestricted` leaf at a resolved
-    /// static offset. The copy extent is the leaf's own `shape`; the borrowed
-    /// root keeps full custody and the result is fresh activation storage.
+    /// One byte copy of a readable root's subtree at a resolved offset into
+    /// fresh activation storage. The copy extent is the subtree's own
+    /// `shape`. It realizes an `Unrestricted` leaf copy, which leaves the root
+    /// in full custody, and the opening move of a borrowed window, whose
+    /// `path` ends at the vacated field; see `StoreStructuralField`.
     StructuralLeafCopy {
         result: terminal_psi::StructuralOperationResult,
         source: semantic_vocabulary::PlaceId,
@@ -329,6 +333,25 @@ pub enum LegalizedScalarInstructionKind {
         /// each operand scales by its `stride` before joining `byte_offset`.
         /// Empty for fully static projections.
         indices: Vec<LegalizedRuntimeIndexOperand>,
+    },
+    /// Reseat the field a borrowed-window move vacated: the inverse byte
+    /// copy of `StructuralLeafCopy`. The consumed `value` home's `shape`
+    /// bytes land at `byte_offset` beneath `destination`'s referent, the
+    /// resolved offset of `field` under the spelled `path`.
+    StoreStructuralField {
+        destination: terminal_psi::StructuralParameterDeclaration,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        field: semantic_vocabulary::StructuralFieldId,
+        value: semantic_vocabulary::PlaceId,
+        byte_offset: u32,
+        shape: calling_conventions::ValueShape,
+    },
+    /// Establish one empty-record affine local. It occupies no bytes, so,
+    /// like reference custody rows, it emits no instruction: the row keeps
+    /// the establishment a whole owned call argument names as its producer.
+    EstablishTrivialAffineLocal {
+        place: terminal_psi::StructuralPlaceDeclaration,
+        structural_type: terminal_psi::StructuralTypeDeclaration,
     },
     /// Exact admitted byte-input boundary and its owned structural result home.
     HostedReadByte {

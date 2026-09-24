@@ -247,6 +247,13 @@ pub(super) fn operation(
     }
     if matches!(
         node.kind,
+        LegalizedScalarInstructionKind::StoreStructuralField { .. }
+    ) {
+        leaf_copy::reseat(source, node, replay)?;
+        return Ok(true);
+    }
+    if matches!(
+        node.kind,
         LegalizedScalarInstructionKind::EstablishScalarArray { .. }
     ) {
         scalar_array::establish(source, node, replay)?;
@@ -333,6 +340,25 @@ pub(super) fn operation(
             {
                 return Err(replay.invalid());
             }
+        }
+        return Ok(true);
+    }
+    // An empty-record local is metadata like reference custody: its place
+    // must be the trivial local of the signature's own empty record.
+    if let LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
+        place,
+        structural_type,
+    } = &node.kind
+    {
+        let valid = source.structural.as_ref().is_some_and(|signature| {
+            signature.structural_places.contains(place)
+                && signature.structural_types.contains(structural_type)
+        }) && matches!(
+            &structural_type.shape,
+            terminal_psi::StructuralTypeShape::Record { fields } if fields.is_empty()
+        );
+        if node.result.is_some() || !valid {
+            return Err(replay.invalid());
         }
         return Ok(true);
     }

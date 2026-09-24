@@ -149,6 +149,18 @@ pub(super) fn project(
         AbstractOperation::StructuralLeafCopy { .. } => {
             storage_instructions::project_structural_leaf_copy(node, optimized, plan)?
         }
+        AbstractOperation::MoveStructuralField { .. }
+        | AbstractOperation::StoreStructuralField { .. } => {
+            storage_instructions::project_borrowed_window(node, optimized, plan)?
+        }
+        AbstractOperation::EstablishTrivialAffineLocal {
+            place,
+            structural_type,
+            ..
+        } => LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
+            place: *place,
+            structural_type: structural_type.clone(),
+        },
         AbstractOperation::PrimitiveScalarRead { source, path, .. } => {
             LegalizedScalarInstructionKind::PrimitiveScalarRead {
                 source: *source,

@@ -379,6 +379,74 @@ pub(super) fn validate(
         ) => {
             aggregate_results::validate(actual, node, optimized, native, plan, unit, custody)?;
         }
+        // A window move replays as the leaf-copy byte copy of the vacated
+        // field and its store as the inverse copy; both re-resolve the field
+        // extent from the abstract row.
+        (
+            LegalizedScalarInstructionKind::StructuralLeafCopy {
+                result,
+                source,
+                path,
+                byte_offset,
+                shape,
+                indices,
+            },
+            AbstractOperation::MoveStructuralField {
+                result: expected,
+                source: root,
+                path: spelled,
+                field,
+                ..
+            },
+        ) if result == expected && *source == root.place && indices.is_empty() && {
+            let extent = scalar_graph_input::borrowed_windows::moved(
+                optimized, root, spelled, *field, expected, plan,
+            )?;
+            *path == extent.path && (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
+        } => {}
+        (
+            LegalizedScalarInstructionKind::StoreStructuralField {
+                destination,
+                path,
+                field,
+                value,
+                byte_offset,
+                shape,
+            },
+            AbstractOperation::StoreStructuralField {
+                destination: expected_destination,
+                path: expected_path,
+                field: expected_field,
+                value: expected_value,
+                ..
+            },
+        ) if destination == expected_destination
+            && path == expected_path
+            && field == expected_field
+            && *value == expected_value.place
+            && expected_value.access == terminal_psi::StructuralAccess::Owned
+            && expected_value.path.is_empty()
+            && {
+                let extent = scalar_graph_input::borrowed_windows::extent(
+                    optimized,
+                    expected_destination,
+                    expected_path,
+                    *expected_field,
+                    plan,
+                )?;
+                (*byte_offset, *shape) == (extent.byte_offset, extent.shape)
+            } => {}
+        (
+            LegalizedScalarInstructionKind::EstablishTrivialAffineLocal {
+                place,
+                structural_type,
+            },
+            AbstractOperation::EstablishTrivialAffineLocal {
+                place: expected_place,
+                structural_type: expected_type,
+                ..
+            },
+        ) if place == expected_place && structural_type == expected_type => {}
         (
             LegalizedScalarInstructionKind::EstablishPrimitiveLocal {
                 result,

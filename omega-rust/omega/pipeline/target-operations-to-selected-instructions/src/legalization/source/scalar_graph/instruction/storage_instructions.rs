@@ -88,6 +88,64 @@ pub(super) fn project_structural_leaf_copy(
     Ok(kind)
 }
 
+/// A borrowed window's move is the leaf-copy byte copy over the spelled path
+/// extended by the vacated field; its store is the inverse copy. Both
+/// resolve one field extent independently of the target rows they rejoin.
+pub(super) fn project_borrowed_window(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    match &node.operation {
+        AbstractOperation::MoveStructuralField {
+            result,
+            source,
+            path,
+            field,
+            ..
+        } => {
+            let extent = scalar_graph_input::borrowed_windows::moved(
+                optimized, source, path, *field, result, plan,
+            )?;
+            Ok(LegalizedScalarInstructionKind::StructuralLeafCopy {
+                result: result.clone(),
+                source: source.place,
+                path: extent.path,
+                byte_offset: extent.byte_offset,
+                shape: extent.shape,
+                indices: Vec::new(),
+            })
+        }
+        AbstractOperation::StoreStructuralField {
+            destination,
+            path,
+            field,
+            value,
+            ..
+        } => {
+            let extent = scalar_graph_input::borrowed_windows::extent(
+                optimized,
+                destination,
+                path,
+                *field,
+                plan,
+            )?;
+            if value.access != terminal_psi::StructuralAccess::Owned || !value.path.is_empty() {
+                return Err(Error::custody());
+            }
+            Ok(LegalizedScalarInstructionKind::StoreStructuralField {
+                destination: destination.clone(),
+                path: path.clone(),
+                field: *field,
+                value: value.place,
+                byte_offset: extent.byte_offset,
+                shape: extent.shape,
+            })
+        }
+        _ => unreachable!("dispatched project_borrowed_window"),
+    }
+}
+
 pub(super) fn project_write_only_primitive_store(
     node: &optimization_unit::OptimizationNode,
     unit: &PsiOptimizationUnit,

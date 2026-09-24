@@ -365,6 +365,33 @@ fn runtime_machine_owned_fixed_indexed_struct_copy_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// `self.copy = self.items[0]` replaces a record field through a borrowed
+/// window: a leaf copy of the element, the window's move of the displaced
+/// field and the store of the copy, three extent copies. The host run above
+/// executes one ISA; both must lower the copies, so each Linux target also
+/// compiles through independent native replay.
+#[test]
+fn runtime_machine_owned_fixed_indexed_struct_copy_exit_cross_compiles() {
+    let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_FIXED_INDEXED_STRUCT_COPY_EXIT);
+    for target in ["linux_x86_64", "linux_arm64"] {
+        let report = crate::compile_rooted_backend_canary_without_output_for_target(
+            &canary, target,
+        )
+        .unwrap_or_else(|diagnostics| {
+            panic!(
+                "fixed indexed struct copy should realize natively for {target}: {diagnostics:#?}"
+            )
+        });
+        report
+            .retained_native_artifact()
+            .unwrap_or_else(|| panic!("fixed indexed struct copy should retain {target} custody"))
+            .validate()
+            .unwrap_or_else(|error| {
+                panic!("fixed indexed struct copy {target} should replay: {error}")
+            });
+    }
+}
+
 #[test]
 fn runtime_machine_owned_indexed_struct_copy_exit_canary_runs() {
     let canary = pass_canary(fixture_roster::RUNTIME_MACHINE_OWNED_INDEXED_STRUCT_COPY_EXIT);

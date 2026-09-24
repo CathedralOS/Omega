@@ -84,6 +84,35 @@ pub(super) fn operation(
                         && retained_source == source && retained_path == path
             )).count() == 1
         }
+        // A borrowed window's move retains the leaf-copy row of its vacated
+        // field: the retained path is the spelled window path followed by
+        // exactly one field segment. Source replay binds that segment to the
+        // declared field and its offset.
+        AbstractOperation::MoveStructuralField { psi_operation, result, source, path, .. } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::StructuralLeafCopy { psi_operation: retained, result_home, source: retained_source, path: retained_path, indices, .. }
+                    if retained == psi_operation && result_home.operation_result() == Some((*psi_operation, result))
+                        && *retained_source == source.place && indices.is_empty()
+                        && retained_path.len() == path.len() + 1 && retained_path.starts_with(path)
+                        && matches!(retained_path.last(), Some(terminal_psi::StructuralPathSegment::Field(_)))
+            )).count() == 1
+        }
+        // The window's reseat retains its exact destination, spelled field and
+        // the consumed value's producer home, and writes that root.
+        AbstractOperation::StoreStructuralField { psi_operation, destination, path, field, value } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::StoreStructuralField { psi_operation: retained, destination: retained_destination, path: retained_path, field: retained_field, value_home, .. }
+                    if retained == psi_operation && retained_destination == destination && retained_path == path
+                        && retained_field == field && value_home.place() == value.place
+            )).count() == 1
+        }
+        // An empty-record local is establishment metadata with no storage.
+        AbstractOperation::EstablishTrivialAffineLocal { psi_operation, place, structural_type } => {
+            graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
+                TargetUnitOperation::EstablishTrivialAffineLocal { psi_operation: retained, place: retained_place, structural_type: retained_type }
+                    if retained == psi_operation && retained_place == place && retained_type == structural_type
+            )).count() == 1
+        }
         AbstractOperation::EstablishScalarArray { psi_operation, result, elements } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| matches!(row,
                 TargetUnitOperation::EstablishScalarArray { psi_operation: retained, result_home, elements: retained_elements }

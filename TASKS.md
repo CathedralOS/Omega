@@ -2489,16 +2489,7 @@ syntax and other terminal services are not prerequisites.
      Unit call completed by its scalar result, as
      `control/statement_sequence.rs` does for the `let`, then delete the
      family and
-     `boundary_operator_custody/structural_returns.rs`. Two
-     `structural_selected_operator` canaries
-     (`specialized_structural_fixed_operator_hosted_native_canary_compiles`,
-     `specialized_mixed_structural_fixed_operator_hosted_native_reaches_d32`)
-     stop in Omega instead: `Main::main` moves empty-record locals
-     (`EstablishTrivialAffineLocal`) into its call, optimization-unit
-     `structural_access.rs::structural_source_contract` has no source for that
-     place although ownership replay inserts it as owned affine, and target
-     lowering (`control_flow/operations.rs::lower_operation`) has no arm for
-     the establishment.
+     `boundary_operator_custody/structural_returns.rs`.
   6. Structural Unit Control is a second multi-state control-graph family
      with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
      Widen state-graph admission to cover it rather than extending it. The
@@ -3445,7 +3436,11 @@ syntax and other terminal services are not prerequisites.
     relation; admitting the planner alone does not repair lowering.
   - Complete store sources for float reads/arithmetic and policy casts,
     recast reference locals, case and qualified byte-slice literals, nested
-    mutable-receiver calls, and local-rooted destinations.
+    mutable-receiver calls, Boolean call results, and local-rooted
+    destinations. `calls/runtime_value_call_nested_entry_call_exit`
+    (`self.flag = self.helper.check(1)`) now stops natively at
+    `UnknownValue`: `lowering/unit/structural_scalar.rs` sources a Boolean
+    field store only from a parameter or constant.
     `structural_scalar_store/primitive.rs` must retain the referent behind a
     `self`-rooted alias;
     `computation_arguments::structural_computation_argument` must compose
@@ -3508,10 +3503,18 @@ syntax and other terminal services are not prerequisites.
   - Complete aggregate field replacement for nonliteral sources (whole
     places, match-assigned values), fixed-index element holes
     (`samples/cli/algorithms/dutch_flag`'s `self.items[0] = Color::White`)
-    and whole nominal receiver replacement. Constructions and structural call
-    results already replace a record field through `OpenWindows::replace`
-    (move-out, store, continuation discard of an affine displaced value) in
-    both ordinary and state-graph lowering. The customer is
+    and whole nominal receiver replacement. Constructions, structural call
+    results and copied places already replace a record field through
+    `OpenWindows::replace` (move-out, store, continuation discard of an
+    affine displaced value) in both ordinary and state-graph lowering, and
+    native target lowering realizes that window pair as two extent copies
+    (`abstract-operations-to-target-operations/src/lowering/control_flow/borrowed_windows.rs`).
+    It still refuses a reference-bearing field, a field of a `Mixed` parent,
+    and a store whose value has no activation home (an owned parameter or
+    block arrival stored directly). An empty-record local reaches native
+    code only when passed on: `terminator.rs::owned_root_type` knows homes
+    and arrivals, so an unconsumed one's edge discard would reject (read from
+    source, no fixture probed). The customer is
     `filesystem/windows_canonicalize_exit`'s stored `UnitResult`. Case-payload
     reads of a replaced field then stop in lowering at `runtime field
     observation requires a record-only field path`

@@ -245,6 +245,13 @@ pub(super) fn operation(
     }
     if matches!(
         row.kind,
+        LegalizedScalarInstructionKind::StoreStructuralField { .. }
+    ) {
+        leaf_copy::reseat(source, row, builder)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
         LegalizedScalarInstructionKind::EstablishScalarArray { .. }
     ) {
         scalar_array::establish(source, row, builder)?;
@@ -295,11 +302,13 @@ pub(super) fn operation(
     }
     // Reference custody is compile-time metadata: the rows carry operation
     // provenance and ordering but emit no executable instruction and no
-    // physical result home.
+    // physical result home. An empty-record local is the same: it occupies
+    // no bytes, and a call transporting it owes no physical home.
     if matches!(
         row.kind,
         LegalizedScalarInstructionKind::EstablishReference { .. }
             | LegalizedScalarInstructionKind::ReleaseReference { .. }
+            | LegalizedScalarInstructionKind::EstablishTrivialAffineLocal { .. }
     ) {
         if row.result.is_some() {
             return Err(invalid());

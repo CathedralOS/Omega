@@ -43,6 +43,7 @@ fn graph_scalar_projection_retains_boolean_sources_beside_integer_homes() {
         address_joins: BTreeSet::new(),
         owned_arrivals: BTreeSet::new(),
         lengths: BTreeMap::new(),
+        trivial_affine_locals: BTreeMap::new(),
         references: BTreeMap::new(),
     };
     let plan = evaluate_call_plan(

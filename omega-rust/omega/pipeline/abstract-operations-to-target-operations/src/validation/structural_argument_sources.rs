@@ -37,6 +37,9 @@ enum ExpectedSource<'a> {
     /// Record, fixed-array, or sum storage established by one exact
     /// operation result home.
     Aggregate(OperationId),
+    /// An empty-record affine local. It has no bytes and no home, so owned
+    /// transport names its one exact establishment as the producer.
+    TrivialLocal(OperationId),
     /// A byte-view descriptor established by one exact literal or subslice
     /// producer. Views are never structural homes.
     ByteView(OperationId),
@@ -193,6 +196,11 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
                 result,
                 ..
             } => (result.place, ExpectedSource::Aggregate(*psi_operation)),
+            AbstractOperation::EstablishTrivialAffineLocal {
+                psi_operation,
+                place,
+                ..
+            } => (place.id, ExpectedSource::TrivialLocal(*psi_operation)),
             AbstractOperation::EstablishByteSequenceLiteral {
                 psi_operation,
                 place,
@@ -293,6 +301,15 @@ fn matches_home(
             Some(ExpectedSource::Aggregate(producer)),
             TargetStructuralArgumentSource::StructuralHome { psi_operation },
         ) => psi_operation == producer,
+        (
+            Some(ExpectedSource::TrivialLocal(producer)),
+            TargetStructuralArgumentSource::StructuralHome { psi_operation },
+        ) if actual.access == terminal_psi::StructuralAccess::Owned
+            && actual.path.is_empty()
+            && actual.shape.byte_size == 0 =>
+        {
+            psi_operation == producer
+        }
         (
             Some(ExpectedSource::ByteView(producer)),
             TargetStructuralArgumentSource::EstablishedByteView { psi_operation },

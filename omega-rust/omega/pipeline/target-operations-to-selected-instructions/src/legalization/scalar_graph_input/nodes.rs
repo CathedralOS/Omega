@@ -59,6 +59,9 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
+    | AbstractOperation::MoveStructuralField { psi_operation, .. }
+    | AbstractOperation::StoreStructuralField { psi_operation, .. }
+    | AbstractOperation::EstablishTrivialAffineLocal { psi_operation, .. }
     | AbstractOperation::StructuralScalarFieldStore { psi_operation, .. } = &node.operation
     {
         Ok((*psi_operation, None))
@@ -663,6 +666,9 @@ pub(super) fn validate(
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishScalarCase { .. }
                 | AbstractOperation::StructuralLeafCopy { .. }
+                | AbstractOperation::MoveStructuralField { .. }
+                | AbstractOperation::StoreStructuralField { .. }
+                | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::CallStructural { .. }
         ) {
             if result.is_some() || !node.definitions.is_empty() {

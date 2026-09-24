@@ -1,4 +1,5 @@
-//! Copy one readable root's verified leaf into fresh activation storage.
+//! Copy one readable root's verified extent into fresh activation storage,
+//! and reseat a borrowed window's vacated field with the inverse copy.
 use super::{
     Builder, IntegerSign, LegalizedScalarFunction, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
@@ -9,8 +10,9 @@ use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
 use crate::selection::construction::scalar_graph::structural::transport_register;
-use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot};
+use selected_instructions::{LocalStorageSlotId, SelectedLocalStorageSlot, VirtualRegisterId};
 use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::PlaceId;
 
 /// The copy reads the root through its durable pointer — an entry-assigned
 /// borrow, a retained owned home, a block arrival, or an earlier producer —
@@ -157,40 +159,147 @@ pub(super) fn copy(
         )?;
         input = address;
     }
+    copy_bytes(
+        builder,
+        row,
+        CopyEnd {
+            place: *source,
+            pointer: input,
+            byte_offset: *byte_offset,
+        },
+        CopyEnd {
+            place: result.place,
+            pointer,
+            byte_offset: 0,
+        },
+        u32::from(shape.byte_size),
+    )?;
+    builder.transport.pointers.push((result.place, pointer));
+    Ok(())
+}
+
+/// Reseat the field a borrowed-window move vacated: the inverse of `copy`.
+/// The move copied the field out through the root's referent pointer; the
+/// store reads the consumed value through its home's durable pointer and
+/// writes the same extent back at the field's offset. Legalization replay has
+/// already rejoined the offset and extent to the declared field and the
+/// value's exact producer.
+pub(super) fn reseat(
+    source: &LegalizedScalarFunction,
+    row: &LegalizedScalarInstruction,
+    builder: &mut Builder<'_>,
+) -> Result<(), SelectedInstructionError> {
+    let LegalizedScalarInstructionKind::StoreStructuralField {
+        destination,
+        value,
+        byte_offset,
+        shape,
+        ..
+    } = &row.kind
+    else {
+        return Err(invalid());
+    };
+    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
+    if row.result.is_some()
+        || destination.access != terminal_psi::StructuralAccess::MutableBorrow
+        || !signature
+            .parameters
+            .iter()
+            .any(|parameter| parameter.semantic == *destination)
+    {
+        return Err(invalid());
+    }
+    if shape.byte_size == 0 {
+        builder.pending_provenance.operations.push(row.operation);
+        builder
+            .pending_provenance
+            .fuel
+            .extend(row.fuel.iter().cloned());
+        return Ok(());
+    }
+    let pointer_of = |place| {
+        builder
+            .transport
+            .pointers
+            .iter()
+            .find(|(owner, _)| *owner == place)
+            .map(|(_, pointer)| *pointer)
+            .ok_or_else(|| invalid())
+    };
+    let root = pointer_of(destination.place)?;
+    let home = pointer_of(*value)?;
+    copy_bytes(
+        builder,
+        row,
+        CopyEnd {
+            place: *value,
+            pointer: home,
+            byte_offset: 0,
+        },
+        CopyEnd {
+            place: destination.place,
+            pointer: root,
+            byte_offset: *byte_offset,
+        },
+        u32::from(shape.byte_size),
+    )
+}
+
+/// One end of a chunked byte copy: the place whose storage is addressed, the
+/// register holding a pointer to it, and the extent's offset from that
+/// pointer.
+struct CopyEnd {
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    byte_offset: u32,
+}
+
+/// Copy `byte_size` bytes from `from` to `to` in the widest aligned-size
+/// chunks: each chunk loads into a fresh transport register and stores it,
+/// recording the read and write footprints on their places. Both directions
+/// of a borrowed window and every leaf copy share this one routine.
+fn copy_bytes(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    from: CopyEnd,
+    to: CopyEnd,
+    byte_size: u32,
+) -> Result<(), SelectedInstructionError> {
     let mut cursor = 0u32;
-    while cursor < u32::from(shape.byte_size) {
-        let width = chunk(u32::from(shape.byte_size) - cursor);
-        let value = transport_register(builder, *source, *byte_offset + cursor)?;
+    while cursor < byte_size {
+        let width = chunk(byte_size - cursor);
+        let load_offset = from.byte_offset + cursor;
+        let value = transport_register(builder, from.place, load_offset)?;
         memory(
             builder,
             row,
-            *source,
-            *byte_offset + cursor,
+            from.place,
+            load_offset,
             u32::from(width),
             SelectedMemoryAccessRole::ReadPlace,
         )?;
         let (kind, key) = match width {
             8 => (
                 SelectedInstructionKind::Load64 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 builder.constraints.keys.load64,
             ),
             4 => (
                 SelectedInstructionKind::Load32 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 builder.constraints.keys.load32,
             ),
             2 => (
                 SelectedInstructionKind::Load16 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 builder.constraints.keys.load16,
             ),
             _ => (
                 SelectedInstructionKind::Load8 {
-                    byte_offset: *byte_offset + cursor,
+                    byte_offset: load_offset,
                 },
                 builder.constraints.keys.load8,
             ),
@@ -198,29 +307,29 @@ pub(super) fn copy(
         builder.emit(
             kind,
             key.ok_or_else(|| invalid())?,
-            &[input, value],
+            &[from.pointer, value],
             provenance(row),
         )?;
+        let store_offset = to.byte_offset + cursor;
         memory(
             builder,
             row,
-            result.place,
-            cursor,
+            to.place,
+            store_offset,
             u32::from(width),
             SelectedMemoryAccessRole::WritePlace,
         )?;
         builder.emit(
             SelectedInstructionKind::Store {
-                byte_offset: cursor,
+                byte_offset: store_offset,
                 byte_size: width,
             },
             builder.constraints.keys.store.ok_or_else(|| invalid())?,
-            &[pointer, value],
+            &[to.pointer, value],
             provenance(row),
         )?;
         cursor += u32::from(width);
     }
-    builder.transport.pointers.push((result.place, pointer));
     Ok(())
 }
 

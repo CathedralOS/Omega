@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group.
 //! Common graph legalization and independent corruption controls.
 
+mod borrowed_windows;
 pub(crate) mod byte_input;
 mod byte_output;
 mod call_structural;
@@ -19,6 +20,7 @@ mod scalar_transfers;
 mod scalar_unit_calls;
 mod shared_type_catalog;
 pub(crate) mod structural_case;
+mod trivial_affine_locals;
 mod unit_graph;
 mod unit_view_graph;
 mod widening;
