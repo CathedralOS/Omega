@@ -1,11 +1,14 @@
 // RUN canary (exit 70). Fact catalog over PLAIN STRUCT fields (not just sum
-// payloads): a range-refined field `v: i32 in I320To15` of a param flows into the
+// payloads): a field `v` bounded to 0..=15 by its data `where` on a param flows into the
 // reader so `b.v + 65` proves EXACT with no annotation. Sound because every
 // write to the field is range-enforced (construction + assignment). Box{v:5} -> 70.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain i32::I320To15 requires 0 <= self && self <= 15;
-data Box { v: i32 in I320To15; }
+data Box
+where
+    0 <= v,
+    v <= 15,
+{ v: i32; }
 data Main { console: Binding<Console>; }
 machine Main::use_box(&mut self, b: Box) reaches Console {
     let total: i32 = b.v + 65;

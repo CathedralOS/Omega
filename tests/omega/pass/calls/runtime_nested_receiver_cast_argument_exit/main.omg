@@ -1,7 +1,7 @@
 // INTERPRETER CANARY (exit 70) + host-target checked establishment. A CALL
 // THROUGH A NESTED RECEIVER FIELD whose argument is an EXACT NARROWING CAST
 // of a payload-bounded value: `self.scanner.append_byte(value as u8)` with
-// `value` bound from `ByteInput::Byte(value: i32 in I320To255)`, the product
+// `value` bound from `ByteInput::Byte(value)` under its case `where` (0..=255), the product
 // lexer's `retain` state. The cast is a call-STATEMENT argument, and only
 // expression, local, assignment and transition statements retained exact
 // cast evidence, so the entry had no Unit plan. The payload bound travels
@@ -13,10 +13,9 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain i32::I320To255 requires 0 <= self && self <= 255;
 data ByteInput {
     case Eof;
-    case Byte(value: i32 in I320To255);
+    case Byte(value: i32) where 0 <= value && value <= 255;
 }
 
 data Scanner {

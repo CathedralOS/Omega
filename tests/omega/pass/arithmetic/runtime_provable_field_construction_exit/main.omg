@@ -1,11 +1,10 @@
 // RUN canary (exit 70). #62: constructing a range-refined field from a PROVABLE
 // non-literal value (a same-range field) is accepted -- not just integer
-// literals. `src.v` has type `i32 in I320To100`, so `Box { v: src.v }` proves the
+// literals. `src.v` has type `i32 [0..=100]`, so `Box { v: src.v }` proves the
 // [0..=100] field invariant without a literal. copy_box(Box{v:70}) -> 70.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain i32::I320To100 requires 0 <= self && self <= 100;
-data Box { v: i32 in I320To100; }
+data Box { v: i32 [0..=100]; }
 data Main { console: Binding<Console>; }
 machine Main::copy_box(&mut self, src: Box) reaches Console {
     let copy: Box = Box { v: src.v };

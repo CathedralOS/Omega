@@ -110,8 +110,20 @@ the complete product bar; focused successes below do not establish that baseline
   `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
   and `arithmetic/runtime_nested_unsigned_witness_exit` now state their
   parameter bounds as `requires` and their locals by initializer, and all
-  three run canaries pass. The other fixtures of `f1d6e31013` and
-  `c5688363ec` still carry interval-only domains. The
+  three run canaries pass. The rest of `f1d6e31013` and `c5688363ec` now use
+  `requires`, data or case `where`, or initializers, except where that form
+  checks worse than the domain did; those have their pre-migration brackets
+  back. Data `where` facts on a field do not reach the index proof
+  (`runtime_mutable_dynamic_indexed_machine_owned_parameter_write_exit`), a
+  call's `requires` (`runtime_mutable_call_before_transition_args_exit`), a
+  literal built from another bounded field
+  (`runtime_provable_field_construction_exit`), or the entry's unit plan
+  (`runtime_exact_guarded_shift_count_exit`,
+  `runtime_exclusive_range_constraint_exit`,
+  `runtime_shift_count_proven_range_exit`). A machine `ensures` cannot use its
+  state's arrival `requires` (`bounded_guarded_increment`), and a state
+  `requires` is not proved across its guarded self-transition
+  (`runtime_dispatch_binary_call_argument_exit`). The
   sample domains of `24d91ed906` and `7917a536d4` are withdrawn: those nine
   fields have their bracketed spelling back, and the four index fields run
   unbounded because Terminal infers their loop-header bounds. Their

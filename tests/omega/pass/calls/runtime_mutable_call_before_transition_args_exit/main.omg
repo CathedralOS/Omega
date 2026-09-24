@@ -8,7 +8,6 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u64::U640To16383 requires self <= 16383;
 data Loader {
     console: Binding<Console>;
     line: [u8; 8];
@@ -16,7 +15,7 @@ data Loader {
     firsts: [u8; 16384] in Trapping;
     starts: [u64 in Wrapping; 16384] in Trapping;
     ends: [u64 in Wrapping; 16384] in Trapping;
-    cursor: u64 in U640To16383;
+    cursor: u64 [0..=16383];
     tag: u8;
     first: u8;
     start: u64 in Wrapping;
@@ -29,7 +28,7 @@ machine Loader::fill(&mut self) {
         false -> absent()
     }
 
-    state present(&mut self, index: u64 in U640To16383) {
+    state present(&mut self, index: u64 [0..=16383]) {
         self.tag = self.tags[index];
         self.first = self.firsts[index];
         self.start = self.starts[index];

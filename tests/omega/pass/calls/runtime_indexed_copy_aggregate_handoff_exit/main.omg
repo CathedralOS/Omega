@@ -4,7 +4,6 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u64::U640To2 requires self <= 2;
 data Header [copy] {
     tag: u8;
     first: u8;
@@ -53,13 +52,17 @@ machine round_trip(header: Header) -> Header {
     header
 }
 
-machine HeaderStore::select(&self, index: u64 in U640To2) -> Header {
+machine HeaderStore::select(&self, index: u64) -> Header
+requires index <= 2
+{
     transition index < 3 {
         true -> present(index)
         false -> absent()
     }
 
-    state present(&self, retained: u64 in U640To2) -> Header {
+    state present(&self, retained: u64) -> Header
+    requires retained <= 2
+    {
         self.headers[retained]
     }
 
@@ -71,12 +74,15 @@ machine HeaderStore::select(&self, index: u64 in U640To2) -> Header {
     }
 }
 
-data Main {
+data Main
+where
+    selected <= 2,
+{
     console: Binding<Console>;
     line: [u8; 8];
     owner: HeaderOwner;
     sink: HeaderSink;
-    selected: u64 in U640To2;
+    selected: u64;
 }
 
 machine Main::main(&mut self) reaches Console {

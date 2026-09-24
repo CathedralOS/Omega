@@ -2,7 +2,9 @@
 // fits the target. The declared range proves this width narrowing and the
 // ordinary full i8 range proves the widening in the return expression.
 
-machine narrow(value: i32 in I320To255) -> u8 {
+machine narrow(value: i32) -> u8
+requires 0 <= value && value <= 255
+{
     value as u8
 }
 
@@ -28,7 +30,6 @@ machine erase_wrapping_policy() -> u32 {
     ((0 as u32 in Wrapping) - (1 as u32 in Wrapping)) as u32
 }
 
-domain i32::I320To255 requires 0 <= self && self <= 255;
 data Main {}
 
 machine Main::main(&mut self) {

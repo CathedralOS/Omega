@@ -5,7 +5,6 @@
 // field's prefix offset. items[1].id=42, k=1 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To1 requires self <= 1;
 data Item {
     id: i32;
 }
@@ -16,7 +15,9 @@ data Box {
 data Finder {
     scratch: i32;
 }
-machine Finder::find(&self, container: Box, k: u64 in U640To1) -> i32 {
+machine Finder::find(&self, container: Box, k: u64) -> i32
+requires k <= 1
+{
     let v: i32 = container.items[k].id;
     transition { _ -> v }
 }
