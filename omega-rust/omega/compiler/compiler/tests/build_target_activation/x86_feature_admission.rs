@@ -2,59 +2,42 @@ use super::{
     TempProject, application_build, diagnostic_text, exact_target_build, fixture_package_identity,
     package_inputs_with_standard_library, pass_canary_main,
 };
-use crate::{bundled_standard_library_root, console_acceptance, fixtures, linux_entry_acceptance};
+use crate::{
+    bundled_standard_library_root, console_acceptance, fixture_package_inputs, fixtures,
+    linux_entry_acceptance,
+};
 use compiler::{
     CheckedCompileRequest, CompileOptions, CompileRequest, RequestedCompileProduct,
     RetainedNativeRealizationRequest, compile, compile_to_checked,
     realize_retained_native_artifact,
 };
 
-/// Package inputs for a std-linked fixture that selects the Linux x86-64
-/// program entry. A package-sourced `targets/linux_x86_64/entry.omg` cannot
-/// take the bundled-source path, so the checked schema needs the same
-/// explicit accepted binding the macOS entry requires.
-fn package_inputs_with_linux_entry(
-    main: &std::path::Path,
-) -> package_compilation::PackageCompilationInputs {
-    let entry_binding = linux_entry_acceptance::candidate_linux_x86_64_entry_binding(
-        &bundled_standard_library_root(),
-        fixture_package_identity(2),
-    )
-    .expect("the fixture explicitly accepts the checked Linux entry schema");
-    package_inputs_with_standard_library(main)
-        .with_accepted_semantic_bindings(vec![entry_binding])
-        .expect("Linux entry acceptance binds to the std package")
-}
-
-/// Package inputs for a std-linked fixture that selects the Linux ARM64
-/// program entry; its package-sourced contract needs the same explicit
-/// accepted binding.
-fn package_inputs_with_linux_arm64_entry(
-    main: &std::path::Path,
-) -> package_compilation::PackageCompilationInputs {
-    let entry_binding = linux_entry_acceptance::candidate_linux_arm64_entry_binding(
-        &bundled_standard_library_root(),
-        fixture_package_identity(2),
-    )
-    .expect("the fixture explicitly accepts the checked Linux ARM64 entry schema");
-    package_inputs_with_standard_library(main)
-        .with_accepted_semantic_bindings(vec![entry_binding])
-        .expect("Linux ARM64 entry acceptance binds to the std package")
-}
-
-/// Select the package inputs for one target leg: the Linux entries carry the
-/// accepted contract binding, every other target keeps the plain std-linked
+/// Package inputs for one target leg of a std-linked fixture.
+///
+/// A package-sourced `targets/<profile>/entry.omg` cannot take the bundled
+/// source path, so the checked schema needs the explicit accepted binding its
+/// profile owns. That decision belongs to the shared harness, which keys it on
+/// the target profile: this file previously string-compared the two Linux
+/// names and let every other target fall through to the plain std inputs, so
+/// the Windows x86-64 legs rejected on the entry contract before reaching the
+/// behavior under test. A profile with no reviewed candidate keeps those plain
 /// inputs.
 fn package_inputs_for_target(
     main: &std::path::Path,
     target: &str,
 ) -> package_compilation::PackageCompilationInputs {
-    if target == "linux_x86_64" {
-        package_inputs_with_linux_entry(main)
-    } else if target == "linux_arm64" {
-        package_inputs_with_linux_arm64_entry(main)
-    } else {
-        package_inputs_with_standard_library(main)
+    let package_inputs = package_inputs_with_standard_library(main);
+    let entry_binding = fixture_package_inputs::candidate_program_entry_binding(
+        target,
+        &bundled_standard_library_root(),
+        fixture_package_identity(2),
+    )
+    .expect("the fixture explicitly accepts the checked program entry schema");
+    match entry_binding {
+        Some(entry_binding) => package_inputs
+            .with_accepted_semantic_bindings(vec![entry_binding])
+            .expect("program entry acceptance binds to the std package"),
+        None => package_inputs,
     }
 }
 
