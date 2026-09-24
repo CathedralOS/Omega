@@ -3,9 +3,9 @@ use crate::validation::{
     ModuleError, OperationId, OperationKind, PlaceId, ScalarType, StructuralAccess,
     StructuralFieldId, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
-    TerminalMachine, TerminalModule, resolve_structural_path,
+    TerminalMachine, TerminalModule,
 };
-use terminal_psi::is_bounded_structural_scalar_store_path;
+use terminal_psi::is_structural_scalar_store_path;
 
 fn parameter_for(
     machine: &TerminalMachine,
@@ -160,7 +160,7 @@ pub(in crate::validation) fn structural_scalar_field_store_type(
         }
         parameter.structural_type
     };
-    if !is_bounded_structural_scalar_store_path(path)
+    if !is_structural_scalar_store_path(path)
         || machine
             .entry_claims
             .iter()
@@ -172,7 +172,11 @@ pub(in crate::validation) fn structural_scalar_field_store_type(
     {
         return Err(invalid());
     }
-    let parent_type = resolve_structural_path(module, structural_type, path).ok_or_else(invalid)?;
+    // A runtime element in the carrier selects some element of its array;
+    // the store owns that element's bound obligation.
+    let parent_type =
+        crate::validation::foundation::resolve_runtime_projection(module, structural_type, path)
+            .ok_or_else(invalid)?;
     direct_relevant_scalar_field(module, parent_type, field, true).ok_or_else(invalid)
 }
 
@@ -193,7 +197,11 @@ pub(crate) fn structural_scalar_field_store_range(
     };
     let signature =
         crate::validation::structural::result_contracts::source_signature(machine, destination)?;
-    let parent = resolve_structural_path(module, signature.structural_type, path)?;
+    let parent = crate::validation::foundation::resolve_runtime_projection(
+        module,
+        signature.structural_type,
+        path,
+    )?;
     let declaration = module
         .structural_types
         .iter()

@@ -308,7 +308,7 @@ fn scalar_computations_keep_indexed_store_call_value() {
             .expression_at(
                 state.symbol,
                 1,
-                CheckedScalarExpressionRole::AssignmentIndex,
+                CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
             )
             .is_some()
     );

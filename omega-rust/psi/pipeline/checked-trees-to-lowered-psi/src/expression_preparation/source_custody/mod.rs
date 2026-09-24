@@ -277,39 +277,40 @@ pub(crate) fn locate(
                 .primitive_type_reference(local.type_reference)
                 .map(|primitive| (local.initial_value, local.symbol, primitive))
         }
-        (StatementNode::Assignment(assignment), CheckedScalarExpressionRole::AssignmentIndex) => {
-            match program.expression_table.expression(assignment.target) {
-                ExpressionNode::Indexed(indexed)
-                    if !matches!(
-                        program.expression_table.expression(indexed.index),
-                        ExpressionNode::Range(_)
-                    ) =>
-                {
-                    // Reconstruct the source carrier independently of the retained
-                    // scalar plan. An unresolved result is not evidence of anonymous
-                    // integer meaning, so only exact anonymous landing supplies u64.
-                    let primitive = validation::expression_result_type_reference(
-                        program, machine, state, indexed.index,
-                    )
-                    .and_then(|reference| program.primitive_type_reference(reference))
-                    .or_else(|| {
-                        validation::land_anonymous_integer_expression(
-                            program,
-                            indexed.index,
-                            PrimitiveType::U64,
-                            |expression| match checked.facts.operators.expression_use(expression) {
-                                Some(operator) => operator.status
-                                    == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
-                                None => validation::has_anonymous_operator_meaning(program, expression),
-                            },
-                        )
-                        .map(|_| PrimitiveType::U64)
-                    });
-                    primitive.map(|primitive| (indexed.index, absent, primitive))
-                }
-                _ => None,
-            }
-        }
+        (
+            StatementNode::Assignment(assignment),
+            CheckedScalarExpressionRole::AssignmentIndex { depth },
+        ) => usize::try_from(depth)
+            .ok()
+            .and_then(|depth| {
+                validation::assignment_target_selectors(program, assignment.target)
+                    .get(depth)
+                    .copied()
+            })
+            .and_then(|index| {
+                // Reconstruct the source carrier independently of the retained
+                // scalar plan. An unresolved result is not evidence of anonymous
+                // integer meaning, so only exact anonymous landing supplies u64.
+                let primitive =
+                    validation::expression_result_type_reference(program, machine, state, index)
+                        .and_then(|reference| program.primitive_type_reference(reference))
+                        .or_else(|| {
+                            validation::land_anonymous_integer_expression(
+                                program,
+                                index,
+                                PrimitiveType::U64,
+                                |expression| {
+                                    match checked.facts.operators.expression_use(expression) {
+                            Some(operator) => operator.status
+                                == checked_trees::CheckedOperatorResolutionStatus::BuiltinFallback,
+                            None => validation::has_anonymous_operator_meaning(program, expression),
+                        }
+                                },
+                            )
+                            .map(|_| PrimitiveType::U64)
+                        });
+                primitive.map(|primitive| (index, absent, primitive))
+            }),
         (StatementNode::Assignment(assignment), CheckedScalarExpressionRole::AssignmentValue) => {
             match program.expression_table.expression(assignment.target) {
                 ExpressionNode::Name(path)

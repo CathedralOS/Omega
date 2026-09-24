@@ -103,6 +103,7 @@ pub use values::{
     StructuralPathSegment, StructuralPlaceDeclaration, StructuralReferenceResultSource,
     StructuralResultDeclaration, TerminalMachineResult, ValueDeclaration,
     is_bounded_structural_scalar_store_path, is_static_structural_path,
+    is_structural_scalar_store_path,
 };
 
 use semantic_vocabulary::MachineId;

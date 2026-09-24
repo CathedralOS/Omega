@@ -475,7 +475,9 @@ pub(crate) use parameter_scoped::parameter_scoped_type_reference;
 mod projected_members;
 mod result_shape;
 pub use builtin_coordinates::place_has_builtin_coordinates;
-pub use builtin_coordinates::{collection_length_receiver, has_builtin_subslice_meaning};
+pub use builtin_coordinates::{
+    assignment_target_selectors, collection_length_receiver, has_builtin_subslice_meaning,
+};
 pub use exact_self_field::exact_attached_field;
 pub use exact_self_field::exact_self_field;
 use member_paths::{collect_member_path, data_field_or_payload, data_field_or_payload_type};

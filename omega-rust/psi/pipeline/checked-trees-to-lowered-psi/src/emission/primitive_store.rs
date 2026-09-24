@@ -12,6 +12,7 @@ use super::{
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
+use crate::emission::runtime_elements::ProjectionStep;
 
 /// The resolved primitive endpoint is shared by ordinary and composed bodies.
 /// Their namespaces choose a parameter or live local; this owner validates the
@@ -20,16 +21,6 @@ pub(crate) struct Destination {
     pub(crate) place: PlaceId,
     pub(crate) path: Vec<ProjectionStep>,
     pub(crate) scalar_type: ScalarType,
-}
-
-/// One resolved step of a primitive destination: a static Terminal segment,
-/// or the assignment's runtime element, whose selector the emitter evaluates
-/// (before the stored value) into a `RuntimeIndex { index, obligation }`
-/// segment. The store owns that obligation, which the verifier reconstructs
-/// as `index < extent` for the array the step selects from.
-pub(crate) enum ProjectionStep {
-    Static(terminal_psi::StructuralPathSegment),
-    AssignmentIndex,
 }
 
 pub(crate) fn parameter_destination(
@@ -71,38 +62,22 @@ pub(crate) fn emit_assignment(
     operations: &mut OperationBuffer,
     calls: &mut CallEmissionContext<'_>,
 ) -> Result<OperationKind, LoweringError> {
-    // A runtime element's selector is evaluated before the stored value, in
-    // the same scalar evaluator; its `u64` coordinate joins the path once the
-    // value is complete, so the store's own obligation follows every
-    // obligation the operands allocated.
-    let mut indexes = Vec::new();
-    for step in &destination.path {
-        if let ProjectionStep::AssignmentIndex = step {
-            let source = assignment_index_source(checked, state, statement_index)?;
-            let index = evaluation.source_value(
-                checked,
-                machine,
-                state,
-                statement_index,
-                CheckedScalarExpressionRole::AssignmentIndex,
-                &source,
-                source_value_count,
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                calls,
-            )?;
-            indexes.push(super::emit_u64_coordinate(
-                index.id,
-                index.scalar_type,
-                next_value,
-                &mut calls.next_obligation_identity,
-                operations,
-            )?);
-        }
-    }
+    // The runtime elements' selectors are evaluated before the stored value.
+    let indexes = super::runtime_elements::evaluate_selectors(
+        &destination.path,
+        checked,
+        machine,
+        state,
+        statement_index,
+        evaluation,
+        source_value_count,
+        values,
+        next_value,
+        next_block,
+        next_edge,
+        operations,
+        calls,
+    )?;
     let value = evaluation.source_value(
         checked,
         machine,
@@ -121,58 +96,11 @@ pub(crate) fn emit_assignment(
     if value.scalar_type != destination.scalar_type || !value.qualifications.is_empty() {
         return unsupported("primitive store RHS differs from its destination carrier");
     }
-    let mut indexes = indexes.into_iter();
-    let mut path = Vec::with_capacity(destination.path.len());
-    for step in destination.path {
-        path.push(match step {
-            ProjectionStep::Static(segment) => segment,
-            ProjectionStep::AssignmentIndex => terminal_psi::StructuralPathSegment::RuntimeIndex {
-                index: indexes.next().ok_or(LoweringError::Unsupported(
-                    "primitive store lost an evaluated runtime element",
-                ))?,
-                obligation: calls.allocate_requirement()?,
-            },
-        });
-    }
     Ok(OperationKind::WriteOnlyPrimitiveStore {
         destination: destination.place,
-        path,
+        path: super::runtime_elements::complete_path(destination.path, indexes, calls)?,
         value: value.id,
     })
-}
-
-/// The retained source of the assignment's `AssignmentIndex` coordinate: its
-/// bound pure expression, or the computation root the scalar evaluator
-/// completes. The checked producer admitted the runtime element only when
-/// exactly one of them names the target's selector.
-fn assignment_index_source(
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement_index: u32,
-) -> Result<checked_trees::CheckedCallScalarArgument, LoweringError> {
-    let role = CheckedScalarExpressionRole::AssignmentIndex;
-    if let Some((_, expression)) =
-        checked
-            .facts
-            .values
-            .scalar_expressions
-            .bound_expression_at(state, statement_index, role)
-    {
-        return Ok(checked_trees::CheckedCallScalarArgument::Pure(
-            expression.clone(),
-        ));
-    }
-    let root = checked
-        .facts
-        .values
-        .scalar_computations
-        .root_at(state, statement_index, role)
-        .ok_or(LoweringError::Unsupported(
-            "primitive store runtime element lost its retained selector",
-        ))?;
-    Ok(checked_trees::CheckedCallScalarArgument::Computation(
-        root.root,
-    ))
 }
 
 pub(crate) fn validate_assignment(
@@ -478,7 +406,7 @@ pub(crate) fn emit_value(
 /// Resolve a destination's complete storage projection against the emitted
 /// declarations. Unlike a scalar-field operation this endpoint is the
 /// primitive itself, so an array element needs no synthetic field identity.
-/// Fields, literal elements, and the assignment's runtime element compose in
+/// Fields, literal elements, and the assignment's runtime elements compose in
 /// one walk.
 pub(crate) fn lower_destination_path(
     structural_type: StructuralTypeId,
@@ -502,7 +430,10 @@ pub(crate) fn lower_path(
     types: &[StructuralTypeDeclaration],
 ) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
     let (steps, scalar_type) = lower_destination_path(structural_type, path, types)?;
-    Ok((static_segments(steps)?, scalar_type))
+    Ok((
+        super::runtime_elements::static_segments(steps)?,
+        scalar_type,
+    ))
 }
 
 /// The static prefix of a runtime-indexed primitive read ends at the fixed
@@ -524,27 +455,16 @@ pub(crate) fn lower_indexed_path(
     else {
         return unsupported("indexed primitive projection's element is not a primitive scalar");
     };
-    Ok((static_segments(steps)?, scalar_type))
-}
-
-fn static_segments(
-    steps: Vec<ProjectionStep>,
-) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
-    steps
-        .into_iter()
-        .map(|step| match step {
-            ProjectionStep::Static(segment) => Ok(segment),
-            ProjectionStep::AssignmentIndex => {
-                unsupported("an observation path names an assignment's runtime element")
-            }
-        })
-        .collect()
+    Ok((
+        super::runtime_elements::static_segments(steps)?,
+        scalar_type,
+    ))
 }
 
 /// Walk the checked segments from the destination root, resolving each field
 /// against its declared record, and return the steps and the structural
-/// type they select. Only the target's own selector has a retained scalar
-/// coordinate, so a path spells at most one runtime element.
+/// type they select. Each runtime element names a distinct selector of the
+/// assignment's target.
 fn walk_path(
     mut structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
@@ -595,14 +515,11 @@ fn walk_path(
             }
             (
                 CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex,
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
                 ),
                 StructuralTypeShape::FixedArray { element, .. },
-            ) if !result
-                .iter()
-                .any(|step| matches!(step, ProjectionStep::AssignmentIndex)) =>
-            {
-                result.push(ProjectionStep::AssignmentIndex);
+            ) if !result.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
+                result.push(ProjectionStep::AssignmentIndex { depth: *depth });
                 *element
             }
             _ => {

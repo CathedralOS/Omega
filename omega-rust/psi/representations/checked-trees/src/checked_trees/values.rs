@@ -320,8 +320,15 @@ pub enum CheckedScalarExpressionRole {
     /// statement-local and does not imply that every assignment is admitted
     /// by a later executable plan.
     AssignmentValue,
-    /// Evaluated scalar selector of an indexed assignment target, before its value.
-    AssignmentIndex,
+    /// Evaluated scalar selector of one indexed step of an assignment target,
+    /// before its value. `depth` counts the target's indexed steps from the
+    /// target inward: `a[i] = v` and `a[i].f = v` select `i` at depth 0, and
+    /// `a[i][j] = v` selects `j` at depth 0 and `i` at depth 1. Every indexed
+    /// step has a row, literal or runtime, so a byte store's own selector is
+    /// always depth 0.
+    AssignmentIndex {
+        depth: u32,
+    },
     Return,
     /// Value returned by the false sibling of a combined transition.
     ContinuationReturn,

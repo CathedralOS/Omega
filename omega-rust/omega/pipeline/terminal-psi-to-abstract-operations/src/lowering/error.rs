@@ -49,6 +49,11 @@ pub enum LoweringError {
     /// runtime-selected element: the verifier admitted it, but the abstract
     /// operations take at most one trailing runtime element.
     UnsupportedRuntimeIndexProjection(semantic_vocabulary::OperationId),
+    /// A scalar field store whose verified carrier leaves the bounded grammar
+    /// the backend's field stores execute (record fields, then at most one
+    /// literal element): a field after an element, a second element, or a
+    /// runtime element. Terminal admits the general carrier.
+    UnsupportedScalarFieldCarrier(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),

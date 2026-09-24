@@ -278,10 +278,11 @@ static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-scalar-field-store",
-    "a validated scalar field store with a range obligation exactly when its destination declaration is a bounded integer",
-    "the exact stored SSA value's declared bounds are required against pre-write axioms; then propositions observing the write are invalidated and a resolvable leaf publishes its stored-value equation",
+    "a validated scalar field store, whose carrier may cross runtime elements each owning a bound obligation, with a range obligation exactly when its destination declaration is a bounded integer",
+    "the exact stored SSA value's declared bounds and each runtime element's `index < extent` are required against pre-write axioms; then propositions observing the write are invalidated (the whole root when the carrier crosses a runtime element) and a resolvable leaf publishes its stored-value equation",
     &[
         "fact:structural-effect-observation",
+        "fact:runtime-index-bound",
         "invalidation:structural-field-store",
         "fact:field-store-leaf-equation",
         "formation:operation-validation",

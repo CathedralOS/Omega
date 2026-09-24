@@ -459,27 +459,31 @@ pub(crate) fn build_checked_value_computation_plans(
                             primitive_type,
                         );
                     }
-                    if let ExpressionNode::Indexed(indexed) =
-                        program.expression_table.expression(assignment.target)
+                    // An indexed store evaluates each selector of its
+                    // target before its value. The pure plan already keeps
+                    // the same `AssignmentIndex { depth }`/`AssignmentValue`
+                    // coordinates for the operands it can carry; a range
+                    // index is a subslice endpoint pair, not a selector.
+                    for (depth, index) in
+                        validation::assignment_target_selectors(program, assignment.target)
+                            .into_iter()
+                            .enumerate()
                     {
-                        // A scalar-indexed store evaluates its index operand
-                        // before its value. The pure plan already keeps the
-                        // same `AssignmentIndex`/`AssignmentValue` coordinates
-                        // for the operands it can carry; a range index is a
-                        // subslice endpoint pair, not a scalar store index.
-                        if !matches!(
-                            program.expression_table.expression(indexed.index),
-                            ExpressionNode::Range(_)
-                        ) {
-                            builder.record_root(
-                                pure,
-                                statement_ordinal,
-                                CheckedScalarExpressionRole::AssignmentIndex,
-                                indexed.index,
-                                PrimitiveType::U64,
-                            );
-                        }
-                        if let Some(primitive_type) =
+                        let Ok(depth) = u32::try_from(depth) else {
+                            break;
+                        };
+                        builder.record_root(
+                            pure,
+                            statement_ordinal,
+                            CheckedScalarExpressionRole::AssignmentIndex { depth },
+                            index,
+                            PrimitiveType::U64,
+                        );
+                    }
+                    if matches!(
+                        program.expression_table.expression(assignment.target),
+                        ExpressionNode::Indexed(_)
+                    ) && let Some(primitive_type) =
                             crate::flow::expression_type_reference_in_state(
                                 program,
                                 state.symbol,
@@ -501,7 +505,6 @@ pub(crate) fn build_checked_value_computation_plans(
                                 primitive_type,
                             );
                         }
-                    }
                     if let ExpressionNode::Name(name) =
                         program.expression_table.expression(assignment.target)
                         && name.symbol.is_valid()

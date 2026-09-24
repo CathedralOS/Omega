@@ -209,13 +209,19 @@ fn touched_regions(
             path,
             field,
             ..
-        }
-        | OperationKind::StructuralScalarFieldStore {
+        } => vec![field_region(destination, path, *field)],
+        // A runtime element in the carrier touches every element of the
+        // array it selects in, as a primitive leaf's does.
+        OperationKind::StructuralScalarFieldStore {
             destination,
             path,
             field,
             ..
-        } => vec![field_region(destination, path, *field)],
+        } => vec![if terminal_psi::is_static_structural_path(path) {
+            field_region(destination, path, *field)
+        } else {
+            primitive_region(destination, path)
+        }],
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path,

@@ -369,7 +369,7 @@ fn declared_range_runtime_index_produces_a_runtime_element_store() {
             path.as_slice(),
             [
                 checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
                 )
             ],
             "the runtime selector is the path's element segment, not an operand"
@@ -429,7 +429,7 @@ fn requires_bound_runtime_index_produces_a_runtime_element_store() {
                 path.as_slice(),
                 [
                     checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                        checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                        checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
                     )
                 ],
                 "{access} {requires}: the runtime selector is the path's element segment"

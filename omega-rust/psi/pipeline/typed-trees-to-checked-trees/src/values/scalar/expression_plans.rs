@@ -483,29 +483,34 @@ pub(crate) fn build_checked_scalar_expression_plans(
                         }
                     }
                     StatementNode::Assignment(assignment) => {
-                        if let ExpressionNode::Indexed(indexed) =
-                            program.expression_table.expression(assignment.target)
-                            && !matches!(
-                                program.expression_table.expression(indexed.index),
-                                ExpressionNode::Range(_)
-                            )
-                            && let Some(expression) = lower_index_expression(
+                        // Every indexed step of the target keeps its own
+                        // selector row, keyed by its depth from the target.
+                        for (depth, index) in
+                            validation::assignment_target_selectors(program, assignment.target)
+                                .into_iter()
+                                .enumerate()
+                        {
+                            let Ok(depth) = u32::try_from(depth) else {
+                                break;
+                            };
+                            let Some(expression) = lower_index_expression(
                                 program,
                                 operators,
-                                indexed.index,
+                                index,
                                 &scalar_parameters,
                                 parameters,
                                 &parameter_types,
                                 &locals,
                                 exact_integer_casts,
-                            )
-                        {
+                            ) else {
+                                continue;
+                            };
                             source_bindings.append(CheckedScalarExpressionBindings {
                                 destination: symbols::SymbolHandle::invalid(),
                                 state: state.symbol,
                                 statement_ordinal,
-                                role: CheckedScalarExpressionRole::AssignmentIndex,
-                                expression: indexed.index,
+                                role: CheckedScalarExpressionRole::AssignmentIndex { depth },
+                                expression: index,
                                 symbols: binding_symbols.insert_many(
                                     scalar_parameters
                                         .iter()
@@ -521,7 +526,7 @@ pub(crate) fn build_checked_scalar_expression_plans(
                             expressions.push(CheckedLocatedScalarExpression {
                                 state: state.symbol,
                                 statement_ordinal,
-                                role: CheckedScalarExpressionRole::AssignmentIndex,
+                                role: CheckedScalarExpressionRole::AssignmentIndex { depth },
                                 expression,
                             });
                         }

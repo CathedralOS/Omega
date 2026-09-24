@@ -496,7 +496,10 @@ fn lowers_borrowed_fixed_array_element_field_stores() {
                 crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
             )
             .unwrap_or_else(|error| panic!("{machine_name} element store path lowers: {error:?}"));
-        assert_eq!(lowered.path, [StructuralPathSegment::FixedIndex(1)]);
+        assert_eq!(
+            lowered.static_path().unwrap(),
+            [StructuralPathSegment::FixedIndex(1)]
+        );
         // The finished module validates with the leading literal index, so the
         // store reaches terminal publication through the ordinary route.
         let module = lower_machine(&checked, TerminalMachineSelection::Name(machine_name))

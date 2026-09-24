@@ -641,7 +641,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             self.state,
             store.statement_index,
-            CheckedScalarExpressionRole::AssignmentIndex,
+            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
         )?;
         let value = crate::emission::byte_store_scalar_value(
             bindings,
@@ -682,7 +682,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             self.state,
             write.statement_index,
-            CheckedScalarExpressionRole::AssignmentIndex,
+            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
         )?;
         let value = crate::emission::byte_store_scalar_value(
             bindings,
@@ -726,6 +726,22 @@ impl OperationFrame<'_, '_> {
                 self.structural_types.declarations(),
                 crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
             )?;
+        // The carrier's runtime elements are evaluated before the value.
+        let indexes = crate::emission::runtime_elements::evaluate_selectors(
+            &lowered.steps,
+            self.checked,
+            self.machine,
+            self.state,
+            store.statement_index,
+            self.evaluation,
+            self.source_value_count,
+            self.values,
+            self.next_value,
+            self.next_block,
+            self.next_edge,
+            self.operations,
+            self.calls,
+        )?;
         let value = self.evaluation.field_assignment_value(
             self.checked,
             self.machine,
@@ -741,11 +757,7 @@ impl OperationFrame<'_, '_> {
         if value.scalar_type != lowered.scalar_type {
             return unsupported("structural scalar store RHS differs from its field type");
         }
-        let kind = lowered.into_operation(
-            destination.place,
-            value.id,
-            &mut self.calls.next_obligation_identity,
-        )?;
+        let kind = lowered.into_operation(destination.place, indexes, value.id, self.calls)?;
         self.push_unit(kind);
         Ok(())
     }

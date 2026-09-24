@@ -75,9 +75,12 @@ fn lower_store(
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
         || !has_empty_structural_custody(machine, destination.place)
-        || !is_bounded_structural_scalar_store_path(path)
+        || !terminal_psi::is_structural_scalar_store_path(path)
     {
         return Err(invalid());
+    }
+    if !is_bounded_structural_scalar_store_path(path) {
+        return Err(LoweringError::UnsupportedScalarFieldCarrier(operation.id));
     }
     let parent_type = resolve_structural_path(structural_types, destination.structural_type, path)
         .ok_or_else(invalid)?;

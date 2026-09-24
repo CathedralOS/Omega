@@ -257,7 +257,7 @@ fn signed_index_rejects_substituted_retained_operand() {
     };
     let mut substituted = 0;
     for row in &mut changed.facts.values.scalar_expressions.expressions {
-        if row.role == checked_trees::CheckedScalarExpressionRole::AssignmentIndex {
+        if row.role == (checked_trees::CheckedScalarExpressionRole::AssignmentIndex { depth: 0 }) {
             row.expression = replacement.clone();
             substituted += 1;
         }

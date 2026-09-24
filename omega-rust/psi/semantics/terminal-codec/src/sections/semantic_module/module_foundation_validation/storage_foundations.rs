@@ -759,7 +759,7 @@ pub(super) fn validate_structural_scalar_field_store(
         // ordered availability and whole affine liveness belong to verification.
         result.structural_type
     };
-    if !is_bounded_structural_scalar_store_path(path)
+    if !terminal_psi::is_structural_scalar_store_path(path)
         || machine
             .entry_claims
             .iter()

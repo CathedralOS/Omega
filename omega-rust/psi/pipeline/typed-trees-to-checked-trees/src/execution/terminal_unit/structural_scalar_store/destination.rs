@@ -65,13 +65,18 @@ impl Root<'_> {
     }
 }
 
-/// One authored destination: a canonical place below a resolved root, with an
-/// optional trailing runtime selector kept as an operand rather than a path
-/// segment.
+/// One authored destination: a canonical place below a resolved root. A
+/// trailing selector is split off as `dynamic_index` for the byte stores,
+/// whose live-length operations take it as an operand; every other runtime
+/// selector of the target is a `RuntimeIndex` carrier segment named by
+/// `selectors`.
 pub(super) struct Destination<'a> {
     pub(super) root: Root<'a>,
     pub(super) place: crate::flow::CanonicalPlace,
     pub(super) dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
+    /// The target's admitted element selectors, when every indexed step is
+    /// an element of a declared fixed array.
+    selectors: Option<super::selectors::TargetSelectors>,
     /// Declared type of the root's referent (the borrowed record, or the
     /// local's own type) and its record owner when the root is a record.
     root_type: typed_trees::types::TypeReferenceHandle,
@@ -123,6 +128,14 @@ pub(super) fn resolve<'a>(
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
     };
+    let selectors = super::selectors::TargetSelectors::resolve(
+        program,
+        facts,
+        machine,
+        state,
+        statement_index,
+        assignment.target,
+    );
     trace.phase("structural field store: destination parameter");
     match roots {
         StoreRoots::Parameters { structural, .. } => {
@@ -164,6 +177,7 @@ pub(super) fn resolve<'a>(
                 root: Root::Parameter { plan, parameter },
                 place,
                 dynamic_index,
+                selectors,
                 root_type: *referee,
                 root_owner,
             })
@@ -200,6 +214,7 @@ pub(super) fn resolve<'a>(
                 },
                 place,
                 dynamic_index,
+                selectors,
                 root_type: local.type_reference,
                 root_owner: crate::facts::field_domain::data_definition_for_field_type(
                     program,
@@ -267,8 +282,9 @@ impl<'a> Destination<'a> {
     /// Walk `segments` from the root as direct storage access: relevant plain
     /// record fields (never through a reference, never through a
     /// domain-constrained carrier whose invariant a leaf write could break)
-    /// and at most one literal fixed-array index within its declared extent.
-    /// The walk ends at a record, whose declaration is returned.
+    /// and elements of declared fixed arrays, literal within the extent or
+    /// runtime-selected, in any order. The walk ends at a record, whose
+    /// declaration is returned.
     pub(super) fn carrier(
         &self,
         program: &'a TypedTrees,
@@ -282,10 +298,9 @@ impl<'a> Destination<'a> {
         let mut path = Vec::with_capacity(segments.len());
         let mut carrier_type = self.root_type;
         let mut owner = self.root_owner;
-        let mut reached_array = false;
         for segment in segments {
             match segment {
-                facts::PlaceSegment::Field { symbol } if !reached_array => {
+                facts::PlaceSegment::Field { symbol } => {
                     let field_owner = owner?;
                     if !plain_record(field_owner, program) {
                         return None;
@@ -305,21 +320,31 @@ impl<'a> Destination<'a> {
                     ));
                     carrier_type = carrier.type_reference;
                 }
-                facts::PlaceSegment::FixedIndex { index } if !reached_array => {
-                    reached_array = true;
+                facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. } => {
+                    // An arithmetic-policy shell (`[Entity; 3] in Wrapping`)
+                    // qualifies element operations, not the array's layout.
+                    let array = validation::unwrapped_type_reference(program, carrier_type)?;
                     let TypeReferenceNode::FixedArray {
                         element_type,
                         length: typed_trees::types::FixedArrayLength::Literal(length),
-                    } = program.type_reference_table.type_reference(carrier_type)
+                    } = program.type_reference_table.type_reference(array)
                     else {
                         return None;
                     };
-                    if *index >= *length || crosses_reference(program, *element_type) {
+                    if crosses_reference(program, *element_type) {
                         return None;
                     }
-                    path.push(CheckedUnitStructuralPathSegment::FixedIndex(
-                        u64::try_from(*index).ok()?,
-                    ));
+                    path.push(match segment {
+                        facts::PlaceSegment::FixedIndex { index } if *index < *length => {
+                            CheckedUnitStructuralPathSegment::FixedIndex(
+                                u64::try_from(*index).ok()?,
+                            )
+                        }
+                        facts::PlaceSegment::Index { expression } => {
+                            self.selectors.as_ref()?.runtime_segment(*expression)?
+                        }
+                        _ => return None,
+                    });
                     carrier_type = *element_type;
                 }
                 _ => return None,

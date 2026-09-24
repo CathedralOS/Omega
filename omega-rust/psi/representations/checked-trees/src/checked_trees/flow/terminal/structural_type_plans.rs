@@ -249,7 +249,8 @@ pub enum CheckedRuntimeIndex {
     /// The dense direct scalar parameter position of the calling state -- the
     /// coordinate `CheckedScalarExpression::Parameter` uses.
     Parameter { position: u32 },
-    /// The owning assignment's evaluated `AssignmentIndex` scalar: the
-    /// selector of its indexed target, evaluated before the stored value.
-    AssignmentIndex,
+    /// The owning assignment's evaluated `AssignmentIndex { depth }` scalar:
+    /// the selector of that indexed step of its target, evaluated before the
+    /// stored value.
+    AssignmentIndex { depth: u32 },
 }

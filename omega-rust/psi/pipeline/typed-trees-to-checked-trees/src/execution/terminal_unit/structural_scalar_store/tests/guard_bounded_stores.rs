@@ -62,7 +62,7 @@ fn guard_bounded_index_stores_through_receiver_array_field() {
         [
             checked_trees::CheckedUnitStructuralPathSegment::Field(identity),
             checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
             ),
         ] if identity == "cells"
     ));
@@ -70,7 +70,7 @@ fn guard_bounded_index_stores_through_receiver_array_field() {
         checked.facts.values.scalar_expressions.expression_at(
             state.symbol,
             0,
-            checked_trees::CheckedScalarExpressionRole::AssignmentIndex,
+            checked_trees::CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
         ),
         Some(checked_trees::CheckedScalarExpression::Parameter {
             position: 0,
@@ -201,7 +201,7 @@ fn guard_bounded_index_resolves_the_argument_by_parameter_position() {
         path.last(),
         Some(
             checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex
+                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth: 0 }
             )
         )
     ));
@@ -209,7 +209,7 @@ fn guard_bounded_index_resolves_the_argument_by_parameter_position() {
         checked.facts.values.scalar_expressions.expression_at(
             state.symbol,
             0,
-            checked_trees::CheckedScalarExpressionRole::AssignmentIndex,
+            checked_trees::CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
         ),
         Some(checked_trees::CheckedScalarExpression::Parameter {
             position: 1,

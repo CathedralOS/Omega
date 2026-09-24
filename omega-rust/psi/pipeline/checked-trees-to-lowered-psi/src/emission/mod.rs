@@ -35,6 +35,7 @@ pub(crate) mod byte_sequence_write;
 pub(crate) mod call_source_custody;
 pub(crate) mod operation_emission;
 pub(crate) mod primitive_store;
+pub(crate) mod runtime_elements;
 pub(crate) mod structural_byte_sequence_index_store;
 pub(crate) mod structural_byte_sequence_store;
 pub(crate) mod structural_scalar_store;

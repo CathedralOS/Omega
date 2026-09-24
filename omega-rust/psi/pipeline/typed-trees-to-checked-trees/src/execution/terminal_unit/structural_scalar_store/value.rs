@@ -199,7 +199,7 @@ pub(super) fn runtime_index(
     let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
-        CheckedScalarExpressionRole::AssignmentIndex,
+        CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
     )?;
     (binding.expression == index
         && matches!(
