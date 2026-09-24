@@ -14,7 +14,7 @@ use super::{
     terminal_scalar_type, unsupported, validate_direct_parameter_types, value_id,
 };
 use crate::emission::boolean_control::{
-    LoweredBooleanDecision, LoweredBooleanDecisionTarget, boolean_decision_test_count,
+    LoweredBooleanDecision, LoweredBooleanDecisionTarget, boolean_guard_decision_block_count,
     emit_inlined_boolean_guard_blocks, lower_boolean_control_decision,
 };
 use crate::emission::operation_emission::LoweredScalarBinding;
@@ -1321,7 +1321,7 @@ fn emit_state(
                         value: false,
                     }),
                 );
-                let decision_tests = boolean_decision_test_count(&decision);
+                let decision_tests = boolean_guard_decision_block_count(&decision);
                 debug_assert!(decision_tests > 0);
                 let first_synthetic_block = block_id(*next_block);
                 *next_block = next_block

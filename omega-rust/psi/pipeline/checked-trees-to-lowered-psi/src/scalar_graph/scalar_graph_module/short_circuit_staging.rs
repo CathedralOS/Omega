@@ -4,13 +4,13 @@
 
 use super::super::{
     Block, LoweringError, SuccessorEdge, Terminator, ValueDeclaration, block_id,
-    boolean_decision_block_count, boolean_decision_test_count, build_scalar_conditional_target,
-    contains_short_circuit, direct_expression_contains_short_circuit, edge_id,
-    emit_boolean_expression, emit_direct_expression, emit_inlined_boolean_guard_blocks,
-    emit_inlined_boolean_value_blocks, emit_reserved_boolean_tuple_stage_blocks,
-    emit_scalar_binding, emit_staged_scalar_call_binding, lower_boolean_control_decision,
-    lower_boolean_value_decision, lower_checked_crash_predicates, scalar_source_block, unsupported,
-    value_id,
+    boolean_decision_block_count, boolean_guard_decision_block_count,
+    build_scalar_conditional_target, contains_short_circuit,
+    direct_expression_contains_short_circuit, edge_id, emit_boolean_expression,
+    emit_direct_expression, emit_inlined_boolean_guard_blocks, emit_inlined_boolean_value_blocks,
+    emit_reserved_boolean_tuple_stage_blocks, emit_scalar_binding, emit_staged_scalar_call_binding,
+    lower_boolean_control_decision, lower_boolean_value_decision, lower_checked_crash_predicates,
+    scalar_source_block, unsupported, value_id,
 };
 use super::qualifications;
 use super::{GraphEmission, StateFrame};
@@ -296,7 +296,7 @@ impl GraphEmission<'_> {
                     value: false,
                 }),
             );
-            let decision_block_count = boolean_decision_test_count(&decision);
+            let decision_block_count = boolean_guard_decision_block_count(&decision);
             debug_assert!(decision_block_count > 0);
             let first_synthetic_block = block_id(self.next_block_identity);
             self.next_block_identity = self

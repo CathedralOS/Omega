@@ -34,10 +34,10 @@ use terminal_psi::{
 use terminal_verifier::{ObligationEvidence, ProofBundle};
 
 use crate::emission::boolean_control::{
-    boolean_decision_block_count, boolean_decision_test_count, build_scalar_conditional_target,
-    emit_inlined_boolean_guard_blocks, emit_inlined_boolean_value_blocks,
-    emit_reserved_boolean_tuple_stage_blocks, lower_boolean_control_decision,
-    lower_boolean_value_decision, scalar_source_block,
+    boolean_decision_block_count, boolean_guard_decision_block_count,
+    build_scalar_conditional_target, emit_inlined_boolean_guard_blocks,
+    emit_inlined_boolean_value_blocks, emit_reserved_boolean_tuple_stage_blocks,
+    lower_boolean_control_decision, lower_boolean_value_decision, scalar_source_block,
 };
 use crate::emission::expression_validation::{
     contains_short_circuit, direct_expression_contains_short_circuit,

@@ -170,6 +170,22 @@ impl StateGraphEmission<'_, '_> {
             }),
             _ => None,
         };
+        // A named true successor with expression arguments may read the case
+        // payloads the guard's own case tests select.
+        let first_successor_reads_payloads = match &state.terminator {
+            CheckedComposedUnitControlTerminatorPlan::Conditional { when_true, .. } => {
+                successor_may_read_payloads(when_true)
+            }
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                jump,
+                return_when_true: false,
+                ..
+            } => successor_may_read_payloads(jump),
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, .. } => arms
+                .first()
+                .is_some_and(|arm| successor_may_read_payloads(&arm.successor)),
+            _ => false,
+        };
         let condition = if let Some(true_ordinal) = conditional_true_ordinal {
             branch_guard = evaluation.branch_guard(
                 checked,
@@ -177,6 +193,7 @@ impl StateGraphEmission<'_, '_> {
                 state.state,
                 true_ordinal,
                 &values,
+                first_successor_reads_payloads,
             )?;
             if branch_guard.is_some() {
                 None
@@ -216,6 +233,7 @@ impl StateGraphEmission<'_, '_> {
                 state.state,
                 first.successor.statement_ordinal,
                 &values,
+                first_successor_reads_payloads,
             )?;
             if branch_guard.is_some() {
                 None
@@ -336,6 +354,7 @@ impl StateGraphEmission<'_, '_> {
                 &self.catalogs.structural_types,
                 &evaluation.structural_parameters,
                 &mut next_value,
+                first_successor_reads_payloads,
             )?),
             None => None,
         };
@@ -369,12 +388,14 @@ impl StateGraphEmission<'_, '_> {
                 evaluation.block_structural_parameters = Vec::new();
                 // A short-circuit guard stages the same planned decision a
                 // two-arm conditional uses; any other guard is one value.
+                let reads_payloads = successor_may_read_payloads(&arm.successor);
                 let guard = if let Some(expression) = evaluation.branch_guard(
                     checked,
                     plan.machine,
                     state.state,
                     arm.successor.statement_ordinal,
                     &values,
+                    reads_payloads,
                 )? {
                     ChainGuard::Decision(plan_short_circuit_guard(
                         &expression,
@@ -382,6 +403,7 @@ impl StateGraphEmission<'_, '_> {
                         &self.catalogs.structural_types,
                         &evaluation.structural_parameters,
                         &mut next_value,
+                        reads_payloads,
                     )?)
                 } else {
                     let mut calls = self.catalogs.scalar_calls.emission_context();
@@ -484,6 +506,12 @@ impl StateGraphEmission<'_, '_> {
                 trivial_affine_discards: Vec::new(),
             });
         }
+        // A case test on a whole owned parameter consumes it, as the checked
+        // cleanup records by leaving it out of the arm's discards: each tested
+        // arm's edge and the dispatch's closing `_` edge dispose of it where
+        // control leaves the state. A closed-sum dispatch disposes of it on its
+        // own case edges instead.
+        let consumed_case_subjects = case_subject_consumptions(&state.terminator);
         let mut edge_blocks = Vec::new();
         let mut successor = |edge: &CheckedStructuralControlSuccessorPlan,
                              payload_values: &[(u32, ValueDeclaration)],
@@ -522,8 +550,24 @@ impl StateGraphEmission<'_, '_> {
                 )?
             };
             // Owned parameters the target does not receive die on this edge,
-            // at whatever place their value occupies when control leaves.
-            for position in &edge.trivial_affine_discard_parameter_positions {
+            // at whatever place their value occupies when control leaves, in
+            // reverse declaration order.
+            let mut dying = edge.trivial_affine_discard_parameter_positions.clone();
+            if let Some((_, subject)) = consumed_case_subjects
+                .iter()
+                .find(|(ordinal, _)| *ordinal == edge.statement_ordinal)
+                && !dying.contains(subject)
+                && evaluation
+                    .structural_parameters
+                    .iter()
+                    .any(|(position, parameter)| {
+                        position == subject && parameter.access == StructuralAccess::Owned
+                    })
+            {
+                dying.push(*subject);
+                dying.sort_by_key(|position| std::cmp::Reverse(*position));
+            }
+            for position in &dying {
                 let (_, parameter) = evaluation
                     .structural_parameters
                     .iter()
@@ -1577,12 +1621,82 @@ impl StateGraphEmission<'_, '_> {
 /// Plan one short-circuit guard as a Boolean decision whose case dispatches
 /// allocate payload values. Returns the plan and the scalar namespace its true
 /// outcome reads, which includes the payloads its dispatches established.
+/// The owned parameter each edge of a case-test dispatch consumes, keyed by
+/// the edge's transition ordinal: a tested arm consumes its own subject, and
+/// the dispatch's closing `_` arm the subject of the arm before it.
+fn case_subject_consumptions(
+    terminator: &checked_trees::CheckedComposedUnitControlTerminatorPlan,
+) -> Vec<(u32, u32)> {
+    fn subject(guard: &checked_trees::CheckedCallScalarArgument) -> Option<u32> {
+        let CheckedScalarExpression::Boolean(guard) = guard.as_pure()? else {
+            return None;
+        };
+        let membership = match guard.as_ref() {
+            checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+                match (left.as_ref(), right.as_ref()) {
+                    (checked_trees::CheckedBooleanExpression::Constant(true), tested)
+                    | (tested, checked_trees::CheckedBooleanExpression::Constant(true)) => tested,
+                    _ => return None,
+                }
+            }
+            tested => tested,
+        };
+        match membership {
+            checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
+                subject, ..
+            } if subject.path.is_empty() => Some(subject.parameter_position),
+            _ => None,
+        }
+    }
+    match terminator {
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
+            guard,
+            when_true,
+            when_false,
+        } => subject(guard)
+            .map(|position| {
+                vec![
+                    (when_true.statement_ordinal, position),
+                    (when_false.statement_ordinal, position),
+                ]
+            })
+            .unwrap_or_default(),
+        checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
+            arms,
+            fallback,
+        } => {
+            let mut consumed = arms
+                .iter()
+                .filter_map(|arm| {
+                    subject(&arm.guard).map(|position| (arm.successor.statement_ordinal, position))
+                })
+                .collect::<Vec<_>>();
+            if let Some(position) = arms.last().and_then(|arm| subject(&arm.guard)) {
+                consumed.push((fallback.statement_ordinal, position));
+            }
+            consumed
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Whether a successor evaluates any argument from an expression, which may
+/// read a case payload its guard selected. Parameter forwards read none.
+fn successor_may_read_payloads(
+    successor: &checked_trees::CheckedStructuralControlSuccessorPlan,
+) -> bool {
+    successor.scalar_arguments.iter().any(|argument| {
+        argument.source == checked_trees::CheckedStructuralScalarArgumentSourcePlan::Expression
+    })
+}
+
 fn plan_short_circuit_guard(
     expression: &LoweredBooleanReturnExpression,
     values: &[ValueDeclaration],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
     structural_parameters: &[(u32, terminal_psi::StructuralParameterDeclaration)],
     next_value: &mut u64,
+    successor_reads_payloads: bool,
 ) -> Result<
     (
         crate::emission::case_payload_dispatch::PlannedGuard,
@@ -1615,6 +1729,7 @@ fn plan_short_circuit_guard(
         &declared_cases,
         &mut namespace,
         next_value,
+        successor_reads_payloads,
     )?;
     Ok((planned, namespace))
 }
@@ -1712,7 +1827,7 @@ fn emit_short_circuit_decision(
         });
     }
     let decision = &planned.decision;
-    let tests = crate::emission::boolean_control::boolean_decision_test_count(decision);
+    let tests = crate::emission::boolean_control::boolean_guard_decision_block_count(decision);
     let decision_block = block_id(*next_block);
     *next_block =
         next_block
