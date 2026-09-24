@@ -325,6 +325,20 @@ fn lower_checked_frontend(
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<CheckedFrontend, Vec<Diagnostic>> {
+    // Build-scope sources select their target-scoped declarations against
+    // the admitted execution profile; product sources against the target.
+    // An unprofiled host resolves to its `NativeTarget` triple. Build-time
+    // evaluation resolves and checks its own probe programs, so it must see
+    // the selected program: an unselected per-target leaf (std's
+    // `ConsoleNativeProvider::read_byte`) is inert and its callers fail.
+    let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
+    let selected_target_machine_declarations =
+        build_evaluation::target_machines::filter_target_machines_by_scope(
+            &mut syntax.syntax_trees,
+            target_name,
+            execution_profile_name,
+            &build_scope_sources,
+        )?;
     let evaluated = build_time_evaluation::evaluate_pre_resolution(
         build_time_evaluation::BuildTimeEvaluationRequest {
             syntax_trees: syntax.syntax_trees,
@@ -341,17 +355,8 @@ fn lower_checked_frontend(
     )?;
     let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
     syntax.syntax_trees = syntax_trees;
-    // Build-scope sources select their target-scoped declarations against
-    // the admitted execution profile; product sources against the target.
-    // An unprofiled host resolves to its `NativeTarget` triple.
-    let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
-    let selected_target_machine_declarations =
-        build_evaluation::target_machines::filter_target_machines_by_scope(
-            &mut syntax.syntax_trees,
-            target_name,
-            execution_profile_name,
-            &build_scope_sources,
-        )?;
+    selected_target_machine_declarations
+        .release_provider_default_declarations(&mut syntax.syntax_trees);
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
     let mut typing_base = symbol_resolved_trees_to_seeded_base(resolved, timings)?;

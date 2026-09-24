@@ -21,6 +21,11 @@
 //! the target-scoped declaration semantic (a hypothetical target is inert
 //! everywhere, which is also what makes fail-canaries host-portable).
 //!
+//! A selected `Owner::provider_defaults` declaration is the exception: it is
+//! provider-settlement input whose `select_provider` calls only the typed
+//! admission below can grant, so it keeps its marker through build-time
+//! evaluation and enters the program when the coordinator releases it.
+//!
 //! Selection is per dependency scope: product-scope sources select against
 //! the product target, and build-scope sources (the build entry and the
 //! root-local helpers it imports) select against the admitted build execution
@@ -155,6 +160,8 @@ impl SelectedTargetMachineDeclarations {
         validate_target_machine_origins(&complete_origins)?;
 
         let extension = select_target_machines(syntax, &scopes, extension_origins);
+        // Generated units were evaluated before they reached this filter.
+        extension.release_provider_default_declarations(syntax);
         self.provider_default_machine_names
             .extend(extension.provider_default_machine_names);
         self.selected_machine_origins
@@ -180,6 +187,40 @@ impl SelectedTargetMachineDeclarations {
                 .then_with(|| left.source.0.cmp(&right.source.0))
         });
         Ok(self)
+    }
+
+    /// Clear the marker of every selected provider-default declaration so it
+    /// resolves as an ordinary machine. Selection leaves them inert because
+    /// build-time evaluation checks its probes without the declaration-call
+    /// admission they need; release them before symbol resolution.
+    pub fn release_provider_default_declarations(&self, syntax: &mut SyntaxTrees) {
+        for handle in syntax.root_item_handles().to_vec() {
+            let Item::Machine(machine) = syntax.root_item(handle) else {
+                continue;
+            };
+            let Some(target) = machine.target.as_ref() else {
+                continue;
+            };
+            let name = machine.name.as_str();
+            let source = machine.name.source_span().source_id;
+            let selected = self.selected_machine_origins.iter().any(
+                |(selected, selected_target, selected_source)| {
+                    selected == name
+                        && selected_target == target.as_str()
+                        && *selected_source == source
+                },
+            );
+            let provider_default = self
+                .provider_default_machine_names
+                .iter()
+                .any(|(default, default_source)| default == name && *default_source == source);
+            if !(selected && provider_default) {
+                continue;
+            }
+            let mut machine = machine.clone();
+            machine.target = None;
+            syntax.items.replace_item(handle, Item::Machine(machine));
+        }
     }
 
     /// Admit declaration-call custody before preliminary package checking.
@@ -474,10 +515,14 @@ fn select_target_machines(
         }
         let full_name = machine.name.as_str().to_owned();
         let declaring_source = machine.name.source_span().source_id;
-        if full_name.ends_with("::provider_defaults") {
+        let provider_default = full_name.ends_with("::provider_defaults");
+        if provider_default {
             provider_default_machines.push((full_name.clone(), declaring_source));
         }
         selected_machine_origins.push((full_name, target.as_str().to_owned(), declaring_source));
+        if provider_default {
+            continue;
+        }
 
         // Typed machines intentionally carry no target marker after this
         // selection point.
@@ -584,6 +629,26 @@ mod tests {
         let mut syntax = syntax(source_id.0, text);
         let selected = filter_target_machines(&mut syntax, Some("linux_x86_64"))
             .expect("select exact target producer");
+        let marker = |syntax: &syntax_trees::SyntaxTrees| {
+            syntax.root_items().find_map(|item| match item {
+                syntax_trees::item::Item::Machine(machine)
+                    if machine.name.as_str() == "Provider::provider_defaults" =>
+                {
+                    Some(
+                        machine
+                            .target
+                            .as_ref()
+                            .map(|target| target.as_str().to_owned()),
+                    )
+                }
+                _ => None,
+            })
+        };
+        // Build-time evaluation runs between selection and release: the
+        // selected declaration is still inert there.
+        assert_eq!(marker(&syntax), Some(Some("linux_x86_64".into())));
+        selected.release_provider_default_declarations(&mut syntax);
+        assert_eq!(marker(&syntax), Some(None));
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
                 syntax: &syntax,
