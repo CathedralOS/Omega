@@ -274,7 +274,7 @@ machine make_error_kind(selected: bool) -> ErrorKind {
 }
 
 data Main {}
-machine Main::main(&mut self) {
+machine Main::main(&mut self) reaches Trace {
     Trace::record(10);
     let kind: ErrorKind = make_error_kind(SELECTED);
     Trace::record(20);
