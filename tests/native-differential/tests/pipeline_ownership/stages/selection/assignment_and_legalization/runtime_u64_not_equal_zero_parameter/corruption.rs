@@ -46,7 +46,7 @@ fn not_equal_zero_selected_compare_branch_and_successor_corruption_fail_closed()
         std::mem::swap(when_nonzero, when_zero);
         assert!(matches!(
             validate_raw_selection(&staged, corrupted),
-            Err(SelectedInstructionError::SourceCustodyMismatch)
+            Err(SelectedInstructionError::SourceCustodyMismatch { .. })
         ));
     }
 }
