@@ -1,6 +1,8 @@
 //! Optimizer module role: executable entrance.
 mod compute;
 mod error;
+#[cfg(test)]
+mod order_suite;
 mod ordinary;
 mod validation;
 
