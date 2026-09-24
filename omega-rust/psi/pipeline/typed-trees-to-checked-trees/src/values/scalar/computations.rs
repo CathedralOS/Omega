@@ -393,8 +393,10 @@ pub(crate) fn build_checked_value_computation_plans(
                     // constructor a `let` initializer roots. Each scalar field
                     // initializer of a record keeps its own `RecordField`
                     // computation coordinate for the decomposed store route;
-                    // a case literal is established whole and replaces its
-                    // field through the statement sequence's window pair.
+                    // a case literal, or a copy of an `Unrestricted` place
+                    // (`self.copy = self.items[0]` over a `[copy]` record), is
+                    // established whole and replaces its field through the
+                    // statement sequence's window pair.
                     if let Some(expected) = crate::flow::expression_type_reference_in_state(
                         program,
                         state.symbol,
@@ -410,6 +412,13 @@ pub(crate) fn build_checked_value_computation_plans(
                             )
                             || structural_values::is_structural_case_value(
                                 program,
+                                assignment.value,
+                                expected,
+                            )
+                            || structural_values::is_copied_place_value(
+                                program,
+                                state.symbol,
+                                statement_index,
                                 assignment.value,
                                 expected,
                             ))
