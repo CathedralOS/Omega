@@ -7,6 +7,7 @@ mod attached_unit_cases;
 mod borrow_certificate_replay;
 mod borrowed_named_results;
 mod borrowed_record_leaf_construction;
+mod borrowed_view_member_calls;
 mod borrowed_whole_view_results;
 mod boundary_byte_buffers;
 mod byte_extent;

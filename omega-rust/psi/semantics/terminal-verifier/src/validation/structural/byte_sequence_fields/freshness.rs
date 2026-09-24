@@ -94,7 +94,7 @@ fn changes_length(
             ..
         } => {
             *destination == root
-                && field_path(module, machine, *destination, written, *field)
+                && field_path(module, machine, *destination, written, *field, true)
                     .is_none_or(|written| overlaps(path, &written))
         }
         OperationKind::WriteOnlyPrimitiveStore { destination, .. }
@@ -154,7 +154,7 @@ pub(in crate::validation) fn exact_length_is_current(
     else {
         return false;
     };
-    let Some(exact_path) = field_path(module, machine, *destination, path, *field) else {
+    let Some(exact_path) = field_path(module, machine, *destination, path, *field, true) else {
         return false;
     };
     let Some(producer) = machine.blocks.iter().flat_map(|block| &block.operations).find(|candidate| {
@@ -180,7 +180,7 @@ pub(crate) fn replacement_length_equation(
     else {
         return Ok(None);
     };
-    let Some(exact_path) = field_path(module, machine, *root, path, *field) else {
+    let Some(exact_path) = field_path(module, machine, *root, path, *field, false) else {
         return Ok(None);
     };
     let result = operation.result.expect_scalar().id;
