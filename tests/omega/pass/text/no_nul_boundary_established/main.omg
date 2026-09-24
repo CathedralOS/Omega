@@ -20,6 +20,6 @@ requires
 }
 
 machine Main::main(&mut self) {
-    Text::validate_no_nul(self.text);
+    Text::validate_no_nul(&mut self.text);
     self.consume(self.text);
 }

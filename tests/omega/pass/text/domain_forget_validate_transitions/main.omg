@@ -26,6 +26,6 @@ machine Main::main(&mut self) {
     self.consume_raw(self.checked);
 
     // Inbound: validation performs work and establishes the predicate fact.
-    Text::validate_utf8(self.raw);
+    Text::validate_utf8(&mut self.raw);
     self.consume_checked(self.raw);
 }
