@@ -198,3 +198,79 @@ fn call_result_replaces_the_field_through_the_same_roster() {
     );
     assert_eq!(observations, [true]);
 }
+
+/// `self.copy = self.items[0]` over a `[copy]` record: the source element is
+/// copied out of the borrowed receiver (`StructuralLeafCopy`, which leaves it
+/// intact) and replaces `copy` through the same window pair a construction
+/// uses, with no cleanup for the displaced copyable value.
+#[test]
+fn a_copied_place_replaces_a_structural_field() {
+    let kinds = copy_replacement_kinds(
+        "data Item [copy] { value: i32; }
+        data Main { items: [Item; 2]; copy: Item; }
+        machine Main::main(&mut self) {
+            self.items[0].value = 17;
+            self.copy = self.items[0];
+        }",
+    );
+    assert!(
+        kinds
+            .iter()
+            .any(|kind| matches!(kind, terminal_psi::OperationKind::StructuralLeafCopy { .. }))
+    );
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StoreStructuralField { .. }
+    )));
+}
+
+/// A whole owned `[copy]` record parameter is the degenerate copied place: it
+/// is copied rather than moved, and replaces the field through the same
+/// window pair.
+#[test]
+fn a_whole_copy_parameter_replaces_a_structural_field() {
+    let kinds = copy_replacement_kinds(
+        "data Item [copy] { value: i32; }
+        data Main { copy: Item; }
+        machine Main::main(&mut self, item: Item) {
+            self.copy = item;
+        }",
+    );
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StructuralLeafCopy { path, .. } if path.is_empty()
+    )));
+    assert!(kinds.iter().any(|kind| matches!(
+        kind,
+        terminal_psi::OperationKind::StoreStructuralField { .. }
+    )));
+}
+
+/// Produce and independently verify `Main::main`, returning its operations.
+fn copy_replacement_kinds(source: &str) -> Vec<terminal_psi::OperationKind> {
+    let checked = crate::front_end::checked_program(source);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("a copied place replaces its field")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent verification accepts the copy replacement");
+    module
+        .machines
+        .into_iter()
+        .flat_map(|machine| machine.blocks)
+        .flat_map(|block| block.operations)
+        .map(|operation| operation.kind)
+        .collect()
+}

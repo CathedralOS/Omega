@@ -558,10 +558,14 @@ pub(super) fn is_copied_place_value(
     } else if !matches!(
         program.type_reference_table.type_reference(root),
         TypeReferenceNode::Reference {
-            access: language_semantics::ReferenceAccess::Shared,
+            access: language_semantics::ReferenceAccess::Shared
+                | language_semantics::ReferenceAccess::Mutable,
             ..
         }
     ) {
+        // Copying an `Unrestricted` leaf only reads it, which any readable
+        // loan permits: the copy lends shared from a `&` or `&mut` root and
+        // leaves the source intact. A write-only loan grants no read.
         return false;
     }
     crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
