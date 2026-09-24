@@ -106,14 +106,14 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
     )?;
     builder.emit(
         SelectedInstructionKind::Load64 { byte_offset: 0 },
-        builder.constraints.keys.load64.ok_or_else(invalid)?,
+        builder.constraints.keys.load64.ok_or_else(|| invalid())?,
         &[field, length],
         provenance(row),
     )?;
     let data = transport_register(
         builder,
         place,
-        field_offset.checked_add(8).ok_or_else(invalid)?,
+        field_offset.checked_add(8).ok_or_else(|| invalid())?,
     )?;
     builder.emit(
         SelectedInstructionKind::AddressOffset { byte_offset: 8 },
@@ -121,7 +121,7 @@ pub(in crate::selection::construction::scalar_graph) fn byte_field_argument(
             .constraints
             .keys
             .address_offset
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| invalid())?,
         &[field, data],
         provenance(row),
     )?;
@@ -140,7 +140,7 @@ pub(super) fn store(
     memory(
         builder,
         row,
-        storage_origin_place(row, slot).ok_or_else(invalid)?,
+        storage_origin_place(row, slot).ok_or_else(|| invalid())?,
         offset,
         8,
         SelectedMemoryAccessRole::WriteLocal { slot },
@@ -150,7 +150,7 @@ pub(super) fn store(
             slot: FrameStorageSlotId::Local(slot),
             byte_offset: offset,
         },
-        builder.constraints.keys.store64.ok_or_else(invalid)?,
+        builder.constraints.keys.store64.ok_or_else(|| invalid())?,
         &[value],
         provenance(row),
     )
@@ -166,13 +166,13 @@ pub(super) fn address(
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
     let register = transport_register(
         builder,
-        storage_origin_place(row, slot).ok_or_else(invalid)?,
+        storage_origin_place(row, slot).ok_or_else(|| invalid())?,
         offset,
     )?;
     memory(
         builder,
         row,
-        storage_origin_place(row, slot).ok_or_else(invalid)?,
+        storage_origin_place(row, slot).ok_or_else(|| invalid())?,
         offset,
         byte_count,
         SelectedMemoryAccessRole::AddressLocal { slot },
@@ -186,7 +186,11 @@ pub(super) fn address(
             slot: FrameStorageSlotId::Local(slot),
             byte_offset: offset,
         },
-        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| invalid())?,
         &[register],
         provenance,
     )?;

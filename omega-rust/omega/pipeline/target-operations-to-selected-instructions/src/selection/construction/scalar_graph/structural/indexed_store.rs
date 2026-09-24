@@ -30,7 +30,7 @@ pub(super) fn emit(
     else {
         return Err(invalid());
     };
-    let signature = source.structural.as_ref().ok_or_else(invalid)?;
+    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
     if !signature.entry_claims.is_empty()
         || crate::structural_inputs::structural_reference_input::indexed_primitive_store(
             destination,
@@ -60,12 +60,14 @@ pub(super) fn emit(
         .iter()
         .find(|(place, _)| *place == destination.place)
         .map(|(_, register)| *register)
-        .ok_or_else(invalid)?;
-    let (_, index_register, _, index_type) = builder.resolve(index.value).ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
+    let (_, index_register, _, index_type) =
+        builder.resolve(index.value).ok_or_else(|| invalid())?;
     if index_type != index.scalar_type {
         return Err(invalid());
     }
-    let (_, value_register, _, value_type) = builder.resolve(value.value).ok_or_else(invalid)?;
+    let (_, value_register, _, value_type) =
+        builder.resolve(value.value).ok_or_else(|| invalid())?;
     if value_type != value.scalar_type {
         return Err(invalid());
     }
@@ -126,7 +128,7 @@ pub(super) fn emit(
             byte_offset: *byte_offset,
             byte_size: *byte_size,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[address, value_register],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

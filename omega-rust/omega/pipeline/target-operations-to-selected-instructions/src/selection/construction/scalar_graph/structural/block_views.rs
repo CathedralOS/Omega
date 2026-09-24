@@ -65,7 +65,11 @@ pub(in crate::selection::construction) fn block_entry(
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            builder
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| invalid())?,
             &[pointer],
             SelectedInstructionProvenance::default(),
         )?;
@@ -87,7 +91,7 @@ pub(in crate::selection::construction) fn block_entry(
             });
             builder.emit(
                 SelectedInstructionKind::Load64 { byte_offset: 0 },
-                builder.constraints.keys.load64.ok_or_else(invalid)?,
+                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
                 &[pointer, referent],
                 SelectedInstructionProvenance::default(),
             )?;

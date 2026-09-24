@@ -37,8 +37,8 @@ pub(super) fn establish(
         return Err(invalid());
     }
     let length = u32::try_from(bytes.len()).map_err(|_| invalid())?;
-    let padded = length.checked_add(7).ok_or_else(invalid)? & !7;
-    let byte_size = padded.checked_add(16).ok_or_else(invalid)?;
+    let padded = length.checked_add(7).ok_or_else(|| invalid())? & !7;
+    let byte_size = padded.checked_add(16).ok_or_else(|| invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: destination.id,
@@ -56,7 +56,7 @@ pub(super) fn establish(
             .ok()
             .and_then(|value| value.checked_mul(8))
             .and_then(|value| value.checked_add(16))
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let mut word = [0_u8; 8];
         word[..chunk.len()].copy_from_slice(chunk);
         let value = constant(builder, row, offset, u64::from_le_bytes(word))?;

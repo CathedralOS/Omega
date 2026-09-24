@@ -24,7 +24,7 @@ pub(super) fn write(
         _ => return Err(invalid()),
     };
     let (producer, _, scalar, shape) =
-        crate::selection::primitive_local_input::local(source, place).ok_or_else(invalid)?;
+        crate::selection::primitive_local_input::local(source, place).ok_or_else(|| invalid())?;
     if row.result.is_some() || scalar != value.scalar_type {
         return Err(invalid());
     }
@@ -61,9 +61,9 @@ pub(super) fn write(
             .iter()
             .find(|(stored, _)| *stored == place)
             .map(|(_, pointer)| *pointer)
-            .ok_or_else(invalid)?
+            .ok_or_else(|| invalid())?
     };
-    let (_, value_register, _, actual) = builder.resolve(value.value).ok_or_else(invalid)?;
+    let (_, value_register, _, actual) = builder.resolve(value.value).ok_or_else(|| invalid())?;
     if actual != scalar {
         return Err(invalid());
     }
@@ -81,7 +81,7 @@ pub(super) fn write(
             byte_offset: 0,
             byte_size,
         },
-        builder.constraints.keys.store.ok_or_else(invalid)?,
+        builder.constraints.keys.store.ok_or_else(|| invalid())?,
         &[pointer, value_register],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -97,23 +97,23 @@ pub(in crate::selection) fn read(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-    let (place, byte_offset) =
-        crate::selection::primitive_local_input::read_geometry(source, row).ok_or_else(invalid)?;
-    let definition = row.result.ok_or_else(invalid)?;
+    let (place, byte_offset) = crate::selection::primitive_local_input::read_geometry(source, row)
+        .ok_or_else(|| invalid())?;
+    let definition = row.result.ok_or_else(|| invalid())?;
     let pointer = builder
         .transport
         .pointers
         .iter()
         .find(|(stored, _)| *stored == place)
         .map(|(_, pointer)| *pointer)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let output = builder.register(
         definition.value,
         definition.definition_site,
         definition.scalar_type,
     )?;
     let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let (instruction, constraint) = match shape.byte_size {
         1 => (
             SelectedInstructionKind::Load8 { byte_offset },
@@ -143,7 +143,7 @@ pub(in crate::selection) fn read(
     )?;
     builder.emit(
         instruction,
-        constraint.ok_or_else(invalid)?,
+        constraint.ok_or_else(|| invalid())?,
         &[pointer, output],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

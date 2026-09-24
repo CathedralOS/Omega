@@ -1,8 +1,7 @@
 //! Independently replay incoming parameter placements and durable entry copies.
 use super::{
-    IndirectPointerLocation, LegalizedScalarArgument, LegalizedScalarFunction,
-    LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedInstructionProvenance,
-    StructuralAccess, ValueLocation, VirtualRegisterOrigin,
+    IndirectPointerLocation, LegalizedScalarFunction, SelectedInstructionKind,
+    SelectedInstructionProvenance, StructuralAccess, ValueLocation, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -157,23 +156,10 @@ pub(in crate::selection) fn entry(
             retain_owned_home(source, parameter, replay)?;
             continue;
         }
-        if owned_pointer.is_none() && !crate::selection::established_view_input::transferred(source, place) && !source.blocks.iter().flat_map(|block|&block.instructions).any(|row| match &row.kind {
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { destination, source, .. } => destination.place == place || *source == place,
-            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source: argument, .. }
-            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source: argument, .. } => argument.place == place,
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { destination, .. } => destination.place == place,
-            LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
-            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. }
-            | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => destination.place == place,
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
-            | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
-            | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
-            LegalizedScalarInstructionKind::Call(call)=>call.arguments.iter().any(|argument|matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place==place)),
-            LegalizedScalarInstructionKind::NormalizedForeignCall(call)=>call.structural_arguments.iter().any(|argument|argument.place==place),_=>false,
-        }) {continue;}
+        if owned_pointer.is_none() && !crate::selection::parameter_use::referent_used(source, place)
+        {
+            continue;
+        }
         // Replay the exact incoming pointer location, not the caller's copy
         // offset or a same-sized inline value. Access remains independently
         // reconstructed from the structural declaration and full call plan.

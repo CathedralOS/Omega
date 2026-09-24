@@ -29,8 +29,8 @@ pub(in crate::selection) fn entry(
     {
         return Err(invalid());
     }
-    let signature = source.structural.as_ref().ok_or_else(invalid)?;
-    let result = signature.result.as_ref().ok_or_else(invalid)?;
+    let signature = source.structural.as_ref().ok_or_else(|| invalid())?;
+    let result = signature.result.as_ref().ok_or_else(|| invalid())?;
     if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
@@ -43,7 +43,7 @@ pub(in crate::selection) fn entry(
     }
     let fixed = environment
         .fixed_register_view(register)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| invalid())?;
     let input = transport_register(builder, result.place, 0)?;
     builder.registers[input.0 as usize].entry_fixed_view = Some(fixed);
     let retained = transport_register(builder, result.place, 0)?;
@@ -73,8 +73,8 @@ pub(in crate::selection) fn prepare_call(
     {
         return Ok(None);
     }
-    let (result, placement) =
-        crate::selection::aggregate_result_input::call_result(source, call).ok_or_else(invalid)?;
+    let (result, placement) = crate::selection::aggregate_result_input::call_result(source, call)
+        .ok_or_else(|| invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,
@@ -115,8 +115,8 @@ pub(in crate::selection) fn finish_call(
     let LegalizedScalarInstructionKind::Call(call) = &row.kind else {
         return Err(invalid());
     };
-    let (result, placement) =
-        crate::selection::aggregate_result_input::call_result(source, call).ok_or_else(invalid)?;
+    let (result, placement) = crate::selection::aggregate_result_input::call_result(source, call)
+        .ok_or_else(|| invalid())?;
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
         place: result.place,
@@ -146,9 +146,9 @@ pub(in crate::selection) fn returned(
         .structural
         .as_ref()
         .and_then(|signature| signature.result.as_ref())
-        .ok_or_else(invalid)?
+        .ok_or_else(|| invalid())?
         .place;
-    let pointer = builder.transport.result_pointer.ok_or_else(invalid)?;
+    let pointer = builder.transport.result_pointer.ok_or_else(|| invalid())?;
     let mut offset = 0u32;
     while offset < u32::from(placement.shape.byte_size) {
         let width = (u32::from(placement.shape.byte_size) - offset).min(8) as u16;
