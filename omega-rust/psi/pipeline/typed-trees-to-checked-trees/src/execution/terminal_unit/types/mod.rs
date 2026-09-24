@@ -2115,6 +2115,14 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Structural {
                 type_identity: self.add_reference_type(field.type_reference, binders)?,
             }
+        } else if borrowed_named_view(self.program, field.type_reference) {
+            // A `&'a V` member keeps its reference shell in the declared field
+            // type exactly as the shared-borrow argument plan names it —
+            // peeling to the named referent would mint a different identity
+            // than the `&`-rooted value the literal's field produces.
+            CheckedUnitStructuralFieldType::Structural {
+                type_identity: self.add_named_view_type(field.type_reference, binders)?,
+            }
         } else if let Some((fused_service_erasure, provider_node)) =
             provider_backed_field(self.program, field.type_reference)
         {
