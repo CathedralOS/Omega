@@ -659,18 +659,24 @@ pub(in crate::execution) fn build_call_operation(
                 // A `&[u8]`/`&'a V` result is a shared loan against the
                 // callee's storage: the anonymous result carries its
                 // declared identity with affine custody, exactly as the
-                // reference-record arm above compares it. A `let`-bound
-                // `&[u8]` binding mints unrestricted multiplicity — the
-                // shared reference's own shape — so both mints read as the
-                // same borrowed-view family here.
-                (expected.multiplicity != Multiplicity::Affine
-                    && expected.multiplicity != Multiplicity::Unrestricted)
-                    || crate::execution::terminal_unit::types::borrowed_view_result_identity(
-                        program,
-                        target_state.return_type,
-                    )
-                    .as_deref()
-                        != Some(expected.type_identity.as_str())
+                // reference-record arm above compares it — anonymous and
+                // `let`-bound borrowed-view results share the one affine
+                // mint, so only the identity spelling differs.
+                {
+                    let peeled =
+                        crate::execution::terminal_unit::types::borrowed_view_result_identity(
+                            program,
+                            target_state.return_type,
+                        );
+                    // Anonymous and `let`-bound slice results mint the peeled
+                    // referent identity; a `let`-bound named view keeps its
+                    // `ref(...)` shell — the custody `add_named_view_type`
+                    // registers — so both spellings name the same family.
+                    let shelled = program.normalized_type_identity(target_state.return_type);
+                    expected.multiplicity != Multiplicity::Affine
+                        || (peeled.as_deref() != Some(expected.type_identity.as_str())
+                            && shelled.as_str() != expected.type_identity)
+                }
             }
             Some(expected @ ExpectedCallValueResult::Structural(_)) => {
                 !boundary_value_result_matches(program, target_state.return_type, expected, &[])
@@ -1028,21 +1034,17 @@ pub(in crate::execution) fn build_call_operation(
                         target_state.return_type,
                     ))
                 // A `&[u8]`/`&'a V` borrowed-view result loans the callee's
-                // storage through the caller frame: its anonymous plan is
-                // affine like the reference-record family above, and the
-                // result-shape arm already proved the identity. A `let`-bound
-                // `&[u8]` binding mints unrestricted multiplicity — the shared
-                // reference's own shape — so both mints read as the family.
-                || (matches!(
-                    result.multiplicity,
-                    Multiplicity::Affine | Multiplicity::Unrestricted
-                ) && (crate::execution::terminal_unit::types::borrowed_slice_view(
-                    program,
-                    target_state.return_type,
-                ) || crate::execution::terminal_unit::types::borrowed_named_view(
-                    program,
-                    target_state.return_type,
-                ))))
+                // storage through the caller frame: its plan is affine like
+                // the reference-record family above, and the result-shape arm
+                // already proved the identity.
+                || (result.multiplicity == Multiplicity::Affine
+                    && (crate::execution::terminal_unit::types::borrowed_slice_view(
+                        program,
+                        target_state.return_type,
+                    ) || crate::execution::terminal_unit::types::borrowed_named_view(
+                        program,
+                        target_state.return_type,
+                    ))))
             && program
                 .machine_states(target_machine)
                 .first()
