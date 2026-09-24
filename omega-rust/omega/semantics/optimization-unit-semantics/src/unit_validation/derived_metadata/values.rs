@@ -1,9 +1,6 @@
 //! Independently reconstructed scalar definitions and uses.
-use crate::BlockId;
-use crate::ScalarType;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
-use crate::ValueUse;
+use optimization_unit::{ValueDefinition, ValueDefinitionSite, ValueUse};
+use semantic_vocabulary::{BlockId, ScalarType};
 
 pub(crate) fn expected_definitions(
     operation: &abstract_operations::AbstractOperation,

@@ -18,9 +18,9 @@
 //! admitted cycle roster; structural success alone grants no execution or
 //! publication authority.
 
-use crate::MachineId;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::MachineId;
 
 pub(crate) mod affine_authority;
 mod catalogs;

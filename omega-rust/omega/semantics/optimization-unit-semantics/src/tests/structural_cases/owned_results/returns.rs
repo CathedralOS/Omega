@@ -1,9 +1,8 @@
 use super::AbstractOperation;
-use crate::PsiOptimizationUnit;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
 use crate::tests::structural_cases::source_machine_unit;
+use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::validate_psi_optimization_unit;
+use optimization_unit::PsiOptimizationUnit;
 
 fn selected_return() -> PsiOptimizationUnit {
     source_machine_unit(

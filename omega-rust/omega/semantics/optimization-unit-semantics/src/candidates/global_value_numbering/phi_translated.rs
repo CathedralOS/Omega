@@ -1,37 +1,31 @@
 //! Phi-translated join validation and rewrite application.
-use crate::AnalysisInvalidationSet;
-use crate::AnalysisKind;
-use crate::AnalysisSet;
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::NodeLocation;
-use crate::OptimizationFact;
-use crate::OptimizationSafetyClass;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PhiTranslatedScalarIncoming;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
-use crate::preserve_edge_custody;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_phi_translated_cse_accounting;
-use crate::rewrite_scalar_value_uses;
-use crate::rewrite_successor_operation;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::candidates::rewrite_accounting::common_subexpression::reconstruct_phi_translated_cse_accounting;
+use crate::candidates::rewrite_accounting::preserve_edge_custody;
+use crate::candidates::rewrite_accounting::substitutions::{
+    rewrite_scalar_value_uses, rewrite_successor_operation,
+};
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationSafetyClass,
+    OptimizationValidatorIdentity,
+};
+use optimization_unit::{
+    NodeLocation, OptimizationFact, PhiTranslatedScalarIncoming, PsiOptimizationUnit,
+    PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
+    recompute_psi_optimization_unit_identity,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
-use super::admission::*;
-use super::dominance_reconstruction::*;
-use super::expression_keys::*;
+use super::admission::{independent_cse_expression, independently_accepted_operation_fact};
+use super::dominance_reconstruction::independent_reachable_dominators;
+use super::expression_keys::{
+    independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
+};
 
 /// Independently validate one obligation-free, proof-certified, or
 /// proof-certified compatible-policy scalar

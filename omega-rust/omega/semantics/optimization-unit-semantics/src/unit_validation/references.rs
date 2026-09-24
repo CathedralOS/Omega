@@ -1,15 +1,14 @@
 //! Reference-carrier custody helpers mirrored from the verified Terminal
 //! contract. A carrier owns loan permission, never its referent's storage;
 //! every origin and parent is reconstructed from operations and signatures.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::StructuralTypeId;
-use crate::unit_validation::operation_contracts::constructible_record;
-use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::operation_contracts::{
+    constructible_record, structural_source_contract,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Stable loan identity: the place and path where the carrier was formed.
 /// Owned moves relocate the carrier, never this identity.

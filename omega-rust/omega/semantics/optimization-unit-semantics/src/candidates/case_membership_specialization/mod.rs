@@ -1,14 +1,10 @@
 //! Optimizer module role: executable entrance. Case-membership specialization validation.
-use crate::AnalysisInvalidationSet;
-use crate::AnalysisKind;
-use crate::AnalysisSet;
-use crate::OptimizationRuleIdentity;
-use crate::OptimizationSafetyClass;
-use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::ValidatedPsiRewrite;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
+    OptimizationSafetyClass,
+};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod replay;
 

@@ -1,37 +1,28 @@
 //! Same-operand exact integer laws and candidate acceptance.
-use crate::AnalysisInvalidationSet;
-use crate::AnalysisKind;
-use crate::AnalysisSet;
-use crate::IntegerCarrier;
-use crate::IntegerSign;
-use crate::IntegerType;
-use crate::O;
-use crate::ObservationKnowledge;
-use crate::OperationId;
-use crate::OptimizationRuleIdentity;
-use crate::OptimizationSafetyClass;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::ProvenanceDisposition;
-use crate::ProvenanceRewrite;
-use crate::PsiOptimizationUnit;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarType;
-use crate::ValidatedPsiRewrite;
-use crate::ValueDefinition;
-use crate::ValueDefinitionSite;
-use crate::ValueId;
-use crate::independently_accepted_operation_fact;
-use crate::observation_at;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_closed_scalar_node_boundary;
-use crate::same_closed_scalar_observation;
+use crate::candidates::global_value_numbering::independently_accepted_operation_fact;
+use crate::candidates::sparse_conditional_constant_propagation::{
+    observation_at, same_closed_scalar_observation,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{
+    OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
+    validate_psi_optimization_unit,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationValidatorIdentity,
+};
+use optimization_unit::{
+    ObservationKnowledge, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueDefinition, ValueDefinitionSite,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::{
+    IntegerCarrier, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
+};
 
-use super::identity_classification::*;
+use super::identity_classification::{independent_integer_one, independent_integer_zero};
 
 /// Independently reconstructed scalar interface of one closed node region.
 /// Canonical ordering is by `ValueId`; block-parameter bindings remain uses of

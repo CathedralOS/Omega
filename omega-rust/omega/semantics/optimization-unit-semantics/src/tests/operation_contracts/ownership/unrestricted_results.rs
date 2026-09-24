@@ -1,9 +1,10 @@
 //! Copyable results require dominating producers, not disposal at a join.
 
-use crate::tests::{
-    OperationResultCfgShape, id, operation_result_cfg_unit, refresh_function_derivatives,
-    structural_result_call_unit,
+use crate::tests::fixtures::dominance::{
+    OperationResultCfgShape, operation_result_cfg_unit, refresh_function_derivatives,
 };
+use crate::tests::fixtures::structural_catalog::structural_result_call_unit;
+use crate::tests::support::id;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use optimization_unit::PsiOptimizationUnit;

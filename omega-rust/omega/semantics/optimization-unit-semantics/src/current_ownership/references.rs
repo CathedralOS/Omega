@@ -5,7 +5,6 @@
 //! are reconstructed from operations and checked call interfaces; no
 //! producer-supplied lifetime or origin table is authority.
 
-use crate::O;
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
@@ -13,16 +12,11 @@ use crate::unit_validation::references::{
     contains_reference, formal_origin, is_reference_projection, leaf_paths, leaf_referent,
     reference_source_type,
 };
+use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::MachineId;
-use semantic_vocabulary::PlaceId;
-use semantic_vocabulary::StructuralTypeId;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralArgument;
-use terminal_psi::StructuralTypeDeclaration;
+use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclaration};
 
 // Incoming types have no explicit leaf roster to bound reconstruction. Keep
 // this private verification-work capacity separate from resource authority;

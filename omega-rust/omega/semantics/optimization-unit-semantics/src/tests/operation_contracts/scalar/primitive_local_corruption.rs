@@ -1,12 +1,13 @@
 //! Hostile current-IR roots, SSA observations, and occurrence metadata.
-use crate::BlockId;
-use crate::EdgeId;
-use crate::PlaceId;
-use crate::StructuralTypeId;
-
-use crate::tests::*;
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::primitive_locals::{
+    primitive_local_call_plan, primitive_local_plan, primitive_local_unit,
+};
+use crate::tests::support::{id, refresh_identity};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::{AbstractOperation as O, AbstractStructuralBinding};
+use abstract_operations::{AbstractBlockEntry, AbstractOperation as O, AbstractStructuralBinding};
+use optimization_unit::reconstruct_psi_optimization_unit_seed;
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, PlaceId, StructuralTypeId, ValueId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
 
 #[test]

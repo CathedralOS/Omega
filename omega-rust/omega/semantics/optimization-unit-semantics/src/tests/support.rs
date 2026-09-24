@@ -1,11 +1,8 @@
-use crate::PsiOptimizationUnit;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_edges;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_provenance;
-use crate::unit_validation::derived_metadata::expected_uses;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_edges, expected_ownership, expected_provenance, expected_uses,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
+use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
 
 pub(crate) fn refresh_identity(unit: &mut PsiOptimizationUnit) {
     unit.identity = recompute_psi_optimization_unit_identity(unit);

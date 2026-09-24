@@ -1,11 +1,8 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BoundaryMachineId;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{BoundaryMachineId, StructuralPlaceKind, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Replay the exact specialization which replaces one relevant opaque Record
 /// field with a canonical boundary-specific provider-root roster. These roots

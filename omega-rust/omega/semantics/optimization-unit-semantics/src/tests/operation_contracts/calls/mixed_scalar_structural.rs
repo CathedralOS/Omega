@@ -1,8 +1,13 @@
-use crate::PsiOptimizationUnit;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::tests::*;
+use crate::tests::fixtures::scalar_units::{
+    projected_shared_structural_scalar_call_unit, structural_call_unit,
+};
 use crate::validate_psi_optimization_unit;
-use optimization_unit::{ValueDefinition, ValueDefinitionSite};
+use abstract_operations::AbstractOperation;
+use optimization_unit::{
+    PsiOptimizationUnit, ValueDefinition, ValueDefinitionSite, ValueUse,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
 #[test]
 fn mixed_structural_scalar_call_validates_ordered_types_and_dominating_uses() {
@@ -69,10 +74,14 @@ fn mixed_structural_scalar_call_rewrites_all_scalar_occurrences_only() {
     };
     *arguments = vec![value(590), value(502), value(590)];
     let mut substitution = original.clone();
-    crate::candidates::rewrite_scalar_value_uses(&mut substitution, value(501), value(590));
+    crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses(
+        &mut substitution,
+        value(501),
+        value(590),
+    );
     assert_eq!(substitution, expected);
     let mut parameter_rewrite = original;
-    crate::candidates::rewrite_block_parameter_operation(
+    crate::candidates::copy_propagation::rewrite_block_parameter_operation(
         &mut parameter_rewrite,
         optimization_unit::RedundantBlockParameterRewrite {
             machine: unit.functions[0].machine,
@@ -110,7 +119,11 @@ fn mixed_structural_scalar_call_unit_counterpart_keeps_scalar_uses() {
         panic!("Unit call")
     };
     *arguments = vec![value(590)];
-    crate::candidates::rewrite_scalar_value_uses(&mut rewritten, value(501), value(590));
+    crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses(
+        &mut rewritten,
+        value(501),
+        value(590),
+    );
     assert_eq!(rewritten, expected);
 }
 

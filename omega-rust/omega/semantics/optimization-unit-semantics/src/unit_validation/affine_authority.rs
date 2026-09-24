@@ -1,16 +1,12 @@
 //! Retained edge-cleanup and hidden-establishment affine authority.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::OwnershipFrontierOwnedPlace;
-use crate::OwnershipFrontierSite;
-use crate::OwnershipFrontierSnapshot;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiProvenance;
-use crate::StructuralPlaceKind;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{
+    OwnershipFrontierOwnedPlace, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+};
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
+use std::collections::{BTreeMap, BTreeSet};
 
 mod block_bindings;
 

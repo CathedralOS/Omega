@@ -1,6 +1,5 @@
-use crate::BTreeMap;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
+use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
+use std::collections::BTreeMap;
 
 pub(crate) fn structural_qualifications_match(
     carrier: StructuralTypeId,

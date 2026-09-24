@@ -1,9 +1,8 @@
-use crate::BlockId;
-use crate::NodeLocation;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationFunction;
-use crate::PsiRealizationSite;
-use crate::SharedJumpFusionRewrite;
+use optimization_unit::{
+    NodeLocation, ProvenanceDisposition, PsiOptimizationFunction, PsiRealizationSite,
+    SharedJumpFusionRewrite,
+};
+use semantic_vocabulary::BlockId;
 
 pub(crate) fn reconstruct_shared_terminal_fusion_accounting(
     function: &PsiOptimizationFunction,

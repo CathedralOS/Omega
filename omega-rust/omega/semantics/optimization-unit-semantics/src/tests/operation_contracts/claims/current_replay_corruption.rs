@@ -1,9 +1,9 @@
 //! Current-claim replay rejection for duplicate transfer, stale crash, and invalid returns.
 
-use crate::tests::{
-    affine_claim_join_unit, affine_claim_transfer_unit, id, refresh_function_derivatives,
-    refresh_node_derivatives, structural_result_call_unit,
-};
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::ownership::{affine_claim_join_unit, affine_claim_transfer_unit};
+use crate::tests::fixtures::structural_catalog::structural_result_call_unit;
+use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use semantic_vocabulary::{ClaimId, OperationId};

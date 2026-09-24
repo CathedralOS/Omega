@@ -4,18 +4,17 @@
 //! proof-certified, and compatible-policy reconstruction descend into separate
 //! leaves; compatible-policy keeps its directional leader/redundant join.
 //! Canonical commutative operand order is shared here and nowhere else.
-use crate::ValueId;
+use semantic_vocabulary::ValueId;
 
 mod compatible_policy;
 mod proof_certified;
 mod total;
 
-use crate::IntegerType;
-use crate::ScalarType;
 pub(crate) use compatible_policy::{
     independent_compatible_policy_scalar_leader, independent_compatible_policy_scalar_redundant,
 };
 pub(crate) use proof_certified::independent_proof_scalar_expression;
+use semantic_vocabulary::{IntegerType, ScalarType};
 pub(crate) use total::independent_total_scalar_expression;
 
 pub(crate) fn independent_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {

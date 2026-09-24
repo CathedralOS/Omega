@@ -1,12 +1,10 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::StructuralDomainId;
-use crate::StructuralTypeId;
-use crate::unit_validation::operation_contracts::record_loan;
+use crate::unit_validation::operation_contracts::records::record_loan;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_semantics::structural_paths_may_overlap;
 
 #[cfg(test)]
 mod tests;
@@ -534,8 +532,6 @@ pub(crate) fn structural_access_is_exclusive(access: terminal_psi::StructuralAcc
             | terminal_psi::StructuralAccess::WriteOnlyBorrow
     )
 }
-
-pub(crate) use terminal_semantics::structural_paths_may_overlap;
 
 pub(crate) fn is_nonempty_field_path(path: &[terminal_psi::StructuralPathSegment]) -> bool {
     !path.is_empty()

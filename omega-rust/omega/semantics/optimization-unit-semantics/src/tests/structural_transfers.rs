@@ -1,31 +1,16 @@
 //! Structural telescopes retain exact shared-view identities and availability.
-use super::id;
-use crate::BlockId;
-use crate::EdgeId;
-use crate::MachineId;
-use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
-use crate::tests::unit;
-use crate::validate_psi_optimization_unit;
-use abstract_operations::AbstractBlockEntry;
-use abstract_operations::AbstractFunction;
-use abstract_operations::AbstractFunctionResult;
-use abstract_operations::AbstractOperation;
-use abstract_operations::AbstractOperationPlan;
-use abstract_operations::AbstractResult;
-use abstract_operations::AbstractStructuralBinding;
-use optimization_unit::reconstruct_psi_optimization_unit_seed;
-use semantic_vocabulary::FuelScheduleIdentity;
-use semantic_vocabulary::IntegerSign;
-use semantic_vocabulary::IntegerType;
-use semantic_vocabulary::OperationId;
-use semantic_vocabulary::ScalarType;
-use semantic_vocabulary::ValueId;
+use crate::tests::fixtures::scalar_units::unit;
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
+use abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan, AbstractResult, AbstractStructuralBinding,
+};
+use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
+    PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,

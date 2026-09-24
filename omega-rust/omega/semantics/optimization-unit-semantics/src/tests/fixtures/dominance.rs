@@ -1,31 +1,25 @@
 //! Structural dominance and operation-result fixture units.
-use super::super::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, FuelScheduleIdentity, SemanticFingerprint, TerminalPsiIdentity,
-    VocabularyMarker, id, reconstruct_psi_optimization_unit_seed,
+use crate::tests::fixtures::structural_catalog::{
+    explicit_trivial_affine_return_unit, structural_type,
 };
-
-use crate::BlockId;
-use crate::BoundaryMachineId;
-use crate::EdgeId;
-use crate::MachineId;
-use crate::OperationId;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::StructuralDomainId;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValueId;
-use crate::tests::explicit_trivial_affine_return_unit;
-use crate::tests::refresh_identity;
-use crate::tests::structural_type;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_edges;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_provenance;
-use crate::unit_validation::derived_metadata::expected_uses;
+use crate::tests::support::{id, refresh_identity};
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_edges, expected_ownership, expected_provenance, expected_uses,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use terminal_psi::{ByteSequenceCarrier, StructuralTypeShape};
+use abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperationPlan,
+};
+use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId,
+    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
+use terminal_psi::{
+    ByteSequenceCarrier, SemanticFingerprint, StructuralTypeShape, TerminalPsiIdentity,
+    VocabularyMarker,
+};
 
 mod operation_results;
 pub(crate) use operation_results::{OperationResultCfgShape, operation_result_cfg_unit};

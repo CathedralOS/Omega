@@ -1,14 +1,10 @@
 //! Structural-root uniqueness, availability, observation, and return contracts.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::ScalarType;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
 use crate::unit_validation::structural_catalog::structural_root_key;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 
 mod availability;
 mod primitive_locals;

@@ -1,16 +1,13 @@
 //! Current inputs, nested ownership and provenance survive optimizer rewrites.
-use super::super::{AbstractOperation, id};
-use crate::IntegerValue;
-use crate::OperationId;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::ScalarType;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValueId;
-use crate::tests::refresh_function_derivatives;
-use crate::tests::unit;
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::scalar_units::unit;
+use crate::tests::support::id;
 use crate::validate_psi_optimization_unit;
+use abstract_operations::AbstractOperation;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{
+    IntegerValue, OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_psi::{
     RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralFieldDeclaration,
     StructuralFieldType, StructuralMultiplicity, StructuralTypeShape,

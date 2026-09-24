@@ -1,12 +1,9 @@
 //! Provenance uniqueness, logical fuel, and effect-chain replay.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::EdgeId;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::PsiProvenance;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{PsiOptimizationFunction, PsiProvenance};
+use semantic_vocabulary::{BlockId, EdgeId};
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::control_flow::block_reaches;
 

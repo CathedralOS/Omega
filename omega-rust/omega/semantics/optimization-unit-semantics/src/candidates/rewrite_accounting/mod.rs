@@ -3,32 +3,20 @@
 //! Common edge-custody preservation and scalar-substitution contracts live at
 //! this entrance. Exact transformation accounting descends into named family
 //! leaves.
-use crate::BlockId;
-use crate::MachineId;
-use crate::O;
-use crate::OptimizationEdge;
-use crate::RedundantBlockParameterRewrite;
-use crate::ScalarSubstitution;
-use crate::rewrite_block_parameter_operation;
+use crate::candidates::copy_propagation::rewrite_block_parameter_operation;
 use crate::unit_validation::derived_metadata::expected_edges;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{OptimizationEdge, RedundantBlockParameterRewrite, ScalarSubstitution};
+use semantic_vocabulary::{BlockId, MachineId};
 
-mod adjacent_merge;
-mod common_subexpression;
-mod dead_scalar;
-mod non_adjacent_merge;
-mod scalar_identity;
-mod substitutions;
-mod terminal_fusion;
-mod threading;
-
-pub(crate) use adjacent_merge::*;
-pub(crate) use common_subexpression::*;
-pub(crate) use dead_scalar::*;
-pub(crate) use non_adjacent_merge::*;
-pub(crate) use scalar_identity::*;
-pub(crate) use substitutions::*;
-pub(crate) use terminal_fusion::*;
-pub(crate) use threading::*;
+pub(super) mod adjacent_merge;
+pub(super) mod common_subexpression;
+pub(super) mod dead_scalar;
+pub(super) mod non_adjacent_merge;
+pub(super) mod scalar_identity;
+pub(crate) mod substitutions;
+pub(super) mod terminal_fusion;
+pub(super) mod threading;
 
 pub(crate) fn preserve_edge_custody(
     node: &optimization_unit::OptimizationNode,

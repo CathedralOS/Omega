@@ -1,20 +1,12 @@
 //! Public failure vocabulary for unit and rewrite validation.
 use abstract_operations::AtomicCoherenceViolation;
 
-use crate::BlockId;
-use crate::BoundaryMachineId;
-use crate::ClaimId;
-use crate::EdgeId;
-use crate::MachineId;
-use crate::OperationId;
-use crate::OptimizationUnitIdentity;
-use crate::PlaceId;
-use crate::PsiProvenance;
-use crate::ServiceId;
-use crate::StructuralDomainId;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValueId;
+use optimization_core::OptimizationUnitIdentity;
+use optimization_unit::PsiProvenance;
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, ClaimId, EdgeId, MachineId, OperationId, PlaceId, ServiceId,
+    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitValidationError {

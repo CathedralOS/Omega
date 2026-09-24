@@ -15,7 +15,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/sparse_conditional_constant_propagation/mod.rs",
-        coordination_marker: "pub fn validate_scalar_evaluation_candidate",
+        coordination_marker: "pub(super) fn validate_scalar_evaluation_candidate",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/representations/optimization-core/src/optimization_core/manifest/mod.rs",
@@ -323,7 +323,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/proof_check_elision/mod.rs",
-        coordination_marker: "pub fn validate_proof_check_elision_candidate",
+        coordination_marker: "pub(super) fn validate_proof_check_elision_candidate",
     },
     RequiredCoordinationEntrance {
         path: "omega-rust/omega/semantics/optimization-unit-semantics/src/candidates/copy_propagation/mod.rs",

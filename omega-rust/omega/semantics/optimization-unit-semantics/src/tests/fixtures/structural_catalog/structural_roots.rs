@@ -1,6 +1,6 @@
-use super::super::super::{id, refresh_identity};
-use super::super::{scalar_boundary_call_unit, unit};
 use super::provider_specialization::provider_attachment_specialization_unit;
+use crate::tests::fixtures::scalar_units::{scalar_boundary_call_unit, unit};
+use crate::tests::support::{id, refresh_identity};
 use crate::unit_validation::derived_metadata::{
     expected_definitions, expected_edges, expected_ownership, expected_provenance, expected_uses,
 };

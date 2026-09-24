@@ -1,8 +1,8 @@
 //! Internal transfer and boundary completion contract corruption rejection.
 
-use crate::tests::{
-    affine_claim_transfer_unit, id, refresh_node_derivatives, structural_call_unit,
-};
+use crate::tests::fixtures::ownership::affine_claim_transfer_unit;
+use crate::tests::fixtures::scalar_units::structural_call_unit;
+use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{BoundaryMachineId, ClaimId};

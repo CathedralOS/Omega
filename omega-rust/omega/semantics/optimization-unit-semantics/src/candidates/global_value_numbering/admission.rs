@@ -1,15 +1,14 @@
 //! Proof-class expression reconstruction and accepted-obligation evidence.
-use crate::BTreeMap;
-use crate::O;
-use crate::OperationId;
-use crate::OptimizationFact;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::ScalarType;
-use crate::ValueId;
 use crate::candidates::global_value_numbering::ScalarCseProofClass;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit};
+use semantic_vocabulary::{OperationId, ScalarType, ValueId};
+use std::collections::BTreeMap;
 
-use super::expression_keys::*;
+use super::expression_keys::{
+    IndependentScalarExpressionKey, independent_proof_scalar_expression,
+    independent_total_scalar_expression,
+};
 
 pub(crate) fn independent_cse_expression(
     operation: &O,

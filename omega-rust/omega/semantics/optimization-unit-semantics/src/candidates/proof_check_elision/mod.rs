@@ -3,11 +3,10 @@
 //! The adjacent catalog maps every exact producer identity to one validation
 //! protocol. Protocol leaves reconstruct semantics and publish the exact
 //! validator identity; no sibling pass entrance recognizes these rules.
-use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::ValidatedPsiRewrite;
-use crate::validate_dead_scalar_node_candidate;
+use crate::{
+    OptimizationUnitValidationError, ValidatedPsiRewrite, validate_dead_scalar_node_candidate,
+};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod candidate_validation;
 mod identity_classification;
@@ -30,7 +29,7 @@ use rule_catalog::ProofCheckValidationRoute;
 pub(crate) use rule_catalog::is_proof_check_elision_rule;
 
 /// Route one exact proof-check candidate to its independent semantic replay.
-pub fn validate_proof_check_elision_candidate(
+pub(super) fn validate_proof_check_elision_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {

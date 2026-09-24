@@ -1,6 +1,7 @@
 //! Structural-call result signature and claim-interface corruption rejection.
 
-use crate::tests::{id, refresh_node_derivatives, structural_result_call_unit};
+use crate::tests::fixtures::structural_catalog::structural_result_call_unit;
+use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::{AbstractFunctionResult, AbstractOperation};
 use semantic_vocabulary::{ClaimId, StructuralPlaceKind};

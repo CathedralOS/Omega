@@ -1,8 +1,7 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::StructuralTypeId;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn validate_structural_fields(
     unit: &PsiOptimizationUnit,

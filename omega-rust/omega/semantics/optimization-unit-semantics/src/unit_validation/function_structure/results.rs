@@ -1,6 +1,6 @@
 //! Function-result signature validation across every return operation.
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
+use optimization_unit::PsiOptimizationFunction;
 
 pub(super) fn validate_function_results(
     function: &PsiOptimizationFunction,

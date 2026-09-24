@@ -1,6 +1,6 @@
 //! Maximal subtree and empty-complement acceptance, independent of producer fixtures.
 
-use super::fixtures::*;
+use super::fixtures::{array, field, index, mixed_unit, record, unit};
 use crate::validate_psi_optimization_unit;
 
 #[test]
@@ -191,7 +191,7 @@ fn general_partial_affine_scalar_record_fields_need_no_cleanup() {
     .enumerate()
     {
         fields.push(StructuralFieldDeclaration {
-            id: crate::tests::id(position as u64 + 2, StructuralFieldId::new),
+            id: crate::tests::support::id(position as u64 + 2, StructuralFieldId::new),
             identity: format!("metadata{position}"),
             relevance: BindingRelevance::Relevant,
             field_type,

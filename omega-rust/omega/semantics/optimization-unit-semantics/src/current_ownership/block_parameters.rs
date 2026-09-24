@@ -2,13 +2,10 @@
 use crate::OptimizationUnitValidationError;
 use crate::current_ownership::CurrentOwnership;
 use abstract_operations::AbstractStructuralBinding;
-use optimization_unit::OptimizationBlock;
-use optimization_unit::PsiOptimizationFunction;
+use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
 use semantic_vocabulary::BlockId;
 use std::collections::BTreeSet;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralParameterDeclaration;
+use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
 
 pub(super) fn bind_owned_parameters(
     function: &PsiOptimizationFunction,
@@ -65,7 +62,8 @@ pub(crate) fn parameter_establishment_order(
     {
         return parameters;
     }
-    let dominators = crate::independent_reachable_dominators(function);
+    let dominators =
+        crate::candidates::global_value_numbering::independent_reachable_dominators(function);
     let mut blocks = function
         .blocks
         .iter()

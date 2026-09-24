@@ -1,9 +1,12 @@
 //! Receiving checks must reject forged current IR after derived metadata is refreshed.
 
-use crate::tests::*;
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::primitive_locals::primitive_local_unit;
+use crate::tests::fixtures::scalar_units::write_only_store_unit;
+use crate::tests::support::id;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation as O;
-use semantic_vocabulary::StructuralPlaceKind;
+use abstract_operations::{AbstractOperation as O, AbstractResult};
+use semantic_vocabulary::{OperationId, ScalarType, StructuralPlaceKind, ValueId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 #[test]

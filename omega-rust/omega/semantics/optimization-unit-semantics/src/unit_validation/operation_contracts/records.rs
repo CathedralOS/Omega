@@ -5,16 +5,14 @@
 //! Source admission alone cannot authorize substituted fields or child homes in
 //! a rewritten optimization unit; dominance and current ownership are checked
 //! separately against the same operands.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::unit_validation::operation_contracts::is_nonempty_field_path;
-use crate::unit_validation::operation_contracts::structural_source_contract;
+use crate::unit_validation::operation_contracts::structural_access::{
+    is_nonempty_field_path, structural_source_contract,
+};
 use crate::unit_validation::structural_catalog::resolve_structural_path;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     RecordFieldValue, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
     StructuralTypeShape,

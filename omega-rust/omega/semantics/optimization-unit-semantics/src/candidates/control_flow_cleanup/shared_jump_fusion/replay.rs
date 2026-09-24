@@ -1,28 +1,21 @@
 //! Independent shared terminal-jump fusion replay mechanics.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::O;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiProvenance;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarSubstitution;
-use crate::ValidatedPsiRewrite;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_adjacent_merge_ownership_is_identity;
-use crate::reconstruct_shared_terminal_fusion_accounting;
-use crate::rewrite_scalar_substitutions;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_edges;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::candidates::rewrite_accounting::adjacent_merge::reconstruct_adjacent_merge_ownership_is_identity;
+use crate::candidates::rewrite_accounting::rewrite_scalar_substitutions;
+use crate::candidates::rewrite_accounting::terminal_fusion::reconstruct_shared_terminal_fusion_accounting;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_edges, expected_ownership, expected_uses,
+    reconstruct_declared_places,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate,
+    PsiRewritePatch, ScalarSubstitution, recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::BlockId;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

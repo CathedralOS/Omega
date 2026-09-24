@@ -1,33 +1,21 @@
 //! Function structural-root uniqueness and operation replay tests.
-use super::super::id;
-use crate::ClaimId;
-use crate::IntegerSign;
-use crate::IntegerType;
-use crate::IntegerValue;
-use crate::O;
-use crate::OperationId;
-use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::ScalarType;
-use crate::StructuralDomainId;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValueId;
-use crate::tests::OperationResultCfgShape;
-use crate::tests::boolean_structural_field_unit;
-use crate::tests::content_entry_claim;
-use crate::tests::direct_realization_boolean_structural_field_unit;
-use crate::tests::direct_realization_integer_structural_field_unit;
-use crate::tests::install_content_owner;
-use crate::tests::operation_result_cfg_unit;
-use crate::tests::refresh_function_derivatives;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
-use crate::tests::structural_domain;
-use crate::tests::structural_result_call_unit;
-use crate::tests::structural_scalar_field_store_unit;
-use crate::validate_psi_optimization_unit;
+use crate::tests::fixtures::dominance::{
+    OperationResultCfgShape, operation_result_cfg_unit, refresh_function_derivatives,
+};
+use crate::tests::fixtures::structural_catalog::{
+    boolean_structural_field_unit, content_entry_claim,
+    direct_realization_boolean_structural_field_unit,
+    direct_realization_integer_structural_field_unit, install_content_owner, structural_domain,
+    structural_result_call_unit, structural_scalar_field_store_unit,
+};
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{
+    ClaimId, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
+    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 
 #[test]
 fn projected_case_membership_replays_exact_path_case_access_and_identity() {

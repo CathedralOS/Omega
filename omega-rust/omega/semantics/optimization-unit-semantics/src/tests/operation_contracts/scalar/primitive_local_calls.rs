@@ -1,11 +1,11 @@
 //! Borrowed local calls require establishment and cannot transfer the local owner.
-use crate::EdgeId;
-use crate::PlaceId;
-use crate::StructuralTypeId;
-
-use crate::tests::*;
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::primitive_locals::{primitive_local_call_plan, primitive_local_plan};
+use crate::tests::support::id;
 use crate::validate_psi_optimization_unit;
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractFunctionResult, AbstractOperation as O, AbstractOperationPlan};
+use optimization_unit::reconstruct_psi_optimization_unit_seed;
+use semantic_vocabulary::{EdgeId, PlaceId, StructuralTypeId};
 use terminal_psi::StructuralAccess;
 
 #[test]

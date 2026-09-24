@@ -1,24 +1,17 @@
 //! Active/pruned machine rosters and structural/service catalog validation.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BoundaryMachineId;
-use crate::MachineId;
-use crate::OperationId;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::ScalarType;
-use crate::ServiceId;
-use crate::StructuralTypeId;
-use crate::ValueId;
 use crate::unit_validation::function_structure;
 use crate::unit_validation::function_structure::validate_function;
-use crate::unit_validation::services::boundary_structural_signature_matches;
-use crate::unit_validation::services::index_service_catalog;
-use crate::unit_validation::services::valid_service_ceiling;
-use crate::unit_validation::services::validate_provider_service_refinements;
-use crate::unit_validation::services::validate_root_service_reach;
+use crate::unit_validation::services::{
+    boundary_structural_signature_matches, index_service_catalog, valid_service_ceiling,
+    validate_provider_service_refinements, validate_root_service_reach,
+};
 use crate::unit_validation::structural_catalog::index_structural_catalogs;
+use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+use semantic_vocabulary::{
+    BoundaryMachineId, MachineId, OperationId, ScalarType, ServiceId, StructuralTypeId, ValueId,
+};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) struct UnitIndexes<'a> {
     pub(super) machines: BTreeMap<MachineId, &'a PsiOptimizationFunction>,

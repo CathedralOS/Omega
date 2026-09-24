@@ -1,20 +1,14 @@
 //! Independent unreachable private-machine replay mechanics.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::MachineId;
-use crate::NodeLocation;
-use crate::O;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ValidatedPsiRewrite;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    NodeLocation, ProvenanceDisposition, PsiOptimizationFunction, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::MachineId;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,
@@ -276,7 +270,7 @@ mod tests {
 
     fn stored_dynamic_dispatch(
         owner: MachineId,
-        operation: crate::OperationId,
+        operation: semantic_vocabulary::OperationId,
         realization: MachineId,
     ) -> abstract_operations::AbstractStoredDynamicDispatch {
         let application = terminal_psi::ClosedConformanceApplication {
@@ -298,7 +292,7 @@ mod tests {
                     owner,
                     ordinal: 0,
                     source: terminal_psi::StructuralArgument {
-                        place: crate::PlaceId::new(9_100).unwrap(),
+                        place: semantic_vocabulary::PlaceId::new(9_100).unwrap(),
                         path: Vec::new(),
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                     },
@@ -332,16 +326,16 @@ mod tests {
 
     #[test]
     fn machine_references_include_stored_dynamic_dispatch_targets() {
-        let mut unit = crate::tests::unit();
+        let mut unit = crate::tests::fixtures::scalar_units::unit();
         let caller = unit.functions[0].machine;
         let target = MachineId::new(99).unwrap();
-        let operation = crate::OperationId::new(9_101).unwrap();
+        let operation = semantic_vocabulary::OperationId::new(9_101).unwrap();
         let mut call = unit.functions[0].blocks[0].nodes[0].clone();
         call.operation = O::CallStoredDynamicScalar {
             psi_operation: operation,
             result: AbstractResult {
-                value: crate::ValueId::new(9_102).unwrap(),
-                scalar_type: crate::ScalarType::Boolean,
+                value: semantic_vocabulary::ValueId::new(9_102).unwrap(),
+                scalar_type: semantic_vocabulary::ScalarType::Boolean,
             },
             dynamic_dispatch: stored_dynamic_dispatch(caller, operation, target),
             requirement_obligations: Vec::new(),

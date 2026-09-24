@@ -1,17 +1,13 @@
 //! Whole-array custody and leaf identity survive ordinary construction and calls.
-use super::super::id;
-use crate::OperationId;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::ScalarType;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValueId;
-use crate::tests::refresh_function_derivatives;
-use crate::tests::refresh_identity;
-use crate::tests::structural_result_call_unit;
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::structural_catalog::structural_result_call_unit;
+use crate::tests::support::{id, refresh_identity};
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{
+    OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_psi::{StructuralMultiplicity, StructuralTypeShape};
 
 fn array_unit(length: u64) -> PsiOptimizationUnit {
@@ -257,10 +253,14 @@ fn scalar_array_rewrites_preserve_every_leaf_occurrence_and_result_identity() {
     };
     *elements = vec![to, to];
     let mut substitution = original.clone();
-    crate::candidates::rewrite_scalar_value_uses(&mut substitution, from, to);
+    crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses(
+        &mut substitution,
+        from,
+        to,
+    );
     assert_eq!(substitution, expected);
     let mut parameter_rewrite = original;
-    crate::candidates::rewrite_block_parameter_operation(
+    crate::candidates::copy_propagation::rewrite_block_parameter_operation(
         &mut parameter_rewrite,
         optimization_unit::RedundantBlockParameterRewrite {
             machine: candidate.functions[0].machine,

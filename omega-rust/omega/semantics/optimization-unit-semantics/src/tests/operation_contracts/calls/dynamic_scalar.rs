@@ -1,15 +1,14 @@
-use super::super::super::AbstractOperation;
-use crate::MachineId;
-use crate::recompute_psi_optimization_unit_identity;
 use crate::validate_psi_optimization_unit;
+use abstract_operations::AbstractOperation;
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
+use optimization_unit::recompute_psi_optimization_unit_identity;
+use semantic_vocabulary::MachineId;
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use terminal_codec::{encode_module, encode_proof_section};
 use tokens_to_syntax_trees::parse_syntax_trees;
-use typed_trees_to_checked_trees::CheckingRequest;
-use typed_trees_to_checked_trees::lower_typed_trees;
+use typed_trees_to_checked_trees::{CheckingRequest, lower_typed_trees};
 
 fn dynamic_unit() -> optimization_unit::PsiOptimizationUnit {
     let source = r#"

@@ -1,15 +1,13 @@
-use crate::O;
 use crate::current_ownership::CurrentOwnership;
-use crate::current_ownership::partial_affine_residuals;
+use crate::current_ownership::residuals::partial_affine_residuals;
+use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::PlaceId;
-use semantic_vocabulary::StructuralTypeId;
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralPathSegment;
-use terminal_psi::StructuralTypeDeclaration;
-use terminal_psi::StructuralTypeShape;
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
+};
 
 pub(super) fn place_structural_type(
     function: &PsiOptimizationFunction,

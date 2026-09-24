@@ -1,14 +1,10 @@
-use crate::BTreeMap;
-use crate::BoundaryMachineId;
-use crate::IntegerCarrier;
-use crate::IntegerType;
-use crate::MachineId;
-use crate::O;
-use crate::PsiOptimizationFunction;
-use crate::ScalarType;
-use crate::StructuralPlaceKind;
-use crate::ValueDefinition;
-use crate::ValueId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{PsiOptimizationFunction, ValueDefinition};
+use semantic_vocabulary::{
+    BoundaryMachineId, IntegerCarrier, IntegerType, MachineId, ScalarType, StructuralPlaceKind,
+    ValueId,
+};
+use std::collections::BTreeMap;
 
 mod byte_views;
 mod element_views;

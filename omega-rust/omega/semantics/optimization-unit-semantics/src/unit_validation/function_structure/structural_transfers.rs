@@ -7,14 +7,11 @@
 //! it: the argument keeps shared access and names exactly the parameter's
 //! referent type, and the root keeps its own owner. The current-ownership
 //! replay separately pins every such root while the joined view can observe it.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeShape,

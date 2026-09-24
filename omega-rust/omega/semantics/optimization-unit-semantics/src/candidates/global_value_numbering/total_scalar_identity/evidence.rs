@@ -1,15 +1,12 @@
 //! Independent law-literal fact reconstruction.
-use crate::O;
-use crate::OptimizationFact;
 use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::ScalarConstantValue;
-use crate::ScalarType;
-use crate::ValueDefinitionSite;
-use crate::literal_scalar_constant_fact_identity;
-use crate::scalar_value_definition;
+use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{
+    OptimizationFact, PsiOptimizationFunction, PsiOptimizationUnit, PsiRewriteCandidate,
+    ScalarConstantValue, ValueDefinitionSite, literal_scalar_constant_fact_identity,
+};
+use semantic_vocabulary::ScalarType;
 
 use super::classification::IndependentTotalScalarIdentity;
 

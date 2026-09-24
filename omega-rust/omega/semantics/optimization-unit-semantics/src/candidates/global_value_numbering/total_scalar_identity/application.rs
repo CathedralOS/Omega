@@ -1,21 +1,17 @@
 //! Independently apply an admitted total scalar identity.
-use crate::BlockId;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::ProvenanceRewrite;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::TotalScalarIdentityRewrite;
-use crate::ValidatedPsiRewrite;
-use crate::preserve_edge_custody;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::rewrite_scalar_value_uses;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::candidates::rewrite_accounting::preserve_edge_custody;
+use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    ProvenanceRewrite, PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityRewrite,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::BlockId;
 
 pub(super) fn independently_apply_total_scalar_identity(
     input: &PsiOptimizationUnit,

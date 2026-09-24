@@ -1,26 +1,17 @@
 use super::{AbstractOperation, id};
-use crate::BlockId;
-use crate::EdgeId;
-use crate::IntegerSign;
-use crate::IntegerType;
-use crate::IntegerValue;
-use crate::OperationId;
-use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::ScalarType;
-use crate::StructuralPlaceKind;
-use crate::ValueId;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
 use crate::tests::structural_transfers::transfer_unit;
-use crate::validate_psi_optimization_unit;
+use crate::tests::support::{refresh_identity, refresh_node_derivatives};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractStructuralBinding;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralArgument;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralTypeShape;
-use terminal_psi::TerminalAffineCleanupAction;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, PlaceId, ScalarType,
+    StructuralPlaceKind, ValueId,
+};
+use terminal_psi::{
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralTypeShape,
+    TerminalAffineCleanupAction,
+};
 
 pub(super) fn owned_unit() -> PsiOptimizationUnit {
     let mut candidate = transfer_unit();

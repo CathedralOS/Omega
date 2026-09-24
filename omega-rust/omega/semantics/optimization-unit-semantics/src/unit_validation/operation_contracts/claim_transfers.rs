@@ -1,11 +1,6 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::ClaimId;
-use crate::ContentTerm;
-use crate::PlaceId;
-use crate::Proposition;
-use crate::PsiOptimizationFunction;
-use crate::ScalarTerm;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{ClaimId, ContentTerm, PlaceId, Proposition, ScalarTerm};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn validate_internal_claim_transfers(
     caller: &PsiOptimizationFunction,

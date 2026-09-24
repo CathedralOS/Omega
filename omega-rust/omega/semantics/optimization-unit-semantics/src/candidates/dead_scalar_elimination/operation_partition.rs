@@ -1,8 +1,7 @@
 //! Exhaustive independent partition of operations eligible for dead-scalar removal.
-use crate::O;
-use crate::OptimizationRuleIdentity;
-use crate::ScalarType;
-use crate::ValueId;
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationRuleIdentity;
+use semantic_vocabulary::{ScalarType, ValueId};
 
 use super::rule_catalog::{DeadScalarFamily, dead_scalar_family};
 

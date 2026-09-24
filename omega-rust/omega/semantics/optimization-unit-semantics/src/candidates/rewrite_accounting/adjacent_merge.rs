@@ -1,16 +1,10 @@
-use crate::AdjacentBlockMergeRewrite;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::EdgeId;
-use crate::NodeLocation;
-use crate::OwnershipFrontierSite;
-use crate::OwnershipFrontierWitness;
-use crate::OwnershipFrontierWitnessRow;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiRealizationSite;
-use crate::ScalarSubstitution;
+use optimization_unit::{
+    AdjacentBlockMergeRewrite, NodeLocation, OwnershipFrontierSite, OwnershipFrontierWitness,
+    OwnershipFrontierWitnessRow, ProvenanceDisposition, PsiOptimizationFunction,
+    PsiOptimizationUnit, PsiRealizationSite, ScalarSubstitution,
+};
+use semantic_vocabulary::{BlockId, EdgeId};
+use std::collections::BTreeSet;
 
 pub(crate) fn reconstruct_adjacent_merge_ownership_is_identity(
     unit: &PsiOptimizationUnit,

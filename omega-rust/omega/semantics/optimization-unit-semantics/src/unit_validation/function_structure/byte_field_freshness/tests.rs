@@ -1,12 +1,11 @@
 //! Mutation controls isolate current-CFG freshness from source provenance checks.
 use super::validate;
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::O;
-use crate::OperationId;
-use crate::tests::{id, indexed_byte_fields::indexed_field_unit};
+use crate::tests::indexed_byte_fields::indexed_field_unit;
+use crate::tests::support::id;
+use abstract_operations::AbstractOperation as O;
 use optimization_unit::{OptimizationBlock, OptimizationEdge};
+use semantic_vocabulary::{BlockId, OperationId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralAccess;
 
 #[test]

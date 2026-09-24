@@ -1,12 +1,13 @@
 //! Abstract boundary results require exact, explicit whole-root cleanup.
 
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::support::id;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{ClaimId, OperationId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{BoundaryMachineResult, StructuralMultiplicity, TerminalAffineCleanupAction};
 
-use super::fixtures::*;
-use crate::tests::{id, refresh_function_derivatives};
+use super::fixtures::{boundary_result_unit, cleanup_actions, field, record};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
 fn result(unit: &mut PsiOptimizationUnit) -> &mut terminal_psi::StructuralOperationResult {

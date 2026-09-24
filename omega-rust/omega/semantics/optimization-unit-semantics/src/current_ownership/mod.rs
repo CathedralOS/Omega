@@ -10,13 +10,17 @@
 //! Claims remain independent obligations even when their root is unrestricted;
 //! omitting a root must not bypass claim replay or weaken CFG joins.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
-use semantic_vocabulary::{BlockId, MachineId, StructuralTypeId};
-use terminal_psi::{BoundaryMachineDeclaration, StructuralTypeDeclaration};
+use semantic_vocabulary::{BlockId, ClaimId, MachineId, PlaceId, StructuralTypeId};
+use terminal_psi::{
+    BoundaryMachineDeclaration, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
+    StructuralTypeDeclaration,
+};
 
 use crate::OptimizationUnitValidationError;
+use crate::unit_validation::references::LiveReference;
 
 mod address_joins;
 mod block_parameters;
@@ -28,22 +32,10 @@ mod replay;
 mod residuals;
 mod structural;
 
-use crate::unit_validation::references::LiveReference;
 use block_parameters::bind_owned_parameters;
 pub(crate) use block_parameters::parameter_establishment_order;
-use cleanup::*;
 pub(crate) use continuation::valid_partial_continuation_complement;
 use continuation::{apply_edge_partial_affine_discards, validate_partial_continuation_roster};
-use mutations::*;
-use references::*;
-use residuals::*;
-use semantic_vocabulary::ClaimId;
-use semantic_vocabulary::PlaceId;
-use std::collections::BTreeSet;
-use structural::*;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralPathSegment;
 
 pub(super) fn validate_current_ownership_frontier(
     function: &PsiOptimizationFunction,

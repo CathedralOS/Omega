@@ -1,15 +1,12 @@
 //! Current-operation applicability from scope and value availability.
 use crate::OptimizationUnitValidationError;
-use crate::independent_reachable_dominators;
-use crate::scalar_value_definition;
-use optimization_unit::PsiOptimizationFunction;
-use optimization_unit::PsiOptimizationUnit;
-use optimization_unit::ValueDefinitionSite;
-use optimization_unit::ValueRangeFact;
-use optimization_unit::ValueRangeScope;
-use semantic_vocabulary::BlockId;
-use semantic_vocabulary::MachineId;
-use semantic_vocabulary::ValueId;
+use crate::candidates::global_value_numbering::independent_reachable_dominators;
+use crate::candidates::sparse_conditional_constant_propagation::scalar_value_definition;
+use optimization_unit::{
+    PsiOptimizationFunction, PsiOptimizationUnit, ValueDefinitionSite, ValueRangeFact,
+    ValueRangeScope,
+};
+use semantic_vocabulary::{BlockId, MachineId, ValueId};
 
 pub(super) fn validate_current_value_range_fact_at(
     unit: &PsiOptimizationUnit,

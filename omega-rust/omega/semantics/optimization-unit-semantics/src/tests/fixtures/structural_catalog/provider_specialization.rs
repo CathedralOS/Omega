@@ -1,6 +1,5 @@
-use super::super::super::{id, refresh_identity};
-
 use super::type_declarations::{structural_leaf_field, structural_type};
+use crate::tests::support::{id, refresh_identity};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan,

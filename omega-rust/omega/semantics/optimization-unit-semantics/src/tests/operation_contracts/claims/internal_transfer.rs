@@ -1,9 +1,8 @@
 //! Content-only internal claim-transfer admission and interface corruption rejection.
 
-use crate::tests::{
-    content_entry_claim, id, install_content_owner, refresh_identity, refresh_node_derivatives,
-    structural_call_unit,
-};
+use crate::tests::fixtures::scalar_units::structural_call_unit;
+use crate::tests::fixtures::structural_catalog::{content_entry_claim, install_content_owner};
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use semantic_vocabulary::{ClaimId, StructuralDomainId};

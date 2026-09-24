@@ -1,4 +1,5 @@
-use crate::tests::{exact_add_unit, refresh_node_derivatives};
+use crate::tests::fixtures::scalar_units::exact_add_unit;
+use crate::tests::support::refresh_node_derivatives;
 use crate::validate_psi_optimization_unit;
 use abstract_operations::{AbstractFunctionResult, AbstractOperation as Operation};
 use semantic_vocabulary::{

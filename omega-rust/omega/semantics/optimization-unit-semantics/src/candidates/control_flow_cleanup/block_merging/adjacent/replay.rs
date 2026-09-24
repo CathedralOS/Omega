@@ -1,26 +1,23 @@
 //! Independent adjacent block-merge replay mechanics.
-use crate::O;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::PsiOptimizationUnit;
-use crate::PsiProvenance;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarSubstitution;
-use crate::ValidatedPsiRewrite;
-use crate::independent_reachable_dominators;
-use crate::independently_replacement_dominates_uses;
-use crate::preserve_edge_custody;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::reconstruct_adjacent_merge_accounting;
-use crate::reconstruct_adjacent_merge_ownership_witness;
-use crate::rewrite_scalar_value_uses;
-use crate::unit_validation::derived_metadata::expected_definitions;
-use crate::unit_validation::derived_metadata::expected_ownership;
-use crate::unit_validation::derived_metadata::expected_uses;
-use crate::unit_validation::derived_metadata::reconstruct_declared_places;
+use crate::candidates::global_value_numbering::{
+    independent_reachable_dominators, independently_replacement_dominates_uses,
+};
+use crate::candidates::rewrite_accounting::adjacent_merge::{
+    reconstruct_adjacent_merge_accounting, reconstruct_adjacent_merge_ownership_witness,
+};
+use crate::candidates::rewrite_accounting::preserve_edge_custody;
+use crate::candidates::rewrite_accounting::substitutions::rewrite_scalar_value_uses;
+use crate::unit_validation::derived_metadata::{
+    expected_definitions, expected_ownership, expected_uses, reconstruct_declared_places,
+};
 use crate::unit_validation::function_structure::reconstruct_fact_index;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    PsiOptimizationUnit, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
+    recompute_psi_optimization_unit_identity,
+};
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

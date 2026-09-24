@@ -1,25 +1,19 @@
 //! Current cyclic ownership and retained frontier corruption controls.
-use super::super::OwnershipFrontierFact;
 use super::{AbstractOperation, id};
-use crate::EdgeId;
-use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::StructuralPlaceKind;
-use crate::tests::refresh_identity;
-use crate::tests::refresh_node_derivatives;
-use crate::tests::structural_domain;
-use crate::validate_psi_optimization_unit;
+use crate::tests::fixtures::structural_catalog::structural_domain;
+use crate::tests::support::{refresh_identity, refresh_node_derivatives};
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractStructuralBinding;
 use optimization_unit::{
-    OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace, OwnershipFrontierPartialCustody,
-    OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
+    OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    PsiOptimizationUnit,
 };
-use semantic_vocabulary::ClaimId;
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralArgument;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::{StructuralPathSegment, TerminalAffineCleanupAction};
+use semantic_vocabulary::{ClaimId, EdgeId, PlaceId, StructuralPlaceKind};
+use terminal_psi::{
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
+    TerminalAffineCleanupAction,
+};
 
 fn snapshot(places: &[u64]) -> OwnershipFrontierSnapshot {
     OwnershipFrontierSnapshot {

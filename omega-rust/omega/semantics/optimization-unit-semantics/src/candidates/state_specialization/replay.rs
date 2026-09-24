@@ -6,35 +6,21 @@
 //! to equal the replayed rows exactly, rebuilds the output itself, and
 //! reconstructs the exact edge custody the fused traversals carry.
 
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::EdgeId;
-use crate::MachineId;
-use crate::NodeLocation;
-use crate::O;
-use crate::OptimizationEdge;
-use crate::OptimizationNode;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::ProvenanceDisposition;
-use crate::ProvenanceRewrite;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiProvenance;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ScalarConstantValue;
-use crate::SpecializedStateEdgeRow;
-use crate::ValidatedPsiRewrite;
-use crate::ValueId;
-use crate::ValueUse;
-use crate::recompute_psi_optimization_unit_identity;
-use crate::validate_psi_optimization_unit;
-use crate::validator_scalar_constant_facts;
-use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    NodeLocation, OptimizationEdge, OptimizationNode, ProvenanceDisposition, ProvenanceRewrite,
+    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, ScalarConstantValue, SpecializedStateEdgeRow, ValueUse,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ScalarType, ValueId,
+};
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Machines holding a cyclic component are frozen byte-exact for this family;
 /// the roster is reconstructed privately over each function's canonical block

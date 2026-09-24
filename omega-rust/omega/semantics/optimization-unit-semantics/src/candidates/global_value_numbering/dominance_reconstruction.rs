@@ -1,11 +1,7 @@
 //! Independent reachability and dominance reconstruction.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::PsiOptimizationFunction;
-use crate::ScalarType;
-use crate::ValueDefinitionSite;
-use crate::ValueId;
+use optimization_unit::{PsiOptimizationFunction, ValueDefinitionSite};
+use semantic_vocabulary::{BlockId, ScalarType, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn independent_reachable_dominators(
     function: &PsiOptimizationFunction,

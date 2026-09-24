@@ -1,10 +1,11 @@
 //! Owned-place replay rejection for duplicate moves, unequal joins, and invalid residuals.
 
-use crate::tests::{
-    affine_place_join_unit, affine_place_transfer_unit, boolean_structural_field_unit, id,
-    partial_affine_place_unit, refresh_function_derivatives, refresh_identity,
-    refresh_node_derivatives,
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::ownership::{
+    affine_place_join_unit, affine_place_transfer_unit, partial_affine_place_unit,
 };
+use crate::tests::fixtures::structural_catalog::boolean_structural_field_unit;
+use crate::tests::support::{id, refresh_identity, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 use optimization_unit::PsiOptimizationUnit;

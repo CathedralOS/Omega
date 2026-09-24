@@ -1,24 +1,12 @@
 //! Independent SCCP lattice and machine-snapshot reconstruction.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::EdgeId;
-use crate::OptimizationEdge;
-use crate::OptimizationFact;
-use crate::PsiOptimizationFunction;
-use crate::PsiProvenance;
-use crate::ScalarConstantValue;
-use crate::ScalarType;
-use crate::SccpBlockRow;
-use crate::SccpEdgeRow;
-use crate::SccpEdgeState;
-use crate::SccpMachineSnapshot;
-use crate::SccpValueRow;
-use crate::SccpValueState;
-use crate::ValueDefinition;
-use crate::ValueId;
-use crate::derived_sccp_scalar_constant_fact_identity;
-use crate::literal_scalar_constant_fact_identity;
+use optimization_unit::{
+    OptimizationEdge, OptimizationFact, PsiOptimizationFunction, PsiProvenance,
+    ScalarConstantValue, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
+    SccpValueRow, SccpValueState, ValueDefinition, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity,
+};
+use semantic_vocabulary::{BlockId, EdgeId, ScalarType, ValueId};
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ValidatorSccpValue {
@@ -403,17 +391,16 @@ pub(crate) fn validator_integer_value_type(
 #[cfg(test)]
 mod structural_case_tests {
     use super::{BlockId, EdgeId, ValueId};
-    use crate::PlaceId;
     use crate::candidates::sparse_conditional_constant_propagation::snapshot_reconstruction::validator_scalar_operation_successors;
-    use crate::validator_scalar_constant_facts;
+    use crate::candidates::sparse_conditional_constant_propagation::validator_scalar_constant_facts;
     use abstract_operations::{AbstractOperation as O, AbstractSuccessor, ValueBinding};
     use optimization_unit::{ValueDefinition, ValueDefinitionSite};
-    use semantic_vocabulary::{ScalarType, StructuralCaseId, StructuralFieldId};
+    use semantic_vocabulary::{PlaceId, ScalarType, StructuralCaseId, StructuralFieldId};
 
     #[test]
     fn independent_sccp_case_payload_overdefines_an_ordinary_constant_arrival() {
         // Exercise lattice reconstruction directly, not structural source admission.
-        let mut input = crate::tests::unit();
+        let mut input = crate::tests::fixtures::scalar_units::unit();
         let function = &mut input.functions[0];
         let original = function.blocks[0].clone();
         let literal = original.nodes[0].definitions[0];

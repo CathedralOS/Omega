@@ -1,11 +1,7 @@
 //! Closed scalar observation boundaries shared by scalar rewrites.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::NodeLocation;
-use crate::OptimizationCandidateIdentity;
-use crate::OptimizationValidatorIdentity;
-use crate::PsiOptimizationUnit;
-use crate::ValueId;
+use optimization_unit::{NodeLocation, PsiOptimizationUnit};
+use semantic_vocabulary::ValueId;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClosedScalarObservationBoundary {
@@ -87,36 +83,4 @@ pub fn reconstruct_closed_scalar_node_boundary(
         }
     }
     None
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedPsiRewrite {
-    pub(in crate::candidates) unit: PsiOptimizationUnit,
-    pub(in crate::candidates) candidate: OptimizationCandidateIdentity,
-    pub(in crate::candidates) validator: OptimizationValidatorIdentity,
-    pub(in crate::candidates) provenance: Vec<optimization_unit::ProvenanceRewrite>,
-}
-
-impl ValidatedPsiRewrite {
-    pub const fn unit(&self) -> &PsiOptimizationUnit {
-        &self.unit
-    }
-
-    pub const fn candidate(&self) -> OptimizationCandidateIdentity {
-        self.candidate
-    }
-
-    pub const fn validator(&self) -> OptimizationValidatorIdentity {
-        self.validator
-    }
-
-    /// Validator-accepted source disposition and fuel accounting. Consumers
-    /// must ledger this value rather than re-reading the proposal.
-    pub fn provenance(&self) -> &[optimization_unit::ProvenanceRewrite] {
-        &self.provenance
-    }
-
-    pub fn into_unit(self) -> PsiOptimizationUnit {
-        self.unit
-    }
 }

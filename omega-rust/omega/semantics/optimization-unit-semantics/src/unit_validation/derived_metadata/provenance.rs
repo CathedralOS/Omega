@@ -1,6 +1,6 @@
 //! Independently reconstructed node provenance.
-use crate::O;
-use crate::PsiProvenance;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiProvenance;
 
 pub(crate) fn expected_provenance(
     operation: &abstract_operations::AbstractOperation,

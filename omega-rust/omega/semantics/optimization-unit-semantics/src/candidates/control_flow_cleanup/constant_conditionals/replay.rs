@@ -1,29 +1,19 @@
 //! Independent constant-conditional replay mechanics.
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::ConstantConditionalRewrite;
-use crate::EdgeId;
-use crate::IntegerEvaluationWitness;
-use crate::NodeLocation;
-use crate::O;
-use crate::OptimizationEdge;
-use crate::OptimizationUnitValidationError;
-use crate::OptimizationValidatorIdentity;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationFunction;
-use crate::PsiOptimizationUnit;
-use crate::PsiProvenance;
-use crate::PsiRealizationSite;
-use crate::PsiRewriteCandidate;
-use crate::PsiRewritePatch;
-use crate::ValidatedPsiRewrite;
-use crate::ValueUse;
-use crate::literal_boolean_fact;
-use crate::recompute_psi_optimization_unit_identity;
+use crate::candidates::sparse_conditional_constant_propagation::literal_boolean_fact;
 use crate::unit_validation::derived_metadata::reconstruct_declared_places;
 use crate::unit_validation::function_structure::reconstruct_fact_index;
 use crate::unit_validation::services::refresh_root_service_reach;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    ConstantConditionalRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationEdge,
+    ProvenanceDisposition, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, ValueUse,
+    recompute_psi_optimization_unit_identity,
+};
+use semantic_vocabulary::{BlockId, EdgeId};
+use std::collections::BTreeSet;
 
 pub(super) fn validate(
     input: &PsiOptimizationUnit,

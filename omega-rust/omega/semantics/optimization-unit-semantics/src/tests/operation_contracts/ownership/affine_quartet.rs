@@ -1,6 +1,7 @@
 //! Affine-quartet reconstruction of ordered moves and decreasing residuals.
 
-use crate::tests::{partial_affine_quartet_unit, refresh_node_derivatives};
+use crate::tests::fixtures::ownership::partial_affine_quartet_unit;
+use crate::tests::support::refresh_node_derivatives;
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
 

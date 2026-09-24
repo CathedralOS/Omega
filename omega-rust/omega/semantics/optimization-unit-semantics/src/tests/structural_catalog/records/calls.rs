@@ -1,24 +1,17 @@
 //! Record result contracts compose with scalar work and loans of owned storage.
 use super::{AbstractOperation, id};
-use crate::EdgeId;
-use crate::MachineId;
-use crate::OperationId;
-use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::StructuralPlaceKind;
-use crate::StructuralTypeId;
-use crate::ValueId;
-use crate::tests::refresh_function_derivatives;
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::scalar_units::unit;
 use crate::tests::structural_catalog::records::record_unit;
-use crate::tests::unit;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::{AbstractFunctionResult, AbstractResult};
-use terminal_psi::StructuralAccess;
-use terminal_psi::StructuralMultiplicity;
-use terminal_psi::StructuralTypeShape;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{
+    EdgeId, MachineId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId, ValueId,
+};
 use terminal_psi::{
-    StructuralArgument, StructuralParameterDeclaration, StructuralResultDeclaration,
+    StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralResultDeclaration, StructuralTypeShape,
 };
 
 fn empty_contract(raw: u64) -> terminal_psi::MachineContract {

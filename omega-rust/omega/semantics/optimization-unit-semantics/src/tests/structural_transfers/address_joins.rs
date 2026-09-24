@@ -1,10 +1,9 @@
 //! Shared address joins bind a projected, readable root and pin it in scope.
-use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::tests::refresh_node_derivatives;
 use crate::tests::structural_cases::source_machine_unit;
-use crate::validate_psi_optimization_unit;
+use crate::tests::support::refresh_node_derivatives;
+use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 use abstract_operations::AbstractOperation;
+use optimization_unit::PsiOptimizationUnit;
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
 
 /// `borrowed_results::PRIMITIVE_CALL_SOURCE`: `&a.left` and `&b.right` meet

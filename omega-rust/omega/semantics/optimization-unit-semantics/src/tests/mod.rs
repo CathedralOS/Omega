@@ -1,21 +1,6 @@
 //! Optimizer module role: stage group.
-use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult,
-};
-use optimization_core::{OptimizationPassIdentity, OptimizationRuleContract};
-use optimization_unit::OwnershipFrontierFact;
-use optimization_unit::{ValueUse, reconstruct_psi_optimization_unit_seed};
-use semantic_vocabulary::{
-    FuelScheduleIdentity, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
-};
-use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
-
-mod fixtures;
-mod support;
-
-pub(crate) use fixtures::*;
-pub(crate) use support::*;
+pub(crate) mod fixtures;
+pub(crate) mod support;
 
 mod candidates;
 pub(crate) mod indexed_byte_fields;

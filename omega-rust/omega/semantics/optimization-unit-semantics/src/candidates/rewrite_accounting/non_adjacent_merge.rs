@@ -1,12 +1,9 @@
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::BlockId;
-use crate::NodeLocation;
-use crate::NonAdjacentBlockMergeRewrite;
-use crate::ProvenanceDisposition;
-use crate::PsiOptimizationFunction;
-use crate::PsiRealizationSite;
-use crate::ScalarSubstitution;
+use optimization_unit::{
+    NodeLocation, NonAdjacentBlockMergeRewrite, ProvenanceDisposition, PsiOptimizationFunction,
+    PsiRealizationSite, ScalarSubstitution,
+};
+use semantic_vocabulary::BlockId;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub(crate) fn reconstruct_non_adjacent_merge_accounting(
     function: &PsiOptimizationFunction,

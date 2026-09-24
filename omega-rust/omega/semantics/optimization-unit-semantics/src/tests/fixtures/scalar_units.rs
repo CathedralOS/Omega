@@ -1,25 +1,16 @@
 //! Minimal scalar and call fixture units.
-use super::super::{
+use crate::tests::support::id;
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, FuelScheduleIdentity,
-    SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker, id,
-    reconstruct_psi_optimization_unit_seed,
+    AbstractOperationPlan, AbstractParameter, AbstractResult,
 };
-
-use crate::BlockId;
-use crate::BoundaryMachineId;
-use crate::EdgeId;
-use crate::IntegerSign;
-use crate::IntegerType;
-use crate::IntegerValue;
-use crate::MachineId;
-use crate::OperationId;
-use crate::PlaceId;
-use crate::PsiOptimizationUnit;
-use crate::ScalarType;
-use crate::StructuralTypeId;
-use crate::TerminalFuelSchedule;
-use crate::ValueId;
+use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
+use semantic_vocabulary::{
+    BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
+    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
+use terminal_fuel::TerminalFuelSchedule;
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 pub(crate) fn unit() -> PsiOptimizationUnit {
     let machine = id(1, MachineId::new);

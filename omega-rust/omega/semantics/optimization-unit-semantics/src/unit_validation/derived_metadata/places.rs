@@ -1,11 +1,9 @@
 //! Declared-place reconstruction and claim/place reference validation.
-use crate::BTreeSet;
-use crate::ClaimId;
-use crate::MachineId;
-use crate::O;
 use crate::OptimizationUnitValidationError;
-use crate::PlaceId;
-use crate::PsiOptimizationFunction;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::{ClaimId, MachineId, PlaceId};
+use std::collections::BTreeSet;
 
 /// Terminal ownership treats ordinary and content entry claims as one live
 /// claim namespace while retaining their declarations as distinct authority.

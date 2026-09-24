@@ -1,9 +1,8 @@
 //! Exact ordinary affine identity calls transfer real ownership without claims.
-use crate::BTreeMap;
-use crate::BTreeSet;
-use crate::O;
-use crate::PsiOptimizationFunction;
-use crate::StructuralTypeId;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationFunction;
+use semantic_vocabulary::StructuralTypeId;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The existing Terminal identity producer has one owned affine input and
 /// returns that input unchanged. Empty claim rows describe affine custody;

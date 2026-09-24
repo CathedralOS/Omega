@@ -1,12 +1,14 @@
 //! Structural boundary results retain signature, effect, and partial ownership custody.
 
+use crate::tests::fixtures::dominance::refresh_function_derivatives;
+use crate::tests::fixtures::structural_catalog::structural_domain;
+use crate::tests::support::id;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{BoundaryMachineResult, StructuralMultiplicity, TerminalAffineCleanupAction};
 
-use super::fixtures::*;
-use crate::tests::{id, refresh_function_derivatives, structural_domain};
+use super::fixtures::{array, boundary_result_unit, cleanup_actions, field, index, record};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
 
 fn result_unit(empty: bool) -> PsiOptimizationUnit {

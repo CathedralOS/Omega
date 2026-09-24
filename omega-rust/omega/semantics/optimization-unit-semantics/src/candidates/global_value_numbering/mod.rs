@@ -8,11 +8,8 @@
 //!
 //! Expression classification, dominance reconstruction, and proof admission
 //! are independent evidence services used by those protocols.
-use crate::OptimizationUnitValidationError;
-use crate::PsiOptimizationUnit;
-use crate::PsiRewriteCandidate;
-use crate::ValidatedPsiRewrite;
-use crate::validate_psi_optimization_unit;
+use crate::{OptimizationUnitValidationError, ValidatedPsiRewrite, validate_psi_optimization_unit};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
 
 mod admission;
 mod dominance_reconstruction;
