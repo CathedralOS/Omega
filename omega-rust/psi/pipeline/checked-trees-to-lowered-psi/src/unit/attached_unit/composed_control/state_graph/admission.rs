@@ -60,10 +60,16 @@ fn claim_transport_supported(
     {
         return true;
     }
-    claims::resolve(checked, plan).is_ok()
+    let Ok(live) = topology::live(plan) else {
+        return false;
+    };
+    claims::resolve(checked, plan, &live).is_ok()
 }
 
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
+    /// Entry-state successor-closure mask over the full `plan.states` roster;
+    /// dead positions keep their index alignment but emit no block.
+    pub(super) live: Vec<bool>,
     pub(super) source_states: &'a [checked_trees::state::State],
     pub(super) claim_transport: claims::ClaimTransport,
     pub(in crate::unit::attached_unit::composed_control) boundaries:
@@ -581,16 +587,24 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
             _ => return unsupported("Unit graph terminator disagrees with authored state"),
         }
     }
+    // Dead states are authored and shape-checked above but never execute:
+    // their parameter, claim, and call rows have no producing edge, so the
+    // emitted graph prunes to the entry state's successor closure.
+    let live = topology::live(plan)?;
     // Claim-bearing successor parameters permanently bind the entry
     // parameter's place; resolve replays each edge's checked Transfer event
     // before emission trusts that alias.
-    let claim_transport = claims::resolve(checked, plan)?;
-    topology::validate(plan)?;
-    let states = plan.states.iter().collect::<Vec<_>>();
+    let claim_transport = claims::resolve(checked, plan, &live)?;
+    let states = plan
+        .states
+        .iter()
+        .zip(&live)
+        .filter_map(|(state, live)| live.then_some(state))
+        .collect::<Vec<_>>();
     let (boundaries, internal_targets) =
         super::super::admission::retain_call_targets(checked, plan.machine, &states)?;
     if let Some(attachment) = attachment {
-        for state in &plan.states {
+        for state in &states {
             for operation in &state.operations {
                 crate::unit::attached_unit::provider_attachments::validate_call_source(
                     checked,
@@ -657,6 +671,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
         }
     }
     Ok(AdmittedGraph {
+        live,
         source_states,
         claim_transport,
         boundaries,
