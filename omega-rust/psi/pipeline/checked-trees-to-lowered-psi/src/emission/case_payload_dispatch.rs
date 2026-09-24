@@ -347,7 +347,7 @@ fn substitute_boolean(
     }
 }
 
-fn substitute_direct(
+pub(crate) fn substitute_direct(
     expression: LoweredDirectExpression,
     bound: &[EstablishedCasePayload],
 ) -> LoweredDirectExpression {
@@ -471,8 +471,8 @@ fn case_reads<'e>(
             case_reads(right, reads);
         }
         Boolean::IntegerComparison { left, right, .. } => {
-            direct_case_reads(left, reads);
-            direct_case_reads(right, reads);
+            collect_direct_case_reads(left, reads);
+            collect_direct_case_reads(right, reads);
         }
         Boolean::StructuralCaseMembership { .. }
         | Boolean::Constant { .. }
@@ -482,7 +482,23 @@ fn case_reads<'e>(
     }
 }
 
-fn direct_case_reads<'e>(
+/// Whether any lowered direct expression still observes a bound payload of
+/// `case` on `source` — the scalar-graph dispatch admission check.
+pub(crate) fn direct_case_reads(
+    expressions: &[LoweredDirectExpression],
+    source: PlaceId,
+    case: StructuralCaseId,
+) -> bool {
+    expressions.iter().any(|expression| {
+        let mut reads = Vec::new();
+        collect_direct_case_reads(expression, &mut reads);
+        reads.iter().any(|(root, path)| {
+            *root == source && path.first() == Some(&CanonicalStructuralPathSegment::Case(case))
+        })
+    })
+}
+
+fn collect_direct_case_reads<'e>(
     expression: &'e LoweredDirectExpression,
     reads: &mut Vec<(PlaceId, &'e [CanonicalStructuralPathSegment])>,
 ) {
@@ -499,14 +515,14 @@ fn direct_case_reads<'e>(
         }
         Direct::ByteSequenceRead { index, .. }
         | Direct::ElementViewRead { index, .. }
-        | Direct::ByteSequenceFieldRead { index, .. } => direct_case_reads(index, reads),
+        | Direct::ByteSequenceFieldRead { index, .. } => collect_direct_case_reads(index, reads),
         Direct::IntegerBinary { left, right, .. } => {
-            direct_case_reads(left, reads);
-            direct_case_reads(right, reads);
+            collect_direct_case_reads(left, reads);
+            collect_direct_case_reads(right, reads);
         }
         Direct::IntegerBitwiseNot { operand, .. }
         | Direct::IntegerWiden { operand, .. }
-        | Direct::IntegerExactCast { operand, .. } => direct_case_reads(operand, reads),
+        | Direct::IntegerExactCast { operand, .. } => collect_direct_case_reads(operand, reads),
         Direct::Boolean { expression } => case_reads(expression, reads),
         Direct::ByteSequenceLength { .. }
         | Direct::ByteSequenceFieldLength { .. }

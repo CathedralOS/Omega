@@ -106,6 +106,11 @@ fn emission_order(states: &[LoweredScalarBranchState]) -> Vec<usize> {
                 when_true_target,
                 when_false_target,
                 ..
+            }
+            | LoweredScalarBranchTerminator::CaseDispatch {
+                when_true_target,
+                when_false_target,
+                ..
             } => {
                 pending.push((*when_false_target, false));
                 pending.push((*when_true_target, false));
