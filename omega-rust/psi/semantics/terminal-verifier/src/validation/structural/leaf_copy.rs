@@ -4,6 +4,14 @@
 //! independently check the occurrence before it executes. The result's
 //! declared `Unrestricted` multiplicity is the copyability evidence — an
 //! affine leaf would ride the move/restoration contract instead.
+//!
+//! One carrier exception stands beside that contract: a `SharedBorrow`
+//! reference leaf relocates affinely. The copy transfers the loan's
+//! descriptor into fresh storage — it does not mint custody — so the
+//! result keeps the carrier's affine end-exactly-once obligation while
+//! the source loan stays minted on its root. A mutable-borrow leaf
+//! never qualifies: duplicating an exclusive loan's descriptor would
+//! mint a second custody edge over the same referent.
 
 use crate::validation::{
     BTreeSet, CanonicalStructuralPathSegment, ModuleError, OperationKind, PlaceId,
@@ -26,7 +34,18 @@ pub(in crate::validation) fn validate(
     let Some(result) = operation.result.structural() else {
         return Err(invalid());
     };
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
+    let shared_borrow_relocation = result.multiplicity == StructuralMultiplicity::Affine
+        && module.structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::Reference {
+                        access: StructuralAccess::SharedBorrow,
+                        ..
+                    }
+                )
+        });
+    if (result.multiplicity != StructuralMultiplicity::Unrestricted && !shared_borrow_relocation)
         || !result.qualifications.is_empty()
         || !result.claims.is_empty()
     {
@@ -48,7 +67,22 @@ pub(in crate::validation) fn validate(
             .ok_or_else(invalid)?;
     let selected_type =
         resolve_structural_path(module, signature.structural_type, path).ok_or_else(invalid)?;
-    if selected_type != result.structural_type {
+    // A `&`-leaf copy mints the reference descriptor over the selected
+    // storage, so its result is the `SharedBorrow` declaration whose
+    // referent is the leaf — not the leaf storage itself.
+    let expected_type = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)
+        .and_then(|declaration| match declaration.shape {
+            StructuralTypeShape::Reference {
+                referent,
+                access: StructuralAccess::SharedBorrow,
+            } => Some(referent),
+            _ => None,
+        })
+        .unwrap_or(result.structural_type);
+    if selected_type != expected_type {
         return Err(invalid());
     }
     Ok(())

@@ -76,16 +76,22 @@ pub fn is_reference_record(program: &TypedTrees, reference: TypeReferenceHandle)
         reference: TypeReferenceHandle,
         seen: &mut Vec<SymbolHandle>,
     ) -> Option<bool> {
-        if parts(program, reference).is_some() {
+        if parts(program, reference).is_some()
+            || shared_borrowed_parts(program, reference).is_some()
+        {
             return Some(true);
         }
         if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
             return Some(false);
         }
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        else {
-            return None;
+        let symbol = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => symbol,
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if arguments.count() == 0 => base_symbol,
+            _ => return None,
         };
         if seen.contains(symbol) {
             return None;
@@ -128,7 +134,8 @@ pub fn initializer_source(
     expression: typed_trees::expression::ExpressionHandle,
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
-    let (referent, access) = parts(program, reference)?;
+    let (referent, access) =
+        parts(program, reference).or_else(|| shared_borrowed_parts(program, reference))?;
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
@@ -212,7 +219,7 @@ fn construction_sources_with_calls(
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    if parts(program, reference).is_some() {
+    if parts(program, reference).is_some() || shared_borrowed_parts(program, reference).is_some() {
         return Some(vec![checked_trees::CheckedReferenceResultSourcePlan {
             path: Vec::new(),
             source: initializer_source(program, state, expression, reference)?,
@@ -391,7 +398,9 @@ fn formal_record_sources(
         path: &mut Vec<checked_trees::CheckedUnitStructuralPathSegment>,
         output: &mut Vec<checked_trees::CheckedReferenceResultSourcePlan>,
     ) -> Option<()> {
-        if let Some((referent, access)) = parts(program, reference) {
+        if let Some((referent, access)) =
+            parts(program, reference).or_else(|| shared_borrowed_parts(program, reference))
+        {
             let mut source_path = path.clone();
             source_path.push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
             output.push(checked_trees::CheckedReferenceResultSourcePlan {
@@ -410,10 +419,14 @@ fn formal_record_sources(
         if crate::has_plain_owned_contents_with_numeric_constraints(program, reference) {
             return Some(());
         }
-        let TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(reference)
-        else {
-            return None;
+        let symbol = match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Named { symbol, .. } => symbol,
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if arguments.count() == 0 => base_symbol,
+            _ => return None,
         };
         let data = program
             .data_definitions()
@@ -455,10 +468,14 @@ fn record_construction_sources(
     reference: TypeReferenceHandle,
     active_origins: &mut Vec<SymbolHandle>,
 ) -> Option<Vec<checked_trees::CheckedReferenceResultSourcePlan>> {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return None;
+    let symbol = match program.type_reference_table.type_reference(reference) {
+        TypeReferenceNode::Named { symbol, .. } => symbol,
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } if arguments.count() == 0 => base_symbol,
+        _ => return None,
     };
     let ExpressionNode::StructLiteral(literal) = program.expression_table.expression(expression)
     else {
