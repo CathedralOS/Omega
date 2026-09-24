@@ -472,10 +472,6 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         &["lowering", "validation"],
     ),
     (
-        "omega/pipeline/01_assembled-syntax-to-checked-compilation",
-        &["admission", "checking", "optimization", "package"],
-    ),
-    (
         "omega/pipeline/02_checked-compilation-to-terminal-artifact",
         &[
             "application_coverage",

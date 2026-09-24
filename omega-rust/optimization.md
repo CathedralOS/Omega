@@ -15,9 +15,9 @@ records current experimental status, applicability, and composition limits.
 the exact vocabulary. The compiler's
 [build vocabulary](omega/compiler/source-assembly/src/source_assembly/build_vocabulary/mod.rs)
 supplies both preludes from one mapping; its
-[checked handoff](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/checked_handoff/mod.rs)
+[checked handoff](omega/compiler/checked-compilation/src/optimization/checked_handoff/mod.rs)
 retains selection and report requests.
-[Rollback settlement](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs)
+[Rollback settlement](omega/compiler/checked-compilation/src/optimization/rollback/mod.rs)
 computes effective selection before artifact production without changing the
 authored selection.
 

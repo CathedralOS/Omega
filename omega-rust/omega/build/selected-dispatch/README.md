@@ -25,6 +25,6 @@ Related operations have separate entrances because they do different work:
 - [Service custody](src/service_custody.rs) checks Fused service relationships
   and derives program-entry establishments.
 
-The [compiler phase transition](../../pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs)
+The [compiler phase transition](../checked-compilation/src/checking/phase_transitions.rs)
 sequences settlement with review and publication. This crate does not choose
 providers or acquire authority from imports.

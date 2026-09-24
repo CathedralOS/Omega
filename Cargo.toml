@@ -109,7 +109,7 @@ members = [
     "omega-rust/omega/build/trust-ledger",
     "omega-rust/omega/compiler/compiler",
     "omega-rust/omega/compiler/source-assembly",
-    "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation",
+    "omega-rust/omega/compiler/checked-compilation",
     "omega-rust/omega/pipeline/02_checked-compilation-to-terminal-artifact",
     "omega-rust/omega/packages/review/evidence",
     "omega-rust/omega/build/package-compilation",

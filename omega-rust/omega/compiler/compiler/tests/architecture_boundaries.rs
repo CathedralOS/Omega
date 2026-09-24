@@ -513,7 +513,7 @@ fn compiler_surface_and_reporting_close_driver_cleanup_contract() {
 fn typed_to_checked_surface_owns_contract_stand_down_capture() {
     let repo_root = repo_root();
     let transition_path =
-        repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs");
+        repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/phase_transitions.rs");
     let transition = fs::read_to_string(&transition_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
     assert!(
@@ -521,7 +521,7 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
         "typed-derived contract stand-downs must be captured at the ownership-moving phase boundary"
     );
 
-    let driver_path = repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs");
+    let driver_path = repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/execution_settlement.rs");
     let driver = fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     assert!(
@@ -551,7 +551,7 @@ fn typed_to_checked_surface_owns_contract_stand_down_capture() {
 #[test]
 fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
     let repo_root = repo_root();
-    let checked_entry_path = repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs");
+    let checked_entry_path = repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/build_continuation.rs");
     let checked_entry = fs::read_to_string(&checked_entry_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));
     let checked_entry = without_ascii_whitespace(&checked_entry);
@@ -616,7 +616,7 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
 fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() {
     let repo_root = repo_root();
     let transition_path =
-        repo_root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs");
+        repo_root.join("omega-rust/omega/compiler/checked-compilation/src/checking/phase_transitions.rs");
     let transition = fs::read_to_string(&transition_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", transition_path.display()));
     let transition = without_ascii_whitespace(&transition);
@@ -695,10 +695,10 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
 
     for driver_relative_path in [
         "omega-rust/omega/compiler/compiler/src/compiler.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs",
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/checked_compilation.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/build_continuation.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/execution_settlement.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/checked_compilation.rs",
     ] {
         let driver_path = repo_root.join(driver_relative_path);
         let driver = fs::read_to_string(&driver_path)
@@ -711,7 +711,7 @@ fn typed_to_checked_transition_owns_post_check_settlements_inside_its_surface() 
     }
 
     let checked_entry_path = repo_root.join(
-        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/execution_settlement.rs",
+        "omega-rust/omega/compiler/checked-compilation/src/checking/execution_settlement.rs",
     );
     let checked_entry = fs::read_to_string(&checked_entry_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", checked_entry_path.display()));

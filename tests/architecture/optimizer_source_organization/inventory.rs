@@ -18,7 +18,7 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_entry",
     "omega-rust/omega/backend/plans/program-entry-plan/src/optimized_semantic_wrapper",
     "omega-rust/omega/build/build-evaluation/src/optimization",
-    "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization",
+    "omega-rust/omega/compiler/checked-compilation/src/optimization",
     "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_vocabulary",
     "omega-rust/omega/backend/machine-emission/src/function_realization",
     "omega-rust/omega/backend/machine-emission/src/fragment_emission",

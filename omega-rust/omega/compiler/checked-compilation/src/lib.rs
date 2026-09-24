@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 
-//! Assembled syntax to one sealed checked compilation.
+//! Compiler orchestration from assembled syntax to one sealed checked compilation.
 //!
-//! Start at `checking.rs`. This stage takes the assembled forest, evaluates
+//! Start at `checking.rs`. This compiler operation takes the assembled forest, evaluates
 //! its build machine, resolves and types the source that build generated
 //! against the retained base, settles providers, dispatch, entry bindings and
 //! task activations, admits package declarations, checks, and seals the
