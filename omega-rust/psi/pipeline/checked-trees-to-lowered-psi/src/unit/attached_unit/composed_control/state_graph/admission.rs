@@ -34,15 +34,29 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
                     .is_some_and(|state| state.structural_parameters.iter().any(|parameter| parameter.is_self))
         })
         && plan.body_qualifications.is_empty()
-        && plan.states.iter().all(|state| {
-            state.structural_parameters.iter().all(|parameter| {
-                ((parameter.multiplicity == Multiplicity::Unrestricted
-                    && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
-                    || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
-                    && (parameter.qualifications.is_empty() || parameter.multiplicity == Multiplicity::Linear)
-            })
-        })
-        && claim_transport_supported(checked, plan)
+        && {
+            // Unreachable states never execute: their custody rows cannot
+            // disqualify the route. Reachable positions still enforce every
+            // parameter's custody shape. A missing edge target is topology
+            // drift, not custody — defer to `admit`'s authored-roster checks
+            // for the precise drift diagnostic.
+            let Ok(live) = topology::live(plan) else {
+                return true;
+            };
+            plan.states
+                .iter()
+                .zip(&live)
+                .filter_map(|(state, live)| live.then_some(state))
+                .all(|state| {
+                    state.structural_parameters.iter().all(|parameter| {
+                        ((parameter.multiplicity == Multiplicity::Unrestricted
+                            && matches!(parameter.access, checked_trees::CheckedStructuralAccess::SharedBorrow | checked_trees::CheckedStructuralAccess::MutableBorrow))
+                            || parameter.access == checked_trees::CheckedStructuralAccess::Owned)
+                            && (parameter.qualifications.is_empty() || parameter.multiplicity == Multiplicity::Linear)
+                    })
+                })
+                && claim_transport_supported(checked, plan, &live)
+        }
 }
 
 /// A state's entry claims are established at every admission of that state,
@@ -52,6 +66,7 @@ pub(in crate::unit::attached_unit::composed_control) fn has_shared_graph_custody
 fn claim_transport_supported(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
+    live: &[bool],
 ) -> bool {
     if plan
         .states
@@ -60,10 +75,7 @@ fn claim_transport_supported(
     {
         return true;
     }
-    let Ok(live) = topology::live(plan) else {
-        return false;
-    };
-    claims::resolve(checked, plan, &live).is_ok()
+    claims::resolve(checked, plan, live).is_ok()
 }
 
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
@@ -135,7 +147,12 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     {
         return unsupported("Unit graph state identity, contract, or custody drifted");
     }
-    for (source, state) in source_states.iter().zip(&plan.states) {
+    // Reachability is pure topology on the checked plan. States outside the
+    // entry successor closure never execute: the drift checks below still
+    // pair their authored rows, but their custody rows cannot disqualify the
+    // route and emission prunes them.
+    let live = topology::live(plan)?;
+    for (state_index, (source, state)) in source_states.iter().zip(&plan.states).enumerate() {
         crate::unit::attached_unit::claims::validate_entry_claims(
             checked,
             plan.machine,
@@ -196,6 +213,11 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 return unsupported(
                     "Unit graph projected parameter qualifications differ from source",
                 );
+            }
+            if !live[state_index] {
+                // An unreachable state's parameter custody rows never
+                // execute: they cannot disqualify the route.
+                continue;
             }
             if parameter.access == checked_trees::CheckedStructuralAccess::Owned {
                 if source.is_self
@@ -601,7 +623,6 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
     // Dead states are authored and shape-checked above but never execute:
     // their parameter, claim, and call rows have no producing edge, so the
     // emitted graph prunes to the entry state's successor closure.
-    let live = topology::live(plan)?;
     // Claim-bearing successor parameters permanently bind the entry
     // parameter's place; resolve replays each edge's checked Transfer event
     // before emission trusts that alias.

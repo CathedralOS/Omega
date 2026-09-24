@@ -223,6 +223,62 @@ impl CheckedComposedUnitControlStatePlan {
         };
         self.operations.iter().chain(selected)
     }
+
+    /// Control-flow successors of this state's terminator, in terminator
+    /// order. Return, crash, and value exits contribute no edges.
+    pub fn successors(&self) -> Vec<&CheckedStructuralControlSuccessorPlan> {
+        match &self.terminator {
+            CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            | CheckedComposedUnitControlTerminatorPlan::ReturnScalar { .. }
+            | CheckedComposedUnitControlTerminatorPlan::Guarded { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ReturnCase { .. }
+            | CheckedComposedUnitControlTerminatorPlan::Crash { .. }
+            | CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. } => Vec::new(),
+            CheckedComposedUnitControlTerminatorPlan::Jump { successor } => vec![successor],
+            CheckedComposedUnitControlTerminatorPlan::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true, when_false],
+            CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => vec![jump],
+            CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => arms
+                .iter()
+                .map(|arm| &arm.successor)
+                .chain(std::iter::once(fallback))
+                .collect(),
+            CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } => {
+                cases.iter().map(|case| &case.successor).collect()
+            }
+        }
+    }
+
+    /// Reachable-state mask over `states` in authored roster order: `true`
+    /// exactly at positions reachable from `states[0]` through terminator
+    /// successors. `None` when an edge names a target absent from the roster.
+    /// Callers decide whether an unreachable or missing target declines the
+    /// plan or is pruned.
+    pub fn live_mask(states: &[Self]) -> Option<Vec<bool>> {
+        let mut visited = vec![false; states.len()];
+        if states.is_empty() {
+            return Some(visited);
+        }
+        let mut ready = vec![0_usize];
+        visited[0] = true;
+        let mut next = 0;
+        while let Some(source) = ready.get(next).copied() {
+            next += 1;
+            for successor in states[source].successors() {
+                let target = states
+                    .iter()
+                    .position(|state| state.state == successor.target_state)?;
+                if !visited[target] {
+                    visited[target] = true;
+                    ready.push(target);
+                }
+            }
+        }
+        Some(visited)
+    }
 }
 
 /// One guarded arm of an ordered transition chain: the exact checked scalar
