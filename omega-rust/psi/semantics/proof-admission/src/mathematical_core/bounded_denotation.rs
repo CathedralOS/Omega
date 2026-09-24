@@ -2631,34 +2631,65 @@ impl<'a> Elaboration<'a> {
                 left_bound,
                 right_bound,
                 definition_axiom,
+            }
+            | ProofRule::IntegerExactSubtractDefinitionBound {
+                left_bound,
+                right_bound,
+                definition_axiom,
             } => {
+                let (operation, rule) = match &proof.rule {
+                    ProofRule::IntegerExactAddDefinitionBound { .. } => (
+                        integer_bound_rules::ExactDefinitionOperation::Add,
+                        AcceptedProofRule::IntegerExactAddDefinitionBound,
+                    ),
+                    _ => (
+                        integer_bound_rules::ExactDefinitionOperation::Subtract,
+                        AcceptedProofRule::IntegerExactSubtractDefinitionBound,
+                    ),
+                };
                 let left = self.node(left_bound)?;
                 let right = self.node(right_bound)?;
-                integer_bound_rules::exact_add_definition_bound_relation(
+                integer_bound_rules::exact_definition_bound_relation(
                     self.context,
                     self.axioms,
                     &left_bound.conclusion,
                     &right_bound.conclusion,
                     *definition_axiom,
                     &proof.conclusion,
+                    operation,
                 )
                 .map_err(BoundedDenotationError::Certificate)?;
                 let (definition, variable) = self.cited_axiom(*definition_axiom)?;
-                if let Some(evidence) = self.denotation.exact_add_definition_bound_evidence(
-                    &left_bound.conclusion,
-                    left,
-                    &right_bound.conclusion,
-                    right,
-                    &definition,
-                    variable,
-                    &proof.conclusion,
-                )? {
-                    self.rules
-                        .insert(AcceptedProofRule::IntegerExactAddDefinitionBound);
+                let derived = match operation {
+                    integer_bound_rules::ExactDefinitionOperation::Add => {
+                        self.denotation.exact_add_definition_bound_evidence(
+                            &left_bound.conclusion,
+                            left,
+                            &right_bound.conclusion,
+                            right,
+                            &definition,
+                            variable,
+                            &proof.conclusion,
+                        )?
+                    }
+                    integer_bound_rules::ExactDefinitionOperation::Subtract => {
+                        self.denotation.exact_subtract_definition_bound_evidence(
+                            &left_bound.conclusion,
+                            left,
+                            &right_bound.conclusion,
+                            right,
+                            &definition,
+                            variable,
+                            &proof.conclusion,
+                        )?
+                    }
+                };
+                if let Some(evidence) = derived {
+                    self.rules.insert(rule);
                     return Ok(evidence);
                 }
                 self.rule_instance(
-                    AcceptedProofRule::IntegerExactAddDefinitionBound,
+                    rule,
                     vec![
                         left_bound.conclusion.clone(),
                         right_bound.conclusion.clone(),

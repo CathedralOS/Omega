@@ -129,6 +129,14 @@ pub enum ProofRule {
         right_bound: Box<ProofNode>,
         definition_axiom: usize,
     },
+    /// Map two independently proved scalar endpoints through one cited prior
+    /// exact-subtract definition. The right operand is antitone: the
+    /// output's lower bound spends the subtrahend's upper endpoint.
+    IntegerExactSubtractDefinitionBound {
+        left_bound: Box<ProofNode>,
+        right_bound: Box<ProofNode>,
+        definition_axiom: usize,
+    },
     /// Map one independently proved root bound through one checked ordered
     /// word of partial fixed-integer exact casts and strict widening identities.
     IntegerCastBound {

@@ -136,6 +136,11 @@ fn proof_rule_exemplars() -> Vec<ProofRule> {
             right_bound: leaf(),
             definition_axiom: 0,
         },
+        ProofRule::IntegerExactSubtractDefinitionBound {
+            left_bound: leaf(),
+            right_bound: leaf(),
+            definition_axiom: 0,
+        },
         ProofRule::IntegerCastBound {
             root_bound: leaf(),
             witness: IntegerCastChainWitness {

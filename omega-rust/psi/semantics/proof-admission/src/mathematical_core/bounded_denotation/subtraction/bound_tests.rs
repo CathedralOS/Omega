@@ -1000,3 +1000,241 @@ fn direct_subtract_bound_rejects_mismatched_certificates() {
         .is_err()
     );
 }
+
+/// The `IntegerExactSubtractDefinitionBound` fixture: a minuend bound in the
+/// conclusion's direction, a subtrahend bound in the opposite direction, and
+/// a cited `out = l - r` definition prove `k ≤ out` or `out ≤ k`.
+fn exact_subtract_definition_proof(
+    left_premise: &Proposition,
+    right_premise: &Proposition,
+    goal: &Proposition,
+) -> ProofNode {
+    ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerExactSubtractDefinitionBound {
+            left_bound: Box::new(ProofNode {
+                conclusion: left_premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            right_bound: Box::new(ProofNode {
+                conclusion: right_premise.clone(),
+                rule: ProofRule::Assumption { index: 1 },
+            }),
+            definition_axiom: 0,
+        },
+    }
+}
+
+/// Operand premises, definition and goal for one direction: `lower` pairs
+/// the minuend's lower endpoint with the subtrahend's upper endpoint.
+struct ExactSubtractCase {
+    context: PropositionContext,
+    left_premise: Proposition,
+    right_premise: Proposition,
+    definition: Proposition,
+    goal: Proposition,
+}
+
+fn exact_subtract_case(
+    integer: IntegerType,
+    lower: bool,
+    reversed: bool,
+    endpoints: (IntegerValue, IntegerValue, IntegerValue),
+) -> ExactSubtractCase {
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let context = PropositionContext::from_value_types(
+        (1..=3).map(|index| (ValueId::new(index).unwrap(), scalar)),
+    )
+    .unwrap();
+    let (left_endpoint, right_endpoint, bound) = endpoints;
+    let literal = |value| ScalarTerm::integer(integer, value).unwrap();
+    let output = value(3);
+    let expression = ScalarTerm::exact_integer_subtract(integer, value(1), value(2)).unwrap();
+    let (left_premise, right_premise) = if lower {
+        (
+            Proposition::LessOrEqual(literal(left_endpoint), value(1)),
+            Proposition::LessOrEqual(value(2), literal(right_endpoint)),
+        )
+    } else {
+        (
+            Proposition::LessOrEqual(value(1), literal(left_endpoint)),
+            Proposition::LessOrEqual(literal(right_endpoint), value(2)),
+        )
+    };
+    let definition = if reversed {
+        Proposition::Equal(expression, output.clone())
+    } else {
+        Proposition::Equal(output.clone(), expression)
+    };
+    let goal = if lower {
+        Proposition::LessOrEqual(literal(bound), output)
+    } else {
+        Proposition::LessOrEqual(output, literal(bound))
+    };
+    ExactSubtractCase {
+        context,
+        left_premise,
+        right_premise,
+        definition,
+        goal,
+    }
+}
+
+#[test]
+fn exact_subtract_definition_bounds_use_the_two_sided_antitone_law() {
+    for (sign, width) in [
+        (IntegerSign::Unsigned, 8),
+        (IntegerSign::Unsigned, 64),
+        (IntegerSign::Signed, 32),
+        (IntegerSign::Signed, 128),
+    ] {
+        let integer = IntegerType::new(sign, width).unwrap();
+        for lower in [true, false] {
+            let endpoints = match (sign, lower) {
+                // `-5 ≤ l ∧ r ≤ 3 ⊢ -8 ≤ l - r`
+                (IntegerSign::Signed, true) => (
+                    IntegerValue::Signed(-5),
+                    IntegerValue::Signed(3),
+                    IntegerValue::Signed(-8),
+                ),
+                // `l ≤ 7 ∧ -9 ≤ r ⊢ l - r ≤ 16`
+                (IntegerSign::Signed, false) => (
+                    IntegerValue::Signed(7),
+                    IntegerValue::Signed(-9),
+                    IntegerValue::Signed(16),
+                ),
+                // `10 ≤ l ∧ r ≤ 4 ⊢ 6 ≤ l - r`
+                (IntegerSign::Unsigned, true) => (
+                    IntegerValue::Unsigned(10),
+                    IntegerValue::Unsigned(4),
+                    IntegerValue::Unsigned(6),
+                ),
+                // `l ≤ 100 ∧ 40 ≤ r ⊢ l - r ≤ 60`
+                (IntegerSign::Unsigned, false) => (
+                    IntegerValue::Unsigned(100),
+                    IntegerValue::Unsigned(40),
+                    IntegerValue::Unsigned(60),
+                ),
+            };
+            for reversed in [false, true] {
+                let case = exact_subtract_case(integer, lower, reversed, endpoints);
+                let proof = exact_subtract_definition_proof(
+                    &case.left_premise,
+                    &case.right_premise,
+                    &case.goal,
+                );
+                let assumptions = [case.left_premise.clone(), case.right_premise.clone()];
+                let axioms = [case.definition.clone()];
+                verify_bounded_certificate(
+                    &case.context,
+                    &case.goal,
+                    &assumptions,
+                    &axioms,
+                    &proof,
+                    &mut Budget::default(),
+                )
+                .unwrap();
+                let parameters = BTreeSet::new();
+                let mut elaboration = Elaboration::new(
+                    &case.context,
+                    &case.goal,
+                    &assumptions,
+                    &axioms,
+                    &parameters,
+                )
+                .unwrap();
+                elaboration.node(&proof).unwrap();
+                assert!(
+                    elaboration.denotation.rule_axioms.is_empty(),
+                    "exact-subtract definition bounds derive from the two-sided law"
+                );
+                assert_eq!(elaboration.denotation.subtraction.laws.len(), 1);
+                assert_eq!(
+                    elaboration
+                        .denotation
+                        .subtraction
+                        .numeral_differences
+                        .keys()
+                        .collect::<Vec<_>>(),
+                    [&endpoints]
+                );
+            }
+        }
+    }
+}
+
+/// The subtrahend's bound must point the opposite way from the conclusion,
+/// and the landed literal must be the endpoint difference: a same-direction
+/// subtrahend bound, a widened literal, or an add definition cited for a
+/// subtract rule all reject.
+#[test]
+fn exact_subtract_definition_bound_rejects_mismatched_certificates() {
+    let integer = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let endpoints = (
+        IntegerValue::Signed(-5),
+        IntegerValue::Signed(3),
+        IntegerValue::Signed(-8),
+    );
+    let case = exact_subtract_case(integer, true, false, endpoints);
+    let scalar = ScalarType::Integer(integer);
+    let value = |index| ScalarTerm::value(ValueId::new(index).unwrap(), scalar);
+    let literal = |value| ScalarTerm::integer(integer, IntegerValue::Signed(value)).unwrap();
+    let check =
+        |left: &Proposition, right: &Proposition, definition: &Proposition, goal: &Proposition| {
+            let proof = exact_subtract_definition_proof(left, right, goal);
+            verify_bounded_certificate(
+                &case.context,
+                goal,
+                &[left.clone(), right.clone()],
+                std::slice::from_ref(definition),
+                &proof,
+                &mut Budget::default(),
+            )
+        };
+    assert!(
+        check(
+            &case.left_premise,
+            &case.right_premise,
+            &case.definition,
+            &case.goal
+        )
+        .is_ok()
+    );
+    // The subtrahend's LOWER bound cannot bound the difference from below.
+    let same_direction = Proposition::LessOrEqual(literal(3), value(2));
+    assert!(
+        check(
+            &case.left_premise,
+            &same_direction,
+            &case.definition,
+            &case.goal
+        )
+        .is_err()
+    );
+    // A literal the endpoints do not reach.
+    let widened_goal = Proposition::LessOrEqual(literal(-7), value(3));
+    assert!(
+        check(
+            &case.left_premise,
+            &case.right_premise,
+            &case.definition,
+            &widened_goal
+        )
+        .is_err()
+    );
+    // An exact-add definition is not a subtraction.
+    let add_definition = Proposition::Equal(
+        value(3),
+        ScalarTerm::exact_integer_add(integer, value(1), value(2)).unwrap(),
+    );
+    assert!(
+        check(
+            &case.left_premise,
+            &case.right_premise,
+            &add_definition,
+            &case.goal
+        )
+        .is_err()
+    );
+}

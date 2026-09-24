@@ -208,6 +208,11 @@ fn schedule_children<'proof>(
             left_bound,
             right_bound,
             ..
+        }
+        | ProofRule::IntegerExactSubtractDefinitionBound {
+            left_bound,
+            right_bound,
+            ..
         } => {
             pending.push(Action::Enter(right_bound));
             pending.push(Action::Enter(left_bound));

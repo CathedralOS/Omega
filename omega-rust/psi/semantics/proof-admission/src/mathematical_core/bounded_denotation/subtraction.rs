@@ -1017,4 +1017,221 @@ impl Denotation {
         }
         .map(Some)
     }
+
+    /// Denote the checked exact-subtract definition bound: two operand
+    /// bounds and the cited definition `output = sub l r` prove
+    /// `k ≤ output` or `output ≤ k`. As in the direct subtract bound, the
+    /// left operand's endpoint follows the conclusion's direction and the
+    /// antitone right operand's flips; the two-sided
+    /// `a ≤ b → d ≤ c → sub a c ≤ sub b d` law combines them. The cited
+    /// definition, or the numeral-operation equation `sub l r = n` composed
+    /// with it when the closed difference denotes to its numeral, moves the
+    /// bound onto `output`, and the checked `sub lb rb = k` equation lands
+    /// the literal. Any shape outside that keeps the explicit instance
+    /// fallback.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn exact_subtract_definition_bound_evidence(
+        &mut self,
+        left_bound: &Proposition,
+        left_evidence: TermHandle,
+        right_bound: &Proposition,
+        right_evidence: TermHandle,
+        definition: &Proposition,
+        definition_evidence: TermHandle,
+        conclusion: &Proposition,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Proposition::LessOrEqual(conclusion_left, conclusion_right) = conclusion else {
+            return Ok(None);
+        };
+        let (literal, output, lower) = if conclusion_left.integer_value().is_some() {
+            (conclusion_left, conclusion_right, true)
+        } else if conclusion_right.integer_value().is_some() {
+            (conclusion_right, conclusion_left, false)
+        } else {
+            return Ok(None);
+        };
+        let (defined_output, expression) = match definition {
+            Proposition::Equal(first, second) => match (first, second) {
+                (output @ ScalarTerm::Value { .. }, ScalarTerm::ExactIntegerSubtract { .. }) => {
+                    (output, second)
+                }
+                (ScalarTerm::ExactIntegerSubtract { .. }, output @ ScalarTerm::Value { .. }) => {
+                    (output, first)
+                }
+                _ => return Ok(None),
+            },
+            _ => return Ok(None),
+        };
+        let ScalarTerm::ExactIntegerSubtract {
+            scalar_type,
+            left,
+            right,
+        } = expression
+        else {
+            return Ok(None);
+        };
+        if scalar_type.carrier() != IntegerCarrier::Fixed
+            || defined_output != output
+            || output.scalar_type() != semantic_vocabulary::ScalarType::Integer(*scalar_type)
+        {
+            return Ok(None);
+        }
+        let Some((left_endpoint, left_order)) =
+            self.add_bound_endpoint(left, left_bound, left_evidence, lower, scalar_type)?
+        else {
+            return Ok(None);
+        };
+        let Some((right_endpoint, right_order)) =
+            self.add_bound_endpoint(right, right_bound, right_evidence, !lower, scalar_type)?
+        else {
+            return Ok(None);
+        };
+        let left_endpoint_term = self.fixed_scalar_term(&left_endpoint)?;
+        let right_endpoint_term = self.fixed_scalar_term(&right_endpoint)?;
+        let left_term = self.fixed_scalar_term(left)?;
+        let right_term = self.fixed_scalar_term(right)?;
+        let bound_difference = self.subtract_terms(left_endpoint_term, right_endpoint_term)?;
+        let operand_difference = self.subtract_terms(left_term, right_term)?;
+        // `sub lb_l rb_r ≤ sub l r` (lower) or `sub l r ≤ sub ub_l lb_r`
+        // (upper).
+        let order = if lower {
+            self.subtract_law_application(
+                Law::MonotoneAntitone,
+                &[
+                    left_endpoint_term,
+                    left_term,
+                    right_endpoint_term,
+                    right_term,
+                    left_order,
+                    right_order,
+                ],
+            )?
+        } else {
+            self.subtract_law_application(
+                Law::MonotoneAntitone,
+                &[
+                    left_term,
+                    left_endpoint_term,
+                    right_term,
+                    right_endpoint_term,
+                    left_order,
+                    right_order,
+                ],
+            )?
+        };
+        // `Id Int (sub l' r') output'` — the cited definition while the
+        // expression stays applicative, or `sub l r = n` composed with it
+        // when the closed difference denotes to its numeral `n`.
+        let output_term = self.fixed_scalar_term(output)?;
+        let expression_term = self.fixed_scalar_term(expression)?;
+        let denoted = self.denote(definition)?;
+        let Some((_, from, to)) = self.identity_parts(denoted) else {
+            return Ok(None);
+        };
+        let difference_equality = if self
+            .arena
+            .structurally_equal(expression_term, operand_difference)
+        {
+            let Some(equality) = self.directed_equality(
+                from,
+                to,
+                operand_difference,
+                output_term,
+                definition_evidence,
+            ) else {
+                return Ok(None);
+            };
+            equality
+        } else {
+            let (Some((_, left_value)), Some((_, right_value)), Some((_, difference_value))) = (
+                left.integer_value(),
+                right.integer_value(),
+                expression.integer_value(),
+            ) else {
+                return Ok(None);
+            };
+            let Some(bridge) = self.numeral_difference(
+                left_value,
+                right_value,
+                difference_value,
+                left_term,
+                right_term,
+                expression_term,
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(forward) =
+                self.directed_equality(from, to, expression_term, output_term, definition_evidence)
+            else {
+                return Ok(None);
+            };
+            let integer = self.integer_constant()?;
+            self.transitivity(
+                integer,
+                operand_difference,
+                expression_term,
+                output_term,
+                bridge,
+                forward,
+            )
+        };
+        // `sub lb' rb' ≤ output'` (lower) or `output' ≤ sub ub' lb'` (upper).
+        let order = if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[
+                    bound_difference,
+                    operand_difference,
+                    output_term,
+                    difference_equality,
+                    order,
+                ],
+            )?
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[
+                    operand_difference,
+                    output_term,
+                    bound_difference,
+                    difference_equality,
+                    order,
+                ],
+            )?
+        };
+        // The bound side is a `sub` over two endpoint numerals; the checked
+        // equation `sub lb rb = k` lands the conclusion's literal.
+        let (Some((_, left_value)), Some((_, right_value)), Some((_, bound_value))) = (
+            left_endpoint.integer_value(),
+            right_endpoint.integer_value(),
+            literal.integer_value(),
+        ) else {
+            return Ok(None);
+        };
+        let literal_term = self.fixed_scalar_term(literal)?;
+        let Some(equality) = self.numeral_difference(
+            left_value,
+            right_value,
+            bound_value,
+            left_endpoint_term,
+            right_endpoint_term,
+            literal_term,
+        )?
+        else {
+            return Ok(None);
+        };
+        if lower {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteLeft,
+                &[bound_difference, literal_term, output_term, equality, order],
+            )
+        } else {
+            self.integer_law_application(
+                IntegerLaw::LessOrEqualSubstituteRight,
+                &[output_term, bound_difference, literal_term, equality, order],
+            )
+        }
+        .map(Some)
+    }
 }

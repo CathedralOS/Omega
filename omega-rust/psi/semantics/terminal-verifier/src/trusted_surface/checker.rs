@@ -445,6 +445,27 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         implementation: &[PROOF, INTEGER_ORDER_RULES, SUBTRACT_ANTITONE, NODES],
         soundness: TRUSTED,
     },
+    TrustedSurfaceEntry {
+        id: "rule:integer-exact-subtract-definition-bound",
+        family: LedgerFamily::CheckerRule,
+        binding: dispatch(CoveredSurface::ProofRules),
+        premises: "two proved scalar bounds and one cited prior exact-subtract definition axiom over a fixed-integer carrier; the subtrahend's bound is antitone",
+        conclusion: "the two-endpoint bound obtained by mapping the conjunction through the definition's affine form; the cited axiom is recorded",
+        dependencies: &[
+            "rule:traversal",
+            "normalization:integer-affine-witness",
+            "fact:semantic-axiom-roster",
+        ],
+        implementation: &[
+            PROOF,
+            INTEGER_BOUND_RULES,
+            INTEGER_AFFINE,
+            AFFINE_WITNESS_CHECKING,
+            AFFINE_BOUND_MAPPING,
+            NODES,
+        ],
+        soundness: TRUSTED,
+    },
     // -- Accepted evidence routes (EvidenceRoute variants) --
     TrustedSurfaceEntry {
         id: "route:kernel-derived",
@@ -516,14 +537,15 @@ pub fn checker_rule_entry(rule: &ProofRule) -> &'static TrustedSurfaceEntry {
         ProofRule::IntegerCorrelatedForbiddenRoots { .. } => &ENTRIES[27],
         ProofRule::IntegerAddOrder { .. } => &ENTRIES[28],
         ProofRule::IntegerSubtractAntitone { .. } => &ENTRIES[29],
+        ProofRule::IntegerExactSubtractDefinitionBound { .. } => &ENTRIES[30],
     }
 }
 
 /// `EvidenceRoute` -> ledger entry, total by construction.
 pub fn evidence_route_entry(route: &EvidenceRoute) -> &'static TrustedSurfaceEntry {
     match route {
-        EvidenceRoute::KernelDerived(_) => &ENTRIES[30],
-        EvidenceRoute::CertificateDerived(_) => &ENTRIES[31],
-        EvidenceRoute::Admitted(_) => &ENTRIES[32],
+        EvidenceRoute::KernelDerived(_) => &ENTRIES[31],
+        EvidenceRoute::CertificateDerived(_) => &ENTRIES[32],
+        EvidenceRoute::Admitted(_) => &ENTRIES[33],
     }
 }

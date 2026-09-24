@@ -57,6 +57,7 @@ pub enum AcceptedProofRule {
     IntegerOrderSubstitution,
     IntegerAffineBound,
     IntegerExactAddDefinitionBound,
+    IntegerExactSubtractDefinitionBound,
     IntegerCastBound,
     IntegerCorrelatedForbiddenRoots,
 }
@@ -448,8 +449,9 @@ fn check_node_locally(
         ProofRule::IntegerAffineBound { .. } => {
             integer_bound_rules::check_integer_affine_bound(&scope, proof, acceptance)
         }
-        ProofRule::IntegerExactAddDefinitionBound { .. } => {
-            integer_bound_rules::check_integer_exact_add_definition_bound(&scope, proof, acceptance)
+        ProofRule::IntegerExactAddDefinitionBound { .. }
+        | ProofRule::IntegerExactSubtractDefinitionBound { .. } => {
+            integer_bound_rules::check_integer_exact_definition_bound(&scope, proof, acceptance)
         }
         ProofRule::IntegerCastBound { .. } => {
             integer_bound_rules::check_integer_cast_bound(&scope, proof, acceptance)

@@ -222,6 +222,11 @@ fn validate_proof_node(node: &ProofNode) -> Result<(), ProofCodecError> {
                         left_bound: left_equals_middle,
                         right_bound: middle_equals_right,
                         ..
+                    }
+                    | ProofRule::IntegerExactSubtractDefinitionBound {
+                        left_bound: left_equals_middle,
+                        right_bound: middle_equals_right,
+                        ..
                     } => {
                         pending.push(Step::Node(middle_equals_right, depth + 1));
                         pending.push(Step::Node(left_equals_middle, depth + 1));
