@@ -4141,18 +4141,55 @@ syntax and other terminal services are not prerequisites.
   arbitrary payload or inventing new literal syntax.
 
   Complete classification, conversion, directed-rounding and fused-operation
-  const customers. `constant/initializer_dependencies.rs::Collector::call`
-  admits Machine/State targets but rejects sealed float Operator declarations
-  before evaluation. Connect exact selected-call admission to the existing
+  const customers. Connect exact selected-call admission to the existing
   `FloatSemantics` dispatch in the checked interpreter; do not add a float engine.
   Reuse `machine_execution/admission.rs::closure_needs_operator_selection`.
   Bodyless catalog contract discharge remains **FLOAT-PROVIDERS**' responsibility.
 
+  `pub const ROOT: f32 = F32::square_root(4.0f32);` is the reduced customer.
+  Four stages reject it in order, each reached only once the previous admits:
+
+  1. `symbols/targets/calls.rs` leaves the call's target unbound. `data F32 {}`
+     is a namespace carrier owning no attached machine, and `F32::square_root`
+     is one top-level operator whose DECLARED name is that whole path; the
+     Data-receiver route only tries `attached_call_target`. A body reaches the
+     declaration later through typed named-call selection, which a constant
+     initializer's dependency walk runs before.
+  2. `constant/initializer_dependencies.rs::Collector::call` accepts only
+     Machine/State kinds.
+  3. `const_generic_expressions/call_custody.rs::call` accepts only
+     Machine/State kinds, then pushes an executable machine to walk.
+  4. `const_initializers/invocations.rs::selected` requires a closed ordinary
+     machine entry: parameters, a checked probe body, premise discharge and
+     `evaluate_const_evaluable_machine_symbol_for_invocation`. An operator has
+     none of these, and this is where the design work is.
+
+  Stages 1-3 are each a few lines and provably inert on the corpus; stage 4
+  needs the route decided. The interpreter already evaluates these operations
+  inside a machine body, but keyed on the REWRITTEN intrinsic name
+  (`float#fused_multiply_add_f32`) that provider dispatch installs, through
+  `checked-interpreter .. execution/scalar_operations.rs`
+  (`named_float_operation_name`, `eval_rewritten_ternary_float`). Decide
+  whether the const initializer evaluates after that rewrite, or dispatches
+  from the operator's own contract identity
+  (`numerics::float_semantics_catalog::FloatSemanticOperation::for_contract_identity`,
+  which checking derives in `proof/float_meaning.rs`). Do not add a second
+  name-keyed dispatch table beside the interpreter's.
+
+  A std-importing fixture cannot be the customer: a constant initializer with
+  ANY call -- machine or operator -- reaches a whole-closure value-call
+  validation that rejects `ConsoleNativeProvider::read_line`'s
+  `block ConsoleNativeProvider::read_byte()`, because `read_byte` is
+  `macos_arm64 machine` and the corpus gate compiles targetless
+  (**FILTERED-CALLEE-CALL-SITES**). Author the customer without `std`.
+
   `float_semantic_twins` and `build_runtime_float_semantics_twins_agree` no
-  longer stop on the nested-equality selection failure: they now reach
-  `F32::fused_multiply_add has no ordinary checked Terminates guarantee`.
-  Keep that termination premise distinct from const-call admission and then
-  run the full fixture through evaluation and retained replay.
+  longer stop in checking or in build-time evaluation: the twin binds 56
+  compiler intrinsics, evaluates, and interprets to exit 70. Both now stop
+  only at native production, with the other two twins, on
+  `float_semantics_twin_code has no admitted body (local construction stopped
+  at statement sequence: local data: scalar local: pure initializer,
+  statement 4)`. That belongs to unit admission, not to this row.
 
   Acceptance: those source-authored constant customers evaluate and replay
   with exact selected custody; determined runtime results publish stable bits,
