@@ -185,3 +185,109 @@ fn a_view_local_range_that_overruns_its_source_is_refused() {
         "an overrunning view-local range must not check: {checked:?}"
     );
 }
+
+const FIELD_RANGE: &str = r#"
+    boundary trait Output {
+        machine observe(value: i32) reaches Output;
+        machine count(value: u64) reaches Output;
+    }
+    data Root {
+        values: [i32; 5];
+        hi: u64;
+    }
+    machine Root::enter(&mut self) reaches Output {
+        self.values[1] = 29;
+        self.hi = 4;
+        let tail: &[i32] = self.values[1..self.hi];
+        Output::count(tail.len);
+    }
+"#;
+
+/// A range over a fixed-array field has no view to narrow: lowering views
+/// the whole field first and narrows that place, so the verifier relates the
+/// whole view to the array's declared extent and checks the range against it
+/// like any other subslice, here with a runtime end read from a field.
+#[test]
+fn a_field_range_local_narrows_a_whole_field_view_and_verifies() {
+    let lowered = lower(FIELD_RANGE).expect("a field range local lowers");
+    assert_eq!(subslices_of_established_views(&lowered), 1);
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("a field range verifies against the array's extent");
+    let establishments = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                &operation.kind,
+                terminal_psi::OperationKind::EstablishElementView { source, .. }
+                    if source.path == [terminal_psi::StructuralPathSegment::Field("values".to_owned())]
+            )
+        })
+        .count();
+    assert_eq!(establishments, 1, "the whole field is viewed once");
+}
+
+/// A literal field range inside a state graph: the view local is read and
+/// measured, and the measure selects the successor state.
+#[test]
+fn a_field_range_local_measures_across_a_state_graph() {
+    let source = r#"
+        boundary trait Output {
+            machine observe(value: i32) reaches Output;
+            machine count(value: u64) reaches Output;
+        }
+        data Root {
+            values: [i32; 5];
+        }
+        machine Root::enter(&mut self) reaches Output {
+            self.values[1] = 29;
+            let tail: &[i32] = self.values[1..4];
+            Output::observe(tail[0]);
+            let n: u64 = tail.len;
+            transition n == 3 {
+                true -> matched()
+                false -> unmatched()
+            }
+            state matched(&mut self) { Output::count(3); }
+            state unmatched(&mut self) { Output::count(0); }
+        }
+    "#;
+    let lowered = lower(source).expect("a field range local lowers in a state graph");
+    assert_eq!(subslices_of_established_views(&lowered), 1);
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("a state-graph field range verifies against the array's extent");
+}
+
+/// Controls for the field range: an end past the array's extent cannot be
+/// proved, and writing the array while the narrowed view is live breaks its
+/// shared loan. Checking rejects both before lowering.
+#[test]
+fn a_field_range_that_overruns_or_outlives_a_write_is_refused() {
+    let overrun = FIELD_RANGE.replace("self.hi = 4;", "self.hi = 6;");
+    assert!(
+        crate::front_end::checked_program_result(&overrun).is_err(),
+        "a field range past the array's extent must not check"
+    );
+    let written = FIELD_RANGE.replace(
+        "Output::count(tail.len);",
+        "self.values[2] = 7;\n        Output::count(tail.len);",
+    );
+    assert!(
+        crate::front_end::checked_program_result(&written).is_err(),
+        "writing the array while its field range is live must not check"
+    );
+}
