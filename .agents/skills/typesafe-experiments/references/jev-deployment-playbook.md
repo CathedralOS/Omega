@@ -50,6 +50,12 @@ enumerate themselves.*
   was more defensible than the frozen label (crate choice, scoped
   cross-board items, truncated evidence). Before scoring a miss, check
   whether the model is right.
+- **Ask `deterministic_is_correct` when deciding replace-vs-augment**
+  (from JevX): "would exact code still be right here?" High = the
+  mechanical check is already correct and the judgment should augment or
+  skip it; low = the mechanical rule is a judgment call wearing a costume
+  and is a replacement candidate. This is the question our augment-only
+  deployments never needed — use it before proposing a swap.
 
 ## The deployment contract
 
@@ -97,3 +103,60 @@ Every shipped instrument shares these; deviation needs a reason:
 Proven-deferred: board dedup (recipe in experiment record). Falsified:
 Jev-alone scoping for test-time savings — it hedges to run-everything
 exactly where savings live. The win is debug time, not test time.
+
+## Prior art: JevX (github.com/vij-sameerb5/JevX)
+
+Reviewed 2026-09-24 — a real, independently-built implementation of the
+same thesis: scan a codebase for hardcoded judgment calls, score each as a
+Jev fit three ways, rewrite only strong fits with the old rule kept as
+fallback and tests run before/after. JS/TS only (ts-morph), so it cannot
+run on this repo — the design details are what transfer.
+
+**Three-source scorecard** — their card averages three independent
+opinions and surfaces `REVIEW_DISAGREE` when they diverge instead of
+averaging disagreement away:
+
+- `patterns` — how closely a candidate's feature levels match a profile
+  learned from real labeled Jev sites vs deterministic code
+- `ai` — the operator's own model, having read the code
+- `typesafe` — Jev itself voting on the proposal
+
+For borderline calls in our instruments, a second opinion + explicit
+disagreement verdict beats a lone noul near the flag threshold.
+
+**The 8-feature profile** (their pilot's descriptive finding — Jev sites
+vs deterministic decisions):
+
+| feature | Jev sites show | deterministic shows |
+|---|---|---|
+| semantic_ambiguity | high | none |
+| judgment_required | high | none |
+| natural_language_understanding | high/medium | none |
+| context_dependence | high/medium | low/none |
+| deterministic_expressibility | low | high |
+| rule_stability | low/medium | high |
+| decision_complexity | medium | low |
+| risk_or_policy_component | high | mixed |
+
+The first four rows are the positive signal; `deterministic_expressibility`
+and `rule_stability` are the disqualifiers. This is our vocabulary-limit
+criterion expanded into a rubric — use it when a candidate's fit is
+borderline.
+
+**Judgment-call code shapes** (their detector signals, JS/TS idioms — the
+Rust analogs in parentheses): string `.includes`/keyword-list membership
+(`str::contains` chains, `matches!` over word lists), word-literal `===`
+(`== "..."` against word constants), `switch` over text (`match` on
+`&str`), early-return classifier chains, fuzzy-library calls
+(levenshtein/edit-distance), `slice(0, N)` best-guess truncation (`[..n]`
+take/drain caps), and hardcoded thresholds guarding behavior. When hunting
+surfaces, grep these shapes before asking a model to read files.
+
+**Apply-loop discipline** (theirs, for write paths): skip files with the
+user's uncommitted edits, back up before writing, run the project's own
+checks before AND after, re-apply one change at a time and keep only the
+ones that pass, `undo` restores. Ours is the read-only advisory analog —
+if any instrument ever gains a write path, copy this protocol.
+
+Their cost accounting records exact dollars per analysis run; our
+campaign matched (~$0.02 total for five instruments' validation).
