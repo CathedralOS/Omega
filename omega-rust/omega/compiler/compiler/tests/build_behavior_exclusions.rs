@@ -113,7 +113,7 @@ fn physical_exclusion_vocabulary_retains_exact_identity_and_canonical_union() {
     );
     project.write(
         "build.omg",
-        &product_build("physical-exclusion-roster", &selections),
+        &product_build("physical_exclusion_roster", &selections),
     );
     let checked = compile_to_checked(CheckedCompileRequest::new(
         &project.main(),
@@ -218,7 +218,7 @@ fn physical_exclusions_require_the_original_build_and_toolchain_case() {
         project.write("main.omg", QUIET_MAIN);
         project.write(
             "build.omg",
-            &product_build("physical-exclusion-invalid", statement),
+            &product_build("physical_exclusion_invalid", statement),
         );
         let Err(diagnostics) = compile_to_checked(CheckedCompileRequest::new(
             &project.main(),
@@ -242,7 +242,7 @@ fn physical_exclusion_admission_rechecks_the_evaluated_case_identity() {
     project.write(
         "build.omg",
         &product_build(
-            "physical-exclusion-replay",
+            "physical_exclusion_replay",
             "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
         ),
     );
@@ -297,7 +297,7 @@ fn authored_physical_exclusion_reaches_the_native_product() {
     project.write(
         "build.omg",
         &product_build(
-            "physical-exclusion",
+            "physical_exclusion",
             "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
         ),
     );
@@ -329,7 +329,7 @@ fn authored_physical_exclusion_publishes_and_runs_on_the_host() {
     project.write(
         "build.omg",
         &product_build(
-            "physical-exclusion-host",
+            "physical_exclusion_host",
             "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessOutput);\n",
         )
         .replace("windows_x86_64", target),
@@ -434,11 +434,11 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
 "#,
     );
     let build = console_output_build(
-        "physical-exclusion-output",
+        "physical_exclusion_output",
         "    builder.exclude_physical_authority(PhysicalAuthorityClass::ProcessInput);\n",
     );
     project.write("build.omg", &build);
-    let inputs = console_package_inputs(&project, "physical-exclusion-output", true);
+    let inputs = console_package_inputs(&project, "physical_exclusion_output", true);
     let request = || {
         CompileRequest::new(CompileOptions {
             root_path: project.main(),
@@ -528,13 +528,13 @@ machine Main::main(&mut self) reaches Console { self.console.write_byte(65); }
         project.write(
             "build.omg",
             &console_output_build(
-                "physical-exclusion-replay",
+                "physical_exclusion_replay",
                 &format!(
                     "    builder.exclude_physical_authority(PhysicalAuthorityClass::{class:?});\n"
                 ),
             ),
         );
-        let inputs = console_package_inputs(&project, "physical-exclusion-replay", true);
+        let inputs = console_package_inputs(&project, "physical_exclusion_replay", true);
         let retained = compile(
             CompileRequest::new(CompileOptions {
                 root_path: project.main(),
@@ -684,7 +684,7 @@ fn replacing_a_silent_console_provider_with_excluded_behavior_rejects() {
     let silent = TempProject::new();
     silent.write("main.omg", SILENT_CONSOLE_MAIN);
     silent.write("build.omg", &build_for("SilentConsole"));
-    let inputs = console_package_inputs(&silent, "silent-console-substitution", false);
+    let inputs = console_package_inputs(&silent, "silent_console_substitution", false);
     let report = compile(
         CompileRequest::new(CompileOptions {
             root_path: silent.main(),
@@ -711,7 +711,7 @@ fn replacing_a_silent_console_provider_with_excluded_behavior_rejects() {
         "build.omg",
         &build_for("omega_language_std::ConsoleNativeProvider"),
     );
-    let inputs = console_package_inputs(&native, "silent-console-substitution", true);
+    let inputs = console_package_inputs(&native, "silent_console_substitution", true);
     let diagnostics = compile(
         CompileRequest::new(CompileOptions {
             root_path: native.main(),
@@ -989,7 +989,7 @@ fn exclude_crash_trap_rejects_a_terminal_product_that_can_trap() {
     project.write(
         "build.omg",
         &product_build(
-            "exclusion-trap-product",
+            "exclusion_trap_product",
             "    builder.exclude_crash(CrashCause::Trap);\n",
         ),
     );
@@ -1022,7 +1022,7 @@ fn exclude_crash_trap_rejects_the_native_product_route() {
     project.write(
         "build.omg",
         &product_build(
-            "exclusion-trap-native",
+            "exclusion_trap_native",
             "    builder.exclude_crash(CrashCause::Trap);\n",
         ),
     );
@@ -1048,7 +1048,7 @@ fn an_exclusion_the_closure_never_reaches_still_admits() {
     project.write(
         "build.omg",
         &product_build(
-            "exclusion-abort-product",
+            "exclusion_abort_product",
             "    builder.exclude_crash(CrashCause::Abort);\n",
         ),
     );
@@ -1084,7 +1084,7 @@ fn exclude_crash_trap_admits_a_trap_free_closure() {
     project.write(
         "build.omg",
         &product_build(
-            "exclusion-quiet-product",
+            "exclusion_quiet_product",
             "    builder.exclude_crash(CrashCause::Trap);\n",
         ),
     );
@@ -1134,7 +1134,7 @@ crashes Trap
     project.write(
         "build.omg",
         &product_build(
-            "exclusion-optimized",
+            "exclusion_optimized",
             "    builder.optimizations.enable(Optimization::SparseConditionalConstantPropagation);\n    builder.optimizations.enable(Optimization::ControlFlowCleanup);\n    builder.exclude_crash(CrashCause::Trap);\n",
         ),
     );
@@ -1165,7 +1165,7 @@ crashes Trap
     unexcluded.write(
         "build.omg",
         &product_build(
-            "exclusion-optimized-witness",
+            "exclusion_optimized_witness",
             "    builder.optimizations.enable(Optimization::SparseConditionalConstantPropagation);\n    builder.optimizations.enable(Optimization::ControlFlowCleanup);\n",
         ),
     );
@@ -1202,7 +1202,7 @@ fn a_retained_exclusion_is_replayed_against_the_artifact_by_consumers() {
     // closure check the producing admission gate ran.
     let project = TempProject::new();
     project.write("main.omg", TRAPPING_MAIN);
-    project.write("build.omg", &product_build("exclusion-replay", ""));
+    project.write("build.omg", &product_build("exclusion_replay", ""));
 
     let report = compile(product_request(
         project.main(),
