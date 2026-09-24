@@ -132,8 +132,8 @@
             "item": "REPRESENTATION-SPECIALIZATION",
             "host": "local",
             "owning_paths": [
-                "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/representation_specialization",
-                "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/field_value_specialization"
+                "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/representation_specialization",
+                "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/field_value_specialization"
             ],
             "suggested_first_slice": "substitution of a proven nonconstant initializer at its uses, preserving exact place/path/provenance and effects — extend field/variant relevance beyond the existing proven-membership and scalar-constant observation folds. linw5-general-licm owns ranked_rewrites/loop_invariant_scalar_motion plus validation/{invariant_calls,invariant_operations}.rs in this crate — stay inside your two dirs; if a validation leg needs other src/validation/ files, name them in claims notes first. Preserve the authenticated cyclic freeze; invariant-window specialization stays blocked upstream — do not invent that input",
             "host_gates": [

@@ -274,7 +274,7 @@ fn optimization_records_and_independent_checks_have_distinct_owners() {
     assert!(!validators.contains("VerifiedPsiOptimizationInput"));
     assert!(!validators.contains("pub fn project_pre_physical_optimization_manifest"));
     let stage = root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/validation",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation",
     );
     let custody = std::fs::read_to_string(stage.join("context/ranked_cycles/mod.rs")).unwrap();
     assert!(custody.contains("pub(in crate::validation::context) const fn new"));
@@ -543,7 +543,7 @@ fn optimization_decision_records_do_not_own_candidate_selection() {
     assert!(!records.contains("fn choose_baseline("));
     assert!(!records.contains("abstract_operations_to_abstract_operations::"));
     let chooser = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/pass_manager/baseline.rs",
+        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/pass_manager/baseline.rs",
     )).unwrap();
     assert!(chooser.contains("pub(super) fn choose_baseline("));
     assert!(
@@ -2343,7 +2343,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "psi/pipeline/06_lowered-psi-to-lowered-psi",
         "psi/pipeline/07_lowered-psi-to-terminal-psi",
         "omega/pipeline/00_terminal-psi-to-abstract-operations",
-        "omega/pipeline/04_abstract-operations-to-abstract-operations",
+        "omega/pipeline/01_abstract-operations-to-abstract-operations",
         "omega/pipeline/05_abstract-operations-to-target-operations",
         "omega/pipeline/06_target-operations-to-selected-instructions",
         "omega/pipeline/07_selected-instructions-to-selected-instructions",

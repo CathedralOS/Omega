@@ -23,7 +23,7 @@ setup are not additional public program stages.
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
-| Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/04_abstract-operations-to-abstract-operations/src/lib.rs) |
+| Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/05_abstract-operations-to-target-operations/README.md) |
 | Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/06_target-operations-to-selected-instructions/README.md) |
 | Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/pipeline/07_selected-instructions-to-selected-instructions/src/lib.rs) |

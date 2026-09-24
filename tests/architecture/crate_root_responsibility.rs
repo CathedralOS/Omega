@@ -453,7 +453,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
     ),
     // Omega pipeline.
     (
-        "omega/pipeline/04_abstract-operations-to-abstract-operations",
+        "omega/pipeline/01_abstract-operations-to-abstract-operations",
         &[
             "abstract_optimization",
             "analyses",
