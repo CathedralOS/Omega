@@ -184,7 +184,7 @@ and no derived element views.
 | Operation | Result | Required evidence |
 | --- | --- | --- |
 | `ElementViewLength { source }` | Exact `u64` element count. | An available shared or exact mutable element view; the count is the view's own stored runtime length, not a field merely named length. |
-| `ElementViewRead { source, index, length, obligation }` | The element value. | A `[copy]` element type; `u64` index and length; dominating length observation of the identical view; checked `index < length`. |
+| `ElementViewRead { source, index, length, obligation, path }` | The scalar at `path` inside the selected element: the element itself when `path` is empty. | A `[copy]` element type; `u64` index and length; dominating length observation of the identical view; checked `index < length`; a static `path` of record fields and literal indexes ending at a scalar leaf of the element (`view[i].value`). |
 | `ElementViewWrite { destination, index, value, length, obligation }` | Unit; replace one element without changing extent. | Exclusive mutable element view; an element-typed value; `u64` index and current same-view length; checked `index < length`; the displaced element's disposal must be legal at that edge. |
 | `ElementViewSubslice { source, start, end, length, obligation }` | Shared element view of `[start, end)` over the identical backing. | `u64` endpoints; dominating length observation of the identical view; ordered proof legs `start <= end` and `end <= length` in element units. |
 

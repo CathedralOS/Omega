@@ -175,3 +175,6 @@ pub(super) const PROJECTED_WRITE_ONLY_PRIMITIVE_STORE: u8 = 90;
 
 /// `OperationKind::TrappingInteger`, followed by one primitive sub-tag.
 pub(super) const TRAPPING_INTEGER: u8 = 91;
+
+/// `OperationKind::ElementViewRead` over a nonempty element path.
+pub(super) const PROJECTED_ELEMENT_VIEW_READ: u8 = 92;

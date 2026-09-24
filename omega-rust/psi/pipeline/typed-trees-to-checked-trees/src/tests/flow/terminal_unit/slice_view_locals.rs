@@ -473,3 +473,67 @@ fn a_field_range_local_narrows_the_whole_field_view() {
         panic!("the range is rooted at the field's owner with both endpoints: {source:?}");
     };
 }
+
+/// A record element is read at one scalar leaf: the element read keeps the
+/// view root and selector a scalar element read takes, and adds the field
+/// path inside the selected element.
+#[test]
+fn a_record_element_field_read_carries_its_element_path() {
+    let checked = checked(
+        r#"
+        boundary trait Output {
+            machine observe(value: i32) reaches Output;
+        }
+
+        data Entry {
+            weight: u64;
+            value: i32;
+        }
+
+        data Holder {
+            entries: [Entry; 4];
+        }
+
+        machine Holder::run(&mut self) reaches Output {
+            let view: &[Entry] = self.entries.as_slice();
+            let tail: &[Entry] = view[1..];
+            Output::observe(tail[2].value);
+        }
+    "#,
+    );
+    let (state, tail) = local_symbol(&checked, "run", "tail");
+    let observed = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter()
+        .find(|expression| {
+            expression.state == state
+                && expression.statement_ordinal == 2
+                && matches!(
+                    expression.role,
+                    checked_trees::CheckedScalarExpressionRole::BoundaryCallArgument { .. }
+                )
+        })
+        .map(|expression| expression.expression.clone())
+        .expect("the boundary operand has a pure scalar plan");
+    let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+        root: checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+        path,
+        element_path,
+        primitive_type: typed_trees::types::PrimitiveType::I32,
+        ..
+    } = observed
+    else {
+        panic!("the field leaf is an element read of the view local: {observed:?}");
+    };
+    assert_eq!(symbol, tail);
+    assert!(path.is_empty());
+    assert_eq!(
+        element_path,
+        vec![checked_trees::CheckedStructuralPredicatePathSegment::Field(
+            "value".to_owned()
+        )]
+    );
+}

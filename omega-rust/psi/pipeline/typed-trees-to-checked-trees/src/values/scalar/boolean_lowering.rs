@@ -333,6 +333,7 @@ fn bounded_carrier_literal_equality(
                     u64::try_from(index).ok()?,
                     PrimitiveType::U64,
                 )?),
+                element_path: Vec::new(),
                 primitive_type: PrimitiveType::U8,
             };
             let comparison = CheckedBooleanExpression::IntegerComparison {

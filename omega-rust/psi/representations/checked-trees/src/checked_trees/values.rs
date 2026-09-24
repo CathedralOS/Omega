@@ -441,11 +441,15 @@ pub enum CheckedScalarExpression {
     /// parameter root counts authored state positions and an empty path
     /// selects the whole parameter, not a nominal field; a view-local root is
     /// the whole view with an empty path. The index remains an evaluated
-    /// dependency, not a fixed field projection.
+    /// dependency, not a fixed field projection. `element_path` projects from
+    /// the selected element to the scalar leaf read: empty for a scalar
+    /// element, record fields for a record element of a view
+    /// (`entries[index].value`).
     StructuralParameterIndexedRead {
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         index: Box<CheckedScalarExpression>,
+        element_path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
     IntegerLiteral {

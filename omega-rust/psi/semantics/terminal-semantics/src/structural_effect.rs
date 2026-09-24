@@ -9,7 +9,10 @@ use terminal_psi::{Operation, OperationKind, OperationResult};
 mod byte_extent;
 mod element_extent;
 pub use byte_extent::{literal_length_equation, subslice_length_equation};
-pub use element_extent::{element_establishment_length_equation, element_subslice_length_equation};
+pub use element_extent::{
+    element_establishment_length_equation, element_subslice_length_equation,
+    element_view_leaf_scalar,
+};
 
 #[cfg(test)]
 mod subslice_tests;
@@ -1393,6 +1396,7 @@ pub fn structural_effect_leaf_observation_in(
                 index,
                 length,
                 obligation,
+                ..
             },
         ) => StructuralEffectObservation::ElementViewRead {
             source: *source,

@@ -1,8 +1,10 @@
-//! Exact extent observations of established immutable element-view producers.
+//! Exact extent observations of established immutable element-view producers,
+//! and the scalar leaf an element read yields.
 
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType, StructuralTypeId,
 };
+use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
 use super::StructuralEffectObservation;
 use crate::OperationSemanticError;
@@ -66,4 +68,47 @@ pub fn element_establishment_length_equation(
         ScalarTerm::value(*result, ScalarType::Integer(integer_type)),
         count,
     )))
+}
+
+/// The scalar an `ElementViewRead` yields at `path` below one element of type
+/// `element`. An empty path reads a scalar element whole. Otherwise every step
+/// but the last is a static structural projection (a record field holding a
+/// structural child, or a literal index inside a fixed array's extent), and
+/// the last step names the leaf: a non-erased scalar record field, or a
+/// structural child or array element whose declaration is a primitive scalar.
+/// Runtime indexes, referents and byte windows name no element leaf.
+pub fn element_view_leaf_scalar(
+    types: &[StructuralTypeDeclaration],
+    element: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<ScalarType> {
+    let primitive = |identity: StructuralTypeId| {
+        types
+            .iter()
+            .find(|declaration| declaration.id == identity)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
+                _ => None,
+            })
+    };
+    let Some((last, prefix)) = path.split_last() else {
+        return primitive(element);
+    };
+    let parent = crate::runtime_structural_path_tip(types.iter(), element, prefix)?;
+    match (last, &parent.shape) {
+        (StructuralPathSegment::Field(identity), StructuralTypeShape::Record { fields }) => {
+            let field = fields
+                .iter()
+                .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+            match field.field_type {
+                terminal_psi::StructuralFieldType::Structural(child) => primitive(child),
+                ref leaf => leaf.scalar_type(),
+            }
+        }
+        (
+            StructuralPathSegment::FixedIndex(index),
+            StructuralTypeShape::FixedArray { element, length },
+        ) if index < length => primitive(*element),
+        _ => None,
+    }
 }

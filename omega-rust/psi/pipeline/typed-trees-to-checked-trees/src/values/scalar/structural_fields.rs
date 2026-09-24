@@ -832,3 +832,56 @@ pub(super) fn structural_parameter_place(
     }
     Some((parameter_position, path, type_reference))
 }
+
+/// The static field path inside one element of type `element`, spelled by
+/// each field's declared identity exactly as a parameter field path is: every
+/// segment is a non-erased field of the record the previous step reached.
+/// Returns the path and the leaf's declared type.
+pub(super) fn element_field_path(
+    program: &TypedTrees,
+    element: TypeReferenceHandle,
+    segments: &[facts::PlaceSegment],
+) -> Option<(
+    Vec<CheckedStructuralPredicatePathSegment>,
+    TypeReferenceHandle,
+)> {
+    let mut current = element;
+    let mut path = Vec::with_capacity(segments.len());
+    for segment in segments {
+        let facts::PlaceSegment::Field { symbol } = segment else {
+            return None;
+        };
+        let owner = loop {
+            match program.type_reference_table.type_reference(current) {
+                TypeReferenceNode::Constrained { base_type, .. } => current = *base_type,
+                TypeReferenceNode::Named { symbol, .. } => {
+                    break program
+                        .data_definitions()
+                        .iter()
+                        .find(|definition| definition.symbol == *symbol)?;
+                }
+                _ => return None,
+            }
+        };
+        let field = program
+            .data_members(owner)
+            .iter()
+            .find_map(|member| match member {
+                typed_trees::data::DataMember::Field(field) if field.symbol == *symbol => {
+                    Some(field)
+                }
+                _ => None,
+            })?;
+        if field.relevance.is_erased() {
+            return None;
+        }
+        path.push(CheckedStructuralPredicatePathSegment::Field(
+            field
+                .identity
+                .map(|identity| format!("#{identity}"))
+                .unwrap_or_else(|| field.name.as_str().to_owned()),
+        ));
+        current = field.type_reference;
+    }
+    Some((path, current))
+}

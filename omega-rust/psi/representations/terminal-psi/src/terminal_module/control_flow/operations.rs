@@ -386,14 +386,23 @@ pub enum OperationKind {
     ElementViewLength {
         source: PlaceId,
     },
-    /// Read one element using the exact source's dominating element-length
-    /// observation. The independent verifier reconstructs and checks
-    /// index < length; the result carries the view's scalar element type.
+    /// Read one scalar of one element using the exact source's dominating
+    /// element-length observation. The independent verifier reconstructs and
+    /// checks index < length. `path` projects from the selected element to
+    /// the scalar leaf the read yields: empty for a scalar element, and record
+    /// fields and literal fixed indexes for a record element (`view[i].value`).
+    /// The element is selected by `index` against the view's own runtime
+    /// extent, not by a path segment: a `RuntimeIndex` segment bounds its
+    /// selector by a fixed array's declared extent, while a view's extent is
+    /// known only through its length observation, which this operation names.
+    /// The element path is therefore static; the result carries the leaf's
+    /// scalar type.
     ElementViewRead {
         source: PlaceId,
         index: ValueId,
         length: ValueId,
         obligation: ObligationId,
+        path: Vec<StructuralPathSegment>,
     },
     /// Derive a borrowed element view for [start, end), with a certificate of
     /// start <= end <= length counted in elements. Length must directly

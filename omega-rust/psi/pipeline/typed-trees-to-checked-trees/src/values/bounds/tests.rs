@@ -306,6 +306,7 @@ fn every_source_leaf_rejects_reversed_outside_or_absent_carrier_bounds() {
             root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
             path,
             index: Box::new(parameter(1, PrimitiveType::U64)),
+            element_path: Vec::new(),
             primitive_type: PrimitiveType::U8,
         },
     ] {

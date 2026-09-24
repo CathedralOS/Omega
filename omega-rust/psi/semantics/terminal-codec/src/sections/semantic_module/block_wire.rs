@@ -286,9 +286,10 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
             index,
             length,
             obligation,
-        } => {
-            storage_operations::encode_element_view_read(writer, source, index, length, obligation)?
-        }
+            path,
+        } => storage_operations::encode_element_view_read(
+            writer, source, index, length, obligation, path,
+        )?,
         OperationKind::ElementViewSubslice {
             source,
             start,
@@ -674,6 +675,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
             storage_operations::decode_element_view_length(reader)?
         }
         operation_tags::ELEMENT_VIEW_READ => storage_operations::decode_element_view_read(reader)?,
+        operation_tags::PROJECTED_ELEMENT_VIEW_READ => {
+            storage_operations::decode_projected_element_view_read(reader)?
+        }
         operation_tags::ELEMENT_VIEW_SUBSLICE => {
             storage_operations::decode_element_view_subslice(reader)?
         }
@@ -1371,6 +1375,78 @@ mod tests {
             zero_operand[tag_offset + 1..tag_offset + 9].fill(0);
             assert!(decode_block(&mut Reader::new(&zero_operand)).is_err());
         }
+    }
+
+    #[test]
+    fn element_view_read_keeps_one_spelling_per_element_path() {
+        let read = |path: Vec<terminal_psi::StructuralPathSegment>| Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            id: id(1),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: vec![Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id(1),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: id(4),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::ElementViewRead {
+                    source: id(2),
+                    index: id(2),
+                    length: id(3),
+                    obligation: id(2),
+                    path,
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id(3),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let encoded = |block: &Block| {
+            let mut writer = Writer::default();
+            encode_block(&mut writer, block).unwrap();
+            writer.finish()
+        };
+        // A scalar element keeps the pathless spelling; a record element's
+        // leaf read carries its path under the projected tag.
+        let whole = read(Vec::new());
+        let leaf = read(vec![
+            terminal_psi::StructuralPathSegment::Field("value".into()),
+            terminal_psi::StructuralPathSegment::FixedIndex(1),
+        ]);
+        for block in [&whole, &leaf] {
+            let bytes = encoded(block);
+            assert_eq!(decode_block(&mut Reader::new(&bytes)).unwrap(), *block);
+            for prefix in 0..bytes.len() {
+                assert!(decode_block(&mut Reader::new(&bytes[..prefix])).is_err());
+            }
+        }
+        // The projected tag never spells an empty path.
+        let mut forged = encoded(&whole);
+        let tag = forged
+            .iter()
+            .position(|byte| *byte == super::operation_tags::ELEMENT_VIEW_READ)
+            .expect("the pathless read tag is present");
+        forged[tag] = super::operation_tags::PROJECTED_ELEMENT_VIEW_READ;
+        let operands_end = tag + 1 + 4 * 8;
+        forged.splice(operands_end..operands_end, encoded_empty_path());
+        assert!(decode_block(&mut Reader::new(&forged)).is_err());
+    }
+
+    fn encoded_empty_path() -> Vec<u8> {
+        let mut writer = Writer::default();
+        crate::sections::semantic_module::structural_place_wire::encode_structural_path(
+            &mut writer,
+            "empty element path",
+            &[],
+        )
+        .unwrap();
+        writer.finish()
     }
 
     #[test]

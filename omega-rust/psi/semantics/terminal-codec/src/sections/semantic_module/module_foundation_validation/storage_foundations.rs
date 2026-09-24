@@ -416,7 +416,7 @@ pub(super) fn validate_element_view_read(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Result<(), CodecError> {
-    let OperationKind::ElementViewRead { source, .. } = &operation.kind else {
+    let OperationKind::ElementViewRead { source, path, .. } = &operation.kind else {
         unreachable!("dispatched validate_element_view_read")
     };
     let Some(source_type) = place_structural_type(machine, *source) else {
@@ -434,22 +434,16 @@ pub(super) fn validate_element_view_read(
         return malformed("element-view read requires an element-view source");
     };
     let Some(expected) =
-        module
-            .structural_types
-            .iter()
-            .find_map(|row| match (row.id == element, &row.shape) {
-                (true, StructuralTypeShape::PrimitiveScalar(scalar_type)) => Some(*scalar_type),
-                _ => None,
-            })
+        terminal_semantics::element_view_leaf_scalar(&module.structural_types, element, path)
     else {
-        return malformed("element-view read requires a primitive scalar element");
+        return malformed("element-view read requires a scalar element leaf");
     };
     if operation
         .result
         .scalar()
         .is_none_or(|result| result.scalar_type != expected)
     {
-        return malformed("element-view read requires the element's scalar result");
+        return malformed("element-view read requires the element leaf's scalar result");
     }
     // Full module validation independently checks length provenance, custody,
     // operand types and dominance before encoding or after decoding.

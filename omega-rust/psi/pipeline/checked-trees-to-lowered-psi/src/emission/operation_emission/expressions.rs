@@ -62,9 +62,13 @@ pub(crate) enum LoweredDirectExpression {
         source: PlaceId,
         scalar_type: ScalarType,
     },
+    /// One scalar of one element of an established view: the element itself
+    /// when `path` is empty, or the leaf `path` projects to inside a record
+    /// element.
     ElementViewRead {
         source: PlaceId,
         index: Box<LoweredDirectExpression>,
+        path: Vec<terminal_psi::StructuralPathSegment>,
         scalar_type: ScalarType,
     },
     Parameter {
@@ -450,6 +454,7 @@ pub(crate) fn emit_direct_expression(
         LoweredDirectExpression::ElementViewRead {
             source,
             index,
+            path,
             scalar_type,
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
@@ -474,6 +479,7 @@ pub(crate) fn emit_direct_expression(
                     index,
                     length,
                     obligation,
+                    path: path.clone(),
                 },
                 *scalar_type,
                 next_value_identity,

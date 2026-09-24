@@ -285,11 +285,17 @@ impl TerminalExecution {
             source,
             index,
             length,
+            path,
             ..
         } = &operation.kind
         else {
             return Err(invalid());
         };
+        // Backings hold scalar elements only: a record-element view is never
+        // established here, so an element path has no element to project.
+        if !path.is_empty() {
+            return Err(invalid());
+        }
         let result = operation.result.scalar().ok_or_else(invalid)?;
         let index = count(index, &self.values)?;
         let length = count(length, &self.values)?;

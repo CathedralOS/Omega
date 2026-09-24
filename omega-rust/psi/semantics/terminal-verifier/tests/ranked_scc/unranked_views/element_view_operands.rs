@@ -40,6 +40,7 @@ fn element_view_cycle() -> TerminalModule {
                     index,
                     length,
                     obligation,
+                    path: Vec::new(),
                 },
                 OperationKind::ByteSequenceSubslice {
                     source,

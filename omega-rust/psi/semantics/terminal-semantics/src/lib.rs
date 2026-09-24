@@ -72,8 +72,9 @@ pub use structural_effect::{
     StructuralEffectFrontierPolicy, StructuralEffectFuelPolicy, StructuralEffectGoalShape,
     StructuralEffectLeafSchema, StructuralEffectObservation, StructuralEffectResultShape,
     StructuralEffectSemanticRow, element_establishment_length_equation,
-    element_subslice_length_equation, exact_structural_effect_semantic_row_in,
-    literal_length_equation, structural_effect_leaf_observation,
-    structural_effect_leaf_observation_in, structural_effect_semantic_row,
-    subslice_length_equation, validate_structural_effect_semantic_rows,
+    element_subslice_length_equation, element_view_leaf_scalar,
+    exact_structural_effect_semantic_row_in, literal_length_equation,
+    structural_effect_leaf_observation, structural_effect_leaf_observation_in,
+    structural_effect_semantic_row, subslice_length_equation,
+    validate_structural_effect_semantic_rows,
 };

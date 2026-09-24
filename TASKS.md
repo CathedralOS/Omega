@@ -2156,14 +2156,27 @@ syntax and other terminal services are not prerequisites.
   - `slices/callee_non_byte_view_len_index_subslice` consumes length, elements,
     and subslices but reports `unsupported statement kind` at local construction.
     Repair its checked producer and continue through native execution.
-  - Record-element access through a view (`entries[i].value`,
-    `let e: Entry = tail[0]`) has no Terminal operation: `ElementViewRead`
-    yields scalar elements only. `slices/runtime_subslice_dynamic_index_exit`
-    and its end/bounded/nested siblings stop at `state graph: terminator:
-    conditional successors: guard expression` in the callee state;
-    `runtime_subslice_range_pointer_exit`, `runtime_slice_index_transition_exit`
-    and `runtime_slice_iteration_exit` stop at `statement sequence: local data:
-    structural call binding` on the element copy.
+  - A record element is read at one scalar leaf through `ElementViewRead`'s
+    static element path (`entry_view[index].value`). Omega's abstract element
+    read has no leaf yet, so `runtime_slice_index_read_dispatch_exit` stops at
+    native `Lowering(UnsupportedElementViewFieldRead)` in
+    terminal-psi-to-abstract-operations routing. Next: carry the path through
+    the abstract, target and legalized element reads as the leaf's byte offset
+    inside the element (a2t layout) and load the leaf's width.
+  - `runtime_subslice_dynamic_index_exit` and its end/bounded/nested siblings
+    now plan their guard read, then call the callee state as a statement
+    (`choose(tail, 1);`), and `Main::main` is omitted as an unavailable callee
+    of itself (dependency cycle).
+  - `runtime_slice_fixed_index_guard_exit` reads `entries[0].value` in a state
+    whose view arrives as a block parameter; the read's `0 < length` has no
+    proof (`OperationProofUnavailable`), as for the scalar
+    `runtime_slice_element_runtime_index_read_exit` below.
+  - A whole `[copy]` element copy (`let chosen: Entry = tail[0]`) has no
+    Terminal form yet: `runtime_subslice_range_pointer_exit`,
+    `runtime_slice_index_copy_exit`, `runtime_slice_index_copy_dispatch_exit`,
+    `runtime_nested_subslice_fixed_index_exit`,
+    `runtime_slice_index_transition_exit` and `runtime_slice_iteration_exit`
+    stop at `statement sequence: local data: structural call binding`.
   - An element read whose bound is only a caller's guard
     (`runtime_slice_element_runtime_index_read_exit`: `s[i]` under
     `requires i <= 3`) lowers but has no read proof
