@@ -92,83 +92,45 @@ the complete product bar; focused successes below do not establish that baseline
     field also cannot take a domain on its own: `self.output.limit = 3` does
     not establish `u64::Limit` despite 3 satisfying the predicate.
 
-  THE FIELD ROW OF THE DECISION TABLE IS TOO BROAD. A field's bracketed range
-  supplied ordinary interval FACTS to its readers; `in D` is a write-side
-  admission obligation and supplies none. Three fixtures witness it, each
-  compiled alone:
+  A DOMAIN NOW CARRIES ITS BOUND, which is what the field and parameter
+  halves were waiting on. Three routes landed together: a predicate-only
+  domain is ESTABLISHED by proving its predicates at a call
+  (`400ecc0f5b`), a declared domain's predicates BOUND the place they
+  qualify so the index and exact-arithmetic readers see the interval the
+  bracketed suffix supplied (`c5a418183a`, `bdeb107345`), and a WRITE
+  establishes a predicate-only domain by satisfying it. A routed domain
+  keeps its provenance obligation in every one of them.
 
-  - `core/zii_default_composite_exit`: `i: u64 [0..=3]` indexes a length-4
-    array. As `u64 in Slot` the read loses the bound -- "cannot prove index
-    `self.i` is within length 4" -- and the write `self.i = 2` additionally
-    fails to establish the domain.
-  - `data/record_pattern_bind_all_exit`: `x`/`y: i32 [0..=100]` are added.
-    As `in Coord` the sum is "not provably in range (decision 17)".
-  - `constants/runtime_scoped_const_exit`: a `const` over the record reports
-    "constrained const declarations require declaration-site proof checking".
+  What migrates today, each with the corpus gate as witness: array element
+  types, case payloads, FIELDS whose bound a reader proves against
+  (`text/` and `data/record_pattern_*` moved once the interval reached
+  those readers), a signature-local parameter bound rewritten as
+  `requires`, a result suffix rewritten as `ensures` -- which carries facts
+  to the caller -- and a local nothing downstream needs.
 
-  A field migrates only when its bound is NOT load-bearing for a downstream
-  index, arithmetic or const proof -- which is why the `wire` decode fields
-  moved and these did not. A local's suffix likewise drops cleanly only when
-  nothing downstream needed it (`storage/runtime_dispatch_helper_local_alias_
-  add_compile` drops; `control_flow/copy_enum_cycle_edge_write_frame` cannot).
+  What still does not:
 
-  PARTLY REPAIRED. A dominating taken-arm guard now discharges a
-  RECEIVER-QUALIFIED callee's `requires`; it previously did not, because
-  `transition_guard_proves_requires` admitted only `CallSite::TransitionNamed`
-  and a receiver-qualified callee is always a value call. Two routes exist and
-  they are not equivalent, which is the remaining asymmetry:
+  - A LOCAL asserting a NARROWING its source does not guarantee.
+    `control_flow/copy_enum_cycle_edge_write_frame` reads a field bounded
+    at 8 into a local the original declared at 3 and indexes a length-4
+    array.
+  - A STATE PARAMETER, because the caller must establish membership at the
+    transition and a guard only discharges it when the guard's spelling
+    matches the predicate's. `structs/runtime_copy_sum_array_receiver_exit`
+    threads one index through six of them. The remaining asymmetry is that
+    the fact route carries numeric implication but the transition-guard
+    route compares spellings; closing that is the next lever, and it is
+    what would open the 212 parameter sites.
+  - A parameter of a BUILD-TIME EVALUATED machine: `in D` becomes an
+    authored `requires` premise and the pre-check has no checked invocation
+    proof (`wire/runtime_wire_policy_authored_*` keep `fuel`).
+  - A parameter feeding `as ... in D`: the mint route accepts only literals
+    or names whose DECLARED RANGE entails the facts, so it still reads the
+    syntax being removed.
 
-  - The fact route, which handles NUMERIC IMPLICATION. `transition index < 16
-    { true -> (read_free(index)) }` discharges `requires index <= 15`. It does
-    not fire for a receiver-qualified callee at all.
-  - The transition-guard route, which is TEXTUAL. It now reaches
-    `self.read(index)`, but `guard_conjunct_matches` compares spellings, so
-    `index <= 15` discharges `requires index <= 15` while `index < 16` does
-    not.
-
-  The next step is to find why the fact route misses a receiver-qualified
-  call; that would subsume the textual route rather than teaching it
-  arithmetic. Minimal repros: an attached caller whose arm target is
-  `(read_free(index))` versus `(self.read(index))`, each with
-  `requires index <= 15` and each guard form.
-
-  A GUARD FACT DOES NOT DISCHARGE DOMAIN MEMBERSHIP -- tracked as
-  **PREDICATE-ONLY-DOMAIN-MEMBERSHIP**, which this item depends on -- and that
-  is why the 212
-  parameter sites are the hard half. `structs/runtime_copy_sum_array_receiver_
-  exit` threads `index: u64 [0..=15]` through six state parameters to index a
-  16-element array; as `u64 in Slot16` the guarded caller rejects with "cannot
-  prove requires contract for call classify from Main::main: index in
-  u64::Slot16". The same guard satisfied the suffix. A state parameter whose
-  argument is a library-owned case payload is blocked the same way until the
-  library leg lands (`host/runtime_console_byte_branch_return` takes
-  `ByteRead::Byte { value }` from std console).
-
-  `ensures` is the exception that does carry facts: `expressions/arithmetic_
-  domain_return_range_proven_exact_exit` moves `-> i32 [0..=10]` to
-  `ensures 0 <= result && result <= 10` and its caller's `a + b + 60` stays
-  exact. Result suffixes are therefore the reliable parameter-side route;
-  argument-side membership is not.
-
-  A THIRD GAP, and the sharpest: the domain-mint route itself depends on the
-  syntax being removed. `domains/semantic_cast_range_mint` rejects with
-  "`as ... in Km` mints LITERAL values, or names whose DECLARED RANGE entails
-  the domain facts, in this rung" -- a `requires` fact is not consulted, so a
-  parameter feeding a mint cannot leave the suffix behind until that path
-  reads contract facts.
-
-  What DOES migrate cleanly, with the gate as witness: array element types
-  (`[i32 in Sample; 2]`), case payloads, fields whose bound no reader proves
-  against, a signature-local parameter bound rewritten as `requires`, and a
-  local nothing downstream needs. A fuel parameter carrying `terminates by
-  fuel` accepts `in D` when the machine is NOT build-time evaluated. A
-  parameter reached by a recursive call through arithmetic does NOT:
-  `proofs/kernel_integer_subtract_order` cannot prove `remaining - 1 <= 5`
-  from `requires remaining <= 5`, the recorded binary-argument gap.
-
-  Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not the
-  canary filter: `OMEGA_PASS_CANARY_FILTER` reported PASS for two fixtures the
-  gate showed moving checked -> rejected, because dedicated exact-native
+  Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not
+  the canary filter: the filter reported PASS for two fixtures the gate
+  showed moving checked -> rejected, because dedicated exact-native
   coverage elides them from the canary run.
 
   Acceptance: Squalr's alignment machine returns plain `u64` with
@@ -182,86 +144,6 @@ the complete product bar; focused successes below do not establish that baseline
   inference to explicit domains/type arguments without extracting capacities
   from flow facts or inventing implicit variance; retain useful negative
   arithmetic/ownership controls from obsolete syntax tests.
-
-- **PREDICATE-ONLY-DOMAIN-MEMBERSHIP.** (new-scope) Establish membership in a
-  PREDICATE-ONLY domain from a proof of its predicate.
-  [Domains](wiki/spec/language/domains.md#declaration-and-membership) settles
-  this -- "Predicates alone establish predicate-only membership", and a routed
-  domain is the case that "additionally needs exact authorized provenance" --
-  but no route implements it for an ordinary arithmetic predicate. Only the
-  comptime BYTE predicates (`valid_utf8`/`no_nul`/`ascii_only`) have a grant.
-
-  Three repros, each a whole program, each currently rejected:
-
-  - `domain u64::Limit requires self <= 8;` with a field `limit: u64 in Limit`
-    rejects `self.output.limit = 3` -- "pass a value already proven in the
-    domain, or a literal its byte-predicate fact accepts". The literal 3
-    satisfies the predicate and there is no byte predicate to accept it.
-  - `domain u64::Slot16 requires self <= 15;` with
-    `machine Store::read(&mut self, index: u64 in Slot16)` rejects
-    `transition index <= 15 { true -> (self.read(index)) }` -- the guard proves
-    exactly the domain's predicate for exactly that value.
-  - The same with the guard spelled `index < 16`.
-
-  Owner: `typed-trees-to-checked-trees/src/checks/contracts/calls.rs`, beside
-  `parameter_domain_grants` and `reference_domains::proves` in the
-  `ContractDomainMembership` satisfaction chain. Those routes match a domain
-  against another DOMAIN the subject already carries; the missing one matches
-  it against the subject's proven FACTS. The boolean routes it would reuse are
-  already there (`call_bounds::proves`, `proves_in_context`,
-  `incoming_guard_proves_requires`) -- the work is selecting predicate-only
-  domains, substituting `self` with the subject, and discharging every
-  predicate fact, not new proof machinery.
-
-  Gate it on the domain being predicate-only: no `established by` routes and
-  no routed provenance. A routed domain must keep rejecting even when every
-  predicate is proved, and a predicate-free domain keeps its current
-  behavior. Carrier obligations stay where they are.
-
-  This blocks **REMOVE-BRACKETED-RANGE-ANNOTATIONS**: `in D` is the migration's
-  destination for fields and for caller-facing parameter bounds, and until a
-  proof of D's predicate establishes D, every such site either rejects or
-  loses the facts its readers need. That item records which positions migrate
-  today and which do not.
-
-  The pieces already exist; this is a mirror of a route that runs the other
-  way, not new proof machinery.
-
-  - PREDICATE-ONLY is already spelled, in
-    `typed-trees/src/typed_trees/evidence/byte_predicates.rs::domain_byte_predicate`:
-    no `alias`, no `index_arguments`, no `establishment_routes`, and no
-    `domain::index_parameters`. Reuse that exact list so one definition governs
-    both grants.
-  - SUBSTITUTION is already written.
-    `contracts/labels/domain.rs::instantiate_domain_expression_label` renders a
-    domain predicate with `self` replaced by a base label, and
-    `contracts/domains.rs::prove_boolean_expression_via_context_domain_membership`
-    already uses it for MEMBERSHIP -> PREDICATE ("the subject is in D, so this
-    boolean holds"). The missing route is PREDICATE -> MEMBERSHIP, the same
-    rendering compared the other way. The base label is
-    `facts.semantic.place_label(program, place)`.
-  - MATCHING is already written. `guard_conjunct_matches` takes a LABEL, so the
-    instantiated predicate can be matched against the dominating guards exactly
-    as `incoming_guard_proves_requires` matches a boolean requirement.
-
-  The care is in the SOUNDNESS GATES, which is why this is not a small patch.
-  `incoming_guard_proves_requires` guards its label match with three checks --
-  `caller_state_preserves_field` over `collect_expression_self_fields`,
-  `caller_state_preserves_label_names`, and
-  `guard_operands::requirement_reads_survive_earlier_operand_writes` over
-  `boolean_requirement_mentions`. Two of those are expression-based, and the
-  raw domain predicate's `self` is the DOMAIN SUBJECT, not the caller's
-  receiver, so applying them unchanged would scan the wrong names. They must be
-  re-expressed over the substituted label and the subject place before the
-  route is sound. Note also that the corpus gate cannot referee this: two
-  separate prover widenings landed this session with the golden byte-identical
-  either way, so the controls have to be hand-written.
-
-  Acceptance: each repro above checks, a routed domain with the same predicate
-  still rejects with its provenance diagnostic, and a fixture pins both
-  directions. Add a control where the subject is REBOUND between the guard and
-  the call, which must keep rejecting. Do not weaken the routed case or add a
-  runtime domain tag.
 
 - **SQUALR-HEADLESS.** Drive the independently versioned
   [Squalr application](samples/apps/README.md) through nested package builds and
