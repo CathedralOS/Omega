@@ -251,10 +251,19 @@ pub(super) fn selected_binary_requires_diagnostics(
         {
             continue;
         }
+        // The ranges seam discharges `[]`/`[..]` over builtin array and slice
+        // geometry. A custom collection's selected indexing operator has no
+        // storage-bound judgment there, so its `requires` are proven here over
+        // the actual operands, like any other selected operator.
         if matches!(
             operator_use.spelling,
             OperatorSpelling::Index | OperatorSpelling::Range
-        ) {
+        ) && match program.expression_table.expression(operator_use.expression) {
+            ExpressionNode::Indexed(indexed) => {
+                crate::checks::ranges::ranges_seam_owns(program, indexed, operator_use.origin)
+            }
+            _ => true,
+        } {
             continue;
         }
         let Some(selected) = facts.operators.selected_candidate(operator_use) else {
@@ -275,6 +284,9 @@ pub(super) fn selected_binary_requires_diagnostics(
         let parameters = operator
             .map(|operator| program.operator_parameters(operator))
             .unwrap_or(&[]);
+        let type_parameters = operator
+            .map(|operator| program.operator_type_parameters(operator))
+            .unwrap_or(&[]);
         let operands = operator_use.operands(program).unwrap_or_default();
         let operand_labels = operand_labels(program, &operands);
         let invocation_contexts = InvocationContexts::new(facts, operator_use_handle, &operands);
@@ -286,6 +298,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 &facts.operators,
                 &invocation_contexts,
                 parameters,
+                type_parameters,
                 &operands,
                 &operand_labels,
                 fact,
@@ -349,6 +362,7 @@ pub(super) fn selected_binary_requires_diagnostics(
             continue;
         };
         let parameters = program.operator_parameters(operator);
+        let type_parameters = program.operator_type_parameters(operator);
         let Some(operands) =
             crate::facts::operator_crashes::named_call_operands(program, call, parameters)
         else {
@@ -372,6 +386,7 @@ pub(super) fn selected_binary_requires_diagnostics(
                 &facts.operators,
                 &invocation_contexts,
                 parameters,
+                type_parameters,
                 &operands,
                 &operand_labels,
                 fact,
@@ -496,10 +511,17 @@ fn requires_fact_proven(
     operators: &CheckedOperatorFacts,
     contexts: &InvocationContexts<'_>,
     parameters: &[StateParameter],
+    type_parameters: &[typed_trees::data::TypeParameter],
     operands: &[ExpressionHandle],
     operand_labels: &[String],
     fact: &ProofFact,
 ) -> bool {
+    if let ProofFact::Expression(expression) = fact
+        && reflexive_comparison_holds(program, parameters, type_parameters, *expression)
+        && closed_operators_are_builtin(program, operators, *expression)
+    {
+        return true;
+    }
     match fact {
         ProofFact::Membership(membership) => {
             if !membership.domain_arguments.is_empty() {
@@ -898,6 +920,66 @@ enum ClosedScalar {
 /// comparison that selected a checked or boundary-operator meaning keeps the
 /// label/fact path. The channel is context-free — operand custody is about
 /// which facts describe the operands, and a literal atom carries no premise.
+/// `x == x`, `x <= x` and `x >= x` hold for every value of a non-float
+/// scalar under the builtin comparison: one symbol names one value on both
+/// sides, whether it is a formal (bound to one captured operand) or the
+/// operator's own const or value type parameter (`requires Count == Count`).
+/// The caller also requires the comparison itself to be builtin
+/// (`closed_operators_are_builtin`), since a selected user operator carries
+/// no reflexivity law. Floats are excluded because NaN is not equal to
+/// itself, and any other name keeps the ordinary discharge.
+fn reflexive_comparison_holds(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+    type_parameters: &[typed_trees::data::TypeParameter],
+    expression: ExpressionHandle,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::LessOrEqual | BinaryOperator::GreaterOrEqual
+    ) {
+        return false;
+    }
+    let (ExpressionNode::Name(left), ExpressionNode::Name(right)) = (
+        program.expression_table.expression(binary.left),
+        program.expression_table.expression(binary.right),
+    ) else {
+        return false;
+    };
+    let single = |path: &typed_trees::expression::TableNamePath| {
+        program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            == 1
+    };
+    if !left.symbol.is_valid() || left.symbol != right.symbol || !single(left) || !single(right) {
+        return false;
+    }
+    let declared = parameters
+        .iter()
+        .find(|parameter| parameter.symbol == left.symbol)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            type_parameters
+                .iter()
+                .find(|parameter| parameter.symbol == left.symbol)
+                .and_then(|parameter| match parameter.kind {
+                    typed_trees::data::TypeParameterKind::Const { type_reference }
+                    | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                        Some(type_reference)
+                    }
+                    _ => None,
+                })
+        });
+    declared
+        .and_then(|reference| program.type_reference_table.primitive_type(reference))
+        .is_some_and(|primitive| !matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64))
+}
+
 fn instantiated_leaf_is_closed_true(
     program: &TypedTrees,
     operators: &CheckedOperatorFacts,
