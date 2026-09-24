@@ -104,16 +104,14 @@ the complete product bar; focused successes below do not establish that baseline
   delete domain/proof improvements that remain independently used.
 
   The corpus gate stops at checking, so it misses a move in lowering or
-  native execution. Three run canaries regressed that way:
+  native execution: run each migrated fixture's run canary before keeping it.
+  A runtime pass obtained by introducing an interval-only domain diagnoses
+  missing proposition transport; it does not justify that source model.
   `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
-  and `arithmetic/runtime_nested_unsigned_witness_exit`. Their temporary repair
-  in `979fe50383` incorrectly made an interval-only nominal domain stand in for
-  the removed bracketed spelling. Correct it under this item: transport
-  ordinary proposition facts through entry, scalar graph, state, cast,
-  Terminal, and native routes, then express each source position with the
-  canonical clause. Also run each migrated fixture's run canary before keeping
-  it. A runtime pass obtained by introducing an interval-only domain diagnoses
-  missing proposition transport; it does not justify that source model. The
+  and `arithmetic/runtime_nested_unsigned_witness_exit` now state their
+  parameter bounds as `requires` and their locals by initializer, and all
+  three run canaries pass. The other fixtures of `f1d6e31013` and
+  `c5688363ec` still carry interval-only domains. The
   sample domains of `24d91ed906` and `7917a536d4` are withdrawn: those nine
   fields have their bracketed spelling back, and the four index fields run
   unbounded because Terminal infers their loop-header bounds. Their
