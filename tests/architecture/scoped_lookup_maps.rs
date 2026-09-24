@@ -268,6 +268,14 @@ const JUSTIFIED_LOOKUP_MAP_FILES: &[(&str, &str)] = &[
         "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface.rs",
         "trusted-surface entry/root catalog names bound to entries",
     ),
+    // A memo of the whole-program immutable-local scan the bound-leaf readers
+    // already performed by name: every name owned by more than one local maps
+    // to `None`, the same ambiguity refusal the scan gave, so the index
+    // changes cost and never which declaration a name resolves to.
+    (
+        "omega-rust/psi/semantics/validation/src/proof_contracts/immutable_integer_bounds.rs",
+        "whole-program immutable-local names memoizing the unique-by-name scan it replaced",
+    ),
 ];
 
 fn repository() -> PathBuf {
