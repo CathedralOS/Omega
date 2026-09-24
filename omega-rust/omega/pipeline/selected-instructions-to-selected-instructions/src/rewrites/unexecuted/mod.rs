@@ -57,7 +57,6 @@
 //! - `boundary_branch` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `commuting_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `interchange` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
-//! - `commuting_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `confluence_run_relocation` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
 //! - `constant_boolean` — staged, owner row **EXACT-MACHINE-SIMPLIFICATIONS**
@@ -85,7 +84,6 @@ mod boundary_boolean;
 mod boundary_branch;
 mod commuting_accesses;
 mod commuting_relocation;
-mod commuting_run_relocation;
 mod condition_state;
 mod confluence_relocation;
 mod confluence_run_relocation;
@@ -123,11 +121,7 @@ pub use boundary_branch::{
 };
 pub use commuting_relocation::{
     CommutingRelocationError, CommutingRelocationReceipt, ValidatedCommutingRelocation,
-    relocate_selected_commuting_member, validate_commuting_relocation,
-};
-pub use commuting_run_relocation::{
-    CommutingRunRelocationError, CommutingRunRelocationReceipt, ValidatedCommutingRunRelocation,
-    relocate_selected_commuting_run, validate_commuting_run_relocation,
+    relocate_selected_commuting_members, validate_commuting_relocation,
 };
 pub use confluence_relocation::{
     ConfluenceRelocationError, ConfluenceRelocationReceipt, ValidatedConfluenceRelocation,
