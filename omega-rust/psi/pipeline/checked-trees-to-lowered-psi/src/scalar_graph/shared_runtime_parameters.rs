@@ -134,6 +134,7 @@ fn shared_integer_runtime_parameters(
         | LoweredDirectExpression::StructuralField { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
+        | LoweredDirectExpression::IndexedPrimitiveRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. }

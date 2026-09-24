@@ -226,6 +226,7 @@ impl<'a> PrimitiveSnapshots<'a> {
                 | StructuralEffectAction::StoreByteSequenceFieldByte
                 | StructuralEffectAction::WriteByteSequence => ReachingEffect::Unknown,
                 StructuralEffectAction::ReadPrimitive
+                | StructuralEffectAction::ReadIndexedPrimitive
                 | StructuralEffectAction::EstablishReference
                 | StructuralEffectAction::ReleaseReference
                 | StructuralEffectAction::ObserveCaseMembership

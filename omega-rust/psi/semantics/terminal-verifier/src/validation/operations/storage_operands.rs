@@ -315,6 +315,58 @@ pub(super) fn validate_write_only_indexed_primitive_store(
     Ok(())
 }
 
+pub(super) fn validate_indexed_primitive_read(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let OperationKind::IndexedPrimitiveRead {
+        source,
+        ref path,
+        index,
+        ..
+    } = operation.kind
+    else {
+        unreachable!("dispatched validate_indexed_primitive_read")
+    };
+    require_defined(index, value_types, defined)?;
+    let expected_index =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    let actual_index = value_types[&index];
+    if actual_index != expected_index {
+        return Err(ModuleError::IndexedPrimitiveReadIndexTypeMismatch {
+            operation: operation.id,
+            index,
+            actual: actual_index,
+        });
+    }
+    let (expected, _) = super::super::primitive_storage::indexed_read_shape(
+        module,
+        machine,
+        operation.id,
+        source,
+        path,
+    )?;
+    let result =
+        operation
+            .result
+            .scalar()
+            .ok_or(ModuleError::IndexedPrimitiveReadSourceMismatch {
+                operation: operation.id,
+                place: source,
+            })?;
+    if result.scalar_type != expected {
+        return Err(ModuleError::IndexedPrimitiveReadResultTypeMismatch {
+            operation: operation.id,
+            expected,
+            actual: result.scalar_type,
+        });
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_scalar_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,

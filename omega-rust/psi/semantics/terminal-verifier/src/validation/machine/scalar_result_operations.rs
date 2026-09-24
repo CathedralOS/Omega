@@ -49,6 +49,32 @@ pub(super) fn register_scalar_result_operation(
                 });
             }
         }
+        OperationKind::IndexedPrimitiveRead {
+            source,
+            ref path,
+            obligation,
+            ..
+        } => {
+            let (element, _) = super::super::primitive_storage::indexed_read_shape(
+                module,
+                machine,
+                operation.id,
+                source,
+                path,
+            )?;
+            if element != result.scalar_type {
+                return Err(ModuleError::IndexedPrimitiveReadResultTypeMismatch {
+                    operation: operation.id,
+                    expected: element,
+                    actual: result.scalar_type,
+                });
+            }
+            insert_unique(
+                &mut registry.obligations,
+                obligation,
+                ModuleError::DuplicateObligation,
+            )?;
+        }
         OperationKind::StructuralByteSequenceFieldLength { .. } => {
             super::super::structural::byte_sequence_fields::validate(module, machine, operation)?;
         }

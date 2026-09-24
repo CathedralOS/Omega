@@ -362,6 +362,52 @@ pub(crate) fn resolve_byte_length(
     Ok((binding.source, path, field.id))
 }
 
+/// Resolve an indexed read that lands on a fixed-array record field: the path
+/// reaches the array itself and carries its declared element scalar. A leaf
+/// that is not a fixed array returns `None`, so byte-sequence carriers keep
+/// `resolve_byte_length`'s read family.
+pub(crate) fn resolve_indexed_array(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<
+    Option<(
+        PlaceId,
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        ScalarType,
+    )>,
+    LoweringError,
+> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "indexed field read has no readable binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("indexed field read has ambiguous bindings");
+    }
+    let carrier = path
+        .iter()
+        .map(|segment| match segment {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+            }
+            _ => unsupported("indexed field read has an unsupported case path"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    crate::emission::primitive_store::lower_indexed_path(
+        binding.structural_type,
+        &carrier,
+        &binding.declarations,
+    )
+    .map(|(path, scalar_type)| Some((binding.source, path, scalar_type)))
+    .or(Ok(None))
+}
+
 pub(crate) fn resolve_primitive(
     fields: &[StructuralScalarFieldBinding],
     position: u32,

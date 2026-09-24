@@ -270,6 +270,27 @@ pub(crate) fn indexed_store_shape(
     .ok_or(ModuleError::WriteOnlyIndexedPrimitiveStoreDestinationMismatch { operation, place })
 }
 
+/// Resolve a runtime-indexed read source to the array's declared element
+/// scalar type and extent. `path` reaches the fixed array itself; `index` is a
+/// runtime operand certified `index < extent`, so it never appears as a path
+/// segment here.
+pub(crate) fn indexed_read_shape(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: OperationId,
+    place: PlaceId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+) -> Result<(ScalarType, u64), ModuleError> {
+    let signature = writable_signature(module, machine, place, false)
+        .ok_or(ModuleError::IndexedPrimitiveReadSourceMismatch { operation, place })?;
+    terminal_semantics::fixed_array_place_shape(
+        module.structural_types.iter(),
+        signature.structural_type,
+        path,
+    )
+    .ok_or(ModuleError::IndexedPrimitiveReadSourceMismatch { operation, place })
+}
+
 pub(super) fn validate_uses(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
