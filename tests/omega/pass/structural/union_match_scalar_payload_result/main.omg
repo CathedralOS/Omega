@@ -1,0 +1,23 @@
+// A single-state machine whose whole body is a union match producing a
+// scalar result. The arm destructure binds the scalar payload fields of the
+// matched operand, and the branch block binds them as parameters through a
+// StructuralCase terminator. Mirrors Squalr's
+// PointerScanTargetDescriptor::get_target_address shape.
+data Resp {
+    case Results(v: u64, w: u64);
+    case Empty;
+}
+
+machine Resp::get(&self, position: u64) -> u64 {
+    transition self {
+        Resp::Results { v, w } -> (v)
+        _ -> (position)
+    }
+}
+
+machine Resp::weight(&self) -> u64 {
+    transition self {
+        Resp::Results { v, w } -> (w)
+        _ -> (0)
+    }
+}
