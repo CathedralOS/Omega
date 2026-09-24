@@ -106,11 +106,13 @@ reaches FilesystemHost
 "#,
         )
         .expect("write filesystem cohort preliminary source");
+        // A declared package identity is snake_case; the case labels are not.
+        let package_name = format!("filesystem_cohort_witness_{}", label.replace('-', "_"));
         std::fs::write(
             root.join("build.omg"),
             format!(
                 r#"machine build(builder: &mut Build) {{
-    builder.application("filesystem-cohort-witness-{label}");
+    builder.application("{package_name}");
     builder.depend(Source::Path {{ location: "{standard_library}" }});
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
 }}
