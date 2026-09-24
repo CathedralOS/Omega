@@ -417,6 +417,44 @@ fn reference_result_interface_and_access_counterfeits_reject() {
     }
 }
 
+/// A shared `&i8` formal lends only shared. A reference minted from it and
+/// returned may not claim mutable access, whether the widening is spelled
+/// on the source argument or on the reference type.
+#[test]
+fn reference_formation_never_exceeds_a_shared_formal() {
+    let shared_relay = |source_access, reference_access| {
+        let mut module = relay_module(false);
+        for declaration in &mut module.structural_types {
+            if let StructuralTypeShape::Reference { access, .. } = &mut declaration.shape {
+                *access = reference_access;
+            }
+        }
+        let relay = &mut module.machines[1];
+        relay.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        let TerminalMachineResult::Structural(result) = &mut relay.result else {
+            panic!("reference result");
+        };
+        result.reference_sources[0].source.access = source_access;
+        let OperationKind::EstablishReference { source } = &mut relay.blocks[0].operations[0].kind
+        else {
+            panic!("establishment");
+        };
+        source.access = source_access;
+        // Validate the relay directly so caller-side access is not the control.
+        module.entry = machine_id(2);
+        module.machines.remove(0);
+        module
+    };
+    rejects_custody(&shared_relay(
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::MutableBorrow,
+    ));
+    rejects_custody(&shared_relay(
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ));
+}
+
 fn jump(edge: u64, target: u64, discards: Vec<PlaceId>) -> Terminator {
     Terminator::Jump {
         edge: edge_id(edge),

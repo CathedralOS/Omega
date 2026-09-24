@@ -177,7 +177,7 @@ const NO_FACT_SITES: &[&str] = &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS];
 
 static OP_ESTABLISH_REFERENCE: TrustedSurfaceEntry = entry(
     "operation:establish-reference",
-    "a validated source place whose reference the operation establishes",
+    "a validated source place whose authority covers the declared access of the reference the operation establishes",
     "the reference-establishment observation; it invalidates nothing and publishes no scalar equation",
     EFFECT_DEPS,
     &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_REFERENCES],
@@ -238,17 +238,17 @@ static OP_STRUCTURAL_CASE_MEMBERSHIP: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-leaf-copy",
-    "a readable live whole root and validated field/index path to an Unrestricted leaf",
-    "the fresh owned place holding an exact copy of the projected leaf; the source stays fully intact",
-    EFFECT_DEPS,
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
+    "a readable live whole root and validated field/index path to an Unrestricted leaf, or to a leaf a SharedBorrow reference result loans",
+    "no proposition facts: an Unrestricted result is a fresh owned exact copy and the source stays fully intact; a SharedBorrow result is an affine reference carrier rooted at the source, a shared loan until released",
+    NO_FACT_DEPS,
+    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
 );
 static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-case-leaf-copy",
     "a readable live whole root and a canonical path entering at least one proved case to an Unrestricted leaf",
-    "the fresh owned place holding an exact copy of the projected case-leaf; the source stays fully intact",
-    EFFECT_DEPS,
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
+    "no proposition facts: a fresh owned place holding an exact copy of the projected case-leaf; the source stays fully intact",
+    NO_FACT_DEPS,
+    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
 );
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",

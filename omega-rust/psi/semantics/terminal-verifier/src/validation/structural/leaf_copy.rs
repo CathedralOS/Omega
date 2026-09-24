@@ -5,13 +5,14 @@
 //! declared `Unrestricted` multiplicity is the copyability evidence — an
 //! affine leaf would ride the move/restoration contract instead.
 //!
-//! One carrier exception stands beside that contract: a `SharedBorrow`
-//! reference leaf relocates affinely. The copy transfers the loan's
-//! descriptor into fresh storage — it does not mint custody — so the
-//! result keeps the carrier's affine end-exactly-once obligation while
-//! the source loan stays minted on its root. A mutable-borrow leaf
-//! never qualifies: duplicating an exclusive loan's descriptor would
-//! mint a second custody edge over the same referent.
+//! One carrier exception stands beside that contract: an `Affine` result
+//! whose type is a `SharedBorrow` reference to the selected leaf is a
+//! shared loan, not a copy. `references` registers it as a live reference
+//! carrier rooted at the source, so the source root stays loaned until the
+//! carrier is released, and the carrier keeps its affine end-exactly-once
+//! obligation. A mutable-borrow result never qualifies: an exclusive loan
+//! is minted only by `EstablishReference`, whose source authority is
+//! checked.
 
 use crate::validation::{
     BTreeSet, CanonicalStructuralPathSegment, ModuleError, OperationKind, PlaceId,

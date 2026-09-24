@@ -345,6 +345,9 @@ pub enum LedgerFailure {
         surface: CoveredSurface,
         entry: &'static str,
     },
+    MalformedDigest {
+        path: &'static str,
+    },
     DigestMismatch {
         path: &'static str,
         expected: &'static str,
@@ -370,6 +373,10 @@ impl std::fmt::Display for LedgerFailure {
             Self::SiteWithoutDigest { path } => write!(
                 formatter,
                 "implementation site `{path}` records no digest; only inventory machinery may bind by path alone"
+            ),
+            Self::MalformedDigest { path } => write!(
+                formatter,
+                "implementation site `{path}` records a digest that is not 64 lowercase hex digits, so it can never match its file"
             ),
             Self::DigestOnMachinerySite { path } => write!(
                 formatter,
@@ -500,6 +507,14 @@ pub fn check_ledger_internals() -> Vec<LedgerFailure> {
             (None, false) => failures.push(LedgerFailure::SiteWithoutDigest { path: site.path }),
             (Some(_), true) => {
                 failures.push(LedgerFailure::DigestOnMachinerySite { path: site.path })
+            }
+            (Some(digest), false)
+                if digest.len() != 64
+                    || !digest
+                        .bytes()
+                        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')) =>
+            {
+                failures.push(LedgerFailure::MalformedDigest { path: site.path })
             }
             _ => {}
         }
