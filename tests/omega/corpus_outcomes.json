@@ -24989,12 +24989,10 @@
  {
   "fixture": "pass/providers/specialized_mixed_structural_result_operator_hosted_native",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 573,
+  "status": "checked",
+  "millis": 290,
   "expected_satisfied": null,
-  "diagnostics": [
-   "indexing spelling `[]` has unsupported selected `requires` on a non-array, non-slice collection"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/providers/specialized_structural_fixed_operator_hosted_native",
