@@ -1,5 +1,6 @@
 //! Exact source bindings and final custody of structural call results.
 
+use super::super::admission::CallerView;
 use super::super::parameters::expression_producer;
 use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, ExpressionNode,
@@ -11,15 +12,14 @@ use checked_trees::CheckedUnitStructuralResultBindingPlan;
 /// merely another result with the same carrier type. Source claims retain the
 /// input lineage across both calls; operation emission checks the same join in
 /// the Terminal place/claim namespace.
-pub(crate) fn validate_linear_result_consumer(
+fn validate_linear_result_consumer(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operations: &[CheckedUnitEffectOperationPlan],
+    caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     argument_index: usize,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
+    let (machine, state, operations) = (caller.machine, caller.state, caller.operations);
     let CheckedUnitEffectOperationPlan::StructuralCall {
         coordinate,
         structural_arguments,
@@ -208,20 +208,6 @@ pub(crate) fn validate_linear_result_consumer(
     Ok(())
 }
 
-/// Whether a structural result is a construction authored as one of its own
-/// statement's call arguments rather than bound to a local or returned.
-pub(crate) fn produced_as_call_argument(
-    operations: &[CheckedUnitEffectOperationPlan],
-    binding_ordinal: u32,
-) -> bool {
-    producer(operations, binding_ordinal).is_ok_and(|producer| {
-        matches!(
-            producer.construction_source,
-            Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
-        )
-    })
-}
-
 /// Rejoin a construction authored as a call argument to the call that reads
 /// it: `f(Event::Insert { cents: 50 })` establishes the value at the call's
 /// statement and moves it whole into the formal it was written for. The
@@ -230,15 +216,14 @@ pub(crate) fn produced_as_call_argument(
 /// statement. This ties the two operations together, so the value cannot move
 /// into another formal, another call, a borrowed or projected parameter, or
 /// into two consumers.
-pub(crate) fn validate_argument_construction_consumer(
+fn validate_argument_construction_consumer(
     checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-    operations: &[CheckedUnitEffectOperationPlan],
+    caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     argument_index: usize,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
 ) -> Result<(), LoweringError> {
+    let (machine, state, operations) = (caller.machine, caller.state, caller.operations);
     let (coordinate, structural_arguments) = match operation {
         CheckedUnitEffectOperationPlan::CallUnit {
             coordinate,
@@ -1098,7 +1083,7 @@ pub(crate) fn validate_usage(
 
 pub(crate) fn validate_consumer(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     target_entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
@@ -1127,18 +1112,20 @@ pub(crate) fn validate_consumer(
                 structural_arguments,
                 claim_transfers.as_slice(),
             ),
+            // A structural call keeps its transfers in its custody record.
             CheckedUnitEffectOperationPlan::StructuralCall {
                 coordinate,
                 target_machine,
                 target_state,
                 structural_arguments,
+                custody,
                 ..
             } => (
                 coordinate,
                 *target_machine,
                 *target_state,
                 structural_arguments,
-                &[][..],
+                custody.claim_transfers.as_slice(),
             ),
             CheckedUnitEffectOperationPlan::BoundaryCall {
                 coordinate,
@@ -1250,8 +1237,8 @@ pub(crate) fn validate_consumer(
                 checked,
                 caller.machine,
                 caller.state,
-                &caller.operations,
-                &caller.structural_parameters,
+                caller.operations,
+                caller.structural_parameters,
                 operation,
                 target_parameters,
             )?;
@@ -1316,7 +1303,7 @@ pub(crate) fn validate_consumer(
         }
         // Check both directions: an authored result cannot be replaced with a
         // same-typed parameter or construction-local plan.
-        for candidate in &caller.operations {
+        for candidate in caller.operations {
             if let CheckedUnitEffectOperationPlan::EstablishScalarArray {
                 source:
                     source @ checked_trees::CheckedArrayConstructionSource::CallArgument {
@@ -1477,6 +1464,22 @@ pub(crate) fn validate_consumer(
                 if binding_ordinal == Some(result.binding_ordinal) {
                     return unsupported(
                         "terminal structural result cannot supply an earlier call operand",
+                    );
+                }
+                continue;
+            }
+            // `place = value` over a borrowed structural field stores the
+            // produced value whole into the window its move-out opened
+            // (`StoreStructuralField`); the field, not a local, holds it.
+            if producer_coordinate.call_ordinal == 0
+                && matches!(
+                    statements.get(result.statement_index as usize),
+                    Some(StatementNode::Assignment(_))
+                )
+            {
+                if binding_ordinal == Some(result.binding_ordinal) {
+                    return unsupported(
+                        "stored field replacement value cannot supply a later operand",
                     );
                 }
                 continue;
@@ -1665,7 +1668,7 @@ pub(crate) fn validate_consumer(
         let Some(binding_ordinal) = binding_ordinal else {
             continue;
         };
-        let producer = producer(&caller.operations, binding_ordinal)?;
+        let producer = producer(caller.operations, binding_ordinal)?;
         let result = producer.result;
         let source_order = producer.precedes_consumer(*coordinate);
         // A whole linear result moved into this call transfers its producer's
@@ -1707,6 +1710,24 @@ pub(crate) fn validate_consumer(
                 claim_transfers,
             )?;
             continue;
+        }
+        // A construction authored as this call's own argument moves whole
+        // into the formal it was written for, and into no other consumer.
+        if matches!(
+            producer.construction_source,
+            Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+        ) {
+            validate_argument_construction_consumer(checked, caller, operation, index, parameter)?;
+        }
+        // A linear result chained into the next structural call keeps its
+        // exact returned claim lineage across both calls.
+        if linear_result_move
+            && matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::StructuralCall { .. }
+            )
+        {
+            validate_linear_result_consumer(checked, caller, operation, index, parameter)?;
         }
         if (producer.discard
             && argument.access == checked_trees::CheckedStructuralAccess::Owned
@@ -1812,7 +1833,7 @@ pub(crate) fn validate_consumer(
 #[allow(clippy::too_many_arguments)]
 fn claimed_result_consumer(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
     operation_index: usize,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
@@ -2051,7 +2072,7 @@ fn claimed_result_consumer(
             );
         }
     }
-    if caller.structural_result.as_ref().is_some_and(|returned| {
+    if caller.structural_result.is_some_and(|returned| {
         returned.source
             == (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,
@@ -2091,7 +2112,7 @@ fn named_result_operand(
 
 fn validate_nested_execution_order(
     checked: &CheckedTrees,
-    caller: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     statement_index: u32,
     authored_nested: bool,
 ) -> Result<(), LoweringError> {
@@ -2111,7 +2132,7 @@ fn validate_nested_execution_order(
         statement_index,
     )?;
     let mut actual = Vec::new();
-    for operation in &caller.operations {
+    for operation in caller.operations {
         let coordinate = match operation {
             CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }

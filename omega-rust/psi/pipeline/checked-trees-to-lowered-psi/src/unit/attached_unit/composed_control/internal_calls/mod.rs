@@ -1,6 +1,6 @@
-//! Source-bound internal Unit calls using the shared complete Unit closure:
-//! their admission and the catalog a standalone composed root lowers them in.
-//! The calls themselves emit through `operation_frame`.
+//! The catalog a standalone composed root lowers its internal Unit callees
+//! in, through the shared complete Unit closure. Their calls are admitted by
+//! the one call admission (`attached_unit::admission::calls`) and emit through
+//! `operation_frame`.
 
-pub(super) mod admission;
 pub(super) mod catalogs;

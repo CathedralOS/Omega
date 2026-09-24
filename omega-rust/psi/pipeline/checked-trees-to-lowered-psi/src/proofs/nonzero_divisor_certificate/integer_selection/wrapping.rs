@@ -1,10 +1,12 @@
-//! Canonical bound transport through unsigned wrapping definitions.
+//! Canonical bound transport through wrapping definitions.
 //!
 //! `WrappingIntegerAdd`/`WrappingIntegerDivide` rows are affine in shape but
 //! modular in semantics. Unsigned wrapping division maps bounds exactly;
-//! wrapping addition maps an upper bound unconditionally while a lower bound
-//! is sound only when the same definition supplies the checked no-wrap
-//! conjunct `operand <= maximum - addend`. Traversed toward its operand the
+//! wrapping addition maps the bound on the side its addend cannot cross
+//! unconditionally, while the other side is sound only when the same
+//! definition supplies the checked no-wrap conjunct (`operand <= maximum -
+//! addend` for a positive addend, `minimum - addend <= operand` for a
+//! negative one on a signed carrier). Traversed toward its operand the
 //! equation inverts those directions. The proof kernel independently
 //! reconstructs every requirement at admission, so this leg only assembles
 //! the candidate root-bound conjunction from cited facts.
@@ -136,15 +138,74 @@ fn prove_uncached(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<ProofNode> {
-    let (goal_left, goal_right) = match goal {
-        Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
+    let (goal_left, goal_right, strict) = match goal {
+        Proposition::LessThan(left, right) => (left, right, true),
+        Proposition::LessOrEqual(left, right) => (left, right, false),
         _ => return None,
     };
+    if let Some(proof) = prove_value_goal(context, goal, assumptions, semantic_axioms, definitions)
+    {
+        return Some(proof);
+    }
+    // A goal can name a storage observation (`0 <= self.i`) whose stored value
+    // is the wrapping sum. Ask the same question of each value alias, then
+    // substitute the observation back through the cited equality.
+    let session = exact::session(context, assumptions, semantic_axioms);
+    for (position, endpoint) in [(0usize, goal_left), (1, goal_right)] {
+        if matches!(
+            endpoint,
+            ScalarTerm::Value { .. } | ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+        ) {
+            continue;
+        }
+        for (alias, equality) in session.value_aliases(endpoint) {
+            let (left, right) = if position == 0 {
+                (alias, goal_right.clone())
+            } else {
+                (goal_left.clone(), alias)
+            };
+            let aliased = if strict {
+                Proposition::LessThan(left, right)
+            } else {
+                Proposition::LessOrEqual(left, right)
+            };
+            let Some(relation) =
+                prove_value_goal(context, &aliased, assumptions, semantic_axioms, definitions)
+            else {
+                continue;
+            };
+            let proof = ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(relation),
+                    equality: Box::new(equality),
+                    endpoint: position,
+                },
+            };
+            if check_certificate(context, goal, assumptions, semantic_axioms, &proof).is_ok() {
+                return Some(proof);
+            }
+        }
+    }
+    None
+}
+
+fn prove_value_goal(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    definitions: &mut DefinitionIndex,
+) -> Option<ProofNode> {
     // Operation-semantic bounds are not cited in the source roster: a
     // remainder's `value < divisor` range exists only through its own
     // definition. Seed the same transport with each definition target's
     // synthesized bounds so chains like `48 + (x % 10) <= N` carry the
     // operand's derived range to the goal.
+    let (goal_left, goal_right) = match goal {
+        Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
+        _ => return None,
+    };
     let mut bounds = rooted_bounds(context, assumptions, semantic_axioms);
     bounds.extend(synthesized_operand_bounds(context, semantic_axioms));
     for bound in bounds {

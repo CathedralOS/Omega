@@ -11,6 +11,8 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::statement::{StatementNode, TableLocalData};
 
+use super::admission::CallerView;
+
 pub(super) mod unit_calls;
 
 pub(crate) struct PrimitiveLocal {
@@ -156,7 +158,7 @@ pub(crate) fn validate_roster(
 
 pub(super) fn validate_argument_source(
     checked: &CheckedTrees,
-    plan: &CheckedUnitEffectMachinePlan,
+    caller: &CallerView<'_>,
     coordinate: checked_trees::CheckedUnitCallCoordinate,
     source_target: symbols::SymbolHandle,
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -166,6 +168,9 @@ pub(super) fn validate_argument_source(
         argument.source
     else {
         return Ok(false);
+    };
+    let Some(plan) = caller.ordinary_body else {
+        return unsupported("composed state establishes no primitive referent to borrow");
     };
     let local = source(checked, plan, symbol, coordinate.statement_index)?;
     let (machine, _) =

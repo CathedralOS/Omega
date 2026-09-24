@@ -10,7 +10,7 @@
 // without a window server connection at load time. All non-null -> exit 9; any
 // nil -> a distinct code (10=NSString, 11=NSApplication, 12=NSWindow) to pinpoint.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -28,7 +28,7 @@ data Main {
     ns_window: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + ObjectiveC {
     self.ns_string = self.objc.get_class("NSString");
     self.ns_app = self.objc.get_class("NSApplication");
     self.ns_window = self.objc.get_class("NSWindow");

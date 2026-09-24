@@ -8,7 +8,7 @@
 // NSUInteger result in x0) yields n == 5 -> exit 5. Before Foundation loading,
 // objc_getClass("NSString") was nil and this silently took the nil path.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -33,7 +33,7 @@ data Main {
     n: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + ObjectiveC {
     self.cls = self.objc.get_class("NSString");
     self.sel_alloc = self.objc.register_selector("alloc");
     self.raw = self.objc.send(self.cls, self.sel_alloc);

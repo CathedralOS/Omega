@@ -28,17 +28,20 @@ pub(crate) enum CheckedIntegerEndpointStep {
     ShiftLeft(u32),
     ShiftRight(u32),
     /// `target = wrapping_add(operand, literal)` traversed toward the defined
-    /// result, unsigned fixed carriers only. An upper mapped bound is
-    /// unconditional because reduction modulo the width can only lower the
-    /// result; a lower mapped bound is sound only when the same definition
-    /// carries the checked no-wrap conjunct `operand <= maximum - literal`.
+    /// result. For a positive literal an upper mapped bound is unconditional
+    /// because reduction modulo the width can only lower the result; a lower
+    /// mapped bound is sound only when the same definition carries the
+    /// checked no-wrap conjunct `operand <= maximum - literal`. A negative
+    /// literal on a signed carrier mirrors both sides with
+    /// `minimum - literal <= operand`.
     WrappingAdd {
         operand: ScalarTerm,
         literal: i128,
     },
-    /// The same equation traversed toward the operand: a lower mapped bound
-    /// is unconditional, while an upper mapped bound is sound only under the
-    /// checked `operand <= maximum - literal` evidence.
+    /// The same equation traversed toward the operand: for a positive literal
+    /// a lower mapped bound is unconditional, while an upper mapped bound is
+    /// sound only under the checked `operand <= maximum - literal` evidence;
+    /// a negative literal mirrors both sides.
     WrappingAddBackward {
         operand: ScalarTerm,
         literal: i128,
@@ -789,17 +792,14 @@ fn apply_definition(
                 CheckedIntegerEndpointStep::BitwiseAndMask(mask),
             )
         }
-        // Only unsigned fixed carriers traverse a wrapping definition: signed
-        // wrapping arithmetic is not monotone around its reduced endpoints,
-        // and address carriers have no literal order evidence here.
+        // A wrapping sum is the exact sum except where it crosses the carrier
+        // bound the addend's sign faces, so bound mapping demands no-wrap
+        // evidence on exactly that side, for either carrier sign.
         ScalarTerm::WrappingIntegerAdd {
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type
-            && integer_type.sign() == IntegerSign::Unsigned
-            && left.as_ref() == current =>
-        {
+        } if *scalar_type == integer_type && left.as_ref() == current => {
             let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
             (
                 Some(coefficient),
@@ -815,10 +815,7 @@ fn apply_definition(
             scalar_type,
             left,
             right,
-        } if *scalar_type == integer_type
-            && integer_type.sign() == IntegerSign::Unsigned
-            && right.as_ref() == current =>
-        {
+        } if *scalar_type == integer_type && right.as_ref() == current => {
             let (literal, used_landing) = signed_literal(left, integer_type, landed)?;
             (
                 Some(coefficient),
@@ -1038,7 +1035,7 @@ fn apply_wrapping_add_inverse(
     else {
         return None;
     };
-    if *scalar_type != integer_type || integer_type.sign() != IntegerSign::Unsigned {
+    if *scalar_type != integer_type {
         return None;
     }
     let left_operand = if matches!(left.as_ref(), ScalarTerm::Value { .. }) {

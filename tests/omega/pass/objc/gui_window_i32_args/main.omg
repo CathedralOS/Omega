@@ -10,7 +10,7 @@ use omega::language::core::float_operations;
 // builds the NSWindow, value-called with integer literals. A non-null window ->
 // exit 8. This is the hardest Gui op proven in its true sample shape.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -50,7 +50,7 @@ machine Main::main(&mut self) reaches Console {
     state bad(&mut self)  { self.console.exit_process(1); }
 }
 
-machine GuiImpl::window_create(&mut self, x: i32, y: i32, w: i32, h: i32) -> u64 {
+machine GuiImpl::window_create(&mut self, x: i32, y: i32, w: i32, h: i32) -> u64 reaches ObjectiveC {
     self.rx = x as f64;
     self.ry = y as f64;
     self.rw = w as f64;

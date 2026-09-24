@@ -721,57 +721,15 @@ pub(super) fn return_discards(
         }
         drops.push(index);
     }
-    if matches!(
-        state.terminator,
-        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
-    ) {
-        // The Unit graph's source plan retains the complete parameter exit
-        // roster before call consumption below. Preserve this admission check;
-        // deleting a source drop is not authority to silently omit cleanup.
-        // A selected parameter source keeps no exit drop of its own: its
-        // residual join parameter is disposed by the return splice instead.
-        let selected_sources = checked
-            .facts
-            .flow
-            .ownership
-            .owned_selections
-            .iter()
-            .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state.state)
-            .flat_map(|(_, receipt)| {
-                checked
-                    .facts
-                    .flow
-                    .ownership
-                    .selection_sources
-                    .span_or_empty(receipt.sources)
-                    .iter()
-                    .map(|source| source.symbol)
-                    .collect::<Vec<_>>()
-            })
-            .collect::<Vec<_>>();
-        let expected = state
-            .structural_parameters
-            .iter()
-            .enumerate()
-            .rev()
-            .filter(|(_, parameter)| {
-                parameter.access == checked_trees::CheckedStructuralAccess::Owned
-                    && parameter.multiplicity == Multiplicity::Affine
-                    && !parameters
-                        .get(parameter.position as usize)
-                        .is_some_and(|source| selected_sources.contains(&source.symbol))
-            })
-            .map(|(index, _)| index)
-            .collect::<Vec<_>>();
-        if drops != expected {
-            return unsupported("Unit return parameter cleanup roster drifted");
-        }
-    }
-    // Structural return events instead describe residual custody after the
-    // authored value transfer. Returning a parameter or moving it into a
-    // constructor can remove its exit drop. Source value replay checks those
-    // transfers; Terminal independently requires the remaining live frontier,
-    // including canonical reverse order, before publication.
+    // A whole owned parameter a call consumes needs no exit drop: the call's
+    // admission rejoined that move to its authored operand, and its callee
+    // owns the value's disposal. Structural return events likewise describe
+    // residual custody after the authored value transfer; returning a
+    // parameter or moving it into a constructor can remove its exit drop.
+    // Source value replay checks those transfers; Terminal independently
+    // requires the remaining live frontier, including canonical reverse
+    // order, before publication.
+    let mut consumed = Vec::new();
     for operation in &state.operations {
         let arguments = match operation {
             CheckedUnitEffectOperationPlan::CallUnit {
@@ -816,14 +774,62 @@ pub(super) fn return_discards(
                 if !argument.path.is_empty() {
                     return unsupported("Unit return has a partial parameter move");
                 }
-                if let Some(position) = drops
-                    .iter()
-                    .position(|candidate| *candidate == index as usize)
-                {
-                    drops.remove(position);
-                }
+                consumed.push(index as usize);
             }
         }
     }
+    if matches!(
+        state.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+    ) {
+        // Every other owned affine parameter keeps its exit drop in the
+        // source plan. Preserve this admission check; deleting a source drop
+        // is not authority to silently omit cleanup. A consumed parameter may
+        // keep the drop the source recorded before its consumption or none.
+        // A selected parameter source keeps no exit drop of its own: its
+        // residual join parameter is disposed by the return splice instead.
+        let selected_sources = checked
+            .facts
+            .flow
+            .ownership
+            .owned_selections
+            .iter()
+            .filter(|(_, receipt)| receipt.machine == machine && receipt.state == state.state)
+            .flat_map(|(_, receipt)| {
+                checked
+                    .facts
+                    .flow
+                    .ownership
+                    .selection_sources
+                    .span_or_empty(receipt.sources)
+                    .iter()
+                    .map(|source| source.symbol)
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        let expected = state
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(index, parameter)| {
+                parameter.access == checked_trees::CheckedStructuralAccess::Owned
+                    && parameter.multiplicity == Multiplicity::Affine
+                    && !consumed.contains(index)
+                    && !parameters
+                        .get(parameter.position as usize)
+                        .is_some_and(|source| selected_sources.contains(&source.symbol))
+            })
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        if drops
+            .iter()
+            .filter(|index| !consumed.contains(index))
+            .ne(expected.iter())
+        {
+            return unsupported("Unit return parameter cleanup roster drifted");
+        }
+    }
+    drops.retain(|index| !consumed.contains(index));
     Ok(drops)
 }
