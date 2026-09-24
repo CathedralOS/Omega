@@ -234,6 +234,192 @@ fn natural_ranked_callee_rejects_missing_descent() {
     assert!(crate::front_end::checked_program_result(&source).is_err());
 }
 
+/// A climbing cursor: `walk(index, limit)` advances `index` under
+/// `index < limit`. Both distance views rank it.
+fn distance_source(ranking: &str) -> String {
+    SOURCE
+        .replace(
+            "walk(&mut self, remaining: u64)",
+            "walk(&mut self, index: u64, limit: u64)",
+        )
+        .replace("RANKING", ranking)
+        .replace("transition remaining > 0", "transition index < limit")
+        .replace("walk(remaining - 1)", "walk(index + 1, limit)")
+        .replace("self.child.walk(3)", "self.child.walk(0, 3)")
+}
+
+const DISTANCE_RANKINGS: [&str; 2] = [
+    "terminates by (index, limit) -> Nat::BoundedDistance;",
+    "terminates by index -> Nat::IncreasingTo(limit);",
+];
+
+/// The ranked component whose ranks are computed `MAX - index` differences.
+fn distance_component(
+    module: &mut terminal_psi::TerminalModule,
+) -> &mut terminal_psi::TerminalMachine {
+    module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.ranked_scc.is_some())
+        .expect("the distance-ranked callee")
+}
+
+#[test]
+fn distance_ranked_unit_callee_verifies_as_a_ceiling_distance() {
+    for ranking in DISTANCE_RANKINGS {
+        let artifact = produce(&distance_source(ranking));
+        let mut module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+        let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+        assert_eq!(proof.control_cycles.len(), 1);
+        let machine = distance_component(&mut module);
+        let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
+            panic!("natural ranks");
+        };
+        let ranked = components[0]
+            .ranks
+            .iter()
+            .map(|rank| rank.value)
+            .chain(components[0].edges.iter().map(|edge| edge.successor_rank))
+            .collect::<Vec<_>>();
+        // Every rank and successor rank is one `MAX - index` subtraction.
+        assert!(ranked.iter().all(|value| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    operation
+                        .result
+                        .scalar()
+                        .is_some_and(|result| result.id == *value)
+                        && matches!(operation.kind, OperationKind::ExactIntegerSubtract { .. })
+                })
+        }));
+        assert_observations(&artifact, &[vec![integer(7)]]);
+    }
+}
+
+#[test]
+fn distance_rank_arrival_must_recompute_over_the_actual_argument() {
+    let artifact = produce(&distance_source(DISTANCE_RANKINGS[0]));
+    let original = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    for mutation in ["stale subtrahend", "other ceiling"] {
+        let mut module = original.clone();
+        let machine = distance_component(&mut module);
+        let Some(terminal_psi::TerminalRankedScc::Natural(components)) = &machine.ranked_scc else {
+            panic!("natural ranks");
+        };
+        let strict = *components[0]
+            .edges
+            .iter()
+            .find(|edge| edge.comparison == terminal_psi::TerminalNaturalRankComparison::Strict)
+            .unwrap();
+        let header_rank = components[0]
+            .ranks
+            .iter()
+            .find(|rank| rank.block == strict.target)
+            .unwrap()
+            .value;
+        let operations = || machine.blocks.iter().flat_map(|block| &block.operations);
+        let (header_ceiling, header_index) = operations()
+            .find_map(|operation| match operation.kind {
+                OperationKind::ExactIntegerSubtract { left, right, .. }
+                    if operation
+                        .result
+                        .scalar()
+                        .is_some_and(|result| result.id == header_rank) =>
+                {
+                    Some((left, right))
+                }
+                _ => None,
+            })
+            .unwrap();
+        let one = operations()
+            .find_map(|operation| match operation.kind {
+                OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(1),
+                } => operation.result.scalar().map(|result| result.id),
+                _ => None,
+            })
+            .expect("the advance's literal one");
+        let arrival = machine
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                operation
+                    .result
+                    .scalar()
+                    .is_some_and(|result| result.id == strict.successor_rank)
+            })
+            .unwrap();
+        let OperationKind::ExactIntegerSubtract { left, right, .. } = &mut arrival.kind else {
+            panic!("arrival recomputes the ceiling distance");
+        };
+        match mutation {
+            // The header's previous index, not the advanced argument.
+            "stale subtrahend" => *right = header_index,
+            // A different value than the target's `MAX` constant.
+            _ => {
+                assert_eq!(*left, header_ceiling);
+                *left = one;
+            }
+        }
+        assert!(
+            matches!(
+                terminal_verifier::validate_module(&module),
+                Err(terminal_verifier::ModuleError::InvalidRankedScc(_))
+            ),
+            "{mutation}"
+        );
+    }
+}
+
+#[test]
+fn distance_rank_bound_cannot_be_redirected_in_the_checked_plan() {
+    let original = crate::front_end::checked_program(&distance_source(DISTANCE_RANKINGS[0]));
+    for corruption in ["upper", "position", "view"] {
+        let mut checked = original.clone();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| !plan.natural_ranks.is_empty())
+            .unwrap();
+        let rank = &mut plan.natural_ranks[0];
+        let checked_trees::CheckedNaturalRankMeasure::UnsignedDistance {
+            upper,
+            upper_position,
+            ..
+        } = &mut rank.measure
+        else {
+            panic!("distance measure");
+        };
+        match corruption {
+            "upper" => *upper = symbols::SymbolHandle::invalid(),
+            "position" => *upper_position = rank.parameter_position,
+            _ => {
+                rank.measure = checked_trees::CheckedNaturalRankMeasure::IntegerParameter {
+                    primitive_type: typed_trees::types::PrimitiveType::U64,
+                }
+            }
+        }
+        assert!(
+            terminal_production::TerminalProductionRequest::new(
+                &checked,
+                TerminalMachineSelection::Name("Root::enter")
+            )
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default()
+            ))
+            .is_err(),
+            "{corruption}"
+        );
+    }
+}
+
 #[test]
 fn ranked_loop_retains_private_argument_evaluation_edges() {
     for ranking in ["", "terminates by remaining -> Nat::Descending;"] {

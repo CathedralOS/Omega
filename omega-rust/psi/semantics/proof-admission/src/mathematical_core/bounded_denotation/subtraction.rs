@@ -52,6 +52,8 @@ use crate::{ClosedIntegerEvaluator, kernel::KernelError, proof::ProofError};
 #[cfg(test)]
 mod bound_tests;
 #[cfg(test)]
+mod order_tests;
+#[cfg(test)]
 mod tests;
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -370,6 +372,109 @@ impl Denotation {
             IntegerLaw::LessThanSubstituteLeft,
             &[subtraction_term, result_term, left_term, equality, decrease],
         )
+    }
+
+    /// `IntegerAddOrder`: `original < result` from `result = original +
+    /// increment` and `0 < increment`. `AddRightInverse` turns the sum into
+    /// `original = result - increment`; strict antitonicity and
+    /// `result - 0 = result` then bound that difference below `result`.
+    /// `None` leaves a closed sum, whose denotation is a numeral rather than
+    /// an `add` application, to the checked rule-instance route.
+    pub(super) fn addition_order_evidence(
+        &mut self,
+        sum: &Proposition,
+        sum_evidence: TermHandle,
+        positive_evidence: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Proposition::Equal(result, addition @ ScalarTerm::ExactIntegerAdd { left, right, .. }) =
+            sum
+        else {
+            unreachable!("bounded addition order checker ran first")
+        };
+        if addition.integer_value().is_some() {
+            return Ok(None);
+        }
+        let integer = self.integer_constant()?;
+        let result_term = self.fixed_scalar_term(result)?;
+        let original = self.fixed_scalar_term(left)?;
+        let increment = self.fixed_scalar_term(right)?;
+        let addition_term = self.fixed_scalar_term(addition)?;
+        let zero = self.math_term(&IntegerMathTerm::literal(IntegerValue::Unsigned(0)))?;
+        let forward = self.symmetry(integer, result_term, addition_term, sum_evidence);
+        let inverse = self.add_right_inverse(original, increment, result_term, forward)?;
+        let difference = self.subtract_terms(result_term, increment)?;
+        let subtract_zero = self.subtract_terms(result_term, zero)?;
+        let decrease = self.subtract_law_application(
+            Law::Antitone,
+            &[result_term, zero, increment, positive_evidence],
+        )?;
+        let equality = self.subtract_law_application(Law::Zero, &[result_term])?;
+        let below = self.integer_law_application(
+            IntegerLaw::LessThanSubstituteRight,
+            &[difference, subtract_zero, result_term, equality, decrease],
+        )?;
+        let backwards = self.symmetry(integer, original, difference, inverse);
+        self.integer_law_application(
+            IntegerLaw::LessThanSubstituteLeft,
+            &[difference, original, result_term, backwards, below],
+        )
+        .map(Some)
+    }
+
+    /// `IntegerSubtractAntitone`: `smaller < larger` from
+    /// `smaller = minuend - large`, `larger = minuend - small` and
+    /// `small < large`, by strict antitonicity in the subtrahend and two
+    /// result substitutions. `None` leaves a closed difference, denoted as a
+    /// numeral, to the checked rule-instance route.
+    pub(super) fn subtraction_antitone_evidence(
+        &mut self,
+        smaller: &Proposition,
+        smaller_evidence: TermHandle,
+        larger: &Proposition,
+        larger_evidence: TermHandle,
+        order_evidence: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let (
+            Proposition::Equal(
+                smaller_result,
+                low @ ScalarTerm::ExactIntegerSubtract {
+                    left: minuend,
+                    right: large,
+                    ..
+                },
+            ),
+            Proposition::Equal(
+                larger_result,
+                high @ ScalarTerm::ExactIntegerSubtract { right: small, .. },
+            ),
+        ) = (smaller, larger)
+        else {
+            unreachable!("bounded subtraction antitonicity checker ran first")
+        };
+        if low.integer_value().is_some() || high.integer_value().is_some() {
+            return Ok(None);
+        }
+        let integer = self.integer_constant()?;
+        let smaller_term = self.fixed_scalar_term(smaller_result)?;
+        let larger_term = self.fixed_scalar_term(larger_result)?;
+        let minuend = self.fixed_scalar_term(minuend)?;
+        let large = self.fixed_scalar_term(large)?;
+        let small = self.fixed_scalar_term(small)?;
+        let low = self.fixed_scalar_term(low)?;
+        let high = self.fixed_scalar_term(high)?;
+        let decrease =
+            self.subtract_law_application(Law::Antitone, &[minuend, small, large, order_evidence])?;
+        let low_back = self.symmetry(integer, smaller_term, low, smaller_evidence);
+        let left = self.integer_law_application(
+            IntegerLaw::LessThanSubstituteLeft,
+            &[low, smaller_term, high, low_back, decrease],
+        )?;
+        let high_back = self.symmetry(integer, larger_term, high, larger_evidence);
+        self.integer_law_application(
+            IntegerLaw::LessThanSubstituteRight,
+            &[smaller_term, high, larger_term, high_back, left],
+        )
+        .map(Some)
     }
 
     /// Elaborate the already-checked CorrelatedUnsignedSubtract form only.

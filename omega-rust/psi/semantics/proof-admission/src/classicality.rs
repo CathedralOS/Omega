@@ -63,6 +63,8 @@ impl AcceptedProofRule {
             Self::PredicateDenotation
             | Self::IntegerOrderDiscreteness
             | Self::IntegerSubtractOrder
+            | Self::IntegerAddOrder
+            | Self::IntegerSubtractAntitone
             | Self::IntegerAffineBound
             | Self::IntegerExactAddDefinitionBound
             | Self::IntegerCastBound
@@ -93,7 +95,7 @@ mod tests {
     /// list here is the audit's completeness check: the exhaustive `match`
     /// in `foundation` forces new rules into the classifier, and this list
     /// forces them into the test assertions.
-    const ALL: [AcceptedProofRule; 23] = [
+    const ALL: [AcceptedProofRule; 25] = [
         AcceptedProofRule::Primitive,
         AcceptedProofRule::SemanticAxiom,
         AcceptedProofRule::Assumption,
@@ -110,6 +112,8 @@ mod tests {
         AcceptedProofRule::IntegerOrderWeakening,
         AcceptedProofRule::IntegerOrderDiscreteness,
         AcceptedProofRule::IntegerSubtractOrder,
+        AcceptedProofRule::IntegerAddOrder,
+        AcceptedProofRule::IntegerSubtractAntitone,
         AcceptedProofRule::IntegerLessOrEqualTransitivity,
         AcceptedProofRule::IntegerStrictOrderTransitivity,
         AcceptedProofRule::IntegerOrderSubstitution,

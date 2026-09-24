@@ -461,3 +461,32 @@ fn clone_from_payload_panic_after_partial_growth_preserves_arena_structure() {
     assert!(copied.free_indices.is_empty());
     assert_usable_after_clone_panic(&mut copied);
 }
+
+/// A span resolves by bounds alone only while no slot was ever freed; once a
+/// row inside it is freed, or recycled at a later generation, the span stops
+/// resolving exactly as the per-row check decides.
+#[test]
+fn span_resolution_rechecks_rows_once_a_slot_was_freed() {
+    let mut arena = Arena::new();
+    let span = arena.insert_many(["alpha".to_owned(), "beta".to_owned(), "gamma".to_owned()]);
+    let past_end = crate::HandleSpan::from_parts(span.start(), 4);
+    assert_eq!(arena.span(span).map(<[String]>::len), Some(3));
+    assert!(
+        arena.span(past_end).is_none(),
+        "a fresh arena still bounds spans"
+    );
+
+    let middle = Handle::from_parts(span.start().arena_index() + 1, span.start().generation());
+    assert!(arena.free(middle));
+    assert!(arena.span(span).is_none(), "a freed row breaks the span");
+
+    arena.insert("bravo".to_owned());
+    assert!(
+        arena.span(span).is_none(),
+        "a row recycled at a later generation does not rejoin the span"
+    );
+
+    arena.reset_retain_capacity();
+    let fresh = arena.insert_many(["delta".to_owned(), "echo".to_owned()]);
+    assert_eq!(arena.span(fresh).map(<[String]>::len), Some(2));
+}

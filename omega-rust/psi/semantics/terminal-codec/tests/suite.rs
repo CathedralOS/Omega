@@ -15,6 +15,7 @@ mod integer_carrier_bound;
 mod integer_order_discreteness;
 mod integer_order_substitution;
 mod integer_order_weakening;
+mod integer_step_orders;
 mod integer_strict_order_transitivity;
 mod integer_subtract_order;
 mod ledger_spike;

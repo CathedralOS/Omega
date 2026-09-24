@@ -519,15 +519,21 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
     ) else {
         return None;
     };
-    // `Nat::BoundedDistance` and `Nat::IncreasingTo` are proven here too, but
-    // their climbing subject gives no Terminal rank the proof kernel can
-    // compare yet: it certifies `x - k < x` and literal bounds, not `x < x + k`
-    // or antitone subtraction. They stay unranked (and so unplanned) until it
-    // does; see STATE-GRAPH-SCALAR-RESULT-CUSTOMERS.
-    let (RankingOrder::NatDescending, [subject]) = (order, subjects.as_slice()) else {
-        return None;
+    // The same measures the edge prover reads: the countdown subject, or the
+    // `(lower, upper)` distance `Nat::IncreasingTo(limit)` shares with
+    // `Nat::BoundedDistance`.
+    let measure = match (order, subjects.as_slice()) {
+        (RankingOrder::NatDescending, [subject]) => DecreaseMeasure::Single(*subject),
+        (RankingOrder::BoundedDistance, [lower, upper]) => DecreaseMeasure::Distance {
+            lower: *lower,
+            upper: *upper,
+        },
+        (RankingOrder::IncreasingTo(limit), [cursor]) => DecreaseMeasure::Distance {
+            lower: *cursor,
+            upper: limit,
+        },
+        _ => return None,
     };
-    let measure = DecreaseMeasure::Single(*subject);
     let adjacency = graph::machine_adjacency(program, machine);
     let mut ranks = Vec::new();
     for component in graph::strongly_connected_components(&adjacency)
@@ -536,7 +542,7 @@ pub(crate) fn proven_state_natural_ranks_with_call_frames(
     {
         for &source_position in &component {
             let source = states.get(source_position)?;
-            ranks.push(nat::state_rank(program, source, *subject)?);
+            ranks.push(nat::state_rank(program, source, measure)?);
             for &target_position in &component {
                 let target = states.get(target_position)?;
                 for edge in patterns::edges_to_state(program, source, target.symbol) {

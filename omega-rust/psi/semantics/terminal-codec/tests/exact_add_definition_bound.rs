@@ -39,9 +39,9 @@ fn exact_add_definition_bound_owns_the_appended_rule_tag() {
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
     let mut corrupt_tag = bytes;
-    corrupt_tag[34] = 24;
+    corrupt_tag[34] = 26;
     assert_eq!(
         decode_proof_bundle(&corrupt_tag),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24)),
+        Err(ProofCodecError::InvalidTag("ProofRule", 26)),
     );
 }

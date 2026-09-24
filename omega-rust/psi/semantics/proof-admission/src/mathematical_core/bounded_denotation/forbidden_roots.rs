@@ -158,6 +158,19 @@ fn signed_literal(term: &ScalarTerm, integer_type: IntegerType) -> Option<i128> 
 }
 
 impl Denotation {
+    /// `AddRightInverse a k m e : Id Int a (sub m k)` for `e : Id Int (add a
+    /// k) m` — the same roster law the correlated chains invert through,
+    /// shared with the exact-addition order elaboration.
+    pub(super) fn add_right_inverse(
+        &mut self,
+        original: TermHandle,
+        increment: TermHandle,
+        sum: TermHandle,
+        evidence: TermHandle,
+    ) -> Result<TermHandle, BoundedDenotationError> {
+        self.roots_law_application(Law::AddRightInverse, &[original, increment, sum, evidence])
+    }
+
     /// `law a₁ … aₙ` — one forbidden-roots roster constant applied to
     /// the denoted endpoints and premise evidence, in statement order.
     fn roots_law_application(

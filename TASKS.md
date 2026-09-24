@@ -460,7 +460,9 @@ the complete product bar; focused successes below do not establish that baseline
       candidate_compilation  36.60 s
 
   The 27.5k-line library costs 16.3 s per pass. A fixture without std checks
-  in 14 ms.
+  in 14 ms. With the fresh-arena span path and symbol-first claim-frontier
+  lookup, the optimized binary on macOS arm64 checks `print_squares` in
+  50.0 s against 58.4 s before, std at 22.3 s per pass.
 
   Owner: `packages/manager` `review/candidate/compilation.rs::compile_candidate`,
   which runs `compile_pass` with `&[]` bindings and
@@ -505,9 +507,9 @@ the complete product bar; focused successes below do not establish that baseline
   gate, not the cost.
 
   Acceptance: `omega --check` of that sample checks the library once per
-  invocation, `--timings` reaches the per-pass and per-package attribution
-  that `OMEGA_REVIEW_TIMINGS` already prints, and an owner test compiles its
-  fixture without a second whole-program check of the library.
+  invocation, and an owner test compiles its fixture without a second
+  whole-program check of the library. `--timings` already prints the
+  per-pass and per-package review lines.
 
 ## Automatic service reach
 
@@ -2438,28 +2440,26 @@ syntax and other terminal services are not prerequisites.
   that stopped at `state graph: result signature`, plus
   `runtime_decreases_u64_measure_exit`, all get past it. Each now stops at the
   next missing capability. Repair the capability, not the fixture:
-  - `state graph: natural ranks` (11 run canaries: the
-    `(j, i) -> Nat::BoundedDistance` `runtime_dispatch_*` family,
-    `runtime_decreases_u64_measure_exit`, `runtime_saturating_param_carry_exit`).
-    The shared ranks
-    (`checks/termination/ranking::proven_state_natural_ranks_with_call_frames`)
-    carry every proven `Nat::Descending` countdown, signed or multi-state, but
-    no distance: the proof kernel certifies `x - k < x`
-    (`IntegerSubtractOrder`) and literal bounds, not `x < x + k` or
-    `m - x < m - y` from `y < x`, so no rank over a climbing cursor
-    (`upper - lower` saturated, `MAX - lower`, or the cursor) has a checkable
-    edge. Next: add those two order rules to proof-admission (the core already
-    has `AddRightInverse` and subtraction `Antitone`), admit a computed
-    `MAX - lower` rank substituted per edge in
-    `terminal-verifier/src/control_cycles/validation.rs`, and emit it from
-    `composed_control/state_graph/ranking.rs`.
-  - Signed countdown callers reach verified Terminal Psi.
-    `runtime_dispatch_float_terminal_exit` stops in native legalization: the
-    mixed structural-scalar ABI admits only Boolean and integer results
-    (`target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`).
-    `runtime_nested_field_terminal_second_instance_exit` stops at c2l
-    `emission/call_source_custody.rs` ("Unit body omits or duplicates an
-    authored call"): no Unit operation owns `self.total = self.t2.drain(3, 0)`.
+  - The natural-ranks gap is closed for every order the Nat prover decides:
+    countdowns (signed or multi-state) rank their subject, and
+    `Nat::BoundedDistance`/`Nat::IncreasingTo` rank `MAX - lower`, certified by
+    `IntegerAddOrder` and `IntegerSubtractAntitone`. Eleven of the fifteen
+    natural-ranks canaries run. The other four stop later:
+    `runtime_dispatch_float_terminal_exit` in native legalization (the mixed
+    structural-scalar ABI admits only Boolean and integer results,
+    `target-operations-to-selected-instructions/src/legalization/scalar_graph_input/byte_views.rs`);
+    `runtime_dispatch_result_enum_case_exit` at c2l
+    `expression_preparation/bindings/structural_fields` ("runtime field
+    observation requires a record-only field path", a `Verdict` case result
+    stored to `self.result` and dispatched);
+    `runtime_dispatch_slice_element_terminal_exit` and
+    `runtime_dispatch_machine_array_slice_arg_exit` in Terminal validation
+    (`OverlappingExclusiveStructuralArguments`: `self.pick(self.nums, ..)`
+    passes `&mut self` beside a view of its own field).
+    A distance bounded by a slice length (`terminates by (i, path.len)`: the
+    pass canary `calls/runtime_value_call_statement_recursive_walk_exit`, std
+    `Filesystem::mkall_walk`) still gets no shared rank: `nat::state_rank`
+    wants a plain upper parameter, though `MAX - lower` never reads the bound.
   - `state graph: prefix initializers: short-circuit boolean` (2,
     `Store::check`), `guarded jump successors: receiver transfer` (1,
     `runtime_tuple_transition_exit`), and `conditional successors` (2).

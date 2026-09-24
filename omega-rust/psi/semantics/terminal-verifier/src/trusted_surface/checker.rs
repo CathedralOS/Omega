@@ -22,6 +22,9 @@ const INTEGER_MATH_NORMALIZATION: &str =
     "omega-rust/psi/semantics/proof-admission/src/proof/integer_math_normalization.rs";
 const TRAVERSAL: &str = "omega-rust/psi/semantics/proof-admission/src/proof/traversal.rs";
 const SUBTRACT_ORDER: &str = "omega-rust/psi/semantics/proof-admission/src/proof/subtract_order.rs";
+const ADD_ORDER: &str = "omega-rust/psi/semantics/proof-admission/src/proof/add_order.rs";
+const SUBTRACT_ANTITONE: &str =
+    "omega-rust/psi/semantics/proof-admission/src/proof/subtract_antitone.rs";
 const ORDER_DISCRETENESS: &str =
     "omega-rust/psi/semantics/proof-admission/src/proof/order_discreteness.rs";
 const STRICT_ORDER: &str =
@@ -422,6 +425,26 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         ],
         soundness: TRUSTED,
     },
+    TrustedSurfaceEntry {
+        id: "rule:integer-add-order",
+        family: LedgerFamily::CheckerRule,
+        binding: dispatch(CoveredSurface::ProofRules),
+        premises: "proved result = original + increment over exact fixed-integer addition and a proved 0 < increment",
+        conclusion: "original < result",
+        dependencies: &["rule:traversal"],
+        implementation: &[PROOF, INTEGER_ORDER_RULES, ADD_ORDER, NODES],
+        soundness: TRUSTED,
+    },
+    TrustedSurfaceEntry {
+        id: "rule:integer-subtract-antitone",
+        family: LedgerFamily::CheckerRule,
+        binding: dispatch(CoveredSurface::ProofRules),
+        premises: "proved smaller = minuend - large and larger = minuend - small over exact fixed-integer subtraction from one minuend term, and a proved small < large",
+        conclusion: "smaller < larger",
+        dependencies: &["rule:traversal"],
+        implementation: &[PROOF, INTEGER_ORDER_RULES, SUBTRACT_ANTITONE, NODES],
+        soundness: TRUSTED,
+    },
     // -- Accepted evidence routes (EvidenceRoute variants) --
     TrustedSurfaceEntry {
         id: "route:kernel-derived",
@@ -491,14 +514,16 @@ pub fn checker_rule_entry(rule: &ProofRule) -> &'static TrustedSurfaceEntry {
         ProofRule::IntegerExactAddDefinitionBound { .. } => &ENTRIES[25],
         ProofRule::IntegerCastBound { .. } => &ENTRIES[26],
         ProofRule::IntegerCorrelatedForbiddenRoots { .. } => &ENTRIES[27],
+        ProofRule::IntegerAddOrder { .. } => &ENTRIES[28],
+        ProofRule::IntegerSubtractAntitone { .. } => &ENTRIES[29],
     }
 }
 
 /// `EvidenceRoute` -> ledger entry, total by construction.
 pub fn evidence_route_entry(route: &EvidenceRoute) -> &'static TrustedSurfaceEntry {
     match route {
-        EvidenceRoute::KernelDerived(_) => &ENTRIES[28],
-        EvidenceRoute::CertificateDerived(_) => &ENTRIES[29],
-        EvidenceRoute::Admitted(_) => &ENTRIES[30],
+        EvidenceRoute::KernelDerived(_) => &ENTRIES[30],
+        EvidenceRoute::CertificateDerived(_) => &ENTRIES[31],
+        EvidenceRoute::Admitted(_) => &ENTRIES[32],
     }
 }
