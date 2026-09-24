@@ -27,7 +27,7 @@ The board row's count (208 at its measurement base) drifts to 212 at
 
 ## Introducer surfaces to retire
 
-- **Parse.** `tokens-to-syntax-trees/src/declarations/`:
+- **Parse.** `01_tokens-to-syntax-trees/src/declarations/`:
   `parse_declaration.rs` admits the introducer at the root
   (`:144` boundary form, `:326` nonboundary form) and inside
   `domain.rs` / `trait_definition.rs`; `operator.rs` owns

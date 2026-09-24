@@ -199,7 +199,7 @@ permits a suspending call only as a complete statement, simple `let` right-hand
 side, transition subject, or terminal expression, and states that carry policy
 may reject a crossing with particular live values. The transition ARM TARGET is
 not among the permitted positions, and the transition grammar in
-`tokens-to-syntax-trees/src/bodies/transitions/` has no place to spell a
+`01_tokens-to-syntax-trees/src/bodies/transitions/` has no place to spell a
 `suspend`/`block` acknowledgement on a named transfer.
 
 **Problem:** A machine whose parameters are `clock: &mut Clock` and

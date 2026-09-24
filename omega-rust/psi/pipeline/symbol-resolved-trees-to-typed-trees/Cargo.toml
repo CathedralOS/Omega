@@ -26,7 +26,7 @@ language-core = { path = "../../foundation/language-core" }
 source = { path = "../../foundation/source" }
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 syntax-trees = { path = "../../representations/syntax-trees" }
-tokens-to-syntax-trees = { path = "../tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../01_tokens-to-syntax-trees" }
 
 [[test]]
 name = "suite"

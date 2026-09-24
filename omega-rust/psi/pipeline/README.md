@@ -164,10 +164,10 @@ bytes and expands fixed escapes, not a host-selected Unicode encoding.
 The Rust lexer has independent behavior tests; no mirrored lexical serialization
 protocol is required by the product lexer.
 
-[Parsing](tokens-to-syntax-trees/src/parser.rs) builds arena-backed syntax roots
+[Parsing](01_tokens-to-syntax-trees/src/parser.rs) builds arena-backed syntax roots
 and tables, retaining grammar, spans and literal structure without choosing
 symbols, types, effects or proof evidence. The
-[expression parser](tokens-to-syntax-trees/src/expressions/parse_expression.rs) uses an
+[expression parser](01_tokens-to-syntax-trees/src/expressions/parse_expression.rs) uses an
 explicit binary-operator stack and reversed unary prefixes; membership is a
 separate grammar boundary, and postfix scratch is not retained across nested
 primary parsing. Groups, aggregates, arguments and types still recurse. This is
@@ -175,16 +175,16 @@ not a stackless-parser claim; ordinary accepted input must not rely on an
 enlarged host thread stack.
 
 The parser's sibling domains expose grammar ownership directly:
-[declarations](tokens-to-syntax-trees/src/declarations/parse_declaration.rs) dispatch root
-forms; [parameters](tokens-to-syntax-trees/src/parameters/parse_parameters.rs) own shared
-callable and generic binders; [contracts](tokens-to-syntax-trees/src/contracts/parse_contract_clauses.rs)
+[declarations](01_tokens-to-syntax-trees/src/declarations/parse_declaration.rs) dispatch root
+forms; [parameters](01_tokens-to-syntax-trees/src/parameters/parse_parameters.rs) own shared
+callable and generic binders; [contracts](01_tokens-to-syntax-trees/src/contracts/parse_contract_clauses.rs)
 own clauses, facts, and conformance applications;
-[bodies](tokens-to-syntax-trees/src/bodies/parse_body.rs) own entries and states;
-[type syntax](tokens-to-syntax-trees/src/type_syntax/parse_type.rs) owns type references
+[bodies](01_tokens-to-syntax-trees/src/bodies/parse_body.rs) own entries and states;
+[type syntax](01_tokens-to-syntax-trees/src/type_syntax/parse_type.rs) owns type references
 and property grammar. Shared grammar does not live under whichever declaration
 first needed it. Each named entry file performs its work, rather than forwarding
 to another hidden coordinator. Rust-only source registration stays in
-[`lib.rs`](tokens-to-syntax-trees/src/lib.rs); implementation files neither use
+[`lib.rs`](01_tokens-to-syntax-trees/src/lib.rs); implementation files neither use
 `mod.rs` nor pair `name.rs` with a `name/` directory. This keeps responsibility
 names independent of Rust's module-root convention for future Omega source,
 without assuming identical import or visibility semantics. `parser::parse_error`

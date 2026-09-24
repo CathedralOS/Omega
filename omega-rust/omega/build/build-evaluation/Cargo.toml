@@ -47,4 +47,4 @@ component-description = { path = "../../backend/artifacts/component-description"
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }

@@ -32,4 +32,4 @@ typed-trees-to-checked-trees = { path = "../../pipeline/typed-trees-to-checked-t
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../pipeline/01_tokens-to-syntax-trees" }

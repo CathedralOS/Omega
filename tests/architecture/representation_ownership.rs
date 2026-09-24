@@ -23,6 +23,24 @@ fn repository() -> PathBuf {
         .to_owned()
 }
 
+fn pipeline_package_name(directory_name: &str) -> &str {
+    let Some((ordering_prefix, package_name)) = directory_name.split_once('_') else {
+        return directory_name;
+    };
+    assert!(
+        ordering_prefix.len() == 2
+            && ordering_prefix
+                .chars()
+                .all(|character| character.is_ascii_digit()),
+        "pipeline directory {directory_name} must use a two-digit ordering prefix"
+    );
+    assert!(
+        !package_name.is_empty(),
+        "pipeline directory {directory_name} is missing its package name"
+    );
+    package_name
+}
+
 #[test]
 fn retired_assignment_program_and_emission_owners_are_absent() {
     let root = repository();
@@ -2300,7 +2318,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
     // Canonical program route (pipeline.md "Connected program route").
     const PROGRAM_ROUTE: &[&str] = &[
         "psi/pipeline/00_source-files-to-tokens",
-        "psi/pipeline/tokens-to-syntax-trees",
+        "psi/pipeline/01_tokens-to-syntax-trees",
         "psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         "psi/pipeline/symbol-resolved-trees-to-typed-trees",
         "psi/pipeline/typed-trees-to-checked-trees",
@@ -2334,14 +2352,17 @@ fn connected_pipeline_route_covers_every_stage_crate() {
                 directory.join("Cargo.toml").is_file(),
                 "route stage {stage} is missing"
             );
-            let name = stage.rsplit('/').next().unwrap();
-            let (input, output) = name
+            let directory_name = stage.rsplit('/').next().unwrap();
+            let package_name = pipeline_package_name(directory_name);
+            let (input, output) = package_name
                 .split_once("-to-")
-                .unwrap_or_else(|| panic!("stage crate {name} does not name an X-to-Y transform"));
+                .unwrap_or_else(|| {
+                    panic!("stage crate {directory_name} does not name an X-to-Y transform")
+                });
             if !previous_output.is_empty() {
                 assert_eq!(
                     input, previous_output,
-                    "route break: {name} does not consume the preceding stage's output"
+                    "route break: {directory_name} does not consume the preceding stage's output"
                 );
             }
             previous_output = output;

@@ -127,12 +127,12 @@
    "board": "TASKS.md",
    "item": "PROOF-CONTRACT-MIGRATION",
    "owning_paths": [
-    "omega-rust/psi/pipeline/tokens-to-syntax-trees/src/declarations",
+    "omega-rust/psi/pipeline/01_tokens-to-syntax-trees/src/declarations",
     "omega-rust/psi/representations/syntax-trees/src/syntax_trees/declarations",
     "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/proof",
     "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/proof.rs"
    ],
-   "suggested_first_slice": "Parse/declarations leg of the proof-surface migration: top-level `let`, `boundary let`, arrow-type and universe/level binder declaration forms (wiki/spec/proofs/contracts.md#machines-and-bundles, mathematical_bindings.md) \u2014 tokens-to-syntax-trees/src/declarations/parse_declaration.rs has none of them; add the syntax-tree declaration reprs under syntax_trees/declarations and the parser arms, then the typed-trees-to-checked-trees/src/proof surface shape they elaborate into. Resolution lives under syntax-trees-to-symbol-resolved-trees/src/lowering \u2014 claim-fenced this round (linw2-evaluated-foreign-bindings, ~11:05Z); stop the leg at the parse+representation+proof-surface boundary if a resolve step needs it. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
+   "suggested_first_slice": "Parse/declarations leg of the proof-surface migration: top-level `let`, `boundary let`, arrow-type and universe/level binder declaration forms (wiki/spec/proofs/contracts.md#machines-and-bundles, mathematical_bindings.md) \u2014 01_tokens-to-syntax-trees/src/declarations/parse_declaration.rs has none of them; add the syntax-tree declaration reprs under syntax_trees/declarations and the parser arms, then the typed-trees-to-checked-trees/src/proof surface shape they elaborate into. Resolution lives under syntax-trees-to-symbol-resolved-trees/src/lowering \u2014 claim-fenced this round (linw2-evaluated-foreign-bindings, ~11:05Z); stop the leg at the parse+representation+proof-surface boundary if a resolve step needs it. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
   },
   {
    "name": "arithmetic-policy-realization",
