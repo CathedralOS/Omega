@@ -295,7 +295,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "psi/pipeline/tokens-to-syntax-trees",
+        "psi/pipeline/01_tokens-to-syntax-trees",
         &[
             "bodies",
             "contracts",

@@ -21,7 +21,7 @@ validation = { path = "../../semantics/validation" }
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }
-tokens-to-syntax-trees = { path = "../../pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../pipeline/01_tokens-to-syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/syntax-trees-to-symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/symbol-resolved-trees-to-typed-trees" }
 typed-trees-to-checked-trees = { path = "../../pipeline/typed-trees-to-checked-trees" }

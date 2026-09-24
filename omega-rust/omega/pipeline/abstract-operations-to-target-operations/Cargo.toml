@@ -34,5 +34,5 @@ symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-re
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
 terminal-codec = { path = "../../../psi/semantics/terminal-codec" }
 terminal-verifier = { path = "../../../psi/semantics/terminal-verifier" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }

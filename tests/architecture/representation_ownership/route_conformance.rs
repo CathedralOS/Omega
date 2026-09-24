@@ -9,7 +9,7 @@
 //! keeps its single placement home under `omega-rust/{psi,omega}/pipeline/`,
 //! the only directories the route can own.
 
-use super::repository;
+use super::{pipeline_package_name, repository};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -117,24 +117,6 @@ fn pipeline_crates() -> Vec<(String, String)> {
     }
     crates.sort();
     crates
-}
-
-fn pipeline_package_name(directory_name: &str) -> &str {
-    let Some((ordering_prefix, package_name)) = directory_name.split_once('_') else {
-        return directory_name;
-    };
-    assert!(
-        ordering_prefix.len() == 2
-            && ordering_prefix
-                .chars()
-                .all(|character| character.is_ascii_digit()),
-        "pipeline directory {directory_name} must use a two-digit ordering prefix"
-    );
-    assert!(
-        !package_name.is_empty(),
-        "pipeline directory {directory_name} is missing its package name"
-    );
-    package_name
 }
 
 #[test]

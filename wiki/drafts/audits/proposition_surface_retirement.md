@@ -13,7 +13,7 @@ declaration remains.
 
 ## 1. Source grammar
 
-`tokens-to-syntax-trees/src/declarations/proposition.rs`
+`01_tokens-to-syntax-trees/src/declarations/proposition.rs`
 (`parse_proposition_definition`) admits two bodies:
 
 - `proposition Name(params) = expr;` — transparent formula
@@ -33,7 +33,7 @@ declaration and its parameters resolved identities.
 
 | Stage | Owning file |
 |---|---|
-| Parse | `psi/pipeline/tokens-to-syntax-trees/src/declarations/proposition.rs` |
+| Parse | `psi/pipeline/01_tokens-to-syntax-trees/src/declarations/proposition.rs` |
 | Resolve | `psi/pipeline/syntax-trees-to-symbol-resolved-trees/src/lowering/proposition.rs` |
 | Type | `psi/pipeline/symbol-resolved-trees-to-typed-trees/src/declarations/proposition.rs` |
 | Check | `psi/pipeline/typed-trees-to-checked-trees/src/proof/proposition_vocabulary.rs`, `proof/proof_output_calls.rs` (named-witness call lanes), `proof/contracts.rs`, `proof/contracts/inherited.rs`, `proof/contracts/operators.rs`, `proof/evidence_forwarding.rs`, `proof/outcome_arms.rs`, `proof/contract_entailment.rs` |

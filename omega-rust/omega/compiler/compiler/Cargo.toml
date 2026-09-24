@@ -58,7 +58,7 @@ target-operations = { path = "../../representations/target-operations" }
 flow-effects = { path = "../../../psi/representations/flow-effects" }
 symbol-resolved-trees = { path = "../../../psi/representations/symbol-resolved-trees" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/typed-trees-to-checked-trees" }
 facts = { path = "../../../psi/representations/facts" }
 target = { path = "../../representations/target" }

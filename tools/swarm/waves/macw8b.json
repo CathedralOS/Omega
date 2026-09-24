@@ -92,7 +92,7 @@
       "item": "REMOVE-BRACKETED-RANGE-ANNOTATIONS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/tokens-to-syntax-trees/src/type_syntax",
+        "omega-rust/psi/pipeline/01_tokens-to-syntax-trees/src/type_syntax",
         "omega-rust/psi/representations/syntax-trees/src/syntax_trees/type_system",
         "omega-rust/psi/representations/symbol-resolved-trees/src/symbol_resolved_trees/type_system",
         "omega-rust/psi/representations/typed-trees/src/typed_trees/type_system",

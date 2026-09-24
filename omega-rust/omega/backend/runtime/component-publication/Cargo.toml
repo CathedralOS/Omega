@@ -34,5 +34,5 @@ terminal-codec = { path = "../../../../psi/semantics/terminal-codec" }
 terminal-interpreter = { path = "../../../../psi/semantics/terminal-interpreter" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 terminal-verifier = { path = "../../../../psi/semantics/terminal-verifier" }
-tokens-to-syntax-trees = { path = "../../../../psi/pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../../../psi/pipeline/01_tokens-to-syntax-trees" }
 typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/typed-trees-to-checked-trees" }

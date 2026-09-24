@@ -25,7 +25,7 @@ symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 target = { path = "../../representations/target" }
 tokens = { path = "../../../psi/representations/tokens" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 
 [dev-dependencies]
 package-compilation = { path = "../../build/package-compilation", features = ["test-support"] }

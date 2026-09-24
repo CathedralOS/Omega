@@ -33,7 +33,7 @@ source = { path = "../../../psi/foundation/source" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 tokens = { path = "../../../psi/representations/tokens" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/tokens-to-syntax-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
 cap-std = "4.0.3"
 cap-fs-ext = "4.0.3"
 sha2 = "0.10.9"

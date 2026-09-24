@@ -50,7 +50,7 @@ Unknown mnemonics remain distinct failures, and service-admission candidates
 families stay unrecognized pending their own contracts.
 Target gates do not silently substitute another ISA's instruction.
 
-[Parsing](../../pipeline/tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs) lowers
+[Parsing](../../pipeline/01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs) lowers
 known forms and checks separators, transfer position and exact clobber union.
 Requires/ensures become assertions around those instructions, with a proof-neutral
 entry marker for an ensures-only block.
