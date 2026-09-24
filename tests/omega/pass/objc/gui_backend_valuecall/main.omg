@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 // handle through an ordinary same-data-type value call. A non-null handle exits
 // with 7.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -44,7 +44,7 @@ machine Main::main(&mut self) reaches Console {
     state bad(&mut self)  { self.console.exit_process(1); }
 }
 
-machine Main::open_window(&mut self) -> u64 {
+machine Main::open_window(&mut self) -> u64 reaches ObjectiveC {
     self.app_cls = self.objc.get_class("NSApplication");
     self.sel = self.objc.register_selector("sharedApplication");
     self.app = self.objc.send(self.app_cls, self.sel);

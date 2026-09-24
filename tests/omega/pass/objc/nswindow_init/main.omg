@@ -17,7 +17,7 @@ use omega::language::core::float_operations;
 // created + queried but never ordered on-screen and no event loop runs. Both
 // checks pass -> exit 3; any failure -> exit 1.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -49,7 +49,7 @@ data Main {
     mask: u64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(&mut self) reaches Console + ObjectiveC {
     self.ns_app_cls = self.objc.get_class("NSApplication");
     self.sel_shared = self.objc.register_selector("sharedApplication");
     self.app = self.objc.send(self.ns_app_cls, self.sel_shared);

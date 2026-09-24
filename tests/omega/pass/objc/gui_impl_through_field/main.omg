@@ -12,7 +12,7 @@ use omega::language::core::float_operations;
 // workaround. Remaining gap after this: substituting the sample's `boundary trait
 // Gui` field with this `GuiImpl` provider on darwin.
 
-domain [u8]::CString
+pub domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
@@ -52,7 +52,7 @@ machine Main::main(&mut self) reaches Console {
     state bad(&mut self)  { self.console.exit_process(1); }
 }
 
-machine GuiImpl::window_create(&mut self) -> u64 {
+machine GuiImpl::window_create(&mut self) -> u64 reaches ObjectiveC {
     self.x = 0.0;
     self.y = 0.0;
     self.w = 200.0;

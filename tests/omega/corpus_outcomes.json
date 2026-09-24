@@ -23526,193 +23526,148 @@
  {
   "fixture": "pass/objc/cgimage_blit",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 37,
+  "status": "checked",
+  "millis": 20,
   "expected_satisfied": null,
-  "diagnostics": [
-   "machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared service `CoreGraphics`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/cgrect_hfa",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 6907,
+  "status": "checked",
+  "millis": 2385,
   "expected_satisfied": null,
-  "diagnostics": [
-   "machine `Main::main` publishes service reach `Console + Math` but its checked body reaches undeclared service `CoreGraphics`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/clock_sleep",
   "tier": "pass",
   "status": "checked",
-  "millis": 75,
+  "millis": 17,
   "expected_satisfied": null,
   "diagnostics": []
  },
  {
   "fixture": "pass/objc/event_pump",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 55,
+  "status": "checked",
+  "millis": 24,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/framework_classes",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 46,
+  "status": "checked",
+  "millis": 24,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/gui_backend_valuecall",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 6642,
+  "status": "checked",
+  "millis": 2379,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/gui_impl_through_field",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 6520,
+  "status": "checked",
+  "millis": 2289,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/gui_provider_substitution",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 59,
+  "status": "checked",
+  "millis": 21,
   "expected_satisfied": null,
-  "diagnostics": [
-   "machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared service `Gui`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/gui_window_i32_args",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 6469,
+  "status": "checked",
+  "millis": 2323,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/input_provider_substitution",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 33,
+  "status": "checked",
+  "millis": 17,
   "expected_satisfied": null,
-  "diagnostics": [
-   "machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared service `Input`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/macos_gui_module",
   "tier": "pass",
   "status": "rejected",
-  "millis": 3364,
+  "millis": 3159,
   "expected_satisfied": null,
   "diagnostics": [
-   "ordinary external `via` evaluation requires one selected target profile"
+   "authored Operator declaration selection occurrence 167 remained unresolved after successful checking (CheckedOperator)"
   ]
  },
  {
   "fixture": "pass/objc/native_gui_loop",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 6698,
+  "status": "checked",
+  "millis": 2380,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/nsstring_length",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 41,
+  "status": "checked",
+  "millis": 22,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/nswindow_init",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 6467,
+  "status": "checked",
+  "millis": 2292,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/objc_alloc",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 35,
+  "status": "checked",
+  "millis": 14,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/objc_get_class",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 33,
+  "status": "checked",
+  "millis": 17,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::ClassName`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/objc_msgsend_scalar",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 35,
+  "status": "checked",
+  "millis": 19,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/objc/present_frame",
   "tier": "pass",
-  "status": "rejected",
-  "millis": 6578,
+  "status": "checked",
+  "millis": 2359,
   "expected_satisfied": null,
-  "diagnostics": [
-   "public interface selects private domain `[u8]::CString`",
-   "public interface selects private domain `[u8]::CString`"
-  ]
+  "diagnostics": []
  },
  {
   "fixture": "pass/operators/compound_assignment_exit",
