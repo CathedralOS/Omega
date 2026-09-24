@@ -450,10 +450,11 @@ fn checked_state_graph(
                     source_states[0].symbol,
                 )?
             } else if mixed {
-                // Whole structural forwarding for a free machine is bounded
-                // to the same authored state; additional state signatures
-                // remain a separate slice.
-                if owner_state_count != 1 || machine.attached_data.is_some() {
+                // Whole structural forwarding, for a free machine or for an
+                // attached machine whose exclusive receiver is an explicit
+                // structural formal, is bounded to the same authored state;
+                // additional state signatures remain a separate slice.
+                if owner_state_count != 1 {
                     return None;
                 }
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?
