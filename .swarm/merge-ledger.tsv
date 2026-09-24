@@ -122,3 +122,6 @@ c4dd2fadcf	leaf/linux-float-case-qualification	z6: reject_unqualified_case_value
 2026-09-24T01:42:54Z	leaf/sum-mixed-reference-case-payloads->main	70c790618a z5 sum/mixed reference carriers t2s+unit-semantics 529/529+532/532
 2026-09-24T01:42:54Z	leaf/mixed-call-arguments->main	9063d257b7 z5 borrowed+owned mixed call args 298/298 + skill inactivity-suspend patch
 2026-09-24T01:47:16Z	leaf/borrowed-whole-view-result-ownership->main	73b0f3ed60 z3 bare whole-view &'a param returns; 6245/6245 3-crate lib; residual: member-projection views + authored subslices (~35-machine family)
+2026-09-24T02:16:19Z	leaf/mixed-structural-function-results->main	a2a7f3b226 z5 Mixed structural results via conventional sum home 533/533
+2026-09-24T02:16:19Z	leaf/indexed-member-guard-bounds->main	8503f1e71f z4 index-proof pairs transport across state edges 5276/5276
+2026-09-24T02:16:19Z	swarm-binaries	republished omega @9317f0ec96 sha c8fb4bcf (Float fix + StructuralCaseLeafCopy + carriers + member guards)
