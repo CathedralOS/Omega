@@ -1,47 +1,91 @@
-//! Validation of the exact direct, rebound, stored and forwarded dynamic
-//! plans before lowering.
+//! Validation of one exact dynamic call plan before lowering, for either
+//! result and under its direct, rebound or stored lane.
+//!
+//! [`validate_exact_plan`] first fixes where the lane places the selection and
+//! the call in the caller state, then checks the shared custody once: the
+//! checked selection, the selected family row and callable, the caller's one
+//! flow call (or a forwarded call's exact transfer path and final dispatch),
+//! the caller's statements, the empty contracts, the borrowed field subloan
+//! and the service reach. The lane contributes its result and selected body,
+//! and the scalar lane's caller store and Unit continuation.
 
 use crate::proofs::evidence_lowering;
 use crate::unit::dynamic_composed_unit::applications::{
     count_selected_family_rows, exact_machine_service_summary, validate_empty_contract,
     validate_empty_service_summary,
 };
-use crate::unit::dynamic_composed_unit::dynamic_lanes::DynamicCallerShape;
+use crate::unit::dynamic_composed_unit::dynamic_lanes::{
+    DynamicCall, DynamicCallView, DynamicLoweringLane, ForwardedOrigin,
+};
 use crate::unit::{CheckedTrees, LoweringError, unsupported};
 use checked_trees::TypeIdentityRequest;
 use checked_trees::{
-    CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan, CheckedStructuralAccess,
+    CheckedDynamicSelectionPlan, CheckedStructuralAccess, CheckedStructuralScalarFieldStorePlan,
     CheckedUnitStructuralPathSegment,
 };
-use language_semantics::{Multiplicity, ServiceReachSummary};
+use language_semantics::Multiplicity;
 
-pub(crate) fn validate_exact_direct_plan(
+/// Validate one call plan against checked custody under its lowering lane.
+pub(crate) fn validate_exact_plan<Call: DynamicCall>(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
-) -> Result<DynamicCallerShape, LoweringError> {
-    let store = plan.caller_structural_scalar_field_store.as_ref();
-    if store.is_some() && plan.unit_continuation.is_some() {
-        return unsupported(
-            "direct dynamic result control cannot also retain a caller field store",
-        );
-    }
-    let selection_statement_index = usize::from(store.is_some());
-    let call_statement_index = u32::from(store.is_some()) + 1;
-    validate_exact_dynamic_plan(
+    call: &Call,
+    lane: DynamicLoweringLane<'_>,
+) -> Result<(), LoweringError> {
+    let plan = call.view();
+    let store = call.caller_store();
+    let (selection_statement_index, call_statement_index, expected_flow_receiver) = match lane {
+        DynamicLoweringLane::Direct => {
+            if store.is_some() && call.unit_continuation().is_some() {
+                return unsupported(
+                    "direct dynamic result control cannot also retain a caller field store",
+                );
+            }
+            (
+                usize::from(store.is_some()),
+                u32::from(store.is_some()) + 1,
+                None,
+            )
+        }
+        DynamicLoweringLane::Rebound(initial) => {
+            validate_rebound_selection(checked, &plan, store, initial)?;
+            (
+                plan.selection.statement_index,
+                plan.coordinate.statement_index,
+                None,
+            )
+        }
+        DynamicLoweringLane::Stored(stored) => {
+            if call.result().is_none() {
+                return unsupported("stored descriptor cannot enter Unit dynamic lowering");
+            }
+            validate_stored_descriptor(checked, &plan, store, call.helper_body_count(), stored)?;
+            (
+                stored.storage.selection.statement_index,
+                plan.coordinate.statement_index,
+                Some(stored.storage.destination_field),
+            )
+        }
+    };
+    validate_exact_call(
         checked,
-        plan,
+        call,
+        &plan,
         selection_statement_index,
         call_statement_index,
-        None,
+        expected_flow_receiver,
     )
 }
 
-pub(crate) fn validate_exact_rebound_plan(
+/// A rebound descriptor is selected at the caller's first statement, rebound
+/// at the next and called at the one after.
+fn validate_rebound_selection(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
+    plan: &DynamicCallView<'_>,
+    store: Option<&CheckedStructuralScalarFieldStorePlan>,
     initial: &CheckedDynamicSelectionPlan,
-) -> Result<DynamicCallerShape, LoweringError> {
-    if plan.caller_structural_scalar_field_store.is_some()
+) -> Result<(), LoweringError> {
+    if store.is_some()
+        || initial.fact.statement_index != 0
         || initial.fact.statement_index.checked_add(1) != Some(plan.selection.statement_index)
         || plan.selection.statement_index.checked_add(1)
             != usize::try_from(plan.coordinate.statement_index).ok()
@@ -66,20 +110,18 @@ pub(crate) fn validate_exact_rebound_plan(
     {
         return unsupported("rebound dynamic selection versions drifted from checked custody");
     }
-    validate_exact_dynamic_plan(
-        checked,
-        plan,
-        plan.selection.statement_index,
-        plan.coordinate.statement_index,
-        None,
-    )
+    Ok(())
 }
 
-pub(crate) fn validate_exact_stored_plan(
+/// A stored descriptor travels through one exact local aggregate field
+/// between its selection and a local call.
+fn validate_stored_descriptor(
     checked: &CheckedTrees,
+    plan: &DynamicCallView<'_>,
+    store: Option<&CheckedStructuralScalarFieldStorePlan>,
+    helper_body_count: Option<usize>,
     stored: &checked_trees::CheckedDynamicStoredDescriptorPlan,
-    plan: &CheckedDynamicScalarCallPlan,
-) -> Result<DynamicCallerShape, LoweringError> {
+) -> Result<(), LoweringError> {
     let machines = checked
         .typed
         .machines()
@@ -148,7 +190,7 @@ pub(crate) fn validate_exact_stored_plan(
         .filter(|candidate| *candidate == &stored.storage)
         .count();
     if exact_storages != 1
-        || stored.storage.selection != plan.selection
+        || stored.storage.selection != *plan.selection
         || stored.storage.machine != plan.caller_machine
         || stored.storage.state != plan.caller_state
         || stored.storage.statement_index.checked_add(1)
@@ -166,49 +208,35 @@ pub(crate) fn validate_exact_stored_plan(
         || stored.storage.source_path[0] != stored.storage.source_name
         || destination_type_identity != stored.destination_type_identity
         || destination_field_identity != stored.destination_field_identity
-        || plan.caller_structural_scalar_field_store.is_some()
+        || store.is_some()
         || !plan.forwarding_transfers.is_empty()
-        || !plan.forwarding_helpers.is_empty()
-        || !matches!(
-            plan.origin,
-            checked_trees::CheckedDynamicScalarCallOrigin::Local
-        )
+        || helper_body_count.is_some_and(|count| count != 0)
+        || plan.forwarded.is_some()
     {
         return unsupported("stored dynamic descriptor drifted from checked aggregate custody");
     }
-    validate_exact_dynamic_plan(
-        checked,
-        plan,
-        stored.storage.selection.statement_index,
-        plan.coordinate.statement_index,
-        Some(stored.storage.destination_field),
-    )
+    Ok(())
 }
 
-fn validate_exact_dynamic_plan(
+/// The custody every lane shares, with the selection and the call at the
+/// lane's statement coordinates.
+fn validate_exact_call<Call: DynamicCall>(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
+    call: &Call,
+    plan: &DynamicCallView<'_>,
     selection_statement_index: usize,
     call_statement_index: u32,
     expected_flow_receiver: Option<symbols::SymbolHandle>,
-) -> Result<DynamicCallerShape, LoweringError> {
-    let forwarded = match plan.origin {
-        checked_trees::CheckedDynamicScalarCallOrigin::Local => None,
-        checked_trees::CheckedDynamicScalarCallOrigin::Forwarded {
-            machine,
-            state,
-            coordinate,
-            parameter,
-        } => Some((machine, state, coordinate, parameter)),
-    };
-    let store = plan.caller_structural_scalar_field_store.as_ref();
+) -> Result<(), LoweringError> {
+    let store = call.caller_store();
+    let continuation = call.unit_continuation();
     let exact_selections = checked
         .facts
         .dynamic_conformances
         .binding_facts()
         .selections
         .into_iter()
-        .filter(|selection| selection == &plan.selection)
+        .filter(|selection| selection == plan.selection)
         .count();
     if exact_selections != 1
         || plan.selection.machine != plan.caller_machine
@@ -220,8 +248,9 @@ fn validate_exact_dynamic_plan(
         || plan.selection.statement_index != selection_statement_index
         || plan.coordinate.statement_index != call_statement_index
         || plan.coordinate.call_ordinal != 0
-        || plan.result.statement_index != plan.coordinate.statement_index
-        || plan.result.binding_ordinal != 0
+        || call.result().is_some_and(|result| {
+            result.statement_index != plan.coordinate.statement_index || result.binding_ordinal != 0
+        })
         || plan.selection.statement_index
             >= usize::try_from(plan.coordinate.statement_index).map_err(|_| {
                 LoweringError::Unsupported("direct dynamic statement coordinate exceeds usize")
@@ -245,8 +274,8 @@ fn validate_exact_dynamic_plan(
         &plan.selection.rows,
         plan.declaring_trait,
         plan.requirement,
-        &plan.requirement_identity,
-        &plan.family_tuple,
+        plan.requirement_identity,
+        plan.family_tuple,
         plan.realization_machine,
         plan.realization_state,
     )?;
@@ -263,27 +292,14 @@ fn validate_exact_dynamic_plan(
                 && callable.realization_state == plan.realization_state
                 && callable.requirement_identity == plan.requirement_identity
                 && callable.realization_identity == plan.realization_identity
-                && callable.family_tuple.as_ref() == plan.family_tuple.as_ref()
+                && callable.family_tuple.as_ref() == plan.family_tuple
         })
         .collect::<Vec<_>>();
     let [selected_callable] = selected_callables.as_slice() else {
         return unsupported("direct dynamic selected callable is absent or ambiguous");
     };
-    let checked_trees::CheckedDynamicRealizationBodyPlan::Scalar {
-        result_type,
-        return_expression,
-        structural_scalar_field_stores,
-    } = &selected_callable.body
-    else {
-        return unsupported("direct dynamic scalar call selected a Unit body");
-    };
-    if *result_type != plan.result.primitive_type
-        || *return_expression != plan.realization_return_expression
-        || *structural_scalar_field_stores != plan.realization_structural_scalar_field_stores
-    {
-        return unsupported("direct dynamic selected body drifted from checked custody");
-    }
-    if forwarded.is_none()
+    call.validate_selected_body(&selected_callable.body)?;
+    if plan.forwarded.is_none()
         && (checked
             .facts
             .flow
@@ -314,20 +330,20 @@ fn validate_exact_dynamic_plan(
         return unsupported("direct dynamic caller has no exact checked flow state");
     };
     let calls = checked.facts.flow.control.calls.span_or_empty(state.calls);
+    // A forwarded call enters the first helper's state; a local call targets
+    // the requirement through its receiver.
+    let forwarded_target = plan.forwarded.map(|origin| {
+        plan.forwarding_transfers
+            .first()
+            .map_or(origin.state, |transfer| transfer.caller_state)
+    });
     let matching_calls = calls
         .iter()
         .filter(|call| {
             call.statement_index == plan.coordinate.statement_index as usize
                 && call.call_ordinal == plan.coordinate.call_ordinal as usize
-                && match forwarded {
-                    Some((_, state, _, _)) => {
-                        let first_state = plan
-                            .forwarding_transfers
-                            .first()
-                            .map(|transfer| transfer.caller_state)
-                            .unwrap_or(state);
-                        !call.has_receiver && call.target_symbol == first_state
-                    }
+                && match forwarded_target {
+                    Some(target) => !call.has_receiver && call.target_symbol == target,
                     None => {
                         call.receiver_symbol
                             == expected_flow_receiver.unwrap_or(plan.receiver_binding)
@@ -336,10 +352,10 @@ fn validate_exact_dynamic_plan(
                 }
         })
         .collect::<Vec<_>>();
-    let [call] = matching_calls.as_slice() else {
+    let [flow_call] = matching_calls.as_slice() else {
         return unsupported("direct dynamic caller must retain one exact checked dynamic call");
     };
-    if let Some(continuation) = &plan.unit_continuation {
+    if let Some(continuation) = continuation {
         let expected_control_calls = [
             (
                 continuation.when_true.statement_ordinal as usize,
@@ -370,30 +386,21 @@ fn validate_exact_dynamic_plan(
     }
     let expected_statement_count = usize::try_from(call_statement_index + 1)
         .expect("bounded statement count")
-        + usize::from(plan.unit_continuation.is_some()) * 2;
-    if call.statement_index != plan.coordinate.statement_index as usize
-        || call.call_ordinal != plan.coordinate.call_ordinal as usize
-        || match forwarded {
-            Some((machine, state, coordinate, parameter)) => {
-                call.has_receiver
-                    || call.target_symbol
-                        != plan
-                            .forwarding_transfers
-                            .first()
-                            .map(|transfer| transfer.caller_state)
-                            .unwrap_or(state)
-                    || !validate_forwarding_transfer_path(
-                        checked, plan, machine, state, coordinate, parameter,
-                    )?
-                    || !validate_forwarded_dynamic_call(
-                        checked, plan, machine, state, coordinate, parameter,
-                    )?
+        + usize::from(continuation.is_some()) * 2;
+    if flow_call.statement_index != plan.coordinate.statement_index as usize
+        || flow_call.call_ordinal != plan.coordinate.call_ordinal as usize
+        || match (plan.forwarded, forwarded_target) {
+            (Some(origin), Some(target)) => {
+                flow_call.has_receiver
+                    || flow_call.target_symbol != target
+                    || !validate_forwarding_transfer_path(checked, plan, origin)?
+                    || !validate_forwarded_dynamic_call(checked, plan, origin)?
             }
-            None => {
-                call.receiver_symbol != expected_flow_receiver.unwrap_or(plan.receiver_binding)
-                    || call.target_symbol != plan.requirement
-                    || !call.has_receiver
-                    || call.service_reach != plan.checked_call_service_reach
+            _ => {
+                flow_call.receiver_symbol != expected_flow_receiver.unwrap_or(plan.receiver_binding)
+                    || flow_call.target_symbol != plan.requirement
+                    || !flow_call.has_receiver
+                    || flow_call.service_reach != plan.checked_call_service_reach
             }
         }
         || checked
@@ -444,7 +451,7 @@ fn validate_exact_dynamic_plan(
     {
         return unsupported("direct dynamic source must be an exact borrowed field subloan");
     }
-    let [CheckedUnitStructuralPathSegment::Field(_)] = plan.source_path.as_slice() else {
+    let [CheckedUnitStructuralPathSegment::Field(_)] = plan.source_path else {
         return unsupported("direct dynamic source must be one exact attachment field");
     };
     if let Some(store) = store
@@ -465,21 +472,19 @@ fn validate_exact_dynamic_plan(
     if caller_service_reach != plan.caller_service_reach {
         return unsupported("direct dynamic caller service reach drifted from checking");
     }
-    if plan.unit_continuation.is_none() {
+    if continuation.is_none() {
         validate_empty_service_summary(checked, caller_service_reach)?;
     }
-    Ok(DynamicCallerShape {
-        attachment_type_identity: plan.caller_attachment_type_identity.clone(),
-    })
+    Ok(())
 }
 
+/// The descriptor travels from the caller's selection through every checked
+/// parameter-forwarding transfer, each with its own exact call, to the final
+/// helper's descriptor parameter, extending one source path at each edge.
 fn validate_forwarding_transfer_path(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
-    final_machine: symbols::SymbolHandle,
-    final_state: symbols::SymbolHandle,
-    _final_coordinate: checked_trees::CheckedUnitCallCoordinate,
-    final_parameter: symbols::SymbolHandle,
+    plan: &DynamicCallView<'_>,
+    origin: ForwardedOrigin,
 ) -> Result<bool, LoweringError> {
     let transfers = &checked
         .facts
@@ -491,12 +496,12 @@ fn validate_forwarding_transfer_path(
         .forwarding_transfers
         .first()
         .map(|transfer| transfer.caller_machine)
-        .unwrap_or(final_machine);
+        .unwrap_or(origin.machine);
     let first_state = plan
         .forwarding_transfers
         .first()
         .map(|transfer| transfer.caller_state)
-        .unwrap_or(final_state);
+        .unwrap_or(origin.state);
     let roots = transfers
         .iter()
         .filter(|transfer| {
@@ -510,7 +515,7 @@ fn validate_forwarding_transfer_path(
                 && transfer.source_binding == plan.receiver_binding
                 && transfer.source
                     == checked_trees::CheckedDynamicDescriptorTransferSource::Selection
-                && transfer.sole_selection() == Some(&plan.selection)
+                && transfer.sole_selection() == Some(plan.selection)
         })
         .collect::<Vec<_>>();
     let [root] = roots.as_slice() else {
@@ -523,7 +528,7 @@ fn validate_forwarding_transfer_path(
     let mut machine = root.target_machine;
     let mut state = root.target_state;
     let mut source_parameter = root.parameter;
-    for transfer in &plan.forwarding_transfers {
+    for transfer in plan.forwarding_transfers {
         if transfers
             .iter()
             .filter(|candidate| *candidate == transfer)
@@ -550,10 +555,12 @@ fn validate_forwarding_transfer_path(
         state = transfer.target_state;
         source_parameter = transfer.parameter;
     }
-    Ok(machine == final_machine && state == final_state && source_parameter == final_parameter)
+    Ok(machine == origin.machine && state == origin.state && source_parameter == origin.parameter)
 }
 
-pub(crate) fn validate_parameter_forwarding_call(
+/// A forwarding helper's state is terminal-eligible and performs exactly the
+/// transfer's receiver-free call into the next helper, without service reach.
+fn validate_parameter_forwarding_call(
     checked: &CheckedTrees,
     transfer: &checked_trees::CheckedDynamicDescriptorTransferPlan,
 ) -> Result<bool, LoweringError> {
@@ -601,34 +608,13 @@ pub(crate) fn validate_parameter_forwarding_call(
     )
 }
 
+/// The final helper's state is terminal-eligible and performs exactly one
+/// call: the requirement through its descriptor parameter at the plan's
+/// forwarded coordinate, with the plan's checked service reach.
 fn validate_forwarded_dynamic_call(
     checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
-    helper_machine: symbols::SymbolHandle,
-    helper_state: symbols::SymbolHandle,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    parameter: symbols::SymbolHandle,
-) -> Result<bool, LoweringError> {
-    validate_forwarded_dynamic_call_coordinates(
-        checked,
-        plan.requirement,
-        plan.checked_call_service_reach,
-        helper_machine,
-        helper_state,
-        coordinate,
-        parameter,
-    )
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_forwarded_dynamic_call_coordinates(
-    checked: &CheckedTrees,
-    requirement: symbols::SymbolHandle,
-    checked_call_service_reach: ServiceReachSummary,
-    helper_machine: symbols::SymbolHandle,
-    helper_state: symbols::SymbolHandle,
-    coordinate: checked_trees::CheckedUnitCallCoordinate,
-    parameter: symbols::SymbolHandle,
+    plan: &DynamicCallView<'_>,
+    origin: ForwardedOrigin,
 ) -> Result<bool, LoweringError> {
     let selections = checked
         .facts
@@ -636,7 +622,7 @@ pub(crate) fn validate_forwarded_dynamic_call_coordinates(
         .terminal_machines
         .machines
         .iter()
-        .filter(|selection| selection.machine == helper_machine)
+        .filter(|selection| selection.machine == origin.machine)
         .collect::<Vec<_>>();
     let [selection] = selections.as_slice() else {
         return Ok(false);
@@ -651,7 +637,7 @@ pub(crate) fn validate_forwarded_dynamic_call_coordinates(
         .states
         .iter()
         .filter_map(|(_, state)| {
-            (state.machine_symbol == helper_machine && state.state_symbol == helper_state)
+            (state.machine_symbol == origin.machine && state.state_symbol == origin.state)
                 .then_some(state)
         })
         .collect::<Vec<_>>();
@@ -662,10 +648,12 @@ pub(crate) fn validate_forwarded_dynamic_call_coordinates(
     let [call] = calls else {
         return Ok(false);
     };
-    Ok(call.statement_index == coordinate.statement_index as usize
-        && call.call_ordinal == coordinate.call_ordinal as usize
-        && call.receiver_symbol == parameter
-        && call.target_symbol == requirement
-        && call.has_receiver
-        && call.service_reach == checked_call_service_reach)
+    Ok(
+        call.statement_index == origin.coordinate.statement_index as usize
+            && call.call_ordinal == origin.coordinate.call_ordinal as usize
+            && call.receiver_symbol == origin.parameter
+            && call.target_symbol == plan.requirement
+            && call.has_receiver
+            && call.service_reach == plan.checked_call_service_reach,
+    )
 }

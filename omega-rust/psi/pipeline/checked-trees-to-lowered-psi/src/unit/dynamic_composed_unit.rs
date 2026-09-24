@@ -9,17 +9,16 @@
 //!
 //! This file owns the one entry point, `lower_dynamic_dispatch_machine`: it
 //! resolves the checked binding kind (direct, rebound, stored or joined) into
-//! a lowering route and hands that route to the body for the plan's result
-//! shape. `dynamic_lanes.rs` carries the lane shapes and the scalar-composed
-//! single-call lowering, `unit.rs` its Unit-result counterpart, `join.rs` the
-//! one two-branch join for either result shape, and `continuation.rs` the
-//! scalar result that immediately selects Unit control. `plan_validation.rs`
-//! validates the exact plans, `source_lowering.rs` lowers sources and call
-//! custody, `forwarded_helpers.rs` materializes forwarded helper chains,
-//! `structural_types.rs` lowers structural types, `realizations.rs` collects
-//! and materializes realizations, `applications.rs` lowers the conformance
-//! applications and `store_operations.rs` lowers caller and realization
-//! stores.
+//! a lowering route and lowers that route for either result shape.
+//! `dynamic_lanes.rs` defines the scalar and Unit lanes and the custody they
+//! share, `single_call.rs` lowers one call, `join.rs` the two-branch join, and
+//! `continuation.rs` the scalar result that immediately selects Unit control.
+//! `plan_validation.rs` validates the exact plans, `source_lowering.rs` lowers
+//! sources and call custody, `forwarded_helpers.rs` materializes forwarded
+//! helper chains, `structural_types.rs` lowers structural types,
+//! `realizations.rs` collects and materializes realizations,
+//! `applications.rs` lowers the conformance applications and
+//! `store_operations.rs` lowers caller and realization stores.
 
 mod applications;
 mod continuation;
@@ -28,35 +27,30 @@ mod forwarded_helpers;
 mod join;
 mod plan_validation;
 mod realizations;
+mod single_call;
 mod source_lowering;
 mod store_operations;
 mod structural_types;
-mod unit;
 
 use super::{
     CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, PrimitiveType,
-    ProofBundle, allocate_dense, block_id, edge_id, evidence_lowering, lookup_type_id,
+    ProofBundle, allocate_dense, block_id, edge_id, lookup_type_id,
     lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
     place_id, terminal_scalar_type, unsupported, value_id,
 };
-use crate::unit::dynamic_composed_unit::dynamic_lanes::{
-    DynamicLoweringLane, lower_dynamic_composed_unit_machine,
-};
+use crate::unit::dynamic_composed_unit::dynamic_lanes::{DynamicCall, DynamicLoweringLane};
 use checked_trees::{
-    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedDynamicUnitCallPlan,
-    CheckedScalarExpression, CheckedStructuralAccess, CheckedUnitStructuralPathSegment,
+    CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedScalarExpression,
+    CheckedStructuralAccess,
 };
-use language_semantics::Multiplicity;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
-    Block, ClosedConformanceApplication, ClosedConformanceCallableResult, ClosedConformanceRow,
-    Operation, OperationKind, OperationResult, StructuralAccess, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, TerminalDirectDynamicDispatch,
+    Block, Operation, OperationKind, OperationResult, StructuralAccess,
+    StructuralParameterDeclaration, StructuralPlaceDeclaration,
     TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
     TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
-    TerminalDynamicDispatchCatalog, TerminalIndirectDynamicDispatch, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
-    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration,
+    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalParameterDynamicDispatch, Terminator, ValueDeclaration,
 };
 
 /// What one dynamic dispatch lowering retains about its source machines.
@@ -147,44 +141,47 @@ pub(crate) fn lower_dynamic_dispatch_machine(
         });
     }
     let caller = plan.caller_machine();
-    Ok(match plan {
-        CheckedDynamicDispatchPlan::Scalar(binding) => match dynamic_dispatch_route(binding) {
-            DynamicDispatchRoute::Single { call, lane } => LoweredDynamicDispatch::SourceMapped(
-                lower_dynamic_composed_unit_machine(checked, call, lane)?,
-            ),
-            DynamicDispatchRoute::Joined {
-                control,
-                when_true,
-                when_false,
-            } => lower_joined_dispatch(checked, caller, control, when_true, when_false)?,
-        },
-        CheckedDynamicDispatchPlan::Unit(binding) => match dynamic_dispatch_route(binding) {
-            DynamicDispatchRoute::Single { call, lane } => LoweredDynamicDispatch::EntryOnly {
-                terminal: unit::lower_dynamic_unit_machine(checked, call, lane)?,
-                source_machines: vec![caller, call.realization_machine],
-            },
-            DynamicDispatchRoute::Joined {
-                control,
-                when_true,
-                when_false,
-            } => lower_joined_dispatch(checked, caller, control, when_true, when_false)?,
-        },
-    })
+    match plan {
+        CheckedDynamicDispatchPlan::Scalar(binding) => {
+            let route = dynamic_dispatch_route(binding);
+            // A scalar result that immediately selects Unit control lowers
+            // with that control; every other route is shared with Unit calls.
+            if let DynamicDispatchRoute::Single { call, lane } = &route
+                && let Some(unit_continuation) = &call.unit_continuation
+            {
+                return continuation::lower(checked, call, unit_continuation, *lane)
+                    .map(LoweredDynamicDispatch::SourceMapped);
+            }
+            lower_route(checked, caller, route)
+        }
+        CheckedDynamicDispatchPlan::Unit(binding) => {
+            lower_route(checked, caller, dynamic_dispatch_route(binding))
+        }
+    }
 }
 
-/// Either result shape lowers its join through the one join lowering; the
-/// entry retains the caller and each branch's selected realization.
-fn lower_joined_dispatch<Call: join::JoinedDynamicCall>(
+/// Either result shape lowers a single call through the one single-call
+/// lowering and a join through the one join lowering; a join's entry retains
+/// the caller and each branch's selected realization.
+fn lower_route<Call: DynamicCall>(
     checked: &CheckedTrees,
     caller: symbols::SymbolHandle,
-    control: &checked_trees::CheckedDynamicJoinControlPlan,
-    when_true: &checked_trees::CheckedDynamicJoinBranchPlan<Call>,
-    when_false: &checked_trees::CheckedDynamicJoinBranchPlan<Call>,
+    route: DynamicDispatchRoute<'_, Call>,
 ) -> Result<LoweredDynamicDispatch, LoweringError> {
+    let (control, when_true, when_false) = match route {
+        DynamicDispatchRoute::Single { call, lane } => {
+            return single_call::lower(checked, call, lane);
+        }
+        DynamicDispatchRoute::Joined {
+            control,
+            when_true,
+            when_false,
+        } => (control, when_true, when_false),
+    };
     let mut source_machines = vec![
         caller,
-        when_true.call.view().realization_machine(),
-        when_false.call.view().realization_machine(),
+        when_true.call.view().realization_machine,
+        when_false.call.view().realization_machine,
     ];
     source_machines.sort_by_key(|machine| (machine.arena_index(), machine.generation()));
     source_machines.dedup();

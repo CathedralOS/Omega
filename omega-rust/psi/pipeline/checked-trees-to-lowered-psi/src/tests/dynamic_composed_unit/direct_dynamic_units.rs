@@ -669,7 +669,7 @@ fn lowers_parameter_sourced_dynamic_unit_forwarding_as_two_explicit_helpers() {
     plan.forwarding_transfers[0].coordinate.statement_index = 1;
     assert_eq!(
         unsupported_message(&checked),
-        "dynamic Unit call drifted from checked flow custody"
+        "direct dynamic call drifted from checked flow custody"
     );
 }
 

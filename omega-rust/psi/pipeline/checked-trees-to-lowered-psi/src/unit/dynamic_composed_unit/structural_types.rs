@@ -2,7 +2,7 @@
 
 use crate::unit::{CheckedTrees, LoweringError, attached_unit, unsupported};
 use checked_trees::{
-    CheckedDynamicScalarCallPlan, CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
     CheckedUnitStructuralTypeShape,
 };
 use language_semantics::Multiplicity;
@@ -28,26 +28,6 @@ pub(crate) fn terminal_projected_source_multiplicity_for(
         Multiplicity::Affine => StructuralMultiplicity::Affine,
         Multiplicity::Linear => StructuralMultiplicity::Linear,
     }
-}
-
-pub(crate) fn lower_dynamic_structural_types(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
-    caller_attachment: &str,
-) -> Result<
-    (
-        Vec<terminal_psi::StructuralTypeDeclaration>,
-        Vec<(String, semantic_vocabulary::StructuralTypeId)>,
-    ),
-    LoweringError,
-> {
-    lower_dynamic_structural_types_for_source(
-        checked,
-        caller_attachment,
-        &plan.caller_attachment_type_identity,
-        &plan.source_path,
-        &plan.source_type_identity,
-    )
 }
 
 pub(crate) fn lower_dynamic_structural_types_for_source(

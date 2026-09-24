@@ -1,48 +1,35 @@
-//! Lane shapes for dynamic composed-unit lowering and the lowering shared
-//! by every lane.
+//! The two result lanes of dynamic lowering and the custody they share.
+//!
+//! A scalar and a Unit call plan carry the same checked custody apart from
+//! their result. [`DynamicCallView`] borrows that custody from either plan. A
+//! [`DynamicCall`] lane supplies only what its plan adds: the result it binds
+//! and the selected body's agreement with it, the scalar lane's caller store
+//! and Unit continuation, its forwarded helper bodies, and how its single-call
+//! lowering retains source machines. Validation, the single-call lowering,
+//! the join and the forwarded helper chain are each written once over it.
 
-use crate::unit::dynamic_composed_unit::applications::{
-    exact_machine_service_summary, lower_exact_application, lower_initial_rebound_application,
-    terminal_callable_result,
-};
-use crate::unit::dynamic_composed_unit::continuation;
+use crate::unit::dynamic_composed_unit::LoweredDynamicDispatch;
+use crate::unit::dynamic_composed_unit::applications::terminal_callable_result;
 use crate::unit::dynamic_composed_unit::forwarded_helpers::{
-    dynamic_source_call_occurrences_for_chain, extend_parameter_forwarding_catalog,
-    forwarded_helper_chain_ids, materialize_forwarded_helper_chain,
-};
-use crate::unit::dynamic_composed_unit::plan_validation::{
-    validate_exact_direct_plan, validate_exact_rebound_plan, validate_exact_stored_plan,
-};
-use crate::unit::dynamic_composed_unit::realizations::{
-    collect_dynamic_realizations, materialize_dynamic_realizations, retain_realizations_for_lane,
-};
-use crate::unit::dynamic_composed_unit::source_lowering::{
-    lower_dynamic_call_custody, validate_and_lower_source,
-};
-use crate::unit::dynamic_composed_unit::store_operations::{
-    empty_terminal_contract, lower_caller_store_operations,
-};
-use crate::unit::dynamic_composed_unit::structural_types::{
-    lower_dynamic_structural_types, terminal_structural_multiplicity,
+    ForwardedHelperSite, materialize_scalar_helper_body, materialize_unit_helper_body,
 };
 use crate::unit::{
-    CheckedTrees, LoweredPsi, LoweringError, MachineId, ProofBundle, block_id, edge_id,
-    lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
-    machine_id, operation_id, place_id, terminal_scalar_type, unsupported, value_id,
+    CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, MachineId,
+    terminal_scalar_type, unsupported,
 };
 use checked_trees::{
-    CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan, CheckedStructuralAccess,
+    CheckedDynamicDescriptorTransferPlan, CheckedDynamicRealizationBodyPlan,
+    CheckedDynamicRealizationCallablePlan, CheckedDynamicScalarCallOrigin,
+    CheckedDynamicScalarCallPlan, CheckedDynamicSelectionPlan, CheckedDynamicUnitCallOrigin,
+    CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan, CheckedStructuralAccess,
+    CheckedStructuralScalarFieldStorePlan, CheckedUnitCallCoordinate,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralPathSegment,
+    DynamicConformanceBindingFact, MachineContractCommitment,
 };
-use semantic_vocabulary::StructuralPlaceKind;
-use terminal_psi::{
-    Block, ClosedConformanceCallableResult, Operation, OperationKind, OperationResult,
-    StructuralAccess, StructuralParameterDeclaration, StructuralPlaceDeclaration, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-};
-
-pub(crate) struct DynamicCallerShape {
-    pub(crate) attachment_type_identity: String,
-}
+use language_semantics::{Multiplicity, ServiceReachSummary};
+use semantic_vocabulary::ScalarType;
+use symbols::SymbolHandle;
+use terminal_psi::{Block, ClosedConformanceCallableResult};
 
 #[derive(Clone)]
 pub(crate) struct LoweredDynamicRealization {
@@ -63,31 +50,23 @@ pub(crate) struct LoweredDynamicRealization {
     pub(crate) result: ClosedConformanceCallableResult,
 }
 
+/// The identities one forwarded helper machine owns.
 #[derive(Clone, Copy)]
 pub(crate) struct ForwardedHelperIds {
     pub(crate) machine: semantic_vocabulary::MachineId,
     pub(crate) block: semantic_vocabulary::BlockId,
     pub(crate) operation: semantic_vocabulary::OperationId,
-    pub(crate) operation_value: semantic_vocabulary::ValueId,
-    pub(crate) result_value: semantic_vocabulary::ValueId,
     pub(crate) edge: semantic_vocabulary::EdgeId,
+    /// The values a scalar helper binds; a Unit helper binds none.
+    pub(crate) scalar_values: Option<ForwardedHelperValues>,
 }
 
-/// The call a forwarded helper exposes to the descriptor catalog and source
-/// custody, whichever result its lane lowers.
-pub(crate) trait ForwardedHelperCall: Copy {
-    fn machine(&self) -> MachineId;
-    fn operation(&self) -> semantic_vocabulary::OperationId;
-}
-
-impl ForwardedHelperCall for ForwardedHelperIds {
-    fn machine(&self) -> MachineId {
-        self.machine
-    }
-
-    fn operation(&self) -> semantic_vocabulary::OperationId {
-        self.operation
-    }
+#[derive(Clone, Copy)]
+pub(crate) struct ForwardedHelperValues {
+    /// The result of the helper's own call.
+    pub(crate) call: semantic_vocabulary::ValueId,
+    /// The value the helper returns.
+    pub(crate) result: semantic_vocabulary::ValueId,
 }
 
 #[derive(Clone, Copy)]
@@ -97,297 +76,377 @@ pub(crate) enum DynamicLoweringLane<'a> {
     Stored(&'a checked_trees::CheckedDynamicStoredDescriptorPlan),
 }
 
-pub(crate) fn lower_dynamic_composed_unit_machine(
-    checked: &CheckedTrees,
-    plan: &CheckedDynamicScalarCallPlan,
-    lane: DynamicLoweringLane<'_>,
-) -> Result<crate::producer_result::SourceMappedLowered, LoweringError> {
-    let caller = match lane {
-        DynamicLoweringLane::Direct => validate_exact_direct_plan(checked, plan)?,
-        DynamicLoweringLane::Rebound(initial) => {
-            validate_exact_rebound_plan(checked, plan, initial)?
-        }
-        DynamicLoweringLane::Stored(stored) => validate_exact_stored_plan(checked, stored, plan)?,
-    };
-    if let Some(unit_continuation) = &plan.unit_continuation {
-        return continuation::lower(checked, plan, unit_continuation, caller, lane);
-    }
-    let (structural_types, type_ids) =
-        lower_dynamic_structural_types(checked, plan, &caller.attachment_type_identity)?;
-    let caller_attachment = lookup_type_id(&type_ids, &caller.attachment_type_identity)?;
-    let caller_access = match plan.caller_parameter_access {
-        CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-        CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-        _ => return unsupported("direct dynamic caller requires a borrowed self parameter"),
-    };
-    let caller_self = StructuralParameterDeclaration {
-        place: place_id(1),
-        position: 0,
-        is_self: true,
-        structural_type: caller_attachment,
-        multiplicity: terminal_structural_multiplicity(plan.caller_multiplicity),
-        access: caller_access,
-        qualifications: Vec::new(),
-        projected_qualifications: Vec::new(),
-    };
-    let caller_parameters = vec![caller_self.clone()];
-    let source = validate_and_lower_source(&caller_self, plan, &structural_types, &type_ids)?;
-
-    let caller_machine = machine_id(1);
-    let has_caller_store = plan.caller_structural_scalar_field_store.is_some();
-    let has_descriptor_store = matches!(lane, DynamicLoweringLane::Stored(_));
-    let call_operation = operation_id(if has_caller_store {
-        3
-    } else if has_descriptor_store {
-        2
-    } else {
-        1
-    });
-    let call_result_value = value_id(if has_caller_store { 2 } else { 1 });
-    let call_result_type = terminal_scalar_type(plan.result.primitive_type)?;
-    let source_type = lookup_type_id(&type_ids, &plan.source_type_identity)?;
-    let callable_table = plan.into();
-    let all_realizations = collect_dynamic_realizations(checked, &callable_table, 2)?;
-    let lowered_realizations =
-        retain_realizations_for_lane(&all_realizations, &callable_table, lane)?;
-    let selected_realizations = lowered_realizations
-        .iter()
-        .filter(|candidate| {
-            candidate.source_machine == plan.realization_machine
-                && candidate.source_state == plan.realization_state
-        })
-        .collect::<Vec<_>>();
-    let [selected_realization] = selected_realizations.as_slice() else {
-        return unsupported("direct dynamic selected realization is absent or ambiguous");
-    };
-    let realization_machine = selected_realization.machine;
-    let callable_result = selected_realization.result;
-    let callable_identity = selected_realization.callable_identity.clone();
-    if callable_result != terminal_callable_result(plan.result.primitive_type)?
-        || selected_realization.checked_identity != plan.realization_identity
-    {
-        return unsupported("direct dynamic selected realization callable drifted");
-    }
-
-    let (application, selected_row) = lower_exact_application(
-        checked,
-        &callable_table,
-        caller_machine,
-        &lowered_realizations,
-    )?;
-    let initial_application = match lane {
-        DynamicLoweringLane::Rebound(initial)
-            if initial.fact.conformance != plan.selection.conformance
-                || initial.fact.rows != plan.selection.rows =>
-        {
-            Some(lower_initial_rebound_application(
-                checked,
-                plan.target_trait,
-                initial,
-                caller_machine,
-            )?)
-        }
-        _ => None,
-    };
-    let mut next_block = 2_u64;
-    let mut next_place = 2_u64;
-    let mut next_operation = if has_caller_store {
-        4
-    } else if has_descriptor_store {
-        3
-    } else {
-        2
-    };
-    let mut next_value = if has_caller_store { 3 } else { 2 };
-    let mut next_edge = 2_u64;
-    let forwarded_helpers = forwarded_helper_chain_ids(
-        plan,
-        &lowered_realizations,
-        &mut next_block,
-        &mut next_operation,
-        &mut next_value,
-        &mut next_edge,
-    )?;
-    let (mut dynamic_dispatch, call_kind) = lower_dynamic_call_custody(
-        lane,
-        &caller_self,
-        plan,
-        &structural_types,
-        &type_ids,
-        caller_machine,
-        call_operation,
-        has_descriptor_store.then_some(operation_id(1)),
-        source,
-        initial_application.as_ref(),
-        &application,
-        &selected_row,
-        callable_identity,
-        realization_machine,
-        forwarded_helpers.first().copied(),
-    )?;
-    if forwarded_helpers.len() > 1 {
-        extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &forwarded_helpers)?;
-    }
-
-    let caller_block = block_id(1);
-    let caller_reach = lower_installation_machine_service_ceiling(
-        checked,
-        plan.caller_machine,
-        checked
-            .facts
-            .service_reaches
-            .plan_for_machine(plan.caller_machine)
-            .ok_or(LoweringError::Unsupported(
-                "direct dynamic caller has no checked service contract",
-            ))?,
-        exact_machine_service_summary(checked, plan.caller_machine)?,
-        &[],
-    )?;
-    let root_service_reach = lower_root_service_reach(checked, plan.caller_machine, &[])?;
-    let mut caller_operations =
-        lower_caller_store_operations(plan, &caller_self, &structural_types, &type_ids)?;
-    if has_descriptor_store {
-        caller_operations.push(Operation {
-            static_reach_binding: None,
-            suspension_crossing: None,
-            id: operation_id(1),
-            result: OperationResult::Unit,
-            kind: OperationKind::StoreDynamicDescriptor {
-                descriptor_ordinal: 0,
-            },
-        });
-    }
-    caller_operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id: call_operation,
-        result: OperationResult::Scalar(ValueDeclaration {
-            qualifications: Default::default(),
-            id: call_result_value,
-            scalar_type: call_result_type,
-        }),
-        kind: call_kind,
-    });
-    let realization_machines = materialize_dynamic_realizations(
-        checked,
-        &callable_table,
-        &lowered_realizations,
-        source_type,
-        &structural_types,
-        &mut next_block,
-        &mut next_place,
-        &mut next_operation,
-        &mut next_value,
-        &mut next_edge,
-    )?;
-    let mut source_call_occurrences =
-        dynamic_source_call_occurrences_for_chain(plan, call_operation, &forwarded_helpers)?;
-    let forwarded_helper_machines = materialize_forwarded_helper_chain(
-        checked,
-        plan,
-        &application,
-        &selected_row,
-        &forwarded_helpers,
-        &mut next_block,
-        &mut next_operation,
-        &mut next_value,
-        &mut next_edge,
-        &mut source_call_occurrences,
-    )?;
-
-    let lowered = LoweredPsi {
-        semantic_module: TerminalModule {
-            structural_types,
-            root_service_reach,
-            closed_conformance_applications: {
-                let mut applications = vec![application];
-                applications.extend(initial_application);
-                applications.sort_by(|left, right| {
-                    (
-                        left.owner,
-                        left.declaration_identity.as_str(),
-                        left.report_fingerprint,
-                    )
-                        .cmp(&(
-                            right.owner,
-                            right.declaration_identity.as_str(),
-                            right.report_fingerprint,
-                        ))
-                });
-                applications
-            },
-            dynamic_dispatch,
-            machines: {
-                let mut machines = vec![TerminalMachine {
-                    closed_reach_application: None,
-                    declared_service_reach: Vec::new(),
-                    id: caller_machine,
-                    attachment: Some(caller_attachment),
-                    parameters: Vec::new(),
-                    structural_parameters: caller_parameters.clone(),
-                    ranked_scc: None,
-                    result: TerminalMachineResult::Unit,
-                    structural_places: caller_parameters
-                        .iter()
-                        .map(|parameter| StructuralPlaceDeclaration {
-                            id: parameter.place,
-                            kind: StructuralPlaceKind::Parameter {
-                                position: parameter.position,
-                                is_self: parameter.is_self,
-                            },
-                        })
-                        .collect(),
-                    entry_claims: Vec::new(),
-                    published_service_ceiling: caller_reach,
-                    content_entry_claims: Vec::new(),
-                    content_identity_reshuffles: Vec::new(),
-                    content_partition_compositions: Vec::new(),
-                    entry: caller_block,
-                    blocks: vec![Block {
-                        structural_parameters: Vec::new(),
-                        id: caller_block,
-                        parameters: Vec::new(),
-                        erased_scalar_formals: Vec::new(),
-                        erased_proof_formals: Vec::new(),
-                        operations: caller_operations,
-                        terminator: Terminator::ReturnUnit {
-                            edge: edge_id(1),
-                            trivial_affine_discards: Vec::new(),
-                        },
-                    }],
-                    contract: empty_terminal_contract(caller_machine.get()),
-                }];
-                machines.extend(realization_machines);
-                machines.extend(forwarded_helper_machines);
-                machines
-            },
-            ..TerminalModule::for_entry(caller_machine)
-        },
-        proof_bundle: ProofBundle {
-            crash_obligations: Vec::new(),
-            recursive_components: Vec::new(),
-            control_cycles: Vec::new(),
-            evidence_producers: Vec::new(),
-            evidence: Vec::new(),
-        },
-        debug_map: None,
-        source_call_occurrences,
-        selected_ieee_float_fma_occurrences: Vec::new(),
-        selected_ieee_float_comparison_occurrences: Vec::new(),
-        selected_integer_comparison_occurrences: Vec::new(),
-    };
-    retain_dynamic_source_owners(
-        lowered,
-        plan,
-        &lowered_realizations,
-        &forwarded_helpers,
-        Vec::new(),
-    )
+/// The final helper of a forwarded call: its machine and state, the
+/// coordinate of its dispatching call and the descriptor parameter it calls
+/// through.
+#[derive(Clone, Copy)]
+pub(crate) struct ForwardedOrigin {
+    pub(crate) machine: SymbolHandle,
+    pub(crate) state: SymbolHandle,
+    pub(crate) coordinate: CheckedUnitCallCoordinate,
+    pub(crate) parameter: SymbolHandle,
 }
 
+/// One call plan's checked custody, independent of its result.
+pub(crate) struct DynamicCallView<'a> {
+    /// The final forwarded helper; `None` for a local call.
+    pub(crate) forwarded: Option<ForwardedOrigin>,
+    pub(crate) forwarding_transfers: &'a [CheckedDynamicDescriptorTransferPlan],
+    pub(crate) caller_machine: SymbolHandle,
+    pub(crate) caller_state: SymbolHandle,
+    pub(crate) caller_attachment_type_identity: &'a str,
+    pub(crate) caller_multiplicity: Multiplicity,
+    pub(crate) caller_parameter_access: CheckedStructuralAccess,
+    pub(crate) caller_contract_report_fingerprint: u64,
+    pub(crate) caller_contract_commitment: MachineContractCommitment,
+    pub(crate) caller_service_reach: ServiceReachSummary,
+    pub(crate) coordinate: CheckedUnitCallCoordinate,
+    pub(crate) receiver_binding: SymbolHandle,
+    pub(crate) selection: &'a DynamicConformanceBindingFact,
+    pub(crate) source_parameter_position: u32,
+    pub(crate) source_access: CheckedStructuralAccess,
+    pub(crate) source_field: SymbolHandle,
+    pub(crate) source_path: &'a [CheckedUnitStructuralPathSegment],
+    pub(crate) source_type_identity: &'a str,
+    pub(crate) source_multiplicity: Multiplicity,
+    pub(crate) target_trait: SymbolHandle,
+    pub(crate) selected_conformance: SymbolHandle,
+    pub(crate) declaring_trait: SymbolHandle,
+    pub(crate) requirement: SymbolHandle,
+    pub(crate) requirement_identity: &'a str,
+    pub(crate) realization_machine: SymbolHandle,
+    pub(crate) realization_state: SymbolHandle,
+    pub(crate) realization_identity: &'a str,
+    pub(crate) family_tuple: &'a [String],
+    pub(crate) realization_callables: &'a [CheckedDynamicRealizationCallablePlan],
+    pub(crate) realization_contract_report_fingerprint: u64,
+    pub(crate) realization_contract_commitment: MachineContractCommitment,
+    pub(crate) checked_call_service_reach: ServiceReachSummary,
+}
+
+/// Both plans name their shared custody identically; only the origin enum
+/// differs, so each lane converts its origin and borrows the rest here.
+macro_rules! dynamic_call_view {
+    ($plan:expr, $forwarded:expr) => {{
+        let plan = $plan;
+        DynamicCallView {
+            forwarded: $forwarded,
+            forwarding_transfers: &plan.forwarding_transfers,
+            caller_machine: plan.caller_machine,
+            caller_state: plan.caller_state,
+            caller_attachment_type_identity: &plan.caller_attachment_type_identity,
+            caller_multiplicity: plan.caller_multiplicity,
+            caller_parameter_access: plan.caller_parameter_access,
+            caller_contract_report_fingerprint: plan.caller_contract_report_fingerprint,
+            caller_contract_commitment: plan.caller_contract_commitment,
+            caller_service_reach: plan.caller_service_reach,
+            coordinate: plan.coordinate,
+            receiver_binding: plan.receiver_binding,
+            selection: &plan.selection,
+            source_parameter_position: plan.source_parameter_position,
+            source_access: plan.source_access,
+            source_field: plan.source_field,
+            source_path: &plan.source_path,
+            source_type_identity: &plan.source_type_identity,
+            source_multiplicity: plan.source_multiplicity,
+            target_trait: plan.target_trait,
+            selected_conformance: plan.selected_conformance,
+            declaring_trait: plan.declaring_trait,
+            requirement: plan.requirement,
+            requirement_identity: &plan.requirement_identity,
+            realization_machine: plan.realization_machine,
+            realization_state: plan.realization_state,
+            realization_identity: &plan.realization_identity,
+            family_tuple: &plan.family_tuple,
+            realization_callables: &plan.realization_callables,
+            realization_contract_report_fingerprint: plan.realization_contract_report_fingerprint,
+            realization_contract_commitment: plan.realization_contract_commitment,
+            checked_call_service_reach: plan.checked_call_service_reach,
+        }
+    }};
+}
+
+/// What one call plan decides beyond the custody every dynamic call shares.
+/// Lowering names a result shape only through [`Self::result`].
+pub(crate) trait DynamicCall {
+    /// The custody both lanes' call plans share.
+    fn view(&self) -> DynamicCallView<'_>;
+
+    /// The scalar result the call binds, or `None` for a Unit call.
+    fn result(&self) -> Option<&CheckedUnitScalarResultBindingPlan>;
+
+    /// Agreement of the selected realization's checked body with this call.
+    fn validate_selected_body(
+        &self,
+        body: &CheckedDynamicRealizationBodyPlan,
+    ) -> Result<(), LoweringError>;
+
+    /// The caller-side field store that precedes the selection, if retained.
+    fn caller_store(&self) -> Option<&CheckedStructuralScalarFieldStorePlan>;
+
+    /// The checked Unit control the call's result immediately selects.
+    fn unit_continuation(&self) -> Option<&CheckedDynamicUnitContinuationPlan>;
+
+    /// How many forwarded helper bodies the plan retains; `None` when its
+    /// helpers only forward the descriptor to their one call.
+    fn helper_body_count(&self) -> Option<usize>;
+
+    /// Result agreement between two join branches beyond the shared caller ABI.
+    fn results_match(&self, other: &Self) -> bool;
+
+    /// Agreement between two join branches' forwarded helper bodies.
+    fn helper_bodies_match(&self, other: &Self) -> bool;
+
+    /// The blocks of one forwarded helper. A helper that evaluates its own
+    /// body records the values it computes before its call.
+    #[allow(clippy::too_many_arguments)]
+    fn materialize_helper_body(
+        &self,
+        checked: &CheckedTrees,
+        site: &ForwardedHelperSite,
+        next_block: &mut u64,
+        next_operation: &mut u64,
+        next_value: &mut u64,
+        next_edge: &mut u64,
+        source_calls: &mut [LoweredSourceCallOccurrence],
+    ) -> Result<Vec<Block>, LoweringError>;
+
+    /// How a single-call lowering retains the source machines it closed over.
+    fn retain_sources(
+        &self,
+        terminal: LoweredPsi,
+        realizations: &[LoweredDynamicRealization],
+        helpers: &[ForwardedHelperIds],
+    ) -> Result<LoweredDynamicDispatch, LoweringError>;
+
+    /// The call's scalar result type, or `None` for a Unit call.
+    fn result_type(&self) -> Result<Option<ScalarType>, LoweringError> {
+        self.result()
+            .map(|result| terminal_scalar_type(result.primitive_type))
+            .transpose()
+    }
+
+    /// The closed conformance result the selected realization must expose.
+    fn callable_result(&self) -> Result<ClosedConformanceCallableResult, LoweringError> {
+        self.result()
+            .map_or(Ok(ClosedConformanceCallableResult::Unit), |result| {
+                terminal_callable_result(result.primitive_type)
+            })
+    }
+}
+
+impl DynamicCall for CheckedDynamicScalarCallPlan {
+    fn view(&self) -> DynamicCallView<'_> {
+        dynamic_call_view!(
+            self,
+            match self.origin {
+                CheckedDynamicScalarCallOrigin::Local => None,
+                CheckedDynamicScalarCallOrigin::Forwarded {
+                    machine,
+                    state,
+                    coordinate,
+                    parameter,
+                } => Some(ForwardedOrigin {
+                    machine,
+                    state,
+                    coordinate,
+                    parameter,
+                }),
+            }
+        )
+    }
+
+    fn result(&self) -> Option<&CheckedUnitScalarResultBindingPlan> {
+        Some(&self.result)
+    }
+
+    /// The selected body returns this call's result type, and the plan
+    /// retains exactly its return expression and field stores.
+    fn validate_selected_body(
+        &self,
+        body: &CheckedDynamicRealizationBodyPlan,
+    ) -> Result<(), LoweringError> {
+        let CheckedDynamicRealizationBodyPlan::Scalar {
+            result_type,
+            return_expression,
+            structural_scalar_field_stores,
+        } = body
+        else {
+            return unsupported("direct dynamic scalar call selected a Unit body");
+        };
+        if *result_type != self.result.primitive_type
+            || *return_expression != self.realization_return_expression
+            || *structural_scalar_field_stores != self.realization_structural_scalar_field_stores
+        {
+            return unsupported("direct dynamic selected body drifted from checked custody");
+        }
+        Ok(())
+    }
+
+    fn caller_store(&self) -> Option<&CheckedStructuralScalarFieldStorePlan> {
+        self.caller_structural_scalar_field_store.as_ref()
+    }
+
+    fn unit_continuation(&self) -> Option<&CheckedDynamicUnitContinuationPlan> {
+        self.unit_continuation.as_ref()
+    }
+
+    fn helper_body_count(&self) -> Option<usize> {
+        Some(self.forwarding_helpers.len())
+    }
+
+    /// The branch results bind one scalar type, and neither branch retains a
+    /// caller store or Unit continuation the join would not lower.
+    fn results_match(&self, other: &Self) -> bool {
+        self.result.primitive_type == other.result.primitive_type
+            && [self, other].into_iter().all(|plan| {
+                plan.caller_structural_scalar_field_store.is_none()
+                    && plan.unit_continuation.is_none()
+            })
+    }
+
+    fn helper_bodies_match(&self, other: &Self) -> bool {
+        self.forwarding_helpers == other.forwarding_helpers
+    }
+
+    fn materialize_helper_body(
+        &self,
+        checked: &CheckedTrees,
+        site: &ForwardedHelperSite,
+        next_block: &mut u64,
+        next_operation: &mut u64,
+        next_value: &mut u64,
+        next_edge: &mut u64,
+        source_calls: &mut [LoweredSourceCallOccurrence],
+    ) -> Result<Vec<Block>, LoweringError> {
+        let body = self
+            .forwarding_helpers
+            .get(site.index)
+            .ok_or(LoweringError::Unsupported(
+                "forwarded helper chain length drifted from checked custody",
+            ))?;
+        if body.machine != site.source_machine
+            || body.state != site.source_state
+            || body.call_result.statement_index != site.source_coordinate.statement_index
+            || body.call_result.primitive_type != self.result.primitive_type
+        {
+            return unsupported("forwarded helper body changed its source call");
+        }
+        materialize_scalar_helper_body(
+            checked,
+            body,
+            site,
+            terminal_scalar_type(self.result.primitive_type)?,
+            next_block,
+            next_operation,
+            next_value,
+            next_edge,
+            source_calls,
+        )
+    }
+
+    fn retain_sources(
+        &self,
+        terminal: LoweredPsi,
+        realizations: &[LoweredDynamicRealization],
+        helpers: &[ForwardedHelperIds],
+    ) -> Result<LoweredDynamicDispatch, LoweringError> {
+        retain_dynamic_source_owners(terminal, &self.view(), realizations, helpers, Vec::new())
+            .map(LoweredDynamicDispatch::SourceMapped)
+    }
+}
+
+impl DynamicCall for CheckedDynamicUnitCallPlan {
+    fn view(&self) -> DynamicCallView<'_> {
+        dynamic_call_view!(
+            self,
+            match self.origin {
+                CheckedDynamicUnitCallOrigin::Local => None,
+                CheckedDynamicUnitCallOrigin::Forwarded {
+                    machine,
+                    state,
+                    coordinate,
+                    parameter,
+                } => Some(ForwardedOrigin {
+                    machine,
+                    state,
+                    coordinate,
+                    parameter,
+                }),
+            }
+        )
+    }
+
+    fn result(&self) -> Option<&CheckedUnitScalarResultBindingPlan> {
+        None
+    }
+
+    fn validate_selected_body(
+        &self,
+        body: &CheckedDynamicRealizationBodyPlan,
+    ) -> Result<(), LoweringError> {
+        if !matches!(body, CheckedDynamicRealizationBodyPlan::Unit) {
+            return unsupported("dynamic Unit call selected a scalar body");
+        }
+        Ok(())
+    }
+
+    fn caller_store(&self) -> Option<&CheckedStructuralScalarFieldStorePlan> {
+        None
+    }
+
+    fn unit_continuation(&self) -> Option<&CheckedDynamicUnitContinuationPlan> {
+        None
+    }
+
+    fn helper_body_count(&self) -> Option<usize> {
+        None
+    }
+
+    /// A Unit call binds no result.
+    fn results_match(&self, _other: &Self) -> bool {
+        true
+    }
+
+    /// Unit helpers only forward the descriptor to the next call.
+    fn helper_bodies_match(&self, _other: &Self) -> bool {
+        true
+    }
+
+    fn materialize_helper_body(
+        &self,
+        _checked: &CheckedTrees,
+        site: &ForwardedHelperSite,
+        _next_block: &mut u64,
+        _next_operation: &mut u64,
+        _next_value: &mut u64,
+        _next_edge: &mut u64,
+        _source_calls: &mut [LoweredSourceCallOccurrence],
+    ) -> Result<Vec<Block>, LoweringError> {
+        Ok(vec![materialize_unit_helper_body(site)])
+    }
+
+    /// A Unit call's lowering is mapped through its entry: the caller and
+    /// the realization it selects.
+    fn retain_sources(
+        &self,
+        terminal: LoweredPsi,
+        _realizations: &[LoweredDynamicRealization],
+        _helpers: &[ForwardedHelperIds],
+    ) -> Result<LoweredDynamicDispatch, LoweringError> {
+        Ok(LoweredDynamicDispatch::EntryOnly {
+            terminal,
+            source_machines: vec![self.caller_machine, self.realization_machine],
+        })
+    }
+}
+
+/// The exact catalog of source owners a scalar lowering retains: the caller
+/// (unless `sources` already names it), each realization and each forwarded
+/// helper's source machine.
 pub(crate) fn retain_dynamic_source_owners(
     terminal: LoweredPsi,
-    plan: &CheckedDynamicScalarCallPlan,
+    plan: &DynamicCallView<'_>,
     realizations: &[LoweredDynamicRealization],
     helpers: &[ForwardedHelperIds],
     mut sources: Vec<(symbols::SymbolHandle, MachineId)>,
@@ -404,14 +463,13 @@ pub(crate) fn retain_dynamic_source_owners(
             .map(|realization| (realization.source_machine, realization.machine)),
     );
     for (index, helper) in helpers.iter().enumerate() {
-        let checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { machine, .. } = plan.origin
-        else {
+        let Some(origin) = plan.forwarded else {
             return unsupported("dynamic helper has no forwarded source owner");
         };
         let source = plan
             .forwarding_transfers
             .get(index)
-            .map_or(machine, |transfer| transfer.caller_machine);
+            .map_or(origin.machine, |transfer| transfer.caller_machine);
         sources.push((source, helper.machine));
     }
     crate::producer_result::SourceMappedLowered::new(terminal, sources)

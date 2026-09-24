@@ -1,8 +1,9 @@
 //! Lowering the initial rebound and exact conformance applications with
 //! their contracts and service summaries.
 
-use super::realizations::DynamicCallableTable;
-use crate::unit::dynamic_composed_unit::dynamic_lanes::LoweredDynamicRealization;
+use crate::unit::dynamic_composed_unit::dynamic_lanes::{
+    DynamicCallView, DynamicLoweringLane, LoweredDynamicRealization,
+};
 use crate::unit::{
     CheckedTrees, LoweringError, PrimitiveType, checked_unit_target_reach_matches,
     collect_service_summary, evidence_lowering, lower_installation_machine_service_ceiling,
@@ -16,7 +17,27 @@ use terminal_psi::{
     closed_conformance_application_commitment, closed_conformance_application_report_fingerprint,
 };
 
-pub(crate) fn lower_initial_rebound_application(
+/// A rebound descriptor whose initial selection names another conformance
+/// or row roster retains that selection's own application; every other lane
+/// retains only the latest selection's.
+pub(crate) fn lower_changed_initial_application(
+    checked: &CheckedTrees,
+    plan: &DynamicCallView<'_>,
+    lane: DynamicLoweringLane<'_>,
+    owner: semantic_vocabulary::MachineId,
+) -> Result<Option<ClosedConformanceApplication>, LoweringError> {
+    match lane {
+        DynamicLoweringLane::Rebound(initial)
+            if initial.fact.conformance != plan.selection.conformance
+                || initial.fact.rows != plan.selection.rows =>
+        {
+            lower_initial_rebound_application(checked, plan.target_trait, initial, owner).map(Some)
+        }
+        _ => Ok(None),
+    }
+}
+
+fn lower_initial_rebound_application(
     checked: &CheckedTrees,
     target_trait_symbol: symbols::SymbolHandle,
     initial: &CheckedDynamicSelectionPlan,
@@ -138,7 +159,7 @@ pub(crate) fn lower_initial_rebound_application(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn lower_exact_application(
     checked: &CheckedTrees,
-    plan: &DynamicCallableTable<'_>,
+    plan: &DynamicCallView<'_>,
     owner: semantic_vocabulary::MachineId,
     lowered_realizations: &[LoweredDynamicRealization],
 ) -> Result<(ClosedConformanceApplication, ClosedConformanceRow), LoweringError> {

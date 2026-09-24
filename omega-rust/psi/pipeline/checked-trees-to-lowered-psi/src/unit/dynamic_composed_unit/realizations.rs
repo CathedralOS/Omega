@@ -5,7 +5,7 @@ use crate::unit::dynamic_composed_unit::applications::{
     validate_empty_contract, validate_empty_service_summary,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
-    DynamicLoweringLane, LoweredDynamicRealization,
+    DynamicCall, DynamicCallView, DynamicLoweringLane, LoweredDynamicRealization,
 };
 use crate::unit::dynamic_composed_unit::store_operations::{
     empty_terminal_contract, lower_realization_operations,
@@ -19,8 +19,7 @@ use crate::unit::{
 use checked_trees::types::TypeReferenceNode;
 use checked_trees::{
     CheckedDynamicRealizationBodyPlan, CheckedDynamicRealizationCallablePlan,
-    CheckedDynamicScalarCallPlan, CheckedDynamicUnitCallPlan, CheckedStructuralAccess,
-    DynamicConformanceBindingFact,
+    CheckedStructuralAccess,
 };
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_psi::{
@@ -29,79 +28,9 @@ use terminal_psi::{
     ValueDeclaration,
 };
 
-/// Borrowed table inputs shared by scalar and Unit call sites. Invocation/result
-/// binding stays with the caller; table members retain their own result kinds.
-pub(crate) struct DynamicCallableTable<'a> {
-    pub(crate) selection: &'a DynamicConformanceBindingFact,
-    pub(crate) source_type_identity: &'a str,
-    pub(crate) selected_conformance: symbols::SymbolHandle,
-    pub(crate) target_trait: symbols::SymbolHandle,
-    pub(crate) declaring_trait: symbols::SymbolHandle,
-    pub(crate) requirement: symbols::SymbolHandle,
-    pub(crate) requirement_identity: &'a str,
-    pub(crate) family_tuple: &'a [String],
-    pub(crate) realization_machine: symbols::SymbolHandle,
-    pub(crate) realization_state: symbols::SymbolHandle,
-    pub(crate) realization_callables: &'a [CheckedDynamicRealizationCallablePlan],
-    pub(crate) caller_multiplicity: language_semantics::Multiplicity,
-    pub(crate) source_access: CheckedStructuralAccess,
-    pub(crate) forwarded: bool,
-    pub(crate) checked_call_service_reach: language_semantics::ServiceReachSummary,
-}
-
-impl<'a> From<&'a CheckedDynamicScalarCallPlan> for DynamicCallableTable<'a> {
-    fn from(plan: &'a CheckedDynamicScalarCallPlan) -> Self {
-        Self {
-            selection: &plan.selection,
-            source_type_identity: &plan.source_type_identity,
-            selected_conformance: plan.selected_conformance,
-            target_trait: plan.target_trait,
-            declaring_trait: plan.declaring_trait,
-            requirement: plan.requirement,
-            requirement_identity: &plan.requirement_identity,
-            family_tuple: &plan.family_tuple,
-            realization_machine: plan.realization_machine,
-            realization_state: plan.realization_state,
-            realization_callables: &plan.realization_callables,
-            caller_multiplicity: plan.caller_multiplicity,
-            source_access: plan.source_access,
-            forwarded: matches!(
-                plan.origin,
-                checked_trees::CheckedDynamicScalarCallOrigin::Forwarded { .. }
-            ),
-            checked_call_service_reach: plan.checked_call_service_reach,
-        }
-    }
-}
-
-impl<'a> From<&'a CheckedDynamicUnitCallPlan> for DynamicCallableTable<'a> {
-    fn from(plan: &'a CheckedDynamicUnitCallPlan) -> Self {
-        Self {
-            selection: &plan.selection,
-            source_type_identity: &plan.source_type_identity,
-            selected_conformance: plan.selected_conformance,
-            target_trait: plan.target_trait,
-            declaring_trait: plan.declaring_trait,
-            requirement: plan.requirement,
-            requirement_identity: &plan.requirement_identity,
-            family_tuple: &plan.family_tuple,
-            realization_machine: plan.realization_machine,
-            realization_state: plan.realization_state,
-            realization_callables: &plan.realization_callables,
-            caller_multiplicity: plan.caller_multiplicity,
-            source_access: plan.source_access,
-            forwarded: matches!(
-                plan.origin,
-                checked_trees::CheckedDynamicUnitCallOrigin::Forwarded { .. }
-            ),
-            checked_call_service_reach: plan.checked_call_service_reach,
-        }
-    }
-}
-
 pub(crate) fn collect_dynamic_realizations(
     checked: &CheckedTrees,
-    plan: &DynamicCallableTable<'_>,
+    plan: &DynamicCallView<'_>,
     first_machine: u64,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     if plan.realization_callables.is_empty() {
@@ -149,7 +78,7 @@ pub(crate) fn collect_dynamic_realizations(
 
 pub(crate) fn retain_realizations_for_lane(
     all: &[LoweredDynamicRealization],
-    plan: &DynamicCallableTable<'_>,
+    plan: &DynamicCallView<'_>,
     lane: DynamicLoweringLane<'_>,
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     // Rebound descriptors and forwarded descriptor parameters both expose the
@@ -157,7 +86,8 @@ pub(crate) fn retain_realizations_for_lane(
     // full roster is retained. A strictly local direct dispatch names its
     // selected callable outright; its application keeps the unselected family
     // rows as evidence without materializing their instances.
-    let retains_full_roster = matches!(lane, DynamicLoweringLane::Rebound(_)) || plan.forwarded;
+    let retains_full_roster =
+        matches!(lane, DynamicLoweringLane::Rebound(_)) || plan.forwarded.is_some();
     let retained = all
         .iter()
         .filter(|candidate| {
@@ -173,10 +103,35 @@ pub(crate) fn retain_realizations_for_lane(
     Ok(retained)
 }
 
+/// The one retained realization the call selects, exposing the call's result
+/// under the plan's checked identity.
+pub(crate) fn selected_realization<'realizations, Call: DynamicCall>(
+    call: &Call,
+    realizations: &'realizations [LoweredDynamicRealization],
+) -> Result<&'realizations LoweredDynamicRealization, LoweringError> {
+    let plan = call.view();
+    let selected = realizations
+        .iter()
+        .filter(|candidate| {
+            candidate.source_machine == plan.realization_machine
+                && candidate.source_state == plan.realization_state
+        })
+        .collect::<Vec<_>>();
+    let [selected] = selected.as_slice() else {
+        return unsupported("direct dynamic selected realization is absent or ambiguous");
+    };
+    if selected.result != call.callable_result()?
+        || selected.checked_identity != plan.realization_identity
+    {
+        return unsupported("direct dynamic selected realization callable drifted");
+    }
+    Ok(selected)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn materialize_dynamic_realizations(
     checked: &CheckedTrees,
-    plan: &DynamicCallableTable<'_>,
+    plan: &DynamicCallView<'_>,
     lowered: &[LoweredDynamicRealization],
     source_type: semantic_vocabulary::StructuralTypeId,
     structural_types: &[terminal_psi::StructuralTypeDeclaration],

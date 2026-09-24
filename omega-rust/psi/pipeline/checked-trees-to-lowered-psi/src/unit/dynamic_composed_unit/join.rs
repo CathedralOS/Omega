@@ -4,319 +4,54 @@
 //! predecessor call supplies its own exact selection; no representative table
 //! or joined-table vocabulary is introduced. The control split, caller ABI,
 //! sources, realizations, applications and descriptor catalog are lowered once
-//! here. A [`JoinedDynamicCall`] lane supplies only what its call plan decides:
-//! exact validation, result agreement and type, and the forwarded helper
-//! chain. Each conformance member keeps its own result kind either way.
+//! here. A [`DynamicCall`] lane supplies only what its call plan decides:
+//! result agreement and type, and the forwarded helper bodies. Each
+//! conformance member keeps its own result kind either way.
 
 use super::{
-    Block, CheckedBooleanExpression, CheckedDynamicScalarCallPlan, CheckedDynamicUnitCallPlan,
-    CheckedScalarExpression, CheckedStructuralAccess, CheckedTrees,
-    CheckedUnitStructuralPathSegment, ClosedConformanceApplication, ClosedConformanceRow,
-    LoweredPsi, LoweredSourceCallOccurrence, LoweringError, Multiplicity, Operation, OperationKind,
-    OperationResult, PrimitiveType, ProofBundle, StructuralAccess, StructuralArgument,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralPlaceKind,
-    TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
-    TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
-    TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalParameterDynamicDispatch, Terminator, ValueDeclaration, allocate_dense, block_id,
-    edge_id, lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
-    machine_id, operation_id, place_id, terminal_scalar_type, unit, unsupported, value_id,
+    Block, CheckedBooleanExpression, CheckedScalarExpression, CheckedStructuralAccess,
+    CheckedTrees, LoweredPsi, LoweredSourceCallOccurrence, LoweringError, Operation,
+    OperationResult, PrimitiveType, ProofBundle, StructuralAccess, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralPlaceKind, TerminalDynamicConformanceSelection,
+    TerminalDynamicDescriptorArgument, TerminalDynamicDescriptorParameter,
+    TerminalDynamicDescriptorSource, TerminalDynamicDispatchCatalog, TerminalMachine,
+    TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch, Terminator,
+    ValueDeclaration, allocate_dense, block_id, edge_id, lookup_type_id,
+    lower_installation_machine_service_ceiling, lower_root_service_reach, machine_id, operation_id,
+    place_id, unsupported, value_id,
 };
 use crate::unit::dynamic_composed_unit::applications::{
     exact_machine_service_summary, lower_exact_application,
 };
 use crate::unit::dynamic_composed_unit::dynamic_lanes::{
-    DynamicLoweringLane, ForwardedHelperCall, ForwardedHelperIds, LoweredDynamicRealization,
+    DynamicCall, DynamicLoweringLane, ForwardedHelperIds, LoweredDynamicRealization,
 };
 use crate::unit::dynamic_composed_unit::forwarded_helpers::{
-    extend_parameter_forwarding_catalog, forwarded_helper_chain_ids,
-    materialize_forwarded_helper_chain,
+    dynamic_source_call_occurrences, extend_parameter_forwarding_catalog,
+    forwarded_helper_chain_ids, materialize_forwarded_helper_chain,
 };
-use crate::unit::dynamic_composed_unit::plan_validation::validate_exact_direct_plan;
+use crate::unit::dynamic_composed_unit::plan_validation::validate_exact_plan;
 use crate::unit::dynamic_composed_unit::realizations::{
-    DynamicCallableTable, collect_dynamic_realizations, materialize_dynamic_realizations,
+    collect_dynamic_realizations, materialize_dynamic_realizations,
 };
 use crate::unit::dynamic_composed_unit::source_lowering::{
-    dynamic_parameter_interface, validate_and_lower_dynamic_source,
+    dynamic_parameter_interface, machine_call, validate_and_lower_dynamic_source,
 };
 use crate::unit::dynamic_composed_unit::store_operations::empty_terminal_contract;
 use crate::unit::dynamic_composed_unit::structural_types::{
     lower_dynamic_structural_types_for_source, terminal_structural_multiplicity,
 };
 use checked_trees::{
-    CheckedDynamicDescriptorTransferPlan, CheckedDynamicJoinBranchPlan,
-    CheckedDynamicJoinControlPlan, CheckedDynamicRealizationCallablePlan,
-    CheckedDynamicScalarCallOrigin, CheckedDynamicUnitCallOrigin, CheckedUnitCallCoordinate,
+    CheckedDynamicJoinBranchPlan, CheckedDynamicJoinControlPlan,
+    CheckedDynamicRealizationCallablePlan,
 };
 use semantic_vocabulary::{MachineId, ScalarType};
-use symbols::SymbolHandle;
-
-/// One lane of the join: what a branch call plan decides beyond the custody
-/// every branch shares. The join names a result shape only through
-/// [`Self::result_type`].
-pub(super) trait JoinedDynamicCall {
-    /// The lane's forwarded helper identities.
-    type Helper: ForwardedHelperCall;
-
-    /// The custody both lanes' call plans share.
-    fn view(&self) -> JoinedCallView<'_>;
-
-    /// The call's closed conformance table.
-    fn callable_table(&self) -> DynamicCallableTable<'_>;
-
-    /// The lane's exact validation of one branch as a direct call.
-    fn validate_exact(&self, checked: &CheckedTrees) -> Result<(), LoweringError>;
-
-    /// Result agreement between the two branches beyond the shared caller ABI.
-    fn results_match(&self, other: &Self) -> bool;
-
-    /// Agreement between the two branches' forwarded helper bodies.
-    fn helper_bodies_match(&self, other: &Self) -> bool;
-
-    /// The branch call's scalar result type, or `None` for a Unit call.
-    fn result_type(&self) -> Result<Option<ScalarType>, LoweringError>;
-
-    /// Identities for the forwarded helper chain, numbered after the
-    /// realization machines.
-    fn helper_ids(
-        &self,
-        realizations: &[LoweredDynamicRealization],
-        next_block: &mut u64,
-        next_operation: &mut u64,
-        next_value: &mut u64,
-        next_edge: &mut u64,
-    ) -> Result<Vec<Self::Helper>, LoweringError>;
-
-    /// The forwarded helper chain's machines. A helper that evaluates its own
-    /// body records the values it computes before its call.
-    #[allow(clippy::too_many_arguments)]
-    fn materialize_helpers(
-        &self,
-        checked: &CheckedTrees,
-        application: &ClosedConformanceApplication,
-        selected_row: &ClosedConformanceRow,
-        helpers: &[Self::Helper],
-        next_block: &mut u64,
-        next_operation: &mut u64,
-        next_value: &mut u64,
-        next_edge: &mut u64,
-        source_calls: &mut [LoweredSourceCallOccurrence],
-    ) -> Result<Vec<TerminalMachine>, LoweringError>;
-}
-
-/// One branch call's custody, independent of its result.
-pub(super) struct JoinedCallView<'a> {
-    caller_machine: SymbolHandle,
-    caller_state: SymbolHandle,
-    caller_attachment_type_identity: &'a str,
-    caller_multiplicity: Multiplicity,
-    caller_parameter_access: CheckedStructuralAccess,
-    coordinate: CheckedUnitCallCoordinate,
-    source_parameter_position: u32,
-    source_access: CheckedStructuralAccess,
-    source_path: &'a [CheckedUnitStructuralPathSegment],
-    source_type_identity: &'a str,
-    requirement: SymbolHandle,
-    realization_machine: SymbolHandle,
-    realization_callables: &'a [CheckedDynamicRealizationCallablePlan],
-    forwarding_transfers: &'a [CheckedDynamicDescriptorTransferPlan],
-    /// The forwarded origin's state and call coordinate; `None` when local.
-    forwarded_origin: Option<(SymbolHandle, CheckedUnitCallCoordinate)>,
-}
-
-impl JoinedCallView<'_> {
-    pub(super) fn realization_machine(&self) -> SymbolHandle {
-        self.realization_machine
-    }
-}
-
-impl JoinedDynamicCall for CheckedDynamicScalarCallPlan {
-    type Helper = ForwardedHelperIds;
-
-    fn view(&self) -> JoinedCallView<'_> {
-        JoinedCallView {
-            caller_machine: self.caller_machine,
-            caller_state: self.caller_state,
-            caller_attachment_type_identity: &self.caller_attachment_type_identity,
-            caller_multiplicity: self.caller_multiplicity,
-            caller_parameter_access: self.caller_parameter_access,
-            coordinate: self.coordinate,
-            source_parameter_position: self.source_parameter_position,
-            source_access: self.source_access,
-            source_path: &self.source_path,
-            source_type_identity: &self.source_type_identity,
-            requirement: self.requirement,
-            realization_machine: self.realization_machine,
-            realization_callables: &self.realization_callables,
-            forwarding_transfers: &self.forwarding_transfers,
-            forwarded_origin: match self.origin {
-                CheckedDynamicScalarCallOrigin::Local => None,
-                CheckedDynamicScalarCallOrigin::Forwarded {
-                    state, coordinate, ..
-                } => Some((state, coordinate)),
-            },
-        }
-    }
-
-    fn callable_table(&self) -> DynamicCallableTable<'_> {
-        self.into()
-    }
-
-    fn validate_exact(&self, checked: &CheckedTrees) -> Result<(), LoweringError> {
-        validate_exact_direct_plan(checked, self).map(|_| ())
-    }
-
-    /// The branch results bind one scalar type, and neither branch retains a
-    /// caller store or Unit continuation the join would not lower.
-    fn results_match(&self, other: &Self) -> bool {
-        self.result.primitive_type == other.result.primitive_type
-            && [self, other].into_iter().all(|plan| {
-                plan.caller_structural_scalar_field_store.is_none()
-                    && plan.unit_continuation.is_none()
-            })
-    }
-
-    fn helper_bodies_match(&self, other: &Self) -> bool {
-        self.forwarding_helpers == other.forwarding_helpers
-    }
-
-    fn result_type(&self) -> Result<Option<ScalarType>, LoweringError> {
-        terminal_scalar_type(self.result.primitive_type).map(Some)
-    }
-
-    fn helper_ids(
-        &self,
-        realizations: &[LoweredDynamicRealization],
-        next_block: &mut u64,
-        next_operation: &mut u64,
-        next_value: &mut u64,
-        next_edge: &mut u64,
-    ) -> Result<Vec<ForwardedHelperIds>, LoweringError> {
-        forwarded_helper_chain_ids(
-            self,
-            realizations,
-            next_block,
-            next_operation,
-            next_value,
-            next_edge,
-        )
-    }
-
-    fn materialize_helpers(
-        &self,
-        checked: &CheckedTrees,
-        application: &ClosedConformanceApplication,
-        selected_row: &ClosedConformanceRow,
-        helpers: &[ForwardedHelperIds],
-        next_block: &mut u64,
-        next_operation: &mut u64,
-        next_value: &mut u64,
-        next_edge: &mut u64,
-        source_calls: &mut [LoweredSourceCallOccurrence],
-    ) -> Result<Vec<TerminalMachine>, LoweringError> {
-        materialize_forwarded_helper_chain(
-            checked,
-            self,
-            application,
-            selected_row,
-            helpers,
-            next_block,
-            next_operation,
-            next_value,
-            next_edge,
-            source_calls,
-        )
-    }
-}
-
-impl JoinedDynamicCall for CheckedDynamicUnitCallPlan {
-    type Helper = unit::ForwardedUnitHelperIds;
-
-    fn view(&self) -> JoinedCallView<'_> {
-        JoinedCallView {
-            caller_machine: self.caller_machine,
-            caller_state: self.caller_state,
-            caller_attachment_type_identity: &self.caller_attachment_type_identity,
-            caller_multiplicity: self.caller_multiplicity,
-            caller_parameter_access: self.caller_parameter_access,
-            coordinate: self.coordinate,
-            source_parameter_position: self.source_parameter_position,
-            source_access: self.source_access,
-            source_path: &self.source_path,
-            source_type_identity: &self.source_type_identity,
-            requirement: self.requirement,
-            realization_machine: self.realization_machine,
-            realization_callables: &self.realization_callables,
-            forwarding_transfers: &self.forwarding_transfers,
-            forwarded_origin: match self.origin {
-                CheckedDynamicUnitCallOrigin::Local => None,
-                CheckedDynamicUnitCallOrigin::Forwarded {
-                    state, coordinate, ..
-                } => Some((state, coordinate)),
-            },
-        }
-    }
-
-    fn callable_table(&self) -> DynamicCallableTable<'_> {
-        self.into()
-    }
-
-    fn validate_exact(&self, checked: &CheckedTrees) -> Result<(), LoweringError> {
-        unit::validate_exact_unit_plan(checked, self, DynamicLoweringLane::Direct)
-    }
-
-    /// A Unit call binds no result.
-    fn results_match(&self, _other: &Self) -> bool {
-        true
-    }
-
-    /// Unit helpers only forward the descriptor to the next call.
-    fn helper_bodies_match(&self, _other: &Self) -> bool {
-        true
-    }
-
-    fn result_type(&self) -> Result<Option<ScalarType>, LoweringError> {
-        Ok(None)
-    }
-
-    fn helper_ids(
-        &self,
-        realizations: &[LoweredDynamicRealization],
-        next_block: &mut u64,
-        next_operation: &mut u64,
-        _next_value: &mut u64,
-        next_edge: &mut u64,
-    ) -> Result<Vec<unit::ForwardedUnitHelperIds>, LoweringError> {
-        unit::forwarded_unit_helper_ids(self, realizations, next_block, next_operation, next_edge)
-    }
-
-    fn materialize_helpers(
-        &self,
-        checked: &CheckedTrees,
-        application: &ClosedConformanceApplication,
-        selected_row: &ClosedConformanceRow,
-        helpers: &[unit::ForwardedUnitHelperIds],
-        _next_block: &mut u64,
-        _next_operation: &mut u64,
-        _next_value: &mut u64,
-        _next_edge: &mut u64,
-        _source_calls: &mut [LoweredSourceCallOccurrence],
-    ) -> Result<Vec<TerminalMachine>, LoweringError> {
-        unit::materialize_forwarded_unit_helper_chain(
-            checked,
-            self,
-            application,
-            selected_row,
-            helpers,
-        )
-    }
-}
 
 /// Lower one checked join: validate the control split and both branch calls,
 /// lower their shared caller ABI and sources once, retain each branch's exact
 /// conformance application, then emit the split caller, the realizations and
 /// the lane's forwarded helper chain.
-pub(super) fn lower<Call: JoinedDynamicCall>(
+pub(super) fn lower<Call: DynamicCall>(
     checked: &CheckedTrees,
     control: &CheckedDynamicJoinControlPlan,
     when_true: &CheckedDynamicJoinBranchPlan<Call>,
@@ -325,7 +60,7 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
     validate_join_control_plan(checked, control, when_true, when_false)?;
     let branches = [&when_true.call, &when_false.call];
     for branch in branches {
-        branch.validate_exact(checked)?;
+        validate_exact_plan(checked, branch, DynamicLoweringLane::Direct)?;
     }
     let [first, second] = branches;
     let [first_view, second_view] = branches.map(|branch| branch.view());
@@ -365,8 +100,22 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
         projected_qualifications: Vec::new(),
     };
     let sources = [
-        lower_source(&caller_self, &first_view, &structural_types, &type_ids)?,
-        lower_source(&caller_self, &second_view, &structural_types, &type_ids)?,
+        validate_and_lower_dynamic_source(
+            &caller_self,
+            &first_view,
+            first_view.source_path,
+            first_view.source_type_identity,
+            &structural_types,
+            &type_ids,
+        )?,
+        validate_and_lower_dynamic_source(
+            &caller_self,
+            &second_view,
+            second_view.source_path,
+            second_view.source_type_identity,
+            &structural_types,
+            &type_ids,
+        )?,
     ];
 
     let mut lowered_realizations = joined_realizations(checked, branches)?;
@@ -385,18 +134,10 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
     let second_realizations =
         realizations_for_plan(second_view.realization_callables, &lowered_realizations)?;
     let caller_machine = machine_id(1);
-    let (first_application, first_row) = lower_exact_application(
-        checked,
-        &first.callable_table(),
-        caller_machine,
-        &first_realizations,
-    )?;
-    let (second_application, second_row) = lower_exact_application(
-        checked,
-        &second.callable_table(),
-        caller_machine,
-        &second_realizations,
-    )?;
+    let (first_application, first_row) =
+        lower_exact_application(checked, &first_view, caller_machine, &first_realizations)?;
+    let (second_application, second_row) =
+        lower_exact_application(checked, &second_view, caller_machine, &second_realizations)?;
     let (requirements, requirement_slot) =
         dynamic_parameter_interface(&first_application, &first_row)?;
     let (second_requirements, second_slot) =
@@ -421,7 +162,8 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
         branch_result(result_type, &mut next_value)?,
         branch_result(result_type, &mut next_value)?,
     ];
-    let helper_ids = first.helper_ids(
+    let helper_ids = forwarded_helper_chain_ids(
+        first,
         &lowered_realizations,
         &mut next_block,
         &mut next_operation,
@@ -432,7 +174,7 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
         "joined dynamic control has no forwarded helper",
     ))?;
     let (first_helper_machine, first_helper_operation) =
-        (first_helper.machine(), first_helper.operation());
+        (first_helper.machine, first_helper.operation);
     let [true_result, false_result] = branch_results;
     let caller_blocks = vec![
         Block {
@@ -492,7 +234,7 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
             ))?;
         realization_machines.extend(materialize_dynamic_realizations(
             checked,
-            &owner.callable_table(),
+            &owner.view(),
             std::slice::from_ref(realization),
             source_type,
             &structural_types,
@@ -557,8 +299,9 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
     };
     extend_parameter_forwarding_catalog(&mut dynamic_dispatch, &helper_ids)?;
     let mut source_call_occurrences = joined_source_call_occurrences(first, second, &helper_ids)?;
-    let helpers = first.materialize_helpers(
+    let helpers = materialize_forwarded_helper_chain(
         checked,
+        first,
         &first_application,
         &first_row,
         &helper_ids,
@@ -656,7 +399,7 @@ pub(super) fn lower<Call: JoinedDynamicCall>(
 
 /// The joined caller is the `when_true` branch's caller; both branches must
 /// name it, and the control plan's split must enter exactly those states.
-fn validate_join_control_plan<Call: JoinedDynamicCall>(
+fn validate_join_control_plan<Call: DynamicCall>(
     checked: &CheckedTrees,
     control: &CheckedDynamicJoinControlPlan,
     when_true: &CheckedDynamicJoinBranchPlan<Call>,
@@ -736,33 +479,13 @@ fn validate_join_control_plan<Call: JoinedDynamicCall>(
     Ok(())
 }
 
-fn lower_source(
-    caller_self: &StructuralParameterDeclaration,
-    call: &JoinedCallView<'_>,
-    structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    type_ids: &[(String, semantic_vocabulary::StructuralTypeId)],
-) -> Result<StructuralArgument, LoweringError> {
-    validate_and_lower_dynamic_source(
-        caller_self,
-        call.source_parameter_position,
-        call.caller_parameter_access,
-        call.caller_multiplicity,
-        call.source_access,
-        call.caller_attachment_type_identity,
-        call.source_path,
-        call.source_type_identity,
-        structural_types,
-        type_ids,
-    )
-}
-
-fn joined_realizations<Call: JoinedDynamicCall>(
+fn joined_realizations<Call: DynamicCall>(
     checked: &CheckedTrees,
     branches: [&Call; 2],
 ) -> Result<Vec<LoweredDynamicRealization>, LoweringError> {
     let mut joined = Vec::new();
     for branch in branches {
-        for candidate in collect_dynamic_realizations(checked, &branch.callable_table(), 2)? {
+        for candidate in collect_dynamic_realizations(checked, &branch.view(), 2)? {
             if let Some(existing) = joined.iter().find(|existing: &&LoweredDynamicRealization| {
                 existing.source_machine == candidate.source_machine
                     && existing.source_state == candidate.source_state
@@ -834,34 +557,8 @@ fn branch_block(
     callee: MachineId,
     result: Option<ValueDeclaration>,
 ) -> Block {
-    let (result, kind) = match result {
-        Some(value) => (
-            OperationResult::Scalar(value),
-            OperationKind::CallStructuralScalar {
-                callee,
-                arguments: Vec::new(),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        ),
-        None => (
-            OperationResult::Unit,
-            OperationKind::CallUnit {
-                callee,
-                arguments: Vec::new(),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        ),
-    };
+    let kind = machine_call(callee, Vec::new(), result.is_some());
+    let result = result.map_or(OperationResult::Unit, OperationResult::Scalar);
     Block {
         structural_parameters: Vec::new(),
         id: block,
@@ -882,10 +579,12 @@ fn branch_block(
     }
 }
 
-fn joined_source_call_occurrences<Call: JoinedDynamicCall>(
+/// Both branches share one forwarding chain and helper bodies; each branch's
+/// call enters the chain's first helper.
+fn joined_source_call_occurrences<Call: DynamicCall>(
     when_true: &Call,
     when_false: &Call,
-    helpers: &[Call::Helper],
+    helpers: &[ForwardedHelperIds],
 ) -> Result<Vec<LoweredSourceCallOccurrence>, LoweringError> {
     let (true_call, false_call) = (when_true.view(), when_false.view());
     if helpers.len() != true_call.forwarding_transfers.len() + 1
@@ -894,65 +593,14 @@ fn joined_source_call_occurrences<Call: JoinedDynamicCall>(
     {
         return unsupported("joined source-call helper chain drifted from checked custody");
     }
-    let join_state = true_call
-        .forwarding_transfers
-        .first()
-        .map(|transfer| transfer.caller_state);
-    let mut occurrences = [
-        (&true_call, operation_id(1)),
-        (&false_call, operation_id(2)),
-    ]
-    .into_iter()
-    .map(|(branch, operation)| {
-        let Some((state, _)) = branch.forwarded_origin else {
-            return unsupported("joined branch lost its forwarded source target");
-        };
-        Ok(LoweredSourceCallOccurrence {
-            source_site: None,
-            source_state: branch.caller_state,
-            statement_index: usize::try_from(branch.coordinate.statement_index)
-                .map_err(|_| LoweringError::Unsupported("joined call statement exceeds usize"))?,
-            call_ordinal: usize::try_from(branch.coordinate.call_ordinal)
-                .map_err(|_| LoweringError::Unsupported("joined call ordinal exceeds usize"))?,
-            terminal_operation: operation,
-            source_target: join_state.unwrap_or(state),
-            source_values_before_call: Vec::new(),
-        })
-    })
-    .collect::<Result<Vec<_>, _>>()?;
-    for (transfer, helper) in true_call.forwarding_transfers.iter().zip(helpers) {
-        occurrences.push(LoweredSourceCallOccurrence {
-            source_site: None,
-            source_state: transfer.caller_state,
-            statement_index: usize::try_from(transfer.coordinate.statement_index).map_err(
-                |_| LoweringError::Unsupported("joined forwarding statement exceeds usize"),
-            )?,
-            call_ordinal: usize::try_from(transfer.coordinate.call_ordinal).map_err(|_| {
-                LoweringError::Unsupported("joined forwarding call ordinal exceeds usize")
-            })?,
-            terminal_operation: helper.operation(),
-            source_target: transfer.target_state,
-            source_values_before_call: Vec::new(),
-        });
+    if true_call.forwarded.is_none() || false_call.forwarded.is_none() {
+        return unsupported("joined branch lost its forwarded source target");
     }
-    let Some((state, coordinate)) = true_call.forwarded_origin else {
-        return unsupported("joined dispatch lost its forwarded source coordinate");
-    };
-    occurrences.push(LoweredSourceCallOccurrence {
-        source_site: None,
-        source_state: state,
-        statement_index: usize::try_from(coordinate.statement_index)
-            .map_err(|_| LoweringError::Unsupported("joined dispatch statement exceeds usize"))?,
-        call_ordinal: usize::try_from(coordinate.call_ordinal)
-            .map_err(|_| LoweringError::Unsupported("joined dispatch ordinal exceeds usize"))?,
-        terminal_operation: helpers
-            .last()
-            .ok_or(LoweringError::Unsupported(
-                "joined source-call chain has no final helper",
-            ))?
-            .operation(),
-        source_target: true_call.requirement,
-        source_values_before_call: Vec::new(),
-    });
-    Ok(occurrences)
+    dynamic_source_call_occurrences(
+        &[
+            (&true_call, operation_id(1)),
+            (&false_call, operation_id(2)),
+        ],
+        helpers,
+    )
 }
