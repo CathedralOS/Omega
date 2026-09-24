@@ -204,6 +204,32 @@ fn a_field_counter_bounds_its_index_through_the_loop_header() {
 }
 
 #[test]
+fn a_decreasing_field_counter_bounds_its_index_through_the_loop_header() {
+    // The guard bounds the counter from below. The upper bound the `as u64`
+    // index needs is the invariant the entry store establishes and each
+    // decrement preserves; the header's `0 <= i` guess fails at the exit
+    // arrival and must not take that invariant down with it.
+    let source = "
+        data Rev { nums: [i32; 5] in Wrapping; i: i32; acc: i32 in Wrapping; }
+        machine Rev::run(&mut self) {
+            self.i = 4;
+            transition { _ -> head() }
+            state head(&mut self) {
+                transition self.i >= 0 { true -> add() _ -> done() }
+            }
+            state add(&mut self) {
+                self.acc = self.acc + self.nums[self.i];
+                self.i = self.i - 1;
+                transition { _ -> head() }
+            }
+            state done(&mut self) { }
+        }";
+    let lowered = lower_field_loop(source, "Rev::run");
+    // Starting past the array's end breaks the upper bound at entry.
+    restart_field_loop(&lowered, 4, 5);
+}
+
+#[test]
 fn a_wrapping_field_counter_bounds_its_index_through_the_loop_header() {
     // `self.i + 1` in Wrapping is a signed wrapping sum: the header's
     // `0 <= i` survives the backedge only with the guard's no-wrap headroom.

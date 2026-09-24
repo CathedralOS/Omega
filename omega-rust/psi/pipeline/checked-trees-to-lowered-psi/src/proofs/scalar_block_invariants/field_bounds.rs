@@ -94,6 +94,10 @@ pub(super) fn candidates(
             let Some(predicates) = transported(&site.obligation.proposition, &equations) else {
                 continue;
             };
+            let predicates = predicates
+                .into_iter()
+                .map(inclusive_bound)
+                .collect::<Vec<_>>();
             // Transport the site's retained field comparisons once, then
             // select the subset scoped to each header and distinct from the
             // proposed conclusion. These can include derived path bounds;
@@ -136,6 +140,11 @@ pub(super) fn candidates(
                     continue;
                 };
                 for predicate in &predicates {
+                    // A bound the site's own path guard already states needs
+                    // no header invariant; proposing it only adds a question.
+                    if guards.contains(predicate) {
+                        continue;
+                    }
                     let Some(next) = remaining.checked_sub(1) else {
                         return candidates;
                     };
@@ -311,7 +320,7 @@ fn transport_relation(
     let mut endpoint = |term: &ScalarTerm| -> Option<ScalarTerm> {
         Some(match term {
             ScalarTerm::Value { id, .. } => {
-                let field = equations.field(*id)?;
+                let field = equations.field(*id).or_else(|| equations.cast_field(*id))?;
                 observed = true;
                 field.clone()
             }
@@ -327,31 +336,90 @@ fn transport_relation(
     // Operation questions state carrier bounds in mathematical integers; one
     // value against literals is the same typed relation over its carrier.
     let scalar = crate::proofs::contract_predicates::scalar_relation_for_math(proposition);
-    let proposition = match scalar.as_ref().unwrap_or(proposition) {
-        Proposition::Equal(left, right) => Proposition::Equal(endpoint(left)?, endpoint(right)?),
-        Proposition::LessThan(left, right) => {
-            Proposition::LessThan(endpoint(left)?, endpoint(right)?)
-        }
-        Proposition::LessOrEqual(left, right) => {
-            Proposition::LessOrEqual(endpoint(left)?, endpoint(right)?)
-        }
+    let (left, right) = match scalar.as_ref().unwrap_or(proposition) {
+        Proposition::Equal(left, right)
+        | Proposition::LessThan(left, right)
+        | Proposition::LessOrEqual(left, right) => (endpoint(left)?, endpoint(right)?),
         _ => return None,
+    };
+    // An exact cast keeps its operand's mathematical value, so a read reached
+    // through one compares against the same literal in the read's carrier.
+    let (left, right) = same_carrier(left, right)?;
+    let proposition = match scalar.as_ref().unwrap_or(proposition) {
+        Proposition::Equal(..) => Proposition::Equal(left, right),
+        Proposition::LessThan(..) => Proposition::LessThan(left, right),
+        _ => Proposition::LessOrEqual(left, right),
     };
     // A relation that names no observed storage is the join/range
     // synthesizers' question, not this one's.
     observed.then_some(proposition)
 }
 
+/// State a strict literal bound as its inclusive integer equivalent
+/// (`x < 5` as `x <= 4`). The kernel's discreteness rule strengthens an
+/// inclusive bound to the strict one an operation asks for, but has no
+/// converse, so the inclusive form is the one every consumer can use.
+fn inclusive_bound(predicate: Proposition) -> Proposition {
+    let adjacent = |literal: &ScalarTerm, step: i128| {
+        let (integer_type, value) = literal.integer_value()?;
+        let value = match value {
+            IntegerValue::Signed(value) => IntegerValue::Signed(value.checked_add(step)?),
+            IntegerValue::Unsigned(value) => IntegerValue::Unsigned(
+                u128::try_from(i128::try_from(value).ok()?.checked_add(step)?).ok()?,
+            ),
+        };
+        ScalarTerm::integer(integer_type, value).ok()
+    };
+    match &predicate {
+        Proposition::LessThan(left, right @ ScalarTerm::Integer { .. }) => {
+            adjacent(right, -1).map(|bound| Proposition::LessOrEqual(left.clone(), bound))
+        }
+        Proposition::LessThan(left @ ScalarTerm::Integer { .. }, right) => {
+            adjacent(left, 1).map(|bound| Proposition::LessOrEqual(bound, right.clone()))
+        }
+        _ => None,
+    }
+    .unwrap_or(predicate)
+}
+
+/// Restate a transported relation in one carrier: a literal compared with an
+/// observation reached through an exact cast takes the observation's carrier
+/// when it has the same value there, and otherwise the relation stays out.
+fn same_carrier(left: ScalarTerm, right: ScalarTerm) -> Option<(ScalarTerm, ScalarTerm)> {
+    if left.scalar_type() == right.scalar_type() {
+        return Some((left, right));
+    }
+    let retyped = |literal: &ScalarTerm, carrier: &ScalarTerm| {
+        let semantic_vocabulary::ScalarType::Integer(carrier) = carrier.scalar_type() else {
+            return None;
+        };
+        let (source, value) = literal.integer_value()?;
+        let value = source.exact_cast_value_to(carrier, value)?;
+        ScalarTerm::integer(carrier, value).ok()
+    };
+    match (&left, &right) {
+        (ScalarTerm::Integer { .. }, _) => Some((retyped(&left, &right)?, right)),
+        (_, ScalarTerm::Integer { .. }) => {
+            let right = retyped(&right, &left)?;
+            Some((left, right))
+        }
+        _ => None,
+    }
+}
+
 /// Exact `value = field` equations published by the arrival's reads, rooted at
-/// invocation-lived places. A conjunction member is a fact like any other;
-/// disjunction branches never become unconditional equations.
+/// invocation-lived places, and `value = cast(read)` equations whose exact
+/// cast or widening keeps that read's value. A conjunction member is a fact
+/// like any other; disjunction branches never become unconditional equations.
 struct FieldEquations<'input> {
     fields: BTreeMap<ValueId, &'input ScalarTerm>,
+    casts: BTreeMap<ValueId, ValueId>,
 }
 
 impl<'input> FieldEquations<'input> {
     fn new(axioms: &'input [Proposition], invocation_roots: &BTreeSet<PlaceId>) -> Self {
         let mut fields = BTreeMap::new();
+        let mut casts = BTreeMap::new();
         let mut pending = axioms.iter().collect::<Vec<_>>();
         while let Some(fact) = pending.pop() {
             match fact {
@@ -367,16 +435,30 @@ impl<'input> FieldEquations<'input> {
                         {
                             fields.entry(*id).or_insert(field);
                         }
+                        if let (
+                            ScalarTerm::Value { id, .. },
+                            ScalarTerm::IntegerExactCast { operand, .. }
+                            | ScalarTerm::IntegerWiden { operand, .. },
+                        ) = (value, field)
+                            && let ScalarTerm::Value { id: operand, .. } = operand.as_ref()
+                        {
+                            casts.entry(*id).or_insert(*operand);
+                        }
                     }
                 }
                 _ => {}
             }
         }
-        Self { fields }
+        Self { fields, casts }
     }
 
     fn field(&self, id: ValueId) -> Option<&'input ScalarTerm> {
         self.fields.get(&id).copied()
+    }
+
+    /// The read an exact cast of `id` keeps the value of.
+    fn cast_field(&self, id: ValueId) -> Option<&'input ScalarTerm> {
+        self.field(*self.casts.get(&id)?)
     }
 }
 
