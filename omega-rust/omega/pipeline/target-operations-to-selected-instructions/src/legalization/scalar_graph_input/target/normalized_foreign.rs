@@ -40,7 +40,6 @@ pub(super) fn validate(
     unit: &PsiOptimizationUnit,
     values: &mut Vec<(ValueId, Source)>,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
     let (
         TargetUnitOperation::NormalizedForeignCall {
             psi_operation,
@@ -62,13 +61,13 @@ pub(super) fn validate(
         },
     ) = (target, source)
     else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let mut declarations = plan
         .boundary_machines
         .iter()
         .filter(|row| row.id == *boundary);
-    let declaration = declarations.next().ok_or(invalid.clone())?;
+    let declaration = declarations.next().ok_or(LegalizationError::custody())?;
     // Unit custody validates boundary reach against the caller's ceiling.
     // Rejoin that exact declaration; the admitted same-stack claim must name
     // this declaration's identity and the exact selected provider plan that
@@ -79,19 +78,19 @@ pub(super) fn validate(
         .find(|row| row.id == *boundary)
         != Some(declaration)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let scalar_shapes = declaration
         .scalar_parameters
         .iter()
-        .map(|parameter| scalar_shape(*parameter).ok_or(invalid.clone()))
+        .map(|parameter| scalar_shape(*parameter).ok_or(LegalizationError::custody()))
         .collect::<Result<Vec<_>, LegalizationError>>()?;
     // Lane-local custody rejoins the declaration's retained authored order.
     if !declaration.has_valid_parameter_order()
         || expected_structural.len() != declaration.structural_parameters.len()
         || expected_structural.len() != structural_arguments.len()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     // Structural transport uses the evaluated plan's ordered parameter rows.
     // The signature for plan revalidation is the computed destination shapes,
@@ -104,7 +103,7 @@ pub(super) fn validate(
     let callback_ordinal = callback
         .map(|callback| usize::try_from(callback.application.native_ordinal))
         .transpose()
-        .map_err(|_| invalid.clone())?;
+        .map_err(|_| LegalizationError::custody())?;
     let structural = expected_structural
         .iter()
         .zip(&declaration.structural_parameters)
@@ -146,9 +145,9 @@ pub(super) fn validate(
                 || super::super::value_type(optimized, result.value) != Some(result.scalar_type)
                 || function.attachment.is_none()
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
-            let shape = scalar_shape(result.scalar_type).ok_or(invalid.clone())?;
+            let shape = scalar_shape(result.scalar_type).ok_or(LegalizationError::custody())?;
             Some((
                 TargetUnitScalarHomeRequirement {
                     defining_operation: *psi_operation,
@@ -159,7 +158,7 @@ pub(super) fn validate(
                 shape,
             ))
         }
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     };
     // A retained callback occupies one native-only parameter slot in the
     // registrar plan; the validated signature then spells every authored and
@@ -175,13 +174,13 @@ pub(super) fn validate(
                 terminal_psi::BoundaryParameterKind::Scalar => scalars.next(),
                 terminal_psi::BoundaryParameterKind::Structural => structures.next(),
             }
-            .ok_or(invalid.clone())
+            .ok_or(LegalizationError::custody())
         })
         .collect::<Result<Vec<_>, _>>()?;
     if let Some(callback) = callback {
-        let ordinal = callback_ordinal.ok_or(invalid.clone())?;
+        let ordinal = callback_ordinal.ok_or(LegalizationError::custody())?;
         if ordinal > parameters.len() {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         parameters.insert(ordinal, callback.application.shape);
     }
@@ -202,7 +201,7 @@ pub(super) fn validate(
             &signature,
         ),
     }
-    .map_err(|_| invalid.clone())?;
+    .map_err(|_| LegalizationError::custody())?;
     if declarations.next().is_some()
         || psi_operation != expected_operation
         || boundary != expected_boundary
@@ -284,7 +283,7 @@ pub(super) fn validate(
             _ => true,
         }
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     if let Some((home, _)) = expected_result {
         values.push((home.source_value, Source::Home(home)));

@@ -23,7 +23,6 @@ pub(super) fn validate(
     {
         return super::unobserved_owned::validate(target, abstracted, optimized, native, plan);
     }
-    let invalid = LegalizationError::custody();
     let (call_plan, scalar_parameters, structural_parameters) =
         match (&abstracted.result, &target.mixed_structural_scalar_abi) {
             (AbstractFunctionResult::Unit, None) if target.graph.call_plan.result.is_none() => (
@@ -46,7 +45,7 @@ pub(super) fn validate(
                     &abi.structural_parameters,
                 )
             }
-            _ => return Err(invalid),
+            _ => return Err(LegalizationError::custody()),
         };
     let parameters = abstracted
         .structural_parameters
@@ -142,14 +141,14 @@ pub(super) fn validate(
             &plan.structural_types,
         ))
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     if abstracted
         .structural_parameters
         .iter()
         .any(|parameter| parameter.is_self && target.attachment != Some(parameter.structural_type))
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let subslices = optimized
         .blocks
@@ -242,7 +241,7 @@ pub(super) fn validate(
                 })
                 .count()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     for place in &optimized.structural_places {
         // Local immutable backing composes with borrowed inputs. Its exact
@@ -261,7 +260,7 @@ pub(super) fn validate(
             if optimized.attachment == Some(attachment) {
                 continue;
             }
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         if let Some((producer, result)) = super::structural_case::source_result(optimized, place.id)
             .ok()
@@ -285,14 +284,14 @@ pub(super) fn validate(
                     structural_type: result.structural_type,
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
         if let Some((operation, result, _)) = super::primitive_locals::producer(optimized, place.id)
         {
             if !super::primitive_locals::valid_result(optimized, operation, result) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -364,7 +363,7 @@ pub(super) fn validate(
                         structural_type: result.structural_type,
                     })
         })) {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     Ok(call_plan.clone())

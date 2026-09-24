@@ -22,7 +22,6 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::custody();
     let TargetUnitOperation::Call {
         origin: NativeCallOrigin::Authored,
         psi_operation,
@@ -36,7 +35,7 @@ pub(super) fn validate(
         crash_continuations,
     } = target
     else {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     };
     let (actual, called, values, structural_arguments, claims, requirements, crashes) =
         match abstracted {
@@ -93,14 +92,14 @@ pub(super) fn validate(
                 requirement_obligations,
                 crash_continuations,
             ),
-            _ => return Err(invalid()),
+            _ => return Err(LegalizationError::custody()),
         };
     let expected = callee_plan(*callee, native, plan, unit)?;
     let callee_function = unit
         .functions
         .iter()
         .find(|function| function.machine == *callee)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LegalizationError::custody())?;
     if psi_operation != &actual
         || callee != &called
         || call_plan != &expected
@@ -127,7 +126,7 @@ pub(super) fn validate(
                     })
             })
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     results::validate(
         result,
@@ -159,7 +158,7 @@ pub(super) fn validate(
             custody,
         )? != *argument
         {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         }
     }
     if let Some(home) = result.scalar_home() {

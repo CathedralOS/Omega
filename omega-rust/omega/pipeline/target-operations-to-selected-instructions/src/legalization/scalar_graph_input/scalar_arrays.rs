@@ -8,13 +8,12 @@ pub(in crate::legalization) fn shape(
     result: &terminal_psi::StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<(ScalarType, u64, ValueShape), LegalizationError> {
-    let invalid = LegalizationError::custody();
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let mut current = result.structural_type;
     let mut count = Some(1_u64);
@@ -25,9 +24,9 @@ pub(in crate::legalization) fn shape(
             .structural_types
             .iter()
             .filter(|declaration| declaration.id == current);
-        let declaration = matching.next().ok_or(invalid.clone())?;
+        let declaration = matching.next().ok_or(LegalizationError::custody())?;
         if matching.next().is_some() {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         match declaration.shape {
             terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
@@ -37,16 +36,16 @@ pub(in crate::legalization) fn shape(
                 current = element;
             }
             terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) if array => {
-                let leaf = scalar_shape(scalar_type).ok_or(invalid.clone())?;
+                let leaf = scalar_shape(scalar_type).ok_or(LegalizationError::custody())?;
                 let count = if empty {
                     0
                 } else {
-                    count.ok_or(invalid.clone())?
+                    count.ok_or(LegalizationError::custody())?
                 };
                 let size = count
                     .checked_mul(u64::from(leaf.byte_size))
                     .and_then(|size| u16::try_from(size).ok())
-                    .ok_or(invalid.clone())?;
+                    .ok_or(LegalizationError::custody())?;
                 return Ok((
                     scalar_type,
                     count,
@@ -55,8 +54,8 @@ pub(in crate::legalization) fn shape(
                     ValueShape::integer(size, if size == 0 { 1 } else { leaf.alignment }),
                 ));
             }
-            _ => return Err(invalid),
+            _ => return Err(LegalizationError::custody()),
         }
     }
-    Err(invalid)
+    Err(LegalizationError::custody())
 }

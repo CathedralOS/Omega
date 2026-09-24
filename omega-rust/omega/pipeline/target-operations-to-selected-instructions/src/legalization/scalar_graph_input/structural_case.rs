@@ -11,7 +11,6 @@ pub(in crate::legalization) fn source_result(
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Result<(OperationId, &StructuralOperationResult), LegalizationError> {
-    let invalid = LegalizationError::custody();
     let mut matching = function
         .blocks
         .iter()
@@ -69,9 +68,9 @@ pub(in crate::legalization) fn source_result(
             } if result.place == source => Some((*psi_operation, result)),
             _ => None,
         });
-    let result = matching.next().ok_or(invalid.clone())?;
+    let result = matching.next().ok_or(LegalizationError::custody())?;
     if matching.next().is_some() {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(result)
 }
@@ -151,14 +150,13 @@ fn source_identity(
     function: &PsiOptimizationFunction,
     source: PlaceId,
 ) -> Result<semantic_vocabulary::StructuralTypeId, LegalizationError> {
-    let invalid = LegalizationError::custody();
     if let Ok((_, result)) = source_result(function, source) {
         if result.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !result.claims.is_empty()
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         return Ok(result.structural_type);
     }
@@ -172,14 +170,14 @@ fn source_identity(
                 .flat_map(|block| &block.structural_parameters),
         )
         .find(|parameter| parameter.place == source)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
         || parameter.multiplicity == terminal_psi::StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
         || !function.entry_claims.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(parameter.structural_type)
 }
@@ -192,7 +190,6 @@ pub(in crate::legalization) fn membership_layout(
     case: semantic_vocabulary::StructuralCaseId,
     plan: &AbstractOperationPlan,
 ) -> Result<(u32, u32), LegalizationError> {
-    let invalid = LegalizationError::custody();
     let identity = source_identity(function, source)?;
     let (identity, byte_offset) = if path.is_empty() {
         (identity, 0)
@@ -202,30 +199,30 @@ pub(in crate::legalization) fn membership_layout(
             path,
             &plan.structural_types,
         )
-        .ok_or(invalid.clone())?
+        .ok_or(LegalizationError::custody())?
     };
     let layout = super::aggregate_results::sum_type_layout(identity, plan)?;
     if layout.tag_byte_offset != 0
         || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let declaration = plan
         .structural_types
         .iter()
         .find(|declaration| declaration.id == identity)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let cases: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Sum { cases }
         | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     };
     cases
         .iter()
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
         .map(|tag| (tag, byte_offset))
-        .ok_or(invalid)
+        .ok_or(LegalizationError::custody())
 }
 
 /// Resolve the copied leaf's byte offset inside the readable root and its
@@ -242,13 +239,12 @@ pub(in crate::legalization) fn leaf_copy_layout(
     result: &StructuralOperationResult,
     plan: &AbstractOperationPlan,
 ) -> Result<(u32, calling_conventions::ValueShape, Vec<(u32, u32)>), LegalizationError> {
-    let invalid = LegalizationError::custody();
     if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
         || !result.claims.is_empty()
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let identity = source_identity(function, source)?;
     let (endpoint, byte_offset, indices) = if path.is_empty() {
@@ -259,30 +255,30 @@ pub(in crate::legalization) fn leaf_copy_layout(
             path,
             &plan.structural_types,
         )
-        .ok_or(invalid.clone())?
+        .ok_or(LegalizationError::custody())?
     };
     if endpoint != result.structural_type
         || super::reference_custody::contains_reference(&plan.structural_types, endpoint)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     for (selector, _) in &indices {
         let parameter = usize::try_from(*selector)
             .ok()
             .and_then(|position| function.parameters.get(position))
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         let semantic_vocabulary::ScalarType::Integer(index_type) = parameter.scalar_type else {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         };
         if index_type.bits() > 64 {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     let shape = crate::structural_inputs::structural_reference_input::shape(
         endpoint,
         &plan.structural_types,
     )
-    .ok_or(invalid)?;
+    .ok_or(LegalizationError::custody())?;
     Ok((byte_offset, shape, indices))
 }
 
@@ -290,9 +286,8 @@ pub(super) fn validate(
     node: &OptimizationNode,
     function: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
     let AbstractOperation::StructuralCase { source, cases } = &node.operation else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     case_source(function, *source)?;
     if !node.provenance.is_empty()
@@ -300,7 +295,7 @@ pub(super) fn validate(
         || !node.definitions.is_empty()
         || cases.len() != node.successors.len()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     for (case, edge) in cases.iter().zip(&node.successors) {
         if edge.psi_edge != case.psi_edge
@@ -316,7 +311,7 @@ pub(super) fn validate(
                 .iter()
                 .any(|fuel| fuel.site != PsiProvenance::Edge(case.psi_edge))
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         // A case edge's discards are admitted by the same rule as every other
         // edge's and every return's: a plain affine result, block arrival, or
@@ -329,7 +324,7 @@ pub(super) fn validate(
             .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
             .collect::<Vec<_>>();
         if !super::aggregate_results::cleanup(function, &actions) {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     Ok(())

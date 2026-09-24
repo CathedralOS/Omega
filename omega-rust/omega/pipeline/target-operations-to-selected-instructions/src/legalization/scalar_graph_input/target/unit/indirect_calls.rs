@@ -15,7 +15,6 @@ pub(super) fn validate(
     sources: &mut Vec<(ValueId, Source)>,
     native: &TargetOperationPlan,
 ) -> Result<(), LegalizationError> {
-    let invalid = || LegalizationError::custody();
     let (
         psi_operation,
         dynamic_dispatch,
@@ -96,7 +95,7 @@ pub(super) fn validate(
                 None,
             )
         }
-        _ => return Err(invalid()),
+        _ => return Err(LegalizationError::custody()),
     };
     let contract = parameter_call_contract(
         &function.graph.dynamic_parameters,
@@ -111,7 +110,7 @@ pub(super) fn validate(
         || *dispatch_call_plan != contract.dispatch_call_plan
         || table_slot_byte_offset != contract.table_slot_byte_offset
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     if let (Some(home), AbstractOperation::CallDynamicParameterScalar { result, .. }) =
         (result_home, abstracted)
@@ -124,11 +123,11 @@ pub(super) fn validate(
                 .dispatch_call_plan
                 .result
                 .as_ref()
-                .ok_or_else(invalid)?
+                .ok_or_else(|| LegalizationError::custody())?
                 .shape,
         };
         if home != expected {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         }
         sources.push((result.value, Source::Home(home)));
     }

@@ -21,16 +21,15 @@ pub(in crate::legalization) fn argument_at(
     custody: &super::reference_custody::Custody,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
-    let invalid = LegalizationError::custody();
     let destination_parameter = called
         .structural_parameters
         .get(position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let parameter_ordinal = called
         .parameters
         .len()
         .checked_add(position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     // `.., Referent` spellings resolve through replayed reference custody;
     // the transported value names the referent root, never the carrier.
     if matches!(
@@ -41,11 +40,13 @@ pub(in crate::legalization) fn argument_at(
             .functions
             .iter()
             .find(|function| function.machine == caller.machine)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         return super::reference_custody::referent_argument(
             semantic,
             destination_parameter,
-            call.parameters.get(parameter_ordinal).ok_or(invalid)?,
+            call.parameters
+                .get(parameter_ordinal)
+                .ok_or(LegalizationError::custody())?,
             caller,
             target_caller,
             custody,
@@ -172,7 +173,7 @@ pub(in crate::legalization) fn argument_at(
         );
     }
     if semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty() {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let (structural_type, source) = if let Some((producer, structural_type, element)) =
         established_view(caller, call_operation, semantic.place)
@@ -203,7 +204,7 @@ pub(in crate::legalization) fn argument_at(
             || !parameter.qualifications.is_empty()
             || !parameter.projected_qualifications.is_empty()
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         (
             parameter.structural_type,
@@ -217,17 +218,18 @@ pub(in crate::legalization) fn argument_at(
             .structural_parameters
             .iter()
             .find(|parameter| parameter.place == semantic.place)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         let target_caller = native
             .functions
             .iter()
             .find(|function| function.machine == caller.machine)
-            .ok_or(invalid.clone())?;
-        let parameters = super::structural_parameters(target_caller).ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
+        let parameters =
+            super::structural_parameters(target_caller).ok_or(LegalizationError::custody())?;
         let parameter = parameters
             .iter()
             .find(|parameter| parameter.place == semantic.place)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         if semantic.place != source.place
             || source.access != StructuralAccess::SharedBorrow
             || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -240,12 +242,12 @@ pub(in crate::legalization) fn argument_at(
             || parameter.shape != ValueShape::borrowed_reference(16, 8)
             || !parameter.projected_qualifications.is_empty()
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         (source.structural_type, parameter.placement.clone().into())
     };
     if structural_type != destination_parameter.structural_type {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(TargetStructuralArgument {
         place: semantic.place,
@@ -261,7 +263,7 @@ pub(in crate::legalization) fn argument_at(
         destination: call
             .parameters
             .get(parameter_ordinal)
-            .ok_or(invalid)?
+            .ok_or(LegalizationError::custody())?
             .clone(),
     })
 }
@@ -277,7 +279,6 @@ pub(super) fn primitive_argument(
     plan: &AbstractOperationPlan,
 ) -> Result<TargetStructuralArgument, LegalizationError> {
     use target_operations::TargetStructuralArgumentSource;
-    let invalid = LegalizationError::custody();
     if let Some((producer, result, value)) =
         super::primitive_locals::producer(caller, semantic.place)
     {
@@ -293,17 +294,17 @@ pub(super) fn primitive_argument(
             || super::primitive_locals::scalar(&plan.structural_types, result.structural_type)
                 != Some(value.scalar_type)
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
-        let referent = super::scalar_shape(value.scalar_type).ok_or(invalid.clone())?;
+        let referent = super::scalar_shape(value.scalar_type).ok_or(LegalizationError::custody())?;
         let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
         let destination = call
             .parameters
             .get(parameter_ordinal)
-            .ok_or(invalid.clone())?
+            .ok_or(LegalizationError::custody())?
             .clone();
         if destination.shape != shape {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         return Ok(TargetStructuralArgument {
             place: semantic.place,

@@ -10,7 +10,6 @@ pub(super) fn validate(
     abstracted: &AbstractOperation,
     sources: &mut Vec<(ValueId, Source)>,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
     match (target, abstracted) {
         (
             TargetUnitOperation::IeeeFloatCompare {
@@ -50,7 +49,7 @@ pub(super) fn validate(
                     .map(|(_, source)| source)
                     .eq(std::iter::once(right))
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             sources.push((*result, Source::Home(*result_home)));
         }
@@ -121,7 +120,7 @@ pub(super) fn validate(
                 || !exact_operand(right, expected_right)
                 || !exact_operand(addend, expected_addend)
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             sources.push((
                 *result,
@@ -136,7 +135,7 @@ pub(super) fn validate(
                 }),
             ));
         }
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     }
     Ok(())
 }

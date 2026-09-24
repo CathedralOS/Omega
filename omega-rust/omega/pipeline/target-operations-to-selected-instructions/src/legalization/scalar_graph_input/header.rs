@@ -11,7 +11,6 @@ pub(super) fn function_abi(
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::custody();
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
@@ -46,7 +45,7 @@ pub(super) fn function_abi(
                     || actual.site != ValueDefinitionSite::FunctionParameter(index as u32)
             })
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let result = match &abstracted.result {
         AbstractFunctionResult::Unit => None,
@@ -57,7 +56,7 @@ pub(super) fn function_abi(
             scalar_shape(result.scalar_type)
         }
         _ => {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     };
     // Borrowed descriptor parameters are zero-code leading declarations; each
@@ -91,14 +90,16 @@ pub(super) fn function_abi(
                 )
         })
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
-    let pointer_size = u16::try_from(native.pointer_size).map_err(|_| invalid.clone())?;
-    let pointer_alignment = u16::try_from(native.pointer_alignment).map_err(|_| invalid.clone())?;
+    let pointer_size =
+        u16::try_from(native.pointer_size).map_err(|_| LegalizationError::custody())?;
+    let pointer_alignment =
+        u16::try_from(native.pointer_alignment).map_err(|_| LegalizationError::custody())?;
     let mut expected_parameters = abstracted
         .parameters
         .iter()
-        .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(invalid.clone()))
+        .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(LegalizationError::custody()))
         .collect::<Result<Vec<_>, _>>()?;
     for _ in &declared_dynamic_parameters {
         expected_parameters.push(ValueShape::integer(pointer_size, pointer_alignment));
@@ -111,7 +112,7 @@ pub(super) fn function_abi(
             result,
         },
     )
-    .map_err(|_| invalid.clone())?;
+    .map_err(|_| LegalizationError::custody())?;
     // The signature roster binds each declared descriptor to its exact
     // `{instance, table}` placements in the evaluated plan.
     let descriptor_base = abstracted.parameters.len();
@@ -127,14 +128,14 @@ pub(super) fn function_abi(
                     || abi.table != expected.parameters[descriptor_base + index * 2 + 1]
             })
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     if expected
         .result
         .as_ref()
         .is_some_and(|value| !scalar_register(value))
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     match &abstracted.result {
         AbstractFunctionResult::Scalar(result) => {
@@ -158,7 +159,7 @@ pub(super) fn function_abi(
                                 || actual.placement != *placement
                         })
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
             } else {
                 // Descriptor-parameter scalar functions carry their signature
@@ -179,7 +180,7 @@ pub(super) fn function_abi(
                                 || actual.placement != *placement
                         })
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
             }
         }
@@ -204,11 +205,11 @@ pub(super) fn function_abi(
                             || actual.placement != *placement
                     })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         _ => {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     Ok(expected)

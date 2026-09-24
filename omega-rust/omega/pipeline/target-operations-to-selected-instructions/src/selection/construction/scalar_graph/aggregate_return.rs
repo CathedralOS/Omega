@@ -15,7 +15,6 @@ pub(super) fn build(
     builder: &mut Builder<'_>,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
 ) -> Result<SelectedTerminator, SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::custody();
     let (place, placement, slot) = if let Some((parameter, placement)) =
         crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {
@@ -31,9 +30,10 @@ pub(super) fn build(
     } else {
         let (slot, placement) =
             crate::selection::aggregate_result_input::returned(source, &returned.value)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| SelectedInstructionError::custody())?;
         (
-            slot.structural_place().ok_or_else(invalid)?,
+            slot.structural_place()
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             placement,
             Some(slot),
         )
@@ -53,7 +53,7 @@ pub(super) fn build(
             .count()
             != 1
     }) {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     // Prefer current addressable backing, including owned ABI indirection.
     // Inline inputs with no addressable home retain their captured fragments.
@@ -73,7 +73,11 @@ pub(super) fn build(
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
-            builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+            builder
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             &[pointer],
             Default::default(),
         )?;
@@ -94,12 +98,16 @@ pub(super) fn build(
             block,
             returned,
             place,
-            pointer.ok_or_else(invalid)?,
+            pointer.ok_or_else(|| SelectedInstructionError::custody())?,
             placement,
             builder,
         )?;
         return Ok(SelectedTerminator::Return {
-            instruction: builder.instructions.last().cloned().ok_or_else(invalid)?,
+            instruction: builder
+                .instructions
+                .last()
+                .cloned()
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             psi_return_edge: returned.edge,
         });
     }
@@ -126,7 +134,7 @@ pub(super) fn build(
                 matches!(location, ValueLocation::Register { register, .. }
                     if operand.fixed_view.is_some() && operand.fixed_view == environment.fixed_register_view(*register))
             }))
-    }).copied().ok_or_else(invalid)?;
+    }).copied().ok_or_else(|| SelectedInstructionError::custody())?;
     let mut registers = Vec::new();
     if let Some(pointer) = pointer {
         for location in &placement.locations {
@@ -136,7 +144,7 @@ pub(super) fn build(
                 ..
             } = location
             else {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             };
             let offset = u32::from(*value_byte_offset);
             let register = super::structural_case::register(builder, place, offset, 64, false)?;
@@ -157,7 +165,7 @@ pub(super) fn build(
                 value_byte_offset, ..
             } = location
             else {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             };
             let offset = u32::from(*value_byte_offset);
             let input = builder
@@ -166,7 +174,7 @@ pub(super) fn build(
                 .iter()
                 .find(|(owner, position, _)| *owner == place && *position == offset)
                 .map(|(_, _, register)| *register)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| SelectedInstructionError::custody())?;
             let output = super::structural::transport_register(builder, place, offset)?;
             builder.emit(
                 SelectedInstructionKind::CopyI64,
@@ -196,7 +204,11 @@ pub(super) fn build(
         },
     )?;
     Ok(SelectedTerminator::Return {
-        instruction: builder.instructions.last().cloned().ok_or_else(invalid)?,
+        instruction: builder
+            .instructions
+            .last()
+            .cloned()
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         psi_return_edge: returned.edge,
     })
 }

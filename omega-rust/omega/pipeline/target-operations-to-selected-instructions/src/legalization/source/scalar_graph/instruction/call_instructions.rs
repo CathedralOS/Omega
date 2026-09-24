@@ -284,7 +284,6 @@ pub(super) fn project_dynamic_parameter_call(
     optimized: &optimization_unit::PsiOptimizationFunction,
     native: &TargetOperationPlan,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let invalid = || Error::custody();
     let (
         psi_operation,
         dynamic_dispatch,
@@ -300,7 +299,8 @@ pub(super) fn project_dynamic_parameter_call(
             requirement_obligations,
             crash_continuations,
         } => {
-            let shape = scalar_graph_input::scalar_shape(result.scalar_type).ok_or_else(invalid)?;
+            let shape = scalar_graph_input::scalar_shape(result.scalar_type)
+                .ok_or_else(|| Error::custody())?;
             (
                 *psi_operation,
                 dynamic_dispatch,
@@ -334,7 +334,7 @@ pub(super) fn project_dynamic_parameter_call(
         .functions
         .iter()
         .find(|function| function.machine == optimized.machine)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| Error::custody())?;
     let contract = scalar_graph_input::indirect_calls::parameter_call_contract(
         &function.graph.dynamic_parameters,
         optimized.machine,
@@ -350,7 +350,7 @@ pub(super) fn project_dynamic_parameter_call(
         .map(|placement| placement.shape)
         != result_home.map(|home| home.shape)
     {
-        return Err(invalid());
+        return Err(Error::custody());
     }
     Ok(LegalizedScalarInstructionKind::DynamicParameterCall(
         LegalizedDynamicParameterCall {

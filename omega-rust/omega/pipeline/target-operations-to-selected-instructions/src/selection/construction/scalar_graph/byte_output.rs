@@ -19,14 +19,15 @@ pub(super) fn emit(
     let LegalizedScalarInstructionKind::HostedWriteByteI32 { boundary, source } = row.kind else {
         return Ok(false);
     };
-    let invalid = || SelectedInstructionError::custody();
-    let (_, input, _, scalar_type) = builder.resolve(source).ok_or_else(invalid)?;
+    let (_, input, _, scalar_type) = builder
+        .resolve(source)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if row.result.is_some()
         || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         || !matches!(scalar_type, ScalarType::Integer(integer)
             if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let slot = LocalStorageSlotId::Boundary {
         operation: row.operation,
@@ -44,7 +45,7 @@ pub(super) fn emit(
         .len()
         .checked_sub(block_start)
         .and_then(|value| u32::try_from(value).ok())
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     builder
         .transport
         .settlements
@@ -63,7 +64,7 @@ pub(super) fn emit(
             .constraints
             .keys
             .hosted_write_byte_i32
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[input],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

@@ -17,9 +17,8 @@ pub(super) fn establish(
     row: &LegalizedScalarInstruction,
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::custody();
-    let (ordinal, declarations) =
-        crate::selection::aggregate_result_input::fields(source, row).ok_or_else(invalid)?;
+    let (ordinal, declarations) = crate::selection::aggregate_result_input::fields(source, row)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     let LegalizedScalarInstructionKind::EstablishScalarCase {
         result: established,
         fields,
@@ -27,7 +26,7 @@ pub(super) fn establish(
         ..
     } = &row.kind
     else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
@@ -61,7 +60,7 @@ pub(super) fn establish(
         let width = [8, 4, 2, 1]
             .into_iter()
             .find(|width| *width <= remaining)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| SelectedInstructionError::custody())?;
         store(replay, row, pointer, offset, width as u8, zero, Vec::new())?;
         offset += width;
     }
@@ -80,16 +79,19 @@ pub(super) fn establish(
         .zip(declarations)
         .zip(&layout.cases[ordinal].fields)
     {
-        let (_, value, _, scalar) = replay.resolve(field.value).ok_or_else(invalid)?;
+        let (_, value, _, scalar) = replay
+            .resolve(field.value)
+            .ok_or_else(|| SelectedInstructionError::custody())?;
         if Some(scalar) != declaration.field_type.scalar_type() {
-            return Err(invalid());
+            return Err(SelectedInstructionError::custody());
         }
         store(
             replay,
             row,
             pointer,
             u32::from(placed.byte_offset),
-            u8::try_from(placed.shape.byte_size).map_err(|_| invalid())?,
+            u8::try_from(placed.shape.byte_size)
+                .map_err(|_| SelectedInstructionError::custody())?,
             value,
             vec![field.value],
         )?;
