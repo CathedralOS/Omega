@@ -102,27 +102,38 @@ impl StructuralFieldType {
     /// end. Bounded leaves keep their restriction out of borrowed shapes, and
     /// erased or structural children are resolved by their own owners.
     ///
-    /// An inline byte field resolves to nothing. Its extent, capacity, and
-    /// live length belong to the owning record declaration, so it has no
-    /// standalone type identity a consumer could substitute at a path end;
-    /// a byte field reaches a call parameter only through the inline
-    /// presentation routes, which keep the owning root and path. A borrowed
-    /// view field is different: the descriptor is a whole structural leaf of
-    /// the parent's storage, and it resolves to the canonical borrowed-view
-    /// declaration its copy mints.
+    /// An inline byte field resolves to nothing, borrowed-view fields
+    /// included. Its extent, capacity, and live length belong to the owning
+    /// record declaration, so it has no standalone type identity a consumer
+    /// could substitute at a path end: byte_views.md admits a whole byte view
+    /// argument only from structural parameters, established literals, or
+    /// dominating subslice results, and a byte field reaches a call parameter
+    /// only through the inline presentation routes, which keep the owning
+    /// root and path. `leaf_copy_shape` is the one place a borrowed-view
+    /// field resolves: an explicit leaf copy mints a whole descriptor.
     pub fn canonical_leaf_shape(&self) -> Option<StructuralTypeShape> {
         match self {
             Self::Scalar(scalar_type) => Some(StructuralTypeShape::PrimitiveScalar(*scalar_type)),
             Self::IeeeFloat(format) => Some(StructuralTypeShape::PrimitiveScalar(
                 ScalarType::IeeeFloat(*format),
             )),
-            Self::ByteSequence(ByteSequenceCarrier::BorrowedView) => Some(
-                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
-            ),
             Self::ByteSequence(_)
             | Self::BoundedInteger(_)
             | Self::Structural(_)
             | Self::Erased { .. } => None,
+        }
+    }
+
+    /// The shape an explicit `StructuralLeafCopy` of this field mints. It is
+    /// `canonical_leaf_shape` plus the borrowed-view descriptor: copying a
+    /// `&[u8]` field's descriptor out of the parent yields a whole borrowed
+    /// view, whereas a path ending at that field never stands for one.
+    pub fn leaf_copy_shape(&self) -> Option<StructuralTypeShape> {
+        match self {
+            Self::ByteSequence(ByteSequenceCarrier::BorrowedView) => Some(
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView),
+            ),
+            other => other.canonical_leaf_shape(),
         }
     }
 }

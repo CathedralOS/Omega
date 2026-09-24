@@ -36,13 +36,13 @@ const OP_FACTS_ELEMENT_EXTENT: &str = "omega-rust/psi/semantics/terminal-verifie
 const TS_SE_ELEMENT_EXTENT: &str =
     "omega-rust/psi/semantics/terminal-semantics/src/structural_effect/element_extent.rs";
 const VAL_ELEMENTS_ESTABLISH: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_establishment.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view/establishment.rs";
 const VAL_ELEMENTS_LENGTH: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_length.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view/length.rs";
 const VAL_ELEMENTS_READ: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_read.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view/read.rs";
 const VAL_ELEMENTS_SUBSLICE: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_subslice.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view/subslice.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/scalar_case.rs";
 const OP_FACTS_STRUCTURAL_CASE: &str = "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/structural_case.rs";
@@ -51,38 +51,38 @@ const TV_CALLS: &str =
 const VAL_OPS: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/operations.rs";
 const VAL_RECORD: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/record.rs";
 const VAL_SCALAR_CASE: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar_case.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar/case.rs";
 const VAL_STRUCTURAL_CASE: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/case.rs";
 const VAL_SCALAR_ARRAY: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar_array.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar/array.rs";
 const VAL_CASE_MEMBERSHIP: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case_membership.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/case_membership.rs";
 const VAL_LEAF_COPY: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_leaf_copy.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/leaf_copy.rs";
 const VAL_PRIMITIVE_STORAGE: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/primitive_storage.rs";
 const TS_PRIMITIVE_PLACE: &str =
     "omega-rust/psi/semantics/terminal-semantics/src/primitive_place.rs";
 const VAL_REFERENCES: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/references.rs";
-const VAL_STRUCTURAL_OPS: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/structural_paths.rs";
+const VAL_STRUCTURAL_OPS: &str = "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/operations/structural_paths.rs";
 const VAL_BORROWED_WINDOWS: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/borrowed_windows.rs";
 const VAL_STRUCTURAL_SCALAR: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/scalar_fields.rs";
 const VAL_STRUCTURAL_BYTES: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_byte_sequence_fields.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/byte_sequence_fields.rs";
 const VAL_STRUCTURAL_BYTES_STORE: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_byte_sequence_store.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/byte_sequence_store.rs";
 const VAL_BYTES_LENGTH: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence_length.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence/length.rs";
 const VAL_BYTES_READ: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence_read.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence/read.rs";
 const VAL_BYTES_WRITE: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence_write.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence/write.rs";
 const VAL_BYTES_SUBSLICE: &str =
-    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence_subslice.rs";
+    "omega-rust/psi/semantics/terminal-verifier/src/validation/byte_sequence/subslice.rs";
 const VAL_FLOAT: &str =
     "omega-rust/psi/semantics/terminal-verifier/src/validation/float_meaning.rs";
 const VAL_PARTIAL_AFFINE: &str =
@@ -306,7 +306,7 @@ static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_STRUCTURAL_OPS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/scalar_fields.rs",
     ],
 );
 static OP_MOVE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(

@@ -251,7 +251,7 @@ rows! {
         "a structural field store whose canonical write path may resolve",
         "propositions still observing the exact write after exact scalar capture are removed; an unresolvable path forgets the entire root",
         &["scope:place-substitution", "scope:field-value-snapshots"],
-        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural_operations/structural_paths.rs")]
+        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural/operations/structural_paths.rs")]
     );
     INV_BYTE_WRITE => (
         "invalidation:byte-sequence-write",
@@ -259,7 +259,7 @@ rows! {
         "a byte-sequence write over a destination extent",
         "propositions observing the destination extent end their validity at the write",
         &["fact:byte-extent-length"],
-        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/byte_sequence_write.rs")]
+        &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/byte_sequence/write.rs")]
     );
     INV_REFERENCE_RELEASE => (
         "invalidation:reference-release",
@@ -417,7 +417,7 @@ rows! {
         "the machine's scalar qualification declarations",
         "scalar qualifications validate before they qualify any obligation or fact",
         &["formation:machine-validation"],
-        &[tv!( "validation/scalar_qualifications.rs")]
+        &[tv!( "validation/scalar/qualifications.rs")]
     );
     FORM_STRUCTURAL_ROSTERS => (
         "formation:structural-qualification-rosters",
@@ -425,7 +425,7 @@ rows! {
         "the declared structural qualification rosters",
         "rosters validate before reconstruction consults them for field and case facts",
         &["formation:machine-validation"],
-        &[tv!( "validation/structural_qualification_rosters.rs")]
+        &[tv!( "validation/structural/qualification_rosters.rs")]
     );
     FORM_STRUCTURAL_RESULT_CONTRACTS => (
         "formation:structural-result-contracts",
@@ -433,7 +433,7 @@ rows! {
         "the declared structural result contract clauses",
         "structural result contracts validate before call composition imports them",
         &["formation:contract-validation"],
-        &[tv!( "validation/structural_result_contracts.rs")]
+        &[tv!( "validation/structural/result_contracts.rs")]
     );
     FORM_CONTENT => (
         "formation:content-conservation",
@@ -513,7 +513,7 @@ rows! {
         "a header block's declared scalar invariants over the destination telescope, immutable invocation formals, and storage observations rooted at places alive for the whole invocation",
         "invariants validate as well-formed propositions before per-edge obligations are reconstructed",
         &["formation:proposition-context", "scope:header-edge-arrival"],
-        &[tv!( "validation/scalar_block_invariants.rs")]
+        &[tv!( "validation/scalar/block_invariants.rs")]
     );
     FORM_EVIDENCE => (
         "formation:evidence-orchestration",
@@ -585,7 +585,7 @@ rows! {
         "a scalar array's declared element type and complete initialization",
         "the array validates totally: reconstruction asserts no additional proof authority for it",
         &["formation:operation-validation"],
-        &[tv!( "validation/scalar_array.rs"), ts!( "scalar_array.rs")]
+        &[tv!( "validation/scalar/array.rs"), ts!( "scalar_array.rs")]
     );
     FORM_SCALAR_CASE => (
         "formation:scalar-case",
@@ -593,7 +593,7 @@ rows! {
         "a scalar case's declared sum type and payload",
         "the case validates before its membership and payload facts are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/scalar_case.rs")]
+        &[tv!( "validation/scalar/case.rs")]
     );
     FORM_CASE_MEMBERSHIP => (
         "formation:structural-case-membership",
@@ -601,7 +601,7 @@ rows! {
         "a structural case membership test with an exact root/path and declared sum case",
         "readable access, projection identity, dominating establishment and whole live ownership validate before a Boolean observation; no storage refinement is reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural_case_membership.rs")]
+        &[tv!( "validation/structural/case_membership.rs")]
     );
     FORM_STRUCTURAL_OPS => (
         "formation:structural-operations",
@@ -609,7 +609,7 @@ rows! {
         "structural, boundary, and effect operation custody: structural field stores and their canonical write paths, structural arguments and claim transfers, unit operations, payloadless and primitive structural calls, contract places, crash continuations, and boundary requirements",
         "these operations validate and resolve their paths and custody before invalidation, leaf equations, or call composition are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural_operations.rs"), tv!( "validation/structural_operations/boundary_requirements.rs"), tv!( "validation/structural_operations/claim_transfers.rs"), tv!( "validation/structural_operations/claim_transfers/argument_claims.rs"), tv!( "validation/structural_operations/claim_transfers/transfer_roster.rs"), tv!( "validation/structural_operations/contract_places.rs"), tv!( "validation/structural_operations/crash_continuations.rs"), tv!( "validation/structural_operations/payloadless_calls.rs"), tv!( "validation/structural_operations/primitive_calls.rs"), tv!( "validation/structural_operations/structural_arguments.rs"), tv!( "validation/structural_operations/structural_arguments/argument_checks.rs"), tv!( "validation/structural_operations/structural_arguments/argument_pairs.rs"), tv!( "validation/structural_operations/structural_paths.rs"), tv!( "validation/structural_operations/unit_operation.rs"), tv!( "validation/structural_operations/unit_operation/boundary_calls.rs"), tv!( "validation/structural_operations/unit_operation/local_establishments.rs"), tv!( "validation/structural_operations/unit_operation/structural_calls.rs"), tv!( "validation/structural_operations/unit_operation/unit_calls.rs")]
+        &[tv!( "validation/structural/operations.rs"), tv!( "validation/structural/operations/boundary_requirements.rs"), tv!( "validation/structural/operations/claim_transfers.rs"), tv!( "validation/structural/operations/claim_transfers/argument_claims.rs"), tv!( "validation/structural/operations/claim_transfers/transfer_roster.rs"), tv!( "validation/structural/operations/contract_places.rs"), tv!( "validation/structural/operations/crash_continuations.rs"), tv!( "validation/structural/operations/payloadless_calls.rs"), tv!( "validation/structural/operations/primitive_calls.rs"), tv!( "validation/structural/operations/structural_arguments.rs"), tv!( "validation/structural/operations/structural_arguments/argument_checks.rs"), tv!( "validation/structural/operations/structural_arguments/argument_pairs.rs"), tv!( "validation/structural/operations/structural_paths.rs"), tv!( "validation/structural/operations/unit_operation.rs"), tv!( "validation/structural/operations/unit_operation/boundary_calls.rs"), tv!( "validation/structural/operations/unit_operation/local_establishments.rs"), tv!( "validation/structural/operations/unit_operation/structural_calls.rs"), tv!( "validation/structural/operations/unit_operation/unit_calls.rs")]
     );
     FORM_STRUCTURAL_SCALAR => (
         "formation:structural-scalar-fields",
@@ -617,7 +617,7 @@ rows! {
         "structural scalar field reads and bounded-integer field stores with their declared intervals",
         "field reads and stores validate and resolve their referents — a store's declared range obligation resolves against the declaration, independently of the stored value — before equations and bounds are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural_scalar_fields.rs")]
+        &[tv!( "validation/structural/scalar_fields.rs")]
     );
     FORM_STRUCTURAL_BYTES => (
         "formation:structural-byte-sequence-fields",
@@ -625,7 +625,7 @@ rows! {
         "structural byte-sequence fields, their extents, and freshness discipline",
         "byte-sequence fields validate before extent equations and capacity obligations are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural_byte_sequence_fields.rs"), tv!( "validation/structural_byte_sequence_fields/freshness.rs"), tv!( "validation/structural_byte_sequence_store.rs")]
+        &[tv!( "validation/structural/byte_sequence_fields.rs"), tv!( "validation/structural/byte_sequence_fields/freshness.rs"), tv!( "validation/structural/byte_sequence_store.rs")]
     );
     FORM_BYTE_OPS => (
         "formation:byte-sequence-operations",
@@ -633,7 +633,7 @@ rows! {
         "byte-sequence length, read, write, and subslice operations",
         "byte-sequence operations validate their extents and bounds before observations are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/byte_sequence_length.rs"), tv!( "validation/byte_sequence_read.rs"), tv!( "validation/byte_sequence_write.rs"), tv!( "validation/byte_sequence_subslice.rs")]
+        &[tv!( "validation/byte_sequence/length.rs"), tv!( "validation/byte_sequence/read.rs"), tv!( "validation/byte_sequence/write.rs"), tv!( "validation/byte_sequence/subslice.rs")]
     );
     FORM_CALL_GRAPH => (
         "formation:call-graph",

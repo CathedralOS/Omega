@@ -362,7 +362,7 @@ static FACT_SCALAR_CASE_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceEntry
     implementation: &[
         OP_FACTS_SCALAR_CASE,
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar_case.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/scalar/case.rs",
     ],
     soundness: TRUSTED,
 };
@@ -380,7 +380,7 @@ static FACT_STRUCTURAL_CASE_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceE
     implementation: &[
         OP_FACTS_STRUCTURAL_CASE,
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_case.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/case.rs",
     ],
     soundness: TRUSTED,
 };
@@ -398,7 +398,7 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     implementation: &[
         OP_FACTS_BYTE_EXTENT,
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_byte_sequence_fields.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/byte_sequence_fields.rs",
         "omega-rust/psi/semantics/terminal-semantics/src/structural_effect/byte_extent.rs",
     ],
     soundness: TRUSTED,
@@ -417,8 +417,8 @@ static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     implementation: &[
         "omega-rust/psi/semantics/terminal-verifier/src/verification/reconstruction/operation_facts/element_extent.rs",
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_length.rs",
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view_subslice.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view/length.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/element_view/subslice.rs",
         "omega-rust/psi/semantics/terminal-semantics/src/structural_effect/element_extent.rs",
     ],
     soundness: TRUSTED,
@@ -451,7 +451,7 @@ static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry 
     dependencies: &["fact:scalar-carrier-bounds"],
     implementation: &[
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_scalar_fields.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/scalar_fields.rs",
     ],
     soundness: SoundnessStatus::Proved {
         evidence: "the row emits no fact of its own shape: each bound it contributes is produced by `declared_carrier_bounds` — the `fact:scalar-carrier-bounds` certifying procedure — and joins the roster only when that fixed-shape `ConjunctionElimination` certificate (declared interval invariant as assumption zero, bound eliminated at its conjunct index) is accepted by proof-admission's checker; a rejected certificate emits nothing rather than joining trusted",
@@ -470,7 +470,7 @@ static FACT_FIELD_STORE_LEAF_EQUATION: TrustedSurfaceEntry = TrustedSurfaceEntry
     ],
     implementation: &[
         OPERATION_FACTS,
-        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural_operations/structural_paths.rs",
+        "omega-rust/psi/semantics/terminal-verifier/src/validation/structural/operations/structural_paths.rs",
     ],
     soundness: TRUSTED,
 };
