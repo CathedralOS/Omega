@@ -427,6 +427,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
                 | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
@@ -464,6 +465,9 @@ impl OperationFrame<'_, '_> {
             }
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                 self.structural_scalar_field_store(store)
+            }
+            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
+                self.structural_case_field_store(store)
             }
             CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } => {
                 self.establish_scalar_local(result, value)
@@ -748,6 +752,156 @@ impl OperationFrame<'_, '_> {
         )?;
         self.push_unit(kind);
         Ok(())
+    }
+
+    /// Replace one unrestricted sum field beneath a mutable-borrowed
+    /// parameter. The checked plan supplies the authored value as a parameter
+    /// projection an owned or shared place still holds: leaf-copy it into a
+    /// fresh owned place, vacate the authored field through the window
+    /// ledger, restore the hole with the copy, and retire the moved-out leaf
+    /// trivially on the following edge.
+    fn structural_case_field_store(
+        &mut self,
+        store: &checked_trees::CheckedStructuralCaseFieldStorePlan,
+    ) -> Result<(), LoweringError> {
+        let checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } =
+            store.destination
+        else {
+            return unsupported("structural case field store destination is not a parameter");
+        };
+        let root = self
+            .parameters
+            .iter()
+            .find(|parameter| parameter.position == position)
+            .ok_or(LoweringError::Unsupported(
+                "structural case field store names an unknown parameter",
+            ))?;
+        let root_type = root.structural_type;
+        let (_, field) = crate::emission::structural_scalar_store::lower_structural_field_path(
+            root_type,
+            &store.carrier_path,
+            &store.field_identity,
+            self.structural_types.declarations(),
+        )?;
+        let terminal_psi::StructuralFieldType::Structural(hole_type) = field.field_type else {
+            return unsupported("structural case field store names a non-structural field");
+        };
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+            parameter_index: value_position,
+        } = store.value.source
+        else {
+            return unsupported("structural case field store value is not a parameter");
+        };
+        if !store.value.path.iter().all(|segment| {
+            matches!(
+                segment,
+                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+            )
+        }) {
+            return unsupported("structural case field store value path leaves record fields");
+        }
+        let value_root = self
+            .parameters
+            .iter()
+            .find(|parameter| parameter.position == value_position)
+            .ok_or(LoweringError::Unsupported(
+                "structural case field store value names an unknown parameter",
+            ))?;
+        let source_place = self.evaluation.current_structural_place(value_root.place);
+        // The copy reads the source where it lives: a shared loan or an owned
+        // parameter both admit the leaf copy without moving anything.
+        let copied_place = place_id(allocate_dense(self.next_place)?);
+        let copy = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: copy,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place: copied_place,
+                structural_type: hole_type,
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::StructuralLeafCopy {
+                source: source_place,
+                path: lower_structural_path(&store.value.path)?,
+            },
+        });
+        self.results.push(
+            StructuralPlaceDeclaration {
+                id: copied_place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: copy,
+                    structural_type: hole_type,
+                },
+            },
+            false,
+        );
+        let mut field_path = store.carrier_path.clone();
+        field_path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            store.field_identity.clone(),
+        ));
+        let window_place = CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: position,
+            },
+            path: field_path,
+            type_identity: store.value.type_identity.clone(),
+            access: checked_trees::CheckedStructuralAccess::Owned,
+        };
+        require_parameter_window_root(self.parameters, &window_place, self.evaluation)?;
+        let moved = self.windows.emit_move(
+            &window_place,
+            &checked_trees::CheckedUnitStructuralResultBindingPlan {
+                statement_index: store.statement_index,
+                binding_ordinal: 0,
+                type_identity: store.value.type_identity.clone(),
+                multiplicity: language_semantics::Multiplicity::Unrestricted,
+            },
+            self.parameters,
+            self.structural_types.declarations(),
+            self.type_ids,
+            self.next_place,
+            self.operations,
+        )?;
+        // The moved-out leaf is an internal temporary, not an authored
+        // result — declare it as a private temporary so the verifier finds
+        // its producing operation, then the cleanup edge retires it.
+        let move_id = self
+            .operations
+            .operations
+            .last()
+            .ok_or(LoweringError::Unsupported(
+                "structural case field store move emitted no operation",
+            ))?
+            .id;
+        self.results.push(
+            StructuralPlaceDeclaration {
+                id: moved,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: move_id,
+                    structural_type: hole_type,
+                },
+            },
+            false,
+        );
+        // The moved-out leaf is `Unrestricted` by the plan's own contract, so
+        // no custody action retires it: edge discards admit affine places
+        // only, and an unrestricted owned place may simply be left behind.
+        self.windows.emit_store(
+            &window_place,
+            BorrowedWindowRepairValue {
+                place: copied_place,
+                structural_type: hole_type,
+            },
+            self.parameters,
+            self.structural_types.declarations(),
+            self.type_ids,
+            self.operations,
+        )
     }
 
     /// Bind one scalar local. A composed state names it in its own scalar
