@@ -202,6 +202,41 @@ pub(super) fn is_borrowed_slice_view_value(
         .is_some()
 }
 
+/// A LocalData initializer copying one element of a borrowed view
+/// (`let chosen: Entry = tail[index]`): a single-element index over a bare
+/// name whose declared type is a view of exactly the copyable record the
+/// local declares. The builder then admits the view root, the selector and
+/// the element's scalar fields.
+pub(super) fn is_view_element_copy(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let ExpressionNode::Name(name) = program.expression_table.expression(indexed.collection) else {
+        return false;
+    };
+    !matches!(
+        program.expression_table.expression(indexed.index),
+        ExpressionNode::Range(_)
+    ) && copied_place_type(program, expected)
+        && !crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
+        && symbol_declared_type(program, name.symbol)
+            .and_then(|declared| {
+                crate::execution::terminal_unit::types::borrowed_slice_view_element(
+                    program,
+                    declared,
+                    &[],
+                )
+            })
+            .is_some_and(|element| {
+                program.normalized_type_identity(element)
+                    == program.normalized_type_identity(expected)
+            })
+}
+
 /// A LocalData initializer whose declared type is a fixed array of structural
 /// elements spelled as a literal. Primitive arrays keep their scalar-element
 /// route; structural elements each register their own value node, the same
@@ -723,6 +758,8 @@ impl Builder<'_, '_> {
             CheckedStructuralValueKind::Call { source_call }
         } else if let Some(copy) = self.scalar_case_place(expression, expected) {
             copy
+        } else if let Some(copy) = self.view_element_copy(expression, expected) {
+            copy
         } else if let Some(copied) = self.copied_place(expression, expected) {
             copied
         } else if let Some(projection) =
@@ -929,6 +966,90 @@ impl Builder<'_, '_> {
         Some(CheckedStructuralValueKind::ScalarCasePlace {
             source: self.borrowed_leaf_argument(expression, expected)?,
         })
+    }
+
+    /// One `[copy]` record element copied out of a borrowed view: the same
+    /// element selection an element read takes, then one read per scalar
+    /// field of the element in declaration order.
+    fn view_element_copy(
+        &self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        if !is_view_element_copy(self.program, expression, expected) {
+            return None;
+        }
+        let selection = super::super::scalar_lowering::selected_element(
+            self.program,
+            self.operators,
+            expression,
+            self.parameters,
+            self.authored_parameters,
+            self.parameter_types,
+            self.locals,
+            self.exact_integer_casts,
+        )?;
+        if !selection.through_view
+            || !selection.path.is_empty()
+            || self
+                .program
+                .normalized_type_identity(selection.element_type)
+                != self.program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+        let TypeReferenceNode::Named { symbol, .. } = self
+            .program
+            .type_reference_table
+            .type_reference(validation::unwrapped_type_reference(
+                self.program,
+                expected,
+            )?)
+        else {
+            return None;
+        };
+        let data = self
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == *symbol)?;
+        let mut reads = Vec::new();
+        for member in self.program.data_members(data) {
+            let typed_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            let primitive_type = self
+                .program
+                .primitive_type_reference(field.type_reference)?;
+            if field.relevance.is_erased()
+                || primitive_type == PrimitiveType::Addr
+                || !matches!(
+                    self.program
+                        .type_reference_table
+                        .type_reference(field.type_reference),
+                    TypeReferenceNode::Named { .. }
+                )
+            {
+                return None;
+            }
+            reads.push(
+                checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+                    root: selection.root,
+                    path: Vec::new(),
+                    index: Box::new(selection.index.clone()),
+                    element_path: vec![
+                        checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                            field
+                                .identity
+                                .map(|identity| format!("#{identity}"))
+                                .unwrap_or_else(|| field.name.as_str().to_owned()),
+                        ),
+                    ],
+                    primitive_type,
+                },
+            );
+        }
+        (!reads.is_empty()).then_some(CheckedStructuralValueKind::ViewElementCopy { reads })
     }
 
     /// One `Unrestricted` leaf copied out of shared-borrowed storage:

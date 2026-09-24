@@ -17,6 +17,7 @@ use symbols::SymbolHandle;
 mod borrowed_slice_view;
 pub(crate) use borrowed_slice_view::authored_collection_path;
 mod owned_places;
+mod view_element_copy;
 pub(crate) use owned_places::validate as validate_owned_place;
 mod owned_selection;
 mod shared_borrow;
@@ -397,6 +398,9 @@ pub(crate) fn validate(
                     reference,
                     &argument,
                 )?;
+            }
+            CheckedStructuralValueKind::ViewElementCopy { reads } => {
+                view_element_copy::validate(checked, source, expression, reference, &reads)?;
             }
             CheckedStructuralValueKind::CopiedStructuralPlace { source: argument } => {
                 shared_borrow::validate_copied_place(

@@ -835,6 +835,9 @@ impl Emission<'_, '_, '_> {
                         )?;
                 self.projected_case_place(&argument, continuation)
             }
+            CheckedStructuralValueKind::ViewElementCopy { reads } => {
+                self.view_element_copy(&reads, continuation)
+            }
             CheckedStructuralValueKind::CopiedStructuralPlace { source } => {
                 if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
                     return unsupported("copied place changed its leaf type");
@@ -2228,6 +2231,102 @@ impl Emission<'_, '_, '_> {
     /// fully intact, so shared loans admit the observation where a move
     /// would vacate borrowed storage. Only the op-join path is needed — no
     /// case fan-out, no residual bookkeeping.
+    /// Establish a fresh owned record from one view element's scalar fields.
+    /// Each retained read is an ordinary element read through the view at the
+    /// copy's selector, so each carries the view's own bound; the record then
+    /// commits the leaves in declaration order. A field that is bounded,
+    /// erased or structural is refused: a plain read carries none of the
+    /// evidence establishing it would owe.
+    pub(super) fn view_element_copy(
+        &mut self,
+        reads: &[checked_trees::CheckedScalarExpression],
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let shape = self
+            .structural_types
+            .iter()
+            .find(|item| item.id == self.structural_type)
+            .ok_or(LoweringError::Unsupported(
+                "view element copy structural type missing",
+            ))?;
+        let StructuralTypeShape::Record { fields } = &shape.shape else {
+            return unsupported("view element copy establishes a nonrecord");
+        };
+        let fields = fields.clone();
+        if fields.len() != reads.len() {
+            return unsupported("view element copy does not read every field once");
+        }
+        let bindings = match &self.evaluation.scalar_bindings {
+            Some(bindings) => bindings.clone(),
+            None => crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                .with_primitive_storage(&self.evaluation.primitive_storage)
+                .with_element_views(&self.evaluation.element_views)
+                .with_structural_parameters(&self.evaluation.structural_parameters)
+                .with_resolved_structural_observations(
+                    &self.evaluation.structural_fields,
+                    &self.evaluation.structural_cases,
+                ),
+        }
+        .with_view_locals(&self.evaluation.view_locals);
+        let mut initialized = Vec::with_capacity(fields.len());
+        for (field, read) in fields.iter().zip(reads) {
+            let checked_trees::CheckedScalarExpression::StructuralParameterIndexedRead {
+                element_path,
+                ..
+            } = read
+            else {
+                return unsupported("view element copy field is not an element read");
+            };
+            let scalar_type = match field.field_type {
+                terminal_psi::StructuralFieldType::Scalar(scalar_type) => scalar_type,
+                terminal_psi::StructuralFieldType::IeeeFloat(format) => {
+                    semantic_vocabulary::ScalarType::IeeeFloat(format)
+                }
+                _ => {
+                    return unsupported("view element copy reads only plain scalar fields");
+                }
+            };
+            if field.relevance.is_erased()
+                || element_path.as_slice()
+                    != [checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                        field.identity.clone(),
+                    )]
+            {
+                return unsupported("view element copy reordered or renamed a field");
+            }
+            let lowered = bindings.expression(read)?;
+            if lowered.scalar_type() != scalar_type {
+                return unsupported("view element copy read changed its field carrier");
+            }
+            let value = crate::emission::operation_emission::expressions::emit_direct_expression(
+                &lowered,
+                self.values,
+                self.next_value,
+                self.operations,
+            );
+            initialized.push(terminal_psi::RecordFieldInitializer {
+                field: field.id,
+                value: terminal_psi::RecordFieldValue::Scalar {
+                    value,
+                    range_obligation: None,
+                },
+            });
+        }
+        let place = place_id(allocate_dense(self.next_place)?);
+        self.temporary_places.push(super::record::emit_completed(
+            place,
+            self.structural_type,
+            self.multiplicity,
+            initialized,
+            self.operations,
+        ));
+        let Some(continuation) = continuation else {
+            return Ok(place);
+        };
+        self.complete_value(place, None, continuation)?;
+        Ok(continuation.place)
+    }
+
     fn copied_leaf_place(
         &mut self,
         argument: &StructuralArgument,

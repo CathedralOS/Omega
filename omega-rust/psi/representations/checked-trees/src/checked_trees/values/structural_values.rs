@@ -84,6 +84,18 @@ pub enum CheckedStructuralValueKind {
     CopiedStructuralPlace {
         source: crate::CheckedUnitStructuralArgumentPlan,
     },
+    /// One `[copy]` record element copied out of an established borrowed
+    /// view (`let chosen: Entry = tail[index]`). `reads` are the element's
+    /// scalar fields in declaration order, each an element read through the
+    /// same view root and selector with a one-field element path; the copy is
+    /// the fresh owned record those leaves establish, so every leaf read
+    /// carries the view's own bound. The view keeps its loan and the viewed
+    /// storage its contents. Records with bounded, erased or structural
+    /// fields are not copied this way: their leaves need evidence a plain
+    /// read does not carry.
+    ViewElementCopy {
+        reads: Vec<crate::CheckedScalarExpression>,
+    },
     /// An owned child projected out of `source` (a `Place` or `Call` node)
     /// along an exact field/fixed-index path. The untouched residual siblings
     /// die on the selected edge; `type_identity` is the normalized projected

@@ -410,3 +410,117 @@ fn a_record_element_field_read_takes_a_local_selector() {
     terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
         .expect("a locally selected record element field read verifies");
 }
+
+/// A whole `[copy]` record element copies through its scalar fields: one
+/// element read per field at the copy's selector, then a fresh owned record
+/// from those leaves. Each read carries the view's own bound, and the verifier
+/// checks every leaf against the element's declaration. An affine element is
+/// not copied this way: by-value access through a shared view requires `[copy]`.
+#[test]
+fn a_record_element_copies_through_its_field_reads() {
+    let source = RECORD_ELEMENTS
+        .replace("data Entry {", "data Entry [copy] {")
+        .replace(
+            "Output::observe(tail[1].value);",
+            "let index: u64 = 1;\n        let chosen: Entry = tail[index];\n        Output::observe(chosen.value);",
+        );
+    let lowered = lower(&source).expect("a record element copy lowers");
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("a record element copy verifies independently");
+    let operations = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    let leaves = operations
+        .iter()
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::ElementViewRead { path, .. } => Some(path.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        leaves,
+        vec![
+            vec![terminal_psi::StructuralPathSegment::Field(
+                "weight".to_owned()
+            )],
+            vec![terminal_psi::StructuralPathSegment::Field(
+                "value".to_owned()
+            )],
+        ],
+        "the copy reads each field of the selected element once, in declaration order"
+    );
+    assert!(
+        operations.iter().any(|operation| matches!(
+            &operation.kind,
+            terminal_psi::OperationKind::EstablishRecord { fields } if fields.len() == 2
+        )),
+        "the leaves establish one fresh record"
+    );
+}
+
+#[test]
+fn an_affine_record_element_is_not_copied_out_of_a_view() {
+    let source = RECORD_ELEMENTS.replace(
+        "Output::observe(tail[1].value);",
+        "let chosen: Entry = tail[1];\n        Output::observe(chosen.value);",
+    );
+    let refused = match crate::front_end::checked_program_result(&source) {
+        Err(_) => true,
+        Ok(checked) => checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .is_err(),
+    };
+    assert!(
+        refused,
+        "an affine element must not be duplicated out of a shared view"
+    );
+}
+
+/// A copied `[copy]` element feeds a guard in a state graph: the copy's
+/// field is an ordinary local record field read.
+#[test]
+fn a_copied_record_element_selects_a_successor() {
+    let source = r#"
+        boundary trait Output {
+            machine count(value: u64) reaches Output;
+        }
+        data Entry [copy] {
+            value: i32;
+        }
+        data Root {
+            entries: [Entry; 4];
+        }
+        machine Root::enter(&mut self) reaches Output {
+            self.entries[0].value = 7;
+            let entry_view: &[Entry] = self.entries.as_slice();
+            let index: u64 = 0;
+            let chosen: Entry = entry_view[index];
+            transition chosen.value == 7 {
+                true -> good()
+                false -> bad()
+            }
+            state good(&mut self) { Output::count(51); }
+            state bad(&mut self) { Output::count(52); }
+        }
+    "#;
+    let lowered = lower(source).expect("a copied element guard lowers");
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("a copied element guard verifies independently");
+}
