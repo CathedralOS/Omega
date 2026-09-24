@@ -5,6 +5,7 @@
 // neither necessary nor sound.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To3 requires self <= 3;
 data CellId { case Empty; case R00; case R01; case R02; case R03; }
 data Room { cell: CellId; tag: i32; }
 data Level { rooms: [Room; 4]; room_count: u64; }
@@ -23,7 +24,7 @@ machine Main::main(&mut self) reaches Console {
 machine Builder::build(&mut self, level: &mut Level) {
     level.room_count = 4;
     transition { _ -> carve_at(level, 0) }
-    state carve_at(&mut self, level: &mut Level, index: u64 [0..=3]) {
+    state carve_at(&mut self, level: &mut Level, index: u64 in U640To3) {
         let tag: i32 = 100 + index;
         self.carve(level, tag);
         let next: u64 = index + 1;

@@ -1,6 +1,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
+domain u64::U640To1 requires self <= 1;
 data Item {
     value: i32;
     tag: i32;
@@ -9,7 +10,7 @@ data Item {
 data Main {
     console: Binding<Console>;
     items: [Item; 2];
-    index: u64 [0..=1];
+    index: u64 in U640To1;
 }
 
 machine Main::touch_tag(&mut self, item: &mut Item) {
