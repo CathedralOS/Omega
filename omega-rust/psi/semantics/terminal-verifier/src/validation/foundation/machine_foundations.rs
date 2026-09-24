@@ -616,6 +616,17 @@ pub(super) fn validate_result_declaration(
                                 ) || super::super::block_views::plain_owned_return_source(
                                     module, machine, *source,
                                 )))
+                                    // A plain-owned Sum may nest structural
+                                    // payloads: `Parsed(alignment)` holds a
+                                    // record or another case. Its claim-free
+                                    // establishment or structural-call source
+                                    // is still an owned result.
+                                    || (super::super::structural::result_contracts::has_plain_owned_shape(
+                                        module,
+                                        result.structural_type,
+                                    ) && super::super::structural::case::plain_return_source(
+                                        module, machine, *source,
+                                    ))
                                     // A leaf copy is fresh owned storage by
                                     // construction: an `Unrestricted` result
                                     // may publish it whatever the leaf shape.
