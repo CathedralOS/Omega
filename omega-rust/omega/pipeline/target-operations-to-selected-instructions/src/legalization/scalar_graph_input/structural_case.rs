@@ -322,26 +322,18 @@ pub(super) fn validate(
         {
             return Err(invalid);
         }
-        for place in &case.trivial_affine_discards {
-            let plain_affine = match source_owner(function, *place)? {
-                legalized_operations::LegalizedStructuralCaseSource::OperationResult {
-                    result,
-                    ..
-                } => {
-                    result.multiplicity == terminal_psi::StructuralMultiplicity::Affine
-                        && result.qualifications.is_empty()
-                        && result.projected_qualifications.is_empty()
-                        && result.claims.is_empty()
-                }
-                legalized_operations::LegalizedStructuralCaseSource::BlockParameter {
-                    declaration,
-                    ..
-                } => declaration.multiplicity == terminal_psi::StructuralMultiplicity::Affine,
-                legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => false,
-            };
-            if !plain_affine {
-                return Err(invalid);
-            }
+        // A case edge's discards are admitted by the same rule as every other
+        // edge's and every return's: a plain affine result, block arrival, or
+        // the function's own owned parameter — which is what a dispatch on an
+        // owned parameter leaves behind on each arm.
+        let actions = case
+            .trivial_affine_discards
+            .iter()
+            .copied()
+            .map(terminal_psi::TerminalAffineCleanupAction::DiscardRoot)
+            .collect::<Vec<_>>();
+        if !super::aggregate_results::cleanup(function, &actions) {
+            return Err(invalid);
         }
     }
     Ok(())

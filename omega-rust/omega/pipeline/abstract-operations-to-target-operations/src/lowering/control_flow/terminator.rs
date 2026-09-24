@@ -111,7 +111,7 @@ fn residual_cleanup(
     }) && !super::references::is_suspended_root(live, discard.place)
 }
 
-fn plain_home_cleanup(
+pub(super) fn plain_home_cleanup(
     function: &AbstractFunction,
     live: &mut LiveDefinitions,
     structural_types: &StructuralTypeLookup<'_>,
