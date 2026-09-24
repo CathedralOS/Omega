@@ -2164,9 +2164,13 @@ syntax and other terminal services are not prerequisites.
     (`OperationProofUnavailable`); a non-`u64` index
     (`runtime_slice_indexed_read_exit`: `s[self.i]` with `i32`) is refused by
     lowering's exact-`u64` index requirement.
-  - A range over a fixed-array field (`self.source[0..2]` in
-    `runtime_subslice_len_exit`) establishes no view to narrow and stops at
-    `statement sequence: local data: structural call binding`.
+  - A view local's range over a fixed-array field of non-byte elements
+    (`self.arr[1..self.hi]`) views the whole field and narrows it; a byte
+    field range (`self.source[0..2]` in `runtime_subslice_len_exit`, the
+    `BlobSample { bytes: self.source[0..2] }` field in
+    `runtime_wire_encode_byte_slice_exit`) has no Terminal establishment of a
+    byte view over fixed byte storage and still stops at `statement
+    sequence: local data: structural call binding`.
   - State forwarding passes Unit-graph admission but reports
     `InvalidStructuralSuccessorArgument`: the forwarded mutable view creates
     a reborrow place missing from the successor frontier. Complete that custody

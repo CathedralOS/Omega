@@ -521,11 +521,18 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                                 type_identity,
                                 ..
                             } => Some(type_identity.as_str()),
+                            // A state's view subslice may own its view type
+                            // alone: a range over a fixed-array field narrows
+                            // no view an earlier binding declared.
                             CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                                 result,
                                 ..
                             }
                             | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
+                            | CheckedUnitEffectOperationPlan::EstablishViewSubslice {
+                                result,
+                                ..
+                            }
                             | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                                 result,
                                 ..

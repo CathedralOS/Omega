@@ -10,13 +10,22 @@
 //! source-bound `u64` fact at the range's `CheckedSubsliceSite`, and an
 //! endpoint the plan retains equals that fact. Only the lookup of the source
 //! place differs by route, so each route resolves `ViewRangeSource` itself.
+//!
+//! A view local's range over a fixed-array field (`self.items[a..b]`) names
+//! no established view: its route first establishes a whole element view of
+//! the field and passes that place as the source, together with the checked
+//! field path. `emit_over_field` then replays the authored member chain to
+//! that exact field in place of the bare view name.
 use super::{CheckedTrees, LoweringError, unsupported};
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::emission::operation_emission::view_subslice::{self, ViewFamily};
 use crate::expression_preparation::bindings::ScalarBindings;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use checked_trees::{CheckedScalarExpression, CheckedScalarExpressionRole, CheckedSubsliceSite};
+use checked_trees::{
+    CheckedScalarExpression, CheckedScalarExpressionRole, CheckedSubsliceSite,
+    CheckedUnitStructuralPathSegment,
+};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use terminal_psi::{StructuralPlaceDeclaration, ValueDeclaration};
 
@@ -59,7 +68,67 @@ pub(crate) fn emit(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let (start, end) = endpoints(checked, &site, source.symbol, bindings)?;
+    emit_ranged(
+        checked,
+        site,
+        source,
+        &[],
+        result_type,
+        destination,
+        bindings,
+        values,
+        next_value,
+        operations,
+    )
+}
+
+/// `emit` for a range whose authored collection is the fixed-array field
+/// `collection` below the parameter `source.symbol` names. `source.place` is
+/// the whole element view the route already established over that field.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn emit_over_field(
+    checked: &CheckedTrees,
+    site: ViewRangeSite<'_>,
+    source: ViewRangeSource,
+    collection: &[CheckedUnitStructuralPathSegment],
+    result_type: StructuralTypeId,
+    destination: PlaceId,
+    bindings: &ScalarBindings,
+    values: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    if collection.is_empty() {
+        return unsupported("view subslice field collection has no field path");
+    }
+    emit_ranged(
+        checked,
+        site,
+        source,
+        collection,
+        result_type,
+        destination,
+        bindings,
+        values,
+        next_value,
+        operations,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_ranged(
+    checked: &CheckedTrees,
+    site: ViewRangeSite<'_>,
+    source: ViewRangeSource,
+    collection: &[CheckedUnitStructuralPathSegment],
+    result_type: StructuralTypeId,
+    destination: PlaceId,
+    bindings: &ScalarBindings,
+    values: &[ValueDeclaration],
+    next_value: &mut u64,
+    operations: &mut OperationBuffer,
+) -> Result<StructuralPlaceDeclaration, LoweringError> {
+    let (start, end) = endpoints(checked, &site, source.symbol, collection, bindings)?;
     if result_type != source.structural_type {
         return unsupported("view subslice changed its view type");
     }
@@ -81,6 +150,7 @@ fn endpoints(
     checked: &CheckedTrees,
     site: &ViewRangeSite<'_>,
     source_symbol: symbols::SymbolHandle,
+    collection: &[CheckedUnitStructuralPathSegment],
     bindings: &ScalarBindings,
 ) -> Result<
     (
@@ -98,16 +168,36 @@ fn endpoints(
     let ExpressionNode::Range(range) = checked.expression_table.expression(indexed.index) else {
         return unsupported("view subslice has no authored range");
     };
-    if range.end_inclusive
-        || !matches!(
-            checked.expression_table.expression(indexed.collection),
-            ExpressionNode::Name(path)
-                if source_symbol.is_valid()
-                    && path.symbol == source_symbol
-                    && path.head_symbol == source_symbol
-                    && checked.expression_table.name_path_members(path.members).len() == 1
-        )
-    {
+    let root = if collection.is_empty() {
+        indexed.collection
+    } else {
+        let (root, path) =
+            crate::expression_preparation::source_custody::structural::authored_collection_path(
+                checked,
+                machine,
+                authored,
+                indexed.collection,
+            )?;
+        if path != collection {
+            return unsupported("view subslice field range lost its checked field path");
+        }
+        root
+    };
+    let ExpressionNode::Name(path) = checked.expression_table.expression(root) else {
+        return unsupported("view subslice lost its exclusive range or exact source name");
+    };
+    let members = checked.expression_table.name_path_members(path.members);
+    // A field range's root is the owning parameter; an attached `self`
+    // spells the machine's receiver rather than the parameter's own symbol.
+    let names_source = members.len() == 1
+        && ((path.symbol == source_symbol && path.head_symbol == source_symbol)
+            || (!collection.is_empty()
+                && members[0].is_self_receiver()
+                && checked
+                    .state_parameters(authored)
+                    .iter()
+                    .any(|parameter| parameter.is_self && parameter.symbol == source_symbol)));
+    if range.end_inclusive || !source_symbol.is_valid() || !names_source {
         return unsupported("view subslice lost its exclusive range or exact source name");
     }
     if let Some((start, end)) = site.retained
@@ -206,10 +296,19 @@ pub(crate) fn binding_local<'a>(
     else {
         return unsupported("view subslice binding lost its authored local");
     };
+    // Only a range over a fixed-array field, rooted at the parameter owning
+    // it, carries a path: the field projection to the array it views whole.
+    let field_range = matches!(
+        source.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::ElementViewSubslice {
+            root: checked_trees::CheckedStorageRoot::Parameter { .. },
+            ..
+        }
+    );
     if local.is_mutable
         || !local.symbol.is_valid()
         || local.initial_value != *expression
-        || !source.path.is_empty()
+        || (!source.path.is_empty() && !field_range)
         || source.access != checked_trees::CheckedStructuralAccess::SharedBorrow
         || source.type_identity != result.type_identity
         || result.multiplicity != language_semantics::Multiplicity::Unrestricted
