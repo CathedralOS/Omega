@@ -2,11 +2,14 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::super::IntegerBitwiseNotConstantsRule;
-use super::super::super::super::{
-    AbstractOperation, AnalysisKind, IntegerValue, Optimization, OptimizationSelections,
-    RuleAnalysisView, built_in_psi_registry, compute_analysis, exact_add_unit,
-    propagated_block_parameter_unit, validate_integer_evaluation_candidate,
-};
+use crate::rules::built_in_psi_registry;
+use crate::rules::tests::fixtures::control_flow_cleanup::propagated_block_parameter_unit;
+use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
+use crate::{RuleAnalysisView, compute_analysis};
+use abstract_operations::AbstractOperation;
+use optimization_core::{AnalysisKind, Optimization, OptimizationSelections};
+use optimization_unit_semantics::validate_integer_evaluation_candidate;
+use semantic_vocabulary::IntegerValue;
 
 #[test]
 fn selected_builtin_proposes_one_independently_validated_exact_fold() {

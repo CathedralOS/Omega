@@ -4,10 +4,15 @@ use crate::rules::registry::PsiOptimizationRule;
 use super::super::super::{
     DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
 };
-use super::super::{
-    AnalysisKind, OptimizationUnitValidationError, PsiRewriteCandidate, PsiRewritePatch,
-    RuleAnalysisView, compute_analysis, dead_exact_add_unit, dead_wrapping_add_unit,
-    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
+use crate::rules::tests::fixtures::dead_scalar_elimination::{
+    dead_exact_add_unit, dead_wrapping_add_unit,
+};
+use crate::{RuleAnalysisView, compute_analysis};
+use optimization_core::AnalysisKind;
+use optimization_unit::{PsiRewriteCandidate, PsiRewritePatch};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
+    validate_psi_optimization_unit,
 };
 
 #[test]

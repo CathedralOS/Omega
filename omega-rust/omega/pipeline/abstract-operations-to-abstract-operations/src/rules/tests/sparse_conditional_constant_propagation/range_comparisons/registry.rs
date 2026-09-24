@@ -4,7 +4,9 @@ use super::super::super::super::{
     IntegerLessOrEqualRangeRangeRule, IntegerLessThanConstantRangeRule,
     IntegerLessThanRangeConstantRule, IntegerLessThanRangeRangeRule, SCCP_PASS_NAME,
 };
-use super::super::super::{OptimizationPassIdentity, PsiOptimization, registry_for_optimization};
+use crate::rules::catalog::registry_for_optimization;
+use optimization::PsiOptimization;
+use optimization_core::OptimizationPassIdentity;
 
 #[test]
 fn sccp_registry_appends_range_pair_comparisons_after_literal_range_rules() {

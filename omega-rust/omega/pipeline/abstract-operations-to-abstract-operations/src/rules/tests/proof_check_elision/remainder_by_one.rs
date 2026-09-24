@@ -2,14 +2,29 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::LiveProofCertifiedIntegerRemainderByOneEliminationRule;
-use super::super::{
-    AnalysisKind, AnalysisProduct, BlockId, EdgeId, IntegerConstantRewrite, IntegerSign,
-    IntegerType, IntegerValue, MachineId, O, ObligationId, OperationId, OptimizationFact,
-    OptimizationFactReference, OptimizationUnitValidationError, OptimizationValidatorIdentity,
-    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ScalarType,
-    SelfRemainderPolicy, ValueId, discard_scalar_function_result, id, integer_zero,
-    live_remainder_by_one_unit, live_self_remainder_unit, recompute_psi_optimization_unit_identity,
-    validate_proof_certified_integer_remainder_by_one_candidate, validate_psi_optimization_unit,
+use crate::rules::proof_check_elision::integer_zero;
+use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
+use crate::rules::tests::fixtures::id;
+use crate::rules::tests::fixtures::proof_check_elision::{
+    SelfRemainderPolicy, live_remainder_by_one_unit, live_self_remainder_unit,
+};
+use crate::{AnalysisProduct, RuleAnalysisView};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{
+    AnalysisKind, OptimizationFactReference, OptimizationValidatorIdentity,
+    ScalarConstantFactIdentity,
+};
+use optimization_unit::{
+    IntegerConstantRewrite, OptimizationFact, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_proof_certified_integer_remainder_by_one_candidate,
+    validate_psi_optimization_unit,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    ScalarType, ValueId,
 };
 
 #[test]

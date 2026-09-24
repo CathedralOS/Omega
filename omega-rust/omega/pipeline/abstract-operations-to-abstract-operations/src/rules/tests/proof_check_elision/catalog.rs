@@ -2,13 +2,22 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::ProofCertifiedDeadScalarEliminationRule;
-use super::super::{
-    AnalysisKind, IntegerSign, IntegerType, O, OptimizationFact, OptimizationUnitValidationError,
-    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, RuleProposalError, ScalarType,
-    compute_analysis, dead_exact_add_unit, discard_scalar_function_result, exact_cast_unit,
-    recompute_psi_optimization_unit_identity, validate_dead_scalar_node_candidate,
+use crate::rules::tests::fixtures::dead_scalar_elimination::{
+    dead_exact_add_unit, discard_scalar_function_result,
+};
+use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::exact_cast_unit;
+use crate::{RuleAnalysisView, RuleProposalError, compute_analysis};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::AnalysisKind;
+use optimization_unit::{
+    OptimizationFact, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
     validate_psi_optimization_unit,
 };
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
 #[test]
 fn proof_check_elision_binds_accepted_evidence_and_retains_its_catalog() {

@@ -29,10 +29,6 @@ const GLOB_IMPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
         15,
     ),
-    (
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions",
-        1,
-    ),
 ];
 
 fn workspace_root() -> PathBuf {

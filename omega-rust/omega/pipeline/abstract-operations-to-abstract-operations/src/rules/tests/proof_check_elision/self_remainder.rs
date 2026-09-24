@@ -4,17 +4,32 @@ use crate::rules::registry::PsiOptimizationRule;
 use super::super::super::{
     LiveProofCertifiedIntegerSelfRemainderEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,
 };
-use super::super::{
-    BlockId, IntegerConstantRewrite, IntegerEvaluationWitness, IntegerSign, IntegerType,
-    IntegerValue, MachineId, NodeLocation, O, ObligationId, OperationId, OptimizationFact,
+use crate::RuleAnalysisView;
+use crate::rules::proof_check_elision::integer_zero;
+use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
+use crate::rules::tests::fixtures::id;
+use crate::rules::tests::fixtures::proof_check_elision::{
+    SelfRemainderPolicy, live_proof_binary_identity_unit, live_self_remainder_unit,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{
     OptimizationFactReference, OptimizationPassIdentity, OptimizationRuleContract,
-    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitValidationError,
-    OptimizationValidatorIdentity, ProvenanceDisposition, ProvenanceRewrite, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
-    ScalarConstantFactIdentity, ScalarSubstitution, ScalarType, SelfRemainderPolicy, ValueId,
-    discard_scalar_function_result, id, integer_zero, live_proof_binary_identity_unit,
-    live_self_remainder_unit, recompute_psi_optimization_unit_identity,
-    validate_proof_certified_integer_self_remainder_candidate, validate_psi_optimization_unit,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationValidatorIdentity,
+    ScalarConstantFactIdentity,
+};
+use optimization_unit::{
+    IntegerConstantRewrite, IntegerEvaluationWitness, NodeLocation, OptimizationFact,
+    ProvenanceDisposition, ProvenanceRewrite, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_proof_certified_integer_self_remainder_candidate,
+    validate_psi_optimization_unit,
+};
+use semantic_vocabulary::{
+    BlockId, IntegerSign, IntegerType, IntegerValue, MachineId, ObligationId, OperationId,
+    ScalarType, ValueId,
 };
 
 #[test]

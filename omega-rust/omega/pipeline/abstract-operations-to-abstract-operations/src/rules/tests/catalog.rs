@@ -25,15 +25,19 @@ use super::super::{
     SharedJumpFusionRule, UnreachablePrivateMachinePruneRule, WrappingMultiplyZeroAnnihilationRule,
     WrappingNeutralArithmeticIdentityRule, WrappingShiftZeroCountIdentityRule,
 };
-use super::{
-    AnalysisKind, ORDERED_PSI_PASSES, Optimization, OptimizationPassIdentity,
-    OptimizationSelections, PSI_PASS_CATALOG, PsiOptimization, PsiOptimizationSelections,
-    RuleAnalysisView, RuleProposalError, RuleRegistryError, built_in_psi_registries,
-    built_in_psi_registry, built_in_psi_registry_for_selections, exact_add_unit,
-    randomized_built_in_registries, registry_for_optimization,
-};
-use crate::PsiPassTargetApplicability;
+use crate::rules::catalog::registry_for_optimization;
 use crate::rules::registry::PsiOptimizationRule;
+use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
+use crate::rules::tests::fixtures::randomized_built_in_registries;
+use crate::rules::{
+    ORDERED_PSI_PASSES, PSI_PASS_CATALOG, built_in_psi_registries, built_in_psi_registry,
+    built_in_psi_registry_for_selections,
+};
+use crate::{PsiPassTargetApplicability, RuleAnalysisView, RuleProposalError, RuleRegistryError};
+use optimization::{PsiOptimization, PsiOptimizationSelections};
+use optimization_core::{
+    AnalysisKind, Optimization, OptimizationPassIdentity, OptimizationSelections,
+};
 
 #[test]
 fn ordered_catalog_covers_every_declared_psi_optimization_once() {

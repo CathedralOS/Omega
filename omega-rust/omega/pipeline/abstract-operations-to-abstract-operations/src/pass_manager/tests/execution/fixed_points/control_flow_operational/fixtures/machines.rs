@@ -9,7 +9,7 @@ use optimization_unit::{
 use semantic_vocabulary::{BlockId, EdgeId, FuelScheduleIdentity, MachineId};
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::rules::tests::id;
+use crate::rules::tests::fixtures::id;
 
 pub(crate) fn unreachable_private_machine_unit() -> PsiOptimizationUnit {
     let machine = id(36_001, MachineId::new);

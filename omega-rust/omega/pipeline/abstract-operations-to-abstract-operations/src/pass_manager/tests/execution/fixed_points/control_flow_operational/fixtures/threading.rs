@@ -8,7 +8,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-use crate::rules::tests::id;
+use crate::rules::tests::fixtures::id;
 
 pub(crate) fn linear_shared_target_unit() -> PsiOptimizationUnit {
     let machine = id(32_001, MachineId::new);

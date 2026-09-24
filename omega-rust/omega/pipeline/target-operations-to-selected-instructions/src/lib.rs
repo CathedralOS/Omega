@@ -2,22 +2,22 @@
 
 //! Optimizer module role: crate map. Mandatory target legalization followed by validated instruction selection.
 //!
-//! Start at `optimized.rs`: the stage entrance owns the target-register
-//! environment, runs legalization and selection, replays both independently
-//! and joins their custody. `legalization` is the raw-target to
-//! legal-operation join, `selection` the legal-operation to selected-CFG join,
-//! and `structural_inputs` the input-only reconstruction of structural
-//! storage, parameter shape and unobserved-owned eligibility both consume.
+//! Start at [`stage_optimized_instruction_selection`] in `optimized.rs`: it
+//! owns the target-register environment, runs [`legalize_target_operations`]
+//! and then [`select_instructions`], and joins their custody in
+//! [`validate_optimized_selection_custody`], which replays both through
+//! [`validate_legalized_operations`] and [`validate_selected_instructions`].
+//! `legalization` is the raw-target to legal-operation join, `selection` the
+//! legal-operation to selected-CFG join, and `structural_inputs` the
+//! input-only reconstruction of structural storage, parameter shape and
+//! unobserved-owned eligibility both consume.
 
 mod legalization;
 mod optimized;
 mod selection;
 mod structural_inputs;
 
-pub use legalization::{
-    LegalizationError, LegalizationSource, LegalizationValidationReceipt,
-    ValidatedLegalizedOperations, legalize_target_operations, validate_legalized_operations,
-};
+// The stage entry and its custody join.
 #[cfg(feature = "test-support")]
 pub use optimized::OptimizedSelectionCustodyFieldForTest;
 pub use optimized::{
@@ -25,6 +25,12 @@ pub use optimized::{
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
     selection_constraints, stage_optimized_instruction_selection,
     validate_optimized_selection_custody,
+};
+
+// The two joins the entry sequences, each with its independent replay.
+pub use legalization::{
+    LegalizationError, LegalizationSource, LegalizationValidationReceipt,
+    ValidatedLegalizedOperations, legalize_target_operations, validate_legalized_operations,
 };
 pub use selection::{
     SelectedInstructionError, SelectedInstructionValidationReceipt, ValidatedSelectedInstructions,

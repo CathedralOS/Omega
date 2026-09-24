@@ -1,21 +1,18 @@
 //! Optimizer module role: stage group. Typed optimization units shared by the pass-family test suites.
 
-mod control_flow_cleanup;
-mod dead_scalar_elimination;
-mod global_value_numbering;
-mod proof_check_elision;
-mod sparse_conditional_constant_propagation;
+pub(crate) mod control_flow_cleanup;
+pub(crate) mod dead_scalar_elimination;
+pub(crate) mod global_value_numbering;
+pub(crate) mod proof_check_elision;
+pub(crate) mod sparse_conditional_constant_propagation;
 
-pub(crate) use control_flow_cleanup::*;
-pub(crate) use dead_scalar_elimination::*;
-pub(crate) use global_value_numbering::*;
-pub(crate) use proof_check_elision::*;
-pub(crate) use sparse_conditional_constant_propagation::*;
-
-use super::{
-    AcceptedObligationFact, BuiltInRuleRegistration, OptimizationFact, OrderedRuleRegistry,
-    PsiOptimization, PsiOptimizationUnit, assemble_built_in_registry,
-    attach_accepted_obligation_facts, built_in_rule_registrations,
+use crate::OrderedRuleRegistry;
+use crate::rules::catalog::{
+    BuiltInRuleRegistration, assemble_built_in_registry, built_in_rule_registrations,
+};
+use optimization::PsiOptimization;
+use optimization_unit::{
+    AcceptedObligationFact, OptimizationFact, PsiOptimizationUnit, attach_accepted_obligation_facts,
 };
 
 pub(crate) fn shuffle_built_in_registrations(

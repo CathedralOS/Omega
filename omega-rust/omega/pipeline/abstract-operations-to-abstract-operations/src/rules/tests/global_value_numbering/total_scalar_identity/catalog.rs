@@ -6,9 +6,8 @@ use super::super::super::super::{
     WrappingMultiplyZeroAnnihilationRule, WrappingNeutralArithmeticIdentityRule,
     WrappingShiftZeroCountIdentityRule,
 };
-use super::super::super::{
-    Optimization, OptimizationPassIdentity, OptimizationSelections, built_in_psi_registry,
-};
+use crate::rules::built_in_psi_registry;
+use optimization_core::{Optimization, OptimizationPassIdentity, OptimizationSelections};
 
 #[test]
 fn total_identity_rules_are_disabled_by_default_and_cataloged_once() {

@@ -2,13 +2,22 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::{LinearEmptyBlockThreadRule, PathQualifiedEmptyBlockThreadRule};
-use super::super::{
-    BlockId, EdgeId, MachineId, O, OptimizationUnitValidationError, OptimizationValidatorIdentity,
-    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
-    ValueId, id, linear_empty_block_unit, path_qualified_empty_block_unit,
-    recompute_psi_optimization_unit_identity, validate_linear_empty_block_candidate,
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::control_flow_cleanup::{
+    linear_empty_block_unit, path_qualified_empty_block_unit,
+};
+use crate::rules::tests::fixtures::id;
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationValidatorIdentity;
+use optimization_unit::{
+    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_linear_empty_block_candidate,
     validate_path_qualified_empty_block_candidate,
 };
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, ValueId};
 
 #[test]
 fn linear_empty_block_thread_composes_bindings_and_realizes_both_edges() {

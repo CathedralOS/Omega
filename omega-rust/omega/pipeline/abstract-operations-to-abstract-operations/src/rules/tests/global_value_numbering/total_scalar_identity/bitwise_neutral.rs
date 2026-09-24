@@ -2,15 +2,20 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::BitwiseNeutralLiteralIdentityRule;
-use super::super::super::{
-    AnalysisProduct, BitwiseNeutralOperation, IntegerSign, IntegerType, IntegerValue, O,
-    OptimizationRuleContract, OptimizationValidatorIdentity, PsiOptimizationUnit,
-    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId,
-    WrappingNeutralOperation, bitwise_neutral_identity_unit,
-    bitwise_neutral_identity_unit_with_type_and_liveness, id,
-    recompute_psi_optimization_unit_identity, validate_total_scalar_identity_candidate,
-    wrapping_neutral_identity_unit,
+use crate::rules::tests::fixtures::global_value_numbering::{
+    BitwiseNeutralOperation, WrappingNeutralOperation, bitwise_neutral_identity_unit,
+    bitwise_neutral_identity_unit_with_type_and_liveness, wrapping_neutral_identity_unit,
 };
+use crate::rules::tests::fixtures::id;
+use crate::{AnalysisProduct, RuleAnalysisView};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{OptimizationRuleContract, OptimizationValidatorIdentity};
+use optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, TotalScalarIdentityKind,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::validate_total_scalar_identity_candidate;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,

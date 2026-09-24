@@ -4,7 +4,7 @@ use super::super::super::{
     AbstractOperation, Optimization, OptimizationSelections, WrappingNeutralOperation, budget,
     built_in_psi_registry, wrapping_neutral_identity_unit,
 };
-use crate::rules::tests::{
+use crate::rules::tests::fixtures::global_value_numbering::{
     BitwiseNeutralOperation, SaturatingNeutralOperation, bitwise_literal_pair_unit,
     bitwise_neutral_identity_unit, saturating_multiply_literal_pair_unit,
     saturating_neutral_identity_unit, wrapping_multiply_literal_pair_unit,

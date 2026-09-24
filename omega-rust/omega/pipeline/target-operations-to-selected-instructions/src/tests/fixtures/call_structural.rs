@@ -593,7 +593,7 @@ pub(in crate::tests) fn sum_reference_fixture(
     let caller_parameter = parameter_row(caller_place);
     let callee_parameter = parameter_row(callee_place);
     let targeted = target_operations::TargetOperationPlan {
-        psi: plan.psi.clone(),
+        psi: plan.psi,
         target: native,
         entry: caller_machine,
         functions: vec![

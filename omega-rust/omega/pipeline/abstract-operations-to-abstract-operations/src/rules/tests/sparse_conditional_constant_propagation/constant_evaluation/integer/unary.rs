@@ -5,13 +5,19 @@ use super::super::super::super::super::{
     ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule, IntegerBitwiseNotConstantsRule,
     IntegerWidenConstantsRule,
 };
-use super::super::super::super::{
-    AbstractOperation, AnalysisKind, IntegerEvaluationWitness, IntegerSign, IntegerType,
-    IntegerValue, OptimizationRuleContract, OptimizationSafetyClass,
-    OptimizationUnitValidationError, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
-    RuleAnalysisView, ScalarType, UnaryConstantFixtureKind, compute_analysis, exact_cast_unit,
-    goal_free_unary_unit, unary_constant_unit, validate_integer_evaluation_candidate,
+use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
+    UnaryConstantFixtureKind, exact_cast_unit, goal_free_unary_unit, unary_constant_unit,
 };
+use crate::{RuleAnalysisView, compute_analysis};
+use abstract_operations::AbstractOperation;
+use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass};
+use optimization_unit::{
+    IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_integer_evaluation_candidate,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
 #[test]
 fn unary_integer_rules_preserve_signed_and_unsigned_endpoint_semantics() {

@@ -8,7 +8,7 @@ use super::super::super::{
     proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
     proof_certified_phi_translated_gvn_unit,
 };
-use crate::rules::tests::compatible_policy_dominator_gvn_unit;
+use crate::rules::tests::fixtures::global_value_numbering::compatible_policy_dominator_gvn_unit;
 use crate::rules::{
     DominatorProofCertifiedCompatiblePolicyScalarGvnRule, DominatorProofCertifiedScalarGvnRule,
     DominatorTotalScalarGvnRule, PhiTranslatedObligationFreeScalarGvnRule,

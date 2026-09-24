@@ -4,12 +4,18 @@ use super::super::super::{
     DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
     ProofCertifiedDeadScalarEliminationRule,
 };
-use super::super::{
+use crate::rules::built_in_psi_registry;
+use crate::rules::tests::fixtures::dead_scalar_elimination::{
+    dead_exact_add_unit, dead_scalar_literals_unit, dead_wrapping_add_unit,
+};
+use crate::{PsiOptimizationRule, RuleAnalysisView};
+use optimization_core::{
     AnalysisKind, Optimization, OptimizationRuleContract, OptimizationRuleIdentity,
-    OptimizationSafetyClass, OptimizationSelections, OptimizationUnitValidationError,
-    OptimizationValidatorIdentity, PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate,
-    PsiRewritePatch, RuleAnalysisView, built_in_psi_registry, dead_exact_add_unit,
-    dead_scalar_literals_unit, dead_wrapping_add_unit, validate_dead_scalar_node_candidate,
+    OptimizationSafetyClass, OptimizationSelections, OptimizationValidatorIdentity,
+};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
 };
 
 use optimization_core::{AnalysisInvalidationSet, AnalysisSet};

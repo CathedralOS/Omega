@@ -4,13 +4,22 @@ use crate::rules::registry::PsiOptimizationRule;
 use super::super::super::super::{
     SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
 };
-use super::super::super::{
-    AnalysisKind, IntegerSign, IntegerType, O, OperationId, OptimizationFact,
-    OptimizationSafetyClass, OptimizationUnitValidationError, ProvenanceDisposition, PsiProvenance,
-    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, ScalarSubstitution,
-    ScalarType, ValueId, compute_analysis, id, local_cse_unit, proof_certified_local_cse_unit,
-    recompute_psi_optimization_unit_identity, validate_local_scalar_common_subexpression_candidate,
+use crate::rules::tests::fixtures::global_value_numbering::{
+    local_cse_unit, proof_certified_local_cse_unit,
 };
+use crate::rules::tests::fixtures::id;
+use crate::{RuleAnalysisView, compute_analysis};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{AnalysisKind, OptimizationSafetyClass};
+use optimization_unit::{
+    OptimizationFact, ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewritePatch, ScalarSubstitution,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_local_scalar_common_subexpression_candidate,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, OperationId, ScalarType, ValueId};
 
 #[test]
 fn same_block_cse_uses_earliest_typed_leader_and_moves_custody_forward() {

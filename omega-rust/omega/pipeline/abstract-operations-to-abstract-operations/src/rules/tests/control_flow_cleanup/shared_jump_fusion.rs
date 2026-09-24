@@ -2,13 +2,20 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::SharedJumpFusionRule;
-use super::super::{
-    AnalysisKind, AnalysisProduct, BlockId, EdgeId, MachineId, NodeLocation, O,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationUnitValidationError,
-    PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
-    RuleProposalError, id, recompute_psi_optimization_unit_identity, shared_terminal_unit,
-    validate_psi_optimization_unit, validate_shared_jump_fusion_candidate,
+use crate::rules::tests::fixtures::control_flow_cleanup::shared_terminal_unit;
+use crate::rules::tests::fixtures::id;
+use crate::{AnalysisProduct, RuleAnalysisView, RuleProposalError};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity};
+use optimization_unit::{
+    NodeLocation, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
 };
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_psi_optimization_unit,
+    validate_shared_jump_fusion_candidate,
+};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId};
 
 #[test]
 fn shared_terminal_jump_fusion_clones_one_path_and_retains_exact_custody() {
