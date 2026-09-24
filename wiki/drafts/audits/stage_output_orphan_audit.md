@@ -73,9 +73,9 @@ test-only channels are cataloged, not flagged.
 | `LoweredPsi` | psi/representations/lowered-psi | 0 | — | — | — |
 | `PsiOptimizationStageResult` | psi/pipeline/06_lowered-psi-to-lowered-psi | 4 | 4 | 0 | 0 |
 | `CheckedCompilation` | omega/compiler/checked-compilation | 57 | 49 | 8 | 0 |
-| `AdmittedArtifactPlan` | omega/pipeline/03_terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
-| `AdmittedOptimizationArtifact` | omega/pipeline/03_terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |
-| `AdmittedNativeArtifact` | omega/pipeline/03_terminal-psi-to-abstract-operations | 6 | 4 | 2 | 0 |
+| `AdmittedArtifactPlan` | omega/pipeline/00_terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
+| `AdmittedOptimizationArtifact` | omega/pipeline/00_terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |
+| `AdmittedNativeArtifact` | omega/pipeline/00_terminal-psi-to-abstract-operations | 6 | 4 | 2 | 0 |
 | `AbstractOperationPlan` | omega/representations/abstract-operations | 0 | — | — | — |
 | `AbstractOperationPlanWithPlacedViewInputs` | omega/representations/abstract-operations | 0 | — | — | — |
 | `ValidatedOptimizedAbstractPlan` | omega/pipeline/04_abstract-operations-to-abstract-operations | 18 | 16 | 2 | 0 |

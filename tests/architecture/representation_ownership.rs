@@ -198,7 +198,7 @@ fn native_coordination_and_target_setup_are_not_program_stages() {
         root.join("omega-rust/omega/compiler/native-realization/Cargo.toml"),
     )
     .unwrap();
-    assert!(coordinator.contains("../../pipeline/03_terminal-psi-to-abstract-operations"));
+    assert!(coordinator.contains("../../pipeline/00_terminal-psi-to-abstract-operations"));
     assert!(coordinator.contains("../../backend/register-environment"));
     let setup = std::fs::read_to_string(
         root.join("omega-rust/omega/backend/register-environment/Cargo.toml"),
@@ -2342,7 +2342,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "psi/pipeline/05_checked-trees-to-lowered-psi",
         "psi/pipeline/06_lowered-psi-to-lowered-psi",
         "psi/pipeline/07_lowered-psi-to-terminal-psi",
-        "omega/pipeline/03_terminal-psi-to-abstract-operations",
+        "omega/pipeline/00_terminal-psi-to-abstract-operations",
         "omega/pipeline/04_abstract-operations-to-abstract-operations",
         "omega/pipeline/05_abstract-operations-to-target-operations",
         "omega/pipeline/06_target-operations-to-selected-instructions",

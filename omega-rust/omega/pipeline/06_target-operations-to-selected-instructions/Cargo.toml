@@ -21,7 +21,7 @@ target = { path = "../../representations/target" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 abstract-operations-to-target-operations = { path = "../05_abstract-operations-to-target-operations" }
 abstract-operations-to-abstract-operations = { path = "../04_abstract-operations-to-abstract-operations" }
-terminal-psi-to-abstract-operations = { path = "../03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 register-environment = { path = "../../backend/register-environment" }
 legalized-operations = { path = "../../representations/legalized-operations" }
 selected-instructions = { path = "../../representations/selected-instructions" }

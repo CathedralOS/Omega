@@ -43,7 +43,7 @@ machine-emission = { path = "../../backend/machine-emission" }
 native-artifact = { path = "../../backend/artifacts/native-artifact" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 legalized-operations = { path = "../../representations/legalized-operations" }
-terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
 target-operations = { path = "../../representations/target-operations" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }

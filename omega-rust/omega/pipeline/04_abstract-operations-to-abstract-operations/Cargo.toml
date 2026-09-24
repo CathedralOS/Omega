@@ -13,7 +13,7 @@ optimization-core = { path = "../../representations/optimization-core" }
 optimization-unit = { path = "../../representations/optimization-unit" }
 optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
 abstract-operations = { path = "../../representations/abstract-operations" }
-terminal-psi-to-abstract-operations = { path = "../03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 optimization = { path = "../../../psi/representations/optimization" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }

@@ -17,7 +17,7 @@ target = { path = "../../representations/target" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 installation-evidence = { path = "../../representations/installation-evidence" }
 target-operations = { path = "../../representations/target-operations" }
-terminal-psi-to-abstract-operations = { path = "../03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
@@ -25,7 +25,7 @@ terminal-semantics = { path = "../../../psi/semantics/terminal-semantics" }
 
 [dev-dependencies]
 task-plans = { path = "../../representations/task-plans" }
-terminal-psi-to-abstract-operations = { path = "../03_terminal-psi-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
 proof-admission = { path = "../../../psi/semantics/proof-admission" }
 symbols = { path = "../../../psi/foundation/symbols" }

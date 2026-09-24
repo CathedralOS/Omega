@@ -134,7 +134,7 @@ fn psi_pipeline_stage(root: &std::path::Path, stage: &str) -> std::path::PathBuf
 }
 
 /// Whether an Omega pipeline manifest path names this stage, ignoring an
-/// ordering prefix on the directory (`03_terminal-psi-to-abstract-operations`).
+/// ordering prefix on the directory (`00_terminal-psi-to-abstract-operations`).
 /// The prefix orders the file tree; the stage's identity is its transform name.
 fn omega_pipeline_stage_is(path: &str, stage: &str) -> bool {
     let Some(rest) = path
@@ -2518,7 +2518,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     );
     let input = input.split_whitespace().collect::<Vec<_>>().join(" ");
     let native_admission = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
+        "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
     ))
     .expect("native artifact admission owner");
     let production_input = input.split("#[cfg(test)]").next().unwrap();
@@ -4643,7 +4643,7 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
 fn native_publication_has_no_countdown_execution_fork() {
     let root = workspace_root();
     let native = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
+        "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs",
     ))
     .unwrap();
     assert!(native.contains("terminal_verifier::verify_module("));
