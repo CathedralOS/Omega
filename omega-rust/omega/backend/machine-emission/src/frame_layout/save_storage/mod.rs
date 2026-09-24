@@ -12,7 +12,7 @@ mod identity;
 mod replay;
 mod validation;
 
-pub use error::*;
+pub use error::NonAuthoritativeCalleeSaveStorageError;
 pub use identity::non_authoritative_callee_save_storage_identity;
 pub use validation::validate_non_authoritative_callee_save_storage;
 

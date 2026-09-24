@@ -1,6 +1,7 @@
-use super::super::prelude::*;
 use super::cursor::Cursor;
 use super::error::FunctionRelativeOptimizationRealizationManifestDecodeError as Error;
+use optimization_core::{Optimization, OptimizationSelectionIdentity};
+use physical_instructions::PostAllocationMachineOptimizationCustody;
 
 pub(super) fn encode_optional_custody(
     bytes: &mut Vec<u8>,

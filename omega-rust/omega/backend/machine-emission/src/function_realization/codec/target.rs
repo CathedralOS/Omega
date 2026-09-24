@@ -1,6 +1,6 @@
-use super::super::prelude::*;
 use super::cursor::Cursor;
 use super::error::FunctionRelativeOptimizationRealizationManifestDecodeError;
+use target::{Architecture, NativeTarget, ObjectFormat};
 
 pub(super) fn encode_target(bytes: &mut Vec<u8>, target: NativeTarget) {
     bytes.push(match target.architecture {

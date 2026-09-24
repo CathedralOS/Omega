@@ -1,7 +1,13 @@
 //! Optimizer module role: executable entrance.
 mod compute;
 mod frame_application;
-pub use frame_application::*;
+pub use frame_application::{
+    FunctionAppliedFrameEpilogue, FunctionAppliedFrameProtocol, FunctionFragmentFrameApplication,
+    FunctionFragmentFrameApplicationError, FunctionFragmentFrameApplicationIdentity,
+    FunctionFragmentFrameApplicationReceipt, StagedFunctionFragmentFrameApplication,
+    function_fragment_frame_application_identity, stage_function_fragment_frame_application,
+    validate_function_fragment_frame_application,
+};
 mod current;
 mod custody;
 mod error;

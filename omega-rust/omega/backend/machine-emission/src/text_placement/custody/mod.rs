@@ -11,13 +11,18 @@ mod error;
 mod placement;
 mod validation;
 
-pub use carriers::*;
-pub use error::*;
+pub use carriers::{
+    StagedFixedFrameTextSectionCustodyReceipt, StagedOptimizedFixedFrameTextSection,
+    ValidatedFunctionFragmentTextSectionManifest,
+};
+pub use error::{
+    FunctionFragmentTextSectionManifestDecodeError, RelocationFreeTextSectionPlacementError,
+};
 pub use machine_code::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionStage,
     FunctionFragmentTextSectionStatistics, FunctionFragmentTextSectionUnavailableData,
 };
-pub use validation::*;
+pub use validation::validate_optimized_fixed_frame_text_section;
 
 #[cfg(any(test, feature = "test-support"))]
 pub use placement::place_fragments_for_test;

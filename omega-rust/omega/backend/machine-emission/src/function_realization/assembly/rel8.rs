@@ -1,5 +1,7 @@
-use super::super::error::*;
-use super::super::prelude::*;
+use super::super::error::FunctionRelativeOptimizationRealizationError;
+use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
+use resolved_layout_to_resolved_layout::ResolvedLayoutOptimization;
+use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
 
 /// Manifest construction consumes current data and already-replayed phase
 /// evidence. It does not select a layout from optimization history.

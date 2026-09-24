@@ -24,7 +24,6 @@ use std::path::{Path, PathBuf};
 /// Exact no-growth ratchets: (crate directory, production lines under its
 /// `src/` that re-export a module with a glob).
 const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
-    ("omega-rust/omega/backend/machine-emission", 15),
     (
         "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
         10,

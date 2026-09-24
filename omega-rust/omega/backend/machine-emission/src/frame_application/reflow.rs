@@ -20,7 +20,6 @@ use target::Architecture;
 
 use super::FrameApplicationError;
 
-#[path = "widening.rs"]
 mod widening;
 
 pub(super) fn reencode_branches(

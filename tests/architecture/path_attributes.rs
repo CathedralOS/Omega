@@ -16,13 +16,10 @@ use std::path::{Path, PathBuf};
 
 /// Exact no-growth ratchets: (crate directory, `#[path = ...]` attributes
 /// in production source under its `src/` tree).
-const PATH_ATTRIBUTE_CEILINGS: &[(&str, usize)] = &[
-    ("omega-rust/omega/backend/machine-emission", 2),
-    (
-        "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
-        1,
-    ),
-];
+const PATH_ATTRIBUTE_CEILINGS: &[(&str, usize)] = &[(
+    "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout",
+    1,
+)];
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

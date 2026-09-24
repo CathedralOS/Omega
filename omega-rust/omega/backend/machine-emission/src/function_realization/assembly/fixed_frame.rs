@@ -1,10 +1,24 @@
+use super::super::carriers::StagedFixedFrameFunctionRelativeRealizationCustodyReceipt;
+use super::super::error::FunctionRelativeOptimizationRealizationError;
 use super::super::{
     FunctionRelativeFrameDisposition, FunctionRelativeOptimizationRealizationManifest,
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationUnavailableData,
-    ValidatedFunctionRelativeOptimizationRealizationManifest, carriers::*, error::*, prelude::*,
+    ValidatedFunctionRelativeOptimizationRealizationManifest,
 };
 use super::statistics::function_relative_statistics;
+use crate::exit_contract::ValidatedWholeFunctionExitContract;
+use crate::frame_layout::{ValidatedNonAuthoritativeCalleeSaveStorage, ValidatedTargetFrameLayout};
+use crate::frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use optimization_core::{
+    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationExecutionPhase,
+    OptimizationSelections,
+};
+use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
+use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use resolved_layout_to_resolved_layout::ResolvedLayoutOptimization;
+use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use selected_instructions_to_register_homes::ValidatedAllocatedCalleeSavedRequirements;
 use selected_instructions_to_register_homes::{
     AllocationEvidence, AllocationOutput, PostAllocationSelectedTransformation,
     ValidatedSelectedAnalysis,
