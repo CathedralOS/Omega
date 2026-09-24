@@ -659,8 +659,12 @@ pub(in crate::execution) fn build_call_operation(
                 // A `&[u8]`/`&'a V` result is a shared loan against the
                 // callee's storage: the anonymous result carries its
                 // declared identity with affine custody, exactly as the
-                // reference-record arm above compares it.
-                expected.multiplicity != Multiplicity::Affine
+                // reference-record arm above compares it. A `let`-bound
+                // `&[u8]` binding mints unrestricted multiplicity — the
+                // shared reference's own shape — so both mints read as the
+                // same borrowed-view family here.
+                (expected.multiplicity != Multiplicity::Affine
+                    && expected.multiplicity != Multiplicity::Unrestricted)
                     || crate::execution::terminal_unit::types::borrowed_view_result_identity(
                         program,
                         target_state.return_type,
@@ -1026,15 +1030,19 @@ pub(in crate::execution) fn build_call_operation(
                 // A `&[u8]`/`&'a V` borrowed-view result loans the callee's
                 // storage through the caller frame: its anonymous plan is
                 // affine like the reference-record family above, and the
-                // result-shape arm already proved the identity.
-                || (result.multiplicity == Multiplicity::Affine
-                    && (crate::execution::terminal_unit::types::borrowed_slice_view(
-                        program,
-                        target_state.return_type,
-                    ) || crate::execution::terminal_unit::types::borrowed_named_view(
-                        program,
-                        target_state.return_type,
-                    ))))
+                // result-shape arm already proved the identity. A `let`-bound
+                // `&[u8]` binding mints unrestricted multiplicity — the shared
+                // reference's own shape — so both mints read as the family.
+                || (matches!(
+                    result.multiplicity,
+                    Multiplicity::Affine | Multiplicity::Unrestricted
+                ) && (crate::execution::terminal_unit::types::borrowed_slice_view(
+                    program,
+                    target_state.return_type,
+                ) || crate::execution::terminal_unit::types::borrowed_named_view(
+                    program,
+                    target_state.return_type,
+                ))))
             && program
                 .machine_states(target_machine)
                 .first()

@@ -457,6 +457,43 @@ fn expression_statement_borrowed_view_calls_consume_the_nested_call() {
     );
 }
 
+const LET_BOUND_VIEW_CALL: &str = r#"
+    data Snap { bytes: [u8; 64]; count: u64; }
+
+    machine Snap::read_snapshot_region_values(&self, i: u64) -> &[u8] {
+        transition i <= self.bytes.len {
+            true -> (self.bytes[0..i])
+            false -> (self.bytes[0..64])
+        }
+    }
+
+    machine format(rounded: u64, suffix: &[u8]) {
+    }
+
+    machine Snap::render(&self) {
+        let region: &[u8] = self.read_snapshot_region_values(3);
+        format(0, region);
+    }
+"#;
+
+#[test]
+fn let_bound_borrowed_view_result_names_the_call_binding() {
+    // A `let` local binding the `&[u8]` result of an attached `&self` callee:
+    // the local materializes the anonymous call binding under a symbol so the
+    // forwarded argument reads as a live borrowed view rather than an owned
+    // local — the read_snapshot_region_values family.
+    let checked = checked(LET_BOUND_VIEW_CALL);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let render = machine_named(&checked, "Snap::render");
+    assert!(
+        plans.for_machine(render).is_some() || plans.composed_for_machine(render).is_some(),
+        "let-bound `&[u8]` call result declined: {:?}\n  read: {:?}\n  format: {:?}",
+        plans.omission_for_machine(render),
+        plans.omission_for_machine(machine_named(&checked, "Snap::read_snapshot_region_values")),
+        plans.omission_for_machine(machine_named(&checked, "format"))
+    );
+}
+
 #[test]
 fn transition_arm_runtime_index_reads_remain_declined() {
     // `self.collections[collection_index]` is a runtime-indexed read the
