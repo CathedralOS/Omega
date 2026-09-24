@@ -878,7 +878,7 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
     let checked =
         std::fs::read_to_string(workspace_root().join(
-            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs",
+            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
         ))
         .expect("read checked compilation entrance");
     assert!(checked.contains("pub struct CheckedCompileRequest"));
@@ -903,10 +903,10 @@ fn compiler_variations_are_request_data_not_compatibility_entrypoints() {
 #[test]
 fn checked_compilation_retains_settlement_and_source_custody() {
     let root = workspace_root()
-        .join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src");
+        .join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src");
     let entrance =
         std::fs::read_to_string(workspace_root().join(
-            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs",
+            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs",
         ))
         .expect("read checked compilation entrance");
     let build = entrance
@@ -957,7 +957,7 @@ fn checked_admission_remains_required_without_debug_dumps() {
     let root = workspace_root();
     let coordinator = compiler_product_coordinator_source(&root);
     let admission_root = root
-        .join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission");
+        .join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/admission");
     let admission = std::fs::read_to_string(admission_root.join("mod.rs")).unwrap();
     assert_eq!(coordinator.matches("admit_checked_compilation(").count(), 1);
     for required in [
@@ -1371,7 +1371,7 @@ fn compiler_product_stops_delegate_component_progress_admission() {
     .expect("read native optimization admission owner");
     let reporting =
         recursive_rust_source(&root.join(
-            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/admission",
+            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/admission",
         ));
 
     assert_eq!(
@@ -1405,7 +1405,7 @@ fn production_subject_projection_is_report_owned() {
         .expect("read Terminal product owner");
     let product_stops = format!("{driver}\n{native_optimization}\n{terminal}");
     let projection = std::fs::read_to_string(
-        root.join("omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/checked_compilation/production_subject.rs"),
+        root.join("omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/checked_compilation/production_subject.rs"),
     )
     .expect("read production-subject projection");
 
@@ -1446,7 +1446,7 @@ fn optimization_rollback_settlement_is_owner_complete() {
         )
     );
     let owner = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
+        "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/rollback/mod.rs",
     ))
         .expect("read optimization rollback owner");
 
@@ -2970,7 +2970,7 @@ fn shared_frontend_stages_stop_at_checked_psi() {
     let frontend_paths = [
         root.join("omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly.rs"),
         root.join(
-            "omega-rust/omega/pipeline/assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs",
+            "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking/phase_transitions.rs",
         ),
     ];
     let frontend = frontend_paths

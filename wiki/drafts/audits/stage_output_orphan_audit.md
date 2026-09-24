@@ -72,7 +72,7 @@ test-only channels are cataloged, not flagged.
 | `CheckedTrees` | psi/representations/checked-trees | 2 | 1 | 1 | 0 |
 | `LoweredPsi` | psi/representations/lowered-psi | 0 | — | — | — |
 | `PsiOptimizationStageResult` | psi/pipeline/06_lowered-psi-to-lowered-psi | 4 | 4 | 0 | 0 |
-| `CheckedCompilation` | omega/pipeline/assembled-syntax-to-checked-compilation | 57 | 49 | 8 | 0 |
+| `CheckedCompilation` | omega/pipeline/01_assembled-syntax-to-checked-compilation | 57 | 49 | 8 | 0 |
 | `AdmittedArtifactPlan` | omega/pipeline/terminal-psi-to-abstract-operations | 4 | 4 | 0 | 0 |
 | `AdmittedOptimizationArtifact` | omega/pipeline/terminal-psi-to-abstract-operations | 5 | 5 | 0 | 0 |
 | `AdmittedNativeArtifact` | omega/pipeline/terminal-psi-to-abstract-operations | 6 | 4 | 2 | 0 |

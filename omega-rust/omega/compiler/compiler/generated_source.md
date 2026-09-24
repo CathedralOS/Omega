@@ -9,7 +9,7 @@ limits, not a different generated-source language.
 - [build_scope.rs](../../build/build-evaluation/src/evidence/filesystem_scope.rs) binds request staging and sponsor
   inputs to the package/root filesystem scope. It checks canonical Source metadata
   before reopening review-only replay; it does not admit or execute the build.
-- [checked_entry.rs](../../pipeline/assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
+- [checked_entry.rs](../../pipeline/01_assembled-syntax-to-checked-compilation/src/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
   couples the coherent frontend, admitted build, package verdict, and base source
   map. Execution verifies the returned build symbol. `try_seeded_extension`
   continues the retained frontend rather than reconstructing it.

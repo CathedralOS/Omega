@@ -45,7 +45,7 @@ typing against the retained base.
 | Input → output | Owner |
 | --- | --- |
 | Source files → assembled syntax | [source-files-to-assembled-syntax](omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly.rs) |
-| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/pipeline/assembled-syntax-to-checked-compilation/src/checking.rs) |
+| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/pipeline/checked-compilation-to-terminal-artifact/src/terminal_artifact.rs) |
 
 All three consume build-layer crates, so the layering test ranks them with the

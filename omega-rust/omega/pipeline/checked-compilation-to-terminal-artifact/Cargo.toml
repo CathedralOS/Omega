@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 artifacts = { path = "../../tooling/artifacts" }
-assembled-syntax-to-checked-compilation = { path = "../assembled-syntax-to-checked-compilation" }
+assembled-syntax-to-checked-compilation = { path = "../01_assembled-syntax-to-checked-compilation" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 boundary-applications = { path = "../../representations/boundary-applications" }
 build-evaluation = { path = "../../build/build-evaluation" }
