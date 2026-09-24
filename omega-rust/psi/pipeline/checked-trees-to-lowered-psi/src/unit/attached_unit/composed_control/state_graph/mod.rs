@@ -80,3 +80,4 @@ pub(super) use admission::admit;
 pub(super) use admission::has_shared_graph_custody;
 pub(super) use edges::successors;
 pub(super) use emission::emit;
+pub(crate) use topology::live;

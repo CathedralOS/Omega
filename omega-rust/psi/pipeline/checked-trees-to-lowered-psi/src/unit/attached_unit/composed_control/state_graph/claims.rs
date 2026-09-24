@@ -133,6 +133,7 @@ pub(super) fn validate_boundary_consumption(
 pub(super) fn resolve(
     checked: &CheckedTrees,
     plan: &CheckedComposedUnitControlMachinePlan,
+    live: &[bool],
 ) -> Result<ClaimTransport, LoweringError> {
     let mut aliased = vec![BTreeMap::new(); plan.states.len()];
     let mut aliases = Vec::new();
@@ -154,19 +155,26 @@ pub(super) fn resolve(
     let entry_reentered = plan
         .states
         .iter()
+        .zip(live)
+        .filter_map(|(state, live)| live.then_some(state))
         .flat_map(successors)
         .any(|successor| successor.target_state == plan.states[0].state);
     // Incoming graph edges of `target` in authored order: (source position,
-    // successor edge).
+    // successor edge). Dead-source edges can never execute, so a live target
+    // does not count them among its transporting edges.
     let incoming = |target: symbols::SymbolHandle| {
         plan.states
             .iter()
             .enumerate()
             .flat_map(|(position, state)| {
+                if !live[position] {
+                    return Vec::new();
+                }
                 successors(state)
                     .into_iter()
                     .filter(move |edge| edge.target_state == target)
                     .map(move |edge| (position, edge))
+                    .collect()
             })
             .collect::<Vec<_>>()
     };
@@ -194,6 +202,9 @@ pub(super) fn resolve(
     // edges all move one exact source parameter and replay that source claim's
     // checked Transfer event at the edge's authored call coordinate.
     for (position, state) in plan.states.iter().enumerate() {
+        if !live[position] {
+            continue;
+        }
         for claim in &state.entry_claims {
             let parameter = state
                 .structural_parameters
