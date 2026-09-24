@@ -431,6 +431,75 @@ fn resolve_authored_operator_without_use_fact<'program>(
     Some(candidate.operator)
 }
 
+/// The operand type operator selection must read here: the retained type
+/// reference when the operand names one, and otherwise the carrier the
+/// language fixes for a value that names no type at all.
+///
+/// A comparison result and a boolean literal are `bool`, but neither points at
+/// a written `bool`. Reported as unknown they match every declared parameter
+/// as a wildcard, so `(nan32 == nan32) == false` kept a declared `Float::equal`
+/// as a candidate and could not be recognized as the builtin it is.
+pub(crate) fn authored_operand_descriptor(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> typed_trees::operator::OperandType {
+    use typed_trees::operator::OperandType;
+    if let Some(type_reference) = authored_operand_type(program, expression) {
+        return OperandType::Reference(type_reference);
+    }
+    if authored_operand_is_boolean(program, expression) {
+        return OperandType::Primitive(typed_trees::types::PrimitiveType::Bool);
+    }
+    OperandType::Unknown
+}
+
+/// Whether the operand's value is exactly the builtin `bool` carrier. A
+/// comparison qualifies only where no authored operator supplies its meaning:
+/// a declared `less` may return anything its author wrote.
+fn authored_operand_is_boolean(
+    program: &TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use typed_trees::expression::{BinaryOperator, UnaryOperator};
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Boolean(_) => true,
+        ExpressionNode::Binary(binary) => match binary.operator {
+            // `&&`, `||` and `is` bind no authored spelling at all, so their
+            // result is the builtin one whatever the operands are.
+            BinaryOperator::And | BinaryOperator::Or | BinaryOperator::CaseMembership => true,
+            // No candidate leaves the builtin comparison, and candidates that
+            // all return `bool` settle on `bool` whichever one is selected.
+            // Only a declared comparison returning something else -- a mask,
+            // an ordering -- makes the result unknowable here.
+            BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual => {
+                typed_operator_authored_selection_candidate_operators(program, expression)
+                    .iter()
+                    .all(|candidate| {
+                        program.primitive_type_reference(candidate.operator.return_type)
+                            == Some(typed_trees::types::PrimitiveType::Bool)
+                    })
+            }
+            BinaryOperator::Add
+            | BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight => false,
+        },
+        ExpressionNode::Unary(unary) => unary.operator == UnaryOperator::LogicalNot,
+        _ => false,
+    }
+}
+
 pub(crate) fn authored_operand_type(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
@@ -604,6 +673,18 @@ pub(crate) fn typed_operator_authored_selection_candidates(
     program: &TypedTrees,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Vec<SymbolHandle> {
+    typed_operator_authored_selection_candidate_operators(program, expression)
+        .into_iter()
+        .map(|candidate| candidate.operator.symbol)
+        .collect()
+}
+
+/// [`typed_operator_authored_selection_candidates`] with the declarations
+/// themselves, for a caller that needs what a selected candidate would return.
+fn typed_operator_authored_selection_candidate_operators<'program>(
+    program: &'program TypedTrees,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Vec<typed_trees::operator::SpelledOperator<'program>> {
     use language_core::OperatorSpelling;
     pub(crate) use typed_trees::expression::BinaryOperator;
 
@@ -633,25 +714,28 @@ pub(crate) fn typed_operator_authored_selection_candidates(
             (
                 spelling,
                 vec![
-                    authored_operand_type(program, binary.left),
-                    authored_operand_type(program, binary.right),
+                    authored_operand_descriptor(program, binary.left),
+                    authored_operand_descriptor(program, binary.right),
                 ],
             )
         }
         ExpressionNode::Indexed(indexed) => {
-            let collection = authored_operand_type(program, indexed.collection);
+            let collection = authored_operand_descriptor(program, indexed.collection);
             match program.expression_table.expression(indexed.index) {
                 ExpressionNode::Range(range) => (
                     OperatorSpelling::Range,
                     vec![
                         collection,
-                        authored_operand_type(program, range.start),
-                        authored_operand_type(program, range.end),
+                        authored_operand_descriptor(program, range.start),
+                        authored_operand_descriptor(program, range.end),
                     ],
                 ),
                 _ => (
                     OperatorSpelling::Index,
-                    vec![collection, authored_operand_type(program, indexed.index)],
+                    vec![
+                        collection,
+                        authored_operand_descriptor(program, indexed.index),
+                    ],
                 ),
             }
         }
@@ -659,10 +743,7 @@ pub(crate) fn typed_operator_authored_selection_candidates(
         _ => return Vec::new(),
     };
 
-    typed_trees::operator::resolve_spelling_for_operands(program, spelling, &operand_types)
-        .into_iter()
-        .map(|candidate| candidate.operator.symbol)
-        .collect()
+    typed_trees::operator::resolve_spelling_for_operand_types(program, spelling, &operand_types)
 }
 
 pub(crate) fn type_reference_for_symbol(
@@ -804,4 +885,163 @@ pub(crate) fn type_reference_for_symbol(
         }
     }
     None
+}
+
+/// A comparison whose operands are themselves comparisons has no written type
+/// to point at, and the reader that decides whether an authored operator could
+/// apply must still see `bool` there.
+#[cfg(test)]
+mod nested_comparison_operand_probes {
+    use super::{authored_operand_descriptor, typed_operator_has_no_authored_selection};
+    use crate::tests::front_end::typed_program;
+    use typed_trees::TypedTrees;
+    use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
+    use typed_trees::operator::OperandType;
+
+    /// `(left == right) == false` in a body, beside `declaration`.
+    fn program_with(declaration: &str) -> TypedTrees {
+        typed_program(&format!(
+            r#"
+            {declaration}
+            data Main {{ left: f32; right: f32; }}
+            machine Main::main(&mut self) {{
+                let settled: bool = (self.left == self.right) == false;
+            }}
+        "#
+        ))
+    }
+
+    /// The outer comparison: an `==` whose right operand is a boolean literal.
+    fn outer_equality(program: &TypedTrees) -> ExpressionHandle {
+        nested_equalities(program)
+            .into_iter()
+            .find(|expression| {
+                let ExpressionNode::Binary(binary) =
+                    program.expression_table.expression(*expression)
+                else {
+                    return false;
+                };
+                matches!(
+                    program.expression_table.expression(binary.right),
+                    ExpressionNode::Boolean(_)
+                )
+            })
+            .expect("the body compares a comparison against `false`")
+    }
+
+    /// The inner comparison: an `==` over the two `f32` fields.
+    fn inner_equality(program: &TypedTrees) -> ExpressionHandle {
+        nested_equalities(program)
+            .into_iter()
+            .find(|expression| {
+                let ExpressionNode::Binary(binary) =
+                    program.expression_table.expression(*expression)
+                else {
+                    return false;
+                };
+                matches!(
+                    program.expression_table.expression(binary.left),
+                    ExpressionNode::Member(_)
+                )
+            })
+            .expect("the body compares the two float fields")
+    }
+
+    fn nested_equalities(program: &TypedTrees) -> Vec<ExpressionHandle> {
+        program
+            .expression_table
+            .iter_expressions()
+            .filter(|(_, node)| {
+                matches!(node, ExpressionNode::Binary(binary)
+                    if binary.operator == BinaryOperator::Equal)
+            })
+            .map(|(expression, _)| expression)
+            .collect()
+    }
+
+    /// A declared `f32` equality is a candidate for the float comparison and
+    /// cannot be one for the boolean comparison above it. Before the operand
+    /// carrier reached this reader, both operands of the outer `==` were
+    /// unknown, every declared `==` stayed a wildcard candidate, and the
+    /// occurrence reached finalization unresolved.
+    #[test]
+    fn a_declared_float_equality_leaves_the_boolean_comparison_builtin() {
+        let program = program_with("operator == Reading::equal(left: f32, right: f32) -> bool;");
+        assert!(
+            typed_operator_has_no_authored_selection(&program, outer_equality(&program)),
+            "`(f32 == f32) == false` compares two booleans, which no declared `f32` equality accepts"
+        );
+        assert!(
+            !typed_operator_has_no_authored_selection(&program, inner_equality(&program)),
+            "the float comparison must keep the declared `f32` equality as its candidate"
+        );
+    }
+
+    /// The control for the same reader: a declared equality whose parameters
+    /// ARE booleans still applies, so the outer comparison keeps an authored
+    /// candidate and must not be attributed to the builtin operator.
+    #[test]
+    fn a_declared_boolean_equality_keeps_the_boolean_comparison_authored() {
+        let program = program_with("operator == Verdict::equal(left: bool, right: bool) -> bool;");
+        assert!(
+            !typed_operator_has_no_authored_selection(&program, outer_equality(&program)),
+            "a declared `bool` equality is a real candidate for `(a == b) == false`"
+        );
+    }
+
+    /// What the operand descriptor reports for each operand shape the nested
+    /// comparison presents.
+    #[test]
+    fn operand_carriers_distinguish_references_literals_and_comparisons() {
+        let program = program_with("operator == Reading::equal(left: f32, right: f32) -> bool;");
+        let ExpressionNode::Binary(outer) = program
+            .expression_table
+            .expression(outer_equality(&program))
+        else {
+            unreachable!("guarded binary")
+        };
+        let ExpressionNode::Binary(inner) = program
+            .expression_table
+            .expression(inner_equality(&program))
+        else {
+            unreachable!("guarded binary")
+        };
+        assert_eq!(
+            authored_operand_descriptor(&program, outer.left),
+            OperandType::Primitive(typed_trees::types::PrimitiveType::Bool),
+            "the only candidate for the float comparison returns `bool`, so its result is `bool` \
+             whether or not that candidate is the one selected"
+        );
+        assert_eq!(
+            authored_operand_descriptor(&program, outer.right),
+            OperandType::Primitive(typed_trees::types::PrimitiveType::Bool),
+            "a boolean literal names no type and is still `bool`"
+        );
+        assert!(
+            matches!(
+                authored_operand_descriptor(&program, inner.left),
+                OperandType::Reference(_)
+            ),
+            "a field operand carries its declared type reference"
+        );
+    }
+
+    /// The second control: a declared comparison returning its own carrier
+    /// makes the nested result unknowable here, and the reader must report
+    /// that rather than assume `bool`.
+    #[test]
+    fn a_declared_comparison_returning_another_carrier_reports_an_unknown_operand() {
+        let program = program_with("operator == Reading::equal(left: f32, right: f32) -> u8;");
+        let ExpressionNode::Binary(outer) = program
+            .expression_table
+            .expression(outer_equality(&program))
+        else {
+            unreachable!("guarded binary")
+        };
+        assert_eq!(
+            authored_operand_descriptor(&program, outer.left),
+            OperandType::Unknown,
+            "a declared `f32` equality returning `u8` leaves the nested result unknown"
+        );
+    }
 }

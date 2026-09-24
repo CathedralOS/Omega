@@ -68,6 +68,32 @@ pub fn resolve_spelling<'program>(
         .collect()
 }
 
+/// What one operand's type is known to be at a use site.
+///
+/// A retained type reference answers completely. A value whose carrier the
+/// language fixes but whose type is written nowhere -- a comparison result,
+/// a `true` literal -- has no reference to name, and reporting it as unknown
+/// would let every declared operator of every other carrier stay a candidate.
+/// [`OperandType::Unknown`] is reserved for what the asking stage genuinely
+/// cannot answer, and retains every candidate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OperandType {
+    Reference(TypeReferenceHandle),
+    Primitive(crate::types::PrimitiveType),
+    Unknown,
+}
+
+impl OperandType {
+    /// An operand a caller can only describe by reference, absent or not.
+    pub fn from_reference(type_reference: Option<TypeReferenceHandle>) -> Self {
+        type_reference.map_or(Self::Unknown, Self::Reference)
+    }
+
+    pub fn is_unknown(self) -> bool {
+        matches!(self, Self::Unknown)
+    }
+}
+
 /// Resolve a spelling against the complete operand tuple. `None` retains a
 /// candidate for an operand whose type is not recoverable at this stage;
 /// every known position must match, and generic parameter bindings are shared
@@ -79,6 +105,24 @@ pub fn resolve_spelling_for_operands<'program>(
     program: &'program TypedTrees,
     spelling: OperatorSpelling,
     operand_types: &[Option<TypeReferenceHandle>],
+) -> Vec<SpelledOperator<'program>> {
+    resolve_spelling_for_operand_types(
+        program,
+        spelling,
+        &operand_types
+            .iter()
+            .copied()
+            .map(OperandType::from_reference)
+            .collect::<Vec<_>>(),
+    )
+}
+
+/// [`resolve_spelling_for_operands`] for a caller that knows an operand's
+/// carrier without holding a type reference for it.
+pub fn resolve_spelling_for_operand_types<'program>(
+    program: &'program TypedTrees,
+    spelling: OperatorSpelling,
+    operand_types: &[OperandType],
 ) -> Vec<SpelledOperator<'program>> {
     resolve_spelling(program, spelling, None)
         .into_iter()
@@ -127,7 +171,7 @@ pub fn has_builtin_spelled_expression_meaning(
 fn operator_matches_operands(
     program: &TypedTrees,
     operator: &OperatorDefinition,
-    operand_types: &[Option<TypeReferenceHandle>],
+    operand_types: &[OperandType],
 ) -> bool {
     operator_matches_operands_with_indexed_collection(program, operator, operand_types, false)
 }
@@ -135,7 +179,7 @@ fn operator_matches_operands(
 pub(crate) fn operator_matches_operands_with_indexed_collection(
     program: &TypedTrees,
     operator: &OperatorDefinition,
-    operand_types: &[Option<TypeReferenceHandle>],
+    operand_types: &[OperandType],
     indexed_collection: bool,
 ) -> bool {
     let parameters = program.operator_parameters(operator);
@@ -150,32 +194,44 @@ pub(crate) fn operator_matches_operands_with_indexed_collection(
         .zip(normalized_operand_parameters(parameters))
         .enumerate()
         .all(|(position, (actual, expected))| {
-            actual.is_none_or(|actual| {
-                let (matched_actual, matched_expected) = if indexed_collection && position == 0 {
-                    indexing::shared_collection_elements(program, actual, expected.type_reference)
-                        .unwrap_or((actual, expected.type_reference))
-                } else {
-                    (actual, expected.type_reference)
-                };
-                (type_reference_matches(
-                    program,
-                    matched_actual,
-                    matched_expected,
-                    None,
-                    type_parameters,
-                    &mut bindings,
-                    &mut const_bindings,
-                ) || indexed_receiver_self_match(
-                    program,
-                    indexed_collection && position == 0 && expected.is_self,
-                    actual,
-                    expected.type_reference,
-                    type_parameters,
-                    &mut bindings,
-                    &mut const_bindings,
-                )) && declared_domain_constraints_match(program, actual, expected.type_reference)
-                    && declared_domain_constraints_match(program, matched_actual, matched_expected)
-            })
+            let actual = match *actual {
+                OperandType::Unknown => return true,
+                // A parameter this reader cannot reduce to a carrier -- a type
+                // parameter, a data type, a collection -- stays a candidate:
+                // the carrier excludes a DIFFERENT primitive, not everything
+                // it cannot name.
+                OperandType::Primitive(primitive) => {
+                    return program
+                        .type_reference_table
+                        .primitive_type(expected.type_reference)
+                        .is_none_or(|expected| expected == primitive);
+                }
+                OperandType::Reference(actual) => actual,
+            };
+            let (matched_actual, matched_expected) = if indexed_collection && position == 0 {
+                indexing::shared_collection_elements(program, actual, expected.type_reference)
+                    .unwrap_or((actual, expected.type_reference))
+            } else {
+                (actual, expected.type_reference)
+            };
+            (type_reference_matches(
+                program,
+                matched_actual,
+                matched_expected,
+                None,
+                type_parameters,
+                &mut bindings,
+                &mut const_bindings,
+            ) || indexed_receiver_self_match(
+                program,
+                indexed_collection && position == 0 && expected.is_self,
+                actual,
+                expected.type_reference,
+                type_parameters,
+                &mut bindings,
+                &mut const_bindings,
+            )) && declared_domain_constraints_match(program, actual, expected.type_reference)
+                && declared_domain_constraints_match(program, matched_actual, matched_expected)
         })
 }
 
