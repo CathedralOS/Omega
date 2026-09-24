@@ -7,8 +7,9 @@
 
 use super::isolation::type_is_caller_isolated_local;
 use super::local_aliases::expression_may_rebind_mutable_alias;
-use super::place_paths::FramePlaceOrigin;
+use super::place_paths::{FramePlaceOrigin, split_place_root};
 use super::type_capabilities::{type_may_carry_write, type_reference_is_reference};
+use language_core::is_self_receiver;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -158,6 +159,15 @@ pub(super) fn assignment_replaces_untracked_reference(
     aliases: &[(String, FramePlaceOrigin)],
 ) -> bool {
     if assignment_copies_primitive_referent(program, machine, state, assignment) {
+        return false;
+    }
+    // A reference-typed or write-carrying receiver field writes under its own
+    // path: every later write through the stored borrow already composes
+    // beneath `self.<field>`, so no local-binding splice is needed for the
+    // frame to stay finite.
+    if super::coarse_place_path(program, assignment.target)
+        .is_some_and(|target| is_self_receiver(split_place_root(&target).0))
+    {
         return false;
     }
     if super::coarse_place_path(program, assignment.target)

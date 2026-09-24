@@ -19,6 +19,7 @@ mod guard_bounded_stores;
 mod indexed_stores;
 mod local_float_fields;
 mod record_literal_fields;
+mod reference_field_stores;
 
 #[test]
 fn array_byte_field_store_retains_the_borrowed_receiver_and_exact_path() {
