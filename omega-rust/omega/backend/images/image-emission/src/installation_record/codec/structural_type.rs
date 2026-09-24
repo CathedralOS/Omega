@@ -1,8 +1,8 @@
 //! Wire codec for the structural type declarations carried by installation
 //! record rows.
 
-use super::boundary_result_scalar_codec;
-use super::structural_scalar_codec::{access_tag, decode_access};
+use super::boundary_result_scalar;
+use super::structural_scalar::{access_tag, decode_access};
 use crate::installation_record::{
     InstallationError, Reader, StructuralTypeId, decode_identity, decode_structural_cases,
     decode_structural_fields, encode_identity, encode_structural_cases, encode_structural_fields,
@@ -31,10 +31,7 @@ pub(crate) fn encode_structural_types(
             }
             terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar_type) => {
                 bytes.extend_from_slice(&[6, 0, 0, 0]);
-                boundary_result_scalar_codec::encode_boundary_result_scalar_type(
-                    bytes,
-                    *scalar_type,
-                );
+                boundary_result_scalar::encode_boundary_result_scalar_type(bytes, *scalar_type);
             }
             terminal_psi::StructuralTypeShape::ByteSequence(carrier) => {
                 bytes.extend_from_slice(&[4, 0, 0, 0]);
@@ -134,7 +131,7 @@ pub(crate) fn decode_structural_types(
                 cases: decode_structural_cases(reader)?,
             },
             6 => terminal_psi::StructuralTypeShape::PrimitiveScalar(
-                boundary_result_scalar_codec::decode_boundary_result_scalar_type(reader)?,
+                boundary_result_scalar::decode_boundary_result_scalar_type(reader)?,
             ),
             7 => {
                 let referent = StructuralTypeId::new(reader.u64()?).ok_or(

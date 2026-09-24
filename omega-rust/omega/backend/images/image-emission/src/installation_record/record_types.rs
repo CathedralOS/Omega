@@ -2,7 +2,7 @@
 //! sections, dynamic conformance and descriptor tables, installed functions,
 //! foreign call stacks and internal unit calls.
 
-use crate::installation_record::codec::fingerprint_codec::write_hex;
+use crate::installation_record::codec::fingerprint::write_hex;
 use crate::{ObjectBoundarySettlement, ObjectCodeAttribution, ObjectPortEffect};
 use image::{CompilerTextValidationEvidence, FinalImageLayout};
 use machine_code::StructuralReturnRecord;

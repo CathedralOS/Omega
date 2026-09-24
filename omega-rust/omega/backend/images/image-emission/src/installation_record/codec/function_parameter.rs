@@ -6,8 +6,8 @@
 use machine_code::{UnitParameterHomeRecord, UnitParameterRecord};
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 
-use super::structural_scalar_codec::{access_tag, decode_access};
-use super::value_placement_codec::{
+use super::structural_scalar::{access_tag, decode_access};
+use super::value_placement::{
     decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
 };
 use crate::installation_record::{
@@ -52,7 +52,7 @@ pub(crate) fn encode_parameter_homes(
         bytes.extend_from_slice(&[0; 2]);
         encode_shape(bytes, home.shape)?;
         encode_direct_placement(bytes, &home.source)?;
-        super::structural_source_codec::encode(bytes, home.location)?;
+        super::structural_source::encode(bytes, home.location)?;
         bytes.push(u8::from(home.indirect));
         bytes.extend_from_slice(&[0; 3]);
     }
@@ -142,7 +142,7 @@ fn decode_parameter_homes(
         }
         let shape = decode_shape(reader)?;
         let source = decode_direct_placement(reader)?;
-        let location = super::structural_source_codec::decode(reader)?;
+        let location = super::structural_source::decode(reader)?;
         let indirect = decode_boolean(reader.u8()?)?;
         if reader.take(3)? != [0; 3] {
             return Err(InstallationError::NonzeroReservedField);

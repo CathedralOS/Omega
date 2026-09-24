@@ -8,19 +8,19 @@ use super::record_shape::{
 use super::{
     CallSiteOwner, INSTALLATION_FORMAT_MARKER, InstallationError, InstalledForeignCallStack,
     InstalledFunction, InstalledInternalUnitCall, MachineId, Reader, StructuralTypeId,
-    codec::structural_argument_codec, decode_installation_record, decode_structural_types,
+    codec::structural_argument, decode_installation_record, decode_structural_types,
     encode_structural_types, push_u16, push_u32, push_u64,
 };
 use super::{
-    codec::function_affine_cleanup_codec::{
+    codec::function::{decode_functions, encode_functions},
+    codec::function_affine_cleanup::{
         decode_scalar_control_affine_cleanups, decode_unit_affine_cleanup,
         encode_scalar_control_affine_cleanups,
     },
-    codec::function_codec::{decode_functions, encode_functions},
-    codec::function_stack_codec::{decode_function_stack_facts, encode_function_stack_facts},
-    codec::internal_unit_call_codec::{decode_internal_unit_calls, encode_internal_unit_calls},
+    codec::function_stack::{decode_function_stack_facts, encode_function_stack_facts},
+    codec::internal_unit_call::{decode_internal_unit_calls, encode_internal_unit_calls},
 };
-use crate::installation_record::codec::envelope_codec::MAGIC;
+use crate::installation_record::codec::envelope::MAGIC;
 use crate::installation_record::record_validation::installed_scalar_control_cleanups_match_object;
 use semantic_vocabulary::OperationId;
 use semantic_vocabulary::{EdgeId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
@@ -421,11 +421,11 @@ fn native_reference_shapes_and_projections_carry_metadata_not_storage() {
         access: terminal_psi::StructuralAccess::MutableBorrow,
     };
     let mut argument_bytes = Vec::new();
-    structural_argument_codec::encode_structural_argument(&mut argument_bytes, &argument)
+    structural_argument::encode_structural_argument(&mut argument_bytes, &argument)
         .expect("encode referent argument");
     let mut reader = Reader::new(&argument_bytes);
     assert_eq!(
-        structural_argument_codec::decode_structural_argument(&mut reader)
+        structural_argument::decode_structural_argument(&mut reader)
             .expect("decode referent argument"),
         argument
     );
@@ -434,7 +434,7 @@ fn native_reference_shapes_and_projections_carry_metadata_not_storage() {
 
 #[test]
 fn boundary_opaque_application_custody_round_trips() {
-    use super::codec::opaque_application_codec::{
+    use super::codec::opaque_application::{
         decode_boundary_opaque_applications, encode_boundary_opaque_applications,
     };
     let custody = boundary_applications::BoundaryOpaqueRepresentationApplications::new(vec![
@@ -464,7 +464,7 @@ fn boundary_opaque_application_custody_round_trips() {
 
 #[test]
 fn boundary_opaque_application_custody_rejects_drifted_edge() {
-    use super::codec::opaque_application_codec::{
+    use super::codec::opaque_application::{
         decode_boundary_opaque_applications, encode_boundary_opaque_applications,
     };
     // One edge coordinate cannot retain two different commitments: decode

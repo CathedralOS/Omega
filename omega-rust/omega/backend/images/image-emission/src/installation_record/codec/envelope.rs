@@ -1,40 +1,38 @@
 //! Encoding and decoding the installation record envelope.
 
-use crate::installation_record::codec::boundary_settlement_codec::{
+use crate::installation_record::codec::boundary_settlement::{
     decode_boundary_settlements, encode_boundary_settlements,
 };
-use crate::installation_record::codec::dynamic_conformance_codec::{
+use crate::installation_record::codec::dynamic_conformance::{
     decode_dynamic_conformance_custody, encode_dynamic_conformance_custody,
 };
-use crate::installation_record::codec::function_codec::{decode_functions, encode_functions};
-use crate::installation_record::codec::installation_header_codec::{
+use crate::installation_record::codec::function::{decode_functions, encode_functions};
+use crate::installation_record::codec::installation_header::{
     DecodedInstallationHeader, decode_installation_header, encode_installation_header,
 };
-use crate::installation_record::codec::internal_unit_call_codec::{
+use crate::installation_record::codec::internal_unit_call::{
     decode_internal_unit_calls, encode_internal_unit_calls,
 };
-use crate::installation_record::codec::internal_unit_scalar_call_codec::{
+use crate::installation_record::codec::internal_unit_scalar_call::{
     decode_internal_unit_scalar_calls, encode_internal_unit_scalar_calls,
 };
-use crate::installation_record::codec::opaque_application_codec::{
+use crate::installation_record::codec::opaque_application::{
     decode_boundary_opaque_applications, encode_boundary_opaque_applications,
 };
-use crate::installation_record::codec::port_effect_codec::{
-    decode_port_effects, encode_port_effects,
-};
-use crate::installation_record::codec::private_function_codec::{
+use crate::installation_record::codec::port_effect::{decode_port_effects, encode_port_effects};
+use crate::installation_record::codec::private_function::{
     decode_private_functions, encode_private_functions,
 };
-use crate::installation_record::codec::provider_plan_codec::{
+use crate::installation_record::codec::provider_plan::{
     decode_provider_plans, encode_provider_plans,
 };
-use crate::installation_record::codec::semantic_code_attribution_codec::{
+use crate::installation_record::codec::semantic_code_attribution::{
     decode_semantic_code_attributions, encode_semantic_code_attributions,
 };
-use crate::installation_record::codec::structural_return_codec::{
+use crate::installation_record::codec::structural_return::{
     decode_structural_returns, encode_structural_returns,
 };
-use crate::installation_record::codec::wire_codec::Reader;
+use crate::installation_record::codec::wire::Reader;
 use crate::installation_record::record_shape::validate_record_shape;
 use crate::installation_record::{InstallationError, InstallationRecord};
 

@@ -26,20 +26,18 @@ use terminal_psi::{
 };
 
 use super::{
-    boundary_result_scalar_codec::{
+    boundary_result_scalar::{
         decode_boundary_result_scalar_type, encode_boundary_result_scalar_type,
     },
-    completion_custody_codec::{decode_completion_claim_source, encode_completion_claim_source},
-    provider_execution_codec::{decode_provider_execution, encode_provider_execution},
-    structural_argument_codec::{decode_structural_argument, encode_structural_argument},
-    structural_scalar_codec::{
-        decode_domains, decode_multiplicity, encode_domains, multiplicity_tag,
-    },
-    unit_scalar_codec::{
+    completion_custody::{decode_completion_claim_source, encode_completion_claim_source},
+    provider_execution::{decode_provider_execution, encode_provider_execution},
+    structural_argument::{decode_structural_argument, encode_structural_argument},
+    structural_scalar::{decode_domains, decode_multiplicity, encode_domains, multiplicity_tag},
+    unit_scalar::{
         decode_integer_type, decode_integer_value, decode_scalar_type, decode_unit_scalar_home,
         encode_integer_type, encode_integer_value, encode_scalar_type, encode_unit_scalar_home,
     },
-    value_placement_codec::{
+    value_placement::{
         decode_placement, decode_register, decode_shape, encode_placement, encode_shape,
         register_tag,
     },
@@ -1041,15 +1039,13 @@ mod tests {
             let encode =
                 |bytes: &mut Vec<u8>, path: &[terminal_psi::StructuralPathSegment]| match codec {
                     0 => super::encode_structural_path(bytes, path),
-                    1 => super::super::structural_argument_codec::encode_path(bytes, path),
-                    _ => super::super::unit_structural_scalar_field_store_codec::encode_path(
-                        bytes, path,
-                    ),
+                    1 => super::super::structural_argument::encode_path(bytes, path),
+                    _ => super::super::unit_structural_scalar_field_store::encode_path(bytes, path),
                 };
             let decode = |reader: &mut Reader<'_>| match codec {
                 0 => super::decode_structural_path(reader),
-                1 => super::super::structural_argument_codec::decode_path(reader),
-                _ => super::super::unit_structural_scalar_field_store_codec::decode_path(reader),
+                1 => super::super::structural_argument::decode_path(reader),
+                _ => super::super::unit_structural_scalar_field_store::decode_path(reader),
             };
             for (start, end) in [(0, 0), (1, 3), (2, 4), (u64::MAX - 1, u64::MAX)] {
                 let path = vec![terminal_psi::StructuralPathSegment::FixedByteRange { start, end }];
@@ -1116,7 +1112,7 @@ mod tests {
         reserved[1] = 1;
         assert!(decode_boundary_runtime_source(&mut Reader::new(&reserved)).is_err());
         assert!(
-            super::super::internal_unit_scalar_call_codec::encode_argument_source(
+            super::super::internal_unit_scalar_call::encode_argument_source(
                 &mut Vec::new(),
                 source
             )
@@ -1155,7 +1151,7 @@ mod tests {
             );
         }
         assert!(
-            super::super::internal_unit_scalar_call_codec::encode_argument_source(
+            super::super::internal_unit_scalar_call::encode_argument_source(
                 &mut Vec::new(),
                 source,
             )

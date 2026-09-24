@@ -17,9 +17,9 @@ use terminal_psi::{
 };
 
 use super::{
-    internal_unit_scalar_call_codec::{decode_argument_source, encode_argument_source},
-    structural_argument_codec::{decode_structural_argument, encode_structural_argument},
-    value_placement_codec::{
+    internal_unit_scalar_call::{decode_argument_source, encode_argument_source},
+    structural_argument::{decode_structural_argument, encode_structural_argument},
+    value_placement::{
         decode_direct_placement, decode_shape, encode_direct_placement, encode_shape,
     },
 };
@@ -135,7 +135,7 @@ fn encode_internal_unit_call(
             push_u32(bytes, 0);
         }
     }
-    super::internal_unit_call_source_codec::encode(bytes, &custody.source)?;
+    super::internal_unit_call_source::encode(bytes, &custody.source)?;
     push_u64(bytes, custody.target.get());
     match custody.result {
         None => bytes.extend_from_slice(&[0; 6]),
@@ -228,7 +228,7 @@ fn encode_internal_unit_call(
         push_u64(bytes, argument.structural_type.get());
         encode_shape(bytes, argument.shape)?;
         push_u32(bytes, argument.source_byte_offset);
-        super::structural_source_codec::encode(bytes, argument.source_location)?;
+        super::structural_source::encode(bytes, argument.source_location)?;
         push_u32(bytes, argument.call_stack_bytes);
         match (argument.fixed_array_length, argument.element_stride) {
             (Some(length), Some(stride)) => {
@@ -333,7 +333,7 @@ fn encode_structural_result(
                 .map_err(|_| InstallationError::TooManyStructuralReturnReferenceSources)?,
         );
         for source in &result.function_result.reference_sources {
-            super::structural_argument_codec::encode_path(bytes, &source.path)?;
+            super::structural_argument::encode_path(bytes, &source.path)?;
             encode_structural_argument(bytes, &source.source)?;
         }
         if let Some(home) = &result.result_home {
@@ -457,7 +457,7 @@ fn decode_internal_unit_call(
         }
         tag => return Err(InstallationError::InvalidCallSiteOwnerTag(tag)),
     };
-    let source = super::internal_unit_call_source_codec::decode(reader)?;
+    let source = super::internal_unit_call_source::decode(reader)?;
     let target =
         MachineId::new(reader.u64()?).ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
     let result_tag = reader.u8()?;
@@ -556,7 +556,7 @@ fn decode_internal_unit_call(
             .ok_or(InstallationError::ZeroInternalUnitCallIdentity)?;
         let shape = decode_shape(reader)?;
         let source_byte_offset = reader.u32()?;
-        let source_location = super::structural_source_codec::decode(reader)?;
+        let source_location = super::structural_source::decode(reader)?;
         let call_stack_bytes = reader.u32()?;
         let has_array = decode_boolean(reader.u8()?)?;
         if reader.take(3)? != [0; 3] {
@@ -663,7 +663,7 @@ fn decode_structural_result(
             }
             let mut reference_sources = Vec::with_capacity(reference_source_count);
             for _ in 0..reference_source_count {
-                let path = super::structural_argument_codec::decode_path(reader)?;
+                let path = super::structural_argument::decode_path(reader)?;
                 let source = decode_structural_argument(reader)?;
                 reference_sources
                     .push(terminal_psi::StructuralReferenceResultSource { path, source });
