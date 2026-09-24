@@ -7,12 +7,12 @@ mod direct;
 mod domains;
 mod dynamic_erased_lane;
 mod entailment;
-mod intervals;
 mod evaluator;
 mod evidence;
 mod exits;
 mod guard_operands;
 mod integer_embeddings;
+mod intervals;
 mod nominal_inputs;
 mod writes;
 // `pub(super)` so the operator-`requires` discharge (checks/operators) can
