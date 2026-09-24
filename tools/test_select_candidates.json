@@ -48,9 +48,23 @@
  {"id": "docs_corpus_audit", "covers": "the audited-documentation canary: surfaces retired when absent from the authored corpus; breaks when allowlisted documentation (AGENTS.md, wiki/) drifts from what the corpus declares", "command": ["{runner}", "nextest", "run", "--locked", "-p", "compiler", "--test", "canary_suite", "--no-fail-fast", "--no-tests", "fail", "-E", "test(=surface_and_targets::retired_domain_when_surface_is_absent_from_authored_corpus)"], "auto_run": true},
  {"id": "proof_suites", "covers": "proof kernel/admission suites: derivation checking, proof search, certificate validation; breaks when proof semantics or admission rules change", "command": ["{runner}", "nextest", "run", "--locked", "-p", "proof", "--lib", "--no-fail-fast"], "auto_run": true},
  {"id": "float_provider_suites", "covers": "float provider/semantic tests: float operations, meaning, trapping conversions; breaks when float semantics change", "auto_run": false},
- {"id": "test_release_matrix", "covers": "release recorder tests: tools/release record coverage, command completeness; breaks when release-record tooling or documentation commands change", "command": ["{python}", "tools/test_release_matrix.py", "--check", "--verbose"], "auto_run": true},
+ {"id": "test_release_matrix", "covers": "release matrix recorder: the eight RC-* gate invocations and platform rows dry-run; breaks when release-record tooling or the documented gate commands change", "command": ["{python}", "tools/release_matrix.py", "--plan"], "auto_run": true},
  {"id": "symbol_foundation", "covers": "foundation crates: symbols, arenas, handles, diagnostics unit tests; breaks when foundation semantics change", "command": ["{runner}", "nextest", "run", "--locked", "-p", "symbols", "--lib", "--no-fail-fast"], "auto_run": true},
  {"id": "lib::selected-instructions-to-selected-instructions", "covers": "selected-instructions rewrites and analyses: relocation admission, live ranges, module catalogs, unexecuted families; breaks when instruction-selection rewrite or analysis behavior changes", "command": ["{runner}", "nextest", "run", "--locked", "-p", "selected-instructions-to-selected-instructions", "--lib", "--no-fail-fast"], "auto_run": true},
  {"id": "lib::trust-ledger", "covers": "trust ledger suites: locks, grants, receipts, admission settlement records; breaks when trust-ledger semantics or drift handling changes", "command": ["{runner}", "nextest", "run", "--locked", "-p", "trust-ledger", "--no-fail-fast"], "auto_run": true},
- {"id": "tools::tests", "covers": "repository tool unit tests under tools/tests: progress, swarm, landing helpers; breaks when a tools/*.py behavior covered by its unittest changes", "command": ["{python}", "-m", "unittest", "discover", "tools/tests"], "auto_run": true}
-]}
+ {"id": "tools::tests", "covers": "repository tool unit tests under tools/tests: progress, swarm, landing helpers, catalog integrity; breaks when a tools/*.py behavior covered by its unittest changes", "command": ["{python}", "-m", "unittest", "discover", "tools/tests"], "auto_run": true}
+],
+ "uncataloged_packages": {
+  "omega-architecture-test": "the architecture suite itself; the baseline emits it unconditionally on every diff",
+  "build-time-evaluation": "integration test targets have no scoped candidate; they run only under full selections",
+  "image": "image-emission covers the emission surface; image's own test targets ride workspace library runs",
+  "proof-admission": "proof_suites covers the proof crate at lib scope; admission's own test targets ride workspace library runs",
+  "provider-planning": "integration test targets have no scoped candidate; they run only under full selections",
+  "symbol-resolved-trees": "integration test targets have no scoped candidate; they run only under full selections",
+  "symbol-resolved-trees-to-typed-trees": "integration test targets have no scoped candidate; they run only under full selections",
+  "task-plans": "integration test targets have no scoped candidate; they run only under full selections",
+  "terminal-fixed-fuel": "integration test targets have no scoped candidate; they run only under full selections",
+  "terminal-fuel": "integration test targets have no scoped candidate; they run only under full selections",
+  "topology-plan": "integration test targets have no scoped candidate; they run only under full selections"
+ }
+}
