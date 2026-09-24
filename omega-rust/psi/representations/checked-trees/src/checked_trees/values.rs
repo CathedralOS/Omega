@@ -221,6 +221,17 @@ impl CheckedScalarExpressionPlans {
             })
             .map(|expression| &expression.expression)
     }
+
+    /// Whether the transition guard at `statement_ordinal` folded to the
+    /// constant `true`: `transition true { true -> done() }` then always
+    /// takes its one arm, the same unconditional jump as an `Always` guard.
+    pub fn guard_is_constant_true(&self, state: SymbolHandle, statement_ordinal: u32) -> bool {
+        matches!(
+            self.expression_at(state, statement_ordinal, CheckedScalarExpressionRole::Guard),
+            Some(CheckedScalarExpression::Boolean(guard))
+                if matches!(**guard, CheckedBooleanExpression::Constant(true))
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

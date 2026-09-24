@@ -2473,17 +2473,22 @@ syntax and other terminal services are not prerequisites.
     `checks/termination/ranking::proven_state_natural_ranks_with_call_frames`
     derives only unsigned countdowns and slice lengths. The composed ranking
     emitter has no computed (distance) rank value.
-  - `state graph: terminator: unsupported tail: single guarded transition`
-    (8, `Holder::run`, `Tally::get`): `transition true { true -> done(v) }` in a
-    returning state. No route has a checked fact that its false path is
-    unreachable.
   - `state graph: prefix initializers: short-circuit boolean` (2,
     `Store::check`), `guarded jump successors: receiver transfer` (1,
     `runtime_tuple_transition_exit`), and `conditional successors` (2).
   - A composed caller's scalar call to a projected receiver
-    (`self.store.pick(..)`) fails `composed_control/admission.rs` with "composed
-    scalar call structural actual lost its authored position" (1 run canary,
-    and the re-pinned fail canary `calls/value_call_param_effect_arm_rejected`).
+    (`self.store.pick(..)`, `self.only.get()`) fails
+    `composed_control/admission.rs::retain_scalar_call_structural_arguments`
+    with "composed scalar call structural actual lost its authored position":
+    the authored call lists no receiver position, and only explicit formals
+    rejoin. This is 14 run canaries on the full run, plus the former
+    `transition true { true -> done(v) }` callers
+    (`runtime_nested_inline_chain_result_exit`,
+    `runtime_param_receiver_second_instance_exit`,
+    `runtime_deep_state_name_collision_exit`), and the re-pinned fail canary
+    `calls/value_call_param_effect_arm_rejected`. Route composed calls through
+    the ordinary call preparation (LOWERING-ROUTE-CONSOLIDATION target 4)
+    rather than teaching the composed copy about receivers.
   - `runtime_trailing_state_mut_param_phase` stops on the ordinary route
     (`call operation: structural arguments: parameter access`).
     `rooted_residual_scalar_entry_cohort` lowers through Terminal and stops in

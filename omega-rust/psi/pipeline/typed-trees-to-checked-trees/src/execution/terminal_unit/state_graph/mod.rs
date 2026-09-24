@@ -707,8 +707,15 @@ pub(super) fn build_traced(
                         statement_ordinal: ordinal,
                     }
                 }
+                // `transition true { true -> done(v) }` always takes its one arm:
+                // the same unconditional jump as an `Always` guard.
                 [StatementNode::Transition(transition)]
-                    if transition.guard == TransitionGuardNode::Always =>
+                    if transition.guard == TransitionGuardNode::Always
+                        || (matches!(transition.guard, TransitionGuardNode::When(_))
+                            && facts
+                                .values
+                                .scalar_expressions
+                                .guard_is_constant_true(state.symbol, ordinal)) =>
                 {
                     trace.phase("state graph: terminator: jump successor");
                     CheckedComposedUnitControlTerminatorPlan::Jump {
