@@ -28,7 +28,6 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let mut values = scalar_values(live, &prepared.scalar_parameters)?;
     match operation {
         AbstractOperation::ByteSequenceLength { source, .. }
@@ -41,7 +40,7 @@ pub(super) fn lower(
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if !matches!(operation, AbstractOperation::ByteSequenceSubslice { .. }) {
                 byte_views::lower_byte_observation_with_lengths(
@@ -65,7 +64,7 @@ pub(super) fn lower(
                 && !live.views.contains_key(source)
                 && !live.block_views.contains(source)
             {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             if !matches!(operation, AbstractOperation::ElementViewSubslice { .. }) {
                 element_views::lower_element_observation_with_lengths(
@@ -101,7 +100,7 @@ pub(super) fn lower(
             .insert(result.place, (*psi_operation, result.structural_type))
             .is_some()
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         provenance.operations.push(*psi_operation);
         operations.push(TargetUnitOperation::ByteSequenceSubslice {
@@ -130,7 +129,7 @@ pub(super) fn lower(
             .insert(result.place, (*psi_operation, result.structural_type))
             .is_some()
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         provenance.operations.push(*psi_operation);
         operations.push(TargetUnitOperation::ElementViewSubslice {
@@ -250,12 +249,14 @@ pub(super) fn lower(
                 &mut values,
                 &mut provenance.operations,
             )? {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             }
-            let known = values.remove(result).ok_or_else(invalid)?;
+            let known = values
+                .remove(result)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             let expression = known.into_expression(*result)?;
             let TargetScalarExpression::Integer { scalar_type, .. } = &expression else {
-                return Err(invalid());
+                return Err(LoweringError::unsupported_control_flow(function.machine));
             };
             (
                 *psi_operation,
@@ -348,7 +349,7 @@ pub(super) fn lower(
             live.lengths.insert(result.value, *source);
             let expression = values
                 .remove(&result.value)
-                .ok_or_else(invalid)?
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                 .into_expression(result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
@@ -360,7 +361,7 @@ pub(super) fn lower(
             live.lengths.insert(result.value, *source);
             let expression = values
                 .remove(&result.value)
-                .ok_or_else(invalid)?
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                 .into_expression(result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
@@ -371,7 +372,7 @@ pub(super) fn lower(
         } => {
             let expression = values
                 .remove(&result.value)
-                .ok_or_else(invalid)?
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                 .into_expression(result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
@@ -382,7 +383,7 @@ pub(super) fn lower(
         } => {
             let expression = values
                 .remove(&result.value)
-                .ok_or_else(invalid)?
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                 .into_expression(result.value)?;
             (*psi_operation, result.value, result.scalar_type, expression)
         }
@@ -495,14 +496,15 @@ pub(super) fn lower(
                 known.into_expression(*result)?,
             )
         }
-        _ => return Err(invalid()),
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     let shape = match scalar_type {
         ScalarType::Boolean => ValueShape::integer(1, 1),
         ScalarType::Integer(integer) => {
-            crate::lowering::scalar_abi::fixed_native_integer_shape(integer).ok_or_else(invalid)?
+            crate::lowering::scalar_abi::fixed_native_integer_shape(integer)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
         }
-        _ => return Err(invalid()),
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     };
     let home = TargetUnitScalarHomeRequirement {
         defining_operation: psi_operation,
@@ -517,7 +519,7 @@ pub(super) fn lower(
         ScalarType::Integer(_) => {
             live.integers.insert(result, KnownUnitInteger::Home(home));
         }
-        _ => return Err(invalid()),
+        _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
     }
     operations.push(TargetUnitOperation::ScalarDefinition {
         result_home: home,

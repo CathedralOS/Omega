@@ -22,7 +22,6 @@ pub(super) fn replace(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::StructuralByteSequenceFieldStore {
         psi_operation,
         destination,
@@ -33,7 +32,7 @@ pub(super) fn replace(
         obligation,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let destination_argument =
         writable_field(function, structural_types, *destination, path, *field)?;
@@ -46,13 +45,17 @@ pub(super) fn replace(
             || live.views.contains_key(source)
             || live.block_views.contains(source))
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let length_value = *live.integers.get(length).ok_or_else(invalid)?;
+    let length_value = *live
+        .integers
+        .get(length)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if length_value.scalar_type()
-        != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?
+        != IntegerType::new(IntegerSign::Unsigned, 64)
+            .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     operations.push(TargetUnitOperation::StructuralByteSequenceFieldStore {
         psi_operation: *psi_operation,
@@ -73,12 +76,11 @@ fn writable_field(
     path: &[terminal_psi::StructuralPathSegment],
     field: semantic_vocabulary::StructuralFieldId,
 ) -> Result<terminal_psi::StructuralArgument, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let parameter = function
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == destination)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if !matches!(
         parameter.access,
         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
@@ -91,7 +93,7 @@ fn writable_field(
             .iter()
             .any(|claim| claim.input == destination)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let carrier = if path.is_empty() {
         parameter.structural_type
@@ -105,13 +107,17 @@ fn writable_field(
         )?
         .0
     };
-    let StructuralTypeShape::Record { fields } =
-        &structural_types.get(&carrier).ok_or_else(invalid)?.shape
+    let StructuralTypeShape::Record { fields } = &structural_types
+        .get(&carrier)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+        .shape
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let mut matching = fields.iter().filter(|candidate| candidate.id == field);
-    let selected = matching.next().ok_or_else(invalid)?;
+    let selected = matching
+        .next()
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     if matching.next().is_some()
         || selected.relevance.is_erased()
         || !matches!(
@@ -121,7 +127,7 @@ fn writable_field(
             )
         )
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(terminal_psi::StructuralArgument {
         place: destination,
@@ -138,7 +144,6 @@ pub(super) fn replace_byte(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::StructuralByteSequenceFieldByteStore {
         psi_operation,
         destination,
@@ -150,7 +155,7 @@ pub(super) fn replace_byte(
         obligation,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     let destination_argument =
         writable_field(function, structural_types, *destination, path, *field)?;
@@ -159,10 +164,19 @@ pub(super) fn replace_byte(
     if !function.operations.iter().any(|operation| matches!(operation,
         AbstractOperation::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field, result, .. }
         if source == destination && measured_path == path && measured_field == field && result.value == *length))
-    { return Err(invalid()); }
-    let index_value = *live.integers.get(index).ok_or_else(invalid)?;
-    let byte_value = *live.integers.get(value).ok_or_else(invalid)?;
-    let length_value = *live.integers.get(length).ok_or_else(invalid)?;
+    { return Err(LoweringError::unsupported_control_flow(function.machine)); }
+    let index_value = *live
+        .integers
+        .get(index)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let byte_value = *live
+        .integers
+        .get(value)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let length_value = *live
+        .integers
+        .get(length)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     for (scalar_type, bits) in [
         (index_value.scalar_type(), 64),
         (byte_value.scalar_type(), 8),
@@ -172,7 +186,7 @@ pub(super) fn replace_byte(
             || scalar_type.bits() != bits
             || scalar_type.is_address()
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
     operations.push(TargetUnitOperation::StructuralByteSequenceFieldByteStore {
@@ -197,7 +211,6 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let AbstractOperation::ByteSequenceWrite {
         psi_operation,
         destination,
@@ -207,7 +220,7 @@ pub(super) fn lower(
         obligation,
     } = operation
     else {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     };
     if live.lengths.get(length) != Some(destination)
         || !(prepared
@@ -216,7 +229,7 @@ pub(super) fn lower(
             .any(|parameter| parameter.place == *destination)
             || live.block_views.contains(destination))
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (destination, view) = crate::lowering::scalar::byte_views::mutable_parameter_view(
         function,
@@ -224,8 +237,14 @@ pub(super) fn lower(
         &prepared.parameters,
         *destination,
     )?;
-    let index_value = *live.integers.get(index).ok_or_else(invalid)?;
-    let byte_value = *live.integers.get(value).ok_or_else(invalid)?;
+    let index_value = *live
+        .integers
+        .get(index)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    let byte_value = *live
+        .integers
+        .get(value)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     for (scalar_type, bits) in [
         (index_value.scalar_type(), 64),
         (byte_value.scalar_type(), 8),
@@ -234,7 +253,7 @@ pub(super) fn lower(
             || scalar_type.bits() != bits
             || scalar_type.is_address()
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
     }
     operations.push(TargetUnitOperation::ByteSequenceWrite {

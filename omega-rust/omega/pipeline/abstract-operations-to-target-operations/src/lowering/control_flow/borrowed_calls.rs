@@ -27,7 +27,6 @@ pub(super) fn lower(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let (psi_operation, result, callee, values, arguments, claims, requirements, crashes) =
         match operation {
             AbstractOperation::CallStructuralScalar {
@@ -67,7 +66,7 @@ pub(super) fn lower(
                 requirement_obligations,
                 crash_continuations,
             ),
-            _ => return Err(invalid()),
+            _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
         };
     let callee_function = functions
         .get(&callee)
@@ -100,7 +99,7 @@ pub(super) fn lower(
                 .map(|result| result.scalar_type)
         || (result.is_none() && callee_function.result != AbstractFunctionResult::Unit)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let signature = prepare_function_signature(callee_function, target, types)?;
     // Validate the structural argument roster under reference custody before
@@ -117,7 +116,8 @@ pub(super) fn lower(
                 return Err(LoweringError::ValueTypeMismatch(*value));
             }
             Ok(TargetUnitScalarCallArgument {
-                parameter_index: u32::try_from(position).map_err(|_| invalid())?,
+                parameter_index: u32::try_from(position)
+                    .map_err(|_| LoweringError::unsupported_control_flow(function.machine))?,
                 source,
                 placement: parameter.placement.clone(),
             })
@@ -212,7 +212,6 @@ pub(super) fn argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if matches!(argument.path.last(), Some(StructuralPathSegment::Referent)) {
         return super::references::referent_argument(
             argument,
@@ -223,7 +222,7 @@ pub(super) fn argument(
             live,
             types,
         )?
-        .ok_or_else(invalid);
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine));
     }
     if live.address_joins.contains(&argument.place) {
         return address_join_argument(argument, declaration, destination, function, live, types);
@@ -236,7 +235,9 @@ pub(super) fn argument(
     if !argument.path.is_empty()
         && let Some(home) = live.structural_homes.get(&argument.place)
     {
-        let (producer, result) = home.operation_result().ok_or_else(invalid)?;
+        let (producer, result) = home
+            .operation_result()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let mut shape_cache = BTreeMap::new();
         let mut active = BTreeSet::new();
         let (projected_type, projected_shape, source_byte_offset) =
@@ -270,7 +271,7 @@ pub(super) fn argument(
                 .checked_add(source_byte_offset)
                 .is_none_or(|end| end > u32::from(home.layout.shape().byte_size))
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         return Ok(TargetStructuralArgument {
             place: argument.place,
@@ -292,16 +293,18 @@ pub(super) fn argument(
         || argument.access != declaration.access
         || !super::primitive_storage::is_primitive_reference(declaration, types)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (identity, source) = if let Some(home) = live.structural_homes.get(&argument.place) {
-        let (defining_operation, home_result) = home.operation_result().ok_or_else(invalid)?;
+        let (defining_operation, home_result) = home
+            .operation_result()
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if !function.operations.iter().any(|operation| {
             matches!(operation,
             AbstractOperation::EstablishPrimitiveLocal { psi_operation, result, .. }
             if *psi_operation == defining_operation && result == home_result)
         }) {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (
             home.structural_type(),
@@ -314,7 +317,7 @@ pub(super) fn argument(
             .parameters
             .iter()
             .find(|source| source.place == argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let allowed = match source.access {
             StructuralAccess::MutableBorrow => argument.access != StructuralAccess::Owned,
             StructuralAccess::SharedBorrow => argument.access == StructuralAccess::SharedBorrow,
@@ -324,12 +327,12 @@ pub(super) fn argument(
             StructuralAccess::Owned => false,
         };
         if !allowed {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (source.structural_type, source.placement.clone().into())
     };
     if identity != declaration.structural_type {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
         place: argument.place,
@@ -358,7 +361,6 @@ pub(super) fn address_join_argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     if !live.address_joins.contains(&argument.place)
         || !argument.path.is_empty()
         || argument.access != StructuralAccess::SharedBorrow
@@ -367,7 +369,7 @@ pub(super) fn address_join_argument(
         || !declaration.qualifications.is_empty()
         || !declaration.projected_qualifications.is_empty()
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (entry, parameter) = function
         .block_entries
@@ -379,7 +381,7 @@ pub(super) fn address_join_argument(
                 .find(|parameter| parameter.place == argument.place)
                 .map(|parameter| (entry, parameter))
         })
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let referent = crate::lowering::structural_layout::structural_shape(
         parameter.structural_type,
         types,
@@ -394,7 +396,7 @@ pub(super) fn address_join_argument(
                 StructuralAccess::SharedBorrow,
             )
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
         place: argument.place,
@@ -431,7 +433,6 @@ fn byte_argument(
     live: &LiveDefinitions,
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
     let shared = argument.access == StructuralAccess::SharedBorrow;
     // A fixed-array byte window is the same call-scoped presentation of the
     // caller's own backing the structural-call lane emits: the argument keeps
@@ -442,7 +443,7 @@ fn byte_argument(
             .iter()
             .find(|source| source.place == argument.place)
         else {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         };
         let Some(window) = function.structural_parameters.iter().find_map(|actual| {
             terminal_semantics::fixed_byte_array_window(
@@ -452,7 +453,7 @@ fn byte_argument(
                 declaration,
             )
         }) else {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         };
         let mut shape_cache = BTreeMap::new();
         let mut active = BTreeSet::new();
@@ -479,7 +480,7 @@ fn byte_argument(
                 .checked_add(window.backing_length)
                 .is_none_or(|end| end > u64::from(source.shape.byte_size))
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         return Ok(TargetStructuralArgument {
             place: argument.place,
@@ -503,7 +504,7 @@ fn byte_argument(
             ))
         || destination.shape != ValueShape::borrowed_reference(16, 8)
     {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let (identity, source) = if shared
         && let Some((producer, structural_type)) = live.views.get(&argument.place)
@@ -532,7 +533,7 @@ fn byte_argument(
                     .find(|parameter| parameter.place == argument.place)
                     .map(|parameter| (entry, parameter))
             })
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         // The root's own access authorizes the argument, exactly as an
         // incoming machine parameter does: an exclusive block parameter
         // lends shared, exclusive or write-only, a shared one only shared.
@@ -542,7 +543,7 @@ fn byte_argument(
             StructuralAccess::WriteOnlyBorrow | StructuralAccess::Owned => false,
         };
         if !allowed {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (
             parameter.structural_type,
@@ -556,18 +557,18 @@ fn byte_argument(
             .parameters
             .iter()
             .find(|source| source.place == argument.place)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         if source.access != argument.access
             || source.multiplicity != declaration.multiplicity
             || !source.projected_qualifications.is_empty()
             || source.shape != destination.shape
         {
-            return Err(invalid());
+            return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         (source.structural_type, source.placement.clone().into())
     };
     if identity != declaration.structural_type {
-        return Err(invalid());
+        return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     Ok(TargetStructuralArgument {
         place: argument.place,

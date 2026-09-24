@@ -224,7 +224,7 @@ fn graph_rejects_unimplemented_claim_bearing_provider_calls() {
                     native_callbacks: &[],
                 }
             ),
-            Err(LoweringError::UnsupportedControlFlow(_))
+            Err(LoweringError::UnsupportedControlFlow { .. })
         ));
     }
 }

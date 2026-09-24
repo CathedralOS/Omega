@@ -60,7 +60,7 @@ pub(super) fn establish(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let invalid = || LoweringError::UnsupportedControlFlow(function.machine);
+    let invalid = || LoweringError::unsupported_control_flow(function.machine);
     let AbstractOperation::EstablishScalarArray {
         psi_operation,
         result,
