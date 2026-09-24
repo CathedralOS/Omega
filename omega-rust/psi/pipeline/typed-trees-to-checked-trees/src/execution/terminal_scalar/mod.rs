@@ -928,11 +928,21 @@ pub(super) fn checked_terminator(
         [
             StatementNode::Transition(when_true),
             StatementNode::Transition(when_false),
+            rest @ ..,
         ] if matches!(when_true.guard, TransitionGuardNode::When(_))
             && (when_false.guard == TransitionGuardNode::Always
                 || guards::complementary(expressions, state.symbol, terminator_ordinal))
             && !when_true.continuation.is_valid()
-            && !when_false.continuation.is_valid() =>
+            && !when_false.continuation.is_valid()
+            && rest.iter().all(|statement| {
+                matches!(
+                    statement,
+                    StatementNode::Transition(transition)
+                        if transition.guard == TransitionGuardNode::Always
+                            && transition.exit == TransitionExit::Ordinary
+                            && !transition.continuation.is_valid()
+                )
+            }) =>
         {
             CheckedScalarStateTerminator::Conditional {
                 guard_statement_ordinal: terminator_ordinal,
