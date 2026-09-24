@@ -349,6 +349,7 @@ fn validate_surviving_byte_operations(
                         index: *index,
                         length: *length,
                         obligation: *obligation,
+                        path: Vec::new(),
                     },
                 ),
                 // Terminal spells the runtime element as the read path's
@@ -607,15 +608,18 @@ fn byte_operation_kind_matches(
                 index: expected_index,
                 length: expected_length,
                 obligation: expected_obligation,
+                path: expected_path,
             },
             terminal_psi::OperationKind::ElementViewRead {
                 source: actual_source,
                 index: actual_index,
                 length: actual_length,
                 obligation: actual_obligation,
+                path: actual_path,
             },
         ) => {
             expected_obligation == actual_obligation
+                && expected_path == actual_path
                 && root_matches(*expected_source, *actual_source)
                 && operand_matches(*expected_index, *actual_index)
                 && operand_matches(*expected_length, *actual_length)

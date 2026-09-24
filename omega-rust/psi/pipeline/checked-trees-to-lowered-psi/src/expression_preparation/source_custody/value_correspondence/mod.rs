@@ -877,8 +877,10 @@ impl Context<'_> {
                                 root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
                                 path: retained,
                                 index: retained_index,
+                                element_path,
                                 primitive_type,
                             } if *parameter_position == position
+                                && element_path.is_empty()
                                 && paths_match(retained, &path)
                                 && *primitive_type == PrimitiveType::U8
                                 && matches!(

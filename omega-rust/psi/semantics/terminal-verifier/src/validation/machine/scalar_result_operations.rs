@@ -85,9 +85,12 @@ pub(super) fn register_scalar_result_operation(
             source,
             length,
             obligation,
+            ref path,
             ..
         } => {
-            super::super::element_view::read::validate(module, machine, operation, source, length)?;
+            super::super::element_view::read::validate(
+                module, machine, operation, source, length, path,
+            )?;
             insert_unique(
                 &mut registry.obligations,
                 obligation,

@@ -96,6 +96,7 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
                 },
             path,
             index: read_index,
+            element_path,
             primitive_type,
         } = left.as_ref()
         else {
@@ -103,6 +104,7 @@ fn carrier_literal_guard_decomposes_into_length_and_bytes() {
         };
         assert_eq!(*parameter_position, 0);
         assert_eq!(*primitive_type, PrimitiveType::U8);
+        assert!(element_path.is_empty(), "a byte element is read whole");
         assert_eq!(
             path.as_slice(),
             [CheckedStructuralPredicatePathSegment::Field(

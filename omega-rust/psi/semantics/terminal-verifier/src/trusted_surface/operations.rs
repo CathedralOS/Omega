@@ -555,10 +555,18 @@ static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(
 );
 static OP_ELEMENT_VIEW_READ: TrustedSurfaceEntry = entry(
     "operation:element-view-read",
-    "a validated in-bounds element read",
+    "a validated in-bounds element read at the element's scalar leaf",
     "the read observation's local equation where the schema declares one",
     EFFECT_DEPS,
-    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_ELEMENTS_READ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        TS_SE_ELEMENT_EXTENT,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_ELEMENTS_READ,
+    ],
 );
 static OP_ELEMENT_VIEW_SUBSLICE: TrustedSurfaceEntry = entry(
     "operation:element-view-subslice",

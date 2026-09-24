@@ -305,18 +305,29 @@ pub(super) fn decode_element_view_length(
     })
 }
 
+/// A scalar element keeps the pathless spelling; a record element's field
+/// read carries its element path under its own tag, as a projected primitive
+/// read does, so each read has exactly one wire form.
 pub(super) fn encode_element_view_read(
     writer: &mut Writer,
     source: PlaceId,
     index: ValueId,
     length: ValueId,
     obligation: ObligationId,
+    path: Vec<StructuralPathSegment>,
 ) -> Result<(), CodecError> {
-    writer.u8(operation_tags::ELEMENT_VIEW_READ);
+    writer.u8(if path.is_empty() {
+        operation_tags::ELEMENT_VIEW_READ
+    } else {
+        operation_tags::PROJECTED_ELEMENT_VIEW_READ
+    });
     writer.id(source);
     writer.id(index);
     writer.id(length);
     writer.id(obligation);
+    if !path.is_empty() {
+        encode_structural_path(writer, "element view read path", &path)?;
+    }
     Ok(())
 }
 
@@ -328,6 +339,29 @@ pub(super) fn decode_element_view_read(
         index: reader.id("ValueId")?,
         length: reader.id("ValueId")?,
         obligation: reader.id("ObligationId")?,
+        path: Vec::new(),
+    })
+}
+
+pub(super) fn decode_projected_element_view_read(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    let source = reader.id("PlaceId")?;
+    let index = reader.id("ValueId")?;
+    let length = reader.id("ValueId")?;
+    let obligation = reader.id("ObligationId")?;
+    let path = decode_structural_path(reader)?;
+    if path.is_empty() {
+        return Err(CodecError::MalformedStructuralFoundation(
+            "empty projected element view read path",
+        ));
+    }
+    Ok(OperationKind::ElementViewRead {
+        source,
+        index,
+        length,
+        obligation,
+        path,
     })
 }
 

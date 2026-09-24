@@ -440,6 +440,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             root,
             path,
             index,
+            element_path,
             primitive_type,
         } => {
             let (source, carrier) = match *root {
@@ -447,6 +448,11 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     index: parameter_position,
                 } => {
                     if !path.is_empty() {
+                        if !element_path.is_empty() {
+                            return unsupported(
+                                "a projected element read carries no element field path",
+                            );
+                        }
                         let index = lower_checked_scalar_expression_with_parameters(
                             index,
                             structural_parameters,
@@ -519,10 +525,49 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 ViewCarrier::Elements {
                     element: Some(scalar_type),
                 } => Some(scalar_type),
+                // A record element yields a scalar only at a field leaf: the
+                // read carries the element path, and the verifier resolves
+                // that leaf against the view's element type.
                 ViewCarrier::Elements { element: None } => {
-                    return unsupported("element-view reads of record elements yield no scalar");
+                    if element_path.is_empty() {
+                        return unsupported(
+                            "element-view reads of record elements yield no scalar",
+                        );
+                    }
+                    let path = element_path
+                        .iter()
+                        .map(|segment| match segment {
+                            checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                                identity,
+                            ) => Ok(terminal_psi::StructuralPathSegment::Field(identity.clone())),
+                            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(
+                                index,
+                            ) => Ok(terminal_psi::StructuralPathSegment::FixedIndex(*index)),
+                            checked_trees::CheckedStructuralPredicatePathSegment::Case(_) => {
+                                unsupported("an element field path selects no case")
+                            }
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let index = lower_checked_scalar_expression_with_parameters(
+                        index,
+                        structural_parameters,
+                        structural_fields,
+                        structural_cases,
+                        primitive_storage,
+                        element_views,
+                        view_locals,
+                    )?;
+                    return Ok(LoweredDirectExpression::ElementViewRead {
+                        source,
+                        index: Box::new(exact_u64_index(index)?),
+                        path,
+                        scalar_type: terminal_scalar_type(*primitive_type)?,
+                    });
                 }
             };
+            if !element_path.is_empty() {
+                return unsupported("a scalar element has no field path");
+            }
             if element_scalar.is_none() && *primitive_type != PrimitiveType::U8 {
                 return unsupported("indexed reads require a whole byte-view parameter");
             }
@@ -546,6 +591,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     Ok(LoweredDirectExpression::ElementViewRead {
                         source,
                         index: Box::new(index),
+                        path: Vec::new(),
                         scalar_type,
                     })
                 }

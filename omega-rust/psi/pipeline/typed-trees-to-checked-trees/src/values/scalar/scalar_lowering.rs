@@ -410,80 +410,26 @@ pub(crate) fn lower_scalar_expression(
             )
             .then_some(field);
         }
-        // A whole view local reads the view its establishment published, the
-        // same element read a whole view parameter takes.
-        let (root, path, mut collection_type) = match structural_fields::structural_parameter_place(
-            program,
-            authored_parameters,
-            indexed.collection,
-        ) {
-            Some((position, path, collection_type)) => (
-                checked_trees::CheckedStorageRoot::Parameter { index: position },
-                path,
-                collection_type,
-            ),
-            None => {
-                let (symbol, collection_type) = structural_fields::view_local_root(
-                    program,
-                    authored_parameters,
-                    indexed.collection,
-                )?;
-                (
-                    checked_trees::CheckedStorageRoot::ViewLocal { symbol },
-                    Vec::new(),
-                    collection_type,
-                )
-            }
-        };
-        if !structural_fields::indexed_read_is_builtin(
+        let selection = selected_element(
             program,
             operators,
-            authored_parameters,
             expression,
-            collection_type,
-            indexed.index,
-        ) {
-            return None;
-        }
-        let element_type = loop {
-            match program.type_reference_table.type_reference(collection_type) {
-                TypeReferenceNode::Reference { referee, .. }
-                | TypeReferenceNode::Constrained {
-                    base_type: referee, ..
-                } => collection_type = *referee,
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => break *element_type,
-                _ => return None,
-            }
-        };
-        let primitive_type = program.primitive_type_reference(element_type)?;
-        let index =
-            land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
-                .or_else(|| {
-                    lower_scalar_expression(
-                        program,
-                        operators,
-                        indexed.index,
-                        parameters,
-                        authored_parameters,
-                        parameter_types,
-                        locals,
-                        exact_integer_casts,
-                    )
-                    .map(|(index, _)| index)
-                })?;
-        let index_type = scalar_expression_type(&index)?;
-        if !is_integer(index_type) || index_type == PrimitiveType::Addr {
-            return None;
-        }
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        )?;
+        let primitive_type = program.primitive_type_reference(selection.element_type)?;
         return Some((
             CheckedScalarExpression::StructuralParameterIndexedRead {
-                root,
-                path,
-                index: Box::new(index),
+                root: selection.root,
+                path: selection.path,
+                index: Box::new(selection.index),
+                element_path: Vec::new(),
                 primitive_type,
             },
-            program.arithmetic_domain_for_type_reference(element_type),
+            program.arithmetic_domain_for_type_reference(selection.element_type),
         ));
     }
     if matches!(
@@ -495,6 +441,18 @@ pub(crate) fn lower_scalar_expression(
         expression,
     ) {
         return Some(field);
+    }
+    if let Some(read) = view_element_field_read(
+        program,
+        operators,
+        expression,
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    ) {
+        return Some(read);
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(path) => {
@@ -1161,4 +1119,178 @@ pub(crate) fn lower_recast_boolean_operand(
         exact_integer_casts,
     )?;
     Some(place_read_site_as_boolean(place_read_site(&read)?))
+}
+
+/// One builtin element selection `collection[index]` over current structural
+/// storage: the root and projection the collection names, the selected
+/// element's type, whether the collection is a borrowed view, and the lowered
+/// selector. A whole view local reads the view its establishment published,
+/// the same element selection a whole view parameter takes.
+struct ElementSelection {
+    root: checked_trees::CheckedStorageRoot,
+    path: Vec<checked_trees::CheckedStructuralPredicatePathSegment>,
+    element_type: typed_trees::types::TypeReferenceHandle,
+    through_view: bool,
+    index: CheckedScalarExpression,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn selected_element(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<ElementSelection> {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    let (root, path, mut collection_type) = match structural_fields::structural_parameter_place(
+        program,
+        authored_parameters,
+        indexed.collection,
+    ) {
+        Some((position, path, collection_type)) => (
+            checked_trees::CheckedStorageRoot::Parameter { index: position },
+            path,
+            collection_type,
+        ),
+        None => {
+            let (symbol, collection_type) = structural_fields::view_local_root(
+                program,
+                authored_parameters,
+                indexed.collection,
+            )?;
+            (
+                checked_trees::CheckedStorageRoot::ViewLocal { symbol },
+                Vec::new(),
+                collection_type,
+            )
+        }
+    };
+    if !structural_fields::indexed_read_is_builtin(
+        program,
+        operators,
+        authored_parameters,
+        expression,
+        collection_type,
+        indexed.index,
+    ) {
+        return None;
+    }
+    let (element_type, through_view) = loop {
+        match program.type_reference_table.type_reference(collection_type) {
+            TypeReferenceNode::Reference { referee, .. }
+            | TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => collection_type = *referee,
+            TypeReferenceNode::FixedArray { element_type, .. } => break (*element_type, false),
+            TypeReferenceNode::Slice { element_type } => break (*element_type, true),
+            _ => return None,
+        }
+    };
+    let index =
+        land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
+            .or_else(|| {
+                lower_scalar_expression(
+                    program,
+                    operators,
+                    indexed.index,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                )
+                .map(|(index, _)| index)
+            })?;
+    let index_type = scalar_expression_type(&index)?;
+    if !is_integer(index_type) || index_type == PrimitiveType::Addr {
+        return None;
+    }
+    Some(ElementSelection {
+        root,
+        path,
+        element_type,
+        through_view,
+        index,
+    })
+}
+
+/// One scalar leaf of a record element selected through a borrowed view
+/// (`entries[index].value`): the element selection a scalar element read
+/// takes, plus the static field path inside the selected element. A fixed
+/// array's element keeps its own projection (a runtime index segment of the
+/// array path), so only views take this form.
+#[allow(clippy::too_many_arguments)]
+fn view_element_field_read(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    let mut selection_expression = expression;
+    let mut depth = 0_usize;
+    while let ExpressionNode::Member(member) =
+        program.expression_table.expression(selection_expression)
+    {
+        if member.case_variant.is_some() {
+            return None;
+        }
+        selection_expression = member.receiver;
+        depth += 1;
+    }
+    let ExpressionNode::Indexed(indexed) =
+        program.expression_table.expression(selection_expression)
+    else {
+        return None;
+    };
+    if depth == 0
+        || matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        )
+    {
+        return None;
+    }
+    let selection = selected_element(
+        program,
+        operators,
+        selection_expression,
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    )?;
+    if !selection.through_view {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_expression(program, expression)?;
+    let fields = place
+        .segments
+        .get(place.segments.len().checked_sub(depth)?..)?;
+    let (element_path, leaf) =
+        structural_fields::element_field_path(program, selection.element_type, fields)?;
+    let primitive_type = program.primitive_type_reference(leaf)?;
+    if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
+        return None;
+    }
+    Some((
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            root: selection.root,
+            path: selection.path,
+            index: Box::new(selection.index),
+            element_path,
+            primitive_type,
+        },
+        program.arithmetic_domain_for_type_reference(leaf),
+    ))
 }

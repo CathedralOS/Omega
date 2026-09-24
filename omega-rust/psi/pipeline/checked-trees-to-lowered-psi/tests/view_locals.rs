@@ -291,3 +291,122 @@ fn a_field_range_that_overruns_or_outlives_a_write_is_refused() {
         "writing the array while its field range is live must not check"
     );
 }
+
+const RECORD_ELEMENTS: &str = r#"
+    boundary trait Output {
+        machine observe(value: i32) reaches Output;
+    }
+    data Entry {
+        weight: u64;
+        value: i32;
+    }
+    data Root {
+        entries: [Entry; 4];
+    }
+    machine Root::enter(&mut self) reaches Output {
+        self.entries[2].value = 37;
+        let view: &[Entry] = self.entries.as_slice();
+        let tail: &[Entry] = view[1..];
+        Output::observe(tail[1].value);
+    }
+"#;
+
+/// A record element is read at one scalar leaf: the element read carries the
+/// field path inside the selected element, round-trips through the codec,
+/// and the verifier resolves that leaf against the view's element type and
+/// checks the index against the view's own length.
+#[test]
+fn a_record_element_field_is_read_through_a_view_local() {
+    let lowered = lower(RECORD_ELEMENTS).expect("a record element field read lowers");
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("a record element field read verifies independently");
+    let reads = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::ElementViewRead { path, .. } => Some(path.clone()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        reads,
+        vec![vec![terminal_psi::StructuralPathSegment::Field(
+            "value".to_owned()
+        )]],
+        "one read projects the selected element's `value` leaf"
+    );
+    // The verifier resolves the leaf itself: an undeclared field, a leaf of
+    // another scalar type, or a path that leaves the element is refused.
+    for forged in [
+        vec![terminal_psi::StructuralPathSegment::Field(
+            "missing".to_owned(),
+        )],
+        vec![terminal_psi::StructuralPathSegment::Field(
+            "weight".to_owned(),
+        )],
+        vec![terminal_psi::StructuralPathSegment::Referent],
+    ] {
+        let mut module = module.clone();
+        for operation in module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+        {
+            if let terminal_psi::OperationKind::ElementViewRead { path, .. } = &mut operation.kind {
+                *path = forged.clone();
+            }
+        }
+        assert!(
+            terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+                .is_err(),
+            "an element read at {forged:?} must not verify"
+        );
+    }
+}
+
+/// Control: an element index past the narrowed view's extent cannot be
+/// proved, so the field read is refused before a module is published.
+#[test]
+fn a_record_element_field_read_out_of_bounds_is_refused() {
+    let past = RECORD_ELEMENTS.replace("tail[1].value", "tail[3].value");
+    let refused = match crate::front_end::checked_program_result(&past) {
+        Err(_) => true,
+        Ok(checked) => checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Root::enter"),
+        )
+        .is_err(),
+    };
+    assert!(
+        refused,
+        "an element read past the view's extent must not lower"
+    );
+}
+
+/// The selector may be any `u64` scalar the body holds: a local selector is
+/// replayed as the element read's own operand.
+#[test]
+fn a_record_element_field_read_takes_a_local_selector() {
+    let source = RECORD_ELEMENTS.replace(
+        "Output::observe(tail[1].value);",
+        "let index: u64 = 1;\n        Output::observe(tail[index].value);",
+    );
+    let lowered = lower(&source).expect("a record element read with a local selector lowers");
+    let module = terminal_codec::decode_module(&encode_module(&lowered.semantic_module).unwrap())
+        .expect("reload module");
+    let proof = terminal_codec::decode_proof_bundle(
+        &encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle).unwrap(),
+    )
+    .expect("reload proof");
+    terminal_verifier::verify_module(&module, &proof, &AdmissionProfile::default())
+        .expect("a locally selected record element field read verifies");
+}

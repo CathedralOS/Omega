@@ -756,6 +756,23 @@ fn collect_authored_storage_reads(
                 authored_indexed_primitive_read(checked, state, scope, machine, expression)?
             {
                 reads.push((path.clone(), symbol, primitive, kind));
+            } else if let Some(selector) = element_field_selector(checked, expression) {
+                // A field of one view element (`view[i].value`) retains the
+                // element read, whose selector is its only scalar operand;
+                // replay that selector where the retained read places it.
+                path.push(0);
+                collect_authored_storage_reads(
+                    checked,
+                    state,
+                    scope,
+                    selector,
+                    path,
+                    active,
+                    reads,
+                    member_paths,
+                    unmatched_member_paths,
+                )?;
+                path.pop();
             }
         }
         ExpressionNode::Binary(binary) => {
@@ -848,6 +865,29 @@ fn collect_authored_storage_reads(
     }
     active.pop();
     Ok(())
+}
+
+/// The runtime selector of the element a member chain projects into
+/// (`view[i].a.b` selects with `i`), when the chain bottoms out at a
+/// single-element index rather than a range or a name.
+fn element_field_selector(
+    checked: &CheckedTrees,
+    mut expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    while let ExpressionNode::Member(member) = checked.expression_table.expression(expression) {
+        if member.case_variant.is_some() {
+            return None;
+        }
+        expression = member.receiver;
+    }
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression) else {
+        return None;
+    };
+    (!matches!(
+        checked.expression_table.expression(indexed.index),
+        ExpressionNode::Range(_)
+    ))
+    .then_some(indexed.index)
 }
 
 fn collect_scalar_storage_reads(

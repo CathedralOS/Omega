@@ -2,12 +2,18 @@
 
 use crate::validation::{ModuleError, PlaceId, TerminalMachine, TerminalModule, ValueId};
 
+/// The read's element path is static and must end at a scalar leaf of the
+/// view's element (`terminal_semantics::element_view_leaf_scalar`); the
+/// result carries exactly that leaf's scalar type. The element itself is
+/// selected by the index against the exact length observation, so the path
+/// never bounds anything.
 pub(in crate::validation) fn validate(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     source: PlaceId,
     length: ValueId,
+    path: &[terminal_psi::StructuralPathSegment],
 ) -> Result<(), ModuleError> {
     let element = crate::validation::element_view::length::validate_source(
         module,
@@ -19,7 +25,9 @@ pub(in crate::validation) fn validate(
             source,
         },
     )?;
-    let Some(expected) = crate::validation::primitive_storage::scalar_type(module, element) else {
+    let Some(expected) =
+        terminal_semantics::element_view_leaf_scalar(&module.structural_types, element, path)
+    else {
         return Err(ModuleError::InvalidElementViewReadSource {
             operation: operation.id,
             source,

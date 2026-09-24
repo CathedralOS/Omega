@@ -404,10 +404,12 @@ pub(crate) fn substitute_direct(
         Direct::ElementViewRead {
             source,
             index,
+            path,
             scalar_type,
         } => Direct::ElementViewRead {
             source,
             index: Box::new(substitute_direct(*index, bound)),
+            path,
             scalar_type,
         },
         Direct::IndexedPrimitiveRead {
