@@ -1943,3 +1943,20 @@ Two NEW failure modes worth recording for every future batch workload:
 Deployed shape (tools/corpus_gate.py --jev): one batch call for the
 record_safe verdict; if low, causal-question solo calls localize suspects.
 Advisory only, silent without key, OMEGA_JEV_OFFLINE=1.
+
+## 2026-09-24 (cont.) — board-dedup: proven property, deferred deployment
+
+14-pair worked example on the current board (per-pair requests, applying the
+contamination lesson): zero false-merge flags on every pair including
+deliberately-similar ones — precision is the deployable property. Misses were
+all needs_review-labeled pairs where Jev answered `distinct`: it resolves
+ambiguity decisively rather than routing to humans. Third instance this
+campaign of Jev out-labeling frozen expectations — the same-name
+cross-board GENERAL-CYCLIC-EXECUTION IS deliberately scoped (the optimizer
+item's text says "the receiving/native half"), making `distinct` defensible.
+
+Deployment deferred: the property is proven but the board is clean by
+construction (consolidated same-day) — a standalone tool would be machinery
+without a customer. When task-board-cleanup runs next, cite this: generate
+keyword-overlap candidate pairs, per-pair merge/distinct/needs_review
+requests (~$0.0005 each), act only on `merge` picks.
