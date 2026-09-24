@@ -1977,22 +1977,6 @@ Deployment lesson: path claims need a crate-relative resolver (`psi/` ->
 Mechanical stale-path layer is the high-precision one; semantic verdicts
 stay hedged on policy prose.
 
-## 2026-09-24 (cont.) — prior-art review: JevX
-
-Reviewed github.com/vij-sameerb5/JevX (independent implementation of the
-same thesis for JS/TS: find hardcoded judgment calls, three-source score
-(patterns + host AI + Jev vote, REVIEW_DISAGREE on divergence), rewrite
-strong fits with the old rule as fallback). Cannot run on this repo —
-ts-morph is JS/TS only. Yoinked into the playbook: the 8-feature fit
-profile (Jev sites show high semantic_ambiguity/judgment_required/NLU/
-context_dependence; deterministic shows high expressibility/rule
-stability), the deterministic_is_correct question for replace-vs-augment
-decisions, the three-source scorecard for borderline calls, the
-judgment-call code shapes for mechanical candidate hunting, and the
-before+after-checks apply-loop discipline for any future write path.
-Honest caveats: profile trained on 7 Jev sites / 4 contrasts / 6 projects;
-bands are display thresholds, not calibrated.
-
 ## 2026-09-24 (cont.) — recheck-failure attribution: sixth instrument
 
 --base X --attribute LOG on test_affected.py: classifies each failure in a
