@@ -452,11 +452,9 @@ fn checked_state_graph(
             } else if mixed {
                 // Whole structural forwarding, for a free machine or for an
                 // attached machine whose exclusive receiver is an explicit
-                // structural formal, is bounded to the same authored state;
-                // additional state signatures remain a separate slice.
-                if owner_state_count != 1 {
-                    return None;
-                }
+                // structural formal, resolves each authored state's own
+                // signature: edge binding below forwards each structural
+                // formal onto its incoming transfers.
                 super::terminal_unit::structural_scalar_graph_signature(program, state)?
             } else if state.symbol == source_states[0].symbol
                 && parameters

@@ -238,14 +238,33 @@ fn arguments<'a>(
                 )?;
             Some((structural, scalar))
         };
+        // A free machine forwards its per-state structural formals under the
+        // ordinary free signature: the same bounded roster, bound on each
+        // incoming edge by the whole-parameter or subslice transfer below.
+        let free_roster = |owner_machine: &typed_trees::machine::Machine,
+                           owner_states: &[typed_trees::state::State],
+                           state: &CheckedScalarStateGraph| {
+            let typed_state = owner_states
+                .iter()
+                .find(|entry| entry.symbol == state.state)?;
+            if owner_machine.attached_data.is_some() {
+                return None;
+            }
+            let (structural, scalar, _) =
+                super::super::terminal_unit::structural_scalar_graph_signature(
+                    program,
+                    typed_state,
+                )?;
+            Some((structural, scalar))
+        };
         let matches_roster = |owner_machine: &typed_trees::machine::Machine,
                               owner_states: &[typed_trees::state::State],
                               state: &CheckedScalarStateGraph| {
-            ambient_roster(owner_machine, owner_states, state).is_some_and(
-                |(structural, scalar)| {
+            ambient_roster(owner_machine, owner_states, state)
+                .or_else(|| free_roster(owner_machine, owner_states, state))
+                .is_some_and(|(structural, scalar)| {
                     state.structural_parameters == structural && state.scalar_parameters == scalar
-                },
-            )
+                })
         };
         let source_states = program.machine_states(source_machine);
         if !(matches_roster(source_machine, source_states, source)
