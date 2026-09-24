@@ -197,16 +197,16 @@ pub(super) fn supports_wrapping_division(integer: IntegerType) -> bool {
     scalar_shape(ScalarType::Integer(integer)).is_some()
 }
 
-/// The admitted exact-cast slice excludes sub-64-bit signed-to-signed casts
-/// and 16-bit-source widening.
-pub(super) fn exact_cast_has_native_carriers(source: IntegerType, target: IntegerType) -> bool {
+/// A proof-bearing exact cast between any two fixed 8/16/32/64-bit carriers.
+/// Scalar transport holds every narrow integer full-register normalized, and
+/// selection normalizes the result by the narrower carrier
+/// (`selection::construction::scalar_graph::integer_conversion`): a widening
+/// keeps the source's sign or zero bits, and a narrowing is proven inside the
+/// target, whose own normalization is then exact.
+pub(crate) fn exact_cast_has_native_carriers(source: IntegerType, target: IntegerType) -> bool {
     scalar_shape(ScalarType::Integer(source)).is_some()
         && scalar_shape(ScalarType::Integer(target)).is_some()
         && source.can_exact_cast_to(target)
-        && !(source.sign() == IntegerSign::Signed
-            && target.sign() == IntegerSign::Signed
-            && (source.bits() != 64 || target.bits() != 64))
-        && !(source.bits() == 16 && target.bits() > 16)
 }
 
 #[cfg(test)]

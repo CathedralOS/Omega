@@ -66,5 +66,6 @@ pub fn validate_legalized_operations<'source>(
     };
     Ok(ValidatedLegalizedOperations { plan, receipt })
 }
+pub(crate) use scalar_graph_input::exact_cast_has_native_carriers;
 #[cfg(test)]
 pub(crate) use source::accepts_fragment_publication_input;
