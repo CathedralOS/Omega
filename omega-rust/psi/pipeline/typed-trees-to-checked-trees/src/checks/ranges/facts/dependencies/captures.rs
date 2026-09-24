@@ -192,10 +192,11 @@ pub(super) fn integer_value_identity(
     state: &State,
     mut expression: ExpressionHandle,
 ) -> Option<SymbolHandle> {
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     let value =
-        validation::immutable_integer_bound_value_symbol(program, expression).or_else(|| {
+        validation::immutable_integer_bound_value_symbol(program, &bound_lookup, expression).or_else(|| {
             let normalized =
-                validation::normalize_immutable_integer_bound_expression(program, expression)?;
+                validation::normalize_immutable_integer_bound_expression(program, &bound_lookup, expression)?;
             let ExpressionNode::Name(path) = program.expression_table.expression(normalized) else {
                 return None;
             };

@@ -23,6 +23,8 @@ pub(crate) fn validate_array_window_elements(
     let ExpressionNode::Range(range) = program.expression_table.expression(indexed.index) else {
         return;
     };
+    let bound_lookup =
+        crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup::new(program);
     let Some(collection_type) = crate::value_custody::places::declared_place_type(
         program,
         machine,
@@ -55,12 +57,12 @@ pub(crate) fn validate_array_window_elements(
             _ => return,
         };
     let start = if range.start.is_valid() {
-        crate::normalize_immutable_integer_bound_to_usize(program, range.start)
+        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.start)
     } else {
         Some(0)
     };
     let end = if range.end.is_valid() {
-        crate::normalize_immutable_integer_bound_to_usize(program, range.end).and_then(|end| {
+        crate::normalize_immutable_integer_bound_to_usize(program, &bound_lookup, range.end).and_then(|end| {
             if range.end_inclusive {
                 end.checked_add(1)
             } else {

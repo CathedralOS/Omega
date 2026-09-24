@@ -611,6 +611,7 @@ fn index_window_provably_empty(
 
 fn range_integer_bounds(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
@@ -619,9 +620,9 @@ fn range_integer_bounds(
         selectors.bound(
             location,
             BorrowCompatibilitySelectorPosition::RangeStart,
-            || selector_bound(program, range.start),
+            || selector_bound(program, lookup, range.start),
         ),
-        exclusive_end_bound(program, range, location, selectors),
+        exclusive_end_bound(program, lookup, range, location, selectors),
     )
 }
 
@@ -704,9 +705,10 @@ pub(super) fn index_expression_extent_with_selectors(
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> EvaluatedIndexExtent {
+    let bound_lookup = validation::ImmutableBoundLookup::new(program);
     match program.expression_table.expression(expression) {
         ExpressionNode::Range(range) => {
-            let (start, end) = range_integer_bounds(program, range, location, selectors);
+            let (start, end) = range_integer_bounds(program, &bound_lookup, range, location, selectors);
             EvaluatedIndexExtent::Window { start, end }
         }
         _ => EvaluatedIndexExtent::Point(selectors.bound(
@@ -720,7 +722,7 @@ pub(super) fn index_expression_extent_with_selectors(
                     .expression_table
                     .constant_integer_value(expression)
                     .map(NormalizedBound::Integer)
-                    .or_else(|| selector_bound(program, expression))
+                    .or_else(|| selector_bound(program, &bound_lookup, expression))
             },
         )),
     }
@@ -740,6 +742,7 @@ pub(super) fn index_expression_extent_with_selectors(
 /// as possibly-overlapping.
 fn exclusive_end_bound(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     range: &TableRangeExpression,
     location: SelectorLocation,
     selectors: &mut SelectorSnapshotEvaluation<'_>,
@@ -748,7 +751,7 @@ fn exclusive_end_bound(
         location,
         BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
         || {
-            let end = selector_bound(program, range.end)?;
+            let end = selector_bound(program, lookup, range.end)?;
             if !range.end_inclusive {
                 return Some(end);
             }
@@ -792,15 +795,16 @@ fn exclusive_end_bound(
 /// to the same occurrence.
 pub(super) fn selector_bound(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
-    normalized_bound(program, expression)
+    normalized_bound(program, lookup, expression)
         .or_else(|| {
-            validation::mutable_integer_bound_storage_symbol(program, expression)
+            validation::mutable_integer_bound_storage_symbol(program, lookup, expression)
                 .map(|symbol| NormalizedBound::Storage { symbol })
         })
-        .or_else(|| projected_bound(program, expression))
-        .or_else(|| indexed_bound(program, expression))
+        .or_else(|| projected_bound(program, lookup, expression))
+        .or_else(|| indexed_bound(program, lookup, expression))
 }
 
 /// The bound of one receiver-rooted field projection (`pair.first`). An
@@ -809,10 +813,11 @@ pub(super) fn selector_bound(
 /// pin-evidence contract as `Storage`.
 pub(super) fn projected_bound(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     let (symbol, field, is_mutable) =
-        validation::projected_integer_bound_root(program, expression)?;
+        validation::projected_integer_bound_root(program, lookup, expression)?;
     // The bound names the canonical attached-field identity the write frame
     // carries; the authored member spelling can disagree for `self` members.
     let field = match program.expression_table.expression(expression) {
@@ -835,10 +840,11 @@ pub(super) fn projected_bound(
 /// contract as `Storage`.
 pub(super) fn indexed_bound(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     let (symbol, segments, is_mutable) =
-        validation::indexed_integer_bound_root(program, expression)?;
+        validation::indexed_integer_bound_root(program, lookup, expression)?;
     Some(if is_mutable {
         NormalizedBound::StorageProjected { symbol, segments }
     } else {
@@ -848,6 +854,7 @@ pub(super) fn indexed_bound(
 
 pub(super) fn normalized_bound(
     program: &typed_trees::TypedTrees,
+    lookup: &validation::ImmutableBoundLookup<'_>,
     expression: ExpressionHandle,
 ) -> Option<NormalizedBound> {
     // A call result has no place identity: the occurrence's own expression
@@ -875,13 +882,13 @@ pub(super) fn normalized_bound(
             segments: place.segments,
         });
     }
-    if let Some(offset) = validation::immutable_integer_bound_symbol_offset(program, expression) {
+    if let Some(offset) = validation::immutable_integer_bound_symbol_offset(program, lookup, expression) {
         return Some(NormalizedBound::Symbol {
             symbol: offset.symbol,
             offset: offset.offset,
         });
     }
-    if let Some(sum) = validation::immutable_integer_bound_sum(program, expression) {
+    if let Some(sum) = validation::immutable_integer_bound_sum(program, lookup, expression) {
         return Some(NormalizedBound::SymbolSum {
             first: sum.first,
             second: sum.second,
@@ -889,9 +896,9 @@ pub(super) fn normalized_bound(
         });
     }
     let Some(expression) =
-        validation::normalize_immutable_integer_bound_expression(program, expression)
+        validation::normalize_immutable_integer_bound_expression(program, lookup, expression)
     else {
-        return validation::immutable_integer_bound_value_symbol(program, expression)
+        return validation::immutable_integer_bound_value_symbol(program, lookup, expression)
             .map(|symbol| NormalizedBound::Symbol { symbol, offset: 0 });
     };
     match program.expression_table.expression(expression) {
