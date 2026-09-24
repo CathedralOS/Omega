@@ -31,6 +31,7 @@ mod call_result_bounds;
 mod cast_ranges;
 mod dependent_products;
 mod dependent_relations;
+pub(crate) mod domain_intervals;
 mod exact_division_definedness;
 mod expression_analysis;
 mod float_arithmetic;
