@@ -429,10 +429,10 @@ pub(crate) fn structural_scalar_signature_traced(
     ))
 }
 
-/// A borrowed `self` is the machine's ambient receiver: it carries the
-/// attachment shape once on the entry roster, which doubles as the machine's
-/// structural namespace, so every scalar-graph state may read through it while
-/// edges keep carrying no receiver argument.
+/// The attached signature a scalar graph admits: a borrowed `self`, when the
+/// state has one, is retained as the receiver. Only a machine of one authored
+/// state retains it (`terminal_scalar::checked_state_graph`); a multi-state
+/// machine that reads its receiver belongs to the Unit state graph.
 pub(crate) fn ambient_self_scalar_graph_signature(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -453,29 +453,6 @@ pub(crate) fn ambient_self_scalar_graph_signature(
         &LocalConstructionTrace::default(),
     )?;
     Some((structural, scalar, shapes.types.into_values().collect()))
-}
-
-/// An attached machine's mixed signature as a scalar graph sees it: the
-/// ambient `&self` receiver appears only on the entry state's roster while
-/// every state's own structural formals forward across the edges that reach
-/// it. Non-entry rosters therefore carry the same traced signature minus the
-/// receiver entry.
-pub(crate) fn mixed_ambient_scalar_graph_signature(
-    program: &TypedTrees,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-    entry_state: SymbolHandle,
-) -> Option<(
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<CheckedStructuralScalarParameterPlan>,
-    Vec<CheckedUnitStructuralTypePlan>,
-)> {
-    let (mut structural, scalar, shapes) =
-        ambient_self_scalar_graph_signature(program, machine, state)?;
-    if state.symbol != entry_state {
-        structural.retain(|parameter| !parameter.is_self);
-    }
-    Some((structural, scalar, shapes))
 }
 
 pub(crate) fn free_structural_scalar_signature(

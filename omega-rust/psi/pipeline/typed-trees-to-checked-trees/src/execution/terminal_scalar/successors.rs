@@ -208,78 +208,57 @@ fn arguments<'a>(
             .count()
     };
     if forwarded(source) != 0 || forwarded(target) != 0 {
-        // An attached machine without a mutable receiver carries the mixed
-        // signature per state: the ambient `&self` stays on the entry roster
-        // while each state's own structural formals forward on its incoming
-        // edges. Other rosters keep the single-state bound.
         // Rosters are authored per state owner: a fused or cross-machine edge
-        // resolves each side's signature under its own machine.
-        let ambient_roster = |owner_machine: &typed_trees::machine::Machine,
-                              owner_states: &[typed_trees::state::State],
-                              state: &CheckedScalarStateGraph| {
-            let typed_state = owner_states
-                .iter()
-                .find(|entry| entry.symbol == state.state)?;
-            if owner_machine.attached_data.is_none()
-                || program
+        // resolves each side's signature under its own machine. An attached
+        // machine carries its whole mixed signature per state, a free one its
+        // ordinary free signature; each is bound on the incoming edge by the
+        // whole-parameter or subslice transfer below. A state with a receiver
+        // forwards only within one authored state: a multi-state machine that
+        // could need its receiver belongs to the Unit state graph, which Unit
+        // callers reach (see `build_machine_graph`).
+        let admitted = |owner_machine: &typed_trees::machine::Machine,
+                        typed_state: &typed_trees::state::State| {
+            let (structural, scalar, _) = if owner_machine.attached_data.is_some()
+                && !program
                     .state_parameters(typed_state)
                     .iter()
                     .any(|parameter| parameter.is_self && parameter.is_mutable)
             {
-                return None;
-            }
-            let (structural, scalar, _) =
-                super::super::terminal_unit::calls::mixed_ambient_scalar_graph_signature(
+                super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
                     program,
                     owner_machine,
                     typed_state,
-                    owner_states.first()?.symbol,
-                )?;
-            Some((structural, scalar))
-        };
-        // A free machine forwards its per-state structural formals under the
-        // ordinary free signature: the same bounded roster, bound on each
-        // incoming edge by the whole-parameter or subslice transfer below.
-        let free_roster = |owner_machine: &typed_trees::machine::Machine,
-                           owner_states: &[typed_trees::state::State],
-                           state: &CheckedScalarStateGraph| {
-            let typed_state = owner_states
-                .iter()
-                .find(|entry| entry.symbol == state.state)?;
-            if owner_machine.attached_data.is_some() {
-                return None;
-            }
-            let (structural, scalar, _) =
+                )?
+            } else {
                 super::super::terminal_unit::structural_scalar_graph_signature(
                     program,
                     typed_state,
-                )?;
+                )?
+            };
             Some((structural, scalar))
         };
-        let matches_roster = |owner_machine: &typed_trees::machine::Machine,
-                              owner_states: &[typed_trees::state::State],
-                              state: &CheckedScalarStateGraph| {
-            ambient_roster(owner_machine, owner_states, state)
-                .or_else(|| free_roster(owner_machine, owner_states, state))
-                .is_some_and(|(structural, scalar)| {
-                    state.structural_parameters == structural && state.scalar_parameters == scalar
-                })
+        let matches = |owner_machine: &typed_trees::machine::Machine,
+                       typed_state: &typed_trees::state::State,
+                       state: &CheckedScalarStateGraph| {
+            admitted(owner_machine, typed_state).is_some_and(|(structural, scalar)| {
+                state.structural_parameters == structural && state.scalar_parameters == scalar
+            })
         };
-        let source_states = program.machine_states(source_machine);
-        if !(matches_roster(source_machine, source_states, source)
-            && matches_roster(target_machine, target_states, target))
+        let receiver_free = |typed_state: &typed_trees::state::State| {
+            !program
+                .state_parameters(typed_state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        };
+        if !(receiver_free(source_state)
+            && receiver_free(target_state)
+            && matches(source_machine, source_state, source)
+            && matches(target_machine, target_state, target))
+            && (states.len() != 1
+                || source.state != target.state
+                || !matches(source_machine, source_state, source))
         {
-            if states.len() != 1 || source.state != target.state {
-                return None;
-            }
-            let (structural, scalar, _) =
-                super::super::terminal_unit::structural_scalar_graph_signature(
-                    program,
-                    source_state,
-                )?;
-            if source.structural_parameters != structural || source.scalar_parameters != scalar {
-                return None;
-            }
+            return None;
         }
     }
     let StatementNode::Transition(transition) = program
