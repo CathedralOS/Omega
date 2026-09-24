@@ -1960,3 +1960,19 @@ construction (consolidated same-day) — a standalone tool would be machinery
 without a customer. When task-board-cleanup runs next, cite this: generate
 keyword-overlap candidate pairs, per-pair merge/distinct/needs_review
 requests (~$0.0005 each), act only on `merge` picks.
+
+## 2026-09-24 (cont.) — spec-drift + claims-fence: two more advisories deployed
+
+Fence adequacy (tools/swarm/launch.py partition_hints -> jev_fence): 12-case
+worked example caught every real under-fence (7/7), runs strict toward
+flagging — the safe direction for a launch advisory. Live: fired on 5/5
+probe-manifest sessions.
+
+Spec drift (tools/spec_drift_advisor.py): worked example 9/10 — both real
+moved-file drift cases caught, plus honest unverifiable hedging on partial
+evidence (Jev refused to confirm canary-jobs-cap when the evidence excerpt
+omitted the available_parallelism call — fourth out-labeling instance).
+Deployment lesson: path claims need a crate-relative resolver (`psi/` ->
+`omega-rust/psi/`); naive root-only resolution manufactures false drift.
+Mechanical stale-path layer is the high-precision one; semantic verdicts
+stay hedged on policy prose.
