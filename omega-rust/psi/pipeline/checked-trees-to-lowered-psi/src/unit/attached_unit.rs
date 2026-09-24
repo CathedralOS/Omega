@@ -92,6 +92,7 @@ pub(crate) use composed_control::dynamic_result::{
     emit_call_leaf as emit_dynamic_control_leaf,
     lower_control_catalogs as lower_dynamic_control_catalogs,
 };
+pub(crate) use composed_control::live as unit_graph_live_states;
 pub(crate) use composed_control::lower_composed_unit_control_machine;
 #[cfg(test)]
 pub(crate) use parameters::lower_contract_service_ceiling;

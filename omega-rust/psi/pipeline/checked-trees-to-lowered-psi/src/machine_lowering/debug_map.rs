@@ -12,6 +12,7 @@ use crate::lowering_error::LoweringError;
 pub(crate) fn build_debug_map(
     plan: &CheckedTerminalMachineDebugPlan,
     module: &TerminalModule,
+    live_states: Option<&[bool]>,
 ) -> Result<TerminalDebugMap, LoweringError> {
     // Shared assembly may emit ordered helpers before the selected scalar root.
     // The source plan belongs to the entry identity, not the first emitted body.
@@ -28,7 +29,21 @@ pub(crate) fn build_debug_map(
         .ok_or(LoweringError::Unsupported(
             "scalar debug source entry has no scalar result",
         ))?;
-    let source_states = &plan.states;
+    // Emitted blocks cover only the live state closure; prune the source
+    // roster with the same mask so block ordinals keep pairing their state.
+    let filtered_states;
+    let source_states = if let Some(live_states) = live_states {
+        filtered_states = plan
+            .states
+            .iter()
+            .zip(live_states)
+            .filter_map(|(state, live)| live.then_some(state))
+            .collect::<Vec<_>>();
+        &filtered_states[..]
+    } else {
+        filtered_states = plan.states.iter().collect::<Vec<_>>();
+        &filtered_states[..]
+    };
     let has_source_file = |span: source::SourceSpan| {
         plan.source_files
             .iter()
