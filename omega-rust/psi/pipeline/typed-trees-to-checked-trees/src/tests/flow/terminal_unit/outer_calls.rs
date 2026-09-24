@@ -105,3 +105,178 @@ fn transition_arm_values_own_their_calls() {
             .omission_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
     );
 }
+
+const TRANSITION_CALL_ARMS: &str = r#"
+    data Dtr { tag: u64 }
+    data Srfc { dtr: Dtr; count: u64 }
+    data Srsr { collections: [Srfc; 4]; collection_count: u64 }
+
+    machine Dtr::default() -> Dtr { Dtr { tag: 0 } }
+    machine Srfc::empty(dtr: Dtr, count: u64) -> Srfc {
+        Srfc { dtr: dtr, count: count }
+    }
+    machine Srsr::get_filter_collection(&self, collection_index: u64) -> Srfc {
+        transition collection_index < self.collection_count {
+            true -> (Srfc::empty(Dtr::default(), 0))
+            false -> (Srfc::empty(Dtr::default(), 1))
+        }
+    }
+"#;
+
+const TRANSITION_READ_ARMS: &str = r#"
+    data Dtr { tag: u64 }
+    data Srfc { dtr: Dtr; count: u64 }
+    data Srsr { collections: [Srfc; 4]; collection_count: u64 }
+
+    machine Dtr::default() -> Dtr { Dtr { tag: 0 } }
+    machine Srfc::empty(dtr: Dtr, count: u64) -> Srfc {
+        Srfc { dtr: dtr, count: count }
+    }
+    machine Srsr::get_filter_collection(&self, collection_index: u64) -> Srfc {
+        transition collection_index < self.collection_count && collection_index < 4 {
+            true -> (self.collections[collection_index])
+            false -> (self.collections[0])
+        }
+    }
+"#;
+
+const TRANSITION_LITERAL_ARMS: &str = r#"
+    data Dtr { tag: u64 }
+    data Srfc { dtr: Dtr; count: u64 }
+    data Srsr { collections: [Srfc; 4]; collection_count: u64 }
+
+    machine Srsr::get_filter_collection(&self, collection_index: u64, fallback: Srfc) -> Srfc {
+        transition collection_index < self.collection_count {
+            true -> (Srfc { dtr: fallback.dtr, count: 1 })
+            false -> (fallback)
+        }
+    }
+"#;
+
+const TRANSITION_ENUM_ARMS: &str = r#"
+    data Region { case Empty; case Full(count: u64); }
+    data Holder { flag: u64 }
+
+    machine Holder::pick(&self, x: u64, r: Region) -> Region {
+        transition x < self.flag {
+            true -> (Region::Empty)
+            false -> (r)
+        }
+    }
+"#;
+
+const TRANSITION_SIMPLE_CALL_ARMS: &str = r#"
+    data Dtr { tag: u64 }
+    data Srfc { dtr: Dtr; count: u64 }
+    data Srsr { flag: u64 }
+
+    machine Srfc::empty(dtr: Dtr, count: u64) -> Srfc {
+        Srfc { dtr: dtr, count: count }
+    }
+    machine Srsr::pick(&self, x: u64, d: Dtr) -> Srfc {
+        transition x < 4 {
+            true -> (Srfc::empty(d, 1))
+            false -> (Srfc::empty(d, 2))
+        }
+    }
+"#;
+
+#[test]
+fn transition_arm_call_arguments_establish_nested_calls() {
+    // `Srfc::empty(Dtr::default(), 0)` inside a `(value)` arm plans the nested
+    // `Dtr::default` as an ordinary structural call operation in the state's
+    // operation stream — the same shape a `let` initializer produces — and
+    // keeps the arm's own call on its value node.
+    let checked = checked(TRANSITION_CALL_ARMS);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let composed = plans
+        .composed_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+        .unwrap_or_else(|| {
+            panic!(
+                "nested-call arm declined: {:?}",
+                plans.omission_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+            )
+        });
+    let [state] = composed.states.as_slice() else {
+        panic!("expected a single composed state");
+    };
+    let established = state
+        .operations
+        .iter()
+        .filter(|operation| {
+            matches!(
+                operation,
+                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
+            )
+        })
+        .count();
+    assert_eq!(
+        established, 2,
+        "each arm's `Dtr::default` operand is one established structural call"
+    );
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded { return_values, .. } =
+        &state.terminator
+    else {
+        panic!("both `(value)` arms check as a guarded return terminator");
+    };
+    assert_eq!(return_values.len(), 2);
+    for operation in return_values {
+        let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            calls, ..
+        } = operation
+        else {
+            panic!("arm values lower through their structural value producers");
+        };
+        assert_eq!(calls.len(), 1, "each arm keeps its `Srfc::empty` call");
+    }
+}
+
+#[test]
+fn transition_arm_value_shapes_still_compose() {
+    // Arm shapes already admitted keep their plans: literal fields, enum
+    // cases, and call arguments that are parameters mint no operand calls.
+    for (label, source, name) in [
+        (
+            "literal-arms",
+            TRANSITION_LITERAL_ARMS,
+            "Srsr::get_filter_collection",
+        ),
+        ("enum-arms", TRANSITION_ENUM_ARMS, "Holder::pick"),
+        (
+            "simple-call-arms",
+            TRANSITION_SIMPLE_CALL_ARMS,
+            "Srsr::pick",
+        ),
+    ] {
+        let checked = checked(source);
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        assert!(
+            plans
+                .composed_for_machine(machine_named(&checked, name))
+                .is_some(),
+            "{label} declined: {:?}",
+            plans.omission_for_machine(machine_named(&checked, name))
+        );
+    }
+}
+
+#[test]
+fn transition_arm_runtime_index_reads_remain_declined() {
+    // `self.collections[collection_index]` is a runtime-indexed read the
+    // composed guard retains no place for — that residual is tracked
+    // separately; a literal-index arm also declines at the same gate until
+    // guard-derived bounds carry integer ranges.
+    for (label, source) in [
+        ("read-arms", TRANSITION_READ_ARMS),
+        ("mixed", TRANSITION_SOURCE),
+    ] {
+        let checked = checked(source);
+        let plans = &checked.facts.flow.terminal_unit_effects;
+        assert!(
+            plans
+                .composed_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+                .is_none(),
+            "{label} unexpectedly composed",
+        );
+    }
+}
