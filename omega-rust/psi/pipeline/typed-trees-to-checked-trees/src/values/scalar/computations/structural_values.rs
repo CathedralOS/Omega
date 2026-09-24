@@ -475,7 +475,8 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
     // stays exactly where the field's `&` put it. Its bare `Slice` rung
     // unwraps to `Affine`, so the shared-borrow view's own multiplicity is
     // what decides admission.
-    if crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
+    if (crate::execution::terminal_unit::types::borrowed_slice_view(program, expected)
+        || crate::execution::terminal_unit::types::borrowed_named_view(program, expected))
         && program.type_multiplicity(expected) == language_semantics::Multiplicity::Unrestricted
     {
         return true;
