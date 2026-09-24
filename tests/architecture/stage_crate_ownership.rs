@@ -648,17 +648,19 @@ fn stage_entrances_stay_connected_to_external_callers() {
             &[],
         ),
     ];
+    // The stage crates carry an ordering prefix on their DIRECTORY that their
+    // `[package] name` does not, so an area is located through the crate
+    // roster rather than by joining the transform name onto the pipeline path.
+    let directories: BTreeMap<String, PathBuf> = stage_crates(&root).into_iter().collect();
     let mut area_rosters: BTreeMap<&str, (&str, BTreeSet<String>)> = BTreeMap::new();
     for (crate_name, area, roster, vocabulary) in areas {
-        let declared: BTreeSet<String> = std::fs::read_to_string(
-            root.join("omega-rust/omega/pipeline")
-                .join(crate_name)
-                .join("src")
-                .join(area)
-                .join("mod.rs"),
-        )
-        .map(|source| declared_modules(&source))
-        .unwrap_or_default();
+        let directory = directories
+            .get(crate_name)
+            .unwrap_or_else(|| panic!("no pipeline stage crate is named {crate_name}"));
+        let declared: BTreeSet<String> =
+            std::fs::read_to_string(directory.join("src").join(area).join("mod.rs"))
+                .map(|source| declared_modules(&source))
+                .unwrap_or_default();
         let rostered: BTreeSet<String> = roster.iter().map(|(m, _)| (*m).to_owned()).collect();
         let shared: BTreeSet<String> = vocabulary.iter().map(|m| (*m).to_owned()).collect();
         let expected: BTreeSet<String> = rostered.union(&shared).cloned().collect();
