@@ -4,14 +4,24 @@ use super::super::super::super::{
     BooleanEqualConstantsRule, BooleanNotConstantsRule, IntegerEqualConstantsRule,
     IntegerLessOrEqualConstantsRule, IntegerLessThanConstantsRule,
 };
-use super::super::super::{
-    AbstractOperation, AnalysisKind, BooleanConstantRewrite, BooleanFixtureKind,
-    ComparisonFixtureKind, IntegerEvaluationWitness, IntegerSign, IntegerType, IntegerValue,
-    OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationUnitValidationError, PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate,
-    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, boolean_constant_unit,
-    compute_analysis, integer_comparison_constant_unit, validate_boolean_evaluation_candidate,
+use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
+    BooleanFixtureKind, ComparisonFixtureKind, boolean_constant_unit,
+    integer_comparison_constant_unit,
 };
+use crate::{PsiOptimizationRule, RuleAnalysisView, compute_analysis};
+use abstract_operations::AbstractOperation;
+use optimization_core::{
+    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    ScalarConstantFactIdentity,
+};
+use optimization_unit::{
+    BooleanConstantRewrite, IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate,
+    PsiRewritePatch,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
 fn propose_one(unit: &PsiOptimizationUnit, rule: &dyn PsiOptimizationRule) -> PsiRewriteCandidate {
     let constants = compute_analysis(unit, AnalysisKind::ScalarConstants).unwrap();

@@ -2,13 +2,21 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::WrappingShiftZeroCountIdentityRule;
-use super::super::super::{
-    AnalysisProduct, IntegerSign, IntegerType, IntegerValue, O, ObligationId, OperationId,
-    OptimizationRuleContract, OptimizationValidatorIdentity, PsiOptimizationUnit,
-    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId,
-    WrappingNeutralOperation, id, recompute_psi_optimization_unit_identity,
-    validate_total_scalar_identity_candidate,
+use crate::rules::tests::fixtures::global_value_numbering::{
+    WrappingNeutralOperation,
     wrapping_neutral_identity_unit_with_value_and_identity_types_and_liveness,
+};
+use crate::rules::tests::fixtures::id;
+use crate::{AnalysisProduct, RuleAnalysisView};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{OptimizationRuleContract, OptimizationValidatorIdentity};
+use optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, TotalScalarIdentityKind,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::validate_total_scalar_identity_candidate;
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
 };
 
 fn analysis_products(

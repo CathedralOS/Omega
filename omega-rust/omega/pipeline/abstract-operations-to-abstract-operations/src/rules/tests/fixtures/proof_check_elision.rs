@@ -1,15 +1,21 @@
 //! Proof-check-elision fixture programs.
 
-use super::super::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, BlockId, EdgeId,
-    FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId, O, ObligationId,
-    OperationId, OptimizationFact, PsiOptimizationUnit, ScalarType, SemanticFingerprint,
-    TerminalPsiIdentity, ValueId, VocabularyMarker, integer_one, integer_zero,
-    recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
-    validate_psi_optimization_unit,
-};
 use super::{id, with_synthetic_accepted_obligations};
+use crate::rules::proof_check_elision::{integer_one, integer_zero};
+use abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractOperation as O, AbstractOperationPlan, AbstractParameter, AbstractResult,
+};
+use optimization_unit::{
+    OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
+    reconstruct_psi_optimization_unit_seed,
+};
+use optimization_unit_semantics::validate_psi_optimization_unit;
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, ScalarType, ValueId,
+};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 pub(crate) fn exact_add_unit() -> PsiOptimizationUnit {
     exact_chain_unit(false)
 }

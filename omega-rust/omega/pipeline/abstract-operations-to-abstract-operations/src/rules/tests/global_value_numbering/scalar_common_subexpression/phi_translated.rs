@@ -6,14 +6,21 @@ use super::super::super::super::{
     PhiTranslatedProofCertifiedCompatiblePolicyScalarGvnRule,
     PhiTranslatedProofCertifiedScalarGvnRule,
 };
-use super::super::super::{
-    BlockId, EdgeId, O, OperationId, OptimizationFact, OptimizationUnitValidationError,
-    PhiTranslatedRightArm, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
-    RuleAnalysisView, ValueId, compatible_policy_phi_translated_gvn_unit, id,
-    phi_translated_gvn_fixture, phi_translated_gvn_unit, proof_certified_phi_translated_gvn_unit,
-    recompute_psi_optimization_unit_identity,
-    validate_phi_translated_scalar_common_subexpression_candidate,
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::global_value_numbering::{
+    PhiTranslatedRightArm, compatible_policy_phi_translated_gvn_unit, phi_translated_gvn_fixture,
+    phi_translated_gvn_unit, proof_certified_phi_translated_gvn_unit,
 };
+use crate::rules::tests::fixtures::id;
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::{
+    OptimizationFact, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_phi_translated_scalar_common_subexpression_candidate,
+};
+use semantic_vocabulary::{BlockId, EdgeId, OperationId, ValueId};
 
 fn phi_translated_candidates(unit: &PsiOptimizationUnit) -> Vec<PsiRewriteCandidate> {
     let contract = PhiTranslatedObligationFreeScalarGvnRule::contract();

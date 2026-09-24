@@ -2,11 +2,17 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::DeadScalarLiteralEliminationRule;
-use super::super::{
-    AbstractFunctionResult, AbstractResult, AnalysisKind, BlockId, EdgeId, IntegerSign,
-    IntegerType, O, OperationId, PsiProvenance, RuleAnalysisView, ScalarType, ValueId,
-    compute_analysis, dead_scalar_literals_unit, id, recompute_psi_optimization_unit_identity,
+use crate::rules::tests::fixtures::dead_scalar_elimination::dead_scalar_literals_unit;
+use crate::rules::tests::fixtures::id;
+use crate::{RuleAnalysisView, compute_analysis};
+use abstract_operations::{AbstractFunctionResult, AbstractOperation as O, AbstractResult};
+use optimization_core::AnalysisKind;
+use optimization_unit::{PsiProvenance, recompute_psi_optimization_unit_identity};
+use optimization_unit_semantics::{
     validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
 };
 
 #[test]

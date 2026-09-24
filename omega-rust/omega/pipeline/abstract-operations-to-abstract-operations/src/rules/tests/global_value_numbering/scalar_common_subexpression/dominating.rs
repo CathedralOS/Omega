@@ -5,13 +5,23 @@ use super::super::super::super::{
     DominatorProofCertifiedScalarGvnRule, DominatorTotalScalarGvnRule, SameBlockTotalScalarCseRule,
     node_elision_accounting,
 };
-use super::super::super::{
-    BlockId, DominatingScalarCommonSubexpressionRewrite, EdgeId, IntegerSign, IntegerType,
-    NodeLocation, O, OperationId, OptimizationFact, OptimizationSafetyClass,
-    OptimizationUnitValidationError, PsiProvenance, PsiRewriteCandidate, PsiRewritePatch,
-    RuleAnalysisView, ScalarType, ValueId, diamond_dominator_gvn_unit, dominator_gvn_unit, id,
-    proof_certified_dominator_gvn_unit, recompute_psi_optimization_unit_identity,
-    sibling_only_gvn_unit, validate_dominating_scalar_common_subexpression_candidate,
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::global_value_numbering::{
+    diamond_dominator_gvn_unit, dominator_gvn_unit, proof_certified_dominator_gvn_unit,
+    sibling_only_gvn_unit,
+};
+use crate::rules::tests::fixtures::id;
+use abstract_operations::AbstractOperation as O;
+use optimization_core::OptimizationSafetyClass;
+use optimization_unit::{
+    DominatingScalarCommonSubexpressionRewrite, NodeLocation, OptimizationFact, PsiProvenance,
+    PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_dominating_scalar_common_subexpression_candidate,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IntegerSign, IntegerType, OperationId, ScalarType, ValueId,
 };
 
 #[test]

@@ -1,23 +1,35 @@
 //! SCCP fixture programs.
 
-use super::super::{
+use super::{id, with_synthetic_accepted_obligations};
+use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractResult, BlockId, EdgeId, FuelScheduleIdentity, IntegerSign,
-    IntegerType, IntegerValue, MachineId, O, ObligationId, OperationId, OptimizationFact,
-    PsiOptimizationUnit, ScalarType, SemanticFingerprint, TerminalPsiIdentity, ValueId,
-    VocabularyMarker, recompute_psi_optimization_unit_identity,
+    AbstractOperation as O, AbstractOperationPlan, AbstractResult,
+};
+use optimization_unit::{
+    OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
     reconstruct_psi_optimization_unit_seed,
 };
-use super::{exact_add_unit, id, with_synthetic_accepted_obligations};
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    ObligationId, OperationId, ScalarType, ValueId,
+};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 mod binary;
 mod boolean;
 mod range;
 mod unary;
 
-pub(crate) use binary::*;
-pub(crate) use boolean::*;
-pub(crate) use range::*;
-pub(crate) use unary::*;
+pub(crate) use binary::{BinaryConstantFixtureKind, binary_constant_unit};
+pub(crate) use boolean::{
+    BooleanFixtureKind, ComparisonFixtureKind, boolean_constant_unit, boolean_unit,
+    integer_comparison_constant_unit,
+};
+pub(crate) use range::{
+    ProofRangeKind, proof_range_pair_comparison_unit, range_constant_comparison_unit,
+    range_pair_comparison_unit,
+};
+pub(crate) use unary::{UnaryConstantFixtureKind, unary_constant_unit};
 
 pub(crate) fn policy_add_unit(saturating: bool) -> PsiOptimizationUnit {
     let mut unit = exact_add_unit();

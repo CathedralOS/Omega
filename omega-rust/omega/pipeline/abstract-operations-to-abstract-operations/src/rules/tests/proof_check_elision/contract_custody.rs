@@ -14,17 +14,25 @@ use super::super::super::{
     LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule,
     ProofCertifiedDeadScalarEliminationRule,
 };
-use super::super::{
-    AnalysisKind, IntegerSign, IntegerType, O, Optimization, OptimizationRuleContract,
-    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationSelections,
-    OptimizationValidatorIdentity, PsiOptimizationRule, PsiOptimizationUnit, PsiRewriteCandidate,
-    PsiRewriteCandidateError, PsiRewritePatch, RuleAnalysisView, SelfDividePolicy,
-    SelfRemainderPolicy, built_in_psi_registry, dead_exact_add_unit, live_divide_by_one_unit,
-    live_exact_add_zero_unit, live_exact_multiply_by_zero_unit, live_exact_self_subtract_unit,
+use crate::rules::built_in_psi_registry;
+use crate::rules::tests::fixtures::dead_scalar_elimination::dead_exact_add_unit;
+use crate::rules::tests::fixtures::proof_check_elision::{
+    SelfDividePolicy, SelfRemainderPolicy, live_divide_by_one_unit, live_exact_add_zero_unit,
+    live_exact_multiply_by_zero_unit, live_exact_self_subtract_unit,
     live_exact_signed_negative_one_shift_right_unit, live_exact_zero_value_shift_unit,
     live_remainder_by_one_unit, live_self_divide_unit, live_self_remainder_unit,
     live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
 };
+use crate::{PsiOptimizationRule, RuleAnalysisView};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{
+    AnalysisKind, Optimization, OptimizationRuleContract, OptimizationRuleIdentity,
+    OptimizationSafetyClass, OptimizationSelections, OptimizationValidatorIdentity,
+};
+use optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType};
 
 use optimization_core::{AnalysisInvalidationSet, AnalysisSet};
 use optimization_unit_semantics::validate_psi_rewrite_candidate;

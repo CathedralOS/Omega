@@ -4,17 +4,26 @@ use crate::rules::registry::PsiOptimizationRule;
 use super::super::super::{
     AdjacentBlockMergeRule, ConstantConditionalFoldRule, NonAdjacentBlockMergeRule,
 };
-use super::super::{
-    AbstractOperation, BlockId, EdgeId, MachineId, NodeLocation, O, OperationId,
-    OptimizationFactReference, OptimizationUnitValidationError, OwnershipFrontierFact,
-    OwnershipFrontierSite, OwnershipFrontierSnapshot, OwnershipFrontierWitness,
-    ProvenanceDisposition, PsiProvenance, PsiRealizationSite, PsiRewriteCandidate,
-    PsiRewriteCandidateError, PsiRewritePatch, RuleAnalysisView, ValueId,
-    adjacent_conditional_merge_unit, id, linear_empty_block_unit, non_adjacent_merge_unit,
-    propagated_block_parameter_unit, recompute_psi_optimization_unit_identity,
-    validate_adjacent_block_merge_candidate, validate_constant_conditional_candidate,
-    validate_non_adjacent_block_merge_candidate, validate_psi_optimization_unit,
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::control_flow_cleanup::{
+    adjacent_conditional_merge_unit, linear_empty_block_unit, non_adjacent_merge_unit,
+    propagated_block_parameter_unit,
 };
+use crate::rules::tests::fixtures::id;
+use abstract_operations::{AbstractOperation, AbstractOperation as O};
+use optimization_core::OptimizationFactReference;
+use optimization_unit::{
+    NodeLocation, OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot,
+    OwnershipFrontierWitness, ProvenanceDisposition, PsiProvenance, PsiRealizationSite,
+    PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_adjacent_block_merge_candidate,
+    validate_constant_conditional_candidate, validate_non_adjacent_block_merge_candidate,
+    validate_psi_optimization_unit,
+};
+use semantic_vocabulary::{BlockId, EdgeId, MachineId, OperationId, ValueId};
 
 #[test]
 fn adjacent_block_merge_substitutes_parameters_and_rehomes_edge_custody() {

@@ -3,8 +3,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
 use super::custody::{Case, assert_operational_custody};
-use crate::PsiOptimizationRule;
-use crate::rules::tests::{
+use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
     BinaryConstantFixtureKind as Binary, UnaryConstantFixtureKind as Unary, binary_constant_unit,
     unary_constant_unit,
 };
@@ -14,7 +13,7 @@ use crate::{
     ExactIntegerShiftLeftConstantsRule, ExactIntegerShiftRightConstantsRule,
     ExactIntegerSubtractConstantsRule, IntegerBitwiseAndConstantsRule,
     IntegerBitwiseNotConstantsRule, IntegerBitwiseOrConstantsRule, IntegerBitwiseXorConstantsRule,
-    IntegerWidenConstantsRule, SaturatingIntegerAddConstantsRule,
+    IntegerWidenConstantsRule, PsiOptimizationRule, SaturatingIntegerAddConstantsRule,
     SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
     SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
     WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,

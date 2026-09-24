@@ -1,6 +1,8 @@
 //! Exact proof-certified scalar expression vocabulary.
 
-use super::super::{O, proof_certified_local_cse_unit, proof_certified_scalar_expression};
+use crate::rules::global_value_numbering::proof_certified_scalar_expression;
+use crate::rules::tests::fixtures::global_value_numbering::proof_certified_local_cse_unit;
+use abstract_operations::AbstractOperation as O;
 
 #[test]
 fn proof_certified_cse_expression_vocabulary_is_closed_and_exact() {

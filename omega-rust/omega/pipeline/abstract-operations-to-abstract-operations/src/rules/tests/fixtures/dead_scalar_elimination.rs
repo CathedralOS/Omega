@@ -1,13 +1,20 @@
 //! Dead-scalar fixture programs.
 
-use super::super::{
+use super::id;
+use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
+use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-    IntegerValue, MachineId, O, OperationId, PsiOptimizationUnit, ScalarType, SemanticFingerprint,
-    TerminalPsiIdentity, ValueId, VocabularyMarker, recompute_psi_optimization_unit_identity,
+    AbstractOperation as O, AbstractOperationPlan,
+};
+use optimization_unit::{
+    PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
     reconstruct_psi_optimization_unit_seed,
 };
-use super::{exact_add_unit, id};
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, ScalarType, ValueId,
+};
+use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 pub(crate) fn dead_scalar_literals_unit() -> PsiOptimizationUnit {
     let machine = id(1_201, MachineId::new);
     let block = id(1_202, BlockId::new);

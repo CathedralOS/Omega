@@ -4,11 +4,15 @@ use super::super::super::{
     AdjacentBlockMergeRule, LinearEmptyBlockThreadRule, NonAdjacentBlockMergeRule,
     PathQualifiedEmptyBlockThreadRule, SharedJumpFusionRule,
 };
-use super::super::{
-    O, PlaceId, PsiOptimizationRule, PsiOptimizationUnit, RuleAnalysisView, StructuralTypeId, id,
+use crate::rules::tests::fixtures::control_flow_cleanup::{
     linear_empty_block_unit, non_adjacent_merge_unit, path_qualified_empty_block_unit,
     shared_terminal_unit,
 };
+use crate::rules::tests::fixtures::id;
+use crate::{PsiOptimizationRule, RuleAnalysisView};
+use abstract_operations::AbstractOperation as O;
+use optimization_unit::PsiOptimizationUnit;
+use semantic_vocabulary::{PlaceId, StructuralTypeId};
 
 #[test]
 fn control_rewrites_do_not_offer_to_erase_residual_edge_cleanup() {

@@ -1,9 +1,7 @@
-use super::super::super::AbstractSuccessor;
 use super::super::{id, with_synthetic_accepted_obligations};
-use abstract_operations::AbstractOperation as O;
 use abstract_operations::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult,
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+    AbstractOperation, AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor,
 };
 use optimization_unit::{
     OptimizationFact, PsiOptimizationUnit, recompute_psi_optimization_unit_identity,

@@ -1,17 +1,18 @@
-use super::super::super::{OptimizationNode, ServiceDeclaration};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
     AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
 };
 use optimization_unit::{
-    PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
+    OptimizationNode, PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
     reconstruct_psi_optimization_unit_seed,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
     OperationId, ScalarType, ServiceId, ValueId,
 };
-use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+use terminal_psi::{
+    SemanticFingerprint, ServiceDeclaration, TerminalPsiIdentity, VocabularyMarker,
+};
 
 use super::super::id;
 

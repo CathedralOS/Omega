@@ -7,15 +7,20 @@ use super::super::super::super::{
     PhiTranslatedProofCertifiedScalarGvnRule, SameBlockProofCertifiedCompatiblePolicyScalarCseRule,
     SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
 };
-use super::super::super::{
-    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationUnitValidationError, OptimizationValidatorIdentity, PsiOptimizationRule,
-    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
+use crate::rules::tests::fixtures::global_value_numbering::{
     compatible_policy_dominator_gvn_unit, compatible_policy_local_cse_unit,
     compatible_policy_phi_translated_gvn_unit, dominator_gvn_unit, local_cse_unit,
     phi_translated_gvn_unit, proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
     proof_certified_phi_translated_gvn_unit,
-    validate_dominating_scalar_common_subexpression_candidate,
+};
+use crate::{PsiOptimizationRule, RuleAnalysisView};
+use optimization_core::{
+    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+    OptimizationValidatorIdentity,
+};
+use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_dominating_scalar_common_subexpression_candidate,
     validate_local_scalar_common_subexpression_candidate,
     validate_phi_translated_scalar_common_subexpression_candidate,
 };

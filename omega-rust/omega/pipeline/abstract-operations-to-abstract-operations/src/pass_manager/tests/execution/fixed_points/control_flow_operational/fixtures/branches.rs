@@ -1,10 +1,10 @@
+use crate::rules::tests::fixtures::control_flow_cleanup::constant_conditional_same_target_unit;
+use crate::rules::tests::fixtures::id;
 use optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierSite, OwnershipFrontierSnapshot, PsiOptimizationUnit,
     recompute_psi_optimization_unit_identity,
 };
 use semantic_vocabulary::{EdgeId, MachineId, OperationId};
-
-use crate::rules::tests::{constant_conditional_same_target_unit, id};
 
 pub(crate) fn constant_merge_barrier_unit() -> PsiOptimizationUnit {
     let mut unit = constant_conditional_same_target_unit(true);

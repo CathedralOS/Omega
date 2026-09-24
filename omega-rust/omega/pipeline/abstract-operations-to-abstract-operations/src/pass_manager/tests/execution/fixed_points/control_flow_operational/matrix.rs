@@ -6,7 +6,7 @@ use super::fixtures::{
     path_qualified_direct_edges_unit, terminal_non_adjacent_merge_unit,
     unreachable_private_machine_unit,
 };
-use crate::rules::tests::adjacent_conditional_merge_unit;
+use crate::rules::tests::fixtures::control_flow_cleanup::adjacent_conditional_merge_unit;
 use crate::rules::{PathQualifiedEmptyBlockThreadRule, UnreachablePrivateMachinePruneRule};
 use crate::{
     AdjacentBlockMergeRule, ConstantConditionalFoldRule, LinearEmptyBlockThreadRule,

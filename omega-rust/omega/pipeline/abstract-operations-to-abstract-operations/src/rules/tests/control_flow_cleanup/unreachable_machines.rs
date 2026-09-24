@@ -2,13 +2,21 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::UnreachablePrivateMachinePruneRule;
-use super::super::{
-    AnalysisKind, AnalysisProduct, BoundaryMachineId, EdgeId, MachineId, O, OperationId,
-    OptimizationUnitValidationError, PlaceId, ProvenanceDisposition, PrunedMachineCustody,
-    PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, StructuralTypeId, compute_analysis,
-    linear_empty_block_unit, recompute_psi_optimization_unit_identity,
-    rule_unreachable_private_machine_complement, validate_psi_optimization_unit,
+use crate::rules::control_flow_cleanup::rule_unreachable_private_machine_complement;
+use crate::rules::tests::fixtures::control_flow_cleanup::linear_empty_block_unit;
+use crate::{AnalysisProduct, RuleAnalysisView, compute_analysis};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::AnalysisKind;
+use optimization_unit::{
+    ProvenanceDisposition, PrunedMachineCustody, PsiRewriteCandidate, PsiRewritePatch,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_psi_optimization_unit,
     validate_unreachable_private_machines_candidate,
+};
+use semantic_vocabulary::{
+    BoundaryMachineId, EdgeId, MachineId, OperationId, PlaceId, StructuralTypeId,
 };
 
 fn stored_dynamic_dispatch(

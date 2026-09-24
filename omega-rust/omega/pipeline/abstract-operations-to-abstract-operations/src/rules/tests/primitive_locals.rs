@@ -3,20 +3,29 @@ use super::super::{
     DeadScalarLiteralEliminationRule, DeadUnconditionallyTotalScalarEliminationRule,
     SameBlockTotalScalarCseRule,
 };
-use super::{
-    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperationPlan,
-    AbstractResult, AnalysisKind, AnalysisProduct, BlockId, EdgeId, FuelScheduleIdentity,
-    IntegerSign, IntegerType, IntegerValue, MachineId, NodeLocation, O, OperationId,
-    OptimizationUnitValidationError, PlaceId, ProvenanceDisposition, ProvenanceRewrite,
-    PsiOptimizationUnit, PsiRealizationSite, PsiRewriteCandidate, RuleAnalysisView, ScalarType,
-    SemanticFingerprint, StructuralTypeId, TerminalPsiIdentity, ValueId, VocabularyMarker,
-    compute_analysis, id, reconstruct_psi_optimization_unit_seed,
-    validate_dead_scalar_node_candidate, validate_psi_optimization_unit,
-};
 use crate::rules::registry::PsiOptimizationRule;
+use crate::rules::tests::fixtures::id;
+use crate::{AnalysisProduct, RuleAnalysisView, compute_analysis};
+use abstract_operations::{
+    AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation as O,
+    AbstractOperationPlan, AbstractResult,
+};
+use optimization_core::AnalysisKind;
+use optimization_unit::{
+    NodeLocation, ProvenanceDisposition, ProvenanceRewrite, PsiOptimizationUnit,
+    PsiRealizationSite, PsiRewriteCandidate, reconstruct_psi_optimization_unit_seed,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_dead_scalar_node_candidate,
+    validate_psi_optimization_unit,
+};
+use semantic_vocabulary::{
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
+    OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+};
 use terminal_psi::{
-    StructuralMultiplicity, StructuralOperationResult, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    SemanticFingerprint, StructuralMultiplicity, StructuralOperationResult,
+    StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
 };
 
 fn local_plan(reentry: bool) -> AbstractOperationPlan {

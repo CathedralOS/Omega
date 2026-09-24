@@ -2,13 +2,22 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::ConstantConditionalFoldRule;
-use super::super::{
-    AbstractOperation, BlockId, ConstantConditionalRewrite, IntegerEvaluationWitness,
-    OptimizationUnitValidationError, ProvenanceDisposition, PsiRealizationSite,
-    PsiRewriteCandidate, RuleAnalysisView, ServiceId, constant_conditional_dead_service_unit,
-    constant_conditional_same_target_unit, id, propagated_block_parameter_unit,
-    validate_constant_conditional_candidate, validate_psi_optimization_unit,
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::control_flow_cleanup::{
+    constant_conditional_dead_service_unit, constant_conditional_same_target_unit,
+    propagated_block_parameter_unit,
 };
+use crate::rules::tests::fixtures::id;
+use abstract_operations::AbstractOperation;
+use optimization_unit::{
+    ConstantConditionalRewrite, IntegerEvaluationWitness, ProvenanceDisposition,
+    PsiRealizationSite, PsiRewriteCandidate,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_constant_conditional_candidate,
+    validate_psi_optimization_unit,
+};
+use semantic_vocabulary::{BlockId, ServiceId};
 
 #[test]
 fn constant_conditional_fold_binds_selected_edge_fact_and_fuel() {

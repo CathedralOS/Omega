@@ -1,14 +1,22 @@
 use super::super::super::super::{
     IntegerEqualRangeRangeRule, IntegerLessOrEqualRangeRangeRule, IntegerLessThanRangeRangeRule,
 };
-use super::super::super::{
-    AbstractOperation, AnalysisKind, IntegerEvaluationWitness, IntegerRangePairComparisonKind,
-    IntegerSign, IntegerType, OptimizationRuleContract, OptimizationRuleIdentity,
-    OptimizationSafetyClass, OptimizationUnitValidationError, ProofRangeKind, PsiOptimizationRule,
-    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView, compute_analysis,
-    proof_range_pair_comparison_unit, range_pair_comparison_unit,
-    validate_boolean_evaluation_candidate,
+use crate::rules::IntegerRangePairComparisonKind;
+use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
+    ProofRangeKind, proof_range_pair_comparison_unit, range_pair_comparison_unit,
 };
+use crate::{PsiOptimizationRule, RuleAnalysisView, compute_analysis};
+use abstract_operations::AbstractOperation;
+use optimization_core::{
+    AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
+};
+use optimization_unit::{
+    IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_boolean_evaluation_candidate,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType};
 
 fn rule(kind: IntegerRangePairComparisonKind) -> &'static dyn PsiOptimizationRule {
     match kind {

@@ -2,13 +2,23 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::LiveProofCertifiedIntegerIdentityEliminationRule;
-use super::super::{
-    IntegerSign, IntegerType, IntegerValue, O, ObligationId, OperationId, OptimizationFact,
-    OptimizationUnitValidationError, OptimizationValidatorIdentity,
-    ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite, PsiRewriteCandidate,
-    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ValueId, exact_add_unit, id,
-    live_exact_add_zero_unit, recompute_psi_optimization_unit_identity,
-    validate_proof_certified_scalar_identity_candidate, validate_psi_optimization_unit,
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::id;
+use crate::rules::tests::fixtures::proof_check_elision::{
+    exact_add_unit, live_exact_add_zero_unit,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{OptimizationValidatorIdentity, ScalarConstantFactIdentity};
+use optimization_unit::{
+    OptimizationFact, ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite,
+    PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_proof_certified_scalar_identity_candidate,
+    validate_psi_optimization_unit,
+};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, IntegerValue, ObligationId, OperationId, ValueId,
 };
 
 #[test]

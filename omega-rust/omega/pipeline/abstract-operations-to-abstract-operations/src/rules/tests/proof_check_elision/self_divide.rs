@@ -2,15 +2,25 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::LiveProofCertifiedIntegerSelfDivideEliminationRule;
-use super::super::{
-    BlockId, IntegerConstantRewrite, IntegerSign, IntegerType, IntegerValue, MachineId,
-    NodeLocation, O, OperationId, OptimizationFact, OptimizationFactReference,
-    OptimizationUnitValidationError, OptimizationValidatorIdentity, ProvenanceDisposition,
-    ProvenanceRewrite, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RuleAnalysisView,
-    ScalarType, SelfDividePolicy, ValueId, discard_scalar_function_result, id, integer_one,
-    live_proof_binary_identity_unit, live_self_divide_unit,
+use crate::RuleAnalysisView;
+use crate::rules::proof_check_elision::integer_one;
+use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
+use crate::rules::tests::fixtures::id;
+use crate::rules::tests::fixtures::proof_check_elision::{
+    SelfDividePolicy, live_proof_binary_identity_unit, live_self_divide_unit,
+};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{OptimizationFactReference, OptimizationValidatorIdentity};
+use optimization_unit::{
+    IntegerConstantRewrite, NodeLocation, OptimizationFact, ProvenanceDisposition,
+    ProvenanceRewrite, PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
-    validate_proof_certified_integer_self_divide_candidate,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_proof_certified_integer_self_divide_candidate,
+};
+use semantic_vocabulary::{
+    BlockId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType, ValueId,
 };
 
 #[test]

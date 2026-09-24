@@ -2,14 +2,24 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::LiveProofCertifiedIntegerZeroDividendEliminationRule;
-use super::super::{
-    IntegerSign, IntegerType, IntegerValue, O, OptimizationFact, OptimizationFactReference,
-    OptimizationUnitValidationError, OptimizationValidatorIdentity,
-    ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite, PsiRewriteCandidate,
-    PsiRewritePatch, RuleAnalysisView, ScalarConstantFactIdentity, ValueId,
-    discard_scalar_function_result, id, live_proof_binary_identity_unit, live_zero_dividend_unit,
-    recompute_psi_optimization_unit_identity, validate_proof_certified_scalar_identity_candidate,
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
+use crate::rules::tests::fixtures::id;
+use crate::rules::tests::fixtures::proof_check_elision::{
+    live_proof_binary_identity_unit, live_zero_dividend_unit,
 };
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{
+    OptimizationFactReference, OptimizationValidatorIdentity, ScalarConstantFactIdentity,
+};
+use optimization_unit::{
+    OptimizationFact, ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite,
+    PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    OptimizationUnitValidationError, validate_proof_certified_scalar_identity_candidate,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ValueId};
 
 #[test]
 fn proof_certified_zero_dividend_covers_divide_remainder_policies_and_signs() {

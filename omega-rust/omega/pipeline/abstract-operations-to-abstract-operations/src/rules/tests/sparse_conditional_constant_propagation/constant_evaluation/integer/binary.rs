@@ -13,13 +13,16 @@ use super::super::super::super::super::{
     WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
     WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
 };
-use super::super::super::super::{
-    AbstractOperation, AnalysisKind, BinaryConstantFixtureKind, BitwiseFixtureKind,
-    IntegerEvaluationWitness, IntegerSign, IntegerType, IntegerValue, OptimizationSafetyClass,
-    PsiOptimizationRule, RuleAnalysisView, ScalarType, ShiftFixtureKind, binary_constant_unit,
-    bitwise_unit, compute_analysis, exact_divide_unit, policy_add_unit, shift_unit,
-    validate_integer_evaluation_candidate, wrapping_add_unit,
+use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::{
+    BinaryConstantFixtureKind, BitwiseFixtureKind, ShiftFixtureKind, binary_constant_unit,
+    bitwise_unit, exact_divide_unit, policy_add_unit, shift_unit, wrapping_add_unit,
 };
+use crate::{PsiOptimizationRule, RuleAnalysisView, compute_analysis};
+use abstract_operations::AbstractOperation;
+use optimization_core::{AnalysisKind, OptimizationSafetyClass};
+use optimization_unit::IntegerEvaluationWitness;
+use optimization_unit_semantics::validate_integer_evaluation_candidate;
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 
 struct BinarySuccessCase {
     kind: BinaryConstantFixtureKind,

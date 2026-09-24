@@ -12,7 +12,10 @@ mod test_support;
 mod validation;
 
 pub use constraints::selection_constraints;
-pub use model::*;
+pub use model::{
+    OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
+    StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
+};
 #[cfg(feature = "test-support")]
 pub use test_support::OptimizedSelectionCustodyFieldForTest;
 pub use validation::validate_optimized_selection_custody;

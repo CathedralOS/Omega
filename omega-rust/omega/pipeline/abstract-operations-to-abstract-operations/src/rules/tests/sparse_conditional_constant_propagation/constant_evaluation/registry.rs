@@ -16,7 +16,9 @@ use super::super::super::super::{
     WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
     WrappingIntegerSubtractConstantsRule,
 };
-use super::super::super::{OptimizationSafetyClass, PsiOptimization, registry_for_optimization};
+use crate::rules::catalog::registry_for_optimization;
+use optimization::PsiOptimization;
+use optimization_core::OptimizationSafetyClass;
 
 #[test]
 fn sccp_registry_pins_every_binary_integer_constant_rule_position() {

@@ -2,10 +2,11 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::ConstantConditionalFoldRule;
-use super::super::{
-    AbstractOperation, RuleAnalysisView, id, propagated_block_parameter_unit,
-    recompute_psi_optimization_unit_identity,
-};
+use crate::RuleAnalysisView;
+use crate::rules::tests::fixtures::control_flow_cleanup::propagated_block_parameter_unit;
+use crate::rules::tests::fixtures::id;
+use abstract_operations::AbstractOperation;
+use optimization_unit::recompute_psi_optimization_unit_identity;
 
 #[test]
 fn conditional_fold_does_not_propose_orphaning_descriptor_roots() {

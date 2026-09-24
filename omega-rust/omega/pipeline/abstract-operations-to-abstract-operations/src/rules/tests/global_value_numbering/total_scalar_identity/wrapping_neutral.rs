@@ -2,14 +2,22 @@
 use crate::rules::registry::PsiOptimizationRule;
 
 use super::super::super::super::WrappingNeutralArithmeticIdentityRule;
-use super::super::super::{
-    AnalysisProduct, IntegerSign, IntegerType, IntegerValue, O, OperationId,
-    OptimizationFactReference, OptimizationRuleContract, PsiOptimizationUnit, PsiRewriteCandidate,
-    PsiRewritePatch, RuleAnalysisView, TotalScalarIdentityKind, ValueId, WrappingNeutralOperation,
-    id, recompute_psi_optimization_unit_identity, validate_psi_optimization_unit,
-    validate_total_scalar_identity_candidate, wrapping_neutral_identity_unit,
+use crate::rules::tests::fixtures::global_value_numbering::{
+    WrappingNeutralOperation, wrapping_neutral_identity_unit,
     wrapping_neutral_identity_unit_with_type_and_liveness,
 };
+use crate::rules::tests::fixtures::id;
+use crate::{AnalysisProduct, RuleAnalysisView};
+use abstract_operations::AbstractOperation as O;
+use optimization_core::{OptimizationFactReference, OptimizationRuleContract};
+use optimization_unit::{
+    PsiOptimizationUnit, PsiRewriteCandidate, PsiRewritePatch, TotalScalarIdentityKind,
+    recompute_psi_optimization_unit_identity,
+};
+use optimization_unit_semantics::{
+    validate_psi_optimization_unit, validate_total_scalar_identity_candidate,
+};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, OperationId, ValueId};
 
 fn analysis_products(
     unit: &PsiOptimizationUnit,
