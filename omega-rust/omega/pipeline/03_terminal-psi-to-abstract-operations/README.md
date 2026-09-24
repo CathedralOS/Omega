@@ -62,7 +62,7 @@ admission use this same projection, including empty recursive dimensions. Curren
 validation independently checks shape, leaf type/availability, and owned call/return
 custody; scalar rewrites retain every leaf occurrence. Native storage and direct
 result fragments use the downstream ordinary aggregate graph; its
-[instruction-selection owner](../target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow)
+[instruction-selection owner](../06_target-operations-to-selected-instructions/README.md#ordinary-selected-control-flow)
 retains the remaining owned-argument, empty-value and indirect-result limits.
 
 Verified branches, calls, and crash exits retain operation identities and
@@ -88,7 +88,7 @@ field widths, calls, and relocations. An aggregate's padding is not observable
 payload, and a borrowed referent must not become a private value copy.
 
 The [target stage](../05_abstract-operations-to-target-operations/README.md) and
-[instruction-selection stage](../target-operations-to-selected-instructions/README.md)
+[instruction-selection stage](../06_target-operations-to-selected-instructions/README.md)
 own their actual operation coverage. Admission here, source production, and
 successful optimization are not native-publication claims.
 

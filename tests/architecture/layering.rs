@@ -3266,7 +3266,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     }
 
     let selection_manifest = root
-        .join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/Cargo.toml");
+        .join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/Cargo.toml");
     let selection_manifest_source = std::fs::read_to_string(&selection_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", selection_manifest.display()));
     let selection_dependencies = selection_manifest_source
@@ -3324,7 +3324,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
     }
 
     let legalization_replay = root.join(
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/replay",
+        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/replay",
     );
     let legalization_replay_source = recursive_rust_source(&legalization_replay);
     for forbidden in [
@@ -3383,7 +3383,7 @@ fn optimizer_register_models_remain_on_the_production_isa_lane() {
         "the checked legalization/selection pipeline must retain its legalized representation dependency"
     );
     let selection_source = std::fs::read_to_string(root.join(
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/mod.rs",
+        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/mod.rs",
     ))
     .expect("read target legalization coordination entrance");
     assert!(
@@ -4443,7 +4443,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
             "root/roster custody must retain {required}"
         );
     }
-    let graph_input = root.join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input");
+    let graph_input = root.join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input");
     let header = std::fs::read_to_string(graph_input.join("header.rs")).unwrap();
     for required in [
         "evaluate_call_plan(",
@@ -4497,7 +4497,7 @@ fn abstract_to_target_translation_validation_cannot_reenter_its_producer() {
 fn ordinary_structural_transport_validation_cannot_reenter_its_producer() {
     let root = workspace_root();
     let selection = root
-        .join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection");
+        .join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection");
     let validation = recursive_rust_source(&selection.join("validation"));
     for forbidden in [
         "crate::selection::construction",
@@ -4574,7 +4574,7 @@ fn target_functions_and_selected_rosters_have_one_graph_shape() {
 fn selected_construction_uses_one_ordinary_instruction_graph() {
     let root = workspace_root();
     let construction = root.join(
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/selection/construction",
+        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/selection/construction",
     );
     let entrance = std::fs::read_to_string(construction.join("mod.rs"))
         .expect("read selected construction entrance");
@@ -4594,7 +4594,7 @@ fn selected_construction_uses_one_ordinary_instruction_graph() {
         "the conditional-only recipe implementation must not return",
     );
     let stage =
-        root.join("omega-rust/omega/pipeline/target-operations-to-selected-instructions/src");
+        root.join("omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src");
     for retired in [
         "legalization/source/conditional_input.rs",
         "legalization/source/leaves/mod.rs",
@@ -4676,7 +4676,7 @@ fn native_publication_has_no_countdown_execution_fork() {
     assert!(common.contains("validate_function_fragment_object_artifact(&replay.0, artifact)"));
     for path in [
         "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/ranked_countdown.rs",
-        "omega-rust/omega/pipeline/target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs",
+        "omega-rust/omega/pipeline/06_target-operations-to-selected-instructions/src/legalization/scalar_graph_input/ranked.rs",
         "omega-rust/omega/backend/machine-emission/src/ranked_countdown.rs",
         "omega-rust/psi/semantics/terminal-verifier/src/validation/ranked_scc.rs",
         "omega-rust/psi/semantics/terminal-fixed-fuel/src/fuel_certification/ranked_countdown.rs",
