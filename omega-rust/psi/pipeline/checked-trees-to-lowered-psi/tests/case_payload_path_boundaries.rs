@@ -84,13 +84,11 @@ fn owned_subject_with_reference_payload_declines_at_custody_shape() {
     );
 }
 
-/// When the bound reference payload is actually offered as a successor
-/// argument, `case_payload_transfer` declines it: the payload field is not
-/// plain-owned contents and a view target needs `SharedBorrow`, not the
-/// `Owned` custody the plan requires — the fallback parameter transfer then
-/// finds no state parameter named `payload`.
+/// Even with the `SharedBorrow` transfer arm, an owned `s: S` subject can
+/// never reach it: the entry signature refuses owned custody of a record
+/// containing view contents, so only borrowed subjects exercise the arm.
 #[test]
-fn reference_payload_transfer_declines_at_parameter_transfer() {
+fn owned_subject_reference_payload_still_declines_at_signature() {
     let outcome = produce(
         r#"
         pub data S { case A(payload: &[u32], n: u64); case B; }
@@ -105,8 +103,33 @@ fn reference_payload_transfer_declines_at_parameter_transfer() {
         }
     "#,
     );
-    let error = outcome.expect_err("a reference payload transfer must decline");
-    assert!(error.contains("parameter transfer"), "{error}");
+    let error = outcome
+        .expect_err("an owned param holding a view payload must decline at the signature");
+    assert!(error.contains("owned non-linear record contents"), "{error}");
+}
+
+/// A shared-borrow payload member off a borrowed subject re-seats its loan
+/// into a `SharedBorrow` successor target: the `CasePayload` transfer mints
+/// a `StructuralCaseLeafCopy` whose canonical `Case`-segmented path reads
+/// the view descriptor without disturbing the subject's custody, and the
+/// successor takes `SharedBorrow` custody of the same view.
+#[test]
+fn borrowed_subject_shared_view_payload_transfer_produces() {
+    let outcome = produce(
+        r#"
+        pub data S { case A(payload: &[u32]); case B; }
+        pub data H { p: S; }
+        pub machine H::run(&mut self) -> u64 {
+            transition self.p {
+                S::A { payload } -> use_it(payload)
+                _ -> done()
+            }
+            state use_it(payload: &[u32]) -> u64 { 7 }
+            state done(&mut self) -> u64 { 9 }
+        }
+    "#,
+    );
+    assert!(outcome.is_ok(), "{outcome:?}");
 }
 
 /// On a borrowed subject the case binding itself is admitted, but reading a

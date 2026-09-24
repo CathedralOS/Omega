@@ -313,13 +313,33 @@ pub(super) fn validate_bindings(
             }) else {
                 return unsupported("Unit graph case-payload field is missing");
             };
-            if checked
-                .normalized_type_identity(field.type_reference)
-                .into_string()
-                != target.type_identity
-                || checked.type_multiplicity(field.type_reference) != target.multiplicity
-                || target.access != checked_trees::CheckedStructuralAccess::Owned
-            {
+            // An `Owned` target copies the member's whole identity; a
+            // `SharedBorrow` target re-seats a member that is itself a
+            // shared borrow, comparing the referee's normalized identity —
+            // a view parameter declares its referent's identity.
+            let mut referee_cursor = field.type_reference;
+            let shared_referee = loop {
+                match checked.type_reference_table.type_reference(referee_cursor) {
+                    checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                        referee_cursor = *base_type
+                    }
+                    checked_trees::types::TypeReferenceNode::Reference {
+                        access: language_semantics::ReferenceAccess::Shared,
+                        referee,
+                        ..
+                    } => break Some(*referee),
+                    _ => break None,
+                }
+            };
+            let normalized = |reference| checked.normalized_type_identity(reference).into_string();
+            let admitted = if target.access == checked_trees::CheckedStructuralAccess::Owned {
+                normalized(field.type_reference) == target.type_identity
+            } else {
+                target.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                    && shared_referee
+                        .is_some_and(|referee| normalized(referee) == target.type_identity)
+            };
+            if !admitted || checked.type_multiplicity(field.type_reference) != target.multiplicity {
                 return unsupported("Unit graph case-payload custody drifted");
             }
             // The subject resolves to a retained source parameter and a

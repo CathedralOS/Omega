@@ -344,6 +344,23 @@ fn shared_loan_root(
     if argument.path.is_empty() {
         return super::byte_sequence::subslice::borrowed_result(machine, argument.place)
             .or_else(|| super::element_view::subslice::borrowed_result(machine, argument.place))
+            .or_else(|| {
+                super::structural::leaf_copy::copied_return_source(machine, argument.place)
+                    .then_some(argument.place)
+                    .and_then(|place| {
+                        machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.operations)
+                            .find_map(|operation| {
+                                operation.result.structural().filter(|result| {
+                                    result.place == place
+                                        && result.multiplicity
+                                            == StructuralMultiplicity::Unrestricted
+                                })
+                            })
+                    })
+            })
             .filter(|_| available.contains(&argument.place))
             .map(|result| result.structural_type);
     }
