@@ -5,6 +5,61 @@ use super::super::super::expressions::expression_integer_value;
 use super::super::super::facts::RangeFacts;
 use super::super::super::types::expression_is_unsigned_integer;
 
+/// The index/range-bound/floor mint shared by every `index < coll.len`
+/// shape — the strict comparison itself or a bounded `coll.len - k`
+/// offset that implies it.
+fn prove_index_within_member_length(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    facts: &mut RangeFacts<'_>,
+    index: ExpressionHandle,
+    collection_label: &str,
+) {
+    facts.prove_index(
+        collection_label.to_owned(),
+        program.expression_table.display_name(index),
+    );
+    facts.prove_range_bound(
+        collection_label.to_owned(),
+        program.expression_table.display_name(index),
+    );
+    seed_index_length_floor(program, machine, state, facts, index, collection_label);
+}
+
+/// Unwraps `coll.len - k` into `(collection_label, k)`: a subtraction bound
+/// still proves an index when the operator's own strictness or the offset
+/// itself pays the one element. Returns `None` for a non-literal or
+/// negative offset and for any non-length receiver member.
+fn len_bound_minus_offset(
+    program: &typed_trees::TypedTrees,
+    facts: &RangeFacts<'_>,
+    bound: ExpressionHandle,
+) -> Option<(String, i64)> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(bound) else {
+        return None;
+    };
+    if binary.operator != BinaryOperator::Subtract {
+        return None;
+    }
+    let offset = expression_integer_value(program, facts, binary.right)?;
+    if offset < 0 {
+        return None;
+    }
+    let ExpressionNode::Member(member) = program.expression_table.expression(binary.left) else {
+        return None;
+    };
+    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+        != Some(CollectionMeasure::Length)
+    {
+        return None;
+    }
+    Some((
+        program.expression_table.display_name(member.receiver),
+        offset,
+    ))
+}
+
 pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
     program: &typed_trees::TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -13,6 +68,13 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
     index: ExpressionHandle,
     upper_bound: ExpressionHandle,
 ) {
+    // `index < coll.len - k` implies `index < coll.len` for any k >= 0 —
+    // the strict comparison's own slack is enough.
+    if let Some((collection_label, _)) = len_bound_minus_offset(program, facts, upper_bound) {
+        prove_index_within_member_length(program, machine, state, facts, index, &collection_label);
+        return;
+    }
+
     let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
         return;
     };
@@ -23,15 +85,7 @@ pub(in crate::checks::ranges::guards) fn seed_less_than_len_fact(
     }
 
     let collection_label = program.expression_table.display_name(member.receiver);
-    facts.prove_index(
-        collection_label.clone(),
-        program.expression_table.display_name(index),
-    );
-    facts.prove_range_bound(
-        collection_label.clone(),
-        program.expression_table.display_name(index),
-    );
-    seed_index_length_floor(program, machine, state, facts, index, &collection_label);
+    prove_index_within_member_length(program, machine, state, facts, index, &collection_label);
 }
 
 /// A proven `index < len` floors the collection at the index's own lower
@@ -66,10 +120,34 @@ fn seed_index_length_floor(
 /// `seed_less_than_len_fact` (which additionally proves `bound` as an index).
 pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
     program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
     facts: &mut RangeFacts<'_>,
     bound: ExpressionHandle,
     upper_bound: ExpressionHandle,
 ) {
+    // `bound <= coll.len - k`: k >= 1 pays the one element a bare `<=`
+    // cannot, proving `bound` an index; k == 0 is `bound <= coll.len`
+    // verbatim and floors only the range bound.
+    if let Some((collection_label, offset)) = len_bound_minus_offset(program, facts, upper_bound) {
+        if offset >= 1 {
+            prove_index_within_member_length(
+                program,
+                machine,
+                state,
+                facts,
+                bound,
+                &collection_label,
+            );
+        } else {
+            facts.prove_range_bound(
+                collection_label,
+                program.expression_table.display_name(bound),
+            );
+        }
+        return;
+    }
+
     let ExpressionNode::Member(member) = program.expression_table.expression(upper_bound) else {
         return;
     };
@@ -83,6 +161,26 @@ pub(in crate::checks::ranges::guards) fn seed_at_most_len_range_bound_fact(
         program.expression_table.display_name(member.receiver),
         program.expression_table.display_name(bound),
     );
+}
+
+/// `bound == coll.len - k` (the equality arm's len spelling): k >= 1
+/// proves `bound` an index — `bound <= coll.len - 1 < coll.len`. k == 0
+/// is `bound == coll.len`, which is NOT an index and seeds nothing here.
+pub(in crate::checks::ranges::guards) fn seed_equal_len_offset_fact(
+    program: &typed_trees::TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    facts: &mut RangeFacts<'_>,
+    bound: ExpressionHandle,
+    upper_bound: ExpressionHandle,
+) {
+    let Some((collection_label, offset)) = len_bound_minus_offset(program, facts, upper_bound)
+    else {
+        return;
+    };
+    if offset >= 1 {
+        prove_index_within_member_length(program, machine, state, facts, bound, &collection_label);
+    }
 }
 
 pub(in crate::checks::ranges::guards) fn seed_successor_at_most_len_fact(

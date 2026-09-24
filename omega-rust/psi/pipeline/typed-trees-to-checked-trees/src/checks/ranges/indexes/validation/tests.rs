@@ -1167,3 +1167,88 @@ fn strict_orderings_and_equality_chain_through_bounds() {
         }
     }
 }
+
+/// A subtraction bound decomposes: `bound <= coll.len - k` (k >= 1) or
+/// `bound < coll.len - k` (k >= 0) proves `bound` an index — the offset
+/// pays the one element the bare `<=` cannot. The same decomposition on a
+/// label RHS (`pos == max - 1`) relaxes to the strict ordering
+/// `pos < max` and chains through `max`'s own bounds. `==`/`<=` against
+/// `len` itself still correctly reject at the boundary.
+#[test]
+fn len_offset_bounds_decompose_through_index_proofs() {
+    for (source, accepted) in [
+        // `pos == len - 1` under the len > 0 premise the subtraction owes.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.table.len > 0 && pos == self.table.len - 1 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `pos <= len - 1` — the at-most offset pays the element.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.table.len > 0 && pos <= self.table.len - 1 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `pos < len - k` needs no offset help — strictness alone proves it.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.table.len > 1 && pos < self.table.len - 1 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Mirrored `len - k > pos` — the Greater arm's mirrored len seeder.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.table.len > 1 && self.table.len - 1 > pos && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Mirrored `len - k >= pos` — non-strict, k >= 1 pays the element.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.table.len > 1 && self.table.len - 1 >= pos && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // A wider offset: `pos == len - 2` under `len >= 2`.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.table.len >= 2 && pos == self.table.len - 2 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // The companion-label subtraction: `pos == max - 1` relaxes to the
+        // strict ordering `pos < max` and chains `max <= len`.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition max > 0 && max <= self.table.len && pos == max - 1 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // Same decomposition from `pos <= max - 1`.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition max > 0 && max <= self.table.len && pos <= max - 1 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // `pos < max` itself stays the classic shape — nothing regresses.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition pos < max && max <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", true),
+        // The minted index pair rides the state-edge transport.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.table.len > 0 && pos <= self.table.len - 1 { true -> read(pos) false -> (0) }
+            state read(&mut self, pos: u64) -> u8 { self.table[pos] }
+        }", true),
+        // Boundary: `pos == len` is out of bounds — correctly rejected.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos == self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // Boundary: `pos <= len` admits `pos == len` — correctly rejected.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos <= self.table.len && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // `pos == len - 0` is `pos == len` verbatim — correctly rejected.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition pos == self.table.len - 0 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // A bound on a DIFFERENT collection's len never crosses over.
+        ("data Main<'a> { table: &'a mut [u8]; other: &'a mut [u8]; } machine Main::run(&mut self, pos: u64) -> u8 {
+            transition self.other.len > 0 && pos <= self.other.len - 1 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+        // A companion subtraction with no companion bound proves nothing.
+        ("data Main<'a> { table: &'a mut [u8]; } machine Main::run(&mut self, pos: u64, max: u64) -> u8 {
+            transition max > 0 && pos == max - 1 && self.table[pos] >= 48 { true -> (1) false -> (0) }
+        }", false),
+    ] {
+        match (check_source(source), accepted) {
+            (Ok(()), true) => {}
+            (Err(messages), false) => assert!(
+                messages
+                    .iter()
+                    .any(|message| message.contains("cannot prove index")),
+                "{source}: {messages:?}"
+            ),
+            (result, _) => panic!("{source}: {result:?}"),
+        }
+    }
+}
