@@ -288,6 +288,49 @@ fn psi_pipeline_directories_follow_route_order() {
     }
 }
 
+#[test]
+fn omega_pipeline_directories_follow_route_order() {
+    const EXPECTED_PACKAGES: &[&str] = &[
+        "source-files-to-assembled-syntax",
+        "assembled-syntax-to-checked-compilation",
+        "checked-compilation-to-terminal-artifact",
+        "terminal-psi-to-abstract-operations",
+        "abstract-operations-to-abstract-operations",
+        "abstract-operations-to-target-operations",
+        "target-operations-to-selected-instructions",
+        "selected-instructions-to-selected-instructions",
+        "selected-instructions-to-register-homes",
+        "register-homes-to-post-allocation-machine",
+        "post-allocation-machine-to-selected-form-encoding",
+        "selected-form-encoding-to-resolved-layout",
+        "resolved-layout-to-resolved-layout",
+    ];
+    let mut directory_names: Vec<String> = pipeline_crates()
+        .into_iter()
+        .filter_map(|(parent, directory_name)| {
+            (parent == "omega-rust/omega/pipeline").then_some(directory_name)
+        })
+        .collect();
+    directory_names.sort();
+    assert_eq!(directory_names.len(), EXPECTED_PACKAGES.len());
+
+    for (position, directory_name) in directory_names.iter().enumerate() {
+        let (ordering_prefix, _) = directory_name.split_once('_').unwrap_or_else(|| {
+            panic!("Omega pipeline directory {directory_name} is missing its two-digit prefix")
+        });
+        assert_eq!(
+            ordering_prefix,
+            format!("{position:02}"),
+            "Omega pipeline directories must follow their declared order"
+        );
+        assert_eq!(
+            pipeline_package_name(directory_name),
+            EXPECTED_PACKAGES[position],
+            "Omega pipeline prefix {ordering_prefix} names the wrong stage"
+        );
+    }
+}
+
 /// The placement rule's other direction: `omega-rust/{psi,omega}/pipeline/` is
 /// the only home for transform crates. An `X-to-Y`/`X-to-X`-named crate nested
 /// under any other bucket — or deeper inside `pipeline/` than the direct

@@ -69,7 +69,7 @@ artifacts (`include_str!`/`include_bytes!`).
 ## Findings
 
 - **F1 — x86 opcode detail resident in a pipeline transform.**
-  `omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/branch_inspection.rs`
+  `omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/branch_inspection.rs`
   pattern-matches literal x86 encoding bytes (`0x75`, `0x0F 0x85`, `0x72`,
   `0x0F 0x82`, `0x7C`, `0x0F 0x8C`) and hard-codes the rel8 window
   (`-128..=127`). The relaxation transform itself is correctly placed — the

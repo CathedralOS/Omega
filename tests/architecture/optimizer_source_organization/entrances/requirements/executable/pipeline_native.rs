@@ -86,11 +86,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_resolved_selected_form_layout",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase.rs",
+        path: "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase.rs",
         coordination_marker: "pub fn execute_resolved_layout_optimization",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase/validation.rs",
+        path: "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase/validation.rs",
         coordination_marker: "pub fn validate_resolved_layout_optimization",
     },
     RequiredCoordinationEntrance {

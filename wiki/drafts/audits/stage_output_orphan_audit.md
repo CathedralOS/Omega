@@ -29,7 +29,7 @@ files that must still name the stage's `output_marker`:
 | `04_abstract-operations-to-abstract-operations/src/rules/mod.rs` | `built_in_psi_registries` | `.../pass_manager/entry.rs` |
 | `07_selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs` | `resolve_selected_lowering_rules` | `.../rewrites/literal_folds/mod.rs` |
 | `07_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs` | `selected_allocation_recovery_rule` | `08_selected-instructions-to-register-homes/src/register_allocation.rs` |
-| `resolved-layout-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | `stage_optimized_x86_branch_relaxation` | `resolved-layout-to-resolved-layout/src/phase.rs` |
+| `12_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | `stage_optimized_x86_branch_relaxation` | `12_resolved-layout-to-resolved-layout/src/phase.rs` |
 
 ## Finding
 

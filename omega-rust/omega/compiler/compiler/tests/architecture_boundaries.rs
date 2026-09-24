@@ -73,7 +73,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "resolved-layout-to-resolved-layout",
-            "../../pipeline/resolved-layout-to-resolved-layout",
+            "../../pipeline/12_resolved-layout-to-resolved-layout",
         ),
         (
             "object/object-file/Cargo.toml",

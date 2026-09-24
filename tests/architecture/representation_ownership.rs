@@ -1838,7 +1838,7 @@ fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let coordinator = root.join("omega-rust/omega/compiler/native-realization/src");
     let algorithms = rust_source(&owner.join("src"));
     let optimization_owner =
-        root.join("omega-rust/omega/pipeline/resolved-layout-to-resolved-layout");
+        root.join("omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout");
     let optimization = rust_source(&optimization_owner.join("src"));
     let orchestration = rust_source(&coordinator);
     for definition in [
@@ -2350,7 +2350,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/09_register-homes-to-post-allocation-machine",
         "omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",
         "omega/pipeline/11_selected-form-encoding-to-resolved-layout",
-        "omega/pipeline/resolved-layout-to-resolved-layout",
+        "omega/pipeline/12_resolved-layout-to-resolved-layout",
     ];
     // The omega-side frontend boundary route that feeds that chain across
     // build evaluation (pipeline.md "Omega frontend stages").

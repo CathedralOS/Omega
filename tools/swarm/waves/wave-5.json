@@ -202,7 +202,7 @@
       "item": "FRAME-LAYOUT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/resolved-layout-to-resolved-layout/src/phase",
+        "omega-rust/omega/pipeline/12_resolved-layout-to-resolved-layout/src/phase",
         "omega-rust/omega/backend/layout/src/sum_materialization"
       ],
       "suggested_first_slice": "Extend one exact nonzero-frame realization case beyond the current bounded ordinary CFG family with replayed accesses."
