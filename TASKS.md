@@ -347,15 +347,22 @@ the complete product bar; focused successes below do not establish that baseline
   `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; keep each
   repair attached to its unchanged source-to-native customer.
 
-  Distinct remaining probes include
+  Distinct remaining probes, with the cause each now reports (measured
+  2026-09-24 through `tools/corpus_gate.py`, so targetless -- a probe whose
+  promise is native execution is not closed by checking here):
   `control_flow/guarded_leaf_branch_expansion` and
-  `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing),
-  `capabilities/uses_caller_folder`,
-  `domains/explicit_domain_erasure`, `proofs/cauchy_predicates_compile`,
-  `providers/external_leaf_dllimport_compile`,
-  `control_flow/runtime_branching_helper_string` and
-  `core/extent_root_provider_adapter`. Reproduce a selected customer on the
-  working base, repair its owning capability, and rerun the same outer command.
+  `capabilities/uses_caller_folder` reject on borrowed storage absent at a
+  boundary call, which is [`copy-data-shared-reference-fields`](OWNER_QUESTIONS.md)
+  (Q7) for the shared-view-field shape and **BORROWED-STORAGE-RESTORATION**
+  otherwise; `domains/explicit_domain_erasure` on a declared instance with no
+  establishment; `proofs/cauchy_predicates_compile` on a cited callee's
+  premises; `control_flow/runtime_branching_helper_string` on a borrow-carrying
+  value stored in a persistent field; `core/extent_root_provider_adapter` on
+  the provider-selection subject route below.
+  `text/runtime_alias_string_write` (`[u8; N]::Utf8` identity sharing) and
+  `providers/external_leaf_dllimport_compile` check and leave this list.
+  Reproduce a selected customer on the working base, repair its owning
+  capability, and rerun the same outer command.
 
   Concrete repair routes:
   - `core/extent_root_provider_adapter`: establish a legitimate build-visible
