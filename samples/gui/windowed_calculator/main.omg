@@ -14,7 +14,7 @@
 // a console.
 use omega_language_std::console;
 use omega_language_std::macos_gui;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes DarwinClock; }
 pub boundary trait Input { machine key_state(&mut self, virtual_key: u32) -> u64 invokes CoreGraphics; }
 pub boundary trait Gui {

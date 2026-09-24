@@ -77,7 +77,7 @@ impl Fixture {
             .replacen("use calling;", "use omega_language_std::calling;", 1)
             .replacen(
                 "use omega::language::core::layout;",
-                "use omega::language::core::layout;\nuse omega::language::core::service;",
+                "use omega::language::core::layout;\nuse omega::language::core::binding;",
                 1,
             )
             .replacen(

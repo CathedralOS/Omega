@@ -4,7 +4,7 @@
 // values, so `count = 99` cannot prove `count <= len` and refuses
 // (before this rung the write bypassed the net entirely).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Tally
 where
     count <= len,

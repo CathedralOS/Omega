@@ -69,7 +69,7 @@ impl Fixture {
             root.join("main.omg"),
             format!(
                 r#"use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {{
     files: Binding<FilesystemHost>;

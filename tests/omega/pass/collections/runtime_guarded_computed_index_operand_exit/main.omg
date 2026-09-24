@@ -5,7 +5,7 @@
 // temp's INITIALIZER label ("self.k + 1") -- sound because the synthesized
 // `let` is adjacent to its use. k = arr[0] = 1, so acc = arr[2] = 30 = exit.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

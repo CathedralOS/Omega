@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // An erased result field has no AAPCS64 transfer operation. The stripped Pair
 // remains an HFA result whose two physical members spill from d0/d1.

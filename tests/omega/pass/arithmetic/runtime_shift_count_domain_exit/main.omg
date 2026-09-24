@@ -7,7 +7,7 @@
 // Wrapping counts are masked by the language operand width on every target.
 // exits: 71 = << wrong; 72 = >> wrong; 73/74 = masked 32/64 leg wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; k: u32; }
 machine Main::main(&mut self) {
     self.k = 3;

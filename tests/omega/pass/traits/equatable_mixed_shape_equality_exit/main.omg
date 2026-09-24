@@ -8,7 +8,7 @@
 // factor/distribute mutual recursion this shape first exposed.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data RoomEvent {
     consumed: bool;

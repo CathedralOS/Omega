@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // The owned `[u8; N] in Utf8` carrier through host output, native: build a
 // carrier by concat, then `write_line` it. The carrier is passed to a
 // `&[u8] in Utf8` view parameter -- the host-call path reads the carrier with

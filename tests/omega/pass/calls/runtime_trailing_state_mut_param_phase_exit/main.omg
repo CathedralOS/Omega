@@ -6,7 +6,7 @@
 // Exact transition scopes now evaluate each guard at its authored phase;
 // exits 71/72 distinguish the outer/trailing stale-phase failures.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Rng { seed: u64 in Wrapping; calls: u32 in Wrapping; }
 data Main { console: Binding<Console>; rng: Rng; }
 machine Main::bump(&mut self, r: &mut Rng) {

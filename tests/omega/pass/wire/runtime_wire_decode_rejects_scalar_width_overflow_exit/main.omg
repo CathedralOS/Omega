@@ -2,7 +2,7 @@
 // declared u32/i32 carriers must not become valid by truncating at the store.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data NarrowScalars {
     #0 count: u32;

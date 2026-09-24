@@ -18,7 +18,7 @@
 // when both callees saw the real field values.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Job {
     id: i32 in Wrapping;

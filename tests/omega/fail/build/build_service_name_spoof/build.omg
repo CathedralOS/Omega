@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // FAIL CANARY -- a package-authored service cannot acquire build authority by
 // copying any runtime service's human-readable name.
 pub boundary trait FilesystemHost {

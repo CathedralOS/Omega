@@ -20,7 +20,7 @@
 
 use omega::language::core::fixed_vec;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data SensorReadings {
     #0 sensor_id: u32;

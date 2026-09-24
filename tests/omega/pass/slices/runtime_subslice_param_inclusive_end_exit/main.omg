@@ -4,7 +4,7 @@
 // ptr = sub.ptr + 1*elem, len = 3 (elements 1, 2, 3).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Entry { value: i32; }
 

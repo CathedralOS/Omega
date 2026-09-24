@@ -2,7 +2,7 @@
 // declare bodyless facts. An explicit `true` body remains a predicate body.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Ticket {
     serial: u64;

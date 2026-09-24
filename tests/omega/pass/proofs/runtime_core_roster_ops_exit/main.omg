@@ -9,7 +9,7 @@
 use omega::language::core::nat;
 use omega::language::core::seq;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 // length of a two-element sequence is Succ(Succ(Zero)) -- two unfold

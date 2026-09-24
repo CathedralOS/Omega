@@ -14,7 +14,7 @@
 // NATIVE-ONLY: the interpreter has no provider for authored bindings.
 use omega::language::core::external_binding;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Beeper { machine beep(value: i32) -> i32; }
 data Main { console: Binding<Console>; beeper: Binding<Beeper>; m: i32; v: i32; }
 windows_x86_64 machine beeper_binding() -> ForeignBinding<10, 3, 0> {

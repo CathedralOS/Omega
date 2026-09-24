@@ -10,7 +10,7 @@
 // pre-fix miscompile read `over` as false -> bad (exit 71). A const-index element
 // (arr[0]=3, 3 > 5 false) checks the other direction. Native must match interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; arr: [i32; 3]; i: i32; }
 machine Main::main(&mut self) reaches Console {
     self.arr[0] = 3;

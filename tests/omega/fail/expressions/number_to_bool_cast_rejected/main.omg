@@ -3,6 +3,6 @@
 // (verified `(5 as bool) as i32 == 5`). There is no number->bool `as` conversion;
 // write `n != 0`. Rejected now. `bool as i32` and `(a == 1) as bool` stay valid.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { let n: i32 = 5; let b: bool = n as bool; let r: i32 = b as i32; self.console.exit_process(r); }

@@ -3,7 +3,7 @@
 // values (spell `255u8` for the wraparound bit pattern -- suffixes read
 // VALUES, ch5 exact anonymous values).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let a: u8 = -1u8;

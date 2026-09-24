@@ -4,7 +4,7 @@
 // unswapped one -- it cannot pass both. Mirrors the interpreter coverage test
 // dyn_two_impl_dispatch_swapped_order.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Shape {
     machine code(&mut self) -> i32;

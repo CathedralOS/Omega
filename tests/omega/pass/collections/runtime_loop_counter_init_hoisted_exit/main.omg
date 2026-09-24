@@ -4,7 +4,7 @@
 // init, so the fill loop's index bound still proves. Fills [0..4], sums to 10, self-checks.
 // Differential: native == interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; acc: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.i = 0;

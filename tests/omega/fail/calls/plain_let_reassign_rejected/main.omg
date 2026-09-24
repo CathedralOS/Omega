@@ -5,7 +5,7 @@
 // (`q.x = 3`) and writes through `&mut`-typed views stay ungated (the
 // ZII fill idiom and pointee writes respectively).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; out: i32; }
 machine Main::main(&mut self) {
     let x: u32 = 1;

@@ -8,7 +8,7 @@
 // exit 71 = the forwarded write missed self.c.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Counter { n: i32 in Wrapping; }
 data Main { console: Binding<Console>; c: Counter; }

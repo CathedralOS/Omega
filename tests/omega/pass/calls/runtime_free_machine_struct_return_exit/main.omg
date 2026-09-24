@@ -11,7 +11,7 @@
 // (34+35+34+35 == 138); any dropped write reads 0 and falls to 71.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Pair {
     a: i32 in Wrapping;

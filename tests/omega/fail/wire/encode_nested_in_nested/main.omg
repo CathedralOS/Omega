@@ -5,7 +5,7 @@
 // the encode call with a clear diagnostic.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Inner {
     #0 value: i32;

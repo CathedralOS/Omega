@@ -44,7 +44,7 @@ fn selected_lowering_replays_one_physical_child_per_surviving_occurrence_role() 
     std::fs::write(
         root.join("main.omg"),
         "use omega_language_std::console;\n\
-         use omega::language::core::service;\n\
+         use omega::language::core::binding;\n\
          \n\
          data CheckedMath {}\n\
          \n\

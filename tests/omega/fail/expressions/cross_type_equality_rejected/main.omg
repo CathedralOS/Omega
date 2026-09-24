@@ -5,7 +5,7 @@
 // at the expansion site now (before lowering). Same-type `==` stays valid.
 trait Equatable { machine equals(&self, other: &Self) -> bool; }
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data P { x: i32; y: i32; }
 data Q { a: i32; b: i32; }
 PEquatable: P satisfies Equatable;

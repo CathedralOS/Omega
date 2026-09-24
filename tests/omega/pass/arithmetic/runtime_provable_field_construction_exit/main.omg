@@ -3,7 +3,7 @@
 // literals. `src.v` has type `i32 [0..=100]`, so `Box { v: src.v }` proves the
 // [0..=100] field invariant without a literal. copy_box(Box{v:70}) -> 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Box { v: i32 [0..=100]; }
 data Main { console: Binding<Console>; }
 machine Main::copy_box(&mut self, src: Box) reaches Console {

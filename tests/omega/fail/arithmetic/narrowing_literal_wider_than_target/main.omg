@@ -4,7 +4,7 @@
 // i32::MAX, so storing it into an i32 field would truncate to a different value.
 // The fix is an explicit `as i32` cast (accepting the truncation) or a wider type.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; r: i32; }
 machine Main::main(&mut self) {
     self.r = 3000000123;

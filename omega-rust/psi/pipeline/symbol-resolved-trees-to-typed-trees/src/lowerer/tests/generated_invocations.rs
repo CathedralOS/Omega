@@ -8,7 +8,7 @@ const BASE: &str = "pub boundary trait Console { machine write(value: i32) reach
 
 #[test]
 fn seeded_invocations_retain_service_and_parameter_identity_and_source_occurrences() {
-    let extension_source = "use omega::language::core::service;
+    let extension_source = "use omega::language::core::binding;
 pub machine direct() reaches Console invokes Console; {}\n\
         pub machine parameter(first: Binding<Console>, second: Binding<Console>) reaches Console invokes second; {}";
     let (base, extension) = seeded_plain_data_inputs(BASE, extension_source);

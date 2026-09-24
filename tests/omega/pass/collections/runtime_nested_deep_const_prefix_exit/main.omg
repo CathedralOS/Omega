@@ -10,7 +10,7 @@
 // the consumer byte gate could not catch it. Validates written elements AND
 // would-be-alias victims. Exit 1 on success.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     cube: [[[i32; 2]; 2]; 2];

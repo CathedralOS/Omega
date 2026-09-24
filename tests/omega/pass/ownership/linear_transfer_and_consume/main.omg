@@ -2,7 +2,7 @@
 // through multiple bindings and is terminally consumed by an ordinary
 // by-value-self machine. There is no terminal-consumer annotation.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Receipt [linear] {
     code: i32;

@@ -4,7 +4,7 @@
 // rejects the encode call loudly instead of half-supporting it.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Point {
     #0 x: i32;

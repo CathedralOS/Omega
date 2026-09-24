@@ -8,7 +8,7 @@
 // stays fine.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Small {
     v: i8 in Wrapping;

@@ -6,7 +6,7 @@
 // definition symbol, argument-collision -> the offsets are un-recorded and access rejects
 // cleanly). tag=30 + val=40 -> 70. Differential (native must match the interpreter).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Box<T> { val: T; tag: i32 in Wrapping; }
 data Main { console: Binding<Console>; b: Box<i32 in Wrapping>; }
 machine Main::main(&mut self) reaches Console {

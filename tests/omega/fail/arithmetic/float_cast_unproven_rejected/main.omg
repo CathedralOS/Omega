@@ -4,7 +4,7 @@
 // THREE-WAY native divergence (x86 integer-indefinite vs aarch64/interp
 // saturation) -- rejecting is the ruling, policies are the escape.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; f: f64; r: i32; }
 machine Main::main(&mut self) {
     self.f = 100000000000000000000.0;

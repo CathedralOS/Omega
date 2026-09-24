@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 // against a 4-byte float place re-encodes to the f32 pattern and sizes
 // the literal side to 4. Found probing the recast read-side fix.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; f: f32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.f = 3.141592;

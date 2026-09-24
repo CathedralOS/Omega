@@ -8,7 +8,7 @@
 // (Fire: construction) and the u64 EQUALITY guard (Fire F).
 // exits: 71 = field compare wrong; 72 = arg delivery wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Box64 { v: u64; }
 data Main { console: Binding<Console>; b: Box64; }
 machine Main::main(&mut self) reaches Console {

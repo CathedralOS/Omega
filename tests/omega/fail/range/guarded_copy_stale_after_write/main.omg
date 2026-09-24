@@ -5,7 +5,7 @@
 // `yv = 100; store(yv)` would "prove" through the stale guard). `yv` is a
 // runtime parameter so the guard's interval is what the guard edge sees.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -61,7 +61,7 @@ fn checked(source: &str) -> checked_trees::CheckedTrees {
     checked_program(&source)
 }
 
-/// Same prelude as `checked`, with the toolchain `core/service.omg` resident
+/// Same prelude as `checked`, with the toolchain `core/binding.omg` resident
 /// so fixtures can hold `Binding<R>` carriers, plus the settled fused-service
 /// erasure authorizations `bind_fixture_fused_service_erasures` supplies.
 /// Boundary traits closed over by a `Binding<R>` field must be declared `pub`

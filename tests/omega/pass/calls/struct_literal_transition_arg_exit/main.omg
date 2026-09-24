@@ -7,7 +7,7 @@
 // ZII {0,0} silently. Found 2026-07-18 wiring the indexed element write;
 // fixed the same day.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Exit {
     destination: u32 in Wrapping;

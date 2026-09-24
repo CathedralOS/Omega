@@ -271,7 +271,7 @@ fn same_leaf_attached_scalar_callers_keep_module_local_invocation_custody() {
             project.0.join(format!("{module}.omg")),
             format!(
                 r#"module {module};
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Reader {{ machine read() -> i32; }}
 pub data Provider {{}}
 machine Provider::read() -> i32 satisfies Reader::read {{ {result} }}
@@ -363,7 +363,7 @@ fn run_module_providers(explicit_selection: bool) {
                 r#"use left; use right;
 use {requirement_module}::Reader;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {{ reader: Binding<Reader>; }}
 machine Main::run(&mut self) reaches Reader, Console invokes Reader; {{
     block self.reader.check();
@@ -498,7 +498,7 @@ fn module_qualified_synchronous_cycles_still_reject() {
             project.0.join("ports.omg"),
             format!(
                 r#"module ports;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Alpha {{ machine alpha(&mut self) reaches Alpha, Beta invokes Beta; }}
 pub boundary trait Beta {{ machine beta(&mut self) reaches Alpha, Beta invokes Alpha; }}
 data AlphaProvider {{ beta: Binding<Beta>; }}

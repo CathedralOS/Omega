@@ -1,7 +1,7 @@
 // N1 wire face: wire schemas serialize runtime bytes; a proof-only
 // mention has no encoding.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Nat { case Zero; case Succ(prev: Nat); }
 data Msg {
     #0 n: Nat;

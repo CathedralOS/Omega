@@ -1,7 +1,7 @@
 // Chapter 3: free-standing machines have no data receiver. `add_i32` remains a
 // value-returning math helper; the Unit entry consumes its result explicitly.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 

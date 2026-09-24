@@ -10,7 +10,7 @@
 // caller.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Event {
     case Idle;

@@ -9,7 +9,7 @@
 // shortest distance from cell 0 to cell 24 is exactly 16 (verified against a reference
 // BFS). Exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -6,7 +6,7 @@
 // EQUAL -> true. Then with j = 1 (20) they are UNEQUAL -> false. Both correct ->
 // exit 70; a compare that read the wrong element -> exit 71.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     arr: [i32; 4];

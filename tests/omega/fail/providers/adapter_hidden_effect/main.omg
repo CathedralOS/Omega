@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // PRV4 adapter admission: an adapter whose BODY reaches an effect outside
 // the satisfied requirement's declared ceiling refuses -- the requirement
 // is the public contract (decision 20's hidden-effect rule at plan

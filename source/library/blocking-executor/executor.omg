@@ -12,7 +12,7 @@
 // requirements carry effect declarations (`boundary operator` rejects
 // them). The satisfying machine bodies are behind the generic-machine
 // frontier recorded in queue.omg's header.
-use omega::language::core::service;
+use omega::language::core::binding;
 use queue;
 
 // Worker execution provider — the executor's own selected-provider

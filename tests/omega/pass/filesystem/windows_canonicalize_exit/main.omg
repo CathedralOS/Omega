@@ -20,7 +20,7 @@
 use omega_language_std::filesystem;
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // Separate entry for the host-call-count regression: failed acquisition must
 // observe its error without querying or closing the invalid handle.

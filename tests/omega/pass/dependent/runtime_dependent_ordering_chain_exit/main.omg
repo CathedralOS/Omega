@@ -9,7 +9,7 @@
 // Staleness rides the existing forget-on-reassignment machinery on both
 // pair ends; positive offsets do not mint (would over-claim).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main where count <= 11 { console: Binding<Console>; items: [u8; 5]; count: u32; j: u32; out: i32; }
 machine Main::main(&mut self) reaches Console {
     self.count = 4;

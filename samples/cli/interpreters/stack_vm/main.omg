@@ -34,7 +34,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Opcode {
     case Push(value: i32 in Wrapping);

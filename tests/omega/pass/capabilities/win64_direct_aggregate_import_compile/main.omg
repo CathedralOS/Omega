@@ -2,7 +2,7 @@
 // positional integer register or stack slot. This eight-byte record sits
 // between scalar arguments and therefore occupies RDX.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Pair32 {
     first: u32;

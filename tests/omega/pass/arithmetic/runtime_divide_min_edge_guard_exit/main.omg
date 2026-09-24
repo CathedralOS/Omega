@@ -8,7 +8,7 @@
 // Directions: i8 sat MIN/-1 -> 127, i8 sat MIN%-1 -> 0, i8 wrap MIN/-1 ->
 // -128. Exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     a: i8 in Saturating;

@@ -4,7 +4,7 @@
 // previously this returned 0 (the call resolved to nothing). Here dispatch returns
 // Circle::code() == 99, so the guard takes the `good` arm and exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Circle {}
 

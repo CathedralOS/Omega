@@ -6,7 +6,7 @@
 // operands, and unqualified references all agree.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 use leaf::region;
 
 data Filter {

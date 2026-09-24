@@ -4,7 +4,7 @@
 // self-field alias. Both native targets compile this canary for final-byte
 // footprint replay; the host run exits 42.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Big {
     pad0: u64;

@@ -9,7 +9,7 @@
 // now FIXED -- pass/calls/struct_literal_transition_arg_exit pins delivery --
 // so this canary keeps a single face: the indexed element write).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Exit {
     destination: u32;

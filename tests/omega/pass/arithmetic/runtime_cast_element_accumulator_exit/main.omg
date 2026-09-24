@@ -5,7 +5,7 @@
 // and the accumulator argument was dropped. Fixed by classifying a slice-element
 // read from the collection's element type. arr = [10,20,15,25] sums to 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Summer {}
 data Main { console: Binding<Console>; arr: [i32; 4]; summer: Summer; }
 machine Summer::sum(&mut self, s: &[i32], acc: i32 in Wrapping) -> i32 in Wrapping

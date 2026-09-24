@@ -4,7 +4,7 @@
 // contract stays within the closed scalar predicate language so the adapter
 // body lowers as an ordinary scalar machine.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data CheckedMath {}
 

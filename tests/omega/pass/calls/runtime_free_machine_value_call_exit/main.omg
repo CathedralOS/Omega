@@ -8,7 +8,7 @@
 // default) are exercised at runtime; exits 70 only when all are correct.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

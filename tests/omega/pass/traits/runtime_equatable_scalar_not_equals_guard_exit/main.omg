@@ -16,7 +16,7 @@ requires
 // all three guard-position compares are right.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Pair {
     a: i32;

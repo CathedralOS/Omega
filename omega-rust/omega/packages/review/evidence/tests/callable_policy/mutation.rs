@@ -12,7 +12,7 @@ pub machine update(pair: &mut Pair) {
 fn selected_service_receiver_write_frame_rejoins_checked_source() {
     let fixture = Fixture::with_build(
         r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait ClockHost { machine ticks(value: u64) -> u64; }
 data Clock {}
 machine Clock::ticks(value: u64) -> u64 satisfies ClockHost::ticks { value }
@@ -172,7 +172,7 @@ fn float_and_boundary_source_views_restore_both_nesting_orders() {
     ] {
         let fixture = Fixture::with_build(
             &r#"
-use omega::language::core::service;
+use omega::language::core::binding;
 pub data F32 {}
 pub boundary operator F32::negate(value: f32) -> f32;
 pub data FloatProvider {}

@@ -4,7 +4,7 @@
 // `self.light` behind the borrowed-place argument. T := Light satisfies the
 // bound and the specialized value result materializes in both engines.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Light [copy] {
     weight: i32 in Wrapping;

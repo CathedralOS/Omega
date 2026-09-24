@@ -7,7 +7,7 @@
 // guard already at the assignment / field / let-init / return / call-arg positions.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Foo { a: i32 in Wrapping; }
 data Bar { b: i32 in Wrapping; }

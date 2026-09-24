@@ -2,7 +2,7 @@
 // legal AS STORAGE, but reading it as the type before establishment
 // refuses -- zero health is not a Player.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player
 where
     health >= 1,

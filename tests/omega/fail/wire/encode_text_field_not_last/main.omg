@@ -6,7 +6,7 @@
 // holds field 0 and a u32 follows at field 1 -- rejected.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain [u8]::Utf8
 requires

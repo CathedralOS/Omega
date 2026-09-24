@@ -6,7 +6,7 @@
 // same walk that ENFORCES unbounded nested arithmetic also SEES nested
 // ranges). dx = 7, so the scaled arg is 70; the guard discriminates. Exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Msg { case Move(dx: i32 [0..=15]); case Stay; }
 data Main { console: Binding<Console>; m: Msg; }
 machine Main::main(&mut self) reaches Console {

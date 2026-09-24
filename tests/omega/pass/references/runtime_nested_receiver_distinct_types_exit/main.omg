@@ -7,7 +7,7 @@
 // exits with b's value.
 // Expected exit: 9
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data BoxI { value: i32; }
 machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
 data CellI { slot: i32; }

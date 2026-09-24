@@ -5,7 +5,7 @@
 // element is read from a runtime index into a field (`self.v = self.arr[self.i]`), then combined.
 // arr = [30,50,70,20,60,10] -> mx 70, mn 10; both self-checked. Differential (native==interp).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     arr: [i32 in Wrapping; 6];

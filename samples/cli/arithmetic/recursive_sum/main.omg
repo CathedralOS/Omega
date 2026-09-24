@@ -29,7 +29,7 @@
 // slices/recursive_subslice_element_accumulator_exit (oracle-matched).
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Summer {}
 

@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // BLOCKEXEC — concrete custody/claim pin for the blocking-executor contract
 // surface (source/library/blocking-executor/): bounded submissions, moved

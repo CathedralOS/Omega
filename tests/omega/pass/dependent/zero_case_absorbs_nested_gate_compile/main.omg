@@ -1,7 +1,7 @@
 // COMPILE CANARY. The first sum case is the zero value. A payload-free Empty
 // therefore absorbs Player's gate, and an array of slots can zero-initialize.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player where health >= 1, health <= 100 { health: i32; }
 data PlayerSlot {
     case Empty;

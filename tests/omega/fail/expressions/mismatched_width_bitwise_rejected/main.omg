@@ -4,7 +4,7 @@
 // miscompile. The bitwise sibling of the mismatched-width comparison hole (shift
 // is unaffected -- its right operand is a bit count). Rejected at check now.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; small: u8; big: u32; result: u32; }
 machine Main::main(&mut self) {
     self.small = 1;

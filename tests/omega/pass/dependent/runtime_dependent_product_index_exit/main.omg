@@ -12,7 +12,7 @@
 // with the clean cannot-prove error (probed).
 // exits: 71 = the composed read delivered the wrong element.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main
 where
     rows <= 2,

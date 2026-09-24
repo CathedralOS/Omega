@@ -13,7 +13,7 @@
 // other mutating call).
 // exits: 71 = value use wrong; 72 = encode wrong; 73 = roundtrip wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Point {
     #0 x: u32;
     #1 y: u32;

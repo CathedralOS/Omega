@@ -1,7 +1,7 @@
 // FAIL CANARY. Without a default-domain upper bound, 70 + arbitrary i32 may
 // overflow; no standing fact may be fabricated from the field name alone.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     value: i32;

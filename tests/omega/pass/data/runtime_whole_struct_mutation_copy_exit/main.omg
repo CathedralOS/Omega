@@ -9,7 +9,7 @@
 // (reads land in the wrong storage), the exact failure the per-side site
 // tags exist to prevent.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Pair { a: i64; b: i64; }
 data Main { console: Binding<Console>; spot: Pair; scratch: Pair; }
 machine Main::main(&mut self) reaches Console {

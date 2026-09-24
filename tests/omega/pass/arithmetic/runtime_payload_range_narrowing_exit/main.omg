@@ -5,7 +5,7 @@
 // enforces the range (forged out-of-range values are rejected -- see
 // fail/arithmetic/construction_payload_out_of_range). Found{index:5} -> 5+65=70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Slot { case Found(index: i32 [0..=15]); case Full; }
 data Main { console: Binding<Console>; }
 machine Main::run(&mut self, s: Slot) reaches Console {

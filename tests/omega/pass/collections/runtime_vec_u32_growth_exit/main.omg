@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 use alloc::vec;
 
 // ALLOCATOR STORY STAGE 2 — growable `Vec<u32>` over caller-supplied

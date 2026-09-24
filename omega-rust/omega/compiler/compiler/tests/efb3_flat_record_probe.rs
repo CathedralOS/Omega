@@ -19,7 +19,7 @@ impl Probe {
         fs::write(
             &main,
             r#"use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Point {
     x: i32;

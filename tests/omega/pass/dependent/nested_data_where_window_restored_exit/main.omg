@@ -2,7 +2,7 @@
 // only on a machine's direct fields: self.map's two writes restore Map before
 // the boundary call consumes Main.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Map
 where
     start <= end,

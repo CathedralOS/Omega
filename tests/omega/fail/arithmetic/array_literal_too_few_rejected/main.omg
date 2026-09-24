@@ -3,7 +3,7 @@
 // must supply exactly N elements (the counterpart of array_literal_too_many_rejected).
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; xs: [i32; 4]; }
 

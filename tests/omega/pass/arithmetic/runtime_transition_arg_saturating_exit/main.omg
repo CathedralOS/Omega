@@ -3,7 +3,7 @@
 // clamps), so `acc + (s[0] as i32 in Saturating)` compiles with no guard / no
 // range proof. arr = [30,25,15] sums to 70 (no clamping occurs at these values).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Summer {}
 data Main { console: Binding<Console>; arr: [i32; 3]; summer: Summer; }
 machine Summer::sum(&mut self, s: &[i32], acc: i32 in Saturating) -> i32 in Saturating

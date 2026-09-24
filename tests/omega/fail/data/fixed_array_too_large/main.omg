@@ -2,6 +2,6 @@
 // size (`[i32; 5e18]` -> 2e19 bytes > u64::MAX) used to PANIC the compiler with
 // "attempt to multiply with overflow" during layout. It must be a clean diagnostic.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; xs: [i32; 5000000000000000000]; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(0); }

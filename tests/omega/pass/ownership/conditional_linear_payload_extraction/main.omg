@@ -3,7 +3,7 @@
 // strand a debt on the affine sum or mint a fresh origin for the payload.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Receipt [linear] {
     code: i32;

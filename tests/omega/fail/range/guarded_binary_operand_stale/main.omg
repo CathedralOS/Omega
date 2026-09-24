@@ -3,7 +3,7 @@
 // 2000000000, so `store`'s `d <= 1` requires must reject (without
 // staleness, the stale guard's `dir <= 1` would "prove" the sum).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

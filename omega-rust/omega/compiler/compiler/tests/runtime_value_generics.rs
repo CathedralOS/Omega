@@ -1690,7 +1690,7 @@ mod native {
             "shared-body",
             r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
@@ -1716,7 +1716,7 @@ machine Main::main(&mut self) reaches Console {
 
     const FORWARDING_SOURCE: &str = r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
@@ -1791,7 +1791,7 @@ machine Main::main(&mut self) reaches Console {
             "guarded",
             r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
@@ -1828,7 +1828,7 @@ machine Main::main(&mut self) reaches Console {
         let source = [
             r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 "#,
             super::GUARDED_RESULT_BOUND_MACHINES,
@@ -1849,7 +1849,7 @@ machine Main::main(&mut self) reaches Console {
     fn equal_runtime_indices_preserve_the_guarded_result_subject_natively() {
         let source = [r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 "#, super::EQUAL_RUNTIME_INDEX_MACHINES, r#"
 machine Main::main(&mut self) reaches Console {
@@ -1876,7 +1876,7 @@ machine Main::main(&mut self) reaches Console {
             "indexed-field",
             r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
@@ -1922,7 +1922,7 @@ machine Main::main(&mut self) reaches Console {
             "transitioned-subject",
             r#"
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

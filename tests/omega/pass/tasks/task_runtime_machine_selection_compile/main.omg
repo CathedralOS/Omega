@@ -1,5 +1,5 @@
 use omega::language::core::task;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
 // parameter surface. `Worker::run` is selected statically and survives as the

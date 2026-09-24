@@ -2,7 +2,7 @@
 // dispatch set. Destination context selects the requirement, and provider
 // planning must preserve that exact identity through adapter dispatch.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Convert {
     machine convert(value: i32) -> i32;

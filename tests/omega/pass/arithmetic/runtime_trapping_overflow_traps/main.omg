@@ -8,7 +8,7 @@
 // fail. Compiles cleanly (Trapping is the DECLARED escape from the decision-17
 // proof obligation); the partiality is the declared behavior.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; x: i32 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     self.x = 2147483647;

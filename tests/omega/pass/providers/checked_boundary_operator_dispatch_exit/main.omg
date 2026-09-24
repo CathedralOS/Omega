@@ -2,7 +2,7 @@
 // the public operator contract and exact ProviderPlan identity; execution in
 // both engines redirects to the selected ordinary machine.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data CheckedMath {}
 

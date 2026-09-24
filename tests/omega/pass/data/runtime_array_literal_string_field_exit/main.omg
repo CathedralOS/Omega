@@ -18,7 +18,7 @@ requires
 // that the compare is content-honest rather than vacuously true.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Room {
     number: u32;

@@ -7,7 +7,7 @@
 // a[i] < b[j] is 20 < 4 = FALSE; the reverse b[j] < a[i] is 4 < 20 = TRUE.
 // Both directions correct -> exit 70; any base/index confusion -> exit 71.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     a: [i32; 4];

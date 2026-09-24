@@ -9,7 +9,7 @@
 // call (43/44 below). The splice is the executor for non-guard roles; non-guard
 // preludes carry no callee operations.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Tally {
     calls: u64;

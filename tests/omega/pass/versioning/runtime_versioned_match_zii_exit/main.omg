@@ -2,7 +2,7 @@
 // Ordinary case matching selects V1 even though Current is written first.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data CounterV1 {
     counter: i32;

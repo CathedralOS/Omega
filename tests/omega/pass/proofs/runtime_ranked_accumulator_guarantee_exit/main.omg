@@ -14,7 +14,7 @@
 // the unchanged origin diagnostic. `descend(3, 9)` visits (3, 9), (2, 3),
 // (1, 2), (0, 1) and returns 1; the program exits 70 on that value.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

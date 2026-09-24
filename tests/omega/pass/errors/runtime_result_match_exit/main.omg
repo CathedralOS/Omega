@@ -8,7 +8,7 @@
 // the error is data, not a trap), and the matched payload flows to the handler state.
 // Exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data DivResult {
     case Ok(value: i32 in Wrapping);

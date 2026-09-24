@@ -3,7 +3,7 @@
 // before checking -- to the checked adapter retained by the selected nominal
 // provider plan, and runs as ordinary Omega.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Echo {
     machine echo(x: i32) -> i32;
 }

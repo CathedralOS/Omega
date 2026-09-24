@@ -7,7 +7,7 @@
 // moved to `store`'s requires contract, the checked admission boundary.
 // yv=7 -> exit 7.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -9,7 +9,7 @@
 // region-parametric encoder was needed. The FIELD-CARRIER idiom stays
 // pinned by calls/runtime_dispatch_machine_array_slice_arg_exit.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; nums: [i32; 4]; }
 machine Main::pick(&mut self, s: &[i32], i: u64, j: u64)
 terminates by (j, i) -> Nat::BoundedDistance;

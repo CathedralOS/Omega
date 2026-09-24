@@ -4,7 +4,7 @@
 // (aliasing) copy would let the later mutation leak through. b.x+b.y and arr[1].x+arr[1].y must both
 // stay at their copied values (5+9 = 14 and 6+8 = 14). Exits 70 iff both hold.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Pt {
     x: i32 in Wrapping;

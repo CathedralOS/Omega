@@ -9,7 +9,7 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait FloatingEnvironment {
     machine set_rounding(mode: i32) -> i32;

@@ -4,7 +4,7 @@
 // fail/collections/deep_nested_runtime_indexed_write_rejected.) Fill both columns of both rows by runtime
 // row index, read back: sum 10+15+20+25 = 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

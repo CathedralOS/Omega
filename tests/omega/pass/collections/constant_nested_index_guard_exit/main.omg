@@ -1,7 +1,7 @@
 // A constant nested fixed-array projection in a guard must retain both index
 // levels instead of flattening the outermost index onto the root field.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Pair { first: i32; second: i32; }
 data Main {
     console: Binding<Console>;

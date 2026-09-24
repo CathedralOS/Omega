@@ -12,7 +12,7 @@ use omega::language::core::float_operations;
 // FLOAT class before marshalling.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Math {
     machine round_nearest(value: f64) -> i64;

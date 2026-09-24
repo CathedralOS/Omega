@@ -1,7 +1,7 @@
 // The reachable terminal leaves are the exact std Console output and exit
 // requirements: `write_line` is checked std code over the `write_byte`
 // intrinsic, and `exit_process` ends the process with status 70.
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega_language_std::console;
 
 data Main { console: Binding<Console>; }

@@ -12,7 +12,7 @@
 //
 // Expected exit: 16
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Counter<T> {
     value: T;
     times: i32 in Wrapping;

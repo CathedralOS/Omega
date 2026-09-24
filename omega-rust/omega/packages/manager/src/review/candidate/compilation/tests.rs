@@ -536,7 +536,7 @@ impl ConsoleApplicationFixture {
         fs::write(
             root.join("application/main.omg"),
             r#"use ordinary_console::main;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self)
@@ -777,7 +777,7 @@ fn assert_root_console_permissions(
 /// independently. The component entry's own call puts that adapter in the
 /// module's realization roster, which is what the published description
 /// exports — nothing here asserts a roster.
-const INDEPENDENT_COMPONENT_SOURCE: &str = r#"use omega::language::core::service;
+const INDEPENDENT_COMPONENT_SOURCE: &str = r#"use omega::language::core::binding;
 
 pub boundary trait Pick {
     machine mark(value: i32);
@@ -938,7 +938,7 @@ impl FilesystemApplicationFixture {
         fs::write(
             root.join("application/main.omg"),
             r#"use ordinary_filesystem::main;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Main { files: Binding<FilesystemHost>; rc: i32; }
 pub machine Main::main(&mut self)

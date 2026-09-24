@@ -9,7 +9,7 @@ domain [u8]::CString
 requires
     no_nul(self);
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait ObjectiveC {
     machine get_class(name: &[u8] in CString) -> u64;

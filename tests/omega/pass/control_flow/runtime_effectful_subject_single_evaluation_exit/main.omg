@@ -18,7 +18,7 @@
 // count to a distinct exit code (pre-fix native landed on 43+: one run per
 // attempted arm, doubled per nesting level).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Tally {
     calls: u64;

@@ -6,7 +6,7 @@
 // a fixed `[i32; 5]` through `.as_slice()`, so the length folds to the constant 5
 // and `n == 5` must take the true arm -> exit 5.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

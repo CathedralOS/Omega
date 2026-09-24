@@ -13,7 +13,7 @@
 // Expected exit: 87.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // The modulus is the CONSTANT 100 at each `%` site (a constant divisor is
 // provably nonzero). A `modulus: i32 [1..=100]` FIELD would be rejected: this

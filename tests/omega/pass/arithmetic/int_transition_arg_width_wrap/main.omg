@@ -6,7 +6,7 @@
 // exit 71 = the interpreter carried the un-wrapped 300 into the u8 param.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: u8 in Wrapping; b: u8 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
     self.a = 200;

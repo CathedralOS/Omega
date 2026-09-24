@@ -16,7 +16,7 @@
 // fail/collections/nested_three_level_index_rejected.
 // exits: 71 = static read wrong; 72 = write flavor wrong; 73 = param leg wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     pixels: [u8; 12];

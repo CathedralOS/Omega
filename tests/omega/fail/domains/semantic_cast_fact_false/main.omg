@@ -2,7 +2,7 @@
 // FALSE fact at the literal -- decision 19's "predicate obligation not
 // discharged" refusal class.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 domain i64::Km
 requires

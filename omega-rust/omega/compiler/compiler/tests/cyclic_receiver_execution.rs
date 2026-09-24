@@ -84,7 +84,7 @@ machine Main::record(&mut self) {
         source
             .replace(
                 "data Main {",
-                "use omega::language::core::service;
+                "use omega::language::core::binding;
 data Main { trace: Binding<Trace>;",
             )
             .replace(

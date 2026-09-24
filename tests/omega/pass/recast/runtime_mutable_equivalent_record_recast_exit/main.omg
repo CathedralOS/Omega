@@ -6,7 +6,7 @@ use omega::language::core::float_operations;
 // The field names deliberately differ: representation, not nominal spelling,
 // owns the judgment.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data SignedRecord {
     signed_value: i16 [0..=100];

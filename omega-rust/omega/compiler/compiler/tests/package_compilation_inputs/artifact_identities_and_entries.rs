@@ -227,7 +227,7 @@ linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i
     TempTree::write(console.join("console.omg"), exact_console_source);
     TempTree::write(
         root.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 use accepted_console::console;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
@@ -938,7 +938,7 @@ fn accepted_package_filesystem_binding_requires_exact_owner_path_and_schema() {
     );
     TempTree::write(
         root.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 use host_services::filesystem_host;
 data Main { filesystem: Binding<FilesystemHost>; descriptor: i32; }
 machine Main::main(&mut self) reaches FilesystemHost {
@@ -1604,7 +1604,7 @@ fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
     let exit_root = output.package("physical-exit-source");
     TempTree::write(
         exit_root.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 use host_services::console;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {

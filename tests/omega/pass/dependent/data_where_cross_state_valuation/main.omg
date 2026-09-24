@@ -4,7 +4,7 @@
 // write discharges (this exact shape over-refused under slice 4's
 // poison-everything-non-boot rule).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data MemoryMap
 where
     count <= len,

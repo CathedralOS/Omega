@@ -9,7 +9,7 @@
 // (History: parked 2026-07-09c as the deliberately-unfenced missed-trap gap;
 // promoted when the operand-position lowering landed in both ISAs.)
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; au: u8 in Trapping; bu: u8 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     self.au = 200;

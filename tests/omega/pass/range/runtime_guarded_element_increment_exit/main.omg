@@ -9,7 +9,7 @@
 // hoist renames the element read (`__hoist_N`), so the guard cannot match it
 // (documented follow-up). ZII tallies[1]=0 -> +1 -> exit 1.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     tallies: [i32; 4];

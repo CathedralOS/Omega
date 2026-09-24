@@ -13,7 +13,7 @@
 // local stays a place and its slot is copied into the parameter.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Calc {}
 

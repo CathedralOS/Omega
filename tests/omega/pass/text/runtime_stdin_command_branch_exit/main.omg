@@ -1,6 +1,6 @@
 // Raw bounded line input is normalized by this ASCII command protocol.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Command {
     case Look;

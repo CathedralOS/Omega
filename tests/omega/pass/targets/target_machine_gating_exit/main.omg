@@ -17,7 +17,7 @@
 // fail/targets/target_machine_missing_rejected and
 // fail/targets/target_machine_duplicate_rejected.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Helper { seed: i32; }
 

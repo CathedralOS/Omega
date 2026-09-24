@@ -2,7 +2,7 @@
 // declare must be a targeted clean error (rearrange rung A) -- never a
 // silent no-op conformance.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps {
     machine add(a: Self, b: Self) -> Self;

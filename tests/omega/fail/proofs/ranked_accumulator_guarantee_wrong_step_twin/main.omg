@@ -7,7 +7,7 @@
 // the claim's proof fact on the offending transition arm. The guarantee is
 // genuinely false: `descend(1, 5)` returns 1000.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

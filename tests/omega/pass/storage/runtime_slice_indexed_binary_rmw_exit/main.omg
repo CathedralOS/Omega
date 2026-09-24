@@ -8,7 +8,7 @@
 // frame-fixed-indexed READ, so the operand-relocation offsets are
 // exercised too. exit 71 = the RMW missed the element (stale 30).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Exit {
     // Defined-overflow domain: the `&mut` slice alias reads are opaque to

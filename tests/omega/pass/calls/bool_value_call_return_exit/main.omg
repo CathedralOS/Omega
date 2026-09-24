@@ -8,7 +8,7 @@
 // INLINED callee's float-local guard resolution, tracked in TASKS F3, not
 // bool delivery.)
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Probe { flag: u8; }
 machine Probe::is_set(&self) -> bool {

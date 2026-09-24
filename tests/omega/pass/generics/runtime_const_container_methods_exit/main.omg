@@ -1,7 +1,7 @@
 // Parameter-free attached methods clone onto each const-specialized record,
 // preserving receiver identity and the instance's concrete fixed-array layout.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // `items[0]` reads discharge against the symbolic extent: the template must
 // declare N >= 1 so index 0 is provably inside every admissible specialization.

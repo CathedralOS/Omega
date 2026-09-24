@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Target-owned UEFI x86-64 OS-loader handoff.
 //
 // An OS-loader profile binds a ProgramEntry machine that calls

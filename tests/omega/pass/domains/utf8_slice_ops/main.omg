@@ -11,7 +11,7 @@ data Main {
 }
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine Main::measure(&self, text: &[u8] in Utf8) -> u64 {
     transition { _ -> (text.len) }

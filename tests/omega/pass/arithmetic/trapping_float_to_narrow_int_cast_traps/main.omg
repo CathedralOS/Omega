@@ -4,7 +4,7 @@ use omega::language::core::float_operations;
 // the actual u8 target must trap before the truncating store. Exit 7 means the
 // guard used u32/i32 bounds and sailed past; 71 means the in-range leg broke.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; f: f64; r: u8; }
 machine Main::main(&mut self) reaches Console {
     self.f = 200.9;

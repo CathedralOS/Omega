@@ -4,7 +4,7 @@
 // AFTER the call passes the access gate (establishment is globally
 // monotone -- a call can only add it).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Player
 where
     health >= 1,

@@ -10,7 +10,7 @@
 // Expected exit: 200.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Clamper {
     values: [i32 in Wrapping; 5];

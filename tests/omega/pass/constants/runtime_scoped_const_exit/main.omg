@@ -5,7 +5,7 @@
 // constructed into a field and read back. 60 + 10 == 70 on both engines.
 // Expected exit: 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Limits [copy] {
     ceiling: i32 [0..=100];

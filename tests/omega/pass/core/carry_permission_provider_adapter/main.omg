@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Compiler-owned carry permissions are admitted only through the selected
 // owner-authorized requirement. The resulting claim is born strict, so this
 // contract relaxes suspension without relaxing CPU, thread, or address.

@@ -10,7 +10,7 @@
 // exit 70 = both shapes guard on the delivered flag; 71 = nested-only
 // entry read ZII; 72 = stores-around-the-nested-call variant read ZII.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Verdict { case No; case Yes; }
 data Helper { seen: i32; }
 machine Helper::check(&mut self, x: i32) -> bool {

@@ -6,7 +6,7 @@
 // ever admitted the bound without folding it (or clamped it to the target),
 // this would falsely compile. MUST reject with the expected fragment.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 domain i32::Ten requires 0 <= self && self <= 10;
 data Cmd { case Dim(amount: i32 in Ten); case Off; }
 data Main { console: Binding<Console>; c: Cmd; }

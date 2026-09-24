@@ -2,7 +2,7 @@
 // sibling through an explicit argument and bind to that sibling's parameter.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Light { case Off; case On; }
 

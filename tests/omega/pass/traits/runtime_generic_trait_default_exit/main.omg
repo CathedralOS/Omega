@@ -1,7 +1,7 @@
 // Standalone generic conformance arguments specialize both the synthesized
 // default signature and the authored body it carries.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Initializable<T> {
     machine assign(&mut self, value: T);

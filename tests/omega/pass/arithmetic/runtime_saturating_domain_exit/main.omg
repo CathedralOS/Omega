@@ -4,7 +4,7 @@
 // overflow -> 127, i8 signed negative underflow -> -128 (verified as +128 == 0 to keep the
 // observable positive). All self-checked via chained guards. Differential: native == interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     a: u8 in Saturating;

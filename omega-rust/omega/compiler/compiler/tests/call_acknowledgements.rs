@@ -151,7 +151,7 @@ fn suspension_rejects_nested_position_while_blocking_may_nest() {
 
 #[test]
 fn suspension_accepts_each_direct_continuation_position() {
-    let source = r#"use omega::language::core::service;
+    let source = r#"use omega::language::core::binding;
 
 pub boundary trait Event { machine park() suspends; }
 pub boundary trait Value { machine get() -> u64 suspends; }

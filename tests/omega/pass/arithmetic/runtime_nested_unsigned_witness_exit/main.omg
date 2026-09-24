@@ -10,7 +10,7 @@
 // only). Fifth direction: the WRITE-side fused-operand builder shares the
 // witness funnel. Exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     a: u32;

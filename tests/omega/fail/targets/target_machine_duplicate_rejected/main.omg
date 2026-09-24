@@ -4,7 +4,7 @@
 // resolves to the HOST target on every machine, so both rows are selected on
 // any host and the duplicate fires host-portably.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Helper { seed: i32; }
 

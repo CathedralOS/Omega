@@ -16,7 +16,7 @@
 // but only flagging (owner: no compelling reason to forbid it). The warning
 // appearing in this sample's compile output is expected and correct.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; x: i32 in Trapping; }
 machine Main::main(&mut self) reaches Console {
     self.x = 2147483647;

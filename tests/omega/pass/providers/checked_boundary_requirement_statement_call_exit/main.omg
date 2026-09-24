@@ -4,7 +4,7 @@
 // authored requirement identity remains the source view.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data CheckedMath {}
 

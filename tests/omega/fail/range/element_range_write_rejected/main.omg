@@ -4,7 +4,7 @@
 // store-enforced invariant. The checked boundary now lives on the consumer's
 // requires contract: `use_cell(100)` cannot prove `v <= 7` and must reject.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

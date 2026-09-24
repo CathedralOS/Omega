@@ -70,7 +70,7 @@ fn granted_plan_receipt_pins_the_fingerprint() {
     .expect("write build.omg");
     let main_with = |slot: i64| {
         format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
 pub boundary trait Flags {{
     machine open_read() -> i32;
@@ -120,7 +120,7 @@ fn derived_provider_plans_surface_as_trust_rows() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 pub boundary trait Flags {
     machine open_read() -> i32;
@@ -602,7 +602,7 @@ fn satisfies_leaves_derive_a_covered_plan() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 pub boundary trait Pair {
     machine first(code: i32) -> i32;
@@ -742,7 +742,7 @@ fn provider_type_conformance_closures_remain_separate() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 pub boundary trait Pair {
     machine first(code: i32) -> i32;

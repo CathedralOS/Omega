@@ -91,7 +91,7 @@ fn domain_declarations_do_not_create_trust_rows() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 domain u32::Meters;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Binding<Console>; }
@@ -126,7 +126,7 @@ fn trust_report_empty_without_commitments() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Binding<Console>; }
 machine Main::exercise(&mut self) reaches Console {
@@ -283,7 +283,7 @@ fn domain_and_unmatched_root_grants_reject_without_receipts() {
     .expect("write build.omg");
     std::fs::write(
         project.join("main.omg"),
-        r#"use omega::language::core::service;
+        r#"use omega::language::core::binding;
 domain u32::Meters;
 pub boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Binding<Console>; }
@@ -413,7 +413,7 @@ fn lockfile_written_and_drift_fails_until_reapproved() {
             claim.trim().to_owned()
         };
         format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 boundary machine admitted(value: i32) ensures {claim};
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Binding<Console>; }}
@@ -644,7 +644,7 @@ fn granted_axiom_receipt_drifts_on_claim_edit() {
     .expect("write build.omg");
     let main_with = |claim: &str| {
         format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::nat;
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Binding<Console>; }}
@@ -710,7 +710,7 @@ fn granted_axiom_receipt_drifts_on_published_contract_axis_edit() {
     .expect("write build.omg");
     let main_with = |axis: &str| {
         format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
 data Main {{ console: Binding<Console>; }}
 
@@ -779,7 +779,7 @@ fn granted_generic_axiom_receipt_pins_template_and_machine_requirement() {
     .expect("write build.omg");
     let main_with = |requirement_clause: &str| {
         format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 pub boundary trait Console {{ machine exit_process(return_code: i32); }}
 pub trait Ranked {{ machine Self::before(&self, other: &Self) -> bool; }}
 data Card {{ rank: i32; }}

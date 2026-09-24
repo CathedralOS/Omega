@@ -8,7 +8,7 @@
 // provider leg.
 
 use blocking_executor::executor;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // A small payload moved through the package's submission contract.
 data Token {

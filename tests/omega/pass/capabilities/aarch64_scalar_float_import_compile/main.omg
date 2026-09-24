@@ -1,6 +1,6 @@
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // An authored scalar-float signature must retain its float class through
 // selection: the argument travels in d0 and the result returns in d0.

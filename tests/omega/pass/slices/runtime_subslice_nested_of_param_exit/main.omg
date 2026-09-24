@@ -5,7 +5,7 @@
 // length 4 instead of 3) while the interpreter rejected the shape outright.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Entry { value: i32; }
 

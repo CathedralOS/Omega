@@ -9,7 +9,7 @@
 //
 // Fill all three elements with Pt{10,15}, then sum arr[0].x + arr[1].y + arr[2].x = 10+15+10 = 35.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Pt {
     x: i32 in Wrapping;

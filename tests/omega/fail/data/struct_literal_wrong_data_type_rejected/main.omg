@@ -3,7 +3,7 @@
 // PLACE value type but not a struct literal is own type name; now it does. Mirrors
 // the `&Bar`-for-`&Foo` place rejection.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data A { x: i32; }
 data B { y: i32; }
 data Main { console: Binding<Console>; }

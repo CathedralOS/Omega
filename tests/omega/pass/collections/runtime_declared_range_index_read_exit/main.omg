@@ -6,7 +6,7 @@
 // range is enforced at every store and ZII 0 must be in range. The read state
 // sees only the ZII i=0 -> arr[0]=30 -> exit 30.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -1,7 +1,7 @@
 // Machine conformances always bind one exact requirement. A bare trait name is
 // retired rather than inferring a requirement from this machine's own name.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps {
     machine add(a: Self, b: Self) -> Self;

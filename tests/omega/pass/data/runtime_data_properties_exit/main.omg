@@ -5,7 +5,7 @@
 // only because `Point` declares the properties itself.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Point [copy] {
     x: i32;

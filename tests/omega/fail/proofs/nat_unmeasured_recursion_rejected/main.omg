@@ -4,7 +4,7 @@
 // claim in BOTH strata -- `spin(n)` would "prove" by spinning forever.
 use omega::language::core::nat;
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) { self.console.exit_process(70); }
 machine spin(n: Nat) -> Nat {

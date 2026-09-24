@@ -9,7 +9,7 @@
 // fail/relevance/erased_nonscalar_parameter). The dedicated legs are
 // canary_suite layouts_and_pending::erased_proof_only_typed_parameter_*.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega::language::core::nat;
 
 machine keep(n: i32, witness [erased]: Nat) -> i32 {

@@ -2,7 +2,7 @@
 // Exercises that i8 is wired as a 1-byte SIGNED primitive (is_signed_integer):
 // -10 + 4 == -6 -> exit 70. A wrong (unsigned) treatment would mis-compare.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

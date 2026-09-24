@@ -322,7 +322,7 @@ fn generated_combined_authority_requires_both_service_decisions_before_install()
     let source = r#"
 use host_services::console;
 use host_services::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub machine write_and_exit(console: Binding<Console>, files: Binding<FilesystemHost>, descriptor: i32, line: &[u8])
 reaches FilesystemHost + Console
@@ -351,7 +351,7 @@ fn generated_authority(source: &str, callable: &str, services: &[&str]) {
     // callable using those retained declarations, not new dependency discovery.
     let fixture = authority_fixture(
         &build,
-        "use host_services::console;\nuse host_services::filesystem_host;\nuse omega::language::core::service;\n",
+        "use host_services::console;\nuse host_services::filesystem_host;\nuse omega::language::core::binding;\n",
     );
     fs::create_dir(fixture.path("dependency/inputs")).unwrap();
     fixture.write(

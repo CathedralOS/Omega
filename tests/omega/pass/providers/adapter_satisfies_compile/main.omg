@@ -4,7 +4,7 @@
 // the requirement's declared ceiling: an effect-free body under an
 // effect-free requirement here).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 boundary trait Echo {
     machine echo(x: i32) -> i32;
 }

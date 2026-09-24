@@ -2,7 +2,7 @@
 // truncated by native lowering. The fixed-array proof rejects the domain
 // before codegen because its full declared range does not fit the array.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

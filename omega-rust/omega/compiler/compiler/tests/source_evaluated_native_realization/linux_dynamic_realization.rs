@@ -248,7 +248,7 @@ fn aggregate_foreign_boundary_members_refuse_at_terminal_entry_establishment() {
             name,
             "linux_x86_64",
             &format!(
-                r#"use omega::language::core::service;
+                r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 

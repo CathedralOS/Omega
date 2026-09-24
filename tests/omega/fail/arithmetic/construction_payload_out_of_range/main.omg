@@ -2,7 +2,7 @@
 // literal is rejected -- the bound a destructure arm trusts must hold at every
 // construction site (fact-catalog soundness). 9999 is outside [0..=15].
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Slot { case Found(index: i32 [0..=15]); case Full; }
 data Main { console: Binding<Console>; }
 machine Main::run(&mut self, s: Slot) {

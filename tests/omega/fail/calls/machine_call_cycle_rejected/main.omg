@@ -2,7 +2,7 @@
 // witness is rejected. Decision 23 permits only ranked, tail-position runtime
 // SCCs; this unranked pair remains illegal.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::scan_a(&mut self, n: u32 in Wrapping) -> u32 in Wrapping {
     transition n < 3 {

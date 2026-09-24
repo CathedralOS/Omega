@@ -7,7 +7,7 @@
 // pass/arithmetic/runtime_shl_saturating_exit and
 // runtime_shl_saturating_value_overflow_exit.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {
     let a: u32 in Saturating = (3 as u32 in Saturating);

@@ -6,7 +6,7 @@
 // pattern as negative -- must still reject at the literal-width gate
 // (validation/src/literals.rs), naming the accepted alternative.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

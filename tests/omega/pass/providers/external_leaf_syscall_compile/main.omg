@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // PRV4d: a target-scoped external leaf using ForeignBinding::Syscall reaches the
 // selected target syscall mechanism. The x86 structural test pins the final
 // number and instruction; this source also joins the general pass corpus.

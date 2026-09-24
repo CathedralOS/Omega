@@ -3,7 +3,7 @@
 // break every destructuring site until each decides bind-or-waive. The
 // refusal names the missing field.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Point {
     x: i32 [0..=100];
     y: i32 [0..=100];

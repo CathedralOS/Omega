@@ -2,7 +2,7 @@
 // The consuming machine's conformance bound supplies the spelled operation;
 // the carrier trait's checked law slots license AC normalization.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 domain<T, const I: u64> T::Indexed<I>;
 

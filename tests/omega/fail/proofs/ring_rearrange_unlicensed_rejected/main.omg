@@ -5,7 +5,7 @@
 // before the tier existed. Whether a proof compiles must never depend on
 // what happens to be in scope (the Lean CommRing-instance precedent).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Peano {
     case Zero;

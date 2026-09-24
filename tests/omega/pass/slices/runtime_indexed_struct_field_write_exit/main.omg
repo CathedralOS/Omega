@@ -14,7 +14,7 @@
 // correct -> exit 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Entity {
     hp: i32 in Trapping;

@@ -184,11 +184,11 @@
    "owning_paths": [
     "omega-rust/psi/representations/typed-trees/src/typed_trees/calls",
     "omega-rust/psi/pipeline/typed-trees-to-checked-trees/src/calls",
-    "source/library/core/service.omg",
+    "source/library/core/binding.omg",
     "tests/omega/pass/providers",
     "tests/omega/fail/providers"
    ],
-   "suggested_first_slice": "Service-identity leg: replace qualification-based service admission with exact closed Service<R> identity \u2014 core/service.omg declares `Bound` and typed-trees/src/typed_trees/calls/service.rs requires it. Bounded first cut: retire the `Bound` requirement from service.rs (typed-trees repr + its checked-trees acceptance path) while keeping the library declaration compiling \u2014 do NOT migrate all of source/library in one leg; prove the admission change on one Service<R> consumer first. Codex's executed-provider-selection wave holds authored_selections + symbols/targets/calls.rs \u2014 check tools/claims.py status and route around them. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
+   "suggested_first_slice": "Service-identity leg: replace qualification-based service admission with exact closed Service<R> identity \u2014 core/binding.omg declares `Bound` and typed-trees/src/typed_trees/calls/service.rs requires it. Bounded first cut: retire the `Bound` requirement from service.rs (typed-trees repr + its checked-trees acceptance path) while keeping the library declaration compiling \u2014 do NOT migrate all of source/library in one leg; prove the admission change on one Service<R> consumer first. Codex's executed-provider-selection wave holds authored_selections + symbols/targets/calls.rs \u2014 check tools/claims.py status and route around them. ONE bounded leg. Never git stash. Land via tools/landing.py. cargo."
   },
   {
    "name": "structural-borrow-identity",

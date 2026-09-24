@@ -12,7 +12,7 @@
 // regresses (returns true).
 
 use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Probe {
     host: Binding<FilesystemHost>;

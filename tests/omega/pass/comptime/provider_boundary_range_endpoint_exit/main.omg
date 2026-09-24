@@ -4,7 +4,7 @@
 // `left | right` = 7 where builtin `%` would fold 1, so passing 7 to
 // `take_bounded` only type-checks when the provider body actually ran.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Math {}
 

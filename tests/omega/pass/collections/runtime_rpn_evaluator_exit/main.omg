@@ -4,7 +4,7 @@
 // stack is a plain array with a `top` index (push: stk[top]=v, top++; pop: top--, read
 // stk[top]). Evaluating `3 4 + 5 *` -> (3+4)*5 = 35 leaves 35 on the stack. Exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

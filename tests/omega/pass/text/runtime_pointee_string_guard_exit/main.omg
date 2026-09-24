@@ -13,7 +13,7 @@ requires
 // compare (the match regime took the false arm). Both the local-alias shape
 // and the called-machine `&mut Room` PARAMETER shape are covered.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Room {
     label: &[u8] in Utf8;

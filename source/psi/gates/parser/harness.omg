@@ -3,7 +3,7 @@
 // entry; the product compiler closure under `source/psi` never includes it.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 use psi::lex::lexer;
 use psi::parse::parser;
 use psi::syntax::syntax;

@@ -6,7 +6,7 @@
 // Three entities with pos.x = 1,2,3: the sum is 6, and after doubling pos.x = 2,4,6.
 // All checked -> exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Vec2 {
     x: i32 in Wrapping;

@@ -2,7 +2,7 @@
 // to silently bind 0 (the dungeon's `existing_index.is_some()` never stacked
 // items). Now a compile error.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Tally {
     count: i32;
 }

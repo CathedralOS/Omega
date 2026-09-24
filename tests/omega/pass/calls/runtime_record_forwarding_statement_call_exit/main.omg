@@ -3,7 +3,7 @@
 // Native lowering must substitute the complete caller place before applying
 // member suffixes; leaving the callee parameter unbound reads its ZII storage.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Pair {
     first: i32;

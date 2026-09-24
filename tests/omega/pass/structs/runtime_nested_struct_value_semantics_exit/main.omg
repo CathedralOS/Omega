@@ -8,7 +8,7 @@
 // Exits 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Inner {
     v: i32 in Trapping;

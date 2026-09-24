@@ -6,7 +6,7 @@
 use omega::language::std::macos_gui;
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // Keep loop/guard scalars before the framebuffer so this canary isolates provider
 // behavior from large frame-offset addressing. The framebuffer base itself is

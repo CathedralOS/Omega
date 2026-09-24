@@ -117,7 +117,7 @@ fn linux_arm64_hosted_receiver_fixture(name: &str, explicit_exit: bool) -> Fixtu
     };
     let source = format!(
         r#"use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {{
     value: i32;

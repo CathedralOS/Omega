@@ -5,7 +5,7 @@
 // compiler-owned `ForeignBinding::DllImport` value carrying one exact versioned-ELF
 // import, so raw foreign bytes stay data.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Pair {
     first: u64;

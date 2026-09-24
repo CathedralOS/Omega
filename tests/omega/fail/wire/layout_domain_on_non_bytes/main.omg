@@ -1,7 +1,7 @@
 // LAYOUTS L5: an OmegaLayout refinement lives on an owned byte carrier;
 // refining a scalar with a wire-format domain is a category error.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data CounterMessage {
     #0 counter: u32;

@@ -84,15 +84,15 @@ use typed_trees_to_checked_trees::lower_typed_trees;
 /// The toolchain core service declaration, resident so raw-pipeline fixtures
 /// can spell `Binding<R>` against the real core declaration. These unit
 /// harnesses build a bare `SourceMap` with no package scope, so `use
-/// omega::language::core::service` cannot resolve; installing the source with
+/// omega::language::core::binding` cannot resolve; installing the source with
 /// `SourceOrigin::Toolchain` gives the service classifier the exact identity
 /// it requires.
 const CORE_SERVICE_OMG: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../source/library/core/service.omg"
+    "/../../../../source/library/core/binding.omg"
 ));
 
-/// Check `source` with `core/service.omg` resident as a Toolchain source and
+/// Check `source` with `core/binding.omg` resident as a Toolchain source and
 /// one fused-service erasure authorization bound per declared boundary trait —
 /// the settled-state input `build_evaluation` produces before checking when a
 /// Fused provider is selected. Fixtures exercising service-carrier semantics
@@ -103,7 +103,7 @@ fn checked_source_with_core_service(source: &str) -> checked_trees::CheckedTrees
     let mut sources = SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
-            PathBuf::from("source/library/core/service.omg"),
+            PathBuf::from("source/library/core/binding.omg"),
             CORE_SERVICE_OMG.to_owned(),
             PathBuf::from("source/library/core"),
             None,

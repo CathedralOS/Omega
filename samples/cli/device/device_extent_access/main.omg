@@ -7,7 +7,7 @@
 
 use omega::language::core::device;
 use omega::language::core::extent;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine consume_read_loan(loan: DeviceLoan in DeviceReads) -> DeviceLoan {
     loan as DeviceLoan

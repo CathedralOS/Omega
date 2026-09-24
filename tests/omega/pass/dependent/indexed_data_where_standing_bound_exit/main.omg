@@ -1,7 +1,7 @@
 // RUN CANARY (exit 70). Zero-valid default facts seed every fixed-array
 // element at its indexed path, so maps[1].value carries Map's upper bound.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Map
 where
     value <= 60,

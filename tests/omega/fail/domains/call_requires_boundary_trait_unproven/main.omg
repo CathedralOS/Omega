@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Chapter 18 makes a boundary trait machine's `requires` the CALLER's proof
 // obligation (`Filesystem::write_bytes requires folder in Folder::Writable`).
 // Calls through trait-typed receivers never produced a call obligation (the

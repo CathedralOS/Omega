@@ -11,7 +11,7 @@
 // self.cell_index(cell) + 1)`.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data CellId { case R00; case R01; case R02; case R03; }
 

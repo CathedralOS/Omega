@@ -2,7 +2,7 @@
 // 2026-07-02): the fourth argument must be `&mut WireVerdict`. The old
 // `&mut ok: bool` spelling gets this guided error.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Msg {
     #0 v: u32;
 }

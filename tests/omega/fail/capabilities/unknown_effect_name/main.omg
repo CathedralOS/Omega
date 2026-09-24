@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Service rows resolve boundary-trait identities. `teleport_io` names no
 // boundary trait, so the declaration is rejected.
 

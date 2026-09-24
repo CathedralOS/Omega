@@ -6,7 +6,7 @@
 // native production surfaces the entry-selection rejection below. This pin
 // observes that current surface; a reachable semantic fence would drift it.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Rec { x: u8; }
 data Main { console: Binding<Console>; }
 machine Main::take(&mut self, rows: [Rec; 0]) -> u64 { rows.len }

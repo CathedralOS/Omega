@@ -5,7 +5,7 @@
 use omega::language::core::nat;
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 machine bogus_shuffle(a: Nat, b: Nat, c: Nat) -> Nat
 terminates by a;

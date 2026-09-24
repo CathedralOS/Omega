@@ -1,7 +1,7 @@
 // A fixed 16-byte non-HFA record remains one by-value AAPCS64 operand. The
 // leading scalar consumes x0 and the record fragments load into x1/x2.
 use omega::language::core::external_binding;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub data Pair {
     first: u64;

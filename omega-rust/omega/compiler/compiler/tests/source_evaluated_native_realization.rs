@@ -178,7 +178,7 @@ impl Fixture {
         Self::with_source(
             name,
             "macos_arm64",
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 
@@ -214,7 +214,7 @@ machine Main::main(&mut self) reaches Process {
         Self::with_source(
             "windows-x86-fma",
             "windows_x86_64",
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 use omega::language::core::float_operations;
 
@@ -257,7 +257,7 @@ machine Main::main(&mut self) reaches Process {
         Self::with_source(
             "windows-u32-result-chain",
             "windows_x86_64",
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 
@@ -313,7 +313,7 @@ machine Main::main(&mut self) reaches Process {
             ""
         };
         let source = format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait Process {{
@@ -401,7 +401,7 @@ machine Main::main(&mut self) {
         Self::with_source(
             name,
             "macos_arm64",
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 
@@ -441,7 +441,7 @@ machine Main::main(&mut self) reaches Delay {
         Self::with_source(
             name,
             "macos_arm64",
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 

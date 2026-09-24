@@ -5,7 +5,7 @@
 use omega::language::core::nat;
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 
 machine bogus_sub_le(a: Nat, b: Nat) -> Nat

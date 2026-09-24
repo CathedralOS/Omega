@@ -2,7 +2,7 @@
 // AArch64 cross-region binary-write and copy address recipes and their second
 // base relocations.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main
 where
     i <= 3,

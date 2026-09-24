@@ -111,14 +111,14 @@ fn project_source(source: &str) -> (Vec<u8>, Vec<u8>) {
 // seeding typed-trees' `parse_typed_trees_with_core_service` performs.
 const CORE_SERVICE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../source/library/core/service.omg"
+    "/../../source/library/core/binding.omg"
 ));
 
 fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
     let mut sources = SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
-            PathBuf::from("source/library/core/service.omg"),
+            PathBuf::from("source/library/core/binding.omg"),
             CORE_SERVICE.to_owned(),
             PathBuf::from("source/library/core"),
             None,
@@ -130,9 +130,9 @@ fn project_source_entry(source: &str, entry: &str) -> (Vec<u8>, Vec<u8>) {
         .source_id;
     let service_tokens = Lexer::new(CORE_SERVICE)
         .tokenize()
-        .expect("tokenize service.omg");
+        .expect("tokenize binding.omg");
     let mut syntax =
-        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse service.omg");
+        parse_syntax_trees_with_id(service_source_id, &service_tokens).expect("parse binding.omg");
     let user_tokens = Lexer::new(source).tokenize().expect("tokenize O1 source");
     parse_syntax_trees_into_with_id(&mut syntax, user_source_id, &user_tokens)
         .expect("parse O1 source");

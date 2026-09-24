@@ -6,7 +6,7 @@
 // nums[3] back to confirm it holds 103. Exits 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

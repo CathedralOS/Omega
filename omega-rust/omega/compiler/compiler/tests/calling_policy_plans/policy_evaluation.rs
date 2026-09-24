@@ -947,7 +947,7 @@ machine build(builder: &mut Build) {
     );
 }
 
-const MIXED_RECORD_SOURCE: &str = r#"use omega::language::core::service;
+const MIXED_RECORD_SOURCE: &str = r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub data Pair {

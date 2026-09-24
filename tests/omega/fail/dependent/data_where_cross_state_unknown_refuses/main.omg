@@ -4,7 +4,7 @@
 // carries len = 3 across the transition, so the fold sees the REAL
 // violation (3 != 3 is FALSE) and refuses precisely.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Tally
 where
     count != len,

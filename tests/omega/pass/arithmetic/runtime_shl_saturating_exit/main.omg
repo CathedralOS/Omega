@@ -8,7 +8,7 @@
 // exits: 71 = neither clamped nor wrapped; 72 = wrapped (the old native
 // plain-shl behavior).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: u8 in Saturating; b: u8 [0..=7]; r: u8 in Saturating; }
 machine Main::main(&mut self) reaches Console {
     self.a = 17;

@@ -4,7 +4,7 @@
 // seeds the callee's `&mut [u64]` parameter through the ordinary borrowed-view
 // presentation; dropping that argument once discarded the entry machine's
 // plan and the establishment rejoin failed.
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Ping {
     machine ping();

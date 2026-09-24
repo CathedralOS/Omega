@@ -4,7 +4,7 @@
 // closed carrier admits no authored qualification at all. A same-shaped
 // non-root owner receives no such authority merely because the provider is
 // selected.
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Ping {
     machine ping();

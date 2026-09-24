@@ -13,7 +13,7 @@
 // exit 71 = a signed `idiv` fold or delivery regressed.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

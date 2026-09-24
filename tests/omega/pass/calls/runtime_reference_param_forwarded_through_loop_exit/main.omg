@@ -11,7 +11,7 @@
 // to a terminal state that writes the matched element's fields through it.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Room {
     id: i32;

@@ -6,7 +6,7 @@
 // requirement call to the concrete provider's adapter machine, and the
 // checked interpreter executes the consume leg. Native Unit-plan admission
 // for the projected owned argument remains a terminal_unit_effects frontier.
-use omega::language::core::service;
+use omega::language::core::binding;
 use omega_language_std::console;
 pub data Token [copy] { payload: i32; }
 pub boundary requirement Token::consume(self) -> Token;

@@ -286,7 +286,7 @@ impl CalledLeafFixture {
         fs::write(
             &main,
             format!(
-                r#"use omega::language::core::service;
+                r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 pub boundary trait Leaf {{

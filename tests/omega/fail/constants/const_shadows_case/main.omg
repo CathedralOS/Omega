@@ -2,7 +2,7 @@
 // constructors of the scope type -- const substitution would otherwise
 // silently shadow the case reference.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Verdict {
     case Unknown;

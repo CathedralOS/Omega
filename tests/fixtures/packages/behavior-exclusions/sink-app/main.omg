@@ -2,7 +2,7 @@
 // silent, but physical silence is a different property from absence of the
 // abstract service invocation.
 use logger_kit::main::Sink;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     sink: Binding<Sink>;

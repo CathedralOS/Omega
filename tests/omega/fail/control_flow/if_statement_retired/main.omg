@@ -2,7 +2,7 @@
 // it had no `else` and no continuation, so its dispatch could always fall
 // through. Dispatch is `transition`, whose arms must provably cover.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     x: i32;

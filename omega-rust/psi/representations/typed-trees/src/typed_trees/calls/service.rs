@@ -12,7 +12,7 @@ use crate::TypedTrees;
 use crate::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
 
-pub const SERVICE_CORE_SOURCE: &str = "service.omg";
+pub const SERVICE_CORE_SOURCE: &str = "binding.omg";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExactServiceCarrier {

@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // #66 owned `[u8; N] in Utf8` carrier `.len` as a host-call / value-position
 // operand. A carrier is `{len, bytes}` inline -- its length word lives at the
 // carrier's own offset (content at +pointer_size), unlike a fat-slice descriptor

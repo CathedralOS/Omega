@@ -15,7 +15,7 @@ use omega::language::core::float_operations;
 // Native x64:  exits 70 after the float-literal materialization fix.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

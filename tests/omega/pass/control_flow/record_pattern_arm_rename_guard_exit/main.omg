@@ -4,7 +4,7 @@
 // guard widens before adding: exact i32 addition owes its own range proof.
 // Run-verified: 30 + 40 = 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Point { x: i32; y: i32; }
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) {

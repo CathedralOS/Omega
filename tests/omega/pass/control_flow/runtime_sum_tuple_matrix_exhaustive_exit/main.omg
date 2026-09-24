@@ -4,7 +4,7 @@
 // domain is a finite subset on one axis; the held triple selects its SECOND
 // member, pinning mixed-domain lowering as well as the proof.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Direction {
     case Left;

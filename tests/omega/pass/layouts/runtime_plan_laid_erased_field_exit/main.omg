@@ -3,7 +3,7 @@
 // sees two fields and places `right` at byte 16. Interpreter and native reads
 // must agree after a whole-value copy.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

@@ -2,7 +2,7 @@
 // backend materializes it into statement-local argument scratch before the
 // platform marshaller reads the value.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -207,7 +207,7 @@ fn a_published_caller_carries_the_envelope_it_invokes() {
     let standard_library = bundled_standard_library_root();
     let main_source = |signature_tail: &str| {
         format!(
-            "use omega_language_std::console;\nuse omega::language::core::service;\n\npub data Main {{\n    console: Binding<Console>;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console_input_envelope_probe\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
+            "use omega_language_std::console;\nuse omega::language::core::binding;\n\npub data Main {{\n    console: Binding<Console>;\n}}\n\npub machine Main::main(&mut self)\nreaches Console\ninvokes Console;{signature_tail}\n{{\n    let observed: ByteRead = block self.console.read_byte();\n}}\n\nmachine build(builder: &mut Build) {{\n    builder.application(\"console_input_envelope_probe\");\n{}    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);\n}}\n",
             bundled_standard_library_dependency_declaration()
         )
     };

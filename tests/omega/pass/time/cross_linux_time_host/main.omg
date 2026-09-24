@@ -4,7 +4,7 @@
 // constants. Native execution remains gated on a real Linux host.
 use omega_language_std::time_host;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     host: Binding<TimeHost>;

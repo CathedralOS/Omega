@@ -1297,7 +1297,7 @@ fn macho_scalar_import_fixture(name: &str, member: &str, call: &str) -> Fixture 
         name,
         "macos_arm64",
         &format!(
-            r#"use omega::language::core::service;
+            r#"use omega::language::core::binding;
 use omega::language::core::external_binding;
 
 

@@ -1,4 +1,4 @@
-//! A resident toolchain `core/service.omg` for crate tests whose fixture
+//! A resident toolchain `core/binding.omg` for crate tests whose fixture
 //! sources spell `Binding<R>` carriers. Boundary dispatch and ProgramEntry
 //! service custody both classify carriers against the exact core
 //! declaration, so they share this one pipeline rather than each rebuilding
@@ -10,12 +10,12 @@ use typed_trees::TypedTrees;
 /// The toolchain core service declaration, resident so fixture sources can
 /// spell `Binding<R>` against the real core declaration. These bare pipelines
 /// build a `SourceMap` with no package scope, so `use
-/// omega::language::core::service` cannot resolve; installing the source with
+/// omega::language::core::binding` cannot resolve; installing the source with
 /// `SourceOrigin::Toolchain` gives the typed-trees service classifier the exact
 /// identity it requires.
 const CORE_SERVICE_OMG: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
-    "/../../../../source/library/core/service.omg"
+    "/../../../../source/library/core/binding.omg"
 ));
 
 /// Type `source` with the core `Service` declaration resident as a Toolchain
@@ -25,7 +25,7 @@ pub(crate) fn typed_with_core_service(name: &str, source: &str) -> TypedTrees {
     let mut sources = source::SourceMap::default();
     let service_source_id = sources
         .add_with_metadata(
-            std::path::PathBuf::from("source/library/core/service.omg"),
+            std::path::PathBuf::from("source/library/core/binding.omg"),
             CORE_SERVICE_OMG.to_owned(),
             std::path::PathBuf::from("source/library/core"),
             None,

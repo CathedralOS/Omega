@@ -1,7 +1,7 @@
 // The divide fold's SOUNDNESS twin: `[0..=259] / 26` folds to [0..=9], which
 // does NOT fit `y: [0..=8]` -- the store must still reject (9 > 8).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

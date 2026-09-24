@@ -28,7 +28,7 @@
 // and every decoded field equals the original.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data RoomHeader {
     #0 room_id: u32;

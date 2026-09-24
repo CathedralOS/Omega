@@ -1,5 +1,5 @@
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; f: f64; r: i32; }
 machine Main::main(&mut self) {
     self.f = 5.5;

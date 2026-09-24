@@ -3,7 +3,7 @@
 // Widening back to binary64 is exact, and infinity remains ordinary and total.
 use omega::language::core::float_operations;
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 

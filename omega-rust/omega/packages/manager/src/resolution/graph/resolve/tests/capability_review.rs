@@ -48,7 +48,7 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     std::fs::write(
         repository.join("main.omg"),
         r#"use console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub machine terminate(console: Binding<Console>, return_code: i32)
 {
@@ -72,7 +72,7 @@ pub machine terminate(console: Binding<Console>, return_code: i32)
     std::fs::write(
         repository.join("main.omg"),
         r#"use console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub machine terminate(console: Binding<Console>, return_code: i32)
 reaches Console

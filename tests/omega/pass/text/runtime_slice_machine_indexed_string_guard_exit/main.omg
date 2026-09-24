@@ -5,7 +5,7 @@ requires
 // cross-region descriptor write: the descriptor base is in the runtime frame,
 // while the selected element index is reloaded from machine storage.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Room {
     label: &[u8] in Utf8;

@@ -3,7 +3,7 @@
 // `match s { p1 -> v1, p2 -> v2, _ -> d }` evaluates the matched arm exactly.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Command {
     case Quit;

@@ -10,7 +10,7 @@
 // leaf silently DROPPED the whole arm (no compare, no value write), so n stayed 0
 // and the program exited 71.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data M {}
 

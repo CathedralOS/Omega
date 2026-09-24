@@ -1,5 +1,5 @@
 // Checked provider-selection fixture; foreign-table bindings are not component dispatch.
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait ClockHost {
     machine ticks() -> u64;

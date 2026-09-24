@@ -11,7 +11,7 @@
 // disagree.
 // exits: 71 = outer op lowered plain (49); 99 = neither.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let a: u8 in Saturating = (200 as u8 in Saturating);

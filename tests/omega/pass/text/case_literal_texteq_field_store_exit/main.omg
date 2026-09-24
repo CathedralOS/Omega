@@ -18,7 +18,7 @@ domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
 data Main { console: Binding<Console>; shift: u64; name: [u8; 8] in Utf8; stored: Msg; }
 machine Main::main(&mut self) {

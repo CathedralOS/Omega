@@ -5,7 +5,7 @@
 // The stability gate must drop the guard and reject. (The keystone's
 // enforcement half -- a narrowing without its invalidation is the #40 trap.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; count: i32 [0..=100]; }
 machine Main::main(&mut self) {
     transition { _ -> head() }

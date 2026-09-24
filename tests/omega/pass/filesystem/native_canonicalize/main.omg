@@ -6,7 +6,7 @@
 // op lowers and runs on real macOS syscalls, resolving symlinks for real.
 
 use omega_language_std::filesystem_host;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     fs: Binding<FilesystemHost>;

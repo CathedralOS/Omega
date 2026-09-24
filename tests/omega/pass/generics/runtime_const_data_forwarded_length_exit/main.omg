@@ -2,7 +2,7 @@
 // Both declarations intentionally call it `N`: symbol identity, not the
 // repeated spelling, must select the inner binding and then follow it outward.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data FixedBuffer<const N: u64> {
     items: [i32 in Wrapping; N];

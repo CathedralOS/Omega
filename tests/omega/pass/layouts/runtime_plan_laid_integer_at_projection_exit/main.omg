@@ -4,7 +4,7 @@
 // sign/zero-extension rule. Reading either field as its carrier width consumes
 // sibling bytes and fails this canary.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {

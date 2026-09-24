@@ -2,7 +2,7 @@
 // landed -- see pass/modules/computed_constant_initializers): const
 // initializers admit computed arithmetic expressions, not just literals.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Limits { ceiling: i32; }
 

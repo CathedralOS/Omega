@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 // `write` (Stdout, no trailing newline) vs `write_line`. Writes "AB" with no newline
 // then "C" with a newline: stdout must be exactly "ABC\n". The differential oracle
 // compares native vs interpreter stdout byte-for-byte, so it verifies `write` does

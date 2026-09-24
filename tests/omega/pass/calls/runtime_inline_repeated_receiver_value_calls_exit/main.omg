@@ -2,7 +2,7 @@
 // argument must read their own ordinal result slots, including a nested
 // occurrence. Aliasing the nested call to its identical sibling exits 69.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Gauge { value: i32 in Wrapping; }
 

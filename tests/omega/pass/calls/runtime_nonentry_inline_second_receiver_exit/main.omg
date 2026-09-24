@@ -7,7 +7,7 @@
 // previously read Main's same-named `total` local, unwritten). The wrong
 // receiver instance delivers 100. second.count = 7 -> exit 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {
     transition true { true -> done(self.count) }

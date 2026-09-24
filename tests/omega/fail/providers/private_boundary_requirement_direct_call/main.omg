@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Only a public, receiver-free top-level boundary requirement may be called
 // directly through its selected provider. A private requirement is a symbol
 // for contracts, not an executable declaration: the ordinary bodyless

@@ -9,7 +9,7 @@
 // focuses). The canary pins the call path (operand arm + general import call
 // + result store) in both worlds: a drop/crash/hang fails, exit 70 passes.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 pub boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
     machine foreground_window() -> u64;

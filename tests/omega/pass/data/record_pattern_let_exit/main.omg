@@ -5,7 +5,7 @@
 // fields keep the decision-17 exact-arithmetic obligation dischargeable.
 // The runtime self-check accepts only 30 + 40 = 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Point {
     x: i32 [0..=100];
     y: i32 [0..=100];

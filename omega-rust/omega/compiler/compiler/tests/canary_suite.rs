@@ -3680,7 +3680,7 @@ fn dangerous_service_projection_reads_console_exit_through_a_package_alias() {
         "omega-canary-aliased-console-exit",
         Some("stdlib"),
         "use stdlib::console;\n\
-         use omega::language::core::service;\n\
+         use omega::language::core::binding;\n\
          data Main { console: Binding<Console>; }\n\
          machine Main::main(&mut self) reaches Console {\n\
              self.console.exit_process(70);\n\
@@ -3730,7 +3730,7 @@ fn canonical_host_bindings_are_accepted_from_entry_binding_fields() {
         "use omega_language_std::console;\n\
          use omega_language_std::filesystem_host;\n\
          use omega_language_std::time_host;\n\
-         use omega::language::core::service;\n\
+         use omega::language::core::binding;\n\
          data Main { console: Binding<Console>; host: Binding<FilesystemHost>; clock: Binding<TimeHost>; }\n\
          machine Main::main(&mut self) reaches Console + FilesystemHost {\n\
              let fd: i32 = self.host.open(\"omega_canonical_host_absent.dat\", 0);\n\

@@ -4,7 +4,7 @@
 // some later encode call site.
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data PacketHeader {
     #0 parent: Packet;

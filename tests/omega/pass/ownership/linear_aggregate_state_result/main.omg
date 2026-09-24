@@ -1,7 +1,7 @@
 // A direct aggregate result is an explicit structural outcome map: each
 // source claim is nested under its named result field.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Receipt [linear] {
     code: i32;

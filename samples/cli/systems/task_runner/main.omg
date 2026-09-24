@@ -26,7 +26,7 @@
 // Expected exit: 70.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Task {
     case Compute(value: i32 in Saturating);

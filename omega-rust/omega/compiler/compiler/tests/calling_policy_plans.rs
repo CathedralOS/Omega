@@ -623,7 +623,7 @@ fn retained_interrupt_representation(
     selection
 }
 
-const FOREIGN_OPAQUE_SOURCE: &str = r#"use omega::language::core::service;
+const FOREIGN_OPAQUE_SOURCE: &str = r#"use omega::language::core::binding;
 
 use omega::language::core::external_binding;
 use omega::language::core::representation;

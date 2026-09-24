@@ -39,7 +39,7 @@
 // wrapped 3, 74 = interpreter's full-width 4, 75 = neither).
 
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: i32; b: i32; }
 machine Main::main(&mut self) {
     self.a = 100000;

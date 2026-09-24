@@ -1,7 +1,7 @@
 // V5: `-> u64` AFTER the terminates clause, non-recursive -- the parser
 // used to silently DROP the return type (the machine parsed as void).
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
 }

@@ -1,5 +1,5 @@
 use omega::language::core::float_operations;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // Source-to-ELF pin for normalized SysV AMD64 indirect field dispatch. The
 // ordinary receiver is the first wire argument (rdi), while a MEMORY-class

@@ -3,7 +3,7 @@
 // remains valid.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Scalar {
     #0 value: u64;

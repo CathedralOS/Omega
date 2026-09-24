@@ -7,7 +7,7 @@
 // NOT fit, and the unguarded store refuses. The guarded-copy twin
 // (pass/arithmetic/runtime_u64_guarded_cap_store_exit) discharges.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; capped: u64 [0..=9223372036854775807]; }
 machine Main::main(&mut self) {
     let big_value: u64 = 18446744073709551615;

@@ -5,7 +5,7 @@
 // mutate the guarded place between guard and argument evaluation.)
 // count starts 0, bumps to 1 through the param. Exit 70. Differential.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; count: i32 [0..=100]; }
 machine Main::main(&mut self) reaches Console {
     transition self.count < 100 {

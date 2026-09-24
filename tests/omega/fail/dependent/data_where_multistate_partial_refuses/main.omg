@@ -1,4 +1,4 @@
-use omega::language::core::service;
+use omega::language::core::binding;
 // Multi-state callee summary NEGATIVE twin: recruit's `fresh` arm does
 // NOT establish self.champion, so the summary (intersection over every
 // exit) is empty and the read after the call refuses at the access gate.

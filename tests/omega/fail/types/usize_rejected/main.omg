@@ -2,6 +2,6 @@
 // with the required bound (wiki/spec/language/counts_and_addresses.md).
 // `usize` does not resolve as a builtin type.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; n: usize; }
 machine Main::main(&mut self) { self.console.exit_process(70); }

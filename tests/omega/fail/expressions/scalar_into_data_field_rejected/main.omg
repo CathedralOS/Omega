@@ -5,7 +5,7 @@
 // gate (needs a primitive target) and the nominal gate (needs both sides to be
 // data names). Rejected at check now. Same-type struct stores stay valid.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Inner { v: i32; }
 data Main { console: Binding<Console>; inner: Inner; }
 machine Main::main(&mut self) {

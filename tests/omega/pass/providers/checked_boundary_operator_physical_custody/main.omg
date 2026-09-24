@@ -2,7 +2,7 @@
 // beside the independent nonreturning Console settlement. The result is not
 // passed into that first immediate-only settlement lane.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data CheckedMath {}
 

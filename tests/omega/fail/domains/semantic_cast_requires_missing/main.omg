@@ -3,7 +3,7 @@
 // stays (the guard at the CALLER cannot reach inside the callee; the
 // requires is the sanctioned carrier).
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 domain i64::Km
 requires

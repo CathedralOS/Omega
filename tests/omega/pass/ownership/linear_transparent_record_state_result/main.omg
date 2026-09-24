@@ -1,7 +1,7 @@
 // A path-aligned state result maps each transparent-record claim from the
 // callee's outgoing frontier to the caller's receiving frontier independently.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Receipt [linear] {
     code: i32;

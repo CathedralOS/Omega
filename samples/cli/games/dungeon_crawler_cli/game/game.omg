@@ -3,7 +3,7 @@ use dungeon::dungeon;
 use platform::console;
 use rooms::map;
 use view::game_view;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Game {
     console: Binding<Console>;

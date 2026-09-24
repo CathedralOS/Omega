@@ -7,7 +7,7 @@
 // `demo_target` resolves to no real target, so the internal is inert on every
 // host and nothing portable may call it.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Helper { seed: i32; }
 

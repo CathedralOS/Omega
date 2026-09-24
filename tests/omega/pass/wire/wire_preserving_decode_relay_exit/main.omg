@@ -10,7 +10,7 @@
 //        remainder's identity/length/bytes disagreed with the frame.
 use omega_language_std::console;
 use omega_language_std::wire;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data PreservePolicy {
 }

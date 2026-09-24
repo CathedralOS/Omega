@@ -1,7 +1,7 @@
 // Intrinsic `Binding<R>` validity is closed: any authored domain
 // qualification on the carrier rejects at source checking rather than
 // degrading to a structural field.
-use omega::language::core::service;
+use omega::language::core::binding;
 
 pub boundary trait Ping {
     machine ping();

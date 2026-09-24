@@ -3,7 +3,7 @@
 // evaluates to -5 (at its declared i32 width); the const site must reject
 // naming the machine and the offending value.
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

@@ -6,7 +6,7 @@
 // Exits 70 when construction, tag dispatch, and the payload read all work.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Command {
     case None;

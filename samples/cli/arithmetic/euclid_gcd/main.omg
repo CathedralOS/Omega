@@ -13,7 +13,7 @@
 // Expected output contains: result: the GCD, 12 for (48, 36) (the exit code)
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 // Wrapping DECLARED: the gcd remainder chain divides by a live runtime value
 // (`a % b`), and a runtime divisor feeds no range fact yet -- the values are

@@ -3,7 +3,7 @@
 // third level has no computable address. (Two-level `grid[i][j]` lowers --
 // pass/collections/runtime_double_indexed_read_exit.)
 use omega::language::std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; cube: [[[i32; 2]; 2]; 2]; a: u64 [0..=1]; b: u64 [0..=1]; c: u64 [0..=1]; }
 machine Main::main(&mut self) {
     self.a = 1; self.b = 1; self.c = 1;

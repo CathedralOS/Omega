@@ -41,7 +41,7 @@ machine build(builder: &mut Build) {
         "application/entry.omg",
         r#"
 use ordinary_console::main;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console { self.console.exit_process(70); }
 "#,

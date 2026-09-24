@@ -9,7 +9,7 @@
 // argument. Exits 70 only when all six compares are right.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 trait Equatable {
     machine equals(&self, other: &Self) -> bool;

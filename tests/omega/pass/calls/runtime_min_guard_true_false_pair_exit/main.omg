@@ -8,7 +8,7 @@
 // a=8,b=7 -> min=7 -> true arm -> good (exit 70). A wrong min, or a subject that
 // failed to pair (vacuous guard), would exit 71. Native must match the interp.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; a: i32; b: i32; }
 machine Main::main(&mut self) reaches Console {
     self.a = 8;

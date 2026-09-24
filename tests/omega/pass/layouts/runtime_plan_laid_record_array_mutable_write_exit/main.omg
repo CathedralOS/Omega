@@ -3,7 +3,7 @@
 // element uses compiler-derived record padding and field offsets.
 use omega_language_std::console;
 use omega::language::core::layout;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data SpreadRecordArray { }
 

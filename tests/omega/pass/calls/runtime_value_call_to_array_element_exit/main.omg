@@ -9,7 +9,7 @@
 // state share a result slot (see memory value-call-shared-result-slot). Neither applies here: a
 // SINGLE value-call written to a field or array element materializes correctly. Exits 70.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;

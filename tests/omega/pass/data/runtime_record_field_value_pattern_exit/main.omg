@@ -3,7 +3,7 @@
 // machinery knows `self.header.ok == 0` inside the first arm.
 
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 
 data Header [copy] {
     ok: i32;

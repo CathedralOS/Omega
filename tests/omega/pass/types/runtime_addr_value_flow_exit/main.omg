@@ -6,7 +6,7 @@
 // represented separately by the opaque linear `Extent` carrier.
 // exits: 71 = bump result wrong.
 use omega_language_std::console;
-use omega::language::core::service;
+use omega::language::core::binding;
 data Main { console: Binding<Console>; base: addr; }
 machine Main::bump(&mut self, a: addr, by: u64) -> addr { a + by }
 machine Main::main(&mut self) reaches Console {
