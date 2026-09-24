@@ -166,15 +166,15 @@ pub use flow::{
     FlowStatementFact, RetiredFlowCall,
 };
 pub use operators::{
-    CheckedArithmeticPolicyAdapter, CheckedBoundaryOperatorApplicationArgument,
-    CheckedBoundaryOperatorApplicationDemand, CheckedBoundaryOperatorApplicationUseSite,
-    CheckedNamedOperatorUseFact, CheckedNamedRequirementUseFact, CheckedOperatorCandidateFact,
-    CheckedOperatorContractUse, CheckedOperatorCrashBucket, CheckedOperatorCrashContract,
-    CheckedOperatorFacts, CheckedOperatorOccurrence, CheckedOperatorRealizationContract,
-    CheckedOperatorResolutionIssue, CheckedOperatorResolutionStatus,
-    CheckedOperatorResolutionSummary, CheckedOperatorUseFact, CheckedOperatorUseHandle,
-    CheckedProviderPlanCommitment, CheckedSelectedFloatComparisonExecution,
-    CheckedSymbolicBoundaryOperatorApplicationArgument,
+    CheckedArithmeticPolicyAdapter, CheckedBoundaryApplicationOperands,
+    CheckedBoundaryOperatorApplicationArgument, CheckedBoundaryOperatorApplicationDemand,
+    CheckedBoundaryOperatorApplicationUseSite, CheckedNamedOperatorUseFact,
+    CheckedNamedRequirementUseFact, CheckedOperatorCandidateFact, CheckedOperatorContractUse,
+    CheckedOperatorCrashBucket, CheckedOperatorCrashContract, CheckedOperatorFacts,
+    CheckedOperatorOccurrence, CheckedOperatorRealizationContract, CheckedOperatorResolutionIssue,
+    CheckedOperatorResolutionStatus, CheckedOperatorResolutionSummary, CheckedOperatorUseFact,
+    CheckedOperatorUseHandle, CheckedProviderPlanCommitment,
+    CheckedSelectedFloatComparisonExecution, CheckedSymbolicBoundaryOperatorApplicationArgument,
     CheckedSymbolicBoundaryOperatorApplicationDemand,
 };
 pub use proof::{

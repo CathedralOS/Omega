@@ -290,6 +290,16 @@ pub enum CheckedScalarExpressionRole {
         call_ordinal: u32,
         argument_ordinal: u32,
     },
+    /// Scalar operand of the selected boundary-operator application that is
+    /// this statement's immutable local initializer, keyed by its authored
+    /// operand position; structural operands keep their positions but own no
+    /// row. Provider settlement rewrites the application into a call over the
+    /// same operand expressions, so the key and the bound expression survive
+    /// it. `CheckedOperatorFacts::boundary_application_operands` names the
+    /// operand and its carrier for both the producer and the replay.
+    SelectedOperatorOperand {
+        operand_ordinal: u32,
+    },
     /// Proof-only scalar actual for one erased formal of an in-module Unit
     /// call, keyed by the exact call coordinate and the dense erased-formal
     /// ordinal in the callee's contract roster. It owns no runtime operand.

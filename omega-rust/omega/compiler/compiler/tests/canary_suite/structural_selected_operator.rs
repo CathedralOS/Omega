@@ -1231,16 +1231,24 @@ fn specialized_mixed_structural_fixed_operator_rejects_argument_drift() {
                     };
             }
         }
-        assert!(
-            terminal_production::TerminalProductionRequest::new(
-                &drifted,
-                TerminalMachineSelection::Name("consume")
-            )
-            .produce(TerminalProductionCustody::artifact_only(
-                &mut TerminalProductionTimings::default()
-            ))
-            .is_err(),
-            "{drift:?} must reject before Terminal publication"
-        );
+        let Err(error) = terminal_production::TerminalProductionRequest::new(
+            &drifted,
+            TerminalMachineSelection::Name("consume"),
+        )
+        .produce(TerminalProductionCustody::artifact_only(
+            &mut TerminalProductionTimings::default(),
+        )) else {
+            panic!("{drift:?} must reject before Terminal publication")
+        };
+        // A substituted operand keeps its carrier and count, so only the
+        // replay against the source-bound authored operand can reject it.
+        if matches!(drift, Drift::SubstitutedScalar) {
+            assert!(
+                error
+                    .to_string()
+                    .contains("selected operator operand disagrees with its authored operand"),
+                "{drift:?} must reject at the operand replay, not {error}"
+            );
+        }
     }
 }

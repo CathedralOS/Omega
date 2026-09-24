@@ -15,7 +15,8 @@
 //! `expression_facts.rs` answers the questions they share. The remaining
 //! modules own array constructions, call arguments, case membership,
 //! computations, constant array projection, contract entries, primitive
-//! reference reads, result contracts, semantic casts and structural fields.
+//! reference reads, result contracts, selected-operator operands, semantic
+//! casts and structural fields.
 
 mod array_constructions;
 mod boolean_lowering;
@@ -31,6 +32,7 @@ mod machine_parameter_booleans;
 mod primitive_reference_read;
 mod result_contract;
 mod scalar_lowering;
+mod selected_operator_operands;
 mod semantic_casts;
 mod structural_fields;
 mod subslice_endpoints;

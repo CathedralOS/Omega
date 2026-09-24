@@ -3,12 +3,13 @@
 
 use crate::values::scalar::boolean_lowering::lower_boolean_guard;
 use crate::values::scalar::call_lowering::{
-    lower_call_arguments, lower_direct_call_binding_arguments, retain_call_arguments,
-    scalar_qualified_call_expression,
+    LoweredCallArguments, lower_call_arguments, lower_direct_call_binding_arguments,
+    retain_call_arguments, scalar_qualified_call_expression,
 };
 use crate::values::scalar::expression_facts::operator_is_builtin;
 use crate::values::scalar::machine_parameter_booleans::lower_machine_parameter_boolean_expression;
 use crate::values::scalar::scalar_lowering::{lower_index_expression, lower_return_expression};
+use crate::values::scalar::selected_operator_operands::lower_selected_operator_operands;
 use crate::values::scalar::semantic_casts;
 use checked_trees::{
     CheckedBooleanExpression, CheckedLocatedScalarExpression, CheckedOperatorFacts,
@@ -137,6 +138,33 @@ pub(crate) fn build_checked_scalar_expression_plans(
                 }
                 match statement {
                     StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+                        // A selected boundary operator's scalar operands carry
+                        // the same source custody as call arguments, whether
+                        // its result is scalar or structural.
+                        retain_call_arguments(
+                            LoweredCallArguments {
+                                scalar_arguments: lower_selected_operator_operands(
+                                    program,
+                                    operators,
+                                    machine,
+                                    state,
+                                    statement_ordinal,
+                                    local,
+                                    &scalar_parameters,
+                                    parameters,
+                                    &parameter_types,
+                                    &locals,
+                                    exact_integer_casts,
+                                ),
+                                proof_terms: Vec::new(),
+                            },
+                            &scalar_parameters,
+                            &locals,
+                            &mut expressions,
+                            proof_terms,
+                            &mut source_bindings,
+                            &mut binding_symbols,
+                        );
                         // Structural call results establish their own operation
                         // place even when the local later lends mutable access.
                         // Their scalar operands still need exact source rows.

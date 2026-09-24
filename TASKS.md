@@ -2415,23 +2415,29 @@ syntax and other terminal services are not prerequisites.
      arms bind outcome-specific call evidence, at the current four fuel units
      (`payloadless_case_return_source`).
      The selected-operator return
-     (`returns/structural_scalar_return/selected_operator.rs`) is the only
-     lowering of a selected boundary operator returned over structural
-     operands. Its one fixture, `exercise` in
-     `providers/specialized_structural_fixed_operator_terminal_custody`, fails
-     checking on `requires Count == Count` ("unsupported selected `requires`
-     on a non-array, non-slice collection", since `dada8acc6b`), as does every
-     `structural_selected_operator` canary. Without that clause `exercise`
-     lowers through the family and verifies at four fuel units; without the
-     family it has no plan. The Unit route cannot take it:
-     `selected_operator.rs::build_selected_operator_structural_scalar_call`
-     looks up the realization in the primitive-store scalar-callee roster,
-     which never holds `IndexingProvider::index`, so the `let` form fails
-     too ("retained 0 exact Unit realization applications") since
-     `757b6f9164` dropped the roster reconciliation. Next: give Unit planning
-     the realization's structural-scalar-return row, plan a completing
-     application like the `let` form in `control/statement_sequence.rs`, then
-     delete the family and `boundary_operator_custody/structural_returns.rs`.
+     (`returns/structural_scalar_return/selected_operator.rs`) is still the
+     only lowering of a selected boundary operator returned over structural
+     operands (`exercise` in
+     `providers/specialized_structural_fixed_operator_terminal_custody`). The
+     `let` form now plans all three selected-operator calls on the Unit route
+     (`terminal_unit/selected_operator.rs`): the realization comes from its
+     scalar graph, cleanup-free structural-scalar return or claim-free affine
+     return row, and each scalar operand from its values-stage binding
+     (`CheckedScalarExpressionRole::SelectedOperatorOperand`), which c2l
+     replays like a call argument. Next: plan the return form as the same
+     Unit call completed by its scalar result, as
+     `control/statement_sequence.rs` does for the `let`, then delete the
+     family and
+     `boundary_operator_custody/structural_returns.rs`. Two
+     `structural_selected_operator` canaries
+     (`specialized_structural_fixed_operator_hosted_native_canary_compiles`,
+     `specialized_mixed_structural_fixed_operator_hosted_native_reaches_d32`)
+     stop in Omega instead: `Main::main` moves empty-record locals
+     (`EstablishTrivialAffineLocal`) into its call, optimization-unit
+     `structural_access.rs::structural_source_contract` has no source for that
+     place although ownership replay inserts it as owned affine, and target
+     lowering (`control_flow/operations.rs::lower_operation`) has no arm for
+     the establishment.
   6. Structural Unit Control is a second multi-state control-graph family
      with a countdown-loop recognizer (`unit/structural_unit_control.rs`).
      Widen state-graph admission to cover it rather than extending it. The
