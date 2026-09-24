@@ -28,7 +28,7 @@ load/discover sequence; prelude construction lives in
 `source_assembly/entry_contract_seed.rs`. Original finding text retained
 below for the audit trail.
 
-`omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly.rs`
+`omega-rust/omega/compiler/source-assembly/src/source_assembly.rs`
 (1014 lines) sequences discovery → lex → parse → import queue, which is the
 crate's transform. But two constructor blocks are domain work inline in the
 entry file:

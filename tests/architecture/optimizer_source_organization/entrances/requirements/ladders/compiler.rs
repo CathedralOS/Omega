@@ -13,8 +13,8 @@ pub(crate) const LADDERS: &[SemanticLadder] = &[
         family: "compiler optimization vocabulary and checked handoff",
         paths: &[
             "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/mod.rs",
-            "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly/build_vocabulary/mod.rs",
-            "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly/build_vocabulary/fragments.rs",
+            "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_vocabulary/mod.rs",
+            "omega-rust/omega/compiler/source-assembly/src/source_assembly/build_vocabulary/fragments.rs",
             "omega-rust/omega/pipeline/01_assembled-syntax-to-checked-compilation/src/optimization/checked_handoff/mod.rs",
         ],
     },

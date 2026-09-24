@@ -35,21 +35,23 @@ setup are not additional public program stages.
 | Resolved program → machine bytes | [machine-emission](omega/backend/machine-emission/README.md) |
 | Machine bytes → object/image evidence | [image-emission](omega/backend/images/image-emission/src/lib.rs) |
 
-## Omega frontend stages
+## Compiler orchestration before Omega
 
-Omega drives the Psi source stages above through two transforms of its own,
+The product compiler drives the Psi source stages through three orchestration
+crates outside Omega's pipeline,
 because build evaluation runs between them: a build machine can generate
 source after the base was resolved, so checking re-enters resolution and
 typing against the retained base.
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly.rs) |
+| Source files → assembled syntax | [source-files-to-assembled-syntax](omega/compiler/source-assembly/src/source_assembly.rs) |
 | Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/pipeline/01_assembled-syntax-to-checked-compilation/src/checking.rs) |
 | Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/pipeline/02_checked-compilation-to-terminal-artifact/src/terminal_artifact.rs) |
 
-All three consume build-layer crates, so the layering test ranks them with the
-compiler that schedules them while they keep the pipeline's shape and naming.
+All three consume build-layer crates and are compiler preparation rather than
+Omega program stages. The layering test ranks them with the compiler that
+schedules them while they keep their explicit transformation contracts.
 The Terminal stage hands its program-entry artifact to `native-realization`,
 which owns the native product from there.
 

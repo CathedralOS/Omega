@@ -599,7 +599,7 @@ fn checked_build_orchestration_consumes_an_admitted_checkpoint() {
     }
 
     let source_assembly_path = repo_root.join(
-        "omega-rust/omega/pipeline/00_source-files-to-assembled-syntax/src/source_assembly.rs",
+        "omega-rust/omega/compiler/source-assembly/src/source_assembly.rs",
     );
     let source_assembly = fs::read_to_string(&source_assembly_path).unwrap_or_else(|error| {
         panic!("failed to read {}: {error}", source_assembly_path.display())
