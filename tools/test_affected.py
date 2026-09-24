@@ -293,7 +293,7 @@ def jev_augment(root, runner, paths, affected, commands, disabled, full):
         return summary
     candidates = json.loads(
         JEV_CATALOG.read_text(encoding="utf-8"))["candidates"]
-    doc_audit_runs = any("test_release_matrix" in " ".join(c)
+    doc_audit_runs = any(DOCUMENTATION_TEST in " ".join(c)
                          for c in commands)
     payload = jev_payload(paths, affected, doc_audit_runs, candidates)
     try:
