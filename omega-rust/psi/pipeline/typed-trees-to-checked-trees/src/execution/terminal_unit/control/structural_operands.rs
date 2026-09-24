@@ -13,6 +13,7 @@ use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders, st
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
 
+use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::control::boundary_machine::boundary_result_plan;
 use crate::execution::terminal_unit::control::call_results::bind_structural_call_result;
 use crate::execution::terminal_unit::control::call_results::checked_structural_result_type;
@@ -86,6 +87,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     count: &mut usize,
     root: checked_trees::CheckedStructuralValueHandle,
+    trace: &LocalConstructionTrace,
 ) -> Option<Vec<checked_trees::CheckedStructuralValueCall>> {
     let plans = &facts.values.structural_values;
     let mut pending = vec![root];
@@ -127,6 +129,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                     false,
                     Some(ExpectedCallValueResult::Structural(&result)),
                     results,
+                    trace,
                 )?;
                 let mut operation = bind_structural_call_result(operation, result)?;
                 let CheckedUnitEffectOperationPlan::StructuralCall {

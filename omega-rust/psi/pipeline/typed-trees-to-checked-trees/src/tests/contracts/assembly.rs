@@ -351,7 +351,7 @@ fn asm_value_intrinsic_result_types_reach_the_call_operation_frontier() {
             matches!(
                 omission.stage,
                 checked_trees::CheckedUnitPlanOmissionStage::LocalConstruction {
-                    phase: "statement sequence: call: call operation",
+                    phase: "call operation: target state",
                     ..
                 }
             ),

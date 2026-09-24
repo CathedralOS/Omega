@@ -241,6 +241,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
                 false,
                 Some(ExpectedCallValueResult::Structural(result)),
                 &[],
+                &control::LocalConstructionTrace::default(),
             )?;
             let mut operation = control::bind_structural_call_result(operation, result.clone())?;
             match &mut operation {
@@ -289,6 +290,7 @@ pub(crate) fn build_partial_affine_unit_cleanup_machine(
             true,
             None,
             result_binding.as_slice(),
+            &control::LocalConstructionTrace::default(),
         )?;
         let CheckedUnitEffectOperationPlan::CallUnit {
             target_machine,

@@ -48,6 +48,7 @@ pub(crate) fn structural_call_arguments(
     allow_fixed_index_projection: bool,
     allow_field_path_projection: bool,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
+    trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
 ) -> Option<Vec<CheckedUnitStructuralArgumentPlan>> {
     let source_parameters = program.state_parameters(caller_state);
     let target_parameters = program.state_parameters(target_state);
@@ -71,15 +72,23 @@ pub(crate) fn structural_call_arguments(
     let mut explicit_index = 0usize;
     let mut output = Vec::new();
     let mut structural_argument_ordinal = 0usize;
+    // Each argument-source arm marks the trace before it can decline, so
+    // an omission here names the source vocabulary that refused the actual.
+    let arm = |name: &'static str| {
+        trace.phase(name);
+        trace.statement(u32::try_from(statement_index).ok());
+    };
 
     for target in target_parameters {
         // The erased position's authored argument is proof material with no
         // structural or scalar transfer; consume it and plan nothing.
+        arm("call operation: structural arguments: erased position");
         if strips_erased_parameter(target)? {
             explicit_arguments.get(explicit_index)?;
             explicit_index = explicit_index.checked_add(1)?;
             continue;
         }
+        arm("call operation: structural arguments: scalar position");
         if program
             .primitive_type_reference(target.type_reference)
             .is_some()
@@ -95,6 +104,7 @@ pub(crate) fn structural_call_arguments(
         if !target.is_self || explicit_self {
             structural_argument_ordinal = structural_argument_ordinal.checked_add(1)?;
         }
+        arm("call operation: structural arguments: argument place");
         let authored_place = if target.is_self {
             if is_reference(program, target.type_reference) {
                 // The completed Unit callee decides whether its borrowed self
@@ -202,6 +212,7 @@ pub(crate) fn structural_call_arguments(
                     })
             })?
         };
+        arm("call operation: structural arguments: alias and identity");
         let restored_alias = reborrow_restored_call_alias_target(
             facts,
             caller_machine.symbol,
@@ -246,6 +257,7 @@ pub(crate) fn structural_call_arguments(
         } else {
             base_type_identity(program, target.type_reference, &[])?
         };
+        arm("call operation: structural arguments: caller structural result");
         if let Some((result, _)) = caller_structural_results
             .iter()
             .find(|(_, root)| *root == place.root)
@@ -324,6 +336,7 @@ pub(crate) fn structural_call_arguments(
             )?);
             continue;
         }
+        arm("call operation: structural arguments: source symbol");
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
@@ -349,6 +362,7 @@ pub(crate) fn structural_call_arguments(
             )?);
             continue;
         }
+        arm("call operation: structural arguments: trivial affine local");
         if let Some((local, _)) = caller_trivial_affine_locals
             .iter()
             .find(|(_, symbol)| *symbol == source_symbol)
@@ -393,6 +407,7 @@ pub(crate) fn structural_call_arguments(
             });
             continue;
         }
+        arm("call operation: structural arguments: view local");
         // A view local's whole-name argument loans its established carrier
         // through the same source vocabulary the scalar-computation lane
         // plans; projected spellings still resolve through the parameter and
@@ -415,6 +430,7 @@ pub(crate) fn structural_call_arguments(
         // An authored `self.field` argument roots at the `self` parameter's own
         // symbol, while an implicit receiver place roots at the machine the
         // parameter is attached to. Both spellings name one parameter.
+        arm("call operation: structural arguments: parameter source");
         let source_parameter = source_parameters.iter().find(|parameter| {
             parameter_root_symbol(caller_machine.symbol, parameter) == source_symbol
                 || parameter.symbol == source_symbol
@@ -441,6 +457,7 @@ pub(crate) fn structural_call_arguments(
         {
             return None;
         }
+        arm("call operation: structural arguments: parameter path");
         let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
         let path = match place.segments.as_slice() {
             [] => Vec::new(),
@@ -647,6 +664,7 @@ pub(crate) fn structural_call_arguments(
             }
             _ => return None,
         };
+        arm("call operation: structural arguments: parameter identity");
         if path.is_empty()
             && source_identity != target_identity
             && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
@@ -665,6 +683,7 @@ pub(crate) fn structural_call_arguments(
         {
             return None;
         }
+        arm("call operation: structural arguments: parameter access");
         output.push(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
                 parameter_index: u32::try_from(source_index).ok()?,
@@ -703,6 +722,7 @@ pub(crate) fn structural_call_arguments(
             },
         });
     }
+    arm("call operation: structural arguments: argument count");
     if explicit_index != explicit_arguments.len() {
         return None;
     }

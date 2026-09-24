@@ -208,6 +208,7 @@ pub(super) fn guarded(
     claims: &[CheckedUnitEntryClaimPlan],
     operations: &[CheckedUnitEffectOperationPlan],
     start: usize,
+    trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedComposedUnitControlTerminatorPlan> {
     if is_unit(program, state.return_type)
         || program.type_multiplicity(state.return_type) == Multiplicity::Linear
@@ -283,6 +284,7 @@ pub(super) fn guarded(
             &mut count,
             *statement_ordinal,
             expression,
+            trace,
         )?);
     }
     Some(CheckedComposedUnitControlTerminatorPlan::Guarded {
@@ -329,6 +331,7 @@ pub(super) fn return_value_operation(
     count: &mut usize,
     statement_ordinal: u32,
     expression: typed_trees::expression::ExpressionHandle,
+    trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     if crate::execution::terminal_unit::types::borrowed_slice_view(program, state.return_type) {
         return view_result_operation(
@@ -375,6 +378,7 @@ pub(super) fn return_value_operation(
         &[],
         count,
         root.root,
+        trace,
     )?;
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index: statement_ordinal,

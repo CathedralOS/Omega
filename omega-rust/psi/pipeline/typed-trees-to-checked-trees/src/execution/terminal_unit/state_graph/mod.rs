@@ -646,6 +646,7 @@ pub(super) fn build_traced(
             &state_entry_claims[state_index],
             &operations,
             terminator_index,
+            trace,
         ) {
             terminator
         } else {
@@ -764,6 +765,7 @@ pub(super) fn build_traced(
                                 &mut return_count,
                                 edge_ordinal,
                                 *expression,
+                                trace,
                             )
                             .map(Err);
                         }

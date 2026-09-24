@@ -85,6 +85,7 @@ fn selective_crashing_field_rhs_retains_its_ordered_source_plan() {
             false,
             None,
             &[],
+            &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
         )
         .unwrap_or_else(|| panic!("retain statement call {}", call.statement_index));
     }
