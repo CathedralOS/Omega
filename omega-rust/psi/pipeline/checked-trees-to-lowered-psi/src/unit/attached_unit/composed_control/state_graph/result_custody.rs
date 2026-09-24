@@ -87,11 +87,33 @@ pub(super) fn selection_role(
 }
 
 /// Structural results whose custody ends inside the body rather than at an
-/// exit: a discarded result pairs with its call's cleanup continuation, and a
-/// call result stored whole into a borrowed field's opened window moves into
-/// that field. Neither belongs to an authored local, and the rejoined body
-/// already proved the one disposal or transfer each receives.
+/// exit: a discarded result pairs with its call's cleanup continuation, a call
+/// result stored whole into a borrowed field's opened window moves into that
+/// field, and a construction authored as a call argument moves whole into the
+/// call that reads it. None belongs to an authored local, and the rejoined
+/// body already proved the one disposal or transfer each receives.
 fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
+    let moved_into_calls = state
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                operand_source:
+                    Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. }),
+                ..
+            } => Some(result.binding_ordinal),
+            _ => None,
+        })
+        .filter(|ordinal| {
+            state.operations.iter().any(|operation| {
+                call_arguments(operation).iter().any(|argument| {
+                    argument.source_structural_result_binding_ordinal() == Some(*ordinal)
+                        && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                        && argument.path.is_empty()
+                })
+            })
+        });
     state
         .operations
         .iter()
@@ -113,7 +135,41 @@ fn retired_in_body(state: &CheckedComposedUnitControlStatePlan) -> Vec<u32> {
                 .collect(),
             _ => Vec::new(),
         })
+        .chain(moved_into_calls)
         .collect()
+}
+
+/// The structural arguments an operation passes to the call it performs.
+fn call_arguments(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> &[checked_trees::CheckedUnitStructuralArgumentPlan] {
+    match operation {
+        CheckedUnitEffectOperationPlan::CallUnit {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::StructuralCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            structural_arguments,
+            ..
+        } => structural_arguments,
+        _ => &[],
+    }
 }
 
 /// A `&[T]` local: shared reference (through constraint shells) to a slice —

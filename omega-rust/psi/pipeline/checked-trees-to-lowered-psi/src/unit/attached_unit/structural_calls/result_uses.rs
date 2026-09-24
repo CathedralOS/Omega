@@ -208,6 +208,140 @@ pub(crate) fn validate_linear_result_consumer(
     Ok(())
 }
 
+/// Whether a structural result is a construction authored as one of its own
+/// statement's call arguments rather than bound to a local or returned.
+pub(crate) fn produced_as_call_argument(
+    operations: &[CheckedUnitEffectOperationPlan],
+    binding_ordinal: u32,
+) -> bool {
+    producer(operations, binding_ordinal).is_ok_and(|producer| {
+        matches!(
+            producer.construction_source,
+            Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
+        )
+    })
+}
+
+/// Rejoin a construction authored as a call argument to the call that reads
+/// it: `f(Event::Insert { cents: 50 })` establishes the value at the call's
+/// statement and moves it whole into the formal it was written for. The
+/// construction's own source custody — the authored argument expression at
+/// that formal position — is checked where the construction rejoins its
+/// statement. This ties the two operations together, so the value cannot move
+/// into another formal, another call, a borrowed or projected parameter, or
+/// into two consumers.
+pub(crate) fn validate_argument_construction_consumer(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    operations: &[CheckedUnitEffectOperationPlan],
+    operation: &CheckedUnitEffectOperationPlan,
+    argument_index: usize,
+    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+) -> Result<(), LoweringError> {
+    let (coordinate, structural_arguments) = match operation {
+        CheckedUnitEffectOperationPlan::CallUnit {
+            coordinate,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::ScalarCall {
+            coordinate,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate,
+            structural_arguments,
+            ..
+        } => (coordinate, structural_arguments),
+        _ => return unsupported("argument construction requires an ordinary internal call"),
+    };
+    let argument = structural_arguments
+        .get(argument_index)
+        .ok_or(LoweringError::Unsupported(
+            "argument construction has no argument slot",
+        ))?;
+    let binding_ordinal =
+        argument
+            .source_structural_result_binding_ordinal()
+            .ok_or(LoweringError::Unsupported(
+                "argument construction has no binding ordinal",
+            ))?;
+    let mut consumers = operations
+        .iter()
+        .enumerate()
+        .filter(|(_, candidate)| *candidate == operation);
+    let (consumer_index, _) = consumers.next().ok_or(LoweringError::Unsupported(
+        "argument construction consumer is absent",
+    ))?;
+    if consumers.next().is_some() {
+        return unsupported("argument construction consumer is ambiguous");
+    }
+    let source = producer(operations, binding_ordinal)?;
+    let Some(checked_trees::CheckedArrayConstructionSource::CallArgument {
+        parameter_position,
+        ..
+    }) = source.construction_source
+    else {
+        return unsupported("argument operand is not its call's own construction");
+    };
+    if source.operation_index >= consumer_index
+        || !source.precedes_consumer(*coordinate)
+        || source.discard
+        || parameter_position != parameter.position
+        || !argument.path.is_empty()
+        || argument.access != checked_trees::CheckedStructuralAccess::Owned
+        || parameter.access != argument.access
+        || parameter.is_self
+        || parameter.fused_service_erasure.is_some()
+        || !parameter.qualifications.is_empty()
+        || source.result.multiplicity != parameter.multiplicity
+        || argument.type_identity != source.result.type_identity
+        || parameter.type_identity != source.result.type_identity
+    {
+        return unsupported("argument construction moves into another formal or custody");
+    }
+    super::validate_custody(checked, machine, state, operation)?;
+    let owned_uses = operations
+        .iter()
+        .flat_map(|candidate| match candidate {
+            CheckedUnitEffectOperationPlan::StructuralCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::CallUnit {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                structural_arguments,
+                ..
+            }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+                structural_arguments,
+                ..
+            } => structural_arguments.as_slice(),
+            _ => &[],
+        })
+        .filter(|candidate| {
+            candidate.source_structural_result_binding_ordinal() == Some(binding_ordinal)
+        })
+        .count();
+    if owned_uses != 1 {
+        return unsupported("argument construction is read by more than its own call");
+    }
+    Ok(())
+}
+
 struct Producer<'plan> {
     operation_index: usize,
     coordinate: checked_trees::CheckedUnitCallCoordinate,

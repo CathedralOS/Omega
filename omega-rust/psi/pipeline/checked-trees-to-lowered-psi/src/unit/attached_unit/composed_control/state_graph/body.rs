@@ -156,7 +156,7 @@ pub(super) fn validate(
         }
         let ordinal = if continuations[index] {
             // The continued statement is the one the cursor consumed last.
-            match continued_statement(operation) {
+            match authored_statement(operation) {
                 Some(statement) if cursor > 0 && statement as usize == cursor - 1 => {
                     statement as usize
                 }
@@ -182,7 +182,7 @@ pub(super) fn validate(
                     discard_result_on_return: false,
                     ..
                 },
-                StatementNode::LocalData(_) | StatementNode::Expression(_),
+                StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Call(_),
             ) if result.statement_index as usize == ordinal => {
                 crate::expression_preparation::source_custody::structural::validate(
                     checked,
@@ -733,11 +733,23 @@ fn statement_continuations(
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Result<Vec<bool>, LoweringError> {
     let mut current = None;
+    // Whether the current statement began with a construction nested in its
+    // own call's arguments: `f(Event::Insert { cents: 50 })` plans the
+    // construction first and the call that consumes it second, both at the
+    // one call statement. The call, and any further argument construction for
+    // it, continue that statement instead of consuming the next.
+    let mut began_with_argument = false;
     operations
         .iter()
         .map(|operation| {
             let continued = continued_statement(operation);
             if continued.is_some() && continued == current {
+                return Ok(true);
+            }
+            if began_with_argument
+                && authored_statement(operation) == current
+                && (argument_construction(operation) || call_operation(operation))
+            {
                 return Ok(true);
             }
             let may_begin = continued.is_none()
@@ -751,9 +763,37 @@ fn statement_continuations(
                 return unsupported("Unit graph continuation lost its producing statement");
             }
             current = authored_statement(operation);
+            began_with_argument = argument_construction(operation);
             Ok(false)
         })
         .collect()
+}
+
+/// A structural construction authored as one of its statement's call
+/// arguments rather than bound to a local or returned.
+fn argument_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
+    matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            operand_source: Some(
+                checked_trees::CheckedArrayConstructionSource::CallArgument { .. }
+            ),
+            ..
+        }
+    )
+}
+
+/// An operation that performs its statement's call.
+fn call_operation(operation: &CheckedUnitEffectOperationPlan) -> bool {
+    matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::CallUnit { .. }
+            | CheckedUnitEffectOperationPlan::ScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+    )
 }
 
 /// Rejoin `place = call(..)` where the call returns a whole structural value

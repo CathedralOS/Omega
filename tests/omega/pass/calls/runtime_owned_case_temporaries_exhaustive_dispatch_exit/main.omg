@@ -1,0 +1,48 @@
+// Case values constructed inline as call arguments move whole into the call:
+// `self.apply(Event::Add { amount: 3 })` establishes the value for the
+// argument and nothing else reads it. Two such temporaries in successive
+// statements of a state graph, one carrying a payload and one without, each
+// dispatched exhaustively by the callee with no `_` arm, so every arm consumes
+// the owned subject. Exits 70 only when both dispatches reached their arms.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Event {
+    case Add(amount: i32 in Wrapping);
+    case Bonus;
+}
+
+data Tally [copy] {
+    total: i32 in Wrapping;
+}
+
+data Main {
+    console: Binding<Console>;
+    tally: Tally;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.apply(Event::Add { amount: 3 });
+    self.apply(Event::Bonus);
+    transition self.tally.total == 13 {
+        true -> report(70)
+        _ -> report(71)
+    }
+    state report(&mut self, code: i32 in Wrapping) {
+        self.console.exit_process(code as i32);
+    }
+}
+
+machine Main::apply(&mut self, event: Event) {
+    transition event {
+        Event::Add { amount } -> add(amount)
+        Event::Bonus -> bonus()
+    }
+    state add(&mut self, amount: i32 in Wrapping) {
+        self.tally.total = self.tally.total + amount;
+    }
+    state bonus(&mut self) {
+        self.tally.total = self.tally.total + 10;
+    }
+}
