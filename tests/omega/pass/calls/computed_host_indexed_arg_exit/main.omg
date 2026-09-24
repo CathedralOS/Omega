@@ -3,14 +3,18 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain u64::U640To1 requires self <= 1;
-data Main {
+data Main
+where
+    index <= 1,
+{
     console: Binding<Console>;
     values: [i32; 2];
-    index: u64 in U640To1;
+    index: u64;
 }
 
-machine Main::emit(&mut self, view: &[i32], index: u64 in U640To1) reaches Console {
+machine Main::emit(&mut self, view: &[i32], index: u64) reaches Console
+requires index <= 1
+{
     transition index < view.len {
         true -> checked(view, index)
         false -> failed()

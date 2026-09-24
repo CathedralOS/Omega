@@ -1,5 +1,4 @@
 // Anonymous division preserves fractions until the actual typed destination.
-domain i32::I320To1 requires 0 <= self && self <= 1;
 machine exact_return() -> i32
 ensures result == 7
 {
@@ -19,7 +18,8 @@ ensures result == 6
     7i32 / 2 * 2
 }
 
-machine mixed_operand(input: i32 in I320To1) -> i32
+machine mixed_operand(input: i32) -> i32
+requires 0 <= input && input <= 1
 {
     input * (4097 / 2 * 2)
 }

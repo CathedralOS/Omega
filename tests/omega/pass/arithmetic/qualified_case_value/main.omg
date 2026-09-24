@@ -4,7 +4,6 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-domain i32::I320To100 requires 0 <= self && self <= 100;
 data Light { case Off; case On; }
 
 data Main { console: Binding<Console>; }
@@ -12,12 +11,16 @@ data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let signal: Light = Light::On;
     transition { _ -> classify(70) }
-    state classify(&mut self, n: i32 in I320To100) {
+    state classify(&mut self, n: i32)
+    requires 0 <= n && n <= 100
+    {
         transition n > 0 {
             true -> report(n)
             _ -> zero()
         }
     }
-    state report(&mut self, n: i32 in I320To100) { self.console.exit_process(n); }
+    state report(&mut self, n: i32)
+    requires 0 <= n && n <= 100
+    { self.console.exit_process(n); }
     state zero(&mut self) { self.console.exit_process(2); }
 }

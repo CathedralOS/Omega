@@ -7,11 +7,13 @@
 // machine-indexed write machinery. arr[2]=9, k=2 -> v==9 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain u64::U640To3 requires self <= 3;
-data Main {
+data Main
+where
+    k <= 3,
+{
     console: Binding<Console>;
     arr: [i32; 4];
-    k: u64 in U640To3;
+    k: u64;
 }
 machine Main::main(&mut self) {
     self.arr[2] = 9;

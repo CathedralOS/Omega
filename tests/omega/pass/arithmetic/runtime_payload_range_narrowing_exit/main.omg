@@ -1,13 +1,12 @@
 // RUN canary (exit 70). Stage 1 of the unified fact catalog over sum cases:
-// a case-payload field declares a range refinement (`index: i32 in I320To15`), so
+// a case-payload field is bounded by its case `where` (`0 <= index && index <= 15`), so
 // inside the `Found` destructure arm `index + 65` proves EXACT (index in [0,15]
 // -> [65,80], no i32 overflow) with no annotation. Sound because construction
 // enforces the range (forged out-of-range values are rejected -- see
 // fail/arithmetic/construction_payload_out_of_range). Found{index:5} -> 5+65=70.
 use omega_language_std::console;
 use omega::language::core::binding;
-domain i32::I320To15 requires 0 <= self && self <= 15;
-data Slot { case Found(index: i32 in I320To15); case Full; }
+data Slot { case Found(index: i32) where 0 <= index && index <= 15; case Full; }
 data Main { console: Binding<Console>; }
 machine Main::run(&mut self, s: Slot) reaches Console {
     transition s {
