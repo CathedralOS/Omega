@@ -53,6 +53,19 @@ the complete product bar; focused successes below do not establish that baseline
   locals use established initializer/guard/call facts. `T in D` is reserved for
   an intentionally named domain identity, not generated interval sugar.
 
+  **Owner directive (2026-09-24): do not replace a scalar range with a named
+  domain whose only meaning is that range.** This is a source-quality and
+  semantic-modeling requirement, not a suggestion or optimization preference.
+  Names encoding endpoints such as `I32Neg1To4`, `I320To3`, `I320To6`, and
+  `I320To2`, and declarations whose sole content restates those endpoints, are
+  rejected migrations even when they compile or restore native execution. A
+  retained domain must name an independently meaningful classification or
+  authority boundary that a human author would choose without this migration;
+  the implementer must state that meaning in the change. If no such meaning
+  exists, use the owning `where`, `requires`, or `ensures` clause. Do not work
+  around missing proposition transport by changing customer source into a
+  nominal domain.
+
   Every source migration performed under the old blanket premise remains
   unaudited and must be checked against this matrix. This includes migrations beginning with `8f93c866a3`,
   `2c3c2aec00`, `b9b68383c9`, `cc36490282`, `3531aaa098`,
@@ -93,12 +106,16 @@ the complete product bar; focused successes below do not establish that baseline
   The corpus gate stops at checking, so it misses a move in lowering or
   native execution. Three run canaries regressed that way:
   `calls/guarded_value_call_arm_exit`, `arithmetic/runtime_integer_casts_exit`
-  and `arithmetic/runtime_nested_unsigned_witness_exit`. They run again
-  because an exactly-interval domain now means the bracketed range on every
-  execution route: the entry parameter's closed entry range, the scalar
-  graph's membership row, a non-entry state's interval requires row, and a
-  cast out of the domain. Also run each migrated fixture's run canary before
-  keeping it.
+  and `arithmetic/runtime_nested_unsigned_witness_exit`. Their temporary repair
+  in `979fe50383` incorrectly made an interval-only nominal domain stand in for
+  the removed bracketed spelling. Likewise, `24d91ed906` introduced the four
+  endpoint-named sample domains listed in the owner directive. Correct both
+  changes under this item: transport ordinary proposition facts through entry,
+  scalar graph, state, cast, Terminal, and native routes, then express each
+  source position with the canonical clause. Also run each migrated fixture's
+  run canary before keeping it. A runtime pass obtained by introducing an
+  interval-only domain diagnoses missing proposition transport; it does not
+  justify that source model.
 
   Acceptance: bracketed integer and float range annotations reject in every type
   position after migration. Equivalent data/case `where`, parameter `requires`,
@@ -108,7 +125,9 @@ the complete product bar; focused successes below do not establish that baseline
   Reject invalid ranges, unproved arguments, stale facts, incompatible carriers,
   and runtime ranges used as static layout values. Complete the migration-history
   inventory with every entry restored, contract-corrected, or retained for an explicit independent
-  reason. Remove generic range-shell inference and require explicit binders,
+  reason stated in the change. Acceptance review rejects endpoint-named or
+  interval-only domains regardless of passing compiler or runtime results.
+  Remove generic range-shell inference and require explicit binders,
   equations, or intentionally named domains; flow narrowing never chooses type
   or layout identity. Then delete the migration recipe.
 
