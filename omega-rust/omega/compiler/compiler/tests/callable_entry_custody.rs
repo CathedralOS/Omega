@@ -545,6 +545,11 @@ fn undeclared_format(target: NativeTarget) -> ObjectFormat {
 }
 #[test]
 fn optimized_ordinary_callable_entry_custody_rejects_every_one_field_substitution() {
+    // A value that is NOT the current vocabulary. Deriving it from the marker
+    // keeps this substitution meaningful across a vocabulary bump: the literal
+    // it replaced became the CURRENT marker, so the mutated manifest decoded
+    // successfully and the rejection this matrix exists to prove went silent.
+    let unknown_vocabulary = VocabularyMarker::CURRENT.get().wrapping_add(1);
     for target in [
         NativeTarget::linux_x64(),
         NativeTarget::linux_arm64(),
@@ -1102,7 +1107,7 @@ fn optimized_ordinary_callable_entry_custody_rejects_every_one_field_substitutio
             &record_bytes,
             |bytes| {
                 bytes[record_offsets.vocabulary..record_offsets.vocabulary + 2]
-                    .copy_from_slice(&108_u16.to_le_bytes())
+                    .copy_from_slice(&unknown_vocabulary.to_le_bytes())
             },
             OptimizedOrdinaryCallableEntryDecodeError::InvalidId,
         );
@@ -1234,7 +1239,7 @@ fn optimized_ordinary_callable_entry_custody_rejects_every_one_field_substitutio
             &manifest_bytes,
             |bytes| {
                 bytes[manifest_offsets.vocabulary..manifest_offsets.vocabulary + 2]
-                    .copy_from_slice(&108_u16.to_le_bytes())
+                    .copy_from_slice(&unknown_vocabulary.to_le_bytes())
             },
             OptimizedOrdinaryCallableEntryManifestDecodeError::Record(
                 OptimizedOrdinaryCallableEntryDecodeError::InvalidId,
