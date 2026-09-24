@@ -20,4 +20,4 @@ selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../representations/target" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 register-homes-to-post-allocation-machine = { path = "../09_register-homes-to-post-allocation-machine" }
-post-allocation-machine-to-selected-form-encoding = { path = "../post-allocation-machine-to-selected-form-encoding" }
+post-allocation-machine-to-selected-form-encoding = { path = "../10_post-allocation-machine-to-selected-form-encoding" }
