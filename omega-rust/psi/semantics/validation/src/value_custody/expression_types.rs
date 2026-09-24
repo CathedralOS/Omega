@@ -183,6 +183,20 @@ pub fn argument_matches_type_reference_handle(
 
     let argument_node = program.expression_table.expression(argument);
 
+    // A subslice `collection[a..b]` produces a fresh view over the
+    // collection's own backing, so its reference correspondence is the
+    // collection's resolved reference type rather than an implicit shared
+    // borrow: only a mutable source answers a mutable result.
+    if let ExpressionNode::Indexed(indexed) = argument_node
+        && matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        )
+        && reference_values::subslice_view_matches_reference(program, indexed, type_reference)
+    {
+        return true;
+    }
+
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Reference {
             referee, access, ..

@@ -111,7 +111,7 @@ fn field_path(
     root: PlaceId,
     path: &[StructuralPathSegment],
     field: StructuralFieldId,
-    writing: bool,
+    _writing: bool,
 ) -> Option<Vec<StructuralPathSegment>> {
     let parameter = machine
         .structural_parameters
@@ -129,17 +129,12 @@ fn field_path(
         .iter()
         .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())?;
     // A borrowed-view field's length rides the view descriptor, so a read is
-    // admissible; a byte store still requires the bounded-owned carrier whose
-    // live extent the write custody rules track.
-    let carrier_admitted = match field.field_type {
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-            ..
-        }) => true,
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView) => {
-            !writing
-        }
-        _ => false,
-    };
+    // admissible; an indexed byte store composes over the caller's live extent
+    // exactly as over bounded-owned backing. The shared-versus-mutable
+    // distinction is enforced where the Reference node still exists: the
+    // checked-plan mint gate declines shared views, so a byte-store operation
+    // on a borrowed view can only arise from an exclusive `&'r mut` field.
+    let carrier_admitted = matches!(field.field_type, StructuralFieldType::ByteSequence(_));
     if !carrier_admitted {
         return None;
     }
