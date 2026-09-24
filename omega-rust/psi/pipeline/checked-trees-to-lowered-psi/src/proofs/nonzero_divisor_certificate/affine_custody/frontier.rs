@@ -62,9 +62,8 @@ pub(in crate::proofs::nonzero_divisor_certificate) fn definition_words_to_target
                 let Proposition::Equal(left, right) = &semantic_axioms[index] else {
                     unreachable!("definition words contain only equality rows")
                 };
-                // A word can end at an endpoint or, traversing an unsigned
-                // wrapping add or an exact add backward, at one of its
-                // operand values.
+                // A word can end at an endpoint or, traversing a wrapping
+                // add or an exact add backward, at one of its operand values.
                 left == target
                     || right == target
                     || add_operand(left, target)
