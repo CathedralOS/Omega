@@ -1120,7 +1120,12 @@ fn build_structural_field_store_at(
     if let Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity }) =
         byte_sequence_carrier(program, field.type_reference, &[])
     {
-        if result_local.is_some() || selected_result {
+        if result_local.is_some() {
+            trace.phase("structural field store: byte sequence carrier: result local");
+            return None;
+        }
+        if selected_result {
+            trace.phase("structural field store: byte sequence carrier: selected result");
             return None;
         }
         if let Some(byte_index) = byte_index {
@@ -1227,11 +1232,19 @@ fn build_structural_field_store_at(
         // declared type. The write copies whole, moves nothing, and needs no
         // carrier borrow window -- member-read values, call results, payload
         // sums, records and affine carriers keep declining.
-        if !(exact_frame || exact_sequence_frame)
-            || result_local.is_some()
-            || selected_result
-            || call_result.is_some()
-        {
+        let refusal = if !(exact_frame || exact_sequence_frame) {
+            Some("structural field store: case field type: write frame")
+        } else if result_local.is_some() {
+            Some("structural field store: case field type: result local")
+        } else if selected_result {
+            Some("structural field store: case field type: selected result")
+        } else if call_result.is_some() {
+            Some("structural field store: case field type: call result")
+        } else {
+            None
+        };
+        if let Some(refusal) = refusal {
+            trace.phase(refusal);
             return None;
         }
         let field_data = crate::facts::field_domain::data_definition_for_field_type(
@@ -1323,9 +1336,15 @@ fn build_structural_field_store_at(
         statement_index,
         CheckedScalarExpressionRole::AssignmentValue,
     ) {
-        if !exact_sequence_frame
-            || result_local.is_some()
-            || root.machine != machine.symbol
+        if !exact_sequence_frame {
+            trace.phase("structural field store: computation source: sequence frame");
+            return None;
+        }
+        if result_local.is_some() {
+            trace.phase("structural field store: computation source: result local");
+            return None;
+        }
+        if root.machine != machine.symbol
             || !computations.nodes.is_valid(root.root)
             || computations.nodes.get(root.root).authored_root != assignment.value
             || computations.nodes.get(root.root).primitive_type != primitive_type
@@ -1365,15 +1384,24 @@ fn build_structural_field_store_at(
     // exactly typed SSA value" the store vocabulary asks for
     // (wiki/spec/terminal-psi/structural_access.md, Store vocabulary).
     if let Some((position, result_type)) = call_result {
-        if !exact_sequence_frame
-            || result_local.is_some()
-            || selected_result
-            || result_type != primitive_type
-            || !matches!(
-                program.expression_table.expression(assignment.value),
-                ExpressionNode::Call(_)
-            )
-        {
+        let refusal = if !exact_sequence_frame {
+            Some("structural field store: pure source: call result: sequence frame")
+        } else if result_local.is_some() {
+            Some("structural field store: pure source: call result: result local")
+        } else if selected_result {
+            Some("structural field store: pure source: call result: selected result")
+        } else if result_type != primitive_type {
+            Some("structural field store: pure source: call result: result type")
+        } else if !matches!(
+            program.expression_table.expression(assignment.value),
+            ExpressionNode::Call(_)
+        ) {
+            Some("structural field store: pure source: call result: authored call")
+        } else {
+            None
+        };
+        if let Some(refusal) = refusal {
+            trace.phase(refusal);
             return None;
         }
         return Some(CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(

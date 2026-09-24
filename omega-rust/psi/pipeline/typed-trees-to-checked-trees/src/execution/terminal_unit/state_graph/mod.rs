@@ -564,9 +564,16 @@ pub(super) fn build_traced(
                         CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
                             "state graph: operation custody: boundary call arguments"
                         }
-                        CheckedUnitEffectOperationPlan::CallUnit { .. } => {
-                            "state graph: operation custody: unit call arguments"
+                        CheckedUnitEffectOperationPlan::CallUnit {
+                            structural_arguments,
+                            claim_transfers,
+                            ..
                         }
+                        | CheckedUnitEffectOperationPlan::ScalarCall {
+                            structural_arguments,
+                            claim_transfers,
+                            ..
+                        } => call_custody_refusal(structural_arguments, claim_transfers),
                         CheckedUnitEffectOperationPlan::StructuralCall { .. }
                         | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
@@ -575,8 +582,7 @@ pub(super) fn build_traced(
                         CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
                             "state graph: operation custody: continuation cleanup owner"
                         }
-                        CheckedUnitEffectOperationPlan::ScalarCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. } => {
+                        CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. } => {
                             "state graph: operation custody: scalar call"
                         }
                         CheckedUnitEffectOperationPlan::SelectedOperatorScalarCall { .. }
@@ -1327,6 +1333,58 @@ fn prefix_initializers(
             Some(initializer.clone())
         })
         .collect()
+}
+
+/// Name the first requirement a unit or scalar call's custody does not meet,
+/// so a body the selected edges decline reports the argument shape rather
+/// than the whole operation family. Diagnostic only: the admitting guards
+/// above decide what is carried, and this reproduces their conditions in the
+/// order they read.
+fn call_custody_refusal(
+    structural_arguments: &[CheckedUnitStructuralArgumentPlan],
+    claim_transfers: &[checked_trees::CheckedUnitClaimTransferPlan],
+) -> &'static str {
+    if !claim_transfers.is_empty() {
+        return "state graph: operation custody: call claim transfers";
+    }
+    for argument in structural_arguments {
+        if whole_shared_argument(argument) {
+            continue;
+        }
+        let borrowed = matches!(
+            argument.access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        );
+        if borrowed
+            && (argument.source_parameter_index().is_some()
+                || argument
+                    .source_structural_result_binding_ordinal()
+                    .is_some())
+        {
+            continue;
+        }
+        if argument.source_parameter_index().is_some()
+            && argument.path.is_empty()
+            && argument.access == CheckedStructuralAccess::Owned
+        {
+            continue;
+        }
+        return match (
+            argument.access,
+            argument.source_parameter_index().is_some(),
+            argument.path.is_empty(),
+        ) {
+            (CheckedStructuralAccess::Owned, true, false) => {
+                "state graph: operation custody: call owned parameter field argument"
+            }
+            (CheckedStructuralAccess::Owned, false, _) => {
+                "state graph: operation custody: call owned non-parameter argument"
+            }
+            (_, false, _) => "state graph: operation custody: call non-parameter argument",
+            _ => "state graph: operation custody: unit call arguments",
+        };
+    }
+    "state graph: operation custody: unit call arguments"
 }
 
 fn whole_shared_argument(argument: &CheckedUnitStructuralArgumentPlan) -> bool {
