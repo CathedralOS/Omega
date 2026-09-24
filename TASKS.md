@@ -1773,6 +1773,37 @@ syntax and other terminal services are not prerequisites.
   Any demonstrated need to change the selected calculus goes to
   `OWNER_QUESTIONS.md`, not an implementation shortcut.
 
+- **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Bound aggregate
+  compile-time proof work and remove the redundant work that makes it
+  necessary. This row exists because two places already name it as an owner
+  and nothing carried it: **WRITE-ONLY-BORROW** defers its computed-selector
+  limit to this row, and **RC-PCC-REPLAY** reports the release block as red
+  "including a terminated proof-search case" whose resource defect is this
+  row's.
+
+  [`compile-time-proof-work-ceiling`](OWNER_QUESTIONS.md) (Q1) settles the
+  policy question and needs no further ruling: named resource or search
+  exhaustion already publishes as `Incomplete`, not `Reject`, so an explicit
+  aggregate accounting reported that way is implementation work. The question
+  also names the defect to repair first -- repeated whole-module
+  reconstruction and oversized certificates -- and says a cap does not excuse
+  it.
+
+  The customer is WRITE-ONLY-BORROW's: `runtime_hoisted_index_write_exit`
+  checks in 180 ms today only because a selector narrower than `u64` must be a
+  parameter or stored field read; proving a computed one through its `u64`
+  widening is what takes minutes. Reproduce that by admitting the computed
+  selector, not by removing the guard and declaring the search acceptable. For
+  scale, the slowest fixture in the whole 3302-fixture corpus is 11.2 s
+  (`filesystem/native_wrapper_write_all_result`, measured 2026-09-24), so the
+  blowup is not visible in ordinary corpus timings.
+
+  Acceptance: the computed-selector customer checks with its guard lifted,
+  aggregate proof work is accounted explicitly, and exhaustion publishes as
+  `Incomplete` with the [compiler request](wiki/spec/build/compiler_request.md)
+  representation. Rejecting valid source, accepting without required evidence,
+  or warning while claiming bounded execution are all excluded by Q1.
+
 - **PROOF-CONTRACT-MIGRATION.** Deliver general mathematics from Omega
   source through Terminal evidence and independent checking, using
   [machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)
@@ -2704,6 +2735,20 @@ syntax and other terminal services are not prerequisites.
   required exits, retaining evaluation order, nested/live-arm agreement,
   contained loans and outcome obligations. Whole-root, indexed, referent,
   scalar-field and nominal-drop fences stay until their evidence exists.
+
+  NOT THIS ROW'S WORK, and design-blocked: 34 `tests/omega/pass` fixtures
+  reject on "cannot transfer a non-copy value out of borrowed storage",
+  measured 2026-09-24. They copy a record holding a SHARED VIEW field out of
+  `&mut self` by value (`_ -> render(self.source)` with
+  `data Room { label: &[u8] in Utf8; }`), which is an illegal move without
+  `[copy]` and a rejected declaration with it. That is
+  [`copy-data-shared-reference-fields`](OWNER_QUESTIONS.md) (Q7), awaiting the
+  owner. `text/runtime_local_struct_string_field_concat_exit`,
+  `text/runtime_string_stored_suffix_exit` and
+  `text/runtime_slice_indexed_string_guard_exit` now stop one stage later, on
+  the lost default-domain facts that question predicts. Restoration of a value
+  this row moves out deliberately is a separate mechanism; do not repair those
+  fixtures here.
 
   Complete target/native realization without replacing caller storage by a
   staged copy. Promote `ownership/move_keyword_field_assignment` from
