@@ -285,7 +285,7 @@ impl RangeFacts<'_> {
             .retain(|(index, _)| !overlaps(index));
         self.proven_non_negatives.retain(|index| !overlaps(index));
         self.proven_orderings
-            .retain(|(left, right)| !overlaps(left) && !overlaps(right));
+            .retain(|(left, right, _)| !overlaps(left) && !overlaps(right));
         self.proven_range_bounds
             .retain(|(collection, bound)| !covers(collection) && !overlaps(bound));
         self.minimum_lengths

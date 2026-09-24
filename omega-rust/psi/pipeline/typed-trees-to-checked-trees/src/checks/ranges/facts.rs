@@ -28,7 +28,10 @@ pub(super) struct RangeFacts<'field> {
     /// index also requires its name here (seeded from `i >= 0`-style guards).
     /// Unsigned indices are non-negative by type and never consult this.
     proven_non_negatives: Vec<String>,
-    proven_orderings: Vec<(String, String)>,
+    /// `(lower, upper, strict)`: `lower <= upper`, or `lower < upper` when
+    /// strict. Strict entries are the stronger fact — a `<` guard mints one
+    /// and a later `<=` on the same pair must not weaken it.
+    proven_orderings: Vec<(String, String, bool)>,
     proven_range_bounds: Vec<(String, String)>,
     minimum_lengths: Vec<(String, i64)>,
     /// Exact-length facts: a collection whose length is provably an exact value.
