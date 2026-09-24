@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 abstract-operations = { path = "../../representations/abstract-operations" }
 sha2 = "0.10.9"
-abstract-operations-to-target-operations = { path = "../../pipeline/05_abstract-operations-to-target-operations" }
+abstract-operations-to-target-operations = { path = "../../pipeline/02_abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
 abstract-operations-to-abstract-operations = { path = "../../pipeline/01_abstract-operations-to-abstract-operations" }
 register-environment = { path = "../register-environment" }

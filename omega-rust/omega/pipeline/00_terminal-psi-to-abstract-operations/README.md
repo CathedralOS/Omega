@@ -87,7 +87,7 @@ checks the outgoing area, alignment, return-link preservation, source places,
 field widths, calls, and relocations. An aggregate's padding is not observable
 payload, and a borrowed referent must not become a private value copy.
 
-The [target stage](../05_abstract-operations-to-target-operations/README.md) and
+The [target stage](../02_abstract-operations-to-target-operations/README.md) and
 [instruction-selection stage](../06_target-operations-to-selected-instructions/README.md)
 own their actual operation coverage. Admission here, source production, and
 successful optimization are not native-publication claims.
@@ -137,7 +137,7 @@ borrowed calls, with exact-width source reads and unchanged scalar payload bits.
 
 Unranked modules take the same ordinary verification and abstract route without
 a progress claim. Scalar cycles proceed through the shared
-[target control graph](../05_abstract-operations-to-target-operations/README.md)
+[target control graph](../02_abstract-operations-to-target-operations/README.md)
 and native physical pipeline. Exact verified-source custody, not the presence
 of ranking metadata, authorizes downstream cyclic safety checking.
 

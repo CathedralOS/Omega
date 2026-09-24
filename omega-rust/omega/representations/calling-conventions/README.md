@@ -39,7 +39,7 @@ Structural parameter construction and caller materialization follow
 [structural access](../../../../wiki/spec/terminal-psi/structural_access.md).
 The existing tagged reference shape is not a proof that all structural producers
 use it. Current native limits belong beside the
-[lowerer](../../pipeline/05_abstract-operations-to-target-operations/README.md).
+[lowerer](../../pipeline/02_abstract-operations-to-target-operations/README.md).
 
 Final state-footprint certificates are a separate realization check; their
 [production status](../../backend/images/image/footprint_replay.md) must not be

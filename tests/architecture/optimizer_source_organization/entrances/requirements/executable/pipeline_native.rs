@@ -22,7 +22,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub fn stage_optimized_instruction_selection",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations/src/lowering/optimized.rs",
+        path: "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering/optimized.rs",
         coordination_marker: "validate_abstract_to_target_translation",
     },
     RequiredCoordinationEntrance {

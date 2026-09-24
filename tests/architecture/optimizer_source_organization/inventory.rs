@@ -37,7 +37,7 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     // Keep their concept-owned leaves governed alongside the algorithms.
     "omega-rust/omega/representations/register-homes/src/register_homes",
     "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations",
-    "omega-rust/omega/pipeline/05_abstract-operations-to-target-operations",
+    "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations",
     "omega-rust/omega/pipeline/08_selected-instructions-to-register-homes",
     "omega-rust/omega/pipeline/07_selected-instructions-to-selected-instructions",
     "omega-rust/omega/backend/machine-emission/src/frame_protocol",
