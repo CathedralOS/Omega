@@ -6,7 +6,7 @@ use std::ops::Range;
 
 use crate::{Handle, HandleSpan};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub struct Arena<T> {
     dummy: T,
     items: Vec<T>,
@@ -14,7 +14,26 @@ pub struct Arena<T> {
     occupied: Vec<bool>,
     free_indices: Vec<u32>,
     active_count: usize,
+    /// No slot has been freed or cleared since the arena was last empty, so
+    /// every slot is occupied at generation 1. A span whose start handle
+    /// resolves then resolves whole within bounds, without revisiting each
+    /// row's occupancy and generation. Derived from the metadata above, so it
+    /// takes no part in equality.
+    fresh: bool,
 }
+
+impl<T: PartialEq> PartialEq for Arena<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.dummy == other.dummy
+            && self.items == other.items
+            && self.generations == other.generations
+            && self.occupied == other.occupied
+            && self.free_indices == other.free_indices
+            && self.active_count == other.active_count
+    }
+}
+
+impl<T: Eq> Eq for Arena<T> {}
 
 impl<T: Clone> Clone for Arena<T> {
     fn clone(&self) -> Self {
@@ -25,6 +44,7 @@ impl<T: Clone> Clone for Arena<T> {
             occupied: self.occupied.clone(),
             free_indices: self.free_indices.clone(),
             active_count: self.active_count,
+            fresh: self.fresh,
         }
     }
 
@@ -34,6 +54,7 @@ impl<T: Clone> Clone for Arena<T> {
         self.occupied.clone_from(&source.occupied);
         self.free_indices.clone_from(&source.free_indices);
         self.active_count = source.active_count;
+        self.fresh = source.fresh;
 
         // Vec clones may unwind after truncating or partially extending the
         // payload. Keep the metadata for exactly that initialized prefix; a
@@ -86,6 +107,7 @@ impl<T: Default> Arena<T> {
             occupied: Vec::new(),
             free_indices: Vec::new(),
             active_count: 0,
+            fresh: true,
         }
     }
 
@@ -97,6 +119,7 @@ impl<T: Default> Arena<T> {
             occupied: Vec::with_capacity(capacity),
             free_indices: Vec::new(),
             active_count: 0,
+            fresh: true,
         }
     }
 
@@ -402,6 +425,7 @@ impl<T: Default> Arena<T> {
         self.generations[index] = next_generation(self.generations[index]);
         self.free_indices.push(next_arena_index(index));
         self.active_count -= 1;
+        self.fresh = false;
 
         true
     }
@@ -450,6 +474,9 @@ impl<T: Default> Arena<T> {
 
         let count = usize::try_from(span.count()).ok()?;
         let end = start.checked_add(count)?;
+        if self.fresh {
+            return (end <= self.items.len()).then_some(start..end);
+        }
         let occupied = self.occupied.get(start..end)?;
         let generations = self.generations.get(start..end)?;
 
@@ -486,6 +513,7 @@ impl<T: Default> Arena<T> {
         self.free_indices
             .extend((0..self.items.len()).map(next_arena_index));
         self.active_count = 0;
+        self.fresh = self.items.is_empty();
     }
 
     pub fn reset_retain_capacity(&mut self) {
@@ -494,6 +522,7 @@ impl<T: Default> Arena<T> {
         self.occupied.clear();
         self.free_indices.clear();
         self.active_count = 0;
+        self.fresh = true;
     }
 
     pub fn map<U: Default>(self, mut map_item: impl FnMut(T) -> U) -> Arena<U> {
@@ -507,6 +536,7 @@ impl<T: Default> Arena<T> {
             occupied: self.occupied,
             free_indices: self.free_indices,
             active_count: self.active_count,
+            fresh: self.fresh,
         }
     }
 
