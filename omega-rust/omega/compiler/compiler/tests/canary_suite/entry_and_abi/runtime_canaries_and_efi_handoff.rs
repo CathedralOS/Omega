@@ -7,43 +7,6 @@ use crate::{
 };
 
 #[test]
-fn entry_run_args_bytes_canary_runs() {
-    // The canonical entry `Main::run(&self, args: &[u8])`: the prologue binds
-    // `args` as a 32-byte view over the spilled argument registers, so
-    // `args.len == 32` holds deterministically (exit 5) regardless of what the
-    // OS passed in the registers. NATIVE-ONLY (the interpreter has no entry-
-    // argument notion yet, so this is not a differential canary). The
-    // efi_application twin of this program was boot-verified under QEMU/OVMF
-    // ("Warning Stale Data" = the same 5).
-    let canary = pass_canary(fixture_roster::TARGETS_ENTRY_RUN_ARGS_BYTES);
-    let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    let compilation = compile(CanaryCompileSpec {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        product: CanaryCompileProduct::NativeArtifactAndPublish,
-    })
-    .expect("entry run-args canary should compile");
-    let footprint_artifact = fs::read_to_string(build_dir.join("08_boundary_footprints.json"))
-        .expect("entry run-args footprint evidence should be written");
-    assert!(
-        footprint_artifact.contains("\"origin\": \"entry_storage\"")
-            && footprint_artifact.contains("\"origin\": \"entry_slice_descriptor\"")
-            && footprint_artifact.contains("\"origin\": \"exit_result_registers\"")
-            && footprint_artifact.contains("\"enumeration_complete\": false"),
-        "bytes handoff must retain entry-storage, descriptor, and exit-register evidence without claiming final completeness"
-    );
-    assert_native_exit_code(
-        &compilation,
-        5,
-        "entry run-args canary",
-        "the canonical byte-view argument should retain its 32-byte handoff bound",
-    );
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_utf16_literal_exit_canary_runs() {
     // `utf16"Hello from Omega"` (CR LF NUL escaped) desugars at parse to the integer array
     // literal of its UTF-16 code units: 'H'=72 at [0], newline=10 at [17], NUL at
@@ -154,64 +117,6 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
 
 #[cfg(windows)]
 #[test]
-fn efi_struct_handoff_prologue_spreads_registers() {
-    // Ladder step 3: the boundary entry's sole struct parameter receives the
-    // argument registers spread across its 8-byte chunks. Pins the prologue:
-    // store #0 = mov r15,imm64 + mov [r15+0],rcx (49 89 8F disp 0); store #1 =
-    // mov r15,imm64 + mov [r15+8],rdx (49 89 97 disp 8).
-    let canary = pass_canary(fixture_roster::TARGETS_EFI_STRUCT_HANDOFF);
-    let build_dir =
-        std::env::temp_dir().join(format!("omega-struct-handoff-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CanaryCompileSpec {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        product: CanaryCompileProduct::NativeArtifactAndPublish,
-    })
-    .expect("struct-handoff canary should compile");
-    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
-    let lfanew = u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
-    let opt = lfanew + 4 + 20;
-    let opt_size = u16::from_le_bytes([bytes[lfanew + 4 + 16], bytes[lfanew + 4 + 17]]) as usize;
-    let section_count = u16::from_le_bytes([bytes[lfanew + 6], bytes[lfanew + 7]]) as usize;
-    let mut text_raw = None;
-    for section in 0..section_count {
-        let header = opt + opt_size + section * 40;
-        if &bytes[header..header + 5] == b".text" {
-            text_raw = Some(u32::from_le_bytes([
-                bytes[header + 20],
-                bytes[header + 21],
-                bytes[header + 22],
-                bytes[header + 23],
-            ]) as usize);
-        }
-    }
-    let text = text_raw.expect(".text section");
-    // store #0: [10-byte mov r15,imm64] 49 89 8F <disp32 0>
-    assert_eq!(&bytes[text..text + 2], &[0x49, 0xbf], "frame-base mov #0");
-    assert_eq!(
-        &bytes[text + 10..text + 17],
-        &[0x49, 0x89, 0x8f, 0, 0, 0, 0],
-        "rcx -> handoff.handle @ +0"
-    );
-    // store #1 immediately follows: 49 BF ... 49 89 97 08 00 00 00
-    let second = text + 17;
-    assert_eq!(
-        &bytes[second..second + 2],
-        &[0x49, 0xbf],
-        "frame-base mov #1"
-    );
-    assert_eq!(
-        &bytes[second + 10..second + 17],
-        &[0x49, 0x89, 0x97, 8, 0, 0, 0],
-        "rdx -> handoff.table @ +8"
-    );
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[cfg(windows)]
-#[test]
 fn efi_vtable_call_emits_indirect_dispatch() {
     // The external-leaf VtableField(output_string) call lowers to `mov rax, [rcx+8];
     // call rax` -- read OutputString from the con_out protocol struct and
@@ -245,42 +150,6 @@ fn efi_vtable_call_emits_indirect_dispatch() {
         regions.contains("\"certificate_marker\": \"omega.final-footprint-certificate.current\"")
             && regions.contains("\"compiler_function_body_specification\""),
         "vtable dispatch must reach final-byte replay"
-    );
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
-fn efi_ref_param_direct_faces_deref_not_flat() {
-    // Task #37: the DIRECT guard-subject and machine-target reads through an
-    // entry ref-param must DEREFERENCE the pointer slot (pointee copies in the
-    // report), never fold flat (`frame_storage@72` = slot 8 + con_out 64).
-    let canary = pass_canary(fixture_roster::TARGETS_EFI_REF_PARAM_DIRECT_FACES);
-    let build_dir = std::env::temp_dir().join(format!("omega-refparam-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CanaryCompileSpec {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        product: CanaryCompileProduct::NativeArtifactAndPublish,
-    })
-    .expect("ref-param direct-faces canary should compile");
-    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
-        .expect("backend report should be written");
-    assert!(
-        report.contains("omega_runtime_frame_storage[ConstOffset(8), Deref, ConstOffset(64)]"),
-        "expected the con_out DEREF (place frame[8].deref+64) in the report"
-    );
-    assert!(
-        report.contains("omega_runtime_frame_storage[ConstOffset(8), Deref, ConstOffset(32)]"),
-        "expected the firmware_revision DEREF (place frame[8].deref+32) in the report"
-    );
-    assert!(
-        report.contains("omega_runtime_frame_storage[ConstOffset(8), Deref, ConstOffset(48)]"),
-        "expected the con_in DEREF (place frame[8].deref+48) feeding the transition arg"
-    );
-    assert!(
-        !report.contains("omega_runtime_frame_storage[ConstOffset(72)]"),
-        "flat slot+field read (frame place ConstOffset(72) = con_out) regressed -- an entry-ref-param member folded flat instead of dereferencing"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }

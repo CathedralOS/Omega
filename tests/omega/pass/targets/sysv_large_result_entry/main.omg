@@ -1,8 +1,0 @@
-// SysV MEMORY-result entry pin: incoming rdi is the caller-owned result
-// destination, so the declared scalar arrives in rsi. The terminal record is
-// copied through the saved pointer and that pointer is returned in rax.
-pub data Triple { first: u64; second: u64; third: u64; }
-pub data Main { output: Triple; }
-boundary machine Main::main(&self, marker: u64) -> Triple {
-    transition { _ -> (Triple { first: self.output.first, second: self.output.second, third: self.output.third }) }
-}

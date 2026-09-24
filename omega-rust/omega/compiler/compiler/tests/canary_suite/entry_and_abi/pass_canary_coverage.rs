@@ -410,11 +410,11 @@ fn discovered_exact_native_coverage_is_consistent() {
         0
     );
     let cross_target_positive = coverage
-        .unique_cross_target_owner("targets/sysv_small_result_entry", "linux_x86_64")
+        .unique_cross_target_owner("targets/sysv_hfa_result_entry", "linux_x86_64")
         .expect("known exact cross-target owner should be discovered");
     assert_eq!(
         cross_target_positive.test_name,
-        "sysv_small_result_entry_loads_rax_and_rdx"
+        "sysv_hfa_result_entry_loads_xmm0_and_xmm1"
     );
     assert!(
         cross_target_positive

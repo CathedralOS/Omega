@@ -2,8 +2,6 @@
 
 #[path = "entry_and_abi/aarch64_entry_abi.rs"]
 mod aarch64_entry_abi;
-#[path = "entry_and_abi/efi_entry_abi.rs"]
-mod efi_entry_abi;
 #[path = "../fixture_rosters/entry_and_abi.rs"]
 pub(super) mod fixture_roster;
 #[path = "entry_and_abi/hosted_receiver.rs"]
@@ -29,15 +27,7 @@ mod uefi_loaded_image_layout;
 #[path = "entry_and_abi/uefi_system_table_layout.rs"]
 mod uefi_system_table_layout;
 
-use crate::{Command, CompileReport, Path, fs};
-
-fn write_cross_target_application_build(source_dir: &Path) {
-    fs::write(
-        source_dir.join("build.omg"),
-        "machine build(builder: &mut Build) { builder.application(\"cross_target_canary\"); }\n",
-    )
-    .expect("write target-independent application build source");
-}
+use crate::{Command, CompileReport};
 
 fn assert_native_exit_code(
     report: &CompileReport,

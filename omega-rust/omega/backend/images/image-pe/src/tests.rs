@@ -44,6 +44,30 @@ fn import_free_image_omits_empty_read_only_section() {
 }
 
 #[test]
+fn efi_application_image_is_an_import_free_subsystem_10_pe32_plus() {
+    // `Subsystem::EfiApplication` evaluates to PE subsystem word 10. A UEFI
+    // image receives its services through the firmware entry, never imports:
+    // the header must carry PE32+ magic, subsystem 10, and empty import and
+    // import-address-table directories.
+    let output = emit_pe_x86_64_executable(returning_image(), 10).expect("emit image");
+    let bytes = &output.bytes;
+    let pe_offset = u32::from_le_bytes(bytes[0x3c..0x40].try_into().unwrap()) as usize;
+    let optional_header = pe_offset + 4 + 20;
+    let word = |offset: usize| u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
+    assert_eq!(word(optional_header), 0x20b, "PE32+ optional header magic");
+    assert_eq!(word(optional_header + 68), 10, "EFI_APPLICATION subsystem");
+    let directory = |index: usize| {
+        let offset = optional_header + 112 + index * 8;
+        (
+            u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()),
+            u32::from_le_bytes(bytes[offset + 4..offset + 8].try_into().unwrap()),
+        )
+    };
+    assert_eq!(directory(1), (0, 0), "no import directory");
+    assert_eq!(directory(12), (0, 0), "no import address table");
+}
+
+#[test]
 fn optional_sections_publish_only_their_owned_ranges() {
     for has_imports in [false, true] {
         for has_data in [false, true] {
