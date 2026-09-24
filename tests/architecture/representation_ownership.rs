@@ -2354,11 +2354,9 @@ fn connected_pipeline_route_covers_every_stage_crate() {
             );
             let directory_name = stage.rsplit('/').next().unwrap();
             let package_name = pipeline_package_name(directory_name);
-            let (input, output) = package_name
-                .split_once("-to-")
-                .unwrap_or_else(|| {
-                    panic!("stage crate {directory_name} does not name an X-to-Y transform")
-                });
+            let (input, output) = package_name.split_once("-to-").unwrap_or_else(|| {
+                panic!("stage crate {directory_name} does not name an X-to-Y transform")
+            });
             if !previous_output.is_empty() {
                 assert_eq!(
                     input, previous_output,
