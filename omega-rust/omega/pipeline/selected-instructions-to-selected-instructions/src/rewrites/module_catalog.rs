@@ -238,10 +238,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
     RewriteModuleRow {
-        module: "join_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
         module: "load_forwarding",
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
     },
@@ -266,14 +262,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Shared,
     },
     RewriteModuleRow {
-        module: "predecessor_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
-        module: "predecessor_run_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
-    },
-    RewriteModuleRow {
         // The one member-run relocation admission every scheduling family
         // delegates to once the window derivation is shared.
         module: "relocation",
@@ -286,10 +274,6 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
     RewriteModuleRow {
         module: "store_motion",
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
-    },
-    RewriteModuleRow {
-        module: "triangle_relocation",
-        route: RewriteModuleRoute::Orphaned("EXACT-MACHINE-SIMPLIFICATIONS"),
     },
 ];
 

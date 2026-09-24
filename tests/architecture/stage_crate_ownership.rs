@@ -502,7 +502,7 @@ fn stage_root_public_modules_have_external_consumers() {
 /// their `pub fn`s are the only root-reachable functions this audit excuses
 /// as a group. A family that gains a production caller must leave both
 /// rosters; a family the board retires must be deleted, not kept here.
-const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 29] = [
+const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 25] = [
     ("address_fold", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("arm_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("boundary_boolean", "EXACT-MACHINE-SIMPLIFICATIONS"),
@@ -524,20 +524,13 @@ const UNEXECUTED_REWRITE_FAMILIES: [(&str, &str); 29] = [
     ("fork_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("fork_run_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("inflow_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    ("join_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("load_forwarding", "ALIAS-AWARE-MEMORY"),
     ("local_schedule", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("member_run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("peepholes", "DECLARATIVE-PEEPHOLES"),
-    ("predecessor_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
-    (
-        "predecessor_run_relocation",
-        "EXACT-MACHINE-SIMPLIFICATIONS",
-    ),
     ("relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("run_interchange", "EXACT-MACHINE-SIMPLIFICATIONS"),
     ("store_motion", "ALIAS-AWARE-MEMORY"),
-    ("triangle_relocation", "EXACT-MACHINE-SIMPLIFICATIONS"),
 ];
 
 /// Spill families of `selected-instructions-to-register-homes` that are
