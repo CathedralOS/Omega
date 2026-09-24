@@ -1,14 +1,10 @@
 //! Rejoin the complete authored body before emitting its ordered effects.
-use super::super::super::super::{
-    CheckedComposedUnitControlTerminatorPlan, StructuralParameterDeclaration,
-};
+use super::super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::super::{
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, Operation, OperationResult,
-    ValueDeclaration, terminal_scalar_type, unsupported,
+    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, terminal_scalar_type, unsupported,
 };
-use super::super::{CheckedTrees, LoweringError, catalogs};
+use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
-use crate::emission::operation_emission::buffer::OperationBuffer;
 use checked_trees::statement::StatementNode;
 
 pub(super) fn validate(
@@ -579,65 +575,6 @@ pub(super) fn validate(
         }
     }
     Ok(end)
-}
-
-pub(in crate::unit::attached_unit::composed_control) fn emit_store(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: &CheckedComposedUnitControlStatePlan,
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
-    catalogs: &mut catalogs::ComposedCatalogs,
-    parameters: &[StructuralParameterDeclaration],
-    evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
-    values: &mut Vec<ValueDeclaration>,
-    next_value: &mut u64,
-    next_block: &mut u64,
-    next_edge: &mut u64,
-    operations: &mut OperationBuffer,
-) -> Result<(), LoweringError> {
-    let destination = parameters
-        .iter()
-        .find(|parameter| Some(parameter.position) == store.destination.parameter_position())
-        .ok_or(LoweringError::Unsupported(
-            "Unit graph store destination is absent",
-        ))?;
-    let lowered = crate::emission::structural_scalar_store::lower_structural_scalar_store_place(
-        store,
-        store.statement_index,
-        destination,
-        &catalogs.structural_types,
-        crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
-    )?;
-    let mut calls = catalogs.scalar_calls.emission_context();
-    let value = evaluation.field_assignment_value(
-        checked,
-        machine,
-        state.state,
-        store,
-        values,
-        next_value,
-        next_block,
-        next_edge,
-        operations,
-        &mut calls,
-    )?;
-    catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-    if value.scalar_type != lowered.scalar_type {
-        return unsupported("Unit graph store RHS differs from its field type");
-    }
-    let id = operations.allocate();
-    operations.push(Operation {
-        static_reach_binding: None,
-        suspension_crossing: None,
-        id,
-        result: OperationResult::Unit,
-        kind: lowered.into_operation(
-            destination.place,
-            value.id,
-            &mut catalogs.scalar_calls.next_call_obligation,
-        )?,
-    });
-    Ok(())
 }
 
 fn is_record_pattern_marker(statement: &StatementNode) -> bool {

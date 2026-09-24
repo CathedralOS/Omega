@@ -23,12 +23,11 @@
 //! (`terminal-verifier/src/validation/borrowed_windows.rs`); nothing here is
 //! evidence for it.
 //!
-//! Callers: the ordinary single-state machine (`ordinary_machine/stores.rs`)
-//! for a local move-out/restore, and the composed state graph
-//! (`composed_control/emission.rs::emit_call_operations`) for a structural
-//! call result replacing a borrowed field. Each drives one ledger per
-//! straight-line operation sequence and requires it closed before that
-//! sequence's exits.
+//! Caller: `unit/attached_unit/operation_frame.rs`, the operation emitter
+//! both the ordinary single-state machine (a local move-out/restore) and the
+//! composed state graph (a structural call result replacing a borrowed field)
+//! use. Each route drives one ledger per straight-line operation sequence and
+//! requires it closed before that sequence's exits.
 
 use super::{
     CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind, OperationResult,

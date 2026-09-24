@@ -1,4 +1,11 @@
 //! Ordinary state graphs share one callable closure and publication path.
+//!
+//! `state_graph` admits and emits the graph; each state's operations emit
+//! through `emission::emit_call_operations`, which sends stores, scalar
+//! locals, borrowed-storage windows and continuation cleanup to
+//! `operation_frame::OperationFrame`, the emitter the ordinary machine also
+//! uses, and keeps the composed call emitters (`emission`, `internal_calls`,
+//! `scalar_calls`).
 use super::{CheckedTrees, LoweringError};
 mod admission;
 pub(super) mod callable;
@@ -12,6 +19,7 @@ mod state_graph;
 pub(crate) use crate::producer_result::SourceMappedLowered;
 pub(super) use callable::admit as admit_callable;
 pub(crate) use catalogs::ComposedCatalogs;
+pub(super) use state_graph::case_emission::result as state_graph_result;
 
 /// Occurrence rows one composed machine publishes beside its Terminal
 /// operations. Every selected comparison or FMA its states emit keeps the row

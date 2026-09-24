@@ -1,24 +1,32 @@
-//! Shared call emission for composed control.
+//! Operation emission for one composed-graph state or call leaf.
+//!
+//! `emit_call_operations` walks a state's checked operations in order. Stores,
+//! scalar locals, borrowed-storage windows and continuation cleanup emit
+//! through `attached_unit::operation_frame::OperationFrame`, the same
+//! per-operation emitter the ordinary machine uses; this file builds the frame
+//! over the state's environment and keeps only what is still composed-specific:
+//! structural-value construction with its member calls, and the boundary,
+//! internal Unit/structural and scalar calls resolved against the composed
+//! catalogs.
 use super::super::super::{
     BlockId, ClaimId, LoweredSourceCallOccurrence, PermissionClaimIdentity,
     StructuralParameterDeclaration, StructuralTypeDeclaration,
 };
+use super::super::operation_frame::{OperationFrame, StructuralResults, StructuralTypeRoster};
 use super::super::{
-    Block, BoundaryMachineResult, CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    CompletionReceipt, Operation, OperationKind, OperationResult, PlaceId, SemanticDomainId,
-    StructuralDomainId, StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind,
-    StructuralTypeId, Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id,
-    lookup_machine_id, lookup_type_id, lower_checked_crash_route_buckets,
-    lower_structural_arguments, lower_structural_path, place_id, terminal_scalar_type, unsupported,
-    validate_transfer_shape, value_id,
+    Block, BoundaryMachineResult, CheckedUnitEffectOperationPlan, CompletionReceipt, Operation,
+    OperationKind, OperationResult, PlaceId, SemanticDomainId, StructuralDomainId,
+    StructuralOperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeId,
+    Terminator, ValueDeclaration, allocate_dense, edge_id, lookup_claim_id, lookup_machine_id,
+    lower_checked_crash_route_buckets, lower_structural_arguments, place_id, terminal_scalar_type,
+    unsupported, validate_transfer_shape, value_id,
 };
-use super::{
-    CheckedTrees, LoweringError, catalogs, internal_calls, literal_arguments, state_graph,
-};
+use super::{CheckedTrees, LoweringError, catalogs, internal_calls, literal_arguments};
 use crate::emission::operation_emission::buffer::{OperationBuffer, SourceCallCoordinate};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::scalar_graph::scalar_contracts::erased_proof_formal_declarations;
+use std::borrow::Cow;
 
 pub(crate) fn emit_call_leaf(
     checked: &CheckedTrees,
@@ -294,368 +302,44 @@ pub(super) fn emit_call_operations(
             catalogs.result_places.push(declaration);
             continue;
         }
-        if let CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value } = operation {
+        if OperationFrame::lowers(operation) {
             let mut calls = catalogs.scalar_calls.emission_context();
-            let evaluated = evaluation.source_value(
+            OperationFrame {
                 checked,
                 machine,
-                state.state,
-                result.statement_index,
-                CheckedScalarExpressionRole::LocalInitializer {
-                    binding_ordinal: result.binding_ordinal,
+                state: state.state,
+                scalar_result: None,
+                scalar_parameter_count: state.scalar_parameters.len(),
+                source_value_count: values.len(),
+                parameters,
+                structural_types: match &mut catalogs.structural_types {
+                    Cow::Owned(types) => StructuralTypeRoster::Owned(types),
+                    Cow::Borrowed(types) => StructuralTypeRoster::Published(types),
                 },
-                value,
-                values.len(),
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                &mut calls,
-            )?;
-            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-            if evaluated.scalar_type != terminal_scalar_type(result.primitive_type)? {
-                return unsupported("graph scalar local carrier differs from its checked result");
-            }
-            evaluation
-                .scalar_bindings
-                .as_mut()
-                .ok_or(LoweringError::Unsupported(
-                    "graph scalar local namespace missing",
-                ))?
-                .append(
-                    checked_trees::CheckedScalarBindingDestination::Immutable,
-                    evaluated.scalar_type,
-                    values.len(),
-                )?;
-            values.push(evaluated);
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) = operation {
-            let bindings =
-                evaluation
-                    .scalar_bindings
-                    .as_ref()
-                    .ok_or(LoweringError::Unsupported(
-                        "byte-view write has no scalar namespace",
-                    ))?;
-            let index = bindings.expression_at(
-                checked,
-                state.state,
-                write.statement_index,
-                CheckedScalarExpressionRole::AssignmentIndex,
-            )?;
-            let value = crate::emission::byte_store_scalar_value(
-                bindings,
-                checked,
-                state.state,
-                write.statement_index,
-                &write.value,
-                values,
-            )?;
-            let kind = crate::emission::byte_sequence_write::emit(
-                write,
-                parameters,
-                &catalogs.structural_types,
-                &index,
-                &value,
-                values,
-                next_value,
-                &mut catalogs.scalar_calls.next_call_obligation,
-                operations,
-            )?;
-            let id = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Unit,
-                kind,
-            });
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
-            operation
-        {
-            let bindings =
-                evaluation
-                    .scalar_bindings
-                    .as_ref()
-                    .ok_or(LoweringError::Unsupported(
-                        "indexed byte store has no scalar namespace",
-                    ))?;
-            let index = bindings.expression_at(
-                checked,
-                state.state,
-                store.statement_index,
-                CheckedScalarExpressionRole::AssignmentIndex,
-            )?;
-            let value = crate::emission::byte_store_scalar_value(
-                bindings,
-                checked,
-                state.state,
-                store.statement_index,
-                &store.value,
-                values,
-            )?;
-            let kind = crate::emission::structural_byte_sequence_index_store::emit(
-                store,
-                parameters,
-                &catalogs.structural_types,
-                &index,
-                &value,
-                values,
-                next_value,
-                &mut catalogs.scalar_calls.next_call_obligation,
-                operations,
-            )?;
-            let id = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Unit,
-                kind,
-            });
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) = operation {
-            if let std::borrow::Cow::Owned(types) = &mut catalogs.structural_types {
-                crate::emission::structural_byte_sequence_store::literal_view_type(types)?;
-            }
-            let kind = crate::emission::structural_byte_sequence_store::emit(
-                store,
-                parameters,
-                &catalogs.structural_types,
-                &mut catalogs.temporary_places,
-                &mut catalogs.next_place,
-                next_value,
-                &mut catalogs.scalar_calls.next_call_obligation,
-                operations,
-            )?;
-            let id = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Unit,
-                kind,
-            });
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) = operation {
-            state_graph::body::emit_store(
-                checked, machine, state, store, catalogs, parameters, evaluation, values,
-                next_value, next_block, next_edge, operations,
-            )?;
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::WriteOnlyIndexedPrimitiveStore {
-            statement_index,
-            destination,
-            path,
-            index,
-            value,
-        } = operation
-        {
-            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
-                destination
-            else {
-                return unsupported(
-                    "composed indexed primitive store has no retained parameter destination",
-                );
-            };
-            let parameter =
-                parameters
-                    .get(*parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "composed indexed primitive store parameter is absent",
-                    ))?;
-            let destination = crate::emission::primitive_store::indexed_parameter_destination(
-                parameter,
-                path,
-                &catalogs.structural_types,
-            )?;
-            let mut calls = catalogs.scalar_calls.emission_context();
-            let kind = crate::emission::primitive_store::emit_indexed_assignment(
-                checked,
-                machine,
-                state.state,
-                *statement_index,
-                destination,
-                index,
-                value,
-                evaluation,
-                values.len(),
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                &mut calls,
-            )?;
-            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-            let id = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Unit,
-                kind,
-            });
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            statement_index,
-            destination,
-            path,
-            value,
-        } = operation
-        {
-            let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
-                destination
-            else {
-                return unsupported(
-                    "composed primitive store has no retained parameter destination",
-                );
-            };
-            let parameter =
-                parameters
-                    .get(*parameter_index as usize)
-                    .ok_or(LoweringError::Unsupported(
-                        "composed primitive store parameter is absent",
-                    ))?;
-            let destination = crate::emission::primitive_store::parameter_destination(
-                parameter,
-                path,
-                &catalogs.structural_types,
-            )?;
-            let mut calls = catalogs.scalar_calls.emission_context();
-            let kind = crate::emission::primitive_store::emit_assignment(
-                checked,
-                machine,
-                state.state,
-                *statement_index,
-                destination,
-                value,
-                evaluation,
-                values.len(),
-                values,
-                next_value,
-                next_block,
-                next_edge,
-                operations,
-                &mut calls,
-            )?;
-            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
-            let id = operations.allocate();
-            operations.push(Operation {
-                static_reach_binding: None,
-                suspension_crossing: None,
-                id,
-                result: OperationResult::Unit,
-                kind,
-            });
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::CallContinuationCleanup {
-            affine_discards, ..
-        } = operation
-        {
-            let mut discards = Vec::new();
-            let mut residuals = Vec::new();
-            for discard in affine_discards {
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal,
-                } = discard.source
-                else {
-                    return unsupported(
-                        "Unit graph continuation cleanup requires a result binding",
-                    );
-                };
-                let produced =
-                    state_graph::case_emission::result(state, binding_ordinal, operations)?;
-                if discard.path.is_empty() {
-                    discards.push(produced.place);
-                } else {
-                    residuals.push(terminal_psi::StructuralAffineDiscard {
-                        place: produced.place,
-                        path: lower_structural_path(&discard.path),
-                        structural_type: lookup_type_id(
-                            &catalogs.type_ids,
-                            &discard.type_identity,
-                        )?,
-                    });
-                }
-            }
-            evaluation.cleanup_continuation(
-                discards, residuals, values, next_value, next_block, next_edge, operations,
-            )?;
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::MoveStructuralField { result, source } = operation {
-            require_parameter_window_root(parameters, source, evaluation)?;
-            let moved = windows.emit_move(
-                source,
-                result,
-                parameters,
-                &catalogs.structural_types,
-                &catalogs.type_ids,
-                &mut catalogs.next_place,
-                operations,
-            )?;
-            let producer = operations
-                .operations
-                .last()
-                .ok_or(LoweringError::Unsupported(
-                    "borrowed-window move emitted no operation",
-                ))?;
-            let OperationResult::Structural(produced) = &producer.result else {
-                return unsupported("borrowed-window move established no structural value");
-            };
-            let produced = produced.clone();
-            catalogs.result_places.push(StructuralPlaceDeclaration {
-                id: moved,
-                kind: StructuralPlaceKind::OperationResult {
-                    producer: producer.id,
-                    structural_type: produced.structural_type,
+                type_ids: &catalogs.type_ids,
+                service_ids: &catalogs.service_ids,
+                primitive_locals: &[],
+                results: StructuralResults::StateGraph {
+                    state,
+                    places: &mut catalogs.result_places,
                 },
-            });
-            evaluation.establish_structural_result(
-                checked,
-                state.state,
-                result,
-                produced,
-                &catalogs.structural_types,
+                // A composed body keeps literals in its private temporary
+                // roster, as `literal_arguments` does; their ordinals stay
+                // dense only while no constructor or join temporary precedes
+                // them.
+                literal_places: &mut catalogs.temporary_places,
+                windows: &mut windows,
+                evaluation,
+                values,
+                next_place: &mut catalogs.next_place,
+                next_value,
+                next_block,
+                next_edge,
+                calls: &mut calls,
                 operations,
-            )?;
-            continue;
-        }
-        if let CheckedUnitEffectOperationPlan::StoreStructuralField {
-            destination, value, ..
-        } = operation
-        {
-            let (Some(binding_ordinal), true, checked_trees::CheckedStructuralAccess::Owned) = (
-                value.source_structural_result_binding_ordinal(),
-                value.path.is_empty(),
-                value.access,
-            ) else {
-                return unsupported("borrowed-window repair value is not a whole owned result");
-            };
-            let repair = state_graph::case_emission::result(state, binding_ordinal, operations)?;
-            let repair = crate::emission::borrowed_window::BorrowedWindowRepairValue {
-                place: evaluation.current_structural_place(repair.place),
-                structural_type: repair.structural_type,
-            };
-            require_parameter_window_root(parameters, destination, evaluation)?;
-            windows.emit_store(
-                destination,
-                repair,
-                parameters,
-                &catalogs.structural_types,
-                &catalogs.type_ids,
-                operations,
-            )?;
+            }
+            .emit(operation)?;
+            catalogs.scalar_calls.next_call_obligation = calls.next_obligation_identity;
             continue;
         }
         let (arguments, byte_argument_places) = literal_arguments::evaluate(
@@ -794,27 +478,6 @@ pub(super) fn emit_call_operations(
         }
     }
     windows.require_closed()
-}
-
-/// The exclusive parameter root a borrowed-storage window names, as the
-/// sequence currently holds it. An owned selection that transported the root
-/// to a join parameter leaves no machine-parameter root for the window, and
-/// Terminal verification anchors windows on machine parameters only.
-fn require_parameter_window_root(
-    parameters: &[StructuralParameterDeclaration],
-    place: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    evaluation: &super::super::argument_evaluation::Evaluation,
-) -> Result<(), LoweringError> {
-    let transported = place.source_parameter_index().is_some_and(|position| {
-        parameters.iter().any(|parameter| {
-            parameter.position == position
-                && evaluation.current_structural_place(parameter.place) != parameter.place
-        })
-    });
-    if transported {
-        return unsupported("borrowed-window root was transported to a join parameter");
-    }
-    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
