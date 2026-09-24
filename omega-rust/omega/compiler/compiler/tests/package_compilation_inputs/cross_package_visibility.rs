@@ -10,7 +10,7 @@ fn receiver_result_bound_package(
     overwrite_result: bool,
 ) -> (TempTree, std::path::PathBuf, PackageCompilationInputs) {
     let tree = TempTree::new();
-    let root = tree.package("receiver-probe");
+    let root = tree.package("receiver_probe");
     TempTree::write(
         root.join("build.omg"),
         "machine build(builder: &mut Build) { builder.package(\"receiver_probe\"); }\n",

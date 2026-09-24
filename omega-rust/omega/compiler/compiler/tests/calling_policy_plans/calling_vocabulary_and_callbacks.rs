@@ -64,7 +64,7 @@ fn target_selected_callback_policy_consumes_two_closed_layout_demands() {
         "the source canary and its readable test fixture must agree apart from leading blank lines"
     );
     let (main_path, package_inputs) =
-        write_callback_package("materialization-closure", CALLBACK_MATERIALIZATION_POLICY);
+        write_callback_package("materialization_closure", CALLBACK_MATERIALIZATION_POLICY);
     let checked = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs),
         ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
@@ -223,7 +223,7 @@ data Registration { callbacks: Spread<ForeignRecord>; }
 data Main { }
 "#,
         );
-    let (main_path, package_inputs) = write_callback_package("inline-callback-catalog", &source);
+    let (main_path, package_inputs) = write_callback_package("inline_callback_catalog", &source);
     let checked = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs),
         ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
@@ -350,7 +350,7 @@ data Main { }
 #[test]
 fn direct_callback_parameter_is_interleaved_without_a_source_runtime_argument() {
     let source = callback_fixture_source("direct_callback_parameter.omg");
-    let (main_path, package_inputs) = write_callback_package("direct-callback", &source);
+    let (main_path, package_inputs) = write_callback_package("direct_callback", &source);
     let checked = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs),
         ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
@@ -574,7 +574,7 @@ fn opaque_movement_retains_native_ordinal_after_direct_callback_insertion() {
             "data Main { }\nmachine Main::register(&mut self, module: CallbackToken) {\n    HookRegistrar::install<HookProvider::call>(1u64, module);\n}\nmachine Main::main(&mut self) { }",
         );
     let (main_path, package_inputs) =
-        write_callback_package("opaque-direct-callback-ordinal", &source);
+        write_callback_package("opaque_direct_callback_ordinal", &source);
     fs::write(
         main_path
             .parent()
@@ -652,7 +652,7 @@ fn direct_callback_parameter_requires_a_bodyless_boundary_requirement() {
     let source = callback_fixture_source("direct_callback_parameter.omg")
         .replace("boundary trait HookRegistrar", "trait HookRegistrar");
     let (main_path, package_inputs) =
-        write_callback_package("direct-callback-nonboundary", &source);
+        write_callback_package("direct_callback_nonboundary", &source);
     let diagnostics = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs),
         ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))
@@ -672,7 +672,7 @@ fn direct_callback_parameter_requires_its_exact_nominal_binder() {
         "native callback procedure from Missing",
     );
     let (main_path, package_inputs) =
-        write_callback_package("direct-callback-missing-binder", &source);
+        write_callback_package("direct_callback_missing_binder", &source);
     let diagnostics = compile_to_checked(CheckedCompileRequest {
         package_inputs: Some(package_inputs),
         ..CheckedCompileRequest::new(&main_path, Some("windows_x86_64"))

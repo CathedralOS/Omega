@@ -105,7 +105,7 @@ fn failing_sibling_does_not_change_successful_package_artifact_identity() {
 #[test]
 fn reviewed_checked_package_continues_after_generated_source_staging_is_removed() {
     let tree = TempTree::new();
-    let root = tree.package("reviewed-generated-root");
+    let root = tree.package("reviewed_generated_root");
     TempTree::write(
         root.join("build.omg"),
         r#"machine build(builder: &mut Build) {
@@ -179,7 +179,7 @@ fn reviewed_checked_package_continues_after_generated_source_staging_is_removed(
     );
     assert!(report.production_manifest().is_some());
 
-    let standalone_root = tree.package("standalone-checked");
+    let standalone_root = tree.package("standalone_checked");
     TempTree::write(
         standalone_root.join("main.omg"),
         "pub data Standalone { value: u8; }\n",
@@ -211,8 +211,8 @@ fn reviewed_checked_package_continues_after_generated_source_staging_is_removed(
 #[test]
 fn accepted_package_console_binding_closes_linux_intrinsic_without_toolchain_origin() {
     let tree = TempTree::new();
-    let root = tree.package("accepted-console-application");
-    let console = tree.package("accepted-console-package");
+    let root = tree.package("accepted_console_application");
+    let console = tree.package("accepted_console_package");
     let root_package = identity(48);
     let console_package = identity(49);
     let exact_console_source = r#"pub boundary trait Console {
@@ -922,8 +922,8 @@ linux_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
 #[test]
 fn accepted_package_filesystem_binding_requires_exact_owner_path_and_schema() {
     let tree = TempTree::new();
-    let root = tree.package("filesystem-application");
-    let filesystem = tree.package("filesystem-package");
+    let root = tree.package("filesystem_application");
+    let filesystem = tree.package("filesystem_package");
     let root_package = identity(50);
     let filesystem_package = identity(51);
     TempTree::write(
@@ -1121,7 +1121,7 @@ invokes filesystem;
 #[test]
 fn accepted_package_uefi_binding_selects_exact_ordinary_schema() {
     let tree = TempTree::new();
-    let root = tree.package("uefi-application");
+    let root = tree.package("uefi_application");
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
@@ -1263,7 +1263,7 @@ machine Boot::launch(
 #[test]
 fn standalone_macos_entry_loads_exact_authored_contract_without_an_import() {
     let tree = TempTree::new();
-    let root = tree.package("standalone-macos-entry");
+    let root = tree.package("standalone_macos_entry");
     TempTree::write(
         root.join("main.omg"),
         "data Main {}\nmachine Main::main() {}\n",
@@ -1308,7 +1308,7 @@ fn standalone_macos_entry_loads_exact_authored_contract_without_an_import() {
 #[test]
 fn accepted_package_macos_binding_selects_exact_ordinary_schema() {
     let tree = TempTree::new();
-    let root = tree.package("macos-application");
+    let root = tree.package("macos_application");
     let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
@@ -1601,7 +1601,7 @@ fn package_native_physical_evidence_gate_borrows_exact_supported_evidence() {
         .nth(4)
         .expect("repository root");
     let output = TempTree::new();
-    let exit_root = output.package("physical-exit-source");
+    let exit_root = output.package("physical_exit_source");
     TempTree::write(
         exit_root.join("main.omg"),
         r#"use omega::language::core::binding;

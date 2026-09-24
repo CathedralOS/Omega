@@ -1627,7 +1627,11 @@ mod native {
         fs::write(
             fixture.0.join("build.omg"),
             format!(
-                "machine build(builder: &mut Build) {{\n    builder.application(\"runtime-value-generics-{name}\");\n{}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n",
+                // Case labels read better hyphenated and are reused for the
+                // staging directory; a package identity is snake_case, so the
+                // identity -- and only the identity -- takes the label folded.
+                "machine build(builder: &mut Build) {{\n    builder.application(\"runtime_value_generics_{}\");\n{}    builder.select_provider<omega_language_std::Console, omega_language_std::ConsoleNativeProvider>();\n    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);\n}}\n",
+                name.replace('-', "_"),
                 bundled_standard_library_dependency_declaration()
             ),
         )

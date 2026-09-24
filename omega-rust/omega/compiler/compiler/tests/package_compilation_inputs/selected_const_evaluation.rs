@@ -71,7 +71,7 @@ fn assert_length(checked: &compiler::CheckedCompilation, owner: &str, expected: 
 #[test]
 fn ordinary_length_needed_by_build_evaluates_beside_pending_float_length() {
     let tree = TempTree::new();
-    let root = tree.package("selected-const");
+    let root = tree.package("selected_const");
     TempTree::write(
         root.join("main.omg"),
         &format!(
@@ -111,7 +111,7 @@ machine build(builder: &mut Build) {
 #[test]
 fn generated_source_preserves_pending_root_length_and_wire_plan_once() {
     let tree = TempTree::new();
-    let root = tree.package("selected-const");
+    let root = tree.package("selected_const");
     TempTree::write(
         root.join("main.omg"),
         &format!(
@@ -187,7 +187,7 @@ machine build(builder: &mut Build) {{
 #[test]
 fn build_demand_for_pending_selected_length_reports_the_dependency() {
     let tree = TempTree::new();
-    let root = tree.package("selected-const");
+    let root = tree.package("selected_const");
     TempTree::write(root.join("main.omg"), FLOAT_LENGTH);
     TempTree::write(
         root.join("build.omg"),
@@ -221,7 +221,7 @@ machine build(builder: &mut Build) {
 #[test]
 fn selected_lengths_retain_machine_parameter_result_and_local_slots() {
     let tree = TempTree::new();
-    let root = tree.package("selected-const");
+    let root = tree.package("selected_const");
     TempTree::write(
         root.join("main.omg"),
         &format!(
@@ -290,7 +290,7 @@ fn selected_lengths_retain_machine_parameter_result_and_local_slots() {
 #[test]
 fn selected_lengths_retain_trait_requirement_parameter_and_result_slots() {
     let tree = TempTree::new();
-    let root = tree.package("selected-const");
+    let root = tree.package("selected_const");
     TempTree::write(
         root.join("main.omg"),
         &format!(

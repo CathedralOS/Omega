@@ -11,7 +11,7 @@ const DECLARATIONS: &str = "data Secret { value: i32; }\npub data Envelope<T> { 
 
 fn check(source: &str) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
     let tree = TempTree::new();
-    let root = tree.package("generic-visibility");
+    let root = tree.package("generic_visibility");
     TempTree::write(root.join("main.omg"), source);
     let inputs = PackageCompilationInputs::new_package(
         identity(1),

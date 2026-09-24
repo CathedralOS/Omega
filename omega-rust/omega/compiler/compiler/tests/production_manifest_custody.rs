@@ -1759,7 +1759,7 @@ fn production_compilation_manifest_rejects_every_one_field_substitution() {
 #[test]
 fn ranked_machine_mints_complete_native_physical_evidence() {
     let tree = TempTree::new();
-    let root = tree.package("ranked-gap");
+    let root = tree.package("ranked_gap");
     // `Main::spin` is a measured self cycle: `terminates by` admits it through
     // the Unit-plan path and termination analysis retains its ranked SCC on
     // the Terminal machine. `Main::main` forwards through an admitted scalar
