@@ -912,7 +912,20 @@ fn transition_guard_proves_requires(
             labels
                 .iter()
                 .all(|label| guard_conjunct_matches(program, guard, label))
-        });
+        })
+        // The spellings need not agree when both state a closed interval:
+        // `index < 16` establishes `requires self <= 15`. Comparing the
+        // intervals rather than the text is what lets a bound move to a domain
+        // without the guard being rewritten to match the predicate.
+        || predicate_only_domain_interval(program, facts, fact).is_some_and(
+            |(subject_label, required_low, required_high)| {
+                guard_interval_for_label(program, guard, &subject_label).is_some_and(
+                    |(guarded_low, guarded_high)| {
+                        guarded_low >= required_low && guarded_high <= required_high
+                    },
+                )
+            },
+        );
     if !guard_establishes {
         return false;
     }
@@ -1442,6 +1455,43 @@ mod transition_arm_guard_probes {
         );
     }
 
+    /// The guard and the predicate need not agree in SPELLING when both state a
+    /// closed interval: `index < 16` establishes `requires self <= 15`. The
+    /// control is containment — a guard admitting more than the domain does
+    /// establishes nothing, however similar the two look.
+    #[test]
+    fn a_guard_interval_inside_the_domains_establishes_membership() {
+        let program = |guard: &str| {
+            format!(
+                "domain u64::Slot16 requires self <= 15;
+                data Main {{}}
+                machine Main::take(&mut self, index: u64 in Slot16) -> u64 {{
+                    transition {{ _ -> (0) }}
+                }}
+                machine Main::scan(&mut self, index: u64) -> u64 {{
+                    transition {guard} {{ true -> (self.take(index)) false -> (0) }}
+                }}
+                machine Main::main(&mut self) {{}}"
+            )
+        };
+        assert!(
+            accepted(&program("index < 16")),
+            "`index < 16` is the same interval as `self <= 15`"
+        );
+        assert!(
+            accepted(&program("index <= 15 && index >= 2")),
+            "a narrower guard is inside the domain's interval"
+        );
+        assert!(
+            !accepted(&program("index < 32")),
+            "a guard admitting 16..=31 does not establish `self <= 15`"
+        );
+        assert!(
+            !accepted(&program("index >= 2")),
+            "a guard with no upper bound cannot reach a bounded domain"
+        );
+    }
+
     /// The FACT route carries numeric implication -- `index < 16` discharges
     /// `index <= 15` -- where the transition-guard route only compares
     /// spellings. It reached a free callee but not a receiver-qualified one,
@@ -1581,4 +1631,109 @@ fn predicate_only_domain_labels(
             _ => None,
         })
         .collect()
+}
+
+/// The closed interval a PREDICATE-ONLY domain requires of its subject, paired
+/// with that subject's label, or `None` when the domain states no interval.
+fn predicate_only_domain_interval(
+    program: &typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    fact: &facts::Fact,
+) -> Option<(String, numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = fact.payload else {
+        return None;
+    };
+    let FactPlace::Place(place_handle) = fact.place else {
+        return None;
+    };
+    let domain = program
+        .domain_definitions()
+        .iter()
+        .find(|domain| domain.symbol == domain_symbol)?;
+    if domain.alias.is_some()
+        || !domain.index_arguments.is_empty()
+        || !domain.establishment_routes.is_empty()
+        || !typed_trees::domain::index_parameters(program, domain).is_empty()
+    {
+        return None;
+    }
+    let constraint = typed_trees::types::DomainConstraint {
+        symbol: domain_symbol,
+        ..Default::default()
+    };
+    let (minimum, maximum) = validation::declared_domain_predicate_bounds(program, &constraint)?;
+    Some((
+        facts.semantic.place_label(program, place_handle),
+        minimum,
+        maximum,
+    ))
+}
+
+/// The closed interval a guard's conjuncts establish for the place spelled
+/// `subject_label`. `&&` intersects; a conjunct that is not a closed
+/// comparison over that exact spelling contributes nothing, so the result is
+/// only ever weaker than the guard.
+fn guard_interval_for_label(
+    program: &typed_trees::TypedTrees,
+    guard: typed_trees::expression::ExpressionHandle,
+    subject_label: &str,
+) -> Option<(numerics::bignum::BigInt, numerics::bignum::BigInt)> {
+    use numerics::bignum::BigInt;
+    use typed_trees::expression::BinaryOperator;
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => {
+            let left = guard_interval_for_label(program, binary.left, subject_label);
+            let right = guard_interval_for_label(program, binary.right, subject_label);
+            match (left, right) {
+                (Some((left_low, left_high)), Some((right_low, right_high))) => {
+                    Some((left_low.max(right_low), left_high.min(right_high)))
+                }
+                (bound, None) | (None, bound) => bound,
+            }
+        }
+        // A dispatch arm reaches here as `<predicate> == true`.
+        BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            guard_interval_for_label(program, binary.left, subject_label)
+        }
+        _ => {
+            let left_is_subject =
+                program.expression_table.display_name(binary.left) == subject_label;
+            let right_is_subject =
+                program.expression_table.display_name(binary.right) == subject_label;
+            let (literal, subject_on_left) = match (left_is_subject, right_is_subject) {
+                (true, false) => (binary.right, true),
+                (false, true) => (binary.left, false),
+                _ => return None,
+            };
+            let value = validation::closed_integer_range_bound(program, literal)?;
+            let one = BigInt::from_i64(1);
+            let (low, high) =
+                match (binary.operator, subject_on_left) {
+                    (BinaryOperator::LessOrEqual, true)
+                    | (BinaryOperator::GreaterOrEqual, false) => (None, Some(value)),
+                    (BinaryOperator::Less, true) | (BinaryOperator::Greater, false) => {
+                        (None, Some(value.sub(&one)))
+                    }
+                    (BinaryOperator::GreaterOrEqual, true)
+                    | (BinaryOperator::LessOrEqual, false) => (Some(value), None),
+                    (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => {
+                        (Some(value.add(&one)), None)
+                    }
+                    (BinaryOperator::Equal, _) => (Some(value.clone()), Some(value)),
+                    _ => return None,
+                };
+            Some((
+                low.unwrap_or_else(|| BigInt::from_i64(i64::MIN)),
+                high.unwrap_or_else(|| BigInt::from_i64(i64::MAX)),
+            ))
+        }
+    }
 }
