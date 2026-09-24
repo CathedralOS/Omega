@@ -28,7 +28,8 @@ pub use machine_calls::structural_call_custody::{
     structural_state_contracts_are_parameter_qualifications,
 };
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
-    declared_domain_predicate_bounds, exact_declared_domain_interval,
+    declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
+    exact_declared_domain_interval,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultPlace, reserved_result_owner, reserved_result_place,

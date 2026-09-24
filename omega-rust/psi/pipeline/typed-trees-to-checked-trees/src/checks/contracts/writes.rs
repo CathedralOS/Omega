@@ -112,23 +112,37 @@ pub(super) fn check_domain_field_writes(
                 // provenance and so keeps the plain rejection.
                 let requires_provenance =
                     crate::facts::field_domain::domain_requires_provenance(program, domain_symbol);
-                if !value_proves_domain(
+                // A domain whose membership is exactly an interval is the
+                // target's integer range: the bounded-assignment obligation
+                // proves every write inside it, from guards and operand
+                // ranges alike, as it did for the bracketed range.
+                let exact_interval = validation::exact_declared_domain_interval(
                     program,
-                    facts,
-                    state_flow,
-                    statement_index,
-                    assignment.value,
-                    domain_symbol,
-                ) && !(!requires_provenance
-                    && initializer_satisfies_predicate_domain(
+                    &typed_trees::types::DomainConstraint {
+                        symbol: domain_symbol,
+                        ..Default::default()
+                    },
+                )
+                .is_some();
+                if !exact_interval
+                    && !value_proves_domain(
                         program,
                         facts,
                         state_flow,
                         statement_index,
                         assignment.value,
                         domain_symbol,
-                        &mut Vec::new(),
-                    ))
+                    )
+                    && !(!requires_provenance
+                        && initializer_satisfies_predicate_domain(
+                            program,
+                            facts,
+                            state_flow,
+                            statement_index,
+                            assignment.value,
+                            domain_symbol,
+                            &mut Vec::new(),
+                        ))
                 {
                     let target_label = program.expression_table.display_name(assignment.target);
                     diagnostics.push(Diagnostic::error(format!(
@@ -2338,6 +2352,44 @@ mod predicate_domain_write_probes {
                 "3"
             )),
             "a ROUTED domain needs provenance, however well the value satisfies its predicate"
+        );
+    }
+
+    /// An exact-interval domain is the place's integer range: a write whose
+    /// value a dominating guard bounds establishes it, as it did the bracketed
+    /// range, and one nothing bounds is refused. A domain with any other
+    /// predicate still needs a value its predicates can be decided on.
+    #[test]
+    fn a_guarded_write_establishes_an_exact_interval_domain() {
+        let program = |domain: &str, guard: &str| {
+            format!(
+                "{domain}
+                data Main {{ slot: u64 in Slot; }}
+                machine Main::main(&mut self) {{
+                    transition {guard} {{
+                        true -> bump()
+                        _ -> done()
+                    }}
+                    state bump(&mut self) {{ self.slot = self.slot + 1; }}
+                    state done(&mut self) {{}}
+                }}"
+            )
+        };
+        const INTERVAL: &str = "domain u64::Slot requires self <= 8;";
+        assert!(
+            accepted(&program(INTERVAL, "self.slot < 8")),
+            "`self.slot < 8` bounds `self.slot + 1` by 8"
+        );
+        assert!(
+            !accepted(&program(INTERVAL, "self.slot < 9")),
+            "`self.slot < 9` lets `self.slot + 1` reach 9"
+        );
+        assert!(
+            !accepted(&program(
+                "domain u64::Slot requires self <= 8 && self != 3;",
+                "self.slot < 8"
+            )),
+            "`self != 3` is not an interval the range proof decides"
         );
     }
 }

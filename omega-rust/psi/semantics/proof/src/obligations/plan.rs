@@ -137,9 +137,14 @@ impl ProofConstraint {
             // This lets `f64 in Finite` reuse the established finite-literal,
             // float-range, and invariant-window machinery without pretending
             // that an authored carrier domain was declared.
-            TypeConstraintNode::Domain(name) => {
-                language_semantics::value_domain::ValueDomain::from_name(name.as_str())
+            // A declared domain whose membership is exactly an interval
+            // restricts the place as the bracketed range it replaces did, an
+            // unstated side taking the carrier's own extreme; every write owes
+            // that interval.
+            TypeConstraintNode::Domain(domain) => {
+                language_semantics::value_domain::ValueDomain::from_name(domain.as_str())
                     .map(|domain| Self::Named(Identifier::generated_static(domain.proof_name())))
+                    .or_else(|| Self::exact_domain_interval(program, base_type, domain))
             }
             TypeConstraintNode::Range {
                 minimum,
@@ -157,6 +162,19 @@ impl ProofConstraint {
             // example, finite Saturating add/subtract/multiply stays Finite).
             TypeConstraintNode::ArithmeticDomain(domain) => Some(Self::ArithmeticDomain(*domain)),
         }
+    }
+
+    fn exact_domain_interval(
+        program: &TypedTrees,
+        base_type: TypeReferenceHandle,
+        domain: &typed_trees::types::DomainConstraint,
+    ) -> Option<Self> {
+        let (minimum, maximum) = validation::exact_declared_domain_carrier_interval(
+            program,
+            program.primitive_type_reference(base_type)?,
+            domain,
+        )?;
+        Some(Self::IntegerRange { minimum, maximum })
     }
 
     fn range_from_expression_handles(
