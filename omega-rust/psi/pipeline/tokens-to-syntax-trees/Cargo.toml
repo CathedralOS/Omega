@@ -17,4 +17,4 @@ syntax-trees = { path = "../../representations/syntax-trees" }
 tokens = { path = "../../representations/tokens" }
 
 [dev-dependencies]
-source-files-to-tokens = { path = "../source-files-to-tokens" }
+source-files-to-tokens = { path = "../00_source-files-to-tokens" }

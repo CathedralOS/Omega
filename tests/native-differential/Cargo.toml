@@ -84,7 +84,7 @@ optimization-unit = { path = "../../omega-rust/omega/representations/optimizatio
 optimization-unit-semantics = { path = "../../omega-rust/omega/semantics/optimization-unit-semantics" }
 selected-instructions = { path = "../../omega-rust/omega/representations/selected-instructions" }
 source = { path = "../../omega-rust/psi/foundation/source" }
-source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../omega-rust/psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../omega-rust/psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees = { path = "../../omega-rust/psi/representations/syntax-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../omega-rust/psi/pipeline/syntax-trees-to-symbol-resolved-trees" }

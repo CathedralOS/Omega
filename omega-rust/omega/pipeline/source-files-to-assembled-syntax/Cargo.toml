@@ -20,7 +20,7 @@ optimization-core = { path = "../../representations/optimization-core" }
 package-compilation = { path = "../../build/package-compilation" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
-source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 target = { path = "../../representations/target" }

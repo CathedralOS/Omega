@@ -27,7 +27,7 @@ checked-trees = { path = "../../../psi/representations/checked-trees" }
 target = { path = "../../representations/target" }
 optimization-unit-semantics = { path = "../../semantics/optimization-unit-semantics" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/checked-trees-to-lowered-psi" }
-source-files-to-tokens = { path = "../../../psi/pipeline/source-files-to-tokens" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/symbol-resolved-trees-to-typed-trees" }
 syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/syntax-trees-to-symbol-resolved-trees" }
 terminal-fuel = { path = "../../../psi/semantics/terminal-fuel" }

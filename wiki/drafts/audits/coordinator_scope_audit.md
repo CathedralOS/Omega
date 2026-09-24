@@ -95,7 +95,7 @@ the family to the admission owner.
 | `selected-instructions-to-register-homes/src/register_allocation.rs` | documented decision sequence; each leg owned by `assignment::*` |
 | `checked-compilation-to-terminal-artifact/src/terminal_artifact.rs` | custody validators + retained-artifact production under the admission profile; section replay delegated |
 | `syntax-trees-to-symbol-resolved-trees/src/resolution.rs` | route doc + driver; per-item translation delegated |
-| `source-files-to-tokens/src/lexer.rs`, `symbol-resolved-.../lowerer.rs` | the file IS the stage's mechanism (lexer state machine / per-kind lowering dispatch); not coordinators |
+| `00_source-files-to-tokens/src/lexer.rs`, `symbol-resolved-.../lowerer.rs` | the file IS the stage's mechanism (lexer state machine / per-kind lowering dispatch); not coordinators |
 | `tools/coordination.py`, `claims.py`, `landing.py` | claim/landing fence machinery; sequence-only |
 | `tools/swarm/launch.py` | wave coordinator: manifest validate → partition → prompt render → spawn; `route_crates` computes crate routing inside the launcher — its assigned job, flagged benign |
 

@@ -2299,7 +2299,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
     let root = repository();
     // Canonical program route (pipeline.md "Connected program route").
     const PROGRAM_ROUTE: &[&str] = &[
-        "psi/pipeline/source-files-to-tokens",
+        "psi/pipeline/00_source-files-to-tokens",
         "psi/pipeline/tokens-to-syntax-trees",
         "psi/pipeline/syntax-trees-to-symbol-resolved-trees",
         "psi/pipeline/symbol-resolved-trees-to-typed-trees",
