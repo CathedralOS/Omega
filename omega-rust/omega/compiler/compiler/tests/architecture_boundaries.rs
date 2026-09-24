@@ -43,7 +43,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "terminal-psi-to-abstract-operations",
-            "../../pipeline/terminal-psi-to-abstract-operations",
+            "../../pipeline/03_terminal-psi-to-abstract-operations",
         ),
         (
             "machine-emission/Cargo.toml",
@@ -78,7 +78,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "object/object-file/Cargo.toml",
             "terminal-psi-to-abstract-operations",
-            "../../../pipeline/terminal-psi-to-abstract-operations",
+            "../../../pipeline/03_terminal-psi-to-abstract-operations",
         ),
         (
             "artifacts/native-artifact/Cargo.toml",

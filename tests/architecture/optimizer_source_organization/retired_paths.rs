@@ -81,7 +81,7 @@ pub(crate) fn check(audit: &mut Audit) {
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/rewrite.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/validation.rs",
         "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions/src/rewrites/literal_minuend/tests.rs",
-        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/lowering/machine/operation.rs",
+        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/lowering/machine/operation.rs",
     ] {
         if repository.join(obsolete).exists() {
             violations.insert(format!(

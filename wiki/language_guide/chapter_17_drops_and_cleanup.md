@@ -74,7 +74,7 @@ exact-once terminal disposition for a linear type.
 
 Current executable support is narrower than these rules; see
 [Terminal production](../../omega-rust/psi/compiler/terminal-production/README.md#partial-ownership-and-cleanup)
-and [native cleanup](../../omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
+and [native cleanup](../../omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
 
 ## Explicit Early Disposal
 

@@ -536,7 +536,7 @@ const CRATE_DOMAIN_ROOTS: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "omega/pipeline/terminal-psi-to-abstract-operations",
+        "omega/pipeline/03_terminal-psi-to-abstract-operations",
         &[
             "artifact_admission",
             "lowering",

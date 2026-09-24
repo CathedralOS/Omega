@@ -51,7 +51,7 @@
       "item": "PLAN-LAID-VIEWS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/terminal-psi-to-abstract-operations/src/artifact",
+        "omega-rust/omega/pipeline/03_terminal-psi-to-abstract-operations/src/artifact",
         "omega-rust/psi/semantics/build-time-evaluation/src/plan_laid.rs"
       ],
       "suggested_first_slice": "Rejoin one plan-laid view's layout identity, backing, range, access, or lifetime at a use site so a stale substitution rejects with a checked witness."

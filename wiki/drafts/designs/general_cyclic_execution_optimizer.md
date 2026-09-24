@@ -65,7 +65,7 @@ production.
   `CallUnit` arm still requires `argument.path.is_empty()` — projected
   `self.<field>` receivers stay refused as call arguments within a cyclic
   machine (the persistent-receiver/whole-place rule stands).
-- `terminal-psi-to-abstract-operations/src/artifact_admission/native.rs` still
+- `03_terminal-psi-to-abstract-operations/src/artifact_admission/native.rs` still
   retains only whole-artifact `Vec<AcceptedControlCycle>` rosters (`:21/:43/
   :60/:81`); `into_optimization_artifact` drops the roster. No per-callee
   call/return composition exists downstream — consistent with the README's
