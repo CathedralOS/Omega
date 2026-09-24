@@ -367,6 +367,62 @@ pub(super) fn validate_indexed_primitive_read(
     Ok(())
 }
 
+/// Operand types for `IndexedStructuralRead`: the index must be a defined
+/// unsigned 64-bit scalar and the structural result must be exactly the
+/// resolved array's declared element. Element/result agreement is checked
+/// again under the leaf-copy validator; this pass pins the scalar operand.
+pub(super) fn validate_indexed_structural_read(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    defined: &BTreeSet<ValueId>,
+) -> Result<(), ModuleError> {
+    let OperationKind::IndexedStructuralRead {
+        source,
+        ref path,
+        index,
+        ..
+    } = operation.kind
+    else {
+        unreachable!("dispatched validate_indexed_structural_read")
+    };
+    require_defined(index, value_types, defined)?;
+    let expected_index =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"));
+    let actual_index = value_types[&index];
+    if actual_index != expected_index {
+        return Err(ModuleError::IndexedStructuralReadIndexTypeMismatch {
+            operation: operation.id,
+            index,
+            actual: actual_index,
+        });
+    }
+    let result =
+        operation
+            .result
+            .structural()
+            .ok_or(ModuleError::IndexedStructuralReadSourceMismatch {
+                operation: operation.id,
+                place: source,
+            })?;
+    let (element, _) = super::super::structural::leaf_copy::indexed_structural_read_shape(
+        module, machine, source, path,
+    )
+    .ok_or(ModuleError::IndexedStructuralReadSourceMismatch {
+        operation: operation.id,
+        place: source,
+    })?;
+    if result.structural_type != element {
+        return Err(ModuleError::IndexedStructuralReadResultTypeMismatch {
+            operation: operation.id,
+            expected: element,
+            actual: result.structural_type,
+        });
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_scalar_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,

@@ -171,3 +171,6 @@ pub(super) const STRUCTURAL_BYTE_SEQUENCE_FIELD_READ: u8 = 86;
 
 /// `OperationKind::IndexedPrimitiveRead`.
 pub(super) const INDEXED_PRIMITIVE_READ: u8 = 87;
+
+/// `OperationKind::IndexedStructuralRead`.
+pub(super) const INDEXED_STRUCTURAL_READ: u8 = 88;

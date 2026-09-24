@@ -408,6 +408,31 @@ pub(crate) fn validate(
                     &argument,
                 )?;
             }
+            CheckedStructuralValueKind::IndexedElement {
+                source: argument,
+                index,
+            } => {
+                let index_expression = shared_borrow::validate_indexed_element(
+                    checked,
+                    owner,
+                    source,
+                    result.statement_index,
+                    expression,
+                    reference,
+                    &argument,
+                )?;
+                validate_operand(
+                    checked,
+                    machine,
+                    state,
+                    result.statement_index,
+                    CheckedScalarExpressionRole::StructuralValueIndex { expression },
+                    index,
+                    index_expression,
+                )?;
+                operand_roles
+                    .push(CheckedScalarExpressionRole::StructuralValueIndex { expression });
+            }
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
                 element_count,
@@ -1005,6 +1030,61 @@ pub(crate) fn validate(
                     visited.push(source_handle);
                 }
             }
+            CheckedStructuralValueKind::IndexedProjection {
+                source: source_handle,
+                path,
+                index,
+                type_identity,
+            } => {
+                // Same moved-child contract as `Projection`; the runtime index
+                // is an extra scalar operand validated under its own role.
+                let Some(receipt) = selection else {
+                    return unsupported("indexed projection has no ownership receipt");
+                };
+                if !plans.nodes.is_valid(source_handle) || visited.contains(&source_handle) {
+                    return unsupported("indexed projection has a stale or reused root node");
+                }
+                let source_node = plans.nodes.get(source_handle).clone();
+                let root = owned_selection::validate_projection(
+                    checked,
+                    owner,
+                    source,
+                    receipt,
+                    expression,
+                    source_arm,
+                    &source_node,
+                    &path,
+                    &type_identity,
+                )?;
+                let ExpressionNode::Indexed(indexed) =
+                    checked.expression_table.expression(expression)
+                else {
+                    return unsupported("indexed projection lost its authored index read");
+                };
+                validate_operand(
+                    checked,
+                    machine,
+                    state,
+                    result.statement_index,
+                    CheckedScalarExpressionRole::StructuralValueIndex { expression },
+                    index,
+                    indexed.index,
+                )?;
+                operand_roles
+                    .push(CheckedScalarExpressionRole::StructuralValueIndex { expression });
+                selected_leaves.push(expression);
+                if matches!(source_node.kind, CheckedStructuralValueKind::Call { .. }) {
+                    pending.push((
+                        source_handle,
+                        root.expression,
+                        root.reference,
+                        source_arm,
+                        Some(expression),
+                    ));
+                } else {
+                    visited.push(source_handle);
+                }
+            }
         }
     }
     if let Some(receipt) = selection {
@@ -1046,6 +1126,7 @@ pub(crate) fn validate(
                         | CheckedScalarExpressionRole::RecordField { .. }
                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                         | CheckedScalarExpressionRole::StructuralValueField { .. }
+                        | CheckedScalarExpressionRole::StructuralValueIndex { .. }
                 )
                 && !operand_roles.contains(&root.role)
                 && !matches!(
@@ -1083,6 +1164,7 @@ pub(crate) fn validate(
                         CheckedScalarExpressionRole::StructuralValueSubject { .. }
                             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                             | CheckedScalarExpressionRole::StructuralValueField { .. }
+                            | CheckedScalarExpressionRole::StructuralValueIndex { .. }
                             | CheckedScalarExpressionRole::RecordField { .. }
                     )
             })
@@ -1257,6 +1339,26 @@ pub(crate) fn operand_source(
                 .ok_or(LoweringError::Unsupported(
                     "record operand has no scalar carrier",
                 ));
+        }
+        if let CheckedScalarExpressionRole::StructuralValueIndex { expression: read } = role
+            && read == expression
+            && let ExpressionNode::Indexed(indexed) =
+                checked.expression_table.expression(expression)
+        {
+            // The index is a runtime operand of the read, keyed by the read's
+            // authored expression: its carrier is the index's own scalar type.
+            return validation::expression_result_type_reference(
+                &checked.typed,
+                machine,
+                source,
+                indexed.index,
+            )
+            .and_then(|reference| validation::unwrapped_type_reference(&checked.typed, reference))
+            .and_then(|reference| checked.primitive_type_reference(reference))
+            .map(|primitive| (indexed.index, primitive))
+            .ok_or(LoweringError::Unsupported(
+                "structural index has no scalar carrier",
+            ));
         }
         // A nested record's scalar fields belong to that constructor, not the
         // enclosing field's ordinal. Reach them through authored field values

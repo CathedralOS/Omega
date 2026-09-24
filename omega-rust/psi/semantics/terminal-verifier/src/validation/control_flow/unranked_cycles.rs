@@ -164,6 +164,7 @@ fn operation_leaves_custody(
         OperationKind::ReleaseReference { source }
         | OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::IndexedPrimitiveRead { source, .. }
+        | OperationKind::IndexedStructuralRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldLength { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. }
         | OperationKind::ByteSequenceLength { source }
@@ -471,6 +472,15 @@ fn cycle_operation_eligible(
                 primitive_storage::indexed_read_shape(module, machine, operation.id, *source, path)
                     .map(|(element, _)| element)
                     == Ok(result.scalar_type)
+            })
+        }
+        OperationKind::IndexedStructuralRead { source, path, .. } => {
+            operation.result.structural().is_some_and(|result| {
+                crate::validation::structural::leaf_copy::indexed_structural_read_shape(
+                    module, machine, *source, path,
+                )
+                .map(|(element, _)| element)
+                    == Some(result.structural_type)
             })
         }
         OperationKind::WriteOnlyPrimitiveStore {

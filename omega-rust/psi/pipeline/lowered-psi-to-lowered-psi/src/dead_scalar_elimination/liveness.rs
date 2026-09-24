@@ -213,7 +213,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
         O::ElementViewRead { index, length, .. } => values.extend([*index, *length]),
         // A structural-storage observation like `PrimitiveScalarRead`, with one
         // scalar operand: the exact runtime index into the declared array.
-        O::IndexedPrimitiveRead { index, .. } => values.push(*index),
+        O::IndexedPrimitiveRead { index, .. }
+        | O::IndexedStructuralRead { index, .. } => values.push(*index),
         O::IntegerConstant { .. }
         | O::BooleanConstant { .. }
         | O::IeeeFloatConstant { .. }

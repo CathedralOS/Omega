@@ -93,6 +93,9 @@ pub(super) fn lower(
         OperationKind::IndexedPrimitiveRead { .. } => {
             Err(LoweringError::UnsupportedIndexedPrimitiveRead(operation.id))
         }
+        OperationKind::IndexedStructuralRead { .. } => Err(
+            LoweringError::UnsupportedIndexedStructuralRead(operation.id),
+        ),
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,
             path,

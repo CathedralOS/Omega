@@ -623,7 +623,7 @@ pub(crate) fn lower_indexed_path(
 
 /// Walk literal field/index segments from the destination root, returning the
 /// canonical path and the structural type it selects.
-fn walk_path(
+pub(crate) fn walk_path(
     mut structural_type: StructuralTypeId,
     path: &[CheckedUnitStructuralPathSegment],
     types: &[StructuralTypeDeclaration],

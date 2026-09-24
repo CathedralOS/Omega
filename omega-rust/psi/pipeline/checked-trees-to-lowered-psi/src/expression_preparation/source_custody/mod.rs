@@ -109,7 +109,8 @@ pub(crate) fn locate(
             CheckedScalarExpressionRole::StructuralValueSubject { .. }
             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
             | CheckedScalarExpressionRole::RecordField { .. }
-            | CheckedScalarExpressionRole::StructuralValueField { .. },
+            | CheckedScalarExpressionRole::StructuralValueField { .. }
+            | CheckedScalarExpressionRole::StructuralValueIndex { .. },
         ) => {
             let (expression, primitive) =
                 crate::expression_preparation::source_custody::structural::operand_source(

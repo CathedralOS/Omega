@@ -93,16 +93,17 @@ const TRANSITION_SOURCE: &str = r#"
 fn transition_arm_values_own_their_calls() {
     // A bool-guarded transition mints one structural root per `(value)` arm;
     // the outer-call walk must visit every root at the statement, not only
-    // the first, or arm calls read as unconsumed.
+    // the first, or arm calls read as unconsumed. The mixed fixture — a
+    // runtime-index read arm beside a nested-call arm — composes, which is
+    // itself the proof the call stayed owned.
     let checked = checked(TRANSITION_SOURCE);
+    let plans = &checked.facts.flow.terminal_unit_effects;
     assert!(
-        !omission(&checked, "Srsr::get_filter_collection").starts_with("outer calls"),
-        "transition arm values own their calls: {:?}",
-        checked
-            .facts
-            .flow
-            .terminal_unit_effects
-            .omission_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+        plans
+            .composed_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+            .is_some(),
+        "mixed arm machine declined: {:?}",
+        plans.omission_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
     );
 }
 
@@ -260,23 +261,116 @@ fn transition_arm_value_shapes_still_compose() {
     }
 }
 
+const TRANSITION_LITERAL_INDEX_ARMS: &str = r#"
+    data Dtr { tag: u64 }
+    data Srfc { dtr: Dtr; count: u64 }
+    data Srsr { collections: [Srfc; 4]; collection_count: u64 }
+
+    machine Srsr::get_filter_collection(&self, collection_index: u64) -> Srfc {
+        transition collection_index < self.collection_count {
+            true -> (self.collections[0])
+            false -> (self.collections[1])
+        }
+    }
+"#;
+
+const TRANSITION_BOUNDED_INDEX_ARMS: &str = r#"
+    data Dtr { tag: u64 }
+    data Srfc { dtr: Dtr; count: u64 }
+    data Srsr { collections: [Srfc; 4]; collection_count: u64 }
+
+    machine Srsr::get_filter_collection(&self, collection_index: u64 [0..=3]) -> Srfc {
+        transition collection_index < self.collection_count {
+            true -> (self.collections[collection_index])
+            false -> (self.collections[0])
+        }
+    }
+"#;
+
 #[test]
-fn transition_arm_runtime_index_reads_remain_declined() {
-    // `self.collections[collection_index]` is a runtime-indexed read the
-    // composed guard retains no place for — that residual is tracked
-    // separately; a literal-index arm also declines at the same gate until
-    // guard-derived bounds carry integer ranges.
+fn transition_arm_literal_index_reads_compose() {
+    // Literal fixed-index arms mint `Projection` values — the sibling shape
+    // the runtime-index read joins at the checked tree.
+    let checked = checked(TRANSITION_LITERAL_INDEX_ARMS);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans
+            .composed_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+            .is_some(),
+        "literal arms declined: {:?}",
+        plans.omission_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+    );
+}
+
+#[test]
+fn transition_arm_bounded_index_reads_compose() {
+    // A declared `[min..=max]` parameter range does not change the admission:
+    // the runtime index still mints `IndexedProjection` under the same role.
+    let checked = checked(TRANSITION_BOUNDED_INDEX_ARMS);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    assert!(
+        plans
+            .composed_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+            .is_some(),
+        "bounded arms declined: {:?}",
+        plans.omission_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+    );
+}
+
+#[test]
+fn transition_arm_runtime_index_reads_compose() {
+    // `self.collections[collection_index]` mints an `IndexedProjection`
+    // structural value — the runtime-index sibling of the `Projection` a
+    // literal `[0]` arm already produced — and the guarded terminator
+    // composes with it at the checked tree.
     for (label, source) in [
         ("read-arms", TRANSITION_READ_ARMS),
         ("mixed", TRANSITION_SOURCE),
     ] {
         let checked = checked(source);
         let plans = &checked.facts.flow.terminal_unit_effects;
-        assert!(
-            plans
-                .composed_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
-                .is_none(),
-            "{label} unexpectedly composed",
+        let composed = plans
+            .composed_for_machine(machine_named(&checked, "Srsr::get_filter_collection"))
+            .unwrap_or_else(|| {
+                panic!(
+                    "{label} declined: {:?}",
+                    plans.omission_for_machine(machine_named(
+                        &checked,
+                        "Srsr::get_filter_collection"
+                    ))
+                )
+            });
+        let [state] = composed.states.as_slice() else {
+            panic!("expected a single composed state");
+        };
+        let checked_trees::CheckedComposedUnitControlTerminatorPlan::Guarded {
+            return_values, ..
+        } = &state.terminator
+        else {
+            panic!("both `(value)` arms check as a guarded return terminator");
+        };
+        assert_eq!(return_values.len(), 2);
+        let indexed = return_values
+            .iter()
+            .filter_map(|operation| {
+                let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                    value,
+                    ..
+                } = operation
+                else {
+                    return None;
+                };
+                let root = checked.facts.values.structural_values.nodes.get(*value);
+                matches!(
+                    root.kind,
+                    checked_trees::CheckedStructuralValueKind::IndexedProjection { .. }
+                )
+                .then_some(())
+            })
+            .count();
+        assert_eq!(
+            indexed, 1,
+            "{label}: the runtime-index arm establishes an IndexedProjection"
         );
     }
 }

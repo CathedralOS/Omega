@@ -304,6 +304,56 @@ pub(super) fn append_operation(
         });
         return Ok(());
     }
+    if let OperationKind::IndexedStructuralRead {
+        source,
+        path,
+        index,
+        obligation,
+    } = &operation.kind
+    {
+        let Some((_, extent)) =
+            crate::validation::structural::leaf_copy::indexed_structural_read_shape(
+                module, machine, *source, path,
+            )
+        else {
+            return Err(ModuleError::InvalidStructuralLeafCopy {
+                operation: operation.id,
+                source: *source,
+            });
+        };
+        let integer_type =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        let bound = semantic_vocabulary::ScalarTerm::integer(
+            integer_type,
+            semantic_vocabulary::IntegerValue::Unsigned(u128::from(extent)),
+        )
+        .map_err(|error| {
+            ModuleError::OperationSemanticSchema(
+                terminal_semantics::OperationSemanticError::InvalidProposition(error),
+            )
+        })?;
+        operation_obligations.push(ReconstructedOperationObligation {
+            owner: ReconstructedTerminalObligationOwner::Operation {
+                machine: machine.id,
+                operation: operation.id,
+            },
+            obligation: Obligation {
+                id: *obligation,
+                proposition: Proposition::LessThan(
+                    semantic_vocabulary::ScalarTerm::value(
+                        *index,
+                        ScalarType::Integer(integer_type),
+                    ),
+                    bound,
+                ),
+                class: ObligationClass::Derivable,
+            },
+            semantic_axioms: axioms.clone(),
+            canonical_certificate: true,
+        });
+        return Ok(());
+    }
     if let OperationKind::StructuralByteSequenceFieldStore {
         length, obligation, ..
     } = &operation.kind
@@ -517,6 +567,7 @@ pub(super) fn append_operation(
         | OperationKind::StructuralCaseMembership { .. }
         | OperationKind::StructuralLeafCopy { .. }
         | OperationKind::StructuralCaseLeafCopy { .. }
+        | OperationKind::IndexedStructuralRead { .. }
         | OperationKind::IntegerStructuralField { .. } => {
             unreachable!("structural/effect rows return before specialized reconstruction")
         }

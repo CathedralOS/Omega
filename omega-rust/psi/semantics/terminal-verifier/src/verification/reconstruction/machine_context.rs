@@ -40,6 +40,7 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                         | OperationKind::StructuralByteSequenceFieldRead { .. }
                         | OperationKind::IndexedPrimitiveRead { .. }
+                        | OperationKind::IndexedStructuralRead { .. }
                         | OperationKind::CallUnit { .. }
                         | OperationKind::CallStructuralScalar { .. }
                         | OperationKind::CallDynamicScalar { .. }

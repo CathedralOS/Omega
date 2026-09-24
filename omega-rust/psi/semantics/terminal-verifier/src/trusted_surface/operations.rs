@@ -308,6 +308,13 @@ static OP_INDEXED_PRIMITIVE_READ: TrustedSurfaceEntry = entry(
         TS_PRIMITIVE_PLACE,
     ],
 );
+static OP_INDEXED_STRUCTURAL_READ: TrustedSurfaceEntry = entry(
+    "operation:indexed-structural-read",
+    "a readable live whole root and validated canonical path to a declared fixed array of a structural element, a dominating u64 index, and an index-within-extent obligation",
+    "the Unrestricted element copy; the index-within-declared-extent obligation is reconstructed from the module's array shape",
+    NO_FACT_DEPS,
+    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
+);
 static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-scalar-field-store",
     "a validated scalar field store with a range obligation exactly when its destination declaration is a bounded integer",
@@ -1090,6 +1097,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_WRITE_ONLY_PRIMITIVE_STORE,
     OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE,
     OP_INDEXED_PRIMITIVE_READ,
+    OP_INDEXED_STRUCTURAL_READ,
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
     OP_MOVE_STRUCTURAL_FIELD,
     OP_STORE_STRUCTURAL_FIELD,
@@ -1177,6 +1185,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
             &OP_WRITE_ONLY_INDEXED_PRIMITIVE_STORE
         }
         OperationSemanticTag::IndexedPrimitiveRead => &OP_INDEXED_PRIMITIVE_READ,
+        OperationSemanticTag::IndexedStructuralRead => &OP_INDEXED_STRUCTURAL_READ,
         OperationSemanticTag::StructuralScalarFieldStore => &OP_STRUCTURAL_SCALAR_FIELD_STORE,
         OperationSemanticTag::MoveStructuralField => &OP_MOVE_STRUCTURAL_FIELD,
         OperationSemanticTag::StoreStructuralField => &OP_STORE_STRUCTURAL_FIELD,

@@ -136,6 +136,92 @@ pub(in crate::validation) fn validate_case_leaf_copy(
     Ok(())
 }
 
+/// The indexed sibling of `validate`: the canonical path resolves to a
+/// declared fixed array whose element is structural (a scalar element is
+/// `IndexedPrimitiveRead` territory); `index` is a runtime operand and
+/// `obligation` certifies `index < extent`, so it never appears as a path
+/// segment. Result shape, readable-access, and availability obligations are
+/// the same contract as `StructuralLeafCopy`.
+pub(in crate::validation) fn validate_indexed(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    source: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Result<(), ModuleError> {
+    let invalid = || ModuleError::InvalidStructuralLeafCopy {
+        operation: operation.id,
+        source,
+    };
+    let Some(result) = operation.result.structural() else {
+        return Err(invalid());
+    };
+    if result.multiplicity != StructuralMultiplicity::Unrestricted
+        || !result.qualifications.is_empty()
+        || !result.claims.is_empty()
+    {
+        return Err(invalid());
+    }
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+        .or_else(|| crate::validation::block_views::parameter(machine, source));
+    if parameter.is_some_and(|parameter| parameter.access == StructuralAccess::WriteOnlyBorrow) {
+        return Err(ModuleError::StructuralObservationRequiresReadableAccess {
+            operation: operation.id,
+            source,
+        });
+    }
+    let signature =
+        crate::validation::structural::result_contracts::source_signature(machine, source)
+            .ok_or_else(invalid)?;
+    let tip = terminal_semantics::canonical_structural_path_tip(
+        module.structural_types.iter(),
+        signature.structural_type,
+        path,
+    )
+    .ok_or_else(invalid)?;
+    let StructuralTypeShape::FixedArray { element, .. } = tip.shape else {
+        return Err(invalid());
+    };
+    let element_declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == element)
+        .ok_or_else(invalid)?;
+    if matches!(
+        element_declaration.shape,
+        StructuralTypeShape::PrimitiveScalar(_)
+    ) || element != result.structural_type
+    {
+        return Err(invalid());
+    }
+    Ok(())
+}
+
+/// Resolve a runtime-indexed structural read's source to its array's declared
+/// element type and extent. `path` reaches the fixed array itself; the
+/// runtime `index` operand never appears as a path segment.
+pub(crate) fn indexed_structural_read_shape(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<(StructuralTypeId, u64)> {
+    let signature =
+        crate::validation::structural::result_contracts::source_signature(machine, place)?;
+    let tip = terminal_semantics::canonical_structural_path_tip(
+        module.structural_types.iter(),
+        signature.structural_type,
+        path,
+    )?;
+    match tip.shape {
+        StructuralTypeShape::FixedArray { element, length } => Some((element, length)),
+        _ => None,
+    }
+}
+
 /// Walk a canonical path from `root_type` to the structural leaf it selects.
 /// `Case` steps enter the selected case's payload namespace on a `Sum` or
 /// `Mixed` shape and the next segment must be a `Field` inside it; `Field`
@@ -243,6 +329,7 @@ pub(in crate::validation) fn copied_return_source(
                 operation.kind,
                 OperationKind::StructuralLeafCopy { .. }
                     | OperationKind::StructuralCaseLeafCopy { .. }
+                    | OperationKind::IndexedStructuralRead { .. }
             ) && operation.result.structural().is_some_and(|result| {
                 result.place == source
                     && result.multiplicity == StructuralMultiplicity::Unrestricted
@@ -260,7 +347,8 @@ pub(in crate::validation) fn validate_available(
 ) -> Result<(), ModuleError> {
     let source = match operation.kind {
         OperationKind::StructuralLeafCopy { source, .. }
-        | OperationKind::StructuralCaseLeafCopy { source, .. } => source,
+        | OperationKind::StructuralCaseLeafCopy { source, .. }
+        | OperationKind::IndexedStructuralRead { source, .. } => source,
         _ => return Ok(()),
     };
     if !machine

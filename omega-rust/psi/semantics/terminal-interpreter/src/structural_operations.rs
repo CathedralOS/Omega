@@ -12,7 +12,7 @@ use crate::structural_inputs::case_membership::StructuralCaseContents;
 use crate::values::StructuralScalarRuntimeField;
 use crate::values::{StructuralByteSequenceRuntimeField, StructuralRuntimePlace};
 use crate::values::{TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralValue};
-use semantic_vocabulary::{IntegerType, IntegerValue, ScalarType};
+use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     OperationKind, StructuralAccess, StructuralAffineDiscard, StructuralArgument,
@@ -1010,6 +1010,115 @@ impl TerminalExecution {
             &[StructuralArgument {
                 place: source,
                 path: path.to_vec(),
+                access: StructuralAccess::SharedBorrow,
+            }],
+        )?
+        .pop()
+        .ok_or_else(invalid)?;
+        if leaf.structural_type != result.structural_type {
+            return Err(invalid());
+        }
+        let copied = TerminalStructuralValue {
+            opaque_identity: self.local_structural_identities.allocate()?,
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        self.clone_subtree(
+            &StructuralRuntimePlace::from(&leaf),
+            &StructuralRuntimePlace::from(&copied),
+        );
+        self.structural_values.insert(result.place, copied);
+        Ok(OperationFlow::Advance)
+    }
+
+    /// The runtime index is a `u64` operand, not a path segment: once its
+    /// exact value is resolved the read proceeds through the same verified
+    /// structural-argument walk as `StructuralLeafCopy`, with the resolved
+    /// element index appended as the last projection step.
+    pub(crate) fn execute_indexed_structural_read(
+        &mut self,
+        operation: &terminal_psi::Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let OperationKind::IndexedStructuralRead {
+            source,
+            ref path,
+            index,
+            ..
+        } = operation.kind
+        else {
+            unreachable!("dispatched execute_indexed_structural_read")
+        };
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let result = operation.result.structural().ok_or_else(invalid)?;
+        if result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || self.structural_values.contains_key(&result.place)
+        {
+            return Err(invalid());
+        }
+        let TerminalScalarValue::Integer {
+            scalar_type,
+            value: IntegerValue::Unsigned(raw),
+        } = self
+            .values
+            .get(&index)
+            .copied()
+            .ok_or(TerminalInterpretError::VerifiedValueMissing(index))?
+        else {
+            return Err(invalid());
+        };
+        if scalar_type != IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())? {
+            return Err(invalid());
+        }
+        let element_index = u64::try_from(raw).map_err(|_| invalid())?;
+        // The custody resolver names fields by identity: rebuild the runtime
+        // path from the op's canonical field ids against declared shapes.
+        let mut carrier = self
+            .structural_values
+            .get(&source)
+            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                source,
+            ))?
+            .structural_type;
+        let mut projected = Vec::with_capacity(path.len() + 1);
+        for segment in path {
+            let declaration = self.structural_types.get(&carrier).ok_or_else(invalid)?;
+            carrier = match (segment, &declaration.shape) {
+                (
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity),
+                    StructuralTypeShape::Record { fields },
+                ) => {
+                    let field = fields
+                        .iter()
+                        .find(|field| field.id == *identity && !field.relevance.is_erased())
+                        .ok_or_else(invalid)?;
+                    let terminal_psi::StructuralFieldType::Structural(child) = field.field_type
+                    else {
+                        return Err(invalid());
+                    };
+                    projected.push(StructuralPathSegment::Field(field.identity.clone()));
+                    child
+                }
+                (
+                    semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index),
+                    StructuralTypeShape::FixedArray { element, length },
+                ) if index < length => {
+                    projected.push(StructuralPathSegment::FixedIndex(*index));
+                    *element
+                }
+                _ => return Err(invalid()),
+            };
+        }
+        projected.push(StructuralPathSegment::FixedIndex(element_index));
+        let leaf = resolve_structural_arguments(
+            &self.structural_types,
+            &self.structural_values,
+            &[StructuralArgument {
+                place: source,
+                path: projected,
                 access: StructuralAccess::SharedBorrow,
             }],
         )?

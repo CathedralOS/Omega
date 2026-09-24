@@ -346,5 +346,22 @@ pub(super) fn register_custody_operation(
         )?;
         return Ok(true);
     }
+    if let OperationKind::IndexedStructuralRead {
+        source,
+        path,
+        obligation,
+        ..
+    } = &operation.kind
+    {
+        super::super::structural::leaf_copy::validate_indexed(
+            module, machine, operation, *source, path,
+        )?;
+        insert_unique(
+            &mut registry.obligations,
+            *obligation,
+            ModuleError::DuplicateObligation,
+        )?;
+        return Ok(true);
+    }
     Ok(false)
 }

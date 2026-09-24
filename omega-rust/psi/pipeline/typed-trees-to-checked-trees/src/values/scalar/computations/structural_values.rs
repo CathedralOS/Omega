@@ -498,6 +498,66 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
         .any(|data| data.symbol == *symbol)
 }
 
+/// `self.collections[i]` admission: an indexed read rooted at shared-borrowed
+/// storage whose static collection path (record fields and literal fixed
+/// indexes only) lands on a fixed array whose element is the copyable
+/// `Unrestricted` result leaf, selected by a runtime index. The borrow keeps
+/// the whole array while the element copies out — bounds ride on the emitted
+/// read's obligation rather than on any published parameter range, so the
+/// selector never has to be a declared-range scalar.
+pub(super) fn is_indexed_element_value(
+    program: &TypedTrees,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    expected: TypeReferenceHandle,
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    if !copied_place_type(program, expected) || scalar_case_place_type(program, expected) {
+        return false;
+    }
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state,
+        statement_index,
+        indexed.collection,
+    ) else {
+        return false;
+    };
+    if place.segments.is_empty() || !canonical_place_is_borrowable(&place) {
+        return false;
+    };
+    let facts::PlaceRoot::Symbol(symbol) = place.root else {
+        return false;
+    };
+    let Some(root) = symbol_declared_type(program, symbol) else {
+        return false;
+    };
+    if !matches!(
+        program.type_reference_table.type_reference(root),
+        TypeReferenceNode::Reference {
+            access: language_semantics::ReferenceAccess::Shared,
+            ..
+        }
+    ) {
+        return false;
+    }
+    let Some(unwrapped) =
+        crate::flow::canonical_place_type_reference(program, state, statement_index, &place)
+            .and_then(|collection| validation::unwrapped_type_reference(program, collection))
+    else {
+        return false;
+    };
+    let TypeReferenceNode::FixedArray { element_type, .. } =
+        program.type_reference_table.type_reference(unwrapped)
+    else {
+        return false;
+    };
+    program.normalized_type_identity(*element_type) == program.normalized_type_identity(expected)
+}
+
 /// `self.scan_compare_type`-shape admission: a member/fixed-index projection
 /// rooted at shared-borrowed storage whose leaf is a copyable `Unrestricted`
 /// named type. Same root/path contract as `is_scalar_case_place_value`, but
@@ -721,6 +781,12 @@ impl Builder<'_, '_> {
             copy
         } else if let Some(copied) = self.copied_place(expression, expected) {
             copied
+        } else if let Some(indexed) = self.indexed_element(expression, expected) {
+            indexed
+        } else if let Some(projection) =
+            self.indexed_projection_place(expression, expected, values, pure)
+        {
+            projection
         } else if let Some(projection) =
             self.projected_selection_place(expression, expected, values, pure)
         {
@@ -947,6 +1013,148 @@ impl Builder<'_, '_> {
         }
         Some(CheckedStructuralValueKind::CopiedStructuralPlace {
             source: self.borrowed_leaf_argument(expression, expected)?,
+        })
+    }
+
+    /// One `Unrestricted` element copied out of a shared-borrowed fixed array
+    /// at a runtime index: `self.collections[i]` reads the borrowed array's
+    /// selected element and copies it into a fresh owned place. `source` is
+    /// the same `SharedBorrow` plan `borrowed_leaf_argument` builds for the
+    /// collection expression itself — its path names the array, so the index
+    /// rides as a separate `u64` scalar computation the emitted read bounds
+    /// with its own obligation.
+    fn indexed_element(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+    ) -> Option<CheckedStructuralValueKind> {
+        if !is_indexed_element_value(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+            expected,
+        ) {
+            return None;
+        }
+        let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let collection_type = {
+            let place = crate::flow::canonical_place_from_expression_in_state(
+                self.program,
+                self.state,
+                self.statement_index,
+                indexed.collection,
+            )?;
+            crate::flow::canonical_place_type_reference(
+                self.program,
+                self.state,
+                self.statement_index,
+                &place,
+            )?
+        };
+        let source = self.borrowed_leaf_argument(indexed.collection, collection_type)?;
+        let index = self.expression(indexed.index, PrimitiveType::U64)?;
+        self.plans.nodes.get_mut(index).authored_root = indexed.index;
+        self.plans.roots.append(CheckedScalarComputationRoot {
+            machine: self.machine,
+            state: self.state,
+            statement_ordinal: u32::try_from(self.statement_index).ok()?,
+            role: CheckedScalarExpressionRole::StructuralValueIndex { expression },
+            root: index,
+        });
+        Some(CheckedStructuralValueKind::IndexedElement { source, index })
+    }
+
+    /// The runtime-index sibling of `projected_selection_place`: an authored
+    /// `self.collections[i]` arm moves a projected element the way
+    /// `self.collections[0]` does, but its selector is a runtime operand
+    /// rather than a place segment. The static prefix still names the
+    /// collection path and the moved element still binds the enclosing result
+    /// type; the index rides as a checked `u64` scalar computation under the
+    /// `StructuralValueIndex` role, like the read sibling's.
+    fn indexed_projection_place(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+        values: &mut CheckedStructuralValuePlans,
+        pure: &CheckedScalarExpressionPlans,
+    ) -> Option<CheckedStructuralValueKind> {
+        let ExpressionNode::Indexed(indexed) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            self.statement_index,
+            expression,
+        )?;
+        // Only a bare trailing runtime index splits off: member hops beneath a
+        // selected element (`a[i].b`) are a different, still-declined shape.
+        let (facts::PlaceSegment::Index { .. }, prefix) = place.segments.split_last()? else {
+            return None;
+        };
+        if prefix.is_empty()
+            || !prefix.iter().all(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
+                )
+            })
+        {
+            return None;
+        }
+        let (_, path) = crate::execution::terminal_unit::calls::projected_argument_path(
+            self.program,
+            self.state,
+            self.statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: prefix.to_vec(),
+            },
+        )?;
+        let projected = crate::flow::canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &place,
+        )?;
+        if self.program.normalized_type_identity(projected)
+            != self.program.normalized_type_identity(expected)
+        {
+            return None;
+        }
+        let root_expression = projection_root_expression(self.program, expression)?;
+        let root_reference = crate::flow::canonical_place_type_reference(
+            self.program,
+            self.state,
+            self.statement_index,
+            &crate::flow::CanonicalPlace {
+                root: place.root,
+                segments: Vec::new(),
+            },
+        )?;
+        let source = self.structural_value(root_expression, root_reference, values, pure)?;
+        let index = self.expression(indexed.index, PrimitiveType::U64)?;
+        self.plans.nodes.get_mut(index).authored_root = indexed.index;
+        self.plans.roots.append(CheckedScalarComputationRoot {
+            machine: self.machine,
+            state: self.state,
+            statement_ordinal: u32::try_from(self.statement_index).ok()?,
+            role: CheckedScalarExpressionRole::StructuralValueIndex { expression },
+            root: index,
+        });
+        Some(CheckedStructuralValueKind::IndexedProjection {
+            source,
+            path,
+            index,
+            type_identity: self
+                .program
+                .normalized_type_identity(projected)
+                .into_string(),
         })
     }
 

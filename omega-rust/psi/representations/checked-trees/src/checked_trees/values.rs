@@ -238,6 +238,11 @@ pub enum CheckedScalarExpressionRole {
         expression: ExpressionHandle,
         field_ordinal: u32,
     },
+    /// The `u64` scalar index selecting an `IndexedElement` structural value's
+    /// array element at runtime, keyed by the read's authored expression.
+    StructuralValueIndex {
+        expression: ExpressionHandle,
+    },
     /// One scalar field operand in its authored record construction.
     RecordField {
         expression: ExpressionHandle,

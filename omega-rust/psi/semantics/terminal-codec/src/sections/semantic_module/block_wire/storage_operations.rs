@@ -480,6 +480,38 @@ pub(super) fn decode_indexed_primitive_read(
     })
 }
 
+pub(super) fn encode_indexed_structural_read(
+    writer: &mut Writer,
+    source: PlaceId,
+    path: Vec<CanonicalStructuralPathSegment>,
+    index: ValueId,
+    obligation: ObligationId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::INDEXED_STRUCTURAL_READ);
+    super::super::structural_field_wire::encode_canonical_structural_field(
+        writer,
+        source,
+        &path,
+        "indexed structural source path",
+    )?;
+    writer.id(index);
+    writer.id(obligation);
+    Ok(())
+}
+
+pub(super) fn decode_indexed_structural_read(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    let (source, path) =
+        super::super::structural_field_wire::decode_canonical_structural_field(reader)?;
+    Ok(OperationKind::IndexedStructuralRead {
+        source,
+        path,
+        index: reader.id("ValueId")?,
+        obligation: reader.id("ObligationId")?,
+    })
+}
+
 pub(super) fn encode_structural_byte_sequence_field_store(
     writer: &mut Writer,
     destination: PlaceId,

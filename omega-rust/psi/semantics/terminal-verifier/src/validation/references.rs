@@ -1251,6 +1251,7 @@ pub(super) fn apply_operation(
         }
         OperationKind::PrimitiveScalarRead { source, .. }
         | OperationKind::IndexedPrimitiveRead { source, .. }
+        | OperationKind::IndexedStructuralRead { source, .. }
         | OperationKind::StructuralCaseMembership { source, .. } => {
             check_root_access(machine, live, *source)?
         }

@@ -151,6 +151,15 @@ pub(super) fn validate_operation_operands(
                 defined,
             )
         }
+        OperationKind::IndexedStructuralRead { .. } => {
+            storage_operands::validate_indexed_structural_read(
+                module,
+                machine,
+                operation,
+                value_types,
+                defined,
+            )
+        }
         OperationKind::StructuralScalarFieldStore { .. } => {
             storage_operands::validate_structural_scalar_field_store(
                 module,

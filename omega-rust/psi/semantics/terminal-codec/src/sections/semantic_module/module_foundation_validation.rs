@@ -380,6 +380,9 @@ fn validate_operation_foundation(
         OperationKind::IndexedPrimitiveRead { .. } => {
             storage_foundations::validate_indexed_primitive_read(module, machine, operation)?
         }
+        OperationKind::IndexedStructuralRead { .. } => {
+            storage_foundations::validate_indexed_structural_read(module, machine, operation)?
+        }
         OperationKind::StructuralScalarFieldStore { .. } => {
             storage_foundations::validate_structural_scalar_field_store(module, machine, operation)?
         }

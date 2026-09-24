@@ -176,6 +176,13 @@ pub(crate) fn build_checked_value_computation_plans(
                             expression,
                             expected,
                         )
+                        || structural_values::is_indexed_element_value(
+                            program,
+                            state.symbol,
+                            statement_index,
+                            expression,
+                            expected,
+                        )
                         || (matches!(statement, StatementNode::LocalData(_))
                             && structural_values::is_shared_borrow_value(
                                 program, expression, expected,

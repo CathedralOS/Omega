@@ -691,6 +691,20 @@ pub enum ModuleError {
         expected: ScalarType,
         actual: ScalarType,
     },
+    IndexedStructuralReadSourceMismatch {
+        operation: OperationId,
+        place: PlaceId,
+    },
+    IndexedStructuralReadIndexTypeMismatch {
+        operation: OperationId,
+        index: ValueId,
+        actual: ScalarType,
+    },
+    IndexedStructuralReadResultTypeMismatch {
+        operation: OperationId,
+        expected: StructuralTypeId,
+        actual: StructuralTypeId,
+    },
     InvalidStructuralScalarFieldStore {
         operation: OperationId,
         destination: PlaceId,

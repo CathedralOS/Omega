@@ -254,6 +254,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         OperationKind::WriteOnlyPrimitiveStore { .. }
         | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
         | OperationKind::IndexedPrimitiveRead { .. }
+        | OperationKind::IndexedStructuralRead { .. }
         | OperationKind::EstablishReference { .. }
         | OperationKind::ReleaseReference { .. }
         | OperationKind::EstablishPrimitiveLocal { .. }

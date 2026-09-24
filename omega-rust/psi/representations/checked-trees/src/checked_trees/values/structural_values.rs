@@ -84,6 +84,18 @@ pub enum CheckedStructuralValueKind {
     CopiedStructuralPlace {
         source: crate::CheckedUnitStructuralArgumentPlan,
     },
+    /// An `Unrestricted` element read out of a fixed array through
+    /// shared-borrowed storage at a runtime index (`self.collections[i]` on a
+    /// `&self` receiver): `source` is the lent array place under shared borrow
+    /// (its path names the array, never the element), `index` is the checked
+    /// `u64` scalar computation that selects the element, and the element
+    /// contents are observed and copied into a fresh owned place exactly as a
+    /// `CopiedStructuralPlace` leaf is. Bounds come from the read's emitted
+    /// obligation, not from published parameter ranges.
+    IndexedElement {
+        source: crate::CheckedUnitStructuralArgumentPlan,
+        index: CheckedScalarComputationHandle,
+    },
     /// An owned child projected out of `source` (a `Place` or `Call` node)
     /// along an exact field/fixed-index path. The untouched residual siblings
     /// die on the selected edge; `type_identity` is the normalized projected
@@ -91,6 +103,21 @@ pub enum CheckedStructuralValueKind {
     Projection {
         source: CheckedStructuralValueHandle,
         path: Vec<crate::CheckedUnitStructuralPathSegment>,
+        type_identity: String,
+    },
+    /// The runtime-index sibling of `Projection`: the authored
+    /// `self.collections[i]` arm moves a projected element the same way
+    /// `self.collections[0]` does, but the selector is a runtime operand
+    /// rather than a place segment. `path` names the static field/fixed-index
+    /// prefix down to the collection, `index` is the checked `u64` scalar
+    /// computation selecting the element, and `type_identity` is the
+    /// normalized projected element type. The residual complement a partial
+    /// affine move owes cannot yet be spelled for a runtime-selected element,
+    /// so emission declines it on the same wall the `&self` `Projection` hits.
+    IndexedProjection {
+        source: CheckedStructuralValueHandle,
+        path: Vec<crate::CheckedUnitStructuralPathSegment>,
+        index: CheckedScalarComputationHandle,
         type_identity: String,
     },
     Dispatch {

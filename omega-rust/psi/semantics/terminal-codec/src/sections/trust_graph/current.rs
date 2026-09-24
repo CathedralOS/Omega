@@ -588,6 +588,9 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 | terminal_semantics::OperationSemanticTag::IndexedPrimitiveRead) {
                 exact_sources.push(("terminal-semantics/primitive_place.rs", include_bytes!("../../../../terminal-semantics/src/primitive_place.rs")));
             }
+            if row.tag() == terminal_semantics::OperationSemanticTag::IndexedStructuralRead {
+                exact_sources.push(("terminal-semantics/static_path.rs", include_bytes!("../../../../terminal-semantics/src/static_path.rs")));
+            }
             if row.tag() == terminal_semantics::OperationSemanticTag::PrimitiveScalarRead {
                 // The row's read denotation alone does not establish which
                 // prior store remains available at this capture coordinate.

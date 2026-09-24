@@ -729,6 +729,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::WriteOnlyPrimitiveStore { .. }
                     | OperationKind::WriteOnlyIndexedPrimitiveStore { .. }
                     | OperationKind::IndexedPrimitiveRead { .. }
+                    | OperationKind::IndexedStructuralRead { .. }
                     | OperationKind::ByteSequenceLength { .. }
                     | OperationKind::ByteSequenceRead { .. }
                     | OperationKind::ByteSequenceWrite { .. }

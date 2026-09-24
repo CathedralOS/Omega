@@ -528,6 +528,7 @@ fn validate_owned_reads(
         // the static path to the array is empty.
         OperationKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => Some(destination),
         OperationKind::IndexedPrimitiveRead { source, .. } => Some(source),
+        OperationKind::IndexedStructuralRead { source, .. } => Some(source),
         OperationKind::IntegerStructuralField { source, .. }
         | OperationKind::BooleanStructuralField { source, .. } => Some(source),
         OperationKind::StructuralScalarFieldStore { destination, .. } => Some(destination),

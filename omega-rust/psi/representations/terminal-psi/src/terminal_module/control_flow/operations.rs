@@ -348,6 +348,21 @@ pub enum OperationKind {
         /// Ordered canonical projection from the live whole root to the leaf.
         path: Vec<CanonicalStructuralPathSegment>,
     },
+    /// Establish one owned copy of an `Unrestricted` element of a declared
+    /// fixed array through a runtime index, on the same terms as
+    /// `StructuralLeafCopy` — copying observes contents a shared loan admits,
+    /// and the source array stays fully intact. `path` resolves from the
+    /// source root to the fixed array itself; `index` is the exact `u64`
+    /// runtime selector and `obligation` certifies `index < declared extent`.
+    /// The dynamic index is a runtime operand, not a path segment, so it
+    /// carries no published-range evidence a `RuntimeIndex` segment would
+    /// demand.
+    IndexedStructuralRead {
+        source: PlaceId,
+        path: Vec<CanonicalStructuralPathSegment>,
+        index: ValueId,
+        obligation: ObligationId,
+    },
     /// Establish one immutable borrowed byte-sequence literal in a declared
     /// structural place. `bytes` are exact octets; no text transcoding occurs.
     /// `qualifications` replay the domain memberships checking admitted on
@@ -832,7 +847,8 @@ impl OperationKind {
                 *index = map(*index);
                 *value = map(*value);
             }
-            Self::IndexedPrimitiveRead { index, .. } => {
+            Self::IndexedPrimitiveRead { index, .. }
+            | Self::IndexedStructuralRead { index, .. } => {
                 *index = map(*index);
             }
             Self::ByteSequenceRead { index, length, .. } => {

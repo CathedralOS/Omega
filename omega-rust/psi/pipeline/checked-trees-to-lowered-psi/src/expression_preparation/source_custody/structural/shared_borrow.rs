@@ -190,6 +190,77 @@ pub(super) fn validate_copied_place(
     Ok(())
 }
 
+/// An `Unrestricted` element read out of a fixed array through shared-borrowed
+/// storage at a runtime index (`self.collections[i]` on a `&self` receiver):
+/// the retained `source` argument names the array place — its root/path
+/// replay the authored collection expression exactly as `validate_copied_place`
+/// replays the read target — and the projected array leaf's declared element
+/// type must be the result's declared `Unrestricted` type. The runtime index
+/// is a checked scalar computation whose `StructuralValueIndex` operand role
+/// pins its authored root separately; this replay returns the authored index
+/// expression for that pin.
+pub(super) fn validate_indexed_element(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    authored: &checked_trees::state::State,
+    statement: u32,
+    expression: ExpressionHandle,
+    reference: checked_trees::types::TypeReferenceHandle,
+    argument: &CheckedUnitStructuralArgumentPlan,
+) -> Result<ExpressionHandle, LoweringError> {
+    if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+        return unsupported("indexed element changed its planned access");
+    }
+    let ExpressionNode::Indexed(indexed) = checked.expression_table.expression(expression) else {
+        return unsupported("indexed element lost its authored index read");
+    };
+    let (checked_path, root) = walk_exact_place(checked, machine, authored, indexed.collection)?;
+    // The argument path names the array, never the element — a runtime index
+    // is an operand, not a place segment.
+    if checked_path != argument.path {
+        return unsupported("indexed element path does not match its projected path");
+    }
+    let collection = validation::expression_result_type_reference(
+        &checked.typed,
+        machine,
+        authored,
+        indexed.collection,
+    )
+    .and_then(|container| validation::unwrapped_type_reference(&checked.typed, container))
+    .ok_or(LoweringError::Unsupported(
+        "indexed element lost its collection type",
+    ))?;
+    let checked_trees::types::TypeReferenceNode::FixedArray { element_type, .. } =
+        checked.type_reference_table.type_reference(collection)
+    else {
+        return unsupported("indexed element collection is not a fixed array");
+    };
+    if checked.normalized_type_identity(collection).as_str() != argument.type_identity
+        || checked.normalized_type_identity(*element_type)
+            != checked.normalized_type_identity(reference)
+    {
+        return unsupported("indexed element does not project the result type");
+    }
+    let Some(unwrapped) = validation::unwrapped_type_reference(&checked.typed, reference) else {
+        return unsupported("indexed element lost its leaf type");
+    };
+    if checked.typed.type_multiplicity(unwrapped) != language_semantics::Multiplicity::Unrestricted
+        && checked.typed.type_multiplicity(reference)
+            != language_semantics::Multiplicity::Unrestricted
+    {
+        return unsupported("indexed element leaf is not unrestricted");
+    }
+    validate_place_root(
+        checked,
+        machine,
+        authored,
+        statement,
+        root,
+        &argument.source,
+    )?;
+    Ok(indexed.index)
+}
+
 /// The leaf type must be an unrestricted sum whose every case carries no
 /// payload field — observing the active case is then the whole read, and no
 /// borrowed payload needs a spelling the authored expression never offered.

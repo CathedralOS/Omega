@@ -890,6 +890,122 @@ pub(super) fn validate_indexed_primitive_read(
     Ok(())
 }
 
+/// Wire-level shape for `IndexedStructuralRead`, the structural sibling of
+/// `validate_indexed_primitive_read`: the result is an `Unrestricted`
+/// structural place whose declared type is exactly the array's element, the
+/// source path resolves to a declared fixed array of a non-scalar element,
+/// and the index is an unsigned 64-bit scalar. The verifier independently
+/// reconstructs custody, dominance, and the `index < declared extent`
+/// obligation.
+pub(super) fn validate_indexed_structural_read(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::IndexedStructuralRead {
+        source,
+        path,
+        index,
+        ..
+    } = &operation.kind
+    else {
+        unreachable!("dispatched validate_indexed_structural_read")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("indexed structural read declares a non-structural result");
+    };
+    if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted {
+        return malformed("indexed structural read result is not an unrestricted copy");
+    }
+    let source_type = if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| parameter.place == *source)
+    {
+        if !matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::Owned
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::SharedBorrow
+        ) || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        ) {
+            return malformed("indexed structural read has invalid source custody");
+        }
+        parameter.structural_type
+    } else {
+        let Some(producer) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|producer| producer.result.structural())
+            .find(|result| {
+                result.place == *source
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
+            })
+        else {
+            return malformed("indexed structural read has no readable root");
+        };
+        producer.structural_type
+    };
+    let Some(tip) = terminal_semantics::canonical_structural_path_tip(
+        module.structural_types.iter(),
+        source_type,
+        path,
+    ) else {
+        return malformed("indexed structural read requires a fixed-array source path");
+    };
+    let terminal_psi::StructuralTypeShape::FixedArray { element, .. } = tip.shape else {
+        return malformed("indexed structural read requires a fixed-array source path");
+    };
+    let Some(element_declaration) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == element)
+    else {
+        return malformed("indexed structural read lost its element declaration");
+    };
+    if matches!(
+        element_declaration.shape,
+        terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+    ) {
+        return malformed("indexed structural read element is primitive storage");
+    }
+    if result.structural_type != element {
+        return malformed("indexed structural read result type does not match the element");
+    }
+    let expected_index = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"),
+    );
+    let declared = machine
+        .parameters
+        .iter()
+        .chain(machine.result.scalar_ref())
+        .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
+        .chain(machine.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .filter_map(|candidate| candidate.result.scalar_ref())
+        }))
+        .find(|declaration| declaration.id == *index)
+        .map(|declaration| declaration.scalar_type);
+    if declared != Some(expected_index) {
+        return malformed("indexed structural read requires an unsigned 64-bit index");
+    }
+    Ok(())
+}
+
 pub(super) fn validate_structural_scalar_field_store(
     module: &TerminalModule,
     machine: &TerminalMachine,

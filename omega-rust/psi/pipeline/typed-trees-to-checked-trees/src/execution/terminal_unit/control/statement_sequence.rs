@@ -2762,7 +2762,8 @@ fn consume_value_places(
             checked_trees::CheckedStructuralValueKind::Dispatch { arms, .. } => {
                 pending.extend(plans.dispatch_arms.span(*arms)?.iter().map(|arm| arm.value));
             }
-            checked_trees::CheckedStructuralValueKind::Projection { source, .. } => {
+            checked_trees::CheckedStructuralValueKind::Projection { source, .. }
+            | checked_trees::CheckedStructuralValueKind::IndexedProjection { source, .. } => {
                 // The selected edge moves a projected child: its root owner
                 // remains live for the residual complement that edge commits.
                 if let checked_trees::CheckedStructuralValueKind::Place(argument) =
@@ -2789,6 +2790,7 @@ fn consume_value_places(
             | checked_trees::CheckedStructuralValueKind::Call { .. }
             | checked_trees::CheckedStructuralValueKind::ScalarCasePlace { .. }
             | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
+            | checked_trees::CheckedStructuralValueKind::IndexedElement { .. }
             | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
             | checked_trees::CheckedStructuralValueKind::Case(_) => {}
         }

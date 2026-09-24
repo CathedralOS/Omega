@@ -149,6 +149,7 @@ pub(super) fn register_scalar_result_operation(
         | OperationKind::StoreStructuralField { .. }
         | OperationKind::StructuralLeafCopy { .. }
         | OperationKind::StructuralCaseLeafCopy { .. }
+        | OperationKind::IndexedStructuralRead { .. }
         | OperationKind::PortWrite { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. }
         | OperationKind::EstablishTrivialAffineLocal { .. } => {

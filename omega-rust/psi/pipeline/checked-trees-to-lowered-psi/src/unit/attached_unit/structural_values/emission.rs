@@ -816,6 +816,29 @@ impl Emission<'_, '_, '_> {
                 self.complete_value(projected.root, Some(&projected), continuation)?;
                 Ok(continuation.place)
             }
+            CheckedStructuralValueKind::IndexedProjection {
+                source,
+                path,
+                type_identity,
+                ..
+            } => {
+                // Same projected-root contract as `Projection`: under `&self`
+                // the root node is a shared-borrow `Reference`, so this
+                // declines on exactly the wall the literal `[0]` arm hits.
+                let _continuation = continuation.ok_or(LoweringError::Unsupported(
+                    "indexed projection requires a structural continuation",
+                ))?;
+                if path.is_empty()
+                    || lookup_type_id(self.type_ids, &type_identity)? != self.structural_type
+                {
+                    return unsupported("indexed projection changed its moved child type");
+                }
+                let _ = self.projected_root(source, path, type_identity)?;
+                // Where the root does resolve, the runtime-selected element
+                // still owes its residual complement — the static-path
+                // partition cannot spell it today.
+                unsupported("indexed projection residuals cannot spell a runtime-selected element")
+            }
             CheckedStructuralValueKind::ScalarCasePlace { source } => {
                 if lookup_type_id(self.type_ids, &source.type_identity)? != self.structural_type {
                     return unsupported("scalar case place changed its leaf type");
@@ -853,6 +876,67 @@ impl Emission<'_, '_, '_> {
                             self.checked.state_parameters(authored.1),
                         )?;
                 self.copied_leaf_place(&argument, continuation)
+            }
+            CheckedStructuralValueKind::IndexedElement { source, index } => {
+                // The source plan's projected identity names the array, not
+                // the element: this value's own result type must be exactly
+                // the array's declared element type.
+                let array = lookup_type_id(self.type_ids, &source.type_identity)?;
+                let element = self
+                    .structural_types
+                    .iter()
+                    .find_map(|declaration| (declaration.id == array).then_some(&declaration.shape))
+                    .and_then(|shape| match shape {
+                        StructuralTypeShape::FixedArray { element, .. } => Some(*element),
+                        _ => None,
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "indexed element source is not a fixed array",
+                    ))?;
+                if element != self.structural_type {
+                    return unsupported("indexed element changed its copied leaf type");
+                }
+                let authored = crate::expression_preparation::source_custody::authored_state(
+                    self.checked,
+                    self.state,
+                )?;
+                let argument =
+                    crate::expression_preparation::bindings::ScalarBindings::new(self.values.len())
+                        .with_structural_parameters(&self.evaluation.structural_parameters)
+                        .with_structural_locals(&self.evaluation.structural_locals)
+                        .shared_structural_argument(
+                            &source,
+                            authored.0,
+                            self.checked.state_parameters(authored.1),
+                        )?;
+                // The op carries verifier-owned canonical field identities:
+                // re-walk the authored static path against the root place's
+                // declared type and require it to land on the same array leaf.
+                let root = self
+                    .evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.1.place == argument.place)
+                    .map(|parameter| parameter.1.structural_type)
+                    .ok_or(LoweringError::Unsupported(
+                        "indexed element requires a parameter-rooted array source",
+                    ))?;
+                let (canonical, tip) = crate::emission::primitive_store::walk_path(
+                    root,
+                    &source.path,
+                    self.structural_types,
+                )?;
+                if tip != array {
+                    return unsupported("indexed element source path lost its array leaf");
+                }
+                let index = self.scalar(
+                    CheckedScalarExpressionRole::StructuralValueIndex {
+                        expression: node.expression,
+                    },
+                    index,
+                    self.values.len(),
+                )?;
+                self.indexed_leaf_place(&argument, canonical, index.id, continuation)
             }
             CheckedStructuralValueKind::ZeroedScalarArray {
                 element,
@@ -2227,6 +2311,61 @@ impl Emission<'_, '_, '_> {
         let Some(continuation) = continuation else {
             // At the value root the fresh place publishes directly — the copy
             // consumes nothing, so there is no custody edge to join.
+            return Ok(place);
+        };
+        self.complete_value(place, None, continuation)?;
+        Ok(continuation.place)
+    }
+
+    /// Copy one `Unrestricted` element out of a fixed array through a runtime
+    /// index into the continuation's owned place with one
+    /// `IndexedStructuralRead`: the source array stays fully intact on the
+    /// same shared-loan terms as `StructuralLeafCopy`, and the operation's
+    /// obligation carries the `index < extent` certificate the emitted op's
+    /// sibling obligation id names.
+    fn indexed_leaf_place(
+        &mut self,
+        argument: &StructuralArgument,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: ValueId,
+        continuation: Option<&ValueContinuation>,
+    ) -> Result<PlaceId, LoweringError> {
+        let obligation = crate::terminal_identities::obligation_id(
+            self.operations
+                .next_identity
+                .checked_add(1)
+                .ok_or(LoweringError::Unsupported("operation identity overflow"))?,
+        );
+        let place = place_id(allocate_dense(self.next_place)?);
+        let operation = self.operations.allocate();
+        self.operations.push(Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: operation,
+            result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place,
+                structural_type: self.structural_type,
+                multiplicity: self.multiplicity,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::IndexedStructuralRead {
+                source: argument.place,
+                path,
+                index,
+                obligation,
+            },
+        });
+        self.temporary_places.push(StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: self.structural_type,
+            },
+        });
+        let Some(continuation) = continuation else {
             return Ok(place);
         };
         self.complete_value(place, None, continuation)?;
