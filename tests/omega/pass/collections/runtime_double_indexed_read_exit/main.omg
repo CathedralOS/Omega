@@ -9,12 +9,15 @@
 // indices), 3+ runtime levels, local/param 2D arrays.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To2 requires self <= 2;
+domain u64::U640To3 requires self <= 3;
+domain u64::U640To1 requires self <= 1;
 data Main {
     console: Binding<Console>;
     grid: [[i32; 4]; 3];
     cube: [[[i32; 2]; 2]; 2];
-    i: u64 [0..=2];
-    j: u64 [0..=3];
+    i: u64 in U640To2;
+    j: u64 in U640To3;
     got: i32;
 }
 machine Main::main(&mut self) reaches Console {
@@ -36,14 +39,14 @@ machine Main::main(&mut self) reaches Console {
             false -> no()
         }
     }
-    state frame_indices(&mut self, fi: u64 [0..=2], fj: u64 [0..=3]) {
+    state frame_indices(&mut self, fi: u64 in U640To2, fj: u64 in U640To3) {
         self.got = self.grid[fi][fj];
         transition self.got == 5 {
             true -> mixed(3)
             false -> no()
         }
     }
-    state mixed(&mut self, fj: u64 [0..=3]) {
+    state mixed(&mut self, fj: u64 in U640To3) {
         self.got = self.grid[self.i][fj];
         transition self.got == 9 {
             true -> deep()
@@ -51,8 +54,8 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state deep(&mut self) {
-        let a: u64 [0..=1] = 1;
-        let b: u64 [0..=1] = 1;
+        let a: u64 in U640To1 = 1;
+        let b: u64 in U640To1 = 1;
         self.got = self.cube[1][a][b];
         transition self.got == 77 {
             true -> yes()

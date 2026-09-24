@@ -11,12 +11,14 @@
 // would-be-alias victims. Exit 1 on success.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To1 requires self <= 1;
+domain u64::U640To0 requires self <= 0;
 data Main {
     console: Binding<Console>;
     cube: [[[i32; 2]; 2]; 2];
     weird: [[[i32; 1]; 4]; 2];
-    k: u64 [0..=1];
-    z: u64 [0..=0];
+    k: u64 in U640To1;
+    z: u64 in U640To0;
     got: i32;
 }
 machine Main::main(&mut self) reaches Console {

@@ -8,12 +8,13 @@
 // Both directions correct -> exit 70; any base/index confusion -> exit 71.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To3 requires 0 <= self && self <= 3;
 data Main {
     console: Binding<Console>;
     a: [i32; 4];
     b: [i32; 4];
-    i: i32 [0..=3];
-    j: i32 [0..=3];
+    i: i32 in I320To3;
+    j: i32 in I320To3;
 }
 machine Main::main(&mut self) reaches Console {
     self.a[0] = 10;

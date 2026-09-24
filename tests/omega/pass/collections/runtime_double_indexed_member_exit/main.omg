@@ -9,6 +9,8 @@
 // Neighbor/other-row validation throughout.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To2 requires self <= 2;
+domain u64::U640To1 requires self <= 1;
 data Row {
     tag: i32;
     data: [i32; 2];
@@ -21,8 +23,8 @@ data Main {
     console: Binding<Console>;
     rows: [Row; 3];
     boards: [[Cell; 2]; 2];
-    i: u64 [0..=2];
-    j: u64 [0..=1];
+    i: u64 in U640To2;
+    j: u64 in U640To1;
     got: i32;
 }
 machine Main::main(&mut self) reaches Console {
@@ -55,8 +57,8 @@ machine Main::main(&mut self) reaches Console {
     state m3(&mut self) {
         self.boards[1][0] = Cell { x: 37, y: 90 };
         self.boards[0][0] = Cell { x: 5, y: 6 };
-        let bi: u64 [0..=1] = 1;
-        let bj: u64 [0..=1] = 0;
+        let bi: u64 in U640To1 = 1;
+        let bj: u64 in U640To1 = 0;
         self.got = self.boards[bi][bj].x;
         transition self.got == 37 {
             true -> m4()
@@ -64,8 +66,8 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state m4(&mut self) {
-        let bi: u64 [0..=1] = 1;
-        let bj: u64 [0..=1] = 0;
+        let bi: u64 in U640To1 = 1;
+        let bj: u64 in U640To1 = 0;
         self.boards[bi][bj].y = 91;
         self.got = self.boards[1][0].y;
         transition self.got == 91 {

@@ -3,6 +3,7 @@
 // b=7, k=2 -> arr[2]==7 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To3 requires self <= 3;
 data Main {
     console: Binding<Console>;
     arr: [i32; 4];
@@ -13,7 +14,7 @@ machine Main::main(&mut self) {
     self.b = 7;
     transition { _ -> self.pick(2) }
 }
-machine Main::pick(&mut self, k: u64 [0..=3]) reaches Console {
+machine Main::pick(&mut self, k: u64 in U640To3) reaches Console {
     self.arr[k] = self.b;
     transition self.arr[2] == 7 {
         true -> yes()

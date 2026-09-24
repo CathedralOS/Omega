@@ -3,17 +3,18 @@
 // frame-held runtime index.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To1 requires self <= 1;
 data Triple { first: i32; second: i32; third: i32; }
 data Main {
     console: Binding<Console>;
     values: [[Triple; 2]; 2];
-    index: u64 [0..=1];
+    index: u64 in U640To1;
 }
 machine Main::main(&mut self) {
     self.index = 1;
     transition { _ -> self.copy(0) }
 }
-machine Main::copy(&mut self, j: u64 [0..=1]) reaches Console {
+machine Main::copy(&mut self, j: u64 in U640To1) reaches Console {
     let local: [[Triple; 2]; 2] = [
         [
             Triple { first: 1, second: 2, third: 3 },

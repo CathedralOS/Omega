@@ -2,6 +2,7 @@
 // byte_count 1 through the frame-base-indexed copy. small[3]=9, k=3 -> exit 1.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To3 requires self <= 3;
 data Main {
     console: Binding<Console>;
     small: [i8; 4];
@@ -11,7 +12,7 @@ machine Main::main(&mut self) {
     self.small[3] = 9;
     transition { _ -> self.pick(self.small, 3) }
 }
-machine Main::pick(&mut self, small: [i8; 4], k: u64 [0..=3]) reaches Console {
+machine Main::pick(&mut self, small: [i8; 4], k: u64 in U640To3) reaches Console {
     let v: i8 = small[k];
     transition v == 9 {
         true -> yes()

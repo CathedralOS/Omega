@@ -14,6 +14,9 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To2 requires self <= 2;
+domain i64::I640To50 requires 0 <= self && self <= 50;
+domain i64::I640To100 requires 0 <= self && self <= 100;
 data Room {
     description: &[u8] in Utf8;
 }
@@ -22,11 +25,11 @@ data Label {
 }
 data Main {
     console: Binding<Console>;
-    index: u64 [0..=2];
+    index: u64 in U640To2;
     value: i64;
-    left: i64 [0..=50];
-    right: i64 [0..=50];
-    source: i64 [0..=100];
+    left: i64 in I640To50;
+    right: i64 in I640To50;
+    source: i64 in I640To100;
     prefix: [u8; 8] in Utf8;
 }
 machine Main::main(&mut self) {

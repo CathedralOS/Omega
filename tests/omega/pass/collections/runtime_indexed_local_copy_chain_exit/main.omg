@@ -8,10 +8,11 @@
 // chain resolves through it. arr[1] = 8 > 5 -> exit 70 (the fold exits 71).
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To3 requires 0 <= self && self <= 3;
 data Main {
     console: Binding<Console>;
     arr: [i32; 4];
-    i: i32 [0..=3];
+    i: i32 in I320To3;
 }
 machine Main::main(&mut self) reaches Console {
     self.arr[0] = 3;

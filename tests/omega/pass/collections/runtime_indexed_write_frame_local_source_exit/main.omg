@@ -10,10 +10,11 @@
 // overwritten 0 -> exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To3 requires 0 <= self && self <= 3;
 data Main {
     console: Binding<Console>;
     nums: [i32; 4];
-    i: i32 [0..=3];
+    i: i32 in I320To3;
     v: i32;
 }
 machine Main::main(&mut self) reaches Console {

@@ -21,11 +21,13 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::binding;
+domain u64::U640To1 requires self <= 1;
+domain u64::U640To2 requires self <= 2;
 data Room { description: &[u8] in Utf8; }
 data Label { text: [u8; 8] in Utf8; }
 data Triple { first: i32; second: i32; third: i32; }
-data Main { console: Binding<Console>; got: i32; index: u64 [0..=1]; }
-machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 [0..=1], j: u64 [0..=2]) -> i32 {
+data Main { console: Binding<Console>; got: i32; index: u64 in U640To1; }
+machine Main::pick(&self, m: [[i32; 3]; 2], i: u64 in U640To1, j: u64 in U640To2) -> i32 {
     transition { _ -> (m[i][j]) }
 }
 machine Main::main(&mut self) reaches Console {
@@ -33,10 +35,10 @@ machine Main::main(&mut self) reaches Console {
     transition { _ -> let_face(1, 2, 0, 1, 70) }
     state let_face(
         &mut self,
-        i: u64 [0..=1],
-        j: u64 [0..=2],
-        source_i: u64 [0..=1],
-        source_j: u64 [0..=2],
+        i: u64 in U640To1,
+        j: u64 in U640To2,
+        source_i: u64 in U640To1,
+        source_j: u64 in U640To2,
         wide: i64
     ) {
         let g: [[i32 in Wrapping; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
@@ -102,7 +104,7 @@ machine Main::main(&mut self) reaches Console {
     state machine_target(&mut self) {
         transition { _ -> machine_target_go(0, 1) }
     }
-    state machine_target_go(&mut self, a: u64 [0..=1], b: u64 [0..=2]) {
+    state machine_target_go(&mut self, a: u64 in U640To1, b: u64 in U640To2) {
         let g2: [[i32; 3]; 2] = [[9, 8, 7], [6, 5, 4]];
         self.got = g2[a][b];
         transition self.got == 8 {

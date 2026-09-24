@@ -16,11 +16,12 @@
 // dominating guard (the same reason `array_max` guards `i < 6` before indexing).
 use omega_language_std::console;
 use omega::language::core::binding;
+domain i32::I320To3 requires 0 <= self && self <= 3;
 data Main {
     console: Binding<Console>;
     arr: [i32; 4];
-    i: i32 [0..=3];
-    j: i32 [0..=3];
+    i: i32 in I320To3;
+    j: i32 in I320To3;
 }
 machine Main::main(&mut self) reaches Console {
     self.arr[0] = 10;
