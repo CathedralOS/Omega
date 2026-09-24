@@ -216,11 +216,10 @@ pub(super) fn matches(
     else {
         return false;
     };
-    let terminal_psi::StructuralTypeShape::Sum {
-        cases: declared_cases,
-    } = &declaration.shape
-    else {
-        return false;
+    let declared_cases: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Sum { cases }
+        | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
+        _ => return false,
     };
     let Some(layout) = source.layout().sum() else {
         return false;

@@ -22,6 +22,7 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
                         declaration.shape,
                         StructuralTypeShape::Record { .. }
                             | StructuralTypeShape::Sum { .. }
+                            | StructuralTypeShape::Mixed { .. }
                             | StructuralTypeShape::FixedArray { .. }
                     )
             })

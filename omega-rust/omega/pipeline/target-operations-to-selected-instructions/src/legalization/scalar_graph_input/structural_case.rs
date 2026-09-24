@@ -219,8 +219,10 @@ pub(in crate::legalization) fn membership_layout(
         .iter()
         .find(|declaration| declaration.id == identity)
         .ok_or(invalid.clone())?;
-    let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return Err(invalid);
+    let cases: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
+        terminal_psi::StructuralTypeShape::Sum { cases }
+        | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
+        _ => return Err(invalid),
     };
     cases
         .iter()
