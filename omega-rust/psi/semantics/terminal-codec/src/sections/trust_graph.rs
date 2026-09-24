@@ -700,7 +700,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            29
+            28
         );
         assert_eq!(
             graph
