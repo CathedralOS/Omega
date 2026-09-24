@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 #[path = "support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
+use fixture_package_inputs::{FixtureReviewCache, discard_fixture_review_cache};
 use fixture_package_inputs::{
     bundled_standard_library_dependency_declaration,
     bundled_standard_library_dependency_declaration_as, bundled_standard_library_root,
@@ -16,7 +17,9 @@ use fixture_package_inputs::{
     fixture_dependency_declarations, fixture_package_identity, fixture_path_dependencies,
     hosted_main_program_entry_build_for, hosted_program_entry_owner, repo_root,
     repository_fixture_package_inputs, reviewed_repository_fixture_package_inputs,
+    reviewed_repository_fixture_package_inputs_with,
 };
+use package_compilation::PackageCompilationInputs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CanaryCompileProduct {
@@ -77,23 +80,49 @@ fn production_compile(
     // the fixture's package review, then the compiler's own stage rows.
     let timings = std::env::var_os("OMEGA_TEST_TIMINGS").is_some();
     let review_started = std::time::Instant::now();
-    let package_inputs =
-        reviewed_repository_fixture_package_inputs(&options.root_path, review_target.as_deref())?;
+    let package_inputs = reviewed_repository_fixture_package_inputs_with(
+        &options.root_path,
+        review_target.as_deref(),
+        FixtureReviewCache::Reuse,
+    )?;
     if timings {
         eprintln!(
             "{:>10.3} ms  harness: fixture package review",
             review_started.elapsed().as_secs_f64() * 1_000.0
         );
     }
-    let mut request = CompileRequest::new(options)
-        .with_requested_product(requested_product)
-        .with_timings(timings);
-    if let Some(package_inputs) = package_inputs {
-        request = request.with_package_inputs(package_inputs);
-    }
+    let build_request = |package_inputs: Option<PackageCompilationInputs>| {
+        let mut request = CompileRequest::new(options.clone())
+            .with_requested_product(requested_product)
+            .with_timings(timings);
+        if let Some(package_inputs) = package_inputs {
+            request = request.with_package_inputs(package_inputs);
+        }
+        request
+    };
     let compile_started = std::time::Instant::now();
-    let report =
-        compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
+    let report = match compiler::compile(build_request(package_inputs))
+        .and_then(compiler::CompileOutcomes::into_single_report)
+    {
+        Ok(report) => report,
+        // A reused verdict whose accepted rows this graph rejects is stale:
+        // forget it and derive the rows from a fresh preliminary compile.
+        Err(diagnostics)
+            if diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("semantic binding")) =>
+        {
+            discard_fixture_review_cache(&options.root_path, review_target.as_deref());
+            let package_inputs = reviewed_repository_fixture_package_inputs_with(
+                &options.root_path,
+                review_target.as_deref(),
+                FixtureReviewCache::Bypass,
+            )?;
+            compiler::compile(build_request(package_inputs))
+                .and_then(compiler::CompileOutcomes::into_single_report)?
+        }
+        Err(diagnostics) => return Err(diagnostics),
+    };
     if timings {
         for timing in report.timings() {
             eprintln!(
