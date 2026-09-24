@@ -14,7 +14,6 @@ pub(super) fn validate(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
     match (target, abstracted) {
         (
             TargetUnitOperation::EstablishRecord {
@@ -32,12 +31,12 @@ pub(super) fn validate(
                 .structural_types
                 .iter()
                 .find(|declaration| declaration.id == result.structural_type)
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             let terminal_psi::StructuralTypeShape::Record {
                 fields: declarations,
             } = &declaration.shape
             else {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             };
             if psi_operation != expected_operation
                 || fields != expected_fields
@@ -76,7 +75,7 @@ pub(super) fn validate(
                         }
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -107,7 +106,7 @@ pub(super) fn validate(
                     })
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -140,7 +139,7 @@ pub(super) fn validate(
                     let parameter = usize::try_from(selector)
                         .ok()
                         .and_then(|position| optimized.parameters.get(position))
-                        .ok_or(invalid.clone())?;
+                        .ok_or(LegalizationError::custody())?;
                     Ok::<_, LegalizationError>(target_operations::TargetStructuralRuntimeIndex {
                         operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
                             parameter_index: selector,
@@ -164,7 +163,7 @@ pub(super) fn validate(
                     )?
                 || result_home.layout.shape() != expected_shape
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -191,22 +190,22 @@ pub(super) fn validate(
                         plan,
                     )?
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             let declaration = plan
                 .structural_types
                 .iter()
                 .find(|declaration| declaration.id == result.structural_type)
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             };
             let case = cases
                 .iter()
                 .find(|case| case.id == *result_case)
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             if fields.len() != case.fields.len() {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             for (field, declared) in fields.iter().zip(&case.fields) {
                 if field.field != declared.id || !sources.iter().any(|(value, source)| *value == field.value && declared.field_type.scalar_type() == Some(source.scalar_type()))
@@ -216,10 +215,10 @@ pub(super) fn validate(
                         || !optimized.facts.iter().any(|fact| matches!(fact,
                             optimization_unit::OptimizationFact::OperationObligationReference { obligation: retained, support }
                             if *retained == obligation && support == psi_operation)))
-                { return Err(invalid); }
+                { return Err(LegalizationError::custody()); }
             }
         }
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     }
     Ok(())
 }

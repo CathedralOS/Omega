@@ -29,14 +29,13 @@ pub(super) fn validate_operation(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
     if matches!(abstracted, AbstractOperation::BoundaryCall { .. }) {
         let node = optimized
             .blocks
             .iter()
             .flat_map(|block| &block.nodes)
             .find(|node| &node.operation == abstracted)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         if let Some((operation, _)) =
             super::super::call_origin::installed_operation(node, optimized, native, plan)?
         {
@@ -45,7 +44,7 @@ pub(super) fn validate_operation(
                 TargetUnitOperation::Call { origin, .. } => {
                     *origin = target_operations::NativeCallOrigin::Authored
                 }
-                _ => return Err(invalid),
+                _ => return Err(LegalizationError::custody()),
             }
             return validate_operation(
                 function,
@@ -318,7 +317,8 @@ pub(super) fn validate_operation(
                     defining_operation: *psi_operation,
                     source_value: result.value,
                     scalar_type: result.scalar_type,
-                    shape: super::super::scalar_shape(result.scalar_type).ok_or(invalid.clone())?,
+                    shape: super::super::scalar_shape(result.scalar_type)
+                        .ok_or(LegalizationError::custody())?,
                 }),
             ));
         }
@@ -346,9 +346,9 @@ pub(super) fn validate_operation(
                 abstracted,
                 &plan.structural_types,
             )
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
             if expected != (*psi_operation, *result, source.clone(), *field) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             sources.push((
                 result.value,
@@ -356,7 +356,8 @@ pub(super) fn validate_operation(
                     defining_operation: *psi_operation,
                     source_value: result.value,
                     scalar_type: result.scalar_type,
-                    shape: super::super::scalar_shape(result.scalar_type).ok_or(invalid.clone())?,
+                    shape: super::super::scalar_shape(result.scalar_type)
+                        .ok_or(LegalizationError::custody())?,
                 }),
             ));
         }
@@ -443,7 +444,7 @@ pub(super) fn validate_operation(
                 || !matches!(view, target_operations::TargetByteView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.byte_view(view, result.place, &[])
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -458,7 +459,7 @@ pub(super) fn validate_operation(
                 || !matches!(view, target_operations::TargetElementView::Subslice { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.element_view(view, result.place, &[])
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -474,7 +475,7 @@ pub(super) fn validate_operation(
                 || !matches!(view, target_operations::TargetElementView::Established { psi_operation: operation, .. } if operation == psi_operation)
                 || !checker.element_view(view, *destination, &[])
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -529,7 +530,7 @@ pub(super) fn validate_operation(
             let parameter = parameters
                 .iter()
                 .find(|parameter| parameter.place == destination.place)
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             let (offset, _) = crate::structural_inputs::structural_reference_input::store(
                 expected_destination.structural_type,
                 expected_path,
@@ -537,7 +538,7 @@ pub(super) fn validate_operation(
                 value.scalar_type,
                 &unit.structural_types,
             )
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
             if psi_operation != expected_operation
                 || destination != expected_destination
                 || path != expected_path
@@ -548,7 +549,7 @@ pub(super) fn validate_operation(
                     .iter()
                     .any(|(identity, expected)| *identity == value.value && expected == source)
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         (
@@ -624,7 +625,7 @@ pub(super) fn validate_operation(
         ) if psi_edge == edge
             && cleanup_actions == cleanup
             && (cleanup.is_empty() || super::super::read_byte::cleanup(optimized, cleanup)) => {}
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     }
     Ok(())
 }

@@ -151,7 +151,6 @@ pub(super) fn validate(
     native: ::target::NativeTarget,
     plan: &AbstractOperationPlan,
 ) -> Result<CallPlan, LegalizationError> {
-    let invalid = LegalizationError::custody();
     let graph = &target.graph;
     if !body(function)
         || target.machine != abstracted.machine
@@ -168,12 +167,12 @@ pub(super) fn validate(
         || graph.scalar_parameters.len() != abstracted.parameters.len()
         || function.parameters.len() != abstracted.parameters.len()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let mut shapes = abstracted
         .parameters
         .iter()
-        .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(invalid.clone()))
+        .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(LegalizationError::custody()))
         .collect::<Result<Vec<_>, _>>()?;
     let scalar_count = shapes.len();
     for (position, (parameter, retained)) in function
@@ -186,7 +185,7 @@ pub(super) fn validate(
             parameter.structural_type,
             &plan.structural_types,
         )
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
         if parameter.position as usize != position
             || retained.place != parameter.place
             || retained.structural_type != parameter.structural_type
@@ -195,7 +194,7 @@ pub(super) fn validate(
             || retained.projected_qualifications != parameter.projected_qualifications
             || retained.shape != shape
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         shapes.push(shape);
     }
@@ -209,7 +208,7 @@ pub(super) fn validate(
             scalar_shape(result.scalar_type)
         }
         AbstractFunctionResult::Unit => None,
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     };
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(native),
@@ -218,9 +217,9 @@ pub(super) fn validate(
             result: result_shape,
         },
     )
-    .map_err(|_| invalid.clone())?;
+    .map_err(|_| LegalizationError::custody())?;
     if graph.call_plan != expected {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     for (position, ((declared, current), retained)) in abstracted
         .parameters
@@ -236,7 +235,7 @@ pub(super) fn validate(
             || retained.scalar_type != declared.scalar_type
             || retained.placement != expected.parameters[position]
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     if graph
@@ -245,14 +244,14 @@ pub(super) fn validate(
         .zip(&expected.parameters[scalar_count..])
         .any(|(parameter, placement)| parameter.placement != *placement)
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     match function.result {
         AbstractFunctionResult::Scalar(result) => {
             let abi = target
                 .mixed_structural_scalar_abi
                 .as_ref()
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             if abi.call_plan != expected
                 || abi.scalar_parameters != graph.scalar_parameters
                 || abi.structural_parameters != graph.parameters
@@ -260,11 +259,11 @@ pub(super) fn validate(
                 || abi.result.scalar_type != result.scalar_type
                 || Some(&abi.result.placement) != expected.result.as_ref()
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
         AbstractFunctionResult::Unit if target.mixed_structural_scalar_abi.is_none() => {}
-        _ => return Err(invalid),
+        _ => return Err(LegalizationError::custody()),
     }
     let declarations = function
         .structural_parameters
@@ -282,7 +281,7 @@ pub(super) fn validate(
             &plan.structural_types,
         )
     }) {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     if function.structural_places.len()
         != declarations.len()
@@ -304,13 +303,13 @@ pub(super) fn validate(
                 .map(|place| place.id)
                 .collect()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     for place in &function.structural_places {
         if let Some((operation, result, _)) = super::primitive_locals::producer(function, place.id)
         {
             if !super::primitive_locals::valid_result(function, operation, result) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -338,7 +337,7 @@ pub(super) fn validate(
                 })
         });
         if !invocation && !arrival {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     for edge in function
@@ -351,9 +350,9 @@ pub(super) fn validate(
             .blocks
             .iter()
             .find(|block| block.id == edge.target)
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         if edge.structural_bindings.len() != destination.structural_parameters.len() {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         for (binding, parameter) in edge
             .structural_bindings
@@ -363,14 +362,14 @@ pub(super) fn validate(
             let source = declarations
                 .iter()
                 .find(|source| source.place == binding.argument.place)
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
             if binding.parameter != parameter.place
                 || binding.argument.access != StructuralAccess::Owned
                 || !binding.argument.path.is_empty()
                 || source.structural_type != parameter.structural_type
                 || source.multiplicity != parameter.multiplicity
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
     }

@@ -17,7 +17,6 @@ pub(in crate::legalization) fn installed_operation(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<Option<(AbstractOperation, NativeCallOrigin)>, LegalizationError> {
-    let invalid = || LegalizationError::custody();
     let AbstractOperation::BoundaryCall {
         psi_operation,
         result,
@@ -34,7 +33,7 @@ pub(in crate::legalization) fn installed_operation(
         .functions
         .iter()
         .find(|function| function.machine == caller.machine)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LegalizationError::custody())?;
     let mut calls = function
         .graph
         .blocks
@@ -53,7 +52,7 @@ pub(in crate::legalization) fn installed_operation(
         return Ok(None);
     };
     if calls.next().is_some() {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     let NativeCallOrigin::InstalledProvider {
         boundary: selected_boundary,
@@ -62,7 +61,7 @@ pub(in crate::legalization) fn installed_operation(
         completion_receipts: retained_receipts,
     } = origin
     else {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     };
     if selected_boundary != boundary
         || provider.boundary != *boundary
@@ -74,18 +73,18 @@ pub(in crate::legalization) fn installed_operation(
             .iter()
             .any(|candidate| candidate == provider)
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     let declaration = plan
         .boundary_machines
         .iter()
         .find(|row| row.id == *boundary)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LegalizationError::custody())?;
     let candidate = plan
         .functions
         .iter()
         .find(|function| function.machine == callee)
-        .ok_or_else(invalid)?;
+        .ok_or_else(|| LegalizationError::custody())?;
     if declaration.identity != provider.requirement_identity
         || declaration.scalar_parameters.len() != arguments.len()
         || candidate.parameters.len() != arguments.len()
@@ -114,7 +113,7 @@ pub(in crate::legalization) fn installed_operation(
                     || usize::try_from(refinement.candidate_index).ok() != Some(position)
             })
     {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     for ((expected, actual), signature) in declaration
         .structural_parameters
@@ -137,37 +136,41 @@ pub(in crate::legalization) fn installed_operation(
             || expected.projected_qualifications != actual.projected_qualifications
             || expected.projected_qualifications != signature.projected_qualifications
         {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         }
     }
     if candidate.entry_claims.len() != completion_receipts.len() {
-        return Err(invalid());
+        return Err(LegalizationError::custody());
     }
     for entry in &candidate.entry_claims {
         let position = candidate
             .structural_parameters
             .iter()
             .position(|parameter| parameter.place == entry.input)
-            .ok_or_else(invalid)?;
-        let argument = structural_arguments.get(position).ok_or_else(invalid)?;
+            .ok_or_else(|| LegalizationError::custody())?;
+        let argument = structural_arguments
+            .get(position)
+            .ok_or_else(|| LegalizationError::custody())?;
         let mut receipts = completion_receipts
             .iter()
             .filter(|receipt| usize::try_from(receipt.argument_index).ok() == Some(position));
-        let receipt = receipts.next().ok_or_else(invalid)?;
+        let receipt = receipts
+            .next()
+            .ok_or_else(|| LegalizationError::custody())?;
         if receipts.next().is_some() || !entry.path.is_empty() {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         }
         let mut sources = completion_claim_sources
             .iter()
             .filter(|source| source.claim == receipt.claim);
-        let source = sources.next().ok_or_else(invalid)?;
+        let source = sources.next().ok_or_else(|| LegalizationError::custody())?;
         if sources.next().is_some()
             || source
                 .entry
                 .as_ref()
                 .is_none_or(|entry| entry.input != argument.place || entry.path != argument.path)
         {
-            return Err(invalid());
+            return Err(LegalizationError::custody());
         }
     }
     let transfers = completion_receipts
@@ -267,7 +270,7 @@ pub(in crate::legalization) fn installed_operation(
                 selected_evidence: Vec::new(),
             }
         }
-        _ => return Err(invalid()),
+        _ => return Err(LegalizationError::custody()),
     };
     Ok(Some((operation, origin.clone())))
 }

@@ -407,8 +407,10 @@ pub(super) fn validate(
     block: &OptimizationBlock,
     optimized: &PsiOptimizationFunction,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
-    let (terminator, body) = block.nodes.split_last().ok_or(invalid.clone())?;
+    let (terminator, body) = block
+        .nodes
+        .split_last()
+        .ok_or(LegalizationError::custody())?;
     for (position, parameter) in block.parameters.iter().enumerate() {
         if (integer_type(parameter.scalar_type).is_none()
             && !(matches!(
@@ -423,7 +425,7 @@ pub(super) fn validate(
                     position: position as u32,
                 })
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     for (position, node) in body.iter().enumerate() {
@@ -434,12 +436,12 @@ pub(super) fn validate(
             AbstractOperation::DynamicDescriptorParameter { .. }
         ) {
             if !super::indirect_calls::is_descriptor_declaration(node) {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
         let (operation, result) = admit(node).map_err(|rejection| match rejection {
-            NodeRejection::Malformed => invalid.clone(),
+            NodeRejection::Malformed => LegalizationError::custody(),
             NodeRejection::UnsupportedFamily => LegalizationError::UnsupportedScalarOperation {
                 machine: optimized.machine,
                 operation: node.operation.clone(),
@@ -453,7 +455,7 @@ pub(super) fn validate(
                 .iter()
                 .any(|fuel| fuel.site != PsiProvenance::Operation(operation))
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         if matches!(
             node.operation,
@@ -461,7 +463,7 @@ pub(super) fn validate(
                 | AbstractOperation::PrimitiveLocalStore { .. }
         ) {
             if result.is_some() || !node.definitions.is_empty() {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -480,7 +482,7 @@ pub(super) fn validate(
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -499,7 +501,7 @@ pub(super) fn validate(
                     value_type(optimized, **value) != Some(ScalarType::Integer(u64_type()))
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -521,7 +523,7 @@ pub(super) fn validate(
                             })
                 })
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -531,7 +533,7 @@ pub(super) fn validate(
                 || !node.definitions.is_empty()
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -548,7 +550,7 @@ pub(super) fn validate(
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -567,7 +569,7 @@ pub(super) fn validate(
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -589,7 +591,7 @@ pub(super) fn validate(
                 || value_type(optimized, value.value) != Some(value.scalar_type)
                 || scalar_shape(value.scalar_type).is_none()
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -613,7 +615,7 @@ pub(super) fn validate(
                 || value_type(optimized, value.value) != Some(value.scalar_type)
                 || scalar_shape(value.scalar_type).is_none()
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -629,7 +631,7 @@ pub(super) fn validate(
                 || super::literals::declaration_producer(optimized, place.id)
                     != Some((*psi_operation, structural_type.id))
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -644,7 +646,7 @@ pub(super) fn validate(
                 | AbstractOperation::CallStructural { .. }
         ) {
             if result.is_some() || !node.definitions.is_empty() {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -656,13 +658,13 @@ pub(super) fn validate(
         } = &node.operation
         {
             if result.is_some() || !node.definitions.is_empty() || !claim_transfers.is_empty() {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
         if let AbstractOperation::CallDynamicParameterUnit { .. } = &node.operation {
             if result.is_some() || !node.definitions.is_empty() {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             continue;
         }
@@ -676,17 +678,17 @@ pub(super) fn validate(
                 .iter()
                 .any(|value| value_type(optimized, *value).is_none())
             {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
             if boundary_result.scalar().is_none() {
                 if result.is_some() || !node.definitions.is_empty() {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 continue;
             }
         }
         let [definition] = node.definitions.as_slice() else {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         };
         if Some(definition.value) != result
             || definition.site
@@ -695,7 +697,7 @@ pub(super) fn validate(
                     node: position as u32,
                 })
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         let expected_type = match &node.operation {
             AbstractOperation::IeeeFloatCompare {
@@ -707,7 +709,7 @@ pub(super) fn validate(
                 if value_type(optimized, *left) != Some(ScalarType::IeeeFloat(*format))
                     || value_type(optimized, *right) != Some(ScalarType::IeeeFloat(*format))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Boolean
             }
@@ -736,13 +738,13 @@ pub(super) fn validate(
                     || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                     || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u8_type())
             }
             AbstractOperation::ByteSequenceLength { source, .. } => {
                 if !super::byte_views::contains_view(optimized, *source) {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())
             }
@@ -757,13 +759,13 @@ pub(super) fn validate(
                     || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                     || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 result.scalar_type
             }
             AbstractOperation::ElementViewLength { source, .. } => {
                 if !super::byte_views::contains_view(optimized, *source) {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(u64_type())
             }
@@ -790,7 +792,7 @@ pub(super) fn validate(
                 if value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*scalar_type)
             }
@@ -800,7 +802,7 @@ pub(super) fn validate(
                 ..
             } => {
                 if value_type(optimized, *operand) != Some(ScalarType::Integer(*scalar_type)) {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*scalar_type)
             }
@@ -820,7 +822,7 @@ pub(super) fn validate(
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*scalar_type)
             }
@@ -840,7 +842,7 @@ pub(super) fn validate(
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*scalar_type)
             }
@@ -867,7 +869,7 @@ pub(super) fn validate(
                         value_type(optimized, **value) != Some(ScalarType::Integer(*scalar_type))
                     })
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*scalar_type)
             }
@@ -881,7 +883,7 @@ pub(super) fn validate(
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*scalar_type)
             }
@@ -895,7 +897,7 @@ pub(super) fn validate(
                     || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
                     || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*scalar_type)
             }
@@ -932,7 +934,7 @@ pub(super) fn validate(
                     || value_type(optimized, *value) != Some(ScalarType::Integer(*shift_value_type))
                     || value_type(optimized, *count) != Some(ScalarType::Integer(*count_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*shift_value_type)
             }
@@ -951,7 +953,7 @@ pub(super) fn validate(
                     && left_type.and_then(integer_call_shape).is_none())
                     || value_type(optimized, *left) != value_type(optimized, *right)
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Boolean
             }
@@ -959,13 +961,13 @@ pub(super) fn validate(
                 if value_type(optimized, *left) != Some(ScalarType::Boolean)
                     || value_type(optimized, *right) != Some(ScalarType::Boolean)
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Boolean
             }
             AbstractOperation::BooleanNot { operand, .. } => {
                 if value_type(optimized, *operand) != Some(ScalarType::Boolean) {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Boolean
             }
@@ -981,7 +983,7 @@ pub(super) fn validate(
                     || !source_type.can_widen_to(*target_type)
                     || value_type(optimized, *operand) != Some(ScalarType::Integer(*source_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*target_type)
             }
@@ -994,14 +996,14 @@ pub(super) fn validate(
                 if !exact_cast_has_native_carriers(*source_type, *target_type)
                     || value_type(optimized, *operand) != Some(ScalarType::Integer(*source_type))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*target_type)
             }
-            _ => return Err(invalid),
+            _ => return Err(LegalizationError::custody()),
         };
         if definition.scalar_type != expected_type {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
     }
     super::control::validate(terminator, body, optimized)

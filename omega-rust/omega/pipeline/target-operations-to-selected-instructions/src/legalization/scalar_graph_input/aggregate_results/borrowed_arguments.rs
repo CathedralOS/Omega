@@ -19,11 +19,10 @@ pub(super) fn reconstruct(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::custody();
     let destination = callee
         .structural_parameters
         .get(position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     // The argument carries the access the call site actually grants, which must
     // equal the callee's declared access; the *source* may hold wider authority
     // (an owned or mutable root can lend a write-only or shared view, but a
@@ -39,7 +38,7 @@ pub(super) fn reconstruct(
         || !destination.qualifications.is_empty()
         || !destination.projected_qualifications.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let (root, source) = if let Some(parameter) = caller
         .structural_parameters
@@ -51,7 +50,7 @@ pub(super) fn reconstruct(
             terminal_psi::StructuralAccess::Owned | terminal_psi::StructuralAccess::MutableBorrow
         ) && parameter.access != argument.access
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         let retained = native
             .functions
@@ -63,7 +62,7 @@ pub(super) fn reconstruct(
                     .iter()
                     .find(|value| value.place == argument.place)
             })
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         (parameter.structural_type, retained.placement.clone().into())
     } else {
         let site = |operation| {
@@ -82,19 +81,19 @@ pub(super) fn reconstruct(
                     .map(|position| (block.id, position))
             })
         };
-        let after = site(call_operation).ok_or(invalid.clone())?;
+        let after = site(call_operation).ok_or(LegalizationError::custody())?;
         match structural_case::source_owner(caller, argument.place)? {
             legalized_operations::LegalizedStructuralCaseSource::OperationResult {
                 operation,
                 result,
             } => {
                 home_layout(&result, plan)?;
-                let before = site(operation).ok_or(invalid.clone())?;
+                let before = site(operation).ok_or(LegalizationError::custody())?;
                 if (before.0 == after.0 && before.1 >= after.1)
                     || (before.0 != after.0
                         && !target::control_flow::sources::dominates(caller, before.0, after.0))
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 (
                     result.structural_type,
@@ -118,7 +117,7 @@ pub(super) fn reconstruct(
                                 }
                     })
                 {
-                    return Err(invalid);
+                    return Err(LegalizationError::custody());
                 }
                 (
                     declaration.structural_type,
@@ -130,7 +129,7 @@ pub(super) fn reconstruct(
             }
             // `source_owner` never resolves a function parameter.
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. } => {
-                return Err(invalid);
+                return Err(LegalizationError::custody());
             }
         }
     };
@@ -139,19 +138,19 @@ pub(super) fn reconstruct(
         &argument.path,
         &plan.structural_types,
     )
-    .ok_or(invalid.clone())?;
+    .ok_or(LegalizationError::custody())?;
     let referent = crate::structural_inputs::structural_reference_input::shape(
         selected,
         &plan.structural_types,
     )
-    .ok_or(invalid.clone())?;
+    .ok_or(LegalizationError::custody())?;
     let shape = ValueShape::borrowed_reference(referent.byte_size, referent.alignment);
     let placement = call
         .parameters
         .get(callee.parameters.len() + position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     if selected != destination.structural_type || placement.shape != shape {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(target_operations::TargetStructuralArgument {
         place: argument.place,

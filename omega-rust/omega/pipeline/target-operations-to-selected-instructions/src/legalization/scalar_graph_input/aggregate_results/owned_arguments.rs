@@ -19,11 +19,10 @@ pub(super) fn reconstruct(
     native: &TargetOperationPlan,
     plan: &AbstractOperationPlan,
 ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
-    let invalid = LegalizationError::custody();
     let destination = callee
         .structural_parameters
         .get(position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     // Whole-root domain qualifications are signature preconditions whose
     // discharge was verified at the call edge upstream; admission binds the
     // roster and re-checks it exactly wherever an argument binds to a
@@ -34,20 +33,20 @@ pub(super) fn reconstruct(
         || destination.is_self
         || !destination.projected_qualifications.is_empty()
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
         destination,
         &plan.structural_types,
     )
-    .ok_or(invalid.clone())?;
+    .ok_or(LegalizationError::custody())?;
     let value_shape = crate::structural_inputs::structural_reference_input::owned_aggregate_shape(
         destination.structural_type,
         &plan.structural_types,
     )
-    .ok_or(invalid.clone())?;
+    .ok_or(LegalizationError::custody())?;
     if shape != value_shape {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     let source = if let Some(parameter) = caller
         .structural_parameters
@@ -61,7 +60,7 @@ pub(super) fn reconstruct(
             || parameter.qualifications != destination.qualifications
             || !parameter.projected_qualifications.is_empty()
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         let retained = native
             .functions
@@ -73,7 +72,7 @@ pub(super) fn reconstruct(
                     .iter()
                     .find(|retained| retained.place == argument.place)
             })
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         if retained.structural_type != parameter.structural_type
             || retained.access != parameter.access
             || retained.multiplicity != parameter.multiplicity
@@ -81,7 +80,7 @@ pub(super) fn reconstruct(
             || retained.placement.shape != shape
             || !retained.projected_qualifications.is_empty()
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         retained.placement.clone().into()
     } else {
@@ -92,7 +91,7 @@ pub(super) fn reconstruct(
             || result.qualifications != destination.qualifications
             || !result.projected_qualifications.is_empty()
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         let producer_site = caller
             .blocks
@@ -108,7 +107,7 @@ pub(super) fn reconstruct(
                     .then_some((block.id, position))
                 })
             })
-            .ok_or(invalid.clone())?;
+            .ok_or(LegalizationError::custody())?;
         let call_site =
             caller
                 .blocks
@@ -139,7 +138,7 @@ pub(super) fn reconstruct(
                         }
                     })
                 })
-                .ok_or(invalid.clone())?;
+                .ok_or(LegalizationError::custody())?;
         if (producer_site.0 == call_site.0 && producer_site.1 >= call_site.1)
             || (producer_site.0 != call_site.0
                 && !target::control_flow::sources::dominates(caller, producer_site.0, call_site.0))
@@ -152,7 +151,7 @@ pub(super) fn reconstruct(
                         }
             })
         {
-            return Err(invalid);
+            return Err(LegalizationError::custody());
         }
         target_operations::TargetStructuralArgumentSource::StructuralHome {
             psi_operation: producer,
@@ -161,9 +160,9 @@ pub(super) fn reconstruct(
     let placement = call
         .parameters
         .get(callee.parameters.len() + position)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     if placement.shape != shape {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(target_operations::TargetStructuralArgument {
         place: argument.place,

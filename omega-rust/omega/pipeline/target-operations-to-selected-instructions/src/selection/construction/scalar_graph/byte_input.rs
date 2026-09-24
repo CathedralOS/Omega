@@ -24,12 +24,11 @@ pub(super) fn emit(
     else {
         return Ok(false);
     };
-    let invalid = || SelectedInstructionError::custody();
     if !row.has_valid_hosted_read_byte_shape()
         || row.result.is_some()
         || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     let slot = LocalStorageSlotId::Structural {
         operation: row.operation,
@@ -47,9 +46,9 @@ pub(super) fn emit(
         .instructions
         .len()
         .checked_sub(block_start)
-        .ok_or_else(invalid)?
+        .ok_or_else(|| SelectedInstructionError::custody())?
         .try_into()
-        .map_err(|_| invalid())?;
+        .map_err(|_| SelectedInstructionError::custody())?;
     builder
         .transport
         .settlements
@@ -69,7 +68,7 @@ pub(super) fn emit(
             .constraints
             .keys
             .hosted_read_byte
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[],
         SelectedInstructionProvenance {
             operations: vec![row.operation],

@@ -16,7 +16,6 @@ pub(super) fn validate(
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let invalid = || SelectedInstructionError::custody();
     let (place, placement, slot) = if let Some((parameter, placement)) =
         crate::selection::aggregate_result_input::returned_parameter(source, &returned.value)
     {
@@ -32,9 +31,10 @@ pub(super) fn validate(
     } else {
         let (slot, placement) =
             crate::selection::aggregate_result_input::returned(source, &returned.value)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| SelectedInstructionError::custody())?;
         (
-            slot.structural_place().ok_or_else(invalid)?,
+            slot.structural_place()
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             placement,
             Some(slot),
         )
@@ -54,7 +54,7 @@ pub(super) fn validate(
             .count()
             != 1
     }) {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     // Prefer current addressable backing, including owned ABI indirection.
     // Inline inputs with no addressable home retain their captured fragments.
@@ -74,7 +74,11 @@ pub(super) fn validate(
                 slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
-            replay.constraints.keys.frame_address.ok_or_else(invalid)?,
+            replay
+                .constraints
+                .keys
+                .frame_address
+                .ok_or_else(|| SelectedInstructionError::custody())?,
             &[pointer],
             &Default::default(),
         )?;
@@ -95,7 +99,7 @@ pub(super) fn validate(
             block,
             returned,
             place,
-            pointer.ok_or_else(invalid)?,
+            pointer.ok_or_else(|| SelectedInstructionError::custody())?,
             placement,
             replay,
         )?;
@@ -124,7 +128,7 @@ pub(super) fn validate(
                 matches!(location, ValueLocation::Register { register, .. }
                     if operand.fixed_view.is_some() && operand.fixed_view == environment.fixed_register_view(*register))
             }))
-    }).copied().ok_or_else(invalid)?;
+    }).copied().ok_or_else(|| SelectedInstructionError::custody())?;
     let mut registers = Vec::new();
     if let Some(pointer) = pointer {
         for location in &placement.locations {
@@ -134,7 +138,7 @@ pub(super) fn validate(
                 ..
             } = location
             else {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             };
             let offset = u32::from(*value_byte_offset);
             let register = super::structural_case::temporary(replay, place, offset, false)?;
@@ -155,7 +159,7 @@ pub(super) fn validate(
                 value_byte_offset, ..
             } = location
             else {
-                return Err(invalid());
+                return Err(SelectedInstructionError::custody());
             };
             let offset = u32::from(*value_byte_offset);
             let input = replay
@@ -164,7 +168,7 @@ pub(super) fn validate(
                 .iter()
                 .find(|(owner, position, _)| *owner == place && *position == offset)
                 .map(|(_, _, register)| *register)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| SelectedInstructionError::custody())?;
             let output = super::structural::result(replay, place, offset)?;
             replay.check_instruction(
                 SelectedInstructionKind::CopyI64,
@@ -185,7 +189,7 @@ pub(super) fn validate(
         psi_return_edge,
     } = &replay.block.terminator
     else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
     if *psi_return_edge != returned.edge
         || instruction.id.0 as usize != replay.instruction_cursor
@@ -207,7 +211,7 @@ pub(super) fn validate(
             .ne(registers)
         || instruction.provenance != provenance
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     Ok(())
 }

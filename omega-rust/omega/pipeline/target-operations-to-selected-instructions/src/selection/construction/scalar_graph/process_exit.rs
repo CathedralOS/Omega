@@ -22,18 +22,19 @@ pub(super) fn build(
     let LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source } = row.kind else {
         return Ok(None);
     };
-    let invalid = || SelectedInstructionError::custody();
     let LegalizedScalarTerminator::Return(returned) = &block.terminator else {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     };
-    let (_, input, _, scalar_type) = builder.resolve(source).ok_or_else(invalid)?;
+    let (_, input, _, scalar_type) = builder
+        .resolve(source)
+        .ok_or_else(|| SelectedInstructionError::custody())?;
     if returned.value != LegalizedScalarReturnValue::Unit
         || !matches!(returned.ownership.as_slice(), [optimization_unit::OwnershipEvent::Cleanup(actions)] if actions.is_empty())
         || row.result.is_some()
         || !matches!(row.ownership.as_slice(), [optimization_unit::OwnershipEvent::ClaimCompletion(claims)] if claims.is_empty())
         || !matches!(scalar_type, ScalarType::Integer(integer) if integer.bits() == 32 && integer.sign() == IntegerSign::Signed)
     {
-        return Err(invalid());
+        return Err(SelectedInstructionError::custody());
     }
     builder
         .transport
@@ -45,9 +46,9 @@ pub(super) fn build(
                     .instructions
                     .len()
                     .checked_sub(start)
-                    .ok_or_else(invalid)?,
+                    .ok_or_else(|| SelectedInstructionError::custody())?,
             )
-            .map_err(|_| invalid())?,
+            .map_err(|_| SelectedInstructionError::custody())?,
             settlement: SelectedBoundarySettlementPayload::HostedExitProcessI32 {
                 operation: row.operation,
                 boundary,
@@ -60,7 +61,7 @@ pub(super) fn build(
             .constraints
             .keys
             .hosted_exit_process_i32
-            .ok_or_else(invalid)?,
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         &[input],
         SelectedInstructionProvenance {
             operations: vec![row.operation],
@@ -70,7 +71,11 @@ pub(super) fn build(
         },
     )?;
     Ok(Some(SelectedTerminator::HostedExitProcess {
-        instruction: builder.instructions.last().cloned().ok_or_else(invalid)?,
+        instruction: builder
+            .instructions
+            .last()
+            .cloned()
+            .ok_or_else(|| SelectedInstructionError::custody())?,
         nominal_return_edge: returned.edge,
     }))
 }

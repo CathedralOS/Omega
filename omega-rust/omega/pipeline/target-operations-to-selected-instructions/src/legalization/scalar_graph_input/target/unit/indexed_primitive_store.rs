@@ -17,7 +17,6 @@ pub(super) fn validate(
     optimized: &optimization_unit::PsiOptimizationFunction,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
     let TargetUnitOperation::WriteOnlyIndexedPrimitiveStore {
         psi_operation,
         destination,
@@ -29,7 +28,7 @@ pub(super) fn validate(
         obligation,
     } = target
     else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let AbstractOperation::WriteOnlyIndexedPrimitiveStore {
         psi_operation: expected_operation,
@@ -40,18 +39,19 @@ pub(super) fn validate(
         obligation: expected_obligation,
     } = abstracted
     else {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     };
     let parameter = parameters
         .iter()
         .find(|parameter| parameter.place == expected_destination.place)
-        .ok_or(invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
     let declared_type = unit
         .structural_types
         .iter()
         .find(|declaration| declaration.id == expected_destination.structural_type)
-        .ok_or(invalid.clone())?;
-    let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
+        .ok_or(LegalizationError::custody())?;
+    let unsigned_64 =
+        IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| LegalizationError::custody())?;
     if psi_operation != expected_operation
         || destination != expected_destination
         || path != expected_path
@@ -78,7 +78,7 @@ pub(super) fn validate(
             .any(|(identity, expected)| *identity == value.value && source == expected)
             || preceding_ieee_literal(source, *expected_operation, optimized))
     {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     Ok(())
 }

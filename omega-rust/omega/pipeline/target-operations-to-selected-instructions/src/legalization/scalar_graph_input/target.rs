@@ -27,7 +27,6 @@ pub(super) fn validate_target(
     plan: &AbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
-    let invalid = LegalizationError::custody();
     super::hosted_scalar::validate_tails(native, optimized, plan)?;
     let operations = optimized
         .blocks
@@ -60,7 +59,7 @@ pub(super) fn validate_target(
     edges.sort();
     target_edges.sort();
     if target.provenance.operations != operations || target_edges != edges {
-        return Err(invalid);
+        return Err(LegalizationError::custody());
     }
     control_flow::validate(
         target,
