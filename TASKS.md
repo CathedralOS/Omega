@@ -187,6 +187,31 @@ the complete product bar; focused successes below do not establish that baseline
   a sibling module (`memory/address_translation_canary/cathedral/*.omg`)
   reports zero sites and is untouched.
 
+  WHAT THE REMAINING DECLINES ARE, sampled by migrating each fixture and
+  reading its first error (`arithmetic`, eight fixtures). Three shapes, and
+  all three are the same missing capability seen from different sides: an
+  expression's INTERVAL is not available where membership is decided.
+
+  - A WRITE whose value is an expression: "cannot prove the value assigned
+    to `self.count` in domain `...0To100`" for `self.count + 1` under a
+    guard that bounds `count`. The write route decides membership
+    structurally (`predicate_expression_holds_on_value`) and has no
+    interval to fall back on.
+  - A CALL whose argument is an expression, at a site the transition-guard
+    route does not reach: `bump(self.count + 1)`, `append(room.exit_count)`.
+    The guard route handles an arm target; a statement call does not go
+    through it.
+  - A RETURN: "cannot prove scalar result domain for return ... u32::...0To4".
+
+  The interval machinery exists on the call side
+  (`caller_expression_interval` in `checks/contracts/calls.rs`) but it needs
+  the dominating guard, and the write and return sites have no single guard
+  in hand -- theirs is an INCOMING guard, which lives in
+  `checks/ranges::incoming_guards` and is not reachable from
+  `checks/contracts`. Closing this properly means giving the contract
+  checker an expression-interval query that consults the same guard facts
+  the ranges checker builds, rather than three separate partial readers.
+
   Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not
   the canary filter: the filter reported PASS for two fixtures the gate
   showed moving checked -> rejected, because dedicated exact-native
