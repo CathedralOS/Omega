@@ -63,7 +63,7 @@ fn backend_crates_use_only_reviewed_physical_pipeline_dependencies() {
         (
             "machine-emission/Cargo.toml",
             "selected-form-encoding-to-resolved-layout",
-            "../../pipeline/selected-form-encoding-to-resolved-layout",
+            "../../pipeline/11_selected-form-encoding-to-resolved-layout",
         ),
         (
             "machine-emission/Cargo.toml",

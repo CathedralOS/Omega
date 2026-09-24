@@ -82,7 +82,7 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "stage_optimized_layout_independent_selected_form_encoding",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout.rs",
+        path: "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout.rs",
         coordination_marker: "stage_optimized_resolved_selected_form_layout",
     },
     RequiredCoordinationEntrance {
@@ -214,11 +214,11 @@ pub(crate) const ENTRANCES: &[RequiredCoordinationEntrance] = &[
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/validation/mod.rs",
+        path: "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/validation/mod.rs",
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {
-        path: "omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/validation/ordinary/mod.rs",
+        path: "omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout/validation/ordinary/mod.rs",
         coordination_marker: "pub(super) fn validate",
     },
     RequiredCoordinationEntrance {

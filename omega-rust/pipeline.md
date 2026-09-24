@@ -30,7 +30,7 @@ setup are not additional public program stages.
 | Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/08_selected-instructions-to-register-homes/README.md) |
 | Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/pipeline/09_register-homes-to-post-allocation-machine/src/lib.rs) |
 | Post-allocation machine → selected-form encoding | [post-allocation-machine-to-selected-form-encoding](omega/pipeline/10_post-allocation-machine-to-selected-form-encoding/src/lib.rs) |
-| Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/pipeline/selected-form-encoding-to-resolved-layout/src/lib.rs) |
+| Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/lib.rs) |
 | Resolved → resolved layout | [resolved-layout-to-resolved-layout](omega/pipeline/resolved-layout-to-resolved-layout/src/lib.rs) |
 | Resolved program → machine bytes | [machine-emission](omega/backend/machine-emission/README.md) |
 | Machine bytes → object/image evidence | [image-emission](omega/backend/images/image-emission/src/lib.rs) |

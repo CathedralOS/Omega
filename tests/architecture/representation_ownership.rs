@@ -1381,7 +1381,7 @@ fn resolved_layout_data_and_identity_do_not_require_a_producing_stage() {
     assert!(!pipeline.contains("omega.terminal.resolved-selected-form-layout.v16"));
 
     let stage =
-        root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
+        root.join("omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout/src/resolved_selected_form_layout");
     let wrapper = std::fs::read_to_string(stage.with_extension("rs")).unwrap();
     assert!(wrapper.contains("program: Arc<ResolvedMachineLayout>"));
     assert!(wrapper.contains("Arc::clone(&self.program)"));
@@ -1834,7 +1834,7 @@ fn semantic_wrapper_encoding_belongs_to_the_program_entry_plan() {
 #[test]
 fn resolved_layout_transformation_is_owned_outside_the_coordinator() {
     let root = repository();
-    let owner = root.join("omega-rust/omega/pipeline/selected-form-encoding-to-resolved-layout");
+    let owner = root.join("omega-rust/omega/pipeline/11_selected-form-encoding-to-resolved-layout");
     let coordinator = root.join("omega-rust/omega/compiler/native-realization/src");
     let algorithms = rust_source(&owner.join("src"));
     let optimization_owner =
@@ -2349,7 +2349,7 @@ fn connected_pipeline_route_covers_every_stage_crate() {
         "omega/pipeline/08_selected-instructions-to-register-homes",
         "omega/pipeline/09_register-homes-to-post-allocation-machine",
         "omega/pipeline/10_post-allocation-machine-to-selected-form-encoding",
-        "omega/pipeline/selected-form-encoding-to-resolved-layout",
+        "omega/pipeline/11_selected-form-encoding-to-resolved-layout",
         "omega/pipeline/resolved-layout-to-resolved-layout",
     ];
     // The omega-side frontend boundary route that feeds that chain across
