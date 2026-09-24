@@ -654,6 +654,10 @@ impl TerminalExecution {
                         self.execute_structural_byte_sequence_field_byte_store(operation)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::StructuralByteSequenceFieldRead { .. } => {
+                        self.execute_structural_byte_sequence_field_read(operation)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::IntegerConstant { .. } => {
                         self.execute_integer_constant(operation)?
                     }

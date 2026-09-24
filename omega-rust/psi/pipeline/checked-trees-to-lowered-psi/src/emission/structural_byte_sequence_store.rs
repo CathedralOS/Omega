@@ -140,6 +140,7 @@ pub(crate) fn emit(
         return unsupported("byte-field store literal exceeds capacity");
     }
     let field = field.id;
+    operations.invalidate_field_lengths_under(parameter.place, &path);
     let structural_type = existing_literal_view_type(structural_types)?;
     let source = place_id(allocate_dense(next_place)?);
     let declaration_ordinal = u32::try_from(literal_places.len())

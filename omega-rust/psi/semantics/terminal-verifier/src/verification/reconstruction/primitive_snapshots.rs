@@ -230,6 +230,7 @@ impl<'a> PrimitiveSnapshots<'a> {
                 | StructuralEffectAction::ReleaseReference
                 | StructuralEffectAction::ObserveCaseMembership
                 | StructuralEffectAction::ReadByteSequenceFieldLength
+                | StructuralEffectAction::ReadByteSequenceFieldByte
                 | StructuralEffectAction::EstablishByteSequencePlace
                 | StructuralEffectAction::ReadByteSequenceLength
                 | StructuralEffectAction::ReadByteSequence

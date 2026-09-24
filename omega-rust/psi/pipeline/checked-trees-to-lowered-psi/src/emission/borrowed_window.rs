@@ -140,6 +140,7 @@ impl BorrowedWindowLedger {
             ));
         }
         let moved_place = place_id(allocate_dense(next_place)?);
+        operations.invalidate_field_lengths_under(place.source, &place.path);
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,
@@ -205,6 +206,7 @@ impl BorrowedWindowLedger {
                 "the repair value's type differs from the type moved out of the place",
             ));
         }
+        operations.invalidate_field_lengths_under(place.source, &place.path);
         let id = operations.allocate();
         operations.push(Operation {
             static_reach_binding: None,

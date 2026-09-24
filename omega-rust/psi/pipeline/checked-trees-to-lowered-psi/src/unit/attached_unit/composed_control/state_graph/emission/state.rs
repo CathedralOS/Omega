@@ -267,6 +267,7 @@ impl StateGraphEmission<'_, '_> {
         )?;
         let is_guarded_return = guarded_return.is_some();
         let inherited_lengths = operations.byte_lengths.clone();
+        let inherited_field_lengths = operations.field_byte_lengths.clone();
         // Ordered multi-arm guards: every later guard is observed inside its
         // own private block reached only along the previous decision's false
         // edge. Their evaluation drafts are staged before the successor-edge
@@ -404,6 +405,7 @@ impl StateGraphEmission<'_, '_> {
                 _ => values.clone(),
             };
             operations.byte_lengths.clear();
+            operations.field_byte_lengths.clear();
             let terminator = super::super::guarded::emit_return(
                 checked,
                 plan,
@@ -433,6 +435,7 @@ impl StateGraphEmission<'_, '_> {
             evaluation.blocks.extend(arm_evaluation.blocks);
             operations.structural_values.truncate(retained_bindings);
             operations.byte_lengths.clear();
+            operations.field_byte_lengths.clear();
             conditional_return_edge = Some(SuccessorEdge {
                 edge: edge_id(allocate_dense(&mut next_edge)?),
                 target,
@@ -502,6 +505,7 @@ impl StateGraphEmission<'_, '_> {
                 trivial_affine_discards.retain(|place| *place != consumed);
             }
             operations.byte_lengths = inherited_lengths.clone();
+            operations.field_byte_lengths = inherited_field_lengths.clone();
             let target = plan
                 .states
                 .iter()
@@ -1117,6 +1121,7 @@ impl StateGraphEmission<'_, '_> {
                     // Successor staging runs only after selection. Its length
                     // observations cannot be reused while evaluating the guard.
                     operations.byte_lengths = inherited_lengths.clone();
+                    operations.field_byte_lengths = inherited_field_lengths.clone();
                     // The shared decision emitter carries scalar arguments only.
                     // These outcome blocks retain the original successor edges,
                     // including structural transfers, cleanup and ranking identity.

@@ -144,26 +144,33 @@ pub(in crate::validation) fn exact_length_is_current(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> bool {
-    let OperationKind::StructuralByteSequenceFieldByteStore {
-        destination,
-        path,
-        field,
-        length,
-        ..
-    } = &operation.kind
-    else {
-        return false;
+    let (root, path, field, length, writing) = match &operation.kind {
+        OperationKind::StructuralByteSequenceFieldByteStore {
+            destination,
+            path,
+            field,
+            length,
+            ..
+        } => (*destination, path, *field, *length, true),
+        OperationKind::StructuralByteSequenceFieldRead {
+            source,
+            path,
+            field,
+            length,
+            ..
+        } => (*source, path, *field, *length, false),
+        _ => return false,
     };
-    let Some(exact_path) = field_path(module, machine, *destination, path, *field, true) else {
+    let Some(exact_path) = field_path(module, machine, root, path, field, writing) else {
         return false;
     };
     let Some(producer) = machine.blocks.iter().flat_map(|block| &block.operations).find(|candidate| {
-        candidate.result.scalar().is_some_and(|result| result.id == *length)
+        candidate.result.scalar().is_some_and(|result| result.id == length)
             && matches!(&candidate.kind, OperationKind::StructuralByteSequenceFieldLength { source, path: measured_path, field: measured_field }
-                if source == destination && measured_path == path && measured_field == field)
+                if *source == root && measured_path == path && *measured_field == field)
     }) else { return false; };
     unchanged_since(machine, producer.id, operation.id, |candidate| {
-        changes_length(module, machine, *destination, &exact_path, candidate)
+        changes_length(module, machine, root, &exact_path, candidate)
     })
 }
 

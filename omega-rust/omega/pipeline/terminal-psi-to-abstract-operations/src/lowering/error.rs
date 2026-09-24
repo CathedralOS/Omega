@@ -36,6 +36,9 @@ pub enum LoweringError {
     UnsupportedByteSequenceLiteral(semantic_vocabulary::OperationId),
     /// Bounded byte-field replacement did not retain its Unit effect.
     InvalidStructuralByteSequenceFieldStore(semantic_vocabulary::OperationId),
+    /// Terminal verifies indexed reads on byte-sequence fields, but Omega has
+    /// no target-neutral abstract operation for realizing the field read yet.
+    UnsupportedStructuralByteSequenceFieldRead(semantic_vocabulary::OperationId),
     /// The length observation did not retain its exact scalar u64 result.
     InvalidByteSequenceLength(semantic_vocabulary::OperationId),
     InvalidByteSequenceRead(semantic_vocabulary::OperationId),

@@ -609,7 +609,8 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice
                 | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore
                 | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldLength
-                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldByteStore) {
+                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldByteStore
+                | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldRead) {
                 exact_sources.extend([
                     ("terminal-verifier/validation/foundation.rs", LITERAL_FOUNDATION_SOURCE),
                     ("terminal-verifier/validation/byte_sequence_subslice.rs", BYTE_SUBSLICE_VALIDATION_SOURCE),
@@ -635,7 +636,8 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
             }
             if matches!(row.tag(),
                 terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldLength
-                    | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldByteStore)
+                    | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldByteStore
+                    | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldRead)
             {
                 exact_sources.extend([
                     ("terminal-verifier/validation/structural_byte_sequence_store.rs", BYTE_FIELD_STORE_VALIDATION_SOURCE),
