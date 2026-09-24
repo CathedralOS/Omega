@@ -99,6 +99,9 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                     source: destination,
                     ..
                 } => super::primitive_locals::producer(function, *destination).is_some(),
+                AbstractOperation::IndexedPrimitiveRead { source, .. } => {
+                    super::primitive_locals::producer(function, source.place).is_some()
+                }
                 AbstractOperation::CallUnit {
                     structural_arguments,
                     ..

@@ -319,6 +319,9 @@ fn select_function(
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { .. } => {
                         structural::read(source, &mut builder, operation)?
                     }
+                    LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. } => {
+                        structural::indexed_read(source, operation, &mut builder)?
+                    }
                     LegalizedScalarInstructionKind::ByteSequenceRead { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceLength { .. } => {
                         structural::byte_observation(source, &mut builder, operation)?

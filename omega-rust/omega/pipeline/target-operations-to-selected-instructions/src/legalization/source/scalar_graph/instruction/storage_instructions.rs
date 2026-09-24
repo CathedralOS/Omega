@@ -169,6 +169,54 @@ pub(super) fn project_write_only_indexed_primitive_store(
     Ok(kind)
 }
 
+pub(super) fn project_indexed_primitive_read(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::IndexedPrimitiveRead {
+        psi_operation,
+        result,
+        source,
+        path,
+        index,
+        obligation,
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_indexed_primitive_read")
+    };
+    let kind = {
+        let fact = unit
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *obligation
+            })
+            .ok_or(Error::SourceCustodyMismatch)?;
+        let (byte_offset, byte_size, extent) =
+            crate::structural_inputs::structural_reference_input::indexed_primitive_read(
+                source,
+                path,
+                result.scalar_type,
+                &unit.structural_types,
+            )
+            .ok_or(Error::SourceCustodyMismatch)?;
+        LegalizedScalarInstructionKind::IndexedPrimitiveRead {
+            source: source.clone(),
+            path: path.clone(),
+            index: *index,
+            byte_offset,
+            byte_size,
+            extent,
+            obligation: *obligation,
+            accepted_fact: fact.identity,
+        }
+    };
+    Ok(kind)
+}
+
 pub(super) fn project_structural_scalar_field_store(
     node: &optimization_unit::OptimizationNode,
     unit: &PsiOptimizationUnit,

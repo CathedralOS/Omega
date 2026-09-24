@@ -178,6 +178,65 @@ pub(crate) fn indexed_primitive_store(
     .then_some((offset, bytes, length))
 }
 
+/// Reconstruct a runtime-indexed primitive read: `path` resolves to the fixed
+/// array itself and the dynamic index selects one element. Mirrors the store
+/// geometry under readable-borrow access; returns the array's byte offset
+/// within the original root, the element footprint (the addressing stride)
+/// and the declared extent.
+pub(crate) fn indexed_primitive_read(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    path: &[CanonicalStructuralPathSegment],
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8, u64)> {
+    if source.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        || (path.is_empty()
+            && source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
+        || !matches!(
+            source.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+        )
+        || !source.qualifications.is_empty()
+        || !source.projected_qualifications.is_empty()
+        || matches!(scalar, ScalarType::Integer(integer) if integer.is_address())
+    {
+        return None;
+    }
+    let (carrier, offset) = project_inner(
+        source.structural_type,
+        path.iter().map(|segment| match segment {
+            CanonicalStructuralPathSegment::Field(field) => Projection::FieldId(*field),
+            CanonicalStructuralPathSegment::FixedIndex(position) => {
+                Projection::FixedIndex(*position)
+            }
+            _ => Projection::Unsupported,
+        }),
+        declarations,
+    )?;
+    let mut matches = declarations
+        .iter()
+        .filter(|declaration| declaration.id == carrier);
+    let declaration = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
+        return None;
+    };
+    let mut elements = declarations
+        .iter()
+        .filter(|declaration| declaration.id == element);
+    let element = elements.next()?;
+    if elements.next().is_some() || element.shape != StructuralTypeShape::PrimitiveScalar(scalar) {
+        return None;
+    }
+    let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
+    (u64::from(offset).checked_add(u64::from(bytes).checked_mul(length)?)?
+        <= u64::from(shape(source.structural_type, declarations)?.byte_size))
+    .then_some((offset, bytes, length))
+}
+
 pub(crate) fn shape(
     root: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],

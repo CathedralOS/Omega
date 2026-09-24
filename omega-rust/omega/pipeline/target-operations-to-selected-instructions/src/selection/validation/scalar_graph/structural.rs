@@ -39,12 +39,14 @@ mod record;
 mod scalar_array;
 mod scalar_case;
 pub(super) use primitive_locals::read;
+mod indexed_read;
 mod indexed_store;
 mod scalar_store;
 mod subslice;
 
 pub(super) use byte_views::byte_observation;
 pub(super) use element_views::element_observation;
+pub(super) use indexed_read::validate as indexed_read;
 
 #[derive(Default)]
 pub(super) struct Transport {

@@ -199,6 +199,16 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// One element read at the checked dynamic index scaled by the declared
+    /// element width (the row's byte_count), added to the row's fixed payload
+    /// offset. The subject is a borrowed fixed-array referent; `extent` is the
+    /// declared element count the obligation proves the index inside.
+    ReadIndexedPrimitive {
+        index: semantic_vocabulary::ValueId,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     /// Exactly one checked element read at the dynamic element index. The
     /// element-to-byte scaling lives in the row's instruction sequence;
     /// `index` and `length` are element units.

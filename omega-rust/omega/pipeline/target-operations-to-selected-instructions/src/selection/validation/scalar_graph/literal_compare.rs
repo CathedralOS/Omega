@@ -74,6 +74,9 @@ pub(super) fn folded_literal<'a>(
                     value,
                     ..
                 } => index.value == definition.value || value.value == definition.value,
+                LegalizedScalarInstructionKind::IndexedPrimitiveRead { index, .. } => {
+                    index.value == definition.value
+                }
                 LegalizedScalarInstructionKind::ByteSequenceSubslice {
                     start, end, length, ..
                 }

@@ -401,6 +401,93 @@ pub(super) fn lower(
                 },
             )
         }
+        // The runtime-indexed element read mirrors the indexed store's
+        // admission shape: a readable borrowed root, `path` landing on the
+        // fixed array itself, and a dominating u64 index whose source
+        // resolves through the ordinary scalar maps. The result rejoins the
+        // element scalar type the array's own declaration spells.
+        AbstractOperation::IndexedPrimitiveRead {
+            psi_operation,
+            result,
+            source,
+            path,
+            index,
+            obligation,
+        } => {
+            if !function
+                .structural_parameters
+                .iter()
+                .any(|parameter| parameter == source)
+                || source.multiplicity == StructuralMultiplicity::Linear
+                || (path.is_empty() && source.multiplicity != StructuralMultiplicity::Unrestricted)
+                || !matches!(
+                    source.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                )
+                || !source.qualifications.is_empty()
+                || !source.projected_qualifications.is_empty()
+            {
+                return Err(invalid());
+            }
+            let source_type = types
+                .get(&source.structural_type)
+                .copied()
+                .ok_or_else(invalid)?;
+            if crate::lowering::structural_layout::indexed_array_projection(
+                source.structural_type,
+                path,
+                types,
+            )
+            .map(|(scalar, _extent)| scalar)
+                != Some(result.scalar_type)
+                || native_shape(result.scalar_type).is_none()
+            {
+                return Err(invalid());
+            }
+            let unsigned_64 = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+            if index.scalar_type != ScalarType::Integer(unsigned_64) {
+                return Err(invalid());
+            }
+            let index_source = super::scalar_sources::source(index.value, function, live)?;
+            if index_source.scalar_type() != index.scalar_type {
+                return Err(invalid());
+            }
+            let root_shape = crate::lowering::structural_layout::structural_shape(
+                source.structural_type,
+                types,
+                &mut BTreeMap::new(),
+                &mut BTreeSet::new(),
+            )?;
+            let expected_shape =
+                ValueShape::borrowed_reference(root_shape.byte_size, root_shape.alignment);
+            let target_parameter = prepared
+                .parameters
+                .iter()
+                .find(|parameter| {
+                    parameter.place == source.place
+                        && parameter.structural_type == source.structural_type
+                        && parameter.multiplicity == source.multiplicity
+                        && parameter.access == source.access
+                        && parameter.projected_qualifications == source.projected_qualifications
+                        && parameter.shape == expected_shape
+                        && parameter.placement.shape == expected_shape
+                })
+                .ok_or_else(invalid)?;
+            retain_result(*psi_operation, *result, live)?;
+            (
+                *psi_operation,
+                TargetUnitOperation::IndexedPrimitiveRead {
+                    psi_operation: *psi_operation,
+                    result: *result,
+                    source: source.clone(),
+                    path: path.clone(),
+                    index: index_source,
+                    source_type: source_type.clone(),
+                    source_placement: target_parameter.placement.clone(),
+                    obligation: *obligation,
+                },
+            )
+        }
         _ => return Err(invalid()),
     };
     operations.push(lowered);

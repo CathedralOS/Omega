@@ -188,6 +188,7 @@ pub(super) fn lower(
             AbstractOperation::ByteSequenceLength { result, .. }
             | AbstractOperation::ByteSequenceRead { result, .. }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
+            | AbstractOperation::IndexedPrimitiveRead { result, .. }
             | AbstractOperation::IntegerStructuralField { result, .. }
             | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. }

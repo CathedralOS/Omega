@@ -103,6 +103,11 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
+        | O::IndexedPrimitiveRead {
+            psi_operation,
+            obligation,
+            ..
+        }
         | O::ElementViewSubslice {
             psi_operation,
             obligation,

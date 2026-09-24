@@ -163,6 +163,7 @@ pub(in crate::selection) fn entry(
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { destination, source, .. } => destination.place == place || *source == place,
             LegalizedScalarInstructionKind::StructuralScalarFieldRead { source: argument, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source: argument, .. } => argument.place == place,
+            LegalizedScalarInstructionKind::IndexedPrimitiveRead { source, .. } => source.place == place,
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { destination, .. } => destination.place == place,
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
             | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. }

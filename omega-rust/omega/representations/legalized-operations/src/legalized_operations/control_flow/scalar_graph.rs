@@ -96,6 +96,9 @@ impl LegalizedScalarInstruction {
                         value: stored,
                         ..
                     } => index.value == value || stored.value == value,
+                    LegalizedScalarInstructionKind::IndexedPrimitiveRead {
+                        index, ..
+                    } => index.value == value,
                     LegalizedScalarInstructionKind::ByteSequenceSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ElementViewSubslice { start, end, length, .. } => *start == value || *end == value || *length == value,
                     LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => *index == value || *length == value,
@@ -295,6 +298,22 @@ pub enum LegalizedScalarInstructionKind {
         path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
         index: abstract_operations::AbstractResult,
         value: abstract_operations::AbstractResult,
+        byte_offset: u32,
+        byte_size: u8,
+        extent: u64,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
+    /// One observing element read at a proven in-extent runtime index.
+    /// `path` resolves to the fixed array; `byte_offset` is the array's base
+    /// within the referent and `byte_size` is both the element width and the
+    /// addressing stride. `obligation`/`accepted_fact` carry the verifier's
+    /// `index < extent` certificate. The instruction result is the observed
+    /// element at its declared scalar type.
+    IndexedPrimitiveRead {
+        source: terminal_psi::StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: abstract_operations::AbstractResult,
         byte_offset: u32,
         byte_size: u8,
         extent: u64,

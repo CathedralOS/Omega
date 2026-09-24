@@ -285,6 +285,7 @@ fn abstract_operation_psi_operation(operation: &AbstractOperation) -> Option<Ope
     match operation {
         AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
         | AbstractOperation::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
+        | AbstractOperation::IndexedPrimitiveRead { psi_operation, .. }
         | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
         | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
         | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }

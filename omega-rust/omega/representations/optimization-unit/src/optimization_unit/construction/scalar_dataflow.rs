@@ -31,7 +31,8 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         | O::ElementViewLength { result, .. }
         | O::ElementViewRead { result, .. }
         | O::StructuralByteSequenceFieldLength { result, .. }
-        | O::IntegerStructuralField { result, .. } => Some((result.value, result.scalar_type)),
+        | O::IntegerStructuralField { result, .. }
+        | O::IndexedPrimitiveRead { result, .. } => Some((result.value, result.scalar_type)),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Scalar(result),
             ..
@@ -196,6 +197,8 @@ pub(super) fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::EstablishScalarArray { elements, .. } => elements.clone(),
         O::ByteSequenceRead { index, length, .. } => vec![*index, *length],
         O::ElementViewRead { index, length, .. } => vec![*index, *length],
+        // The runtime selector is the read's only scalar use.
+        O::IndexedPrimitiveRead { index, .. } => vec![index.value],
         O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,

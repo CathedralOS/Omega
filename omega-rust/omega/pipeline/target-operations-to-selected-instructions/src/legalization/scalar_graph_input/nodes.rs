@@ -87,6 +87,11 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         }
+        | AbstractOperation::IndexedPrimitiveRead {
+            psi_operation,
+            result,
+            ..
+        }
         | AbstractOperation::IntegerStructuralField {
             psi_operation,
             result,
@@ -723,6 +728,7 @@ pub(super) fn validate(
                 ..
             }
             | AbstractOperation::PrimitiveScalarRead { result, .. }
+            | AbstractOperation::IndexedPrimitiveRead { result, .. }
             | AbstractOperation::IntegerStructuralField { result, .. }
             | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. } => result.scalar_type,

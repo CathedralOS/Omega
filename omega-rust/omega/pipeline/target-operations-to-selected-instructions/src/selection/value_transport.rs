@@ -37,6 +37,7 @@ pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<Va
                 Instruction::WriteOnlyIndexedPrimitiveStore { index, value, .. } => {
                     pending.extend([index.value, value.value])
                 }
+                Instruction::IndexedPrimitiveRead { index, .. } => pending.push(index.value),
                 Instruction::ByteSequenceSubslice {
                     start, end, length, ..
                 }

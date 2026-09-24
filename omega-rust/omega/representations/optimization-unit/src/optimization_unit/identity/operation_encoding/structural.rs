@@ -155,6 +155,22 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             encode_abstract_result(bytes, *value);
             bytes.id(*obligation);
         }
+        O::IndexedPrimitiveRead {
+            psi_operation,
+            result,
+            source,
+            path,
+            index,
+            obligation,
+        } => {
+            bytes.u8(89);
+            bytes.id(*psi_operation);
+            encode_abstract_result(bytes, *result);
+            encode_structural_parameter(bytes, source);
+            encode_canonical_path(bytes, path);
+            encode_abstract_result(bytes, *index);
+            bytes.id(*obligation);
+        }
         O::StructuralScalarFieldStore {
             psi_operation,
             destination,

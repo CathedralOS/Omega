@@ -48,6 +48,8 @@ pub(crate) fn rewrite_block_parameter_operation(
             replace(&mut index.value);
             replace(&mut value.value);
         }
+        // The runtime selector is the read's only scalar use.
+        O::IndexedPrimitiveRead { index, .. } => replace(&mut index.value),
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }

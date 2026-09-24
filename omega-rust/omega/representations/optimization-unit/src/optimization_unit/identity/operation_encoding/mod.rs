@@ -25,6 +25,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::WriteOnlyIndexedPrimitiveStore { .. }
+        | O::IndexedPrimitiveRead { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishScalarCase { .. }

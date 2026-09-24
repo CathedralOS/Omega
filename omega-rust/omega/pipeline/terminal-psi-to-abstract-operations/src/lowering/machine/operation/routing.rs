@@ -90,8 +90,78 @@ pub(super) fn lower(
         OperationKind::StructuralByteSequenceFieldRead { .. } => Err(
             LoweringError::UnsupportedStructuralByteSequenceFieldRead(operation.id),
         ),
-        OperationKind::IndexedPrimitiveRead { .. } => {
-            Err(LoweringError::UnsupportedIndexedPrimitiveRead(operation.id))
+        // A verified runtime-indexed read observes through the same readable
+        // custody as a static scalar read; its path tip is the fixed array
+        // itself and the u64 index plus bounds obligation ride as operands.
+        OperationKind::IndexedPrimitiveRead {
+            source,
+            path,
+            index,
+            obligation,
+        } => {
+            let invalid = || LoweringError::InvalidIndexedPrimitiveRead(operation.id);
+            let Some(source) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+                .cloned()
+            else {
+                return Err(invalid());
+            };
+            let result = operation.result.scalar().ok_or_else(invalid)?;
+            let u64 = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is a valid scalar type"),
+            );
+            let Some(index_type) = value_types.get(index).copied() else {
+                return Err(invalid());
+            };
+            let valid_source = index_type == u64
+                && matches!(
+                    source.access,
+                    terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                )
+                && (source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    || (!path.is_empty()
+                        && source.multiplicity == terminal_psi::StructuralMultiplicity::Affine))
+                && source.qualifications.is_empty()
+                && source.projected_qualifications.is_empty()
+                && machine
+                    .entry_claims
+                    .iter()
+                    .all(|claim| claim.input != source.place)
+                && machine
+                    .content_entry_claims
+                    .iter()
+                    .all(|claim| claim.input.root != source.place)
+                && terminal_semantics::fixed_array_place_shape(
+                    structural_types.iter(),
+                    source.structural_type,
+                    path,
+                )
+                .map(|(element, _extent)| element)
+                    == Some(result.scalar_type);
+            if !valid_source {
+                return Err(invalid());
+            }
+            Ok(AbstractOperation::IndexedPrimitiveRead {
+                psi_operation: operation.id,
+                result: abstract_operations::AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                source,
+                path: path.clone(),
+                index: abstract_operations::AbstractResult {
+                    value: *index,
+                    scalar_type: index_type,
+                },
+                obligation: *obligation,
+            })
         }
         OperationKind::StructuralByteSequenceFieldByteStore {
             destination,

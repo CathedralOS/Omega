@@ -49,6 +49,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::WriteOnlyIndexedPrimitiveStore { .. }
+        | O::IndexedPrimitiveRead { .. }
         | O::StructuralScalarFieldStore { .. }
         | O::AtomicEvent { .. }
         | O::EstablishScalarArray { .. }

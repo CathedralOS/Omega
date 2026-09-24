@@ -202,6 +202,22 @@ pub enum TargetUnitOperation {
         source: TargetUnitScalarArgumentSource,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// One verifier-approved primitive element observation at a proven runtime
+    /// index through a readable borrowed root. `path` resolves from the source
+    /// root to the fixed array itself; `index` is the exact dominating u64
+    /// scalar definition and `obligation` certifies `index < extent`, so the
+    /// load always lands inside the declared array. Selection must not realize
+    /// this operation without an exact element-width address model.
+    IndexedPrimitiveRead {
+        psi_operation: OperationId,
+        result: AbstractResult,
+        source: StructuralParameterDeclaration,
+        path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        index: TargetUnitScalarArgumentSource,
+        source_type: StructuralTypeDeclaration,
+        source_placement: ValuePlacement,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// One verifier-approved fixed-width integer write into an exact field of
     /// a staged attached-Unit structural parameter (receiver or ordinary
     /// parameter). Semantic location and

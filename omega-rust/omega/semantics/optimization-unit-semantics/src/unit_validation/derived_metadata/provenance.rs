@@ -36,6 +36,7 @@ pub(crate) fn expected_provenance(
         | O::StructuralCaseMembership { psi_operation, .. }
         | O::WriteOnlyPrimitiveStore { psi_operation, .. }
         | O::WriteOnlyIndexedPrimitiveStore { psi_operation, .. }
+        | O::IndexedPrimitiveRead { psi_operation, .. }
         | O::StructuralScalarFieldStore { psi_operation, .. }
         | O::AtomicEvent { psi_operation, .. }
         | O::StoreDynamicDescriptor { psi_operation, .. }

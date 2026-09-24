@@ -421,6 +421,7 @@ fn operation_observations(
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::WriteOnlyIndexedPrimitiveStore { .. }
+        | O::IndexedPrimitiveRead { .. }
         | O::ByteSequenceWrite { .. }
         | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }

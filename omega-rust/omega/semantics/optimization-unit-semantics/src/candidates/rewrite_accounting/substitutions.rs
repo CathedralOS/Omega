@@ -40,6 +40,8 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
             replace(&mut index.value);
             replace(&mut value.value);
         }
+        // The runtime selector is the read's only scalar use.
+        O::IndexedPrimitiveRead { index, .. } => replace(&mut index.value),
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
         | O::CallStructuralScalar { arguments, .. }

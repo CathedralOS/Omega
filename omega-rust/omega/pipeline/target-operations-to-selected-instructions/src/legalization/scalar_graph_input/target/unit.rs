@@ -12,6 +12,7 @@ use target_operations::{
 mod aggregate_results;
 mod direct_calls;
 mod ieee_float;
+mod indexed_primitive_read;
 mod indexed_primitive_store;
 mod indirect_calls;
 mod primitive_store;
@@ -391,6 +392,14 @@ pub(super) fn validate_operation(
             AbstractOperation::WriteOnlyIndexedPrimitiveStore { .. },
         ) => {
             indexed_primitive_store::validate(
+                target, abstracted, parameters, sources, optimized, unit,
+            )?;
+        }
+        (
+            TargetUnitOperation::IndexedPrimitiveRead { .. },
+            AbstractOperation::IndexedPrimitiveRead { .. },
+        ) => {
+            indexed_primitive_read::validate(
                 target, abstracted, parameters, sources, optimized, unit,
             )?;
         }

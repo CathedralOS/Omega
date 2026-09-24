@@ -412,6 +412,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     structural_fields::write_only_indexed_store_retained(abstracted, operation, targeted)
                         && structural_fields::write_only_indexed_footprint_retained(operation, &selected.memory_accesses)
                 }
+                AbstractOperation::IndexedPrimitiveRead { .. } => {
+                    structural_fields::indexed_primitive_read_retained(abstracted, operation, targeted)
+                        && structural_fields::indexed_primitive_read_footprint_retained(operation, &selected.memory_accesses)
+                }
                 AbstractOperation::Jump { .. }
                 | AbstractOperation::Conditional { .. } => control_flow::retained(operation, targeted),
                 AbstractOperation::StructuralCase { source, cases } => {

@@ -167,6 +167,19 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn enc
                 bytes.extend_from_slice(&extent.to_le_bytes());
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
+            SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                index,
+                extent,
+                obligation,
+                accepted_fact,
+            } => {
+                bytes.push(12);
+                for identity in [index.get(), obligation.get()] {
+                    bytes.extend_from_slice(&identity.to_le_bytes());
+                }
+                bytes.extend_from_slice(&extent.to_le_bytes());
+                bytes.extend_from_slice(&accepted_fact.bytes());
+            }
             SelectedMemoryAccessRole::ReadElementView {
                 index,
                 length,
@@ -328,6 +341,14 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
                 index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 length: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
                 obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
+                accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
+                    cursor.array()?,
+                ),
+            },
+            12 => SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
+                obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
+                extent: cursor.u64()?,
                 accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_bytes(
                     cursor.array()?,
                 ),

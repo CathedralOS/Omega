@@ -73,6 +73,16 @@ pub(crate) fn operation_scalar_types_match(
                     )
                 && scalar(value.value) == Some(value.scalar_type)
         }
+        // The runtime selector rejoins its dominating u64 definition; the
+        // element type itself is replayed from the array declaration.
+        O::IndexedPrimitiveRead { index, .. } => {
+            scalar(index.value) == Some(index.scalar_type)
+                && index.scalar_type
+                    == ScalarType::Integer(
+                        IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                            .expect("u64 is valid"),
+                    )
+        }
         O::StructuralCaseMembership { result, .. } => result.scalar_type == ScalarType::Boolean,
         O::AtomicEvent { event, .. } => {
             use abstract_operations::AbstractAtomicEvent as E;

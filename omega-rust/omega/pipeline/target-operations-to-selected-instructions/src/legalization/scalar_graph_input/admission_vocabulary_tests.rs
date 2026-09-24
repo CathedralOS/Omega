@@ -188,6 +188,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::IntegerWiden { .. }
         | AbstractOperation::PrimitiveLocalStore { .. }
         | AbstractOperation::PrimitiveScalarRead { .. }
+        | AbstractOperation::IndexedPrimitiveRead { .. }
         | AbstractOperation::ReleaseReference { .. }
         | AbstractOperation::SaturatingIntegerAdd { .. }
         | AbstractOperation::SaturatingIntegerDivide { .. }

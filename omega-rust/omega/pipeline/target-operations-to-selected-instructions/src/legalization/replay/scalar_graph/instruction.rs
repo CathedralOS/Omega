@@ -398,6 +398,12 @@ pub(super) fn validate(
             actual, node, optimized, unit, operation,
         )?,
         (
+            LegalizedScalarInstructionKind::IndexedPrimitiveRead { .. },
+            AbstractOperation::IndexedPrimitiveRead { .. },
+        ) => storage_instructions::validate_indexed_primitive_read(
+            actual, node, optimized, unit, operation,
+        )?,
+        (
             LegalizedScalarInstructionKind::StructuralScalarFieldStore { .. },
             AbstractOperation::StructuralScalarFieldStore { .. },
         ) => storage_instructions::validate_structural_scalar_field_store(actual, node, unit)?,

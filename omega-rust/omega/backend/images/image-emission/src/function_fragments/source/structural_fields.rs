@@ -179,6 +179,100 @@ pub(super) fn write_only_indexed_footprint_retained(
         && effects.next().is_none()
 }
 
+/// A runtime-indexed primitive read is mandatory replay: the emitted target
+/// retains the declared source, path, index and bounds obligation while the
+/// selected memory roster carries exactly one `ReadIndexedPrimitive` row
+/// accounting for the observation.
+pub(super) fn indexed_primitive_read_retained(
+    function: &AbstractFunction,
+    operation: &AbstractOperation,
+    target: &TargetFunction,
+) -> bool {
+    let AbstractOperation::IndexedPrimitiveRead {
+        psi_operation,
+        result,
+        source,
+        path,
+        index,
+        obligation,
+    } = operation
+    else {
+        return false;
+    };
+    let Some((access, _)) = read_access(function, target, source.place, false) else {
+        return false;
+    };
+    if access != source.access {
+        return false;
+    }
+    let mut reads = target
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|candidate| {
+            matches!(candidate,
+        TargetUnitOperation::IndexedPrimitiveRead { psi_operation: retained, .. }
+            if retained == psi_operation)
+        });
+    let Some(TargetUnitOperation::IndexedPrimitiveRead {
+        result: retained_result,
+        source: retained_source,
+        path: retained_path,
+        index: retained_index,
+        obligation: retained_obligation,
+        ..
+    }) = reads.next()
+    else {
+        return false;
+    };
+    *retained_result == *result
+        && *retained_source == *source
+        && *retained_path == *path
+        && retained_obligation == obligation
+        && retained_index.source_value() == index.value
+        && retained_index.scalar_type() == index.scalar_type
+        && matches!(retained_index.scalar_type(), ScalarType::Integer(integer)
+            if Ok(integer) == semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64))
+        && reads.next().is_none()
+}
+
+/// Exactly one element-width read accounts for this effect. A write or
+/// metadata publication with the same origin is not part of the indexed
+/// read; mandatory source/selection replay independently reconstructs the
+/// scaled address and the accepted bounds fact.
+pub(super) fn indexed_primitive_read_footprint_retained(
+    operation: &AbstractOperation,
+    accesses: &[selected_instructions::SelectedMemoryAccess],
+) -> bool {
+    use selected_instructions::{
+        SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
+    };
+    let AbstractOperation::IndexedPrimitiveRead {
+        psi_operation,
+        source,
+        index,
+        obligation,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut effects = accesses
+        .iter()
+        .filter(|access| access.origin == Origin::Operation(*psi_operation));
+    let Some(read) = effects.next() else {
+        return false;
+    };
+    read.place == source.place
+        && matches!(read.role, Role::ReadIndexedPrimitive {
+            index: retained_index,
+            obligation: retained_obligation,
+            ..
+        } if retained_index == index.value && retained_obligation == *obligation)
+        && effects.next().is_none()
+}
+
 /// Exactly one one-byte write accounts for this effect. A read or metadata
 /// publication with the same origin is not part of indexed replacement.
 /// Mandatory source/selection replay independently reconstructs the additive

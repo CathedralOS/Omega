@@ -317,6 +317,27 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::IndexedPrimitiveRead {
+                    source,
+                    path,
+                    index,
+                    byte_offset,
+                    byte_size,
+                    extent,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(87);
+                    super::structural_types::encode_structural_parameter(bytes, source);
+                    super::structural_types::encode_canonical_path(bytes, path);
+                    bytes.extend_from_slice(&byte_offset.to_le_bytes());
+                    bytes.extend_from_slice(&index.value.get().to_le_bytes());
+                    encode_scalar_type(bytes, index.scalar_type);
+                    bytes.push(*byte_size);
+                    bytes.extend_from_slice(&extent.to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source } => {
                     bytes.push(14);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());

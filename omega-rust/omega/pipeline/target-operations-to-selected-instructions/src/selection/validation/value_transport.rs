@@ -101,6 +101,7 @@ fn reads(instruction: &Instruction, value: ValueId) -> bool {
         Instruction::WriteOnlyIndexedPrimitiveStore { index, value: stored, .. } => {
             index.value == value || stored.value == value
         }
+        Instruction::IndexedPrimitiveRead { index, .. } => index.value == value,
         Instruction::ByteSequenceSubslice {
             start, end, length, ..
         }
