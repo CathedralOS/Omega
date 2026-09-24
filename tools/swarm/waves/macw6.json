@@ -36,7 +36,7 @@
       "item": "GENERAL-LICM",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations",
         "omega-rust/psi/semantics/terminal-verifier/src/validation/control_flow",
         "omega-rust/psi/semantics/terminal-verifier/src/trusted_surface",
         "omega-rust/psi/semantics/terminal-verifier/tests/ranked_scc"

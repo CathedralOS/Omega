@@ -36,7 +36,7 @@ pub(super) const GOVERNED_ROOTS: &[&str] = &[
     // Allocation analysis schemas and codecs moved out of the selected stage.
     // Keep their concept-owned leaves governed alongside the algorithms.
     "omega-rust/omega/representations/register-homes/src/register_homes",
-    "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations",
+    "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations",
     "omega-rust/omega/pipeline/abstract-operations-to-target-operations",
     "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
     "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
@@ -87,16 +87,16 @@ pub(super) const RULE_STAGES: &[RuleStageDescriptor] = &[
         consumers: &["omega-rust/psi/compiler/terminal-production/src/terminal_production.rs"],
     },
     RuleStageDescriptor {
-        entrance: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/mod.rs",
-        catalog: "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/catalog.rs",
+        entrance: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/mod.rs",
+        catalog: "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/catalog.rs",
         coordination_marker: "pub(crate) fn built_in_psi_registries",
         catalog_marker: "PSI_PASS_CATALOG",
         next_rungs: &[
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/",
         ],
         output_marker: "built_in_psi_registries",
         consumers: &[
-            "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/abstract_optimization.rs",
+            "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/abstract_optimization.rs",
         ],
     },
     RuleStageDescriptor {

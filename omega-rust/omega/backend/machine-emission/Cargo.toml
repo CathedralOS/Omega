@@ -13,7 +13,7 @@ abstract-operations = { path = "../../representations/abstract-operations" }
 sha2 = "0.10.9"
 abstract-operations-to-target-operations = { path = "../../pipeline/abstract-operations-to-target-operations" }
 terminal-psi-to-abstract-operations = { path = "../../pipeline/03_terminal-psi-to-abstract-operations" }
-abstract-operations-to-abstract-operations = { path = "../../pipeline/abstract-operations-to-abstract-operations" }
+abstract-operations-to-abstract-operations = { path = "../../pipeline/04_abstract-operations-to-abstract-operations" }
 register-environment = { path = "../register-environment" }
 post-allocation-machine-to-selected-form-encoding = { path = "../../pipeline/post-allocation-machine-to-selected-form-encoding" }
 register-homes-to-post-allocation-machine = { path = "../../pipeline/register-homes-to-post-allocation-machine" }

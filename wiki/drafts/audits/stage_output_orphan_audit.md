@@ -26,7 +26,7 @@ files that must still name the stage's `output_marker`:
 | Stage entrance | Produced route marker | Consumers checked |
 | --- | --- | --- |
 | `06_lowered-psi-to-lowered-psi/src/psi_optimization.rs` | `run_psi_optimization` | `terminal-production/src/terminal_production.rs` |
-| `abstract-operations-to-abstract-operations/src/rules/mod.rs` | `built_in_psi_registries` | `.../pass_manager/entry.rs` |
+| `04_abstract-operations-to-abstract-operations/src/rules/mod.rs` | `built_in_psi_registries` | `.../pass_manager/entry.rs` |
 | `selected-instructions-to-selected-instructions/src/rewrites/selected_lowering/mod.rs` | `resolve_selected_lowering_rules` | `.../rewrites/literal_folds/mod.rs` |
 | `selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs` | `selected_allocation_recovery_rule` | `selected-instructions-to-register-homes/src/register_allocation.rs` |
 | `resolved-layout-to-resolved-layout/src/x86_branch_relaxation/mod.rs` | `stage_optimized_x86_branch_relaxation` | `resolved-layout-to-resolved-layout/src/phase.rs` |
@@ -78,7 +78,7 @@ test-only channels are cataloged, not flagged.
 | `AdmittedNativeArtifact` | omega/pipeline/03_terminal-psi-to-abstract-operations | 6 | 4 | 2 | 0 |
 | `AbstractOperationPlan` | omega/representations/abstract-operations | 0 | — | — | — |
 | `AbstractOperationPlanWithPlacedViewInputs` | omega/representations/abstract-operations | 0 | — | — | — |
-| `ValidatedOptimizedAbstractPlan` | omega/pipeline/abstract-operations-to-abstract-operations | 18 | 16 | 2 | 0 |
+| `ValidatedOptimizedAbstractPlan` | omega/pipeline/04_abstract-operations-to-abstract-operations | 18 | 16 | 2 | 0 |
 | `TargetOperationPlan` | omega/representations/target-operations | 0 | — | — | — |
 | `StagedOptimizedSelectedInstructions` | omega/pipeline/target-operations-to-selected-instructions | 9 | 8 | 0 | 0 |
 | `SelectedInstructionOptimizationOutput` | omega/pipeline/selected-instructions-to-selected-instructions | 3 | 2 | 0 | 1 |

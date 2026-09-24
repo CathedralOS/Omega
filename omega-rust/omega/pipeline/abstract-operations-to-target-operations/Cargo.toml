@@ -9,7 +9,7 @@ name = "abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
-abstract-operations-to-abstract-operations = { path = "../abstract-operations-to-abstract-operations" }
+abstract-operations-to-abstract-operations = { path = "../04_abstract-operations-to-abstract-operations" }
 calling-conventions = { path = "../../representations/calling-conventions" }
 effects = { path = "../../representations/effects" }
 function-identity = { path = "../../representations/function-identity" }

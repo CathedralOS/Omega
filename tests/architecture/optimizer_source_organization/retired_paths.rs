@@ -14,7 +14,7 @@ pub(crate) fn check(audit: &mut Audit) {
     let violations = &mut audit.violations;
 
     let psi_pass_root =
-        "omega-rust/omega/pipeline/abstract-operations-to-abstract-operations/src/rules/";
+        "omega-rust/omega/pipeline/04_abstract-operations-to-abstract-operations/src/rules/";
     for path in source_files.iter().filter(|path| {
         path.starts_with(psi_pass_root)
             && !is_test_source(path)
