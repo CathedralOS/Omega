@@ -254,6 +254,51 @@ pub(super) fn argument(
             access,
         });
     }
+    // A `&[u8]`/`&'a V` borrowed-view result forwarded whole as the actual:
+    // the producer already loaned its own storage, so the argument names the
+    // anonymous binding at this statement — no `&expr` spelling and no owned
+    // custody event. Same producer uniqueness and ordering the general
+    // anonymous-result lane below enforces.
+    if !projected
+        && access == CheckedStructuralAccess::SharedBorrow
+        && (crate::execution::terminal_unit::types::borrowed_slice_view(
+            program,
+            parameter.type_reference,
+        ) || crate::execution::terminal_unit::types::borrowed_named_view(
+            program,
+            parameter.type_reference,
+        ))
+        && result.type_identity == target_identity
+        && let facts::PlaceRoot::Expression(source) = place.root
+        && source == expression
+    {
+        if usize::try_from(result.statement_index).ok()? != call.statement_index {
+            return None;
+        }
+        let flow = state_flow(facts, machine, state)?;
+        let mut producers = facts
+            .flow
+            .control
+            .calls
+            .span(flow.calls)?
+            .iter()
+            .filter(|producer| {
+                producer.statement_index == call.statement_index
+                    && producer.authored_expression == source
+            });
+        let producer = producers.next()?;
+        if producers.next().is_some() || producer.call_ordinal <= call.call_ordinal {
+            return None;
+        }
+        return Some(CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: result.binding_ordinal,
+            },
+            path: Vec::new(),
+            type_identity: target_identity.to_owned(),
+            access,
+        });
+    }
     // A whole linear result carries the producer's live claim, not affine
     // cleanup debt. Its exact qualification and transfer events must agree
     // with the consumer; projected and borrowed claim joins remain separate.
