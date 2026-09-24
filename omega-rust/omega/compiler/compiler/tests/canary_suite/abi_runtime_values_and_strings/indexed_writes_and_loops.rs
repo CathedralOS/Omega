@@ -7,7 +7,7 @@ use crate::{
     repo_root, run_bounded_canary_jobs,
 };
 #[cfg(not(windows))]
-use crate::{copy_dir_recursive, executable_name, sample_project};
+use crate::{executable_name, sample_project};
 use compiler::CheckedCompileRequest;
 use std::io::Write;
 
@@ -920,6 +920,8 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
 #[cfg(not(windows))]
 #[test]
 fn native_dungeon_direct_movement_dispatch_runs() {
+    // The sample compiles in place: its build declaration names the standard
+    // library by a path relative to the sample, which a copy would break.
     let source = sample_project("cli/games/dungeon_crawler_cli");
     let package_dir = std::env::temp_dir().join(format!(
         "omega-dungeon-direct-movement-{}",
@@ -927,10 +929,9 @@ fn native_dungeon_direct_movement_dispatch_runs() {
     ));
     let build_dir = package_dir.join("build");
     let _ = fs::remove_dir_all(&package_dir);
-    copy_dir_recursive(&source, &package_dir).expect("sample package should copy into temp repro");
 
     compile(CanaryCompileSpec {
-        root_path: package_dir.join("main.omg"),
+        root_path: source.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
         product: CanaryCompileProduct::NativeArtifactAndPublish,

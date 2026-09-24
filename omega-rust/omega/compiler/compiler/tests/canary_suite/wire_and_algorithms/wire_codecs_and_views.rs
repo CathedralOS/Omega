@@ -363,13 +363,26 @@ fn computed_range_wire_decoding_preserves_exact_endpoints_in_the_interpreter() {
     ] {
         let canary = pass_canary(fixture);
         let original = fs::read_to_string(canary.join("main.omg")).expect("ranged wire source");
+        // Each rewrite must apply: a silent no-op would test the unmodified
+        // fixture instead of the computed endpoints.
+        let replace = |text: String, from: &str, to: &str| {
+            assert!(text.contains(from), "{name}: `{from}` is absent");
+            text.replace(from, to)
+        };
         let source = if name == "field" {
-            original
-                .replace("[0..=100]", "[0..=(51 / 2) * 2]")
-                .replace("self.buffer[2] = 50;", "self.buffer[2] = 51;")
-                .replace("good.v == 50", "good.v == 51")
+            let text = replace(
+                original,
+                "requires self <= 100;",
+                "requires self <= (51 / 2) * 2;",
+            );
+            let text = replace(text, "self.buffer[2] = 50;", "self.buffer[2] = 51;");
+            replace(text, "good.v == 50", "good.v == 51")
         } else {
-            original.replace("[-2..=2]", "[0 - 1 / 2 * 4..=1 / 2 * 4]")
+            replace(
+                original,
+                "requires 0 - 2 <= self && self <= 2;",
+                "requires 0 - 1 / 2 * 4 <= self && self <= 1 / 2 * 4;",
+            )
         };
         let project = scratch.join(name);
         fs::create_dir_all(&project).expect("computed range fixture directory");
@@ -377,7 +390,7 @@ fn computed_range_wire_decoding_preserves_exact_endpoints_in_the_interpreter() {
         fs::write(&main_path, source).expect("computed range fixture source");
         // The shared checked compiler derives the standard-library and console
         // service bindings from this copied declaration and the source import.
-        fs::copy(canary.join("build.omg"), project.join("build.omg"))
+        crate::relocate_build_declaration(&canary, &project)
             .expect("ranged wire build declaration");
         let checked =
             compile_reviewed_repository_fixture(CheckedCompileRequest::new(&main_path, None))
