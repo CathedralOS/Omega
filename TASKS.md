@@ -2549,29 +2549,29 @@ syntax and other terminal services are not prerequisites.
   that statement's consumption there, then drop the subtraction in lowering
   so the two facts agree by construction. Keep the equality check itself.
 
-- **AUTHORED-SELECTION-FINALIZATION-GAPS.** (new-scope) Close the authored
-  declaration selection occurrences that survive successful checking.
-  `typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
-  rejects occurrences still `LateBound` at the end of checking. Reproduce:
+- **FILTERED-CALLEE-CALL-SITES.** (new-scope) A source-authored statement call
+  whose callee has no declaration in the selected program is dropped from the
+  checked call facts with no diagnostic. `checked_statement_call_target`
+  returns an invalid symbol, `facts.flow.control` records no call row for the
+  statement, and nothing rejects; the body compiles as if the statement were
+  absent. Only the surviving authored call selection reports it, from
+  `finalization.rs`, naming an occurrence number rather than the call
+  (expression calls already have `undeclared_checked_call_callee`, which names
+  the callee). The target-machine filter states the intended rule in
+  `omega/build/build-evaluation/src/admission/target_machines.rs`: a name
+  implemented by ONE foreign target is that target's paradigm internal and is
+  "filtered silently with its callers" -- but only the declaration is
+  filtered, never a caller. Witness: before
+  `library: uefi handoff legs are module machines, not per-target contract
+  rows`, `UefiOsHandoffCycle::acquire`'s `self.legs.acquire()` reached the end
+  of checking with no call row for every non-uefi selection, targetless
+  included.
 
-  - `package-evidence` `terminal_permission_policy::uefi::ordinary_uefi_permission_retains_calling_meaning_omitted_from_accepted_schema_digest`
-    reports an unresolved `CheckedCall` selection.
-  - `compiler --test canary_suite`'s `float_semantic_twins` and
-    `build_runtime_float_semantics_twins_agree` report an unresolved Operator
-    selection for the outer `==` in `(nan32 == nan32) == false`.
-    In finalization's Binary arm, all three resolvers decline:
-    `checked_generic_operator_target`, `checked_operator_target_for_occurrence`
-    and the `typed_operator_has_no_authored_selection` builtin fallback.
-    Reduced nested comparisons over `bool`, `i32`, and `f32` check; retain
-    the full package/customer context rather than a shape-specific repair.
-
-  Acceptance: both customers check with every occurrence resolved to a real
-  declaration or to an explicit builtin intrinsic, and an occurrence that
-  genuinely selects nothing still rejects. Do not silence the finalization
-  check or widen `allow_unresolved_toolchain` to cover authored source.
-
-  The specialized-helper review's write-frame settlement failure belongs to
-  **R5**, not declaration selection.
+  Acceptance: a statement call whose callee no declaration in the selected
+  program supplies rejects, naming the callee and the selected target, and the
+  authored source that legitimately filters with its callee keeps compiling.
+  Decide first whether the caller filters with the callee or the call rejects;
+  the two answers differ for a portable body that calls a target-scoped name.
 
 - **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
   Complete consuming-transform/replacement execution under
@@ -4138,10 +4138,11 @@ syntax and other terminal services are not prerequisites.
   Reuse `machine_execution/admission.rs::closure_needs_operator_selection`.
   Bodyless catalog contract discharge remains **FLOAT-PROVIDERS**' responsibility.
 
-  `float_semantic_twins` and `build_runtime_float_semantics_twins_agree` first
-  need **AUTHORED-SELECTION-FINALIZATION-GAPS**' imported nested-equality repair.
-  Keep that earlier selection failure distinct from const-call admission and
-  then run the full fixture through evaluation and retained replay.
+  `float_semantic_twins` and `build_runtime_float_semantics_twins_agree` no
+  longer stop on the nested-equality selection failure: they now reach
+  `F32::fused_multiply_add has no ordinary checked Terminates guarantee`.
+  Keep that termination premise distinct from const-call admission and then
+  run the full fixture through evaluation and retained replay.
 
   Acceptance: those source-authored constant customers evaluate and replay
   with exact selected custody; determined runtime results publish stable bits,
