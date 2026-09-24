@@ -216,7 +216,9 @@ pub(crate) fn parameter_shape(
                 .filter(|declaration| {
                     matches!(
                         declaration.shape,
-                        StructuralTypeShape::Sum { .. } | StructuralTypeShape::Record { .. }
+                        StructuralTypeShape::Sum { .. }
+                            | StructuralTypeShape::Record { .. }
+                            | StructuralTypeShape::Mixed { .. }
                     )
                 })
                 .and_then(|_| shape(parameter.structural_type, declarations))
@@ -280,6 +282,7 @@ pub(crate) fn owned_aggregate_shape(
                 StructuralTypeShape::Record { .. }
                     | StructuralTypeShape::FixedArray { .. }
                     | StructuralTypeShape::Sum { .. }
+                    | StructuralTypeShape::Mixed { .. }
             )
         })?;
     plain_aggregate(structural_type, declarations, &mut Vec::new()).then_some(())?;

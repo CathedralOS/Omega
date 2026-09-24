@@ -72,6 +72,7 @@ pub(in crate::legalization) fn argument_at(
                     declaration.shape,
                     terminal_psi::StructuralTypeShape::Record { .. }
                         | terminal_psi::StructuralTypeShape::Sum { .. }
+                        | terminal_psi::StructuralTypeShape::Mixed { .. }
                 )
         })
     {

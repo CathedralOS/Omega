@@ -126,10 +126,15 @@ pub(crate) fn accepts_borrowed_parameters(
         let byte_view = declaration.shape
             == StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView);
         let element_view = matches!(declaration.shape, StructuralTypeShape::ElementView { .. });
+        let sum = matches!(
+            declaration.shape,
+            StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. }
+        );
         // Each borrowed parameter retains its own exact referent and placement;
         // neighboring inputs do not change the admissibility of that pointer.
         if result_shape.is_some()
             && !record
+            && !sum
             && !byte_view
             && !element_view
             && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
@@ -158,7 +163,7 @@ pub(crate) fn accepts_borrowed_parameters(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || semantic.access == StructuralAccess::SharedBorrow
-                && (primitive || record || byte_view || element_view))
+                && (primitive || record || sum || byte_view || element_view))
             || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && !matches!(
