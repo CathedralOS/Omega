@@ -144,7 +144,7 @@ const BYTE_EXTENT_RECONSTRUCTION_SOURCE: &[u8] = include_bytes!(
     "../../../terminal-verifier/src/verification/reconstruction/operation_facts/byte_extent.rs"
 );
 const BYTE_SUBSLICE_VALIDATION_SOURCE: &[u8] =
-    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence_subslice.rs");
+    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence/subslice.rs");
 const BYTE_VIEW_DOMINANCE_SOURCE: &[u8] =
     include_bytes!("../../../terminal-verifier/src/validation/control_flow.rs");
 const CONTROL_GRAPH_SOURCE: &[u8] =
@@ -158,19 +158,19 @@ const BYTE_VIEW_FRONTIER_SOURCE: &[u8] =
 const BYTE_VIEW_FRONTIER_TRAVERSAL_SOURCE: &[u8] =
     include_bytes!("../../../terminal-verifier/src/validation/frontier/traversal.rs");
 const BYTE_VIEW_ARGUMENTS_SOURCE: &[u8] =
-    include_bytes!("../../../terminal-verifier/src/validation/structural_operations.rs");
+    include_bytes!("../../../terminal-verifier/src/validation/structural/operations.rs");
 const BYTE_WRITE_VALIDATION_SOURCE: &[u8] =
-    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence_write.rs");
+    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence/write.rs");
 const BYTE_READ_VALIDATION_SOURCE: &[u8] =
-    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence_read.rs");
+    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence/read.rs");
 const BYTE_VIEW_VALIDATION_SOURCE: &[u8] =
-    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence_length.rs");
+    include_bytes!("../../../terminal-verifier/src/validation/byte_sequence/length.rs");
 const BYTE_FIELD_STORE_VALIDATION_SOURCE: &[u8] =
-    include_bytes!("../../../terminal-verifier/src/validation/structural_byte_sequence_store.rs");
+    include_bytes!("../../../terminal-verifier/src/validation/structural/byte_sequence_store.rs");
 const BYTE_FIELD_ACCESS_VALIDATION_SOURCE: &[u8] =
-    include_bytes!("../../../terminal-verifier/src/validation/structural_byte_sequence_fields.rs");
+    include_bytes!("../../../terminal-verifier/src/validation/structural/byte_sequence_fields.rs");
 const BYTE_FIELD_FRESHNESS_SOURCE: &[u8] = include_bytes!(
-    "../../../terminal-verifier/src/validation/structural_byte_sequence_fields/freshness.rs"
+    "../../../terminal-verifier/src/validation/structural/byte_sequence_fields/freshness.rs"
 );
 const LITERAL_FOUNDATION_SOURCE: &[u8] =
     include_bytes!("../../../terminal-verifier/src/validation/foundation.rs");
