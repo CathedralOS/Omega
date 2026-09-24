@@ -260,6 +260,78 @@ fn transition_arm_value_shapes_still_compose() {
     }
 }
 
+const CONDITIONAL_CALL_TAIL: &str = r#"
+    data Text { len: u64 }
+
+    machine Text::make(len: u64) -> Text { Text { len: len } }
+    machine Text::matches(t: &Text, expected: &[u8], position: u64) -> bool {
+        t.len == position
+    }
+
+    machine Text::consistent() -> bool {
+        let a: Text = Text::make(0);
+        let b: Text = Text::make(512);
+        Text::matches(&a, "0B", 0) && Text::matches(&b, "1B", 0)
+    }
+"#;
+
+const CONDITIONAL_SCALAR_TAIL: &str = r#"
+    machine p(x: u64) -> bool { x == 0 }
+    machine consistent_scalar() -> bool {
+        p(0) && p(1)
+    }
+"#;
+
+#[test]
+fn conditional_tail_scalar_calls_still_plan() {
+    // Pure scalar calls under a short-circuit tail were already admitted;
+    // this guards that nothing about the literal-argument path disturbed it.
+    let checked = checked(CONDITIONAL_SCALAR_TAIL);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let machine = machine_named(&checked, "consistent_scalar");
+    assert!(
+        plans.for_machine(machine).is_some(),
+        "pure scalar conditional tail declined: {:?}",
+        plans.omission_for_machine(machine)
+    );
+}
+
+#[test]
+fn conditional_tail_calls_compose_their_literal_arguments() {
+    // `matches(&a, "0B", 0)` under `&&` is a nested call of the return
+    // computation, not an outer statement call: its `"0B"` actual is a
+    // byte-sequence literal the computation carries as a borrowed view, the
+    // same plan the statement route builds for `write("...")` sites. Once
+    // the call node mints, ordinary consumption retires its call row.
+    let checked = checked(CONDITIONAL_CALL_TAIL);
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let machine = machine_named(&checked, "Text::consistent");
+    assert!(
+        plans.for_machine(machine).is_some(),
+        "conditional literal-argument calls declined: {:?}",
+        plans.omission_for_machine(machine)
+    );
+    let matches = machine_named(&checked, "Text::matches");
+    let call_nodes = checked
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .filter(|(_, node)| {
+            matches!(
+                &node.kind,
+                checked_trees::CheckedScalarComputationKind::Call { target_machine, .. }
+                    if *target_machine == matches
+            )
+        })
+        .count();
+    assert_eq!(
+        call_nodes, 2,
+        "each `matches` operand is one computation call"
+    );
+}
+
 #[test]
 fn transition_arm_runtime_index_reads_remain_declined() {
     // `self.collections[collection_index]` is a runtime-indexed read the

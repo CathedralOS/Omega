@@ -1048,17 +1048,29 @@ impl Builder<'_, '_> {
                             self.machine,
                             self.state,
                         )?;
+                        let argument_plan = crate::execution::terminal_unit::structural_computation_argument(
+                            self.program,
+                            self.borrow,
+                            self.machine,
+                            state,
+                            self.flow.control.calls.get(source_call),
+                            *argument,
+                            parameter,
+                        )
+                        .or_else(|| {
+                            // A `"literal"` actual loans a byte sequence the
+                            // callee reads as a borrowed view; places alone
+                            // cannot name it, so the call argument reuses the
+                            // statement route's literal carrier.
+                            crate::execution::terminal_unit::calls::byte_sequence_literal_argument(
+                                self.program,
+                                parameter.type_reference,
+                                *argument,
+                            )
+                        });
                         structural_arguments.push(
                             checked_trees::CheckedScalarComputationStructuralArgument::Place(
-                                crate::execution::terminal_unit::structural_computation_argument(
-                                    self.program,
-                                    self.borrow,
-                                    self.machine,
-                                    state,
-                                    self.flow.control.calls.get(source_call),
-                                    *argument,
-                                    parameter,
-                                )?,
+                                argument_plan?,
                             ),
                         );
                     }
