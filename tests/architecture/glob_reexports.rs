@@ -28,10 +28,6 @@ const GLOB_REEXPORT_CEILINGS: &[(&str, usize)] = &[
         "omega-rust/omega/pipeline/selected-instructions-to-register-homes",
         12,
     ),
-    (
-        "omega-rust/omega/pipeline/selected-instructions-to-selected-instructions",
-        18,
-    ),
 ];
 
 fn workspace_root() -> PathBuf {

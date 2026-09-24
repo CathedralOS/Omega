@@ -33,7 +33,9 @@ pub use execution::{
 };
 
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
+pub use test_support::{
+    OptimizedLiteralFoldCustodyFieldForTest, SelectedLoweringOptimizationCustodyFieldForTest,
+};
 
 impl From<crate::SelectedLoweringRuleCatalogError> for OptimizedLiteralFoldCustodyError {
     fn from(error: crate::SelectedLoweringRuleCatalogError) -> Self {

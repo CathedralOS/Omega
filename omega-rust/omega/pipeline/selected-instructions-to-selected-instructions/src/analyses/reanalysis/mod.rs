@@ -12,7 +12,7 @@ mod test_support;
 mod validation;
 
 #[cfg(any(test, feature = "test-support"))]
-pub use test_support::*;
+pub use test_support::OptimizedSelectedReanalysisCustodyFieldForTest;
 pub use validation::validate_optimized_selected_reanalysis_custody;
 
 use crate::StagedOptimizedFixedViewCopies;
