@@ -395,40 +395,8 @@ pub(super) fn validate_operation(
                 target, abstracted, parameters, sources, optimized, unit,
             )?;
         }
-        (
-            TargetUnitOperation::ScalarDefinition { result_home, .. },
-            AbstractOperation::ByteSequenceLength { .. }
-            | AbstractOperation::ByteSequenceRead { .. }
-            | AbstractOperation::ElementViewLength { .. }
-            | AbstractOperation::ElementViewRead { .. }
-            | AbstractOperation::IntegerEqual { .. }
-            | AbstractOperation::IntegerLessThan { .. }
-            | AbstractOperation::IntegerLessOrEqual { .. }
-            | AbstractOperation::BooleanNot { .. }
-            | AbstractOperation::BooleanEqual { .. }
-            | AbstractOperation::SaturatingIntegerSubtract { .. }
-            | AbstractOperation::SaturatingIntegerAdd { .. }
-            | AbstractOperation::WrappingIntegerAdd { .. }
-            | AbstractOperation::WrappingIntegerSubtract { .. }
-            | AbstractOperation::WrappingIntegerMultiply { .. }
-            | AbstractOperation::WrappingIntegerDivide { .. }
-            | AbstractOperation::WrappingIntegerShiftLeft { .. }
-            | AbstractOperation::WrappingIntegerShiftRight { .. }
-            | AbstractOperation::ExactIntegerShiftLeft { .. }
-            | AbstractOperation::ExactIntegerShiftRight { .. }
-            | AbstractOperation::ExactIntegerAdd { .. }
-            | AbstractOperation::ExactIntegerDivide { .. }
-            | AbstractOperation::ExactIntegerMultiply { .. }
-            | AbstractOperation::ExactIntegerRemainder { .. }
-            | AbstractOperation::WrappingIntegerRemainder { .. }
-            | AbstractOperation::SaturatingIntegerDivide { .. }
-            | AbstractOperation::IntegerBitwiseAnd { .. }
-            | AbstractOperation::IntegerBitwiseOr { .. }
-            | AbstractOperation::IntegerBitwiseXor { .. }
-            | AbstractOperation::IntegerBitwiseNot { .. }
-            | AbstractOperation::IntegerExactCast { .. }
-            | AbstractOperation::ExactIntegerSubtract { .. },
-        ) => {
+        (TargetUnitOperation::ScalarDefinition { result_home, .. }, abstracted)
+            if super::scalar_definitions::observed_family(abstracted) => {
             super::scalar_definitions::observation(target, abstracted, &checker)?;
             sources.push((result_home.source_value, Source::Home(*result_home)));
         }
