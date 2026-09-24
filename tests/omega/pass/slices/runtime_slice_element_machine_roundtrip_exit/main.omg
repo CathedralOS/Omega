@@ -28,7 +28,7 @@ machine Main::main(&mut self) reaches Console {
     state go(&mut self, s: &mut [i32]) {
         self.got = s[1];
         s[2] = self.put;
-        s[0] = s[0] + 5;
+        s[0] = (s[0] as i32 in Wrapping) + 5;
         transition self.got == 11 && self.arr[2] == 77 && self.arr[0] == 5 {
             true -> yes()
             false -> no()

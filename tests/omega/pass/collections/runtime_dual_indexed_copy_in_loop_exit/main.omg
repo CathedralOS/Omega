@@ -30,14 +30,14 @@ machine Main::main(&mut self) reaches Console {
     }
     state copy(&mut self) {
         self.a[self.i] = self.b[self.i];
-        self.i = self.i + 1;
+        self.i = (self.i as i32 in Wrapping) + 1;
         transition {
             _ -> step()
         }
     }
     state done(&mut self) {
-        self.s = self.a[0] + self.a[1];
-        self.s = self.s + self.a[2];
+        self.s = (self.a[0] as i32 in Wrapping) + (self.a[1] as i32 in Wrapping);
+        self.s = (self.s as i32 in Wrapping) + (self.a[2] as i32 in Wrapping);
         self.console.exit_process(self.s as i32);
     }
 }

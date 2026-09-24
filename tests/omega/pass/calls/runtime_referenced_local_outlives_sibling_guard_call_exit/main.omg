@@ -26,7 +26,7 @@ machine Random::next_u32(
     &mut self,
     state: &mut RandomState
     ) -> u32 {
-    state.seed = state.seed + 1;
+    state.seed = (state.seed as u64 in Wrapping) + 1;
 
     transition {
         _ -> 7

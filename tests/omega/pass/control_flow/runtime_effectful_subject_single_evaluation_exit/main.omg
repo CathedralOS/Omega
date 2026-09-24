@@ -34,7 +34,7 @@ machine Main::deep(
     &mut self,
     tally: &mut Tally
     ) -> u32 {
-    tally.calls = tally.calls + 1;
+    tally.calls = (tally.calls as u64 in Wrapping) + 1;
 
     transition {
         _ -> 3

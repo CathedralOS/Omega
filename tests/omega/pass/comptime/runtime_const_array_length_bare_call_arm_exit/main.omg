@@ -22,7 +22,7 @@ terminates by remaining;
 -> u64
 {
     transition remaining > 0 {
-        true -> (burn(remaining - 1, acc + 1))
+        true -> (burn((remaining as u64 in Wrapping) - 1, (acc as u64 in Wrapping) + 1))
         false -> acc
     }
 }

@@ -18,13 +18,13 @@ data Wrapper { host: Binding<TimeHost>; }
 
 machine Wrapper::first_read(&mut self) -> u64 reaches TimeHost {
     let freq: u64 = self.host.monotonic_ticks_per_second();
-    let shifted: u64 = freq + 1;
+    let shifted: u64 = (freq as u64 in Wrapping) + 1;
     shifted
 }
 
 machine Wrapper::second_read(&mut self) -> u64 reaches TimeHost {
     let freq: u64 = self.host.monotonic_ticks_per_second();
-    let shifted: u64 = freq + 2;
+    let shifted: u64 = (freq as u64 in Wrapping) + 2;
     shifted
 }
 
@@ -43,7 +43,7 @@ machine Main::main(&mut self) reaches Console {
         false -> fail_a_zeroed()
     }
     state check_b(&mut self) {
-        transition self.b == self.a + 1 {
+        transition self.b == (self.a as u64 in Wrapping) + 1 {
             true -> good()
             false -> fail_b_mismatch()
         }
