@@ -1,9 +1,8 @@
 //! Capture incoming parameter ABI storage before ordinary graph operations.
 use super::{
-    Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarArgument,
-    LegalizedScalarFunction, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, StructuralAccess, ValueLocation, VirtualRegister,
-    VirtualRegisterId, VirtualRegisterOrigin,
+    Builder, IndirectPointerLocation, IntegerSign, IntegerType, LegalizedScalarFunction,
+    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, StructuralAccess,
+    ValueLocation, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -83,7 +82,7 @@ pub(in crate::selection) fn entry(
                     .parameters
                     .len()
                     .checked_add(parameter_index)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| invalid())?;
                 if source.call_plan.parameters.get(native_parameter)
                     != Some(&parameter.target.placement)
                 {
@@ -98,7 +97,11 @@ pub(in crate::selection) fn entry(
                         },
                         byte_offset: 0,
                     },
-                    builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+                    builder
+                        .constraints
+                        .keys
+                        .frame_address
+                        .ok_or_else(|| invalid())?,
                     &[address],
                     Default::default(),
                 )?;
@@ -130,7 +133,7 @@ pub(in crate::selection) fn entry(
                 };
                 let fixed = environment
                     .fixed_register_view(*register)
-                    .ok_or_else(invalid)?;
+                    .ok_or_else(|| invalid())?;
                 let input =
                     VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
                 builder.registers.push(VirtualRegister {
@@ -159,24 +162,7 @@ pub(in crate::selection) fn entry(
             retain_owned_home(source, parameter, builder)?;
             continue;
         }
-        let used = crate::selection::established_view_input::transferred(source, place) || source.blocks.iter().flat_map(|block| &block.instructions).any(|row| match &row.kind {
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { destination, source, .. } => destination.place == place || *source == place,
-            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source: argument, .. }
-            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source: argument, .. } => argument.place == place,
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore { destination, .. } => destination.place == place,
-            LegalizedScalarInstructionKind::StructuralScalarFieldStore { destination, .. }
-            | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { destination, .. }
-            | LegalizedScalarInstructionKind::WriteOnlyIndexedPrimitiveStore { destination, .. } => destination.place == place,
-            LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
-            | LegalizedScalarInstructionKind::StructuralCaseMembership { source, .. }
-            | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceLength { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceRead { source, .. }
-            | LegalizedScalarInstructionKind::ByteSequenceSubslice { source, .. } => *source == place,
-            LegalizedScalarInstructionKind::Call(call) => call.arguments.iter().any(|argument| matches!(argument,LegalizedScalarArgument::Structural {semantic,..} if semantic.place == place)),
-            LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call.structural_arguments.iter().any(|argument| argument.place == place),
-            _ => false,
-        });
+        let used = crate::selection::parameter_use::referent_used(source, place);
         // Owned arrivals can transfer into an aggregate without an intervening
         // read. Preserve their input storage independently of the body shape,
         // as for inline value fragments above.
@@ -199,7 +185,7 @@ pub(in crate::selection) fn entry(
                 .parameters
                 .len()
                 .checked_add(parameter_index)
-                .ok_or_else(invalid)?;
+                .ok_or_else(|| invalid())?;
             let address = transport_register(builder, place, 0)?;
             builder.emit(
                 SelectedInstructionKind::FrameAddress {
@@ -209,14 +195,18 @@ pub(in crate::selection) fn entry(
                     },
                     byte_offset: 0,
                 },
-                builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+                builder
+                    .constraints
+                    .keys
+                    .frame_address
+                    .ok_or_else(|| invalid())?,
                 &[address],
                 SelectedInstructionProvenance::default(),
             )?;
             let pointer = transport_register(builder, place, 0)?;
             builder.emit(
                 SelectedInstructionKind::Load64 { byte_offset: 0 },
-                builder.constraints.keys.load64.ok_or_else(invalid)?,
+                builder.constraints.keys.load64.ok_or_else(|| invalid())?,
                 &[address, pointer],
                 SelectedInstructionProvenance::default(),
             )?;
@@ -249,7 +239,7 @@ pub(in crate::selection) fn entry(
         };
         let fixed = environment
             .fixed_register_view(*pointer)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         let input = VirtualRegisterId(builder.registers.len().try_into().map_err(|_| invalid())?);
         builder.registers.push(VirtualRegister {
             id: input,
@@ -313,7 +303,11 @@ fn retain_owned_home(
             slot: selected_instructions::FrameStorageSlotId::Local(slot),
             byte_offset: 0,
         },
-        builder.constraints.keys.frame_address.ok_or_else(invalid)?,
+        builder
+            .constraints
+            .keys
+            .frame_address
+            .ok_or_else(|| invalid())?,
         &[pointer],
         Default::default(),
     )?;
@@ -337,7 +331,7 @@ fn retain_owned_home(
             .iter()
             .find(|(stored, byte_offset, _)| *stored == place && *byte_offset == offset)
             .map(|(_, _, value)| *value)
-            .ok_or_else(invalid)?;
+            .ok_or_else(|| invalid())?;
         super::super::structural_case::memory(
             builder,
             source.entry_block,
