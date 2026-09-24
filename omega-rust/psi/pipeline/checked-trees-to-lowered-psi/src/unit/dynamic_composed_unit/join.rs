@@ -12,8 +12,8 @@ use super::{
     TerminalDynamicConformanceSelection, TerminalDynamicDescriptorArgument,
     TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
     TerminalDynamicDispatchCatalog, TerminalMachine, TerminalMachineResult, TerminalModule,
-    TerminalParameterDynamicDispatch, Terminator, ValueDeclaration, VocabularyMarker, block_id,
-    edge_id, lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
+    TerminalParameterDynamicDispatch, Terminator, ValueDeclaration, block_id, edge_id,
+    lookup_type_id, lower_installation_machine_service_ceiling, lower_root_service_reach,
     machine_id, operation_id, place_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::dynamic_composed_unit::applications::{
@@ -376,35 +376,12 @@ pub(super) fn lower(
 
     Ok(LoweredPsi {
         semantic_module: TerminalModule {
-            scalar_qualifications: Default::default(),
-            scalar_block_invariants: Vec::new(),
-            operation_crash_contracts: Vec::new(),
-            vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: caller_machine,
             structural_types,
-            structural_domains: Vec::new(),
-            services: Vec::new(),
             root_service_reach,
-            placed_view_inputs: Vec::new(),
-            reborrow_root_handoffs: Vec::new(),
-            reborrow_restored_call_uses: Vec::new(),
-            boundary_machines: Vec::new(),
-            provider_candidates: Vec::new(),
-            float_meaning_projections: Vec::new(),
-            float_meaning_equalities: Vec::new(),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            evidence_terms: Vec::new(),
-            evidence_contract_lanes: Vec::new(),
-            proof_output_calls: Vec::new(),
-            proof_recursive_components: Vec::new(),
             closed_conformance_applications: applications,
             dynamic_dispatch,
-            suspension_call_plan_count: 0,
-            suspension_call_sites: Vec::new(),
-            suspension_call_plans: Vec::new(),
-            quotient_correspondences: Vec::new(),
             machines,
+            ..TerminalModule::for_entry(caller_machine)
         },
         proof_bundle: ProofBundle {
             crash_obligations: Vec::new(),

@@ -57,7 +57,7 @@ use terminal_psi::{
     TerminalDynamicDescriptorParameter, TerminalDynamicDescriptorSource,
     TerminalDynamicDispatchCatalog, TerminalIndirectDynamicDispatch, TerminalMachine,
     TerminalMachineResult, TerminalModule, TerminalParameterDynamicDispatch,
-    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalReboundDynamicDescriptor, Terminator, ValueDeclaration,
 };
 
 /// What one dynamic dispatch lowering retains about its source machines.

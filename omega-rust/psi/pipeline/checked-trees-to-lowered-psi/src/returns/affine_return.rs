@@ -4,9 +4,9 @@ use super::{
     LoweringError, MachineContract, MachineId, Multiplicity, ProofBundle, StructuralMultiplicity,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralResultDeclaration,
     StructuralTypeDeclaration, StructuralTypeId, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalMachine,
-    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
-    allocate_dense, block_id, contract_id, edge_id, lookup_machine_id, lookup_type_id, machine_id,
-    place_id, retain_additional_structural_types, terminal_scalar_type, unsupported, value_id,
+    TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, allocate_dense, block_id,
+    contract_id, edge_id, lookup_machine_id, lookup_type_id, machine_id, place_id,
+    retain_additional_structural_types, terminal_scalar_type, unsupported, value_id,
 };
 use crate::unit::attached_unit::lower_unit_parameters;
 
@@ -18,35 +18,7 @@ pub(crate) fn lower_affine_return_machine(
     let source_machine = plan.machine;
     let terminal_machine = machine_id(1);
     let mut semantic_module = TerminalModule {
-        scalar_qualifications: Default::default(),
-        scalar_block_invariants: Vec::new(),
-        operation_crash_contracts: Vec::new(),
-        vocabulary_marker: VocabularyMarker::CURRENT,
-        entry: terminal_machine,
-        structural_types: Vec::new(),
-        structural_domains: Vec::new(),
-        services: Vec::new(),
-        root_service_reach: Default::default(),
-        placed_view_inputs: Vec::new(),
-        reborrow_root_handoffs: Vec::new(),
-        reborrow_restored_call_uses: Vec::new(),
-        boundary_machines: Vec::new(),
-        provider_candidates: Vec::new(),
-        float_meaning_projections: Vec::new(),
-        float_meaning_equalities: Vec::new(),
-        proposition_declarations: Vec::new(),
-        proposition_applications: Vec::new(),
-        evidence_terms: Vec::new(),
-        evidence_contract_lanes: Vec::new(),
-        proof_output_calls: Vec::new(),
-        proof_recursive_components: Vec::new(),
-        closed_conformance_applications: Vec::new(),
-        dynamic_dispatch: Default::default(),
-        suspension_call_plan_count: 0,
-        suspension_call_sites: Vec::new(),
-        suspension_call_plans: Vec::new(),
-        quotient_correspondences: Vec::new(),
-        machines: Vec::new(),
+        ..TerminalModule::for_entry(terminal_machine)
     };
     retain_additional_structural_types(
         &mut semantic_module,

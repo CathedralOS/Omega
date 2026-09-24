@@ -40,7 +40,7 @@ use terminal_psi::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    Terminator, ValueDeclaration,
 };
 use terminal_verifier::ProofBundle;
 

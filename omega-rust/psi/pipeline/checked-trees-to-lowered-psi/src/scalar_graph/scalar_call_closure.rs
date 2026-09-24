@@ -3,8 +3,8 @@
 use super::{
     CheckedScalarBindingValue, CheckedTerminalSignatureEligibility, CheckedTrees, LoweredPsi,
     LoweringError, PrimitiveType, ProofBundle, TERMINAL_MACHINE_IDENTITY_STRIDE, TerminalModule,
-    VocabularyMarker, build_scalar_graph_module, machine_id, prepare_scalar_graph_machine,
-    scalar_graph_lowering, unsupported,
+    build_scalar_graph_module, machine_id, prepare_scalar_graph_machine, scalar_graph_lowering,
+    unsupported,
 };
 pub(crate) mod callee;
 pub(crate) mod embedded;
@@ -458,34 +458,8 @@ pub(crate) fn lower_scalar_call_closure(
     let lowered = LoweredPsi {
         semantic_module: TerminalModule {
             scalar_qualifications,
-            scalar_block_invariants: Vec::new(),
-            operation_crash_contracts: Vec::new(),
-            vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: machine_id(1),
-            structural_types: Vec::new(),
-            structural_domains: Vec::new(),
-            services: Vec::new(),
-            root_service_reach: Default::default(),
-            placed_view_inputs: Vec::new(),
-            reborrow_root_handoffs: Vec::new(),
-            reborrow_restored_call_uses: Vec::new(),
-            boundary_machines: Vec::new(),
-            provider_candidates: Vec::new(),
-            float_meaning_projections: Vec::new(),
-            float_meaning_equalities: Vec::new(),
-            proposition_declarations: Vec::new(),
-            proposition_applications: Vec::new(),
-            evidence_terms: Vec::new(),
-            evidence_contract_lanes: Vec::new(),
-            proof_output_calls: Vec::new(),
-            proof_recursive_components: Vec::new(),
-            closed_conformance_applications: Vec::new(),
-            dynamic_dispatch: Default::default(),
-            suspension_call_plan_count: 0,
-            suspension_call_sites: Vec::new(),
-            suspension_call_plans: Vec::new(),
-            quotient_correspondences: Vec::new(),
             machines,
+            ..TerminalModule::for_entry(machine_id(1))
         },
         proof_bundle: ProofBundle {
             crash_obligations: Vec::new(),
