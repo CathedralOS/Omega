@@ -1,8 +1,8 @@
 //! Exact immutable element-view subslices; establishment is checked at every use.
 
 use crate::validation::{
-    BTreeSet, ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
-    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule, ValueId,
+    BTreeSet, ModuleError, OperationKind, PlaceId, StructuralMultiplicity, StructuralPlaceKind,
+    StructuralTypeShape, TerminalMachine, TerminalModule, ValueId,
 };
 
 pub(in crate::validation) fn borrowed_result(
@@ -104,27 +104,20 @@ pub(in crate::validation) fn validate(
     Ok(())
 }
 
-/// Established element views and exact borrowed results need dominance. Other
-/// structural operations retain their existing ownership/frontier admission
-/// rules.
+/// Exact borrowed results need dominance: a view minted by an operation is
+/// observable only where that operation's block dominates. A machine-level
+/// shared view parameter is the machine's own input, established at entry,
+/// which dominates every block, so it needs no definition site; mutable views
+/// keep their separate per-block availability. Other structural operations
+/// retain their existing ownership/frontier admission rules.
 pub(in crate::validation) fn validate_uses(
-    module: &TerminalModule,
+    _module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
     available: &BTreeSet<PlaceId>,
 ) -> Result<(), ModuleError> {
     let require = |place: PlaceId| {
-        if (borrowed_result(machine, place).is_some()
-            || machine.structural_parameters.iter().any(|parameter| {
-                parameter.place == place
-                    && parameter.access == StructuralAccess::SharedBorrow
-                    && module.structural_types.iter().any(|declaration| {
-                        declaration.id == parameter.structural_type
-                            && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
-                    })
-            }))
-            && !available.contains(&place)
-        {
+        if borrowed_result(machine, place).is_some() && !available.contains(&place) {
             Err(ModuleError::ElementViewNotEstablished {
                 operation: operation.id,
                 place,
