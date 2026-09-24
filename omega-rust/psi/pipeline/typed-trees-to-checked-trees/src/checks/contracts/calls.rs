@@ -810,12 +810,6 @@ fn transition_guard_proves_requires(
     ) else {
         return false;
     };
-    if !matches!(
-        call_site,
-        crate::semantic::calls::CallSite::TransitionNamed { .. }
-    ) {
-        return false;
-    }
     let Some(machine) = crate::lookup::machine_by_symbol(program, state_flow.machine_symbol) else {
         return false;
     };
@@ -836,6 +830,25 @@ fn transition_guard_proves_requires(
     let typed_trees::statement::TransitionGuardNode::When(guard) = transition.guard else {
         return false;
     };
+    // The arm this guard selects, in either spelling. A bare named target is
+    // one; so is `-> (callee(..))`, which `ac52bc4114` requires of an attached
+    // machine and which a receiver-qualified call always uses. Only the
+    // SELECTED arm's own target qualifies: a call inside the guard, nested
+    // inside the target expression, or on the continuation arm -- which holds
+    // the guard's negation -- is not this edge.
+    let selects_this_call = match &call_site {
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => true,
+        crate::semantic::calls::CallSite::Expression { expression, .. } => {
+            matches!(
+                program.statement_table.transition_target(transition.target),
+                typed_trees::statement::TransitionTargetNode::Value(value) if value == expression
+            )
+        }
+        crate::semantic::calls::CallSite::Statement(_) => false,
+    };
+    if !selects_this_call {
+        return false;
+    }
     let Some(target_parameters) =
         crate::semantic::calls::call_target_parameters(program, call_flow.target_symbol)
     else {
@@ -1304,6 +1317,43 @@ mod transition_arm_guard_probes {
             )),
             "the continuation arm holds `!(value > 0)`, which cannot discharge \
              `requires value > 0`"
+        );
+    }
+
+    /// A RECEIVER-QUALIFIED callee always arrives as a value call, and its
+    /// requirement is discharged by the same taken-arm guard. This is the case
+    /// the `CallSite::TransitionNamed` gate actually blocked: `self.read(index)`
+    /// on the taken arm of `transition index <= 15` could not prove
+    /// `requires index <= 15`, while the identical edge to a FREE callee could,
+    /// because a different route reaches that one first.
+    #[test]
+    fn a_receiver_qualified_taken_arm_call_discharges_its_requirement() {
+        const READER: &str = "data Store { arr: [u64; 16]; }
+            machine Store::read(&mut self, index: u64) -> u64
+            requires
+                index <= 15;
+            { transition { _ -> (self.arr[index]) } }";
+        assert!(
+            accepted(&format!(
+                "{READER}
+                machine Store::scan(&mut self, index: u64) -> u64 {{
+                    transition index <= 15 {{ true -> (self.read(index)) false -> (0) }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the taken arm's guard must discharge a receiver-qualified callee's requirement"
+        );
+        assert!(
+            !accepted(&format!(
+                "{READER}
+                machine Store::scan(&mut self, index: u64) -> u64 {{
+                    transition index <= 15 {{ true -> (0) false -> (self.read(index)) }}
+                }}
+                data Main {{}}
+                machine Main::main(&mut self) {{}}"
+            )),
+            "the continuation arm holds the guard's negation and cannot discharge it"
         );
     }
 
