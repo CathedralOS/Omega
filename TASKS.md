@@ -128,6 +128,31 @@ the complete product bar; focused successes below do not establish that baseline
     or names whose DECLARED RANGE entails the facts, so it still reads the
     syntax being removed.
 
+  SWEPT SO FAR, one fixture at a time with the corpus gate deciding each
+  and a revert on any move: `calls` 10 of 20, `arithmetic` 14 of 25,
+  `collections` 32 of 43, `layouts` 3 of 7, `recast` 6 of 11, `objc` 2 of
+  4, plus `text`, `data`, `core`, `expressions`, `targets`, `wire`,
+  `control_flow`, `constraints`, `proofs`, `storage` and `structs` by hand.
+  The pass tier is down to 344 suffix sites.
+
+  `termination` is 0 of 67 and is the largest group left. Its shape is one
+  gap, minimally:
+  `machine walk(remaining: u64 in Fuel) { transition remaining > 0 { true
+  -> walk(remaining - 1) ... } }` with `domain u64::Fuel requires self <=
+  5` rejects "cannot prove requires contract for call walk from walk:
+  remaining - 1 in u64::Fuel". The bracketed form worked because the
+  ARITHMETIC engine proved `remaining - 1` inside the callee's declared
+  range; a membership goal never reaches that engine, so the subtraction
+  cannot be folded. Closing it means letting a membership requirement
+  reduce to its predicates as BOOLEAN goals for `call_bounds`, not just as
+  labels for the guard matcher. That single change is what `termination`,
+  and the rest of the 212 parameter sites whose argument is an expression,
+  are waiting on.
+
+  The sweep script reads only `main.omg`, so a fixture whose bounds live in
+  a sibling module (`memory/address_translation_canary/cathedral/*.omg`)
+  reports zero sites and is untouched.
+
   Verify a leg with `python3 tools/corpus_gate.py --filter <group>/`, not
   the canary filter: the filter reported PASS for two fixtures the gate
   showed moving checked -> rejected, because dedicated exact-native
