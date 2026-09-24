@@ -84,6 +84,22 @@ pub enum ProofRule {
         difference: Box<ProofNode>,
         positive: Box<ProofNode>,
     },
+    /// From result = original + increment and 0 < increment, conclude
+    /// original < result: the mirror of `IntegerSubtractOrder`. Only exact
+    /// fixed-integer addition is covered.
+    IntegerAddOrder {
+        sum: Box<ProofNode>,
+        positive: Box<ProofNode>,
+    },
+    /// From smaller = minuend - large, larger = minuend - small and
+    /// small < large, conclude smaller < larger: exact fixed-integer
+    /// subtraction is strictly antitone in its subtrahend. Both differences
+    /// name one exact minuend term.
+    IntegerSubtractAntitone {
+        smaller: Box<ProofNode>,
+        larger: Box<ProofNode>,
+        order: Box<ProofNode>,
+    },
     IntegerLessOrEqualTransitivity {
         left_less_or_equal_middle: Box<ProofNode>,
         middle_less_or_equal_right: Box<ProofNode>,

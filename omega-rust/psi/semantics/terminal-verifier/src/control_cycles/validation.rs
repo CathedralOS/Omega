@@ -197,13 +197,76 @@ fn observed_view(machine: &TerminalMachine, value: ValueId) -> Option<PlaceId> {
         })
 }
 
+/// A rank is a value whose arrival the verifier can substitute: a scalar
+/// parameter, an actual byte-length observation, or a computed rank.
 fn rank_origin(machine: &TerminalMachine, value: ValueId) -> bool {
+    scalar_parameter(machine, value)
+        || observed_view(machine, value).is_some()
+        || computed_rank(machine, value).is_some()
+}
+
+fn scalar_parameter(machine: &TerminalMachine, value: ValueId) -> bool {
     machine
         .parameters
         .iter()
         .chain(machine.blocks.iter().flat_map(|block| &block.parameters))
         .any(|parameter| parameter.id == value)
-        || observed_view(machine, value).is_some()
+}
+
+/// One exact subtraction's operands, `minuend - subtrahend`.
+#[derive(Clone, Copy)]
+struct Difference {
+    minuend: ValueId,
+    subtrahend: ValueId,
+}
+
+fn exact_difference(machine: &TerminalMachine, value: ValueId) -> Option<Difference> {
+    match defining_operation(machine, value)? {
+        OperationKind::ExactIntegerSubtract { left, right, .. } => Some(Difference {
+            minuend: *left,
+            subtrahend: *right,
+        }),
+        _ => None,
+    }
+}
+
+/// A computed rank is one exact subtraction whose operands are scalar
+/// parameters or integer constants: a climbing subject's distance below a
+/// fixed ceiling (`MAX - lower`) is the producer's form. Its own obligation
+/// proves the subtraction representable wherever it executes, and its value
+/// is a function of those operands alone, so an arrival recomputes it from
+/// the edge's arguments (see `substituted_rank`).
+fn computed_rank(machine: &TerminalMachine, value: ValueId) -> Option<Difference> {
+    let difference = exact_difference(machine, value)?;
+    let operand =
+        |value| scalar_parameter(machine, value) || integer_constant(machine, value).is_some();
+    (operand(difference.minuend) && operand(difference.subtrahend)).then_some(difference)
+}
+
+fn integer_constant(
+    machine: &TerminalMachine,
+    value: ValueId,
+) -> Option<(semantic_vocabulary::IntegerValue, Option<ScalarType>)> {
+    match defining_operation(machine, value)? {
+        OperationKind::IntegerConstant { value: constant } => {
+            Some((*constant, value_type(machine, value)))
+        }
+        _ => None,
+    }
+}
+
+fn defining_operation(machine: &TerminalMachine, value: ValueId) -> Option<&OperationKind> {
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| {
+            operation
+                .result
+                .scalar()
+                .is_some_and(|result| result.id == value)
+        })
+        .map(|operation| &operation.kind)
 }
 
 fn substituted_rank(
@@ -281,6 +344,33 @@ fn substituted_rank(
         // (and one producer for an operation result). Its length observation
         // dominates this edge, so reestablishment cannot bypass that read.
         return observed_view(machine, successor_rank) == Some(arriving);
+    }
+    if let Some(recomputed) = computed_rank(machine, target_rank)
+        && definition(machine, target_rank) == Some(target)
+    {
+        // The target recomputes its rank on every arrival, so the edge must
+        // carry the same subtraction over its actual arguments: each target
+        // parameter operand becomes the argument bound to it, a constant
+        // stays a constant of the same type and value, and any other operand
+        // is defined outside the target and arrives unchanged.
+        let Some(arriving) = exact_difference(machine, successor_rank) else {
+            return false;
+        };
+        let substituted = |operand: ValueId, actual: ValueId| {
+            if let Some(constant) = integer_constant(machine, operand) {
+                return integer_constant(machine, actual) == Some(constant);
+            }
+            match target_block
+                .parameters
+                .iter()
+                .position(|parameter| parameter.id == operand)
+            {
+                Some(position) => arguments.get(position).copied() == Some(actual),
+                None => operand == actual,
+            }
+        };
+        return substituted(recomputed.minuend, arriving.minuend)
+            && substituted(recomputed.subtrahend, arriving.subtrahend);
     }
     target_rank == successor_rank
 }

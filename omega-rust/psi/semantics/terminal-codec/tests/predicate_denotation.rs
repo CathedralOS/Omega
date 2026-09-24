@@ -63,10 +63,10 @@ fn nested_predicate_denotation_preserves_exact_child_and_current_markers() {
         Err(ProofCodecError::UnsupportedProofSystemMarker(3))
     );
     let mut unknown = bytes.clone();
-    unknown[36] = 24;
+    unknown[36] = 26;
     assert_eq!(
         decode_proof_bundle(&unknown),
-        Err(ProofCodecError::InvalidTag("ProofRule", 24))
+        Err(ProofCodecError::InvalidTag("ProofRule", 26))
     );
     for length in 0..bytes.len() {
         assert!(decode_proof_bundle(&bytes[..length]).is_err());

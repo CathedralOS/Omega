@@ -49,6 +49,8 @@ boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
 | `IntegerOrderWeakening` | Constructive | `a = b` or `a < b` entails `a ≤ b` — definitional weakening. |
 | `IntegerOrderDiscreteness` | Constructive-decidable | `x ≤ c` to `x < c + 1` by literal adjacency; sound because the fixed-integer order is discrete and decidable. |
 | `IntegerSubtractOrder` | Constructive-decidable | `r = a − b ∧ 0 < b ⊢ r < a` over exact fixed integers. |
+| `IntegerAddOrder` | Constructive-decidable | `r = a + b ∧ 0 < b ⊢ a < r` over exact fixed integers. |
+| `IntegerSubtractAntitone` | Constructive-decidable | `p = m − x ∧ q = m − y ∧ y < x ⊢ p < q` over exact fixed integers with one minuend. |
 | `IntegerLessOrEqualTransitivity`, `IntegerStrictOrderTransitivity` | Constructive | Order composition with an exact shared middle; strict chains require at least one strict edge. |
 | `IntegerOrderSubstitution` | Constructive | Replaces exactly one endpoint through a proved equality; never changes strictness. |
 | `IntegerAffineBound`, `IntegerExactAddDefinitionBound`, `IntegerCastBound`, `IntegerCorrelatedForbiddenRoots` | Constructive-decidable | Checked witness conversion over the decidable fixed-integer fragment; each accepted use re-records the witness's cited semantic-axiom roster — they carry trusted admissions as premises, never as silent steps (`cites_semantic_axioms`). |

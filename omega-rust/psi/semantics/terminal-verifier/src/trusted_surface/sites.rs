@@ -105,6 +105,11 @@ pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
         module: "bound_tests",
     },
     TestOnlySource {
+        path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction/order_tests.rs",
+        parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction.rs",
+        module: "order_tests",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction/tests.rs",
         parent: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction.rs",
         module: "tests",
@@ -259,7 +264,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/representations/terminal-psi/src/artifacts/proof_bundle/nodes.rs",
-        sha256: Some("fa64c64d9792609447b1375def10eb806f9258e459289d8096b7c74f174e325e"),
+        sha256: Some("9a8e32fc64373961a8c0b4ffca7bbff5fa4129cdc22fcb35839c06101b32656d"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -314,7 +319,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/classicality.rs",
-        sha256: Some("9a77ad9db24f33e789f7f61063c7eb51fb8e96017bef8822736bd00d34b733f6"),
+        sha256: Some("5081f4dc4e95601188780ef74127d8206b3d70eb1f066a38a169141eccc13891"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -384,7 +389,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("47f9ebe93645132cafd4ba20bb8d5ee501559095e4bf9cdc55164aeef3666165"),
+        sha256: Some("de7e2539cc7bfb79517aa533276bdca1295598242117c7fe14fdc29be99f4290"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -414,7 +419,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/forbidden_roots.rs",
-        sha256: Some("dacf0587970cdc70480c99ee128a2526ccefd1d6756df90530c265a89ab978df"),
+        sha256: Some("7bc1b03a4554e8d7ac140f9aebecfc959537bc038432c0981d442414101e985e"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -429,7 +434,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/mathematical_core/bounded_denotation/subtraction.rs",
-        sha256: Some("5316ad1175e5dcf24ef830a27bf3eee134db16a3a0f28b7b167263b9176d0f87"),
+        sha256: Some("177c381d2e8d70d21d85168e0597ad9b9cade52c12a89ce9813015ba0a188db2"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -499,7 +504,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof.rs",
-        sha256: Some("24a8101d0f08bfcf04c3848fe90188eaa4d7fe850332cb855a80c9a0b6c3a84b"),
+        sha256: Some("dca06a2d2ed77a0543035a392461d3c86f8f734ca723ab4ee9f2bd5d97a585de"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/proof/add_order.rs",
+        sha256: Some("c42a8d709dc770e816eba32f2124b7f731cefc6f9223b822b68603a10ae572cc"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -519,7 +529,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/integer_order_rules.rs",
-        sha256: Some("09af469f0cce94efc61839c06f601299cdc4aa6790ee7d92b8a0fa47b2b6fef3"),
+        sha256: Some("b34c5aa7b3aab8082910bc8030b23029637c704247e709238e1eec3093859860"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -538,13 +548,18 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
         inventory_machinery: false,
     },
     ImplementationSite {
+        path: "omega-rust/psi/semantics/proof-admission/src/proof/subtract_antitone.rs",
+        sha256: Some("936f6e6225de33debd36745c303f2fca2e97488072ade18bd77dfe4a59944f13"),
+        inventory_machinery: false,
+    },
+    ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/subtract_order.rs",
         sha256: Some("09c561a250c78e4f10467a8978955a9aae1e285ddb3ffeed6b96d45d4a783df0"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/proof-admission/src/proof/traversal.rs",
-        sha256: Some("c6b143aa74a48f599cc75b03105139d06ebe17740229004cde2f4c79eb269463"),
+        sha256: Some("dd906b6d88032a3c5a180ea79a5a2f93b7109bd9ef467b69361f0435a498df8b"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -644,7 +659,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/semantics/terminal-verifier/src/control_cycles/validation.rs",
-        sha256: Some("7add546601e7a6823c2bd3021108a41ba3a18b3e20bb644b3f69c063ecdb6756"),
+        sha256: Some("8a99ed9eadadbf7f0a3ed0d80cfa3b788ccdc6067a2ffe637854f18ad6bff38b"),
         inventory_machinery: false,
     },
     ImplementationSite {

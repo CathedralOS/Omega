@@ -165,8 +165,11 @@ Contract: [control flow and ranking](../../../../wiki/spec/terminal-psi/control_
 [control_cycles](src/control_cycles.rs) reconstructs complete SCC topology,
 rank substitution, and proof questions. The natural carrier selects one fixed
 integer type per component; a signed carrier is a finite order too, and its sign
-enters the relation identity. Ranks are scalar machine/block parameters or actual
-byte-length observations. Its preserving-edge subgraph must be acyclic.
+enters the relation identity. Ranks are scalar machine/block parameters, actual
+byte-length observations, or one exact subtraction over parameters and integer
+constants (a climbing subject's `MAX - lower`); an arrival must carry the same
+subtraction over the edge's actual arguments. Its preserving-edge subgraph must
+be acyclic.
 `proof_bundle.control_cycles` groups those certificates independently of
 [proof-call recursion](src/proof_recursion.rs).
 

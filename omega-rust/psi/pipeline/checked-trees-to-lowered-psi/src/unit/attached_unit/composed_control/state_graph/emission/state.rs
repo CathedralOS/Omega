@@ -92,18 +92,24 @@ impl StateGraphEmission<'_, '_> {
         let mut next_value = self.catalogs.next_value;
         let mut next_block = self.catalogs.next_block;
         let mut next_edge = self.catalogs.next_edge;
-        let current_rank =
-            if let Some(scalar_position) = ranking::scalar_parameter_position(plan, state) {
-                Some(values[scalar_position].id)
-            } else {
-                ranking::parameter_position(plan, state).map(|parameter_position| {
-                    crate::emission::operation_emission::emit_byte_length(
-                        state_parameters[parameter_position].place,
-                        &mut next_value,
-                        &mut operations,
-                    )
-                })
-            };
+        // The state's own rank, evaluated once on entry; `rank_ceiling` is the
+        // constant its successor edges recompute a distance rank from.
+        let mut rank_ceiling = None;
+        let current_rank = if let Some(rank) = ranking::scalar_rank(plan, state) {
+            let lane = values.iter().map(|value| value.id).collect::<Vec<_>>();
+            let evaluated =
+                ranking::emit_scalar_rank(rank, &lane, None, &mut next_value, &mut operations)?;
+            rank_ceiling = evaluated.ceiling;
+            Some(evaluated.rank)
+        } else {
+            ranking::parameter_position(plan, state).map(|parameter_position| {
+                crate::emission::operation_emission::emit_byte_length(
+                    state_parameters[parameter_position].place,
+                    &mut next_value,
+                    &mut operations,
+                )
+            })
+        };
         let bindings = scalars::emit_prefix(
             checked,
             state,
@@ -959,8 +965,19 @@ impl StateGraphEmission<'_, '_> {
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()?;
             let arriving_rank = if current_rank.is_some() {
-                if let Some(position) = ranking::scalar_parameter_position(plan, target_state) {
-                    arguments.get(position).copied()
+                // The target's measure over this edge's actual arguments,
+                // which the verifier substitutes for the target's own rank.
+                if let Some(rank) = ranking::scalar_rank(plan, target_state) {
+                    Some(
+                        ranking::emit_scalar_rank(
+                            rank,
+                            &arguments,
+                            rank_ceiling,
+                            &mut next_value,
+                            &mut operations,
+                        )?
+                        .rank,
+                    )
                 } else if let Some(dense) = ranking::parameter_position(plan, target_state) {
                     if self
                         .admitted

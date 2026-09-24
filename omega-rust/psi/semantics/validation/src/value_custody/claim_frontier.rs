@@ -276,12 +276,23 @@ fn type_multiplicity_with_substitutions(
     }
 }
 
+/// The declaration a named type resolves to. A resolved symbol is the
+/// declaration's identity; the spelled name only stands in for a reference
+/// that never resolved, so a same-named declaration elsewhere cannot answer
+/// for a resolved one.
 fn find_data_definition<'program>(
     program: &'program TypedTrees,
     symbol: SymbolHandle,
     name: &str,
 ) -> Option<&'program typed_trees::data::DataDefinition> {
-    program.data_definitions().iter().find(|definition| {
-        (symbol.is_valid() && definition.symbol == symbol) || definition.name.as_str() == name
-    })
+    if symbol.is_valid() {
+        return program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.symbol == symbol);
+    }
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == name)
 }

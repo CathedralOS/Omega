@@ -231,6 +231,14 @@ fn proof_node_count(node: &ProofNode) -> u64 {
             difference,
             positive,
         } => proof_node_count(difference) + proof_node_count(positive),
+        ProofRule::IntegerAddOrder { sum, positive } => {
+            proof_node_count(sum) + proof_node_count(positive)
+        }
+        ProofRule::IntegerSubtractAntitone {
+            smaller,
+            larger,
+            order,
+        } => proof_node_count(smaller) + proof_node_count(larger) + proof_node_count(order),
         ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle,
             middle_less_or_equal_right,

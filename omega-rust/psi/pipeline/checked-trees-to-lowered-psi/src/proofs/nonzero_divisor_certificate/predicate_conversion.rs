@@ -118,6 +118,10 @@ fn retain_original_citations(
                 difference: left,
                 positive: right,
             }
+            | ProofRule::IntegerAddOrder {
+                sum: left,
+                positive: right,
+            }
             | ProofRule::IntegerLessOrEqualTransitivity {
                 left_less_or_equal_middle: left,
                 middle_less_or_equal_right: right,
@@ -137,6 +141,13 @@ fn retain_original_citations(
                 ..
             } => {
                 pending.extend([left.as_mut(), right.as_mut()]);
+            }
+            ProofRule::IntegerSubtractAntitone {
+                smaller,
+                larger,
+                order,
+            } => {
+                pending.extend([smaller.as_mut(), larger.as_mut(), order.as_mut()]);
             }
         }
     }

@@ -1,4 +1,5 @@
-//! The integer order rules: subtract order, discreteness, weakening,
+//! The integer order rules: subtract and add order, subtraction
+//! antitonicity, discreteness, weakening,
 //! transitivity of `<=` and strict chains, and substitution of one endpoint
 //! through an equality.
 //!
@@ -30,6 +31,40 @@ pub(super) fn check_integer_subtract_order(
     super::subtract_order::check(
         &difference.conclusion,
         &positive.conclusion,
+        &proof.conclusion,
+    )
+}
+
+pub(super) fn check_integer_add_order(
+    proof: &ProofNode,
+    acceptance: &mut AcceptanceBuilder,
+) -> Result<(), ProofError> {
+    let ProofRule::IntegerAddOrder { sum, positive } = &proof.rule else {
+        unreachable!("dispatched check_integer_add_order")
+    };
+    acceptance.rules.insert(AcceptedProofRule::IntegerAddOrder);
+    super::add_order::check(&sum.conclusion, &positive.conclusion, &proof.conclusion)
+}
+
+pub(super) fn check_integer_subtract_antitone(
+    proof: &ProofNode,
+    acceptance: &mut AcceptanceBuilder,
+) -> Result<(), ProofError> {
+    let ProofRule::IntegerSubtractAntitone {
+        smaller,
+        larger,
+        order,
+    } = &proof.rule
+    else {
+        unreachable!("dispatched check_integer_subtract_antitone")
+    };
+    acceptance
+        .rules
+        .insert(AcceptedProofRule::IntegerSubtractAntitone);
+    super::subtract_antitone::check(
+        &smaller.conclusion,
+        &larger.conclusion,
+        &order.conclusion,
         &proof.conclusion,
     )
 }

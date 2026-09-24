@@ -93,6 +93,21 @@ pub(crate) fn encode_proof_node(
                         pending.push(ProofEncodingAction::Node(positive, child_depth));
                         pending.push(ProofEncodingAction::Node(difference, child_depth));
                     }
+                    ProofRule::IntegerAddOrder { sum, positive } => {
+                        writer.u8(24);
+                        pending.push(ProofEncodingAction::Node(positive, child_depth));
+                        pending.push(ProofEncodingAction::Node(sum, child_depth));
+                    }
+                    ProofRule::IntegerSubtractAntitone {
+                        smaller,
+                        larger,
+                        order,
+                    } => {
+                        writer.u8(25);
+                        pending.push(ProofEncodingAction::Node(order, child_depth));
+                        pending.push(ProofEncodingAction::Node(larger, child_depth));
+                        pending.push(ProofEncodingAction::Node(smaller, child_depth));
+                    }
                     ProofRule::EqualityTransitivity {
                         left_equals_middle,
                         middle_equals_right,
@@ -219,6 +234,8 @@ fn encode_proof_rule_suffix(
         | ProofRule::IntegerOrderWeakening { .. }
         | ProofRule::IntegerOrderDiscreteness { .. }
         | ProofRule::IntegerSubtractOrder { .. }
+        | ProofRule::IntegerAddOrder { .. }
+        | ProofRule::IntegerSubtractAntitone { .. }
         | ProofRule::IntegerLessOrEqualTransitivity { .. }
         | ProofRule::IntegerStrictOrderTransitivity { .. } => {}
         ProofRule::IntegerOrderSubstitution { endpoint, .. } => {
@@ -327,7 +344,8 @@ pub(crate) fn decode_proof_node(
             1..=3 | 14 => 0,
             4 => reader.count()?,
             5 | 6 | 9 | 12 | 13 | 16 | 17 | 18 | 19 | 22 | 23 => 1,
-            7 | 8 | 10 | 11 | 15 | 20 | 21 => 2,
+            7 | 8 | 10 | 11 | 15 | 20 | 21 | 24 => 2,
+            25 => 3,
             tag => return Err(ProofCodecError::InvalidTag("ProofRule", tag)),
         };
         let node = PendingProofNode {
@@ -413,6 +431,15 @@ fn decode_proof_rule(
         20 => ProofRule::IntegerSubtractOrder {
             difference: Box::new(children.next().expect("decoded subtraction equation child")),
             positive: Box::new(children.next().expect("decoded positive decrement child")),
+        },
+        24 => ProofRule::IntegerAddOrder {
+            sum: Box::new(children.next().expect("decoded addition equation child")),
+            positive: Box::new(children.next().expect("decoded positive increment child")),
+        },
+        25 => ProofRule::IntegerSubtractAntitone {
+            smaller: Box::new(children.next().expect("decoded smaller difference child")),
+            larger: Box::new(children.next().expect("decoded larger difference child")),
+            order: Box::new(children.next().expect("decoded subtrahend order child")),
         },
         19 => ProofRule::IntegerOrderDiscreteness {
             relation: Box::new(

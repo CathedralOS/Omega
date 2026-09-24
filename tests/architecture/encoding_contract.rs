@@ -1097,6 +1097,7 @@ fn proof_rule_children_arity_matches_spec() {
                 "0" => Some("0"),
                 "1" => Some("1"),
                 "2" => Some("2"),
+                "3" => Some("3"),
                 other if other.contains("count()") => Some("counted"),
                 _ => None,
             };
