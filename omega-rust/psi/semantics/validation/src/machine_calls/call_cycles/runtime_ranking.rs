@@ -337,11 +337,36 @@ pub(super) fn check_component(
                     site_guards.push((guard, true));
                     guards.push((guard, false));
                 }
-                match program.statement_table.transition_target(transition.target) {
+                // `-> callee(..)` and `-> (callee(..))` denote the same tail
+                // arrival. An ATTACHED machine must spell a foreign tail call
+                // with the value-call parentheses, so a ranked component now
+                // meets the parenthesized form where it used to meet the named
+                // one. Read both as the same arrival instead of letting the
+                // parenthesized spelling reach the unclassified-effect
+                // rejection below; a call nested inside an operator or
+                // aggregate is not a top-level Call node and still rejects.
+                let target_node = program.statement_table.transition_target(transition.target);
+                let tail_arrival = match target_node {
                     TransitionTargetNode::Named {
                         path, arguments, ..
-                    } => {
-                        let Some(callee) = target_machine(program, path.symbol) else {
+                    } => Some((
+                        path.symbol,
+                        program.statement_table.expression_handles(*arguments),
+                    )),
+                    TransitionTargetNode::Value(value) => {
+                        match program.expression_table.expression(*value) {
+                            ExpressionNode::Call(call) if !call.receiver.is_valid() => Some((
+                                call.target_symbol,
+                                program.expression_table.expression_handles(call.arguments),
+                            )),
+                            _ => None,
+                        }
+                    }
+                    _ => None,
+                };
+                match tail_arrival {
+                    Some((target_symbol, arguments)) => {
+                        let Some(callee) = target_machine(program, target_symbol) else {
                             return Err("a call target has no exact machine identity");
                         };
                         if callee == index {
@@ -358,12 +383,11 @@ pub(super) fn check_component(
                         else {
                             return Err("a call target has no checked entry binding");
                         };
-                        if path.symbol != callee_machine.symbol
-                            && path.symbol != callee_entry.symbol
+                        if target_symbol != callee_machine.symbol
+                            && target_symbol != callee_entry.symbol
                         {
                             return Err("a subordinate-state call needs its own arrival evidence");
                         }
-                        let arguments = program.statement_table.expression_handles(*arguments);
                         if !arguments
                             .iter()
                             .all(|argument| expression_is_inert(program, machine, state, *argument))
@@ -477,13 +501,17 @@ pub(super) fn check_component(
                             });
                         }
                     }
-                    TransitionTargetNode::Value(value)
-                        if expression_is_inert(program, machine, state, *value) => {}
-                    TransitionTargetNode::Terminal => {}
-                    TransitionTargetNode::SelfTarget => {}
-                    _ => {
-                        return Err("a non-tail call or unknown effect prevents ranking admission");
-                    }
+                    None => match target_node {
+                        TransitionTargetNode::Value(value)
+                            if expression_is_inert(program, machine, state, *value) => {}
+                        TransitionTargetNode::Terminal => {}
+                        TransitionTargetNode::SelfTarget => {}
+                        _ => {
+                            return Err(
+                                "a non-tail call or unknown effect prevents ranking admission",
+                            );
+                        }
+                    },
                 }
             }
         }
